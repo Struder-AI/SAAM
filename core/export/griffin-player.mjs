@@ -3,7 +3,6 @@ import {distance,requireThat} from '../private/export/numeric.mjs';
 
 import {gcodeLines} from './gcode-lines.mjs';
 import {startupRetracted} from '../machine/rules.mjs';
-export const DWELL_COMMAND_MS=60000;
 
 // A decoder for the supported output subset. Geometry is reconstructed from
 // G-code coordinates and modal state, never from SAAMpath/display annotations.

@@ -1,16 +1,12 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
-
-// One G4 carries at most this many milliseconds; it is what the firmware reads
-// from a single command, not a limit on how long a path may pause.
-import {DWELL_COMMAND_MS} from './griffin-player.mjs';
-export {interpretGriffin,interpretMotion,interpretMotionChunk} from './griffin-player.mjs';
+import {gcodeMotion} from './gcode-motion.mjs';
 
 const fmt=(n,d=PROGRAM_DECIMALS)=>Number(n.toFixed(d)).toString();
 export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   path=prepareExportPath(path,plan,machine);
-  const motionLines=exportMotion(path,plan);
+  const motionLines=gcodeMotion(path,plan).lines;
   requireThat(machine.outputs.some(o=>o.id===plan.output && o.flavor==='Griffin'),'Machine does not declare Griffin export.');
   const s=plan.setup, area=Math.PI*(s.filamentMm/2)**2, tool=s.tool;
   const startupZ=machine.startup.zAfterStartupMm;
@@ -42,86 +38,4 @@ export function exportGriffin(path,plan,machine,{generatorVersion,buildDate}) {
   for(const line of motionLines)lines.push(line);
   for(const line of render(envelope.end))lines.push(line);
   return lines.join('\n')+'\n';
-}
-
-// The same volumetric SAAMpath actions and rounding rules feed every dialect.
-export function exportMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
-  requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
-  requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
-  const relativeE=extrusionMode==='relative';
-  let residualE=0;
-  const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2;
-  let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
-  // This body is also embedded in machine templates. Establish XYZ and feed on
-  // its first use, then rely only on modal state written by this exporter.
-  const modal={};
-  const field=(key,value)=>{
-    // Preserve the old writer's treatment of non-decimal representations.
-    // Supported machine coordinates/feed use ordinary decimal notation.
-    if(!Number.isFinite(value)||Math.abs(value)>=1e21)return ` ${key}${value}`;
-    if(modal[key]===value)return '';
-    modal[key]=value;return ` ${key}${value}`;
-  };
-  const motion=(command,target,extrusion,feed)=>{
-    let line=command;
-    if(target)for(let i=0;i<3;i++)line+=field('XYZ'[i],target[i]);
-    if(extrusion!==undefined)line+=` E${extrusion}`;
-    line+=field('F',Number(feed.toFixed(3)));
-    lines.push(line);
-  };
-  for(const a of path.actions) {
-    if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
-    requireThat(!/[\r\n]/.test(a.phase),'Invalid phase label.');
-    const nextTag=`${a.phase}:${a.layer}`;
-    if(tag!==nextTag){lines.push(`;SAAM_PHASE:${a.phase}`,`;LAYER:${a.layer}`);tag=nextTag;}
-    if(a.kind==='move') {
-      // Quantize once: command text, flow calculation and following position
-      // must all use these same written coordinates and extrusion value.
-      const target=a.to.map(v=>Number(v.toFixed(PROGRAM_DECIMALS)));
-      if(a.volumeMm3>0){
-        // Relative amounts carry their rounding remainder forward, as absolute
-        // E does by construction, so many equal short segments keep their total.
-        // A remainder never erases a segment that is writable on its own.
-        const ownMm=a.volumeMm3/area,filamentMm=ownMm+(relativeE?residualE:0);
-        if(!relativeE)e+=filamentMm;
-        let nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
-        if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(PROGRAM_DECIMALS));residualE=filamentMm-nextE;}
-        const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
-        requireThat(length>0, 'A deposition move collapsed at export precision.');
-        const speed=a.speedMmS;
-        const feed=Math.floor(speed*60*1000)/1000;
-        requireThat(feed>0,'Deposition feed collapsed at export precision.');
-        motion('G1',target,nextE,feed);
-        if(!relativeE)writtenE=nextE;
-      }
-      else motion(travelCommand,target,undefined,a.speedMmS*60);
-      writtenPosition=target;
-    } else if(a.kind==='extrude') {
-      const filamentMm=a.volumeMm3/area;
-      if(!relativeE)e+=filamentMm;
-      const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
-      const de=relativeE?nextE:nextE-writtenE;
-      requireThat(de>0,'Stationary extrusion collapsed at export precision.');
-      const feed=Math.floor(a.flowMm3S/area*60*1000)/1000;
-      requireThat(feed>0,'Stationary extrusion feed collapsed at export precision.');
-      motion('G1',null,nextE,feed);
-      if(!relativeE)writtenE=nextE;
-    } else if(a.kind==='temperature') {
-      lines.push(`M400`,`M109 S${fmt(a.targetC)}`);
-    } else if(a.kind==='retract'||a.kind==='recover') {
-      const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
-      if(!relativeE)e+=filamentMm;
-      const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
-      motion('G1',null,nextE,a.speedMmS*60);
-      if(!relativeE)writtenE=nextE;
-    } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
-    else if(a.kind==='dwell'){
-      // A longer pause is the same pause in commands the firmware accepts; the
-      // parts sum to the requested milliseconds, so the wait is not shortened.
-      let remaining=Math.ceil(a.seconds*1000);
-      do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);remaining-=part;}while(remaining>0);
-    }
-    else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
-  }
-  return lines;
 }

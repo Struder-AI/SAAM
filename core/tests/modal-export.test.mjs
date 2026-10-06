@@ -6,14 +6,14 @@ import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportMotion} from '../export/griffin.mjs';
+import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));
   for(const extrusionMode of ['absolute','relative']){
-    const lines=exportMotion(fixture.path,fixture.plan,{extrusionMode});
+    const {lines}=gcodeMotion(fixture.path,fixture.plan,{extrusionMode});
     assert.deepEqual(lines,fixture.expected[extrusionMode]);
     assert.doesNotMatch(lines.join('\n'),/[XYZ]-(?:0(?:\.0+)?)(?= |$)/,'rounded negative zero is written as zero');
   }
@@ -32,7 +32,7 @@ test('modal fields retain exact machine moves across speed, travel, retract and 
       assert.ok(a.to.every((v,k)=>Math.abs(v-actual.moves[i].to[k])<6e-6));
       assert.ok(Math.abs(a.volumeMm3-actual.moves[i].volumeMm3)<1e-4);
     });
-    const lines=exportMotion(prepareExportPath(path,plan,machine),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
+    const {lines}=gcodeMotion(prepareExportPath(path,plan,machine),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
     const modal={};let omittedFeed=0;
     for(const line of lines)if(/^G[01] /.test(line)) {
       const args=line.split(' ').slice(1);if(!args.some(a=>a.startsWith('F')))omittedFeed++;

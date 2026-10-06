@@ -1,6 +1,7 @@
 import {requireThat} from '../private/export/numeric.mjs';
-import {exportGriffin,interpretGriffin} from './griffin.mjs';
-import {exportBambu,interpretBambu,exportAndInterpretBambu} from './bambu.mjs';
+import {exportGriffin} from './griffin.mjs';
+import {interpretGriffin} from './griffin-player.mjs';
+import {exportBambu,interpretBambu} from './bambu.mjs';
 import {exportDobot,interpretDobot} from './dobot.mjs';
 import {exportDenso,interpretDenso} from './denso.mjs';
 
@@ -9,7 +10,7 @@ import {unpackZip} from './zip.mjs';
 const adapters={
   'denso-pacscript':{export:exportDenso,interpret:interpretDenso},
   'griffin-gcode':{export:exportGriffin,interpret:(bytes,plan,machine,options)=>interpretGriffin(Buffer.isBuffer(bytes)?bytes.toString('utf8'):bytes,plan,machine,options)},
-  'bambu-gcode':{export:exportBambu,interpret:interpretBambu,exportAndInterpret:exportAndInterpretBambu},
+  'bambu-gcode':{export:(...a)=>exportBambu(...a).bytes,interpret:interpretBambu},
   'dobot-lua':{export:exportDobot,interpret:interpretDobot}
 };
 export function outputAdapter(plan,machine){

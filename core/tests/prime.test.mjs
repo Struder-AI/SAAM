@@ -7,7 +7,8 @@ import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
-import {exportGriffin,interpretGriffin} from '../export/griffin.mjs';
+import {exportGriffin} from '../export/griffin.mjs';
+import {interpretGriffin} from '../export/griffin-player.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('S5 shell exports recover, sacrificial strokes, then the part on either nozzle',async()=>{
