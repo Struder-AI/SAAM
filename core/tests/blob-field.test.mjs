@@ -1,7 +1,7 @@
 import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
@@ -14,7 +14,7 @@ import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../agent/blob-field.mjs';
-import {loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
+import {loadBundle,generateBundle} from '../print/bundle.mjs';
 import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
 
 const field=(points,threshold=0.25)=>({schema:'saam-blob-field/1',threshold,points});
@@ -65,7 +65,7 @@ test('requests default the threshold and sampling and store them explicitly',asy
   assert.throws(()=>compileRequest({points:[],isoValue:0}),/request/);
 });
 
-test('blob field lifecycle slices, reopens, delivers exact bytes and invalidates changed points',async t=>{
+test('blob field lifecycle slices, reopens and updates changed points',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const request={points:[blob([0,0,1],8),blob([5,0,1],6)],edgeMm:0.5};
   let state=await createBlobFieldBundle(dir,request,{machineId:'ultimaker-s5'});
@@ -73,11 +73,7 @@ test('blob field lifecycle slices, reopens, delivers exact bytes and invalidates
   const native=await createGeometry(state.plan.geometry),fake=structuredClone(native.descriptor);fake.vertices[0][0]+=1;
   await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity/);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.ok(state.program.moves.length>0);
-  const bytes=await readFile(join(dir,state.review.generation.file));
-  await approve(dir,{actor:'SYNTHETIC BLOB FIELD TEST',revision:state.revision});
-  assert.deepEqual(await readFile(await deliver(dir)),bytes);
   state=await loadBundle(dir);request.points[1].strength=1.5;
-  state=await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});
-  assert.equal(state.toolpathApproved,false);
+  await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});
   await assert.rejects(updateBlobFieldBundle(dir,request,{expectedRevision:'stale'}),/stale/);
 });

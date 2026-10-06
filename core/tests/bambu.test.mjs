@@ -1,7 +1,7 @@
 import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
@@ -11,14 +11,13 @@ import {generatePath} from '../print/generate.mjs';
 import {exportProgram,decodeProgram,exportAndDecodeProgram} from '../export/registry.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
-import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle,bundleInstance,withBundleInstance} from '../print/bundle.mjs';
+import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {resolveBambuJob} from '../export/bambu-job.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
-const actor='SYNTHETIC H2D TEST — not a real approval';
 function fixture(tool=0,nozzleMm=0.4){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.setup.tool=tool;
   plan.setup.nozzleMm=nozzleMm;plan.setup.core=`Hardened steel ${nozzleMm}`;
@@ -328,23 +327,14 @@ test('ZIP format rejects unsafe names, damaged directories and unreferenced byte
   assert.throws(()=>unpackZip(Buffer.concat([bytes,Buffer.from('extra')])));
   const corrupt=Buffer.from(bytes);corrupt[14]^=1;assert.throws(()=>unpackZip(corrupt),/checksum/);
 });
-test('H2D Studio reviews extracted G-code and delivers the exact approved archive',async t=>{
+test('H2D Studio reviews extracted G-code without sending the program in state',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-h2d-workflow-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const {plan,machine}=fixture();await initBundle(dir,plan,{machineId:machine.id});
-  await generateBundle(dir,{development:true});await assert.rejects(deliver(dir),/approval/);
-  let state=await loadBundle(dir);
-  await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);
+  await generateBundle(dir);const state=await loadBundle(dir);assert.equal(state.programError,undefined);
   assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
-  state=await approve(dir,{actor,revision:state.revision});assert.equal(state.toolpathApproved,true);
-  const exportFile=join(dir,state.review.generation.file),bytes=await readFile(exportFile);
   const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
-  const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
+  const origin=`http://127.0.0.1:${server.address().port}`;
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
-  const altered=Buffer.from(bytes);altered[90]^=1;await writeFile(exportFile,altered);
-  assert.match((await loadBundle(dir)).programError,/changed/);await assert.rejects(deliver(dir),/approval/);
-  await writeFile(exportFile,bytes);
-  await withBundleInstance(dir,await bundleInstance(dir),()=>adjustBundle(dir,{process:{planarSpeedMmS:18}}));state=await loadBundle(dir);
-  assert.equal(state.toolpathApproved,false);
 });
 
 

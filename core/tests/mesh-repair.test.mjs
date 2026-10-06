@@ -109,7 +109,7 @@ test('streamed files preserve source bytes and accepted geometry chunks reassemb
   for(const c of chunks)assert.ok(c.faces.length<=4096);
   const mesh=await decodeSTLFile(join(root,'repair/repaired.stl'),{units:'mm'});validateRepair(mesh);
   const actual=chunks.flatMap(c=>c.faces.map(t=>t.map(i=>c.vertices[i]))),expected=mesh.triangles.map(t=>t.map(i=>mesh.vertices[i]));assert.deepEqual(actual,expected);
-  for(const machineId of ['ultimaker-s5','bambu-h2d']){const directory=join(root,machineId);await importSTLBundle(directory,join(root,'repair/repaired.stl'),{units:'mm',machineId});const state=await loadBundle(directory,{program:false});assert.deepEqual(state.review.approvals,{});assert.equal(state.plan.geometry.source.sha256,report.repairedSha256);}
+  for(const machineId of ['ultimaker-s5','bambu-h2d']){const directory=join(root,machineId);await importSTLBundle(directory,join(root,'repair/repaired.stl'),{units:'mm',machineId});const state=await loadBundle(directory,{program:false});assert.equal(state.plan.geometry.source.sha256,report.repairedSha256);}
   await assert.rejects(repairSTLFiles(join(root,'repair'),source,{units:'mm'}),/EEXIST/);
 });
 test('streamed ASCII and binary parsing match byte ingestion across chunk boundaries',async t=>{

@@ -27,7 +27,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   const supplied=new Map();let bundleLoads=0;
   const resolver=async dir=>{
     assert.equal(JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).schema,'scratch-test/1');
-    const state=Object.freeze({kind:'shell',marker:dir,code:'adapter-only',dir,review:Object.freeze({approvals:Object.freeze({})})});
+    const state=Object.freeze({kind:'shell',marker:dir,code:'adapter-only',dir,review:Object.freeze({})});
     supplied.set(dir,state);
     return {bundleFingerprints:async()=>({source:dir,presentation:dir}),loadBundle:async()=>{bundleLoads++;return state;}};
   };
@@ -60,7 +60,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
   assert.deepEqual(await listPrints(library),[]);
 });
 
-test('Studio reopens saved exports without creating or rewriting approvals',async t=>{
+test('Studio reopens saved exports without rewriting them',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-open-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const geometry=join(library,'geometry-only'),ready=join(library,'ready-h2d');
   await shell.initBundle(geometry,boxPlan(),{machineId:'ultimaker-s5'});
@@ -80,21 +80,21 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   const get=async()=>await(await fetch(origin+'/api/state')).json();
   const post=(route,data,authorized=true)=>fetch(origin+'/api/'+route,{method:'POST',headers:{Origin:authorized?origin:'http://evil.invalid','X-SAAM-Token':token},body:JSON.stringify(data)});
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
-  const first=await get();assert.equal(first.toolpathApproved,false);assert.equal(first.program,undefined);
+  const first=await get();assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
   const archive=join(ready,(await shell.loadBundle(ready)).review.generation.file);
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
-  state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);assert.equal(state.toolpathApproved,false);
+  state=await get();assert.ok(state.program.summary.moves);assert.equal(state.program.moves,undefined);
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);
   const requests=channel.requests;
-  const shown={stage:'toolpath',revision:state.revision,exportHash:state.exportHash};
-  assert.equal((await post('view-ready',{...shown,exportHash:'stale'})).status,200);
+  const shown={stage:'toolpath',revision:state.revision,outputId:state.outputId};
+  assert.equal((await post('view-ready',{...shown,outputId:'stale'})).status,200);
   assert.equal((await requests.list()).length,0,'stale displayed data creates no advisory');
   assert.equal((await post('view-ready',shown)).status,200);
   assert.equal((await post('view-ready',shown)).status,200);
   const pending=await requests.wait({waitMs:0});
   assert.equal(pending.requests.length,1);assert.equal(pending.requests[0].kind,'advisory');
-  assert.equal(pending.requests[0].evidence.exportHash,state.exportHash);
+  assert.equal(pending.requests[0].evidence.outputId,state.outputId);
   assert.deepEqual(pending.requests[0].evidence.shortTravel,state.program.summary.shortTravel);
   assert.ok(pending.requests[0].evidence.shortTravel.count>0);
   assert.match(pending.requests[0].instruction,/Tell the person[\s\S]*Mention this finding to the person in your next reply/);
@@ -107,22 +107,7 @@ test('Studio reopens saved exports without creating or rewriting approvals',asyn
   assert.equal((await post('generate',{development:true,printId:first.printId})).status,400,'an old tab cannot mutate a newly opened print');
   assert.equal((await post('open',{path:join(library,'missing')})).status,400);
   assert.equal((await get()).printId,state.printId,'failed opening retains the current print');
-  await writeFile(archive,Buffer.from('altered'));
-  assert.equal((await post('open',{path:ready})).status,200);
-  state=await get();assert.equal(state.program,undefined);assert.match(state.programError,/changed/);
-  assert.equal(state.toolpathApproved,false);
   assert.equal((await post('open',{path:join(geometry,'plan.json')})).status,200);
-  assert.equal((await get()).toolpathApproved,false);
-});
-
-test('final approval rejects a saved export whose bytes changed',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-approval-export-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});await shell.generateBundle(dir,{development:false});
-  const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
-  const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
-  const state=await(await fetch(origin+'/api/state')).json();assert.ok(state.program);
-  const file=join(dir,(await shell.loadBundle(dir)).review.generation.file);await writeFile(file,(await readFile(file,'utf8'))+'; changed after viewing\n');
-  const current=await(await fetch(origin+'/api/state')).json();assert.match(current.programError,/files changed/);assert.equal(current.exportHash,undefined);
 });
 
 test('ordinary review does not slice; explicit generation retries a failed worker',async t=>{
@@ -147,12 +132,12 @@ test('ordinary review does not slice; explicit generation retries a failed worke
   await get();await get();assert.equal(attempts,0,'geometry review does not slice');
   const failedGeneration=await post('generate',{});assert.equal(failedGeneration.status,400);
   assert.match((await failedGeneration.json()).error,/SYNTHETIC worker startup failure/);
-  state=await get();assert.deepEqual(state.review.approvals,{});assert.equal(state.review.generation,null);
+  state=await get();assert.equal(state.review.generation,null);
   assert.match((await failure).message,/SYNTHETIC worker startup failure/);
   await get();await get();assert.equal(attempts,1,'state refresh must not create a background retry loop');
   assert.equal((await post('generate',{})).status,200);
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
-  assert.equal(state.toolpathApproved,false);assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
+  assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
 });
 
 test('Studio opening retries a read spanning a multi-file edit but preserves persistent validation errors',async()=>{

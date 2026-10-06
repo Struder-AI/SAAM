@@ -23,7 +23,7 @@ test('new printer profiles provide valid planar defaults and distinguish hardwar
     validatePlan(plan,machine);
     assert.equal(plan.setup.material,'PLA');
     if(id==='bambu-x1-carbon'){
-      assert.ok(outputAdapter(plan,machine).exportAndInterpret,'X1 Carbon uses the shared Bambu adapter');
+      assert.ok(outputAdapter(plan,machine).export,'X1 Carbon uses the shared Bambu adapter');
       assert.equal(machine.nonplanar.maxAngleDeg,10,'X1 Carbon declares the experimental 10 degree nonplanar limit');
       assert.equal(machine.nonplanar.experimental,true);
       assert.ok(plan.slices.assignments.some(a=>a.surface?.kind==='roof'));
@@ -68,13 +68,12 @@ test('profiles without an exporter persist through shared setup review and refus
     const plan=await proposedPlan(id,{machineSetups});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
     await initBundle(directory,plan,{machineId:id});
     let state=await loadBundle(directory,{program:false});
-    assert.equal(state.machine.id,id);assert.equal(state.toolpathApproved,false);
+    assert.equal(state.machine.id,id);
     await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision});
     state=await loadBundle(directory,{program:false});assert.equal(state.plan.setup.material,'ABS');
     const progress=[];
     await assert.rejects(generateBundle(directory,{development:true,onProgress:event=>progress.push(event)}),/export is not implemented/);
     assert.ok(!progress.some(event=>event.stage==='Preparing geometry'));
     await assert.rejects(access(join(directory,'exports')),/ENOENT/);
-    assert.equal((await loadBundle(directory,{program:false})).toolpathApproved,false);
   }
 });

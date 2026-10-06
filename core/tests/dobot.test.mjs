@@ -1,7 +1,7 @@
 import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {defaults,validatePlan} from '../print/plan.mjs';
@@ -11,12 +11,11 @@ import {exportProgram,decodeProgram} from '../export/registry.mjs';
 import {prepareExportPath} from '../export/prepare-path.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {LuaRuntime} from '../export/dobot-lua-subset.mjs';
-import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
+import {initBundle,generateBundle,loadBundle,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
-const actor='SYNTHETIC DOBOT TEST — not a real approval';
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
   plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
@@ -112,7 +111,7 @@ test('a pause longer than one Wait command is split, not refused',()=>{
   assert.equal(dwells.reduce((sum,e)=>sum+e.seconds,0),150);
 });
 
-test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects helper changes and delivers unchanged',async()=>{
+test('Dobot shared lifecycle generates through the bundle and refuses a stale edit',async()=>{
   const {machine,plan}=fixture(),dir=await mkdtemp(join(tmpdir(),'saam-dobot-bundle-'));
   try{
     await initBundle(dir,plan,{machineId:machine.id});let state=await loadBundle(dir);
@@ -120,14 +119,7 @@ test('Dobot shared lifecycle binds exact ZIP to synthetic approvals, detects hel
     const checks=await generateBundle(dir);
     assert.equal(checks.materialModel,'relay-estimate');
     state=await loadBundle(dir);assert.equal(state.programError,undefined);
-    state=await approve(dir,{actor,revision:state.revision});
-    const output=join(dir,state.review.generation.file),original=await readFile(output);
-    const delivery=await deliver(dir);assert.deepEqual(await readFile(delivery),original);
-    const entries=unpackZip(original);entries.set('global.lua',Buffer.from(entries.get('global.lua').toString().replace('tool=1','tool=3')));await writeFile(output,packZip(entries));
-    state=await loadBundle(dir);assert.equal(state.toolpathApproved,false);assert.match(state.programError,/Generated files changed/);
-    await assert.rejects(()=>deliver(dir),/exact current export/);
-    await writeFile(output,original);state=await loadBundle(dir);
     await assert.rejects(()=>adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:'stale'}),/stale/);
-    const revised=await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});assert.equal(revised.toolpathApproved,false);
+    await adjustBundle(dir,{process:{planarSpeedMmS:15}},{expectedRevision:state.revision});
   }finally{await rm(dir,{recursive:true,force:true});}
 });

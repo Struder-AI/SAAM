@@ -14,7 +14,7 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
 import {rhino} from '../geom/runtime.mjs';
-import {initBundle,generateBundle,loadBundle,approve,deliver,adjustBundle} from '../print/bundle.mjs';
+import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {exportProgram,decodeProgram,exportAndDecodeProgram} from '../export/registry.mjs';
 import {interpretDensoFiles} from '../export/denso-player.mjs';
 import {unpackZip} from '../export/zip.mjs';
@@ -122,7 +122,7 @@ test('tube export retains the substrate and normal-aligned axial/hoop shells out
 test('RC8A uses the public bundle, exact browser source and cold reopen without reslicing',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
-  const state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.deepEqual(state.review.approvals,{});await assert.rejects(()=>deliver(dir),/approv/);
+  const state=await loadBundle(dir);assert.equal(state.programError,undefined);
   const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=outputView(await(await fetcher('/api/state')).json());
   assert.equal(remote.program.moves,undefined);
@@ -131,11 +131,6 @@ test('RC8A uses the public bundle, exact browser source and cold reopen without 
   for(const name of ['/core/export/denso-player.mjs','/core/geom/frame.mjs','/core/geom/tolerance.mjs','/core/machine/denso.mjs'])assert.equal((await fetcher(name)).status,200);
   const bytes=await readFile(join(dir,state.review.generation.file));
   for(const [name,source] of Object.entries(files))assert.equal(source,unpackZip(bytes).get(name).toString());
-  const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.exportHash);`;
-  assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.exportHash);
-  const actor='SYNTHETIC TEST REVIEWER — no human or hardware approval';
-  await server.runBundleEdit(dir,()=>generateBundle(dir));const ready=await loadBundle(dir);
-  await server.runBundleEdit(dir,()=>approve(dir,{actor,revision:ready.revision}));
-  const delivered=await server.runBundleEdit(dir,()=>deliver(dir));assert.deepEqual(await readFile(delivered),bytes);
-  await server.runBundleEdit(dir,()=>adjustBundle(dir,{setup:{denso:{workYawDeg:5}}}));const altered=await loadBundle(dir);assert.equal(altered.toolpathApproved,false);
+  const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.outputId);`;
+  assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.outputId);
 });

@@ -7,7 +7,7 @@ import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {createThingi10KClient, csvRows, readRemote, REVISION} from '../scripts/library.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
-import {loadBundle, generateBundle, approve, deliver, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
+import {loadBundle, generateBundle, exportReviewed, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
 import {setSTLUnits} from '../../../core/print/import-stl.mjs';
 import {createLocalRuntime} from '../../../core/application/runtime.mjs';
 import {homePaths} from '../../../core/application/home.mjs';
@@ -123,7 +123,7 @@ test('application import preserves attribution through correction and delivery',
   const call=async(name,args)=>session.invoke(name,args);
   const results=await call('search_thingi10k',{query:'bunny'});
   const imported=await call('import_thingi10k_bundle',{bundleId:'Bunny',fileId:results.results[0].fileId,machineId:'ultimaker-s5'});
-  assert.equal(imported.imported,true);assert.equal(imported.toolpathApproved,null);
+  assert.equal(imported.imported,true);
   assert.ok(imported.chatNotice.includes(imported.attribution.licenseUrl));
   const dir=resolve(printsRoot,'Bunny');
   let state=await loadBundle(dir,{program:false});
@@ -140,14 +140,11 @@ test('application import preserves attribution through correction and delivery',
     state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
     state.plan.process.minimumLayerSeconds=0;
     await updatePlan(dir,state.plan,state.revision);
-    // Synthetic approvals apply only to this isolated fixture.
-    state=await loadBundle(dir,{program:false});
     await generateBundle(dir);
-    state=await loadBundle(dir);
-    await approve(dir,{revision:state.revision,actor:'SYNTHETIC TEST ONLY'});
-    return deliver(dir);
+    state=await loadBundle(dir,{program:'source'});
+    return (await exportReviewed(state)).file;
   });
-  assert.equal(createHash('sha256').update(await readFile(destination)).digest('hex'),state.exportHash);
+  assert.deepEqual(await readFile(destination),await readFile(resolve(dir,state.review.generation.file)));
   const attribution=JSON.parse(await readFile(resolve(dir,'delivery/source-attribution.json')));
   assert.equal(attribution.sha256,imported.attribution.sha256);
   assert.equal(attribution.licenseUrl,'https://www.thingiverse.com/thing:12#license');

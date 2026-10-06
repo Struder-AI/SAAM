@@ -43,7 +43,7 @@ test('manual sections preserve duplicate heading identities and reject private o
   await assert.rejects(readGuidance(scratch, 'core/ref/hardlink.md'), /hard-linked/);
 });
 
-test('shared STL importer and both recipe adapters resolve the same remembered setup without recording approvals', async t => {
+test('shared STL importer and both recipe adapters resolve the same remembered setup', async t => {
   const scratch = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-access-'));
   t.after(() => rm(scratch, { recursive: true, force: true }));
   const machineSetups = scratch, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
@@ -57,7 +57,6 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   await importSTLBundle(dir, bytes, { units: 'mm', machineId: 'ultimaker-s5', machineSetups });
   const state = await loadBundle(dir);
   assert.equal(state.plan.setup.bedC, 67);
-  assert.deepEqual(state.review.approvals, {});
   assert.deepEqual(await readFile(resolve(dir, 'geometry/source.stl')), bytes);
   const inferred = resolve(scratch, 'Automatic units');
   await importSTLBundle(inferred, bytes, { machineId: 'ultimaker-s5', machineSetups });
@@ -78,5 +77,4 @@ test('checks report ungenerated geometry and edits reject stale chat revisions',
   await adjustBundle(dir, patch, { expectedRevision: checked.revision });
   const after = await loadBundle(dir);
   assert.equal(after.plan.process.planarSpeedMmS, 23);
-  assert.deepEqual(after.review.approvals, {});
 });
