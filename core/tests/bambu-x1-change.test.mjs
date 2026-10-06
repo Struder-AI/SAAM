@@ -17,7 +17,7 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   const path=await generatePath(plan,machine),prepared=prepareExportPath(path,plan,machine);
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,2]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
-  const bytes=exportProgram(path,plan,machine,release),program=decodeProgram(bytes,plan,machine);
+  const bytes=exportProgram(path,plan,machine,release).bytes,program=decodeProgram(bytes,plan,machine);
   assert.deepEqual(program.filamentSequence,[0,1,2]);
   const code=program.code,source=decodeSource({program:code},plan,machine);
   assert.deepEqual(source.moves.map(m=>[m.tool,m.filament,m.to]),program.moves.map(m=>[m.tool,m.filament,m.to]));
@@ -43,9 +43,9 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
 test('X1 automatic changes reject external feed and missing clearance contract',async()=>{
   const {plan,machine}=x1ColourFixture(),path=await generatePath(plan,machine);
   plan.setup.bambu.filaments[1].source={type:'external'};
-  assert.throws(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
+  assert.throws(()=>exportProgram(path,plan,machine,release).bytes,/require AMS feeds/);
   plan.setup.bambu.filaments[1].source={type:'auto'};
   const unsupported=structuredClone(machine);
   unsupported.outputs.find(o=>o.id===plan.output).constraints.toolChangeLiftMm=0;
-  assert.throws(()=>exportProgram(path,plan,unsupported,release),/clearance contract/);
+  assert.throws(()=>exportProgram(path,plan,unsupported,release).bytes,/clearance contract/);
 });

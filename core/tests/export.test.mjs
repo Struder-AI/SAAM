@@ -2,7 +2,8 @@ import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { exportGriffin, interpretGriffin } from '../export/griffin.mjs';
+import { exportProgram } from '../export/registry.mjs';
+import { interpretGriffin } from '../export/griffin-player.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -11,7 +12,7 @@ const machine=JSON.parse(readFileSync('machines/ultimaker-s5.json','utf8'));
 const plan=defaults();
 plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
 const path=await generatePath(plan,machine);
-const emit=(m=machine,p=path)=>exportGriffin(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+const emit=(m=machine,p=path)=>exportProgram(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE}).bytes;
 
 test('machine templates preserve the last working S5 envelope',()=>{
   // Compare against the checkpoint the user identified as the working behavior.
