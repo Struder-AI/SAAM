@@ -20,7 +20,7 @@ const schemas={
 export const help={commands:{
   'maker-onboarding [--machine ID]':'Read maker context for source guidance work. Installed making uses saam call maker_onboarding.',
   'builder-onboarding [--area AREA] [--set NAME]':'Read builder guidance and consumed component contracts.',
-  'developer-onboarding [--area AREA] [--set NAME]':'Read glossary, developer context and map 0.',
+  'developer-onboarding [--area AREA] [--set NAME]':'Read glossary and developer context, and the maps of the boxes owning each --area.',
   'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]':'Read selected manual roles or one complete heading.',
   'read-guidance PATH#HEADING [--machine ID] [--all]':'Read a published manual or section with its headings and gates.',
   'read-map ADDRESS [--set NAME]':'Read a map (boxes, leaves as NAME FILE:LINES, arrows) or an arrow @link/MAP/FROM/TO (its leaf arrows). Never returns code.',
@@ -29,7 +29,7 @@ export const help={commands:{
 },developmentAreas:Object.keys(developmentAreas),notes:[
   'Making, Studio, tours, requests and workspace jobs use saam; see core/application/README.md.',
   'Maps: 030-influence (default) for product work; 030-deployment for installation/service work.',
-  '--area may repeat. Map indexes change on regeneration; record names and files, not indexes.'
+  '--area (a development area or a map address) may repeat. Map indexes change on regeneration; record names and files, not indexes.'
 ]};
 
 export async function runCLI(args=process.argv.slice(2),{write=value=>console.log(JSON.stringify(value))}={}){

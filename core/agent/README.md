@@ -32,8 +32,8 @@ then a box, then `@link/MAP/FROM/TO` for an arrow's leaf arrows, then the source
 at `file:lines` with ordinary file tools. Reads never return code. The default
 set is `030-influence`; installation and service work passes
 `--set 030-deployment`. Run `regenerate` after each task. Indexes change on
-regeneration; record names and files. `--area` accepts component manuals or map
-addresses and may repeat.
+regeneration; record names and files. `--area` names an area (a builder reads its manuals,
+a developer the maps owning its code) or a map address, and may repeat.
 
 `context-budget` measures assembled manuals and the full application operation
 catalog without starting the app or its release service. Its isolated temporary

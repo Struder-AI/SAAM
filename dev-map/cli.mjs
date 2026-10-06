@@ -9,7 +9,9 @@ if(command==='read') {
   const {positionals}=parseArgs({args,allowPositionals:true,options:{}});
   if(positionals.length>1)throw Error('Read one map or contract address.');
   const {readMap}=await import('./lib/read.mjs');
-  console.log(JSON.stringify(await readMap(positionals[0]??'0',{repo:root}),null,1));
+  // A read that fails says why in one line: an unknown address lists the addresses there are.
+  const read=await readMap(positionals[0]??'0',{repo:root}).catch(error=>{console.error(error.message);process.exit(1);});
+  console.log(JSON.stringify(read,null,1));
   process.exit(0);
 }
 // A solved influence set (influence/solved-set.mjs) is written whole by its generator; a design

@@ -14,19 +14,14 @@ import {readExtension} from '../extensions/library.mjs';
 const execFileAsync=promisify(execFile);
 
 export const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-// Areas outside the map: skills, application, setup, the tests and this toolkit are not mapped, so
-// they have their own guidance. An `--area` value that names no manual area is a map target: a
-// node's index or declaration path.
-export const outsideAreas = {
+// The manuals of each area, beside the code they describe. A builder gets the manuals of the areas
+// it names. A developer gets the maps of the map-0 boxes owning an area's code (an `@path/` read of
+// each manual's folder), and an area's manuals only where no map covers it (setup, tests). An
+// `--area` value that names no area is a map address.
+export const developmentAreas = {
   application: ['core/application/README.md'],
   skills: ['skills/AUTHORING.md'], setup: ['SETUP.md'],
-  'core/agent': ['core/agent/README.md']
-};
-// One prose manual per component, beside the code it describes. A builder gets the manual for the
-// area it names; a developer gets none bundled, because the map and DEVELOPER-CONTEXT are the
-// developer's orientation.
-export const componentManuals = {
-  core: ['core/README.md'],
+  'core/agent': ['core/agent/README.md'], core: ['core/README.md'],
   'core/export': ['core/export/README.md'], 'core/geom': ['core/geom/README.md'],
   'core/machine': ['core/machine/README.md', 'machines/README.md'],
   'core/path': ['core/path/README.md'], 'core/print': ['core/print/README.md'],
@@ -34,7 +29,6 @@ export const componentManuals = {
   studio: ['studio/README.md', 'studio/KINEMATICS.md', 'studio/RENDERING.md'],
   tests: ['core/tests/README.md'] // the tests are documented, but they are not a region of the map
 };
-export const developmentAreas = {...outsideAreas, ...componentManuals};
 const json = async path => JSON.parse(await readFile(path, 'utf8'));
 
 // Manuals as this command-line agent reads them: script sections included, advanced ones for
@@ -113,7 +107,8 @@ export async function readSkill(name, {maker = false, builder = false, developer
 export const developerMapSet = '030-influence';
 async function mapCommand(set, command, args = []) {
   const {stdout} = await execFileAsync(process.execPath,
-    [resolve(root, 'dev-map/cli.mjs'), command, ...args, '--set', set], {cwd: root, maxBuffer: 32 * 1024 * 1024});
+    [resolve(root, 'dev-map/cli.mjs'), command, ...args, '--set', set], {cwd: root, maxBuffer: 32 * 1024 * 1024})
+    .catch(error => { throw Error(error.stderr?.trim() || error.message); });
   return {mapSet: set, ...JSON.parse(stdout)};
 }
 
@@ -128,19 +123,27 @@ export async function regenerateMap(index, {set = developerMapSet} = {}) {
   return mapCommand(set, 'regenerate', index ? [index] : []);
 }
 
+// The map-0 boxes owning an area's code, from the folders of its manuals.
+async function areaOwners(area, set) {
+  const folders = [...new Set(developmentAreas[area].map(dirname).filter(folder => folder !== '.'))];
+  const reads = await readMaps(folders.map(folder => `@path/${folder}`), {set});
+  return [...new Set(reads.flatMap(read => Object.keys(read.owners)))];
+}
+
 // Three roles, three readings. A maker reads prose and no map. A builder reads prose — its own
 // manual, skill authoring and the component manual for the area — and may read maps. A
 // developer reads shared terms, the full developer context and map `0`; component manuals open as needed.
 // A maker's manuals open by client and machine; a builder's and developer's are read whole.
 export async function onboarding({role, areas = [], machine: machineId, set = developerMapSet}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
-  const outside = areas.filter(area => Object.hasOwn(outsideAreas, area));
+  const named = [...new Set(areas.filter(area => Object.hasOwn(developmentAreas, area)))];
   const targets = [...new Set(areas.filter(area => !Object.hasOwn(developmentAreas, area)))];
-  const builderAreaIds = [...new Set(areas.flatMap(area => developmentAreas[area] ?? []))];
+  const owners = role === 'developer' ? await Promise.all(named.map(area => areaOwners(area, set))) : [];
+  const manuals = list => [...new Set(list.flatMap(area => developmentAreas[area]))];
   const ids = role === 'maker' ? ONBOARDING
-    : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...builderAreaIds]
-    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...new Set(outside.flatMap(area => outsideAreas[area]))];
-  const mapKeys = role === 'maker' ? [] : targets;
+    : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...manuals(named)]
+    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...manuals(named.filter((_, k) => !owners[k].length))];
+  const mapKeys = role === 'maker' ? [] : [...new Set([...targets, ...owners.flat()])];
   const [context, environment, maps, notes] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes(homePaths())]);
   return {role, environment, notes, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),

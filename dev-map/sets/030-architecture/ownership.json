@@ -8867,13 +8867,9 @@
       "owner": "context",
       "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
     },
-    "core/agent/toolkit.mjs::outsideAreas": {
-      "owner": "context",
-      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
-    },
-    "core/agent/toolkit.mjs::componentManuals": {
-      "owner": "context",
-      "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
+    "core/agent/toolkit.mjs::areaOwners": {
+      "owner": "development",
+      "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
     "core/agent/toolkit.mjs::developmentAreas": {
       "owner": "context",
