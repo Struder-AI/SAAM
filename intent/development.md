@@ -133,7 +133,7 @@ Sources: [0.3.5 "Dev map rebuild"](../plans/0.3.5.md) (bundles retirement with t
 >
 > "I HATE that there is a silent dev instance." — owner, 2026-10-05 (Claude 764ea5bb 21:07)
 
-Summary: developer agents verifying source changes use one development tool; a development instance a session starts is stopped before it reports back. **Owner question pending**: whether a development instance may run with no tray entry and no window (the current tool's default) or must appear in the tray.
+Summary: developer agents verifying source changes use one development tool; a development instance a session starts is stopped before it reports back. Resolved by the owner, 2026-10-06 (Claude 3594b461): "I want background instances to still show up on the tray, even though no studio window is visible."
 
 Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); `.local/DEVELOPMENT.md` "No silent dev instances"; `.local/team/BRIEF.md`.
 

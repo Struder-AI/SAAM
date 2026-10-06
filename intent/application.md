@@ -9,7 +9,7 @@ The SAAM application: the tray orchestrator, runtimes, the single `saam` route, 
 >
 > "only one orchestrator per home ever runs" — agent clause added to the owner's second-launch quotes ([0.3.4 "Second launch brings Studio forward"](../plans/0.3.4.md))
 
-Summary: one SAAM orchestrator runs, shown as the only tray icon, and coordinates every runtime and Studio window; Quit lives in the tray. **Owner question pending**: "per OS" (owner) or "per home" (agent clause, and how the lock is built).
+Summary: one SAAM orchestrator runs, shown as the only tray icon, and coordinates every runtime and Studio window; Quit lives in the tray. Resolved by the owner, 2026-10-06 (Claude 3594b461): "Current behavior is fine with different saam user accounts on mac seeing different folders, and windows users seeing the same one presumably. I don't care much about this." One orchestrator per home, as built.
 
 Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); [0.3.2 SAAM application](../plans/0.3.2.md#saam-application-chats-and-folders); Claude 764ea5bb 21:00 ("Pretty sure I just saw two in the system tray just now"); Claude c6c50c08 18:13 ("It needs to be in the tray").
 
