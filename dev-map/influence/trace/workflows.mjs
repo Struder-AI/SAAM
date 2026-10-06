@@ -7,18 +7,16 @@ import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {createChatChannel} from '../../../core/application/chat-requests.mjs';
 
-const ACTOR='SYNTHETIC TRACE REVIEWER - not a real approval';
 const core=path=>import(new URL(`../../../core/${path}`,import.meta.url).href);
 const example=path=>import(new URL(`../../../examples/prints/${path}`,import.meta.url).href);
 
-// Generate, confirm and deliver the exact checked machine file.
+// Generate and export the exact checked machine file, as Studio's Export does.
 async function generateAndExport(directory) {
-  const {generateBundle,loadBundle,approve,deliver}=await core('print/bundle.mjs');
+  const {generateBundle,loadBundle,exportReviewed}=await core('print/bundle.mjs');
   const checks=await generateBundle(directory);
-  let state=await loadBundle(directory);
+  const state=await loadBundle(directory,{program:'source'});
   if(!state.program||state.programError)throw Error('Generation produced no program: '+(state.programError??'unknown'));
-  state=await approve(directory,{actor:ACTOR,revision:state.revision});
-  const delivered=await deliver(directory);
+  const delivered=(await exportReviewed(state)).file;
   return {mode:checks?.mode,delivered};
 }
 
@@ -110,7 +108,6 @@ export const workflows={
       let bundle=await call('get_bundle',{bundleId:'Agent part'});
       await call('change_machine',{bundleId:'Agent part',machineId:'bambu-x1-carbon',expectedEditRevision:bundle?.editRevision});
       await call('generate_toolpath',{bundleId:'Agent part'});
-      await call('get_approval_status',{bundleId:'Agent part'});
       await call('list_bundles',{});
       const x=20,y=14,z=5;
       const vertices=[[0,0,0],[x,0,0],[x,y,0],[0,y,0],[0,0,z],[x,0,z],[x,y,z],[0,y,z]];

@@ -6,44 +6,39 @@ import {studioControls} from '../../studio/studio-controls.mjs';
 import {summary as applicationSummary} from '../application/runtime.mjs';
 
 const state=(overrides={})=>({
-  dir:'Prints/example',kind:'shell',revision:'revision',geometryHash:'geometry',
+  dir:'Prints/example',kind:'shell',revision:'revision',geometryId:'geometry',geometryInputId:'geometry',
   plan:{geometry:{shape:'shell'},output:'gcode'},geometry:{boundsMm:{}},
   machine:{id:'machine',name:'Machine'},skills:[],limitations:[],
-  review:{generation:null,approvals:{}},program:undefined,programError:undefined,
-  toolpathApproved:false,outputAvailability:null,...overrides
+  review:{generation:null},program:undefined,programError:undefined,
+  outputAvailability:null,...overrides
 });
 const ui={tab:'toolpath',busy:false,generating:false,staleProgram:null,tourActive:false,
   exported:false,currentExportKey:null,inspection:null,machineView:null,pending:false};
 
-test('review projection covers unchecked, unavailable, development, production, approval and stale output',()=>{
+test('review projection covers unchecked, unavailable, development, production and failed output',()=>{
   const cases=[
-    ['no output',state(),{current:false,productionReady:false,toolpathApproved:false,action:'generate'}],
-    ['output unavailable',state({outputAvailability:'Machine output unavailable.'}),{current:false,productionReady:false,toolpathApproved:false,action:'generate'}],
-    ['development',state({program:{},review:{generation:{mode:'development'},approvals:{}}}),{current:true,productionReady:false,toolpathApproved:false,action:'generate'}],
-    ['production',state({program:{},review:{generation:{mode:'production'},approvals:{}}}),{current:true,productionReady:true,toolpathApproved:false,action:'review'}],
-    ['approved',state({program:{},toolpathApproved:true,review:{generation:{mode:'production'},approvals:{toolpath:{hash:'exact'}}}}),{current:true,productionReady:true,toolpathApproved:true,action:'deliver'}],
-    ['stale bytes',state({programError:'Generated files changed.',review:{generation:{mode:'production'},approvals:{toolpath:{hash:'old'}}}}),{current:false,productionReady:false,toolpathApproved:false,action:'generate'}]
+    ['no output',state(),{current:false,productionReady:false,action:'generate'}],
+    ['output unavailable',state({outputAvailability:'Machine output unavailable.'}),{current:false,productionReady:false,action:'generate'}],
+    ['development',state({program:{},review:{generation:{mode:'development'}}}),{current:true,productionReady:false,action:'generate'}],
+    ['production',state({program:{},review:{generation:{mode:'production'}}}),{current:true,productionReady:true,action:'review'}],
+    ['failed read',state({programError:'Program unreadable.',review:{generation:{mode:'production'}}}),{current:false,productionReady:false,action:'generate'}]
   ];
   for(const [name,input,expected] of cases)assert.deepEqual(lifecycleReview(input),{programChecked:true,...expected},name);
-  assert.deepEqual(lifecycleReview(cases[4][1],{programChecked:false}),
-    {programChecked:false,current:null,productionReady:false,toolpathApproved:null,action:'check'});
+  assert.deepEqual(lifecycleReview(cases[3][1],{programChecked:false}),
+    {programChecked:false,current:null,productionReady:false,action:'check'});
 });
 
 test('Studio and application consume the same checked lifecycle decisions',()=>{
-  const approved=state({program:{summary:{moves:10}},toolpathApproved:true,
-    review:{generation:{mode:'production'},approvals:{toolpath:{hash:'exact'}}},
-    completedOutput:{current:true,geometryHash:'geometry',review:{generation:{mode:'production'}}}});
-  const projected=lifecycleReview(approved);
-  const controls=studioControls(approved,ui);
-  const application=applicationSummary('example',approved);
+  const ready=state({program:{summary:{moves:10}},review:{generation:{mode:'production'}},
+    completedOutput:{current:true,geometryInputId:'geometry',review:{generation:{mode:'production'}}}});
+  const projected=lifecycleReview(ready);
+  const controls=studioControls(ready,ui);
+  const application=applicationSummary('example',ready);
   assert.equal(controls.flags.productionReady,projected.productionReady);
-  assert.equal(controls.flags.approved,projected.toolpathApproved);
-  assert.equal(application.toolpathApproved,projected.toolpathApproved);
   assert.equal(application.generation.current,projected.current);
-  assert.equal(application.nextStep,'Deliver the reviewed export.');
+  assert.match(application.nextStep,/exports from Studio/);
 
-  const uncheckedApplication=applicationSummary('example',{...approved,programChecked:false});
-  assert.equal(uncheckedApplication.toolpathApproved,null);
+  const uncheckedApplication=applicationSummary('example',{...ready,programChecked:false});
   assert.equal(uncheckedApplication.generation.current,null);
   assert.match(uncheckedApplication.nextStep,/check the current export/);
 });

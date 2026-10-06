@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {regionalStackPlan} from './fixtures/regional-stack.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {initBundle,loadBundle,approve,generateBundle,deliver,adjustBundle} from '../print/bundle.mjs';
+import {initBundle,loadBundle,generateBundle,exportReviewed,adjustBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
 
@@ -24,17 +24,14 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers&&!i.referenceFamily&&!i.construction).map(i=>i.owner),['base','cap','roof-body','upper']);
   assert.ok(state.program.moves.some(move=>move.phase==='vase-wall'&&move.extruding));
   assert.ok(state.program.moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
-  state=await loadBundle(directory);const bytes=await readFile(join(directory,state.review.generation.file));
-  await assert.rejects(()=>deliver(directory),/approval/);
-  state=await approve(directory,{actor:'SYNTHETIC REGIONAL SOFTWARE TEST ONLY',revision:state.revision});
-  assert.deepEqual(await readFile(await deliver(directory)),bytes);
+  state=await loadBundle(directory,{program:'source'});const bytes=await readFile(join(directory,state.review.generation.file));
+  assert.deepEqual(await readFile((await exportReviewed(state)).file),bytes);
   assert.deepEqual(await readFile(nativeFile),native);
 
   const server=createStudio(directory,{libraryRoot:directory,chat:createChatChannel(directory,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));
   t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`;
   const reviewed=await(await fetch(origin+'/api/state')).json();
-  assert.equal(reviewed.toolpathApproved,true);
   assert.deepEqual(reviewed.plan.slices.assignments,plan.slices.assignments);
   assert.equal((await fetch(origin+'/settings.mjs')).status,200);
 
@@ -42,6 +39,6 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   // The open Studio owns edits to its print; delivery recorded itself, so the edit names the current revision.
   state=await loadBundle(directory);await server.runBundleEdit(directory,()=>adjustBundle(directory,{slices:{assignments}},{expectedRevision:state.revision}));
   state=await loadBundle(directory);
-  assert.equal(state.toolpathApproved,false);
+  assert.equal(state.artifacts.program,'stale');
   assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);
 });
