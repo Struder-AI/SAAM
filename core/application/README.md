@@ -37,4 +37,4 @@ Codex reads `get_studio_requests` / `get_studio_events` explicitly; `saam wait` 
 Bundle switches preserve attachment and original request targets. Carry `studioInstanceId`, intended `bundleId` and originating `requestIds` on the first needed operation,
 or `expectedStudio: {studioInstanceId, bundleId}` on any operation (null bundle for an empty Studio). An unchanged association needs no refresh.
 A mismatch rejects before attachment, claims or edits with `STUDIO_TARGET_CHANGED` and `currentStudio` (null if closed); resolve the target explicitly.
-Hand-back can settle the original `workRequest.id` after a switch; resuming stale work rejects. A Claude Code turn end hands back the chat's active work; in Codex, chat-only answers may stay stale until SAAM interaction.
+Hand-back can settle the original `workRequest.id` after a switch; resuming stale work rejects. Client events (turn end, the person's message or interrupt, chat close) hand back the chat's active work.

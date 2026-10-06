@@ -14,14 +14,6 @@ async function atomicWrite(path,text){
 async function optionalRead(path){try{return await readFile(path,'utf8');}catch(error){if(error.code==='ENOENT')return null;throw error;}}
 const marker='<!-- Managed by SAAM application -->',ruleMarker='# Managed by SAAM application';
 const claudePermissions=['Bash(saam *)','PowerShell(saam *)'];
-// Claude Code's Stop hook reports each turn end to the home's SAAM (`saam turn-ended`),
-// spawned directly by this program's node (exec form, no shell) in the background.
-const isTurnHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='turn-ended'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
-const withoutTurnHook=groups=>groups.flatMap(group=>{
-  if(!Array.isArray(group?.hooks)||!group.hooks.some(isTurnHook))return [group];
-  const hooks=group.hooks.filter(hook=>!isTurnHook(hook));
-  return hooks.length?[{...group,hooks}]:[];
-});
 // Client configuration folders; their environment overrides apply only to the real home.
 function clientFolders(clientHome){
   const real=clientHome===homedir();
@@ -31,6 +23,41 @@ function clientFolders(clientHome){
 // The home's AGENTS.md, CLAUDE.md and client skill are the installed program's
 // AGENTS.md, with this home's folders and links resolved to the program's manuals.
 const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
+// Client hooks report events to the home's SAAM (`saam client-event`): this program's node runs
+// scripts/saam.mjs. Claude Code spawns it directly (exec form); Codex runs a command line in the
+// session's shell, so paths that need no quoting are written to read the same in sh, cmd and PowerShell.
+// Codex runs Interrupt and SessionEnd synchronously within 3 s, and Claude Code's SessionEnd
+// runs before it exits; the other events run in the background.
+const script=join(programRoot,'scripts','saam.mjs'),foreground=new Set(['Interrupt','SessionEnd']);
+const claudeEvents={Stop:null,StopFailure:null,UserPromptSubmit:null,Notification:'idle_prompt',SessionEnd:null};
+const codexEvents=['Stop','Interrupt','UserPromptSubmit','SessionEnd'];
+const isClaudeHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='client-event'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
+const isCodexHook=hook=>typeof hook?.command==='string'&&/saam\.mjs'? client-event$/.test(hook.command);
+function commandLine(windows){
+  const parts=[process.execPath,script].map(path=>path.replaceAll('\\','/'));
+  const quoted=parts.every(part=>/^[\w.:/-]+$/.test(part))?parts:windows?parts.map(part=>`'${part.replaceAll("'","''")}'`):parts.map(part=>`'${part.replaceAll("'","'\\''")}'`);
+  return (windows&&quoted!==parts?'& ':'')+quoted.join(' ')+' client-event';
+}
+const claudeGroups=()=>Object.fromEntries(Object.entries(claudeEvents).map(([event,matcher])=>[event,{...(matcher&&{matcher}),
+  hooks:[{type:'command',command:process.execPath,args:[script,'client-event'],...(!foreground.has(event)&&{async:true})}]}]));
+const codexGroups=()=>Object.fromEntries(codexEvents.map(event=>[event,{hooks:[{type:'command',command:commandLine(false),commandWindows:commandLine(true),
+  ...(foreground.has(event)?{timeout:3}:{async:true})}]}]));
+// A client's hooks with SAAM's handlers replaced by `groups` (event: SAAM's group, placed last).
+// Other hooks keep their place; an event that SAAM's removal empties is dropped.
+function replaceHooks(hooks,isOwn,groups={}){
+  if(!hooks||typeof hooks!=='object'||Array.isArray(hooks))throw Error('hooks must be a JSON object.');
+  const result={hooks:{...hooks},removed:false};
+  const owns=group=>Array.isArray(group?.hooks)&&group.hooks.some(isOwn);
+  for(const [event,current] of Object.entries(hooks))if(Array.isArray(current)&&current.some(owns)){
+    const kept=current.flatMap(group=>{if(!owns(group))return [group];const rest=group.hooks.filter(hook=>!isOwn(hook));return rest.length?[{...group,hooks:rest}]:[];});
+    result.removed=true;if(kept.length)result.hooks[event]=kept;else delete result.hooks[event];
+  }
+  for(const [event,group] of Object.entries(groups)){
+    if(!Array.isArray(result.hooks[event]??[]))throw Error(`hooks.${event} must be an array.`);
+    result.hooks[event]=[...result.hooks[event]??[],group];
+  }
+  return result;
+}
 async function guidance(home){
   const source=await readFile(join(programRoot,'AGENTS.md'),'utf8');
   const linked=source.replace(/\]\((?!https?:|#)([^)\s]+)\)/g,(link,target)=>`](${join(programRoot,target)})`);
@@ -50,7 +77,14 @@ async function registerCodex(clientHome,home){
   const text=`${ruleMarker}\nprefix_rule(pattern = ["saam"], decision = "allow", justification = "Call the installed SAAM local application.")\n`;
   const previous=await optionalRead(rule);
   if(previous&&!previous.startsWith(ruleMarker))throw Error(`Kept custom rules at ${rule}; rename that file before retrying.`);
-  await atomicWrite(rule,text);return {skill,permissions:rule,restartRequired:true};
+  await atomicWrite(rule,text);
+  // Codex runs a new or changed hook only after the person trusts it in /hooks; SAAM never writes trust.
+  const hooksFile=join(folders.codex,'hooks.json'),hooksText=await optionalRead(hooksFile),document=hooksText?JSON.parse(hooksText):{};
+  if(!document||typeof document!=='object'||Array.isArray(document))throw Error('Codex hooks.json must be a JSON object.');
+  const before=JSON.stringify(document.hooks);document.hooks=replaceHooks(document.hooks??{},isCodexHook,codexGroups()).hooks;
+  const trustRequired=JSON.stringify(document.hooks)!==before;
+  if(trustRequired)await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');
+  return {skill,permissions:rule,hooks:hooksFile,trustRequired,...(trustRequired&&{tellPerson:"In Codex, open /hooks and trust SAAM's four hooks."}),restartRequired:true};
 }
 async function registerClaude(clientHome,home){
   const directory=clientFolders(clientHome).claude;
@@ -60,10 +94,8 @@ async function registerClaude(clientHome,home){
   settings.permissions??={};settings.permissions.allow??=[];
   if(!Array.isArray(settings.permissions.allow))throw Error('Claude permissions.allow must be an array.');
   for(const permission of claudePermissions)if(!settings.permissions.allow.includes(permission))settings.permissions.allow.push(permission);
-  settings.hooks??={};
-  if(typeof settings.hooks!=='object'||Array.isArray(settings.hooks)||!Array.isArray(settings.hooks.Stop??[]))throw Error('Claude hooks.Stop must be an array.');
-  settings.hooks.Stop=[...withoutTurnHook(settings.hooks.Stop??[]),{hooks:[{type:'command',command:process.execPath,args:[join(programRoot,'scripts','saam.mjs'),'turn-ended'],async:true}]}];
-  await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');return {skill,permissions:settingsFile,turnHook:settingsFile+'#hooks.Stop',restartRequired:true};
+  settings.hooks=replaceHooks(settings.hooks??{},isClaudeHook,claudeGroups()).hooks;
+  await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');return {skill,permissions:settingsFile,hooks:settingsFile+'#hooks',restartRequired:true};
 }
 // Each removal returns the paths it removed; unmarked files are someone else's and stay.
 async function unregisterSkill(directory){
@@ -77,19 +109,25 @@ async function unregisterCodex(options){
   const folders=clientFolders(options.clientHome),rule=join(folders.codex,'rules','saam.rules');
   const removed=[...await retireCodex(options),...await unregisterSkill(join(folders.agents,'skills'))];
   if((await optionalRead(rule))?.startsWith(ruleMarker)){await rm(rule);removed.push(rule);}
+  const hooksFile=join(folders.codex,'hooks.json'),text=await optionalRead(hooksFile),document=text===null?null:JSON.parse(text);
+  const hooks=document?.hooks?replaceHooks(document.hooks,isCodexHook):{removed:false};
+  if(hooks.removed){
+    document.hooks=hooks.hooks;if(!Object.keys(document.hooks).length)delete document.hooks;
+    if(Object.keys(document).length)await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');else await rm(hooksFile);
+    removed.push(hooksFile+'#hooks');
+  }
   return removed;
 }
 async function unregisterClaude(options){
   const directory=clientFolders(options.clientHome).claude,settingsFile=join(directory,'settings.json');
   const removed=[...await retireClaude(options),...await unregisterSkill(join(directory,'skills'))];
-  const text=await optionalRead(settingsFile),settings=text===null?null:JSON.parse(text),allow=settings?.permissions?.allow,stop=settings?.hooks?.Stop;
+  const text=await optionalRead(settingsFile),settings=text===null?null:JSON.parse(text),allow=settings?.permissions?.allow;
   const changed=[];
   if(Array.isArray(allow)&&claudePermissions.some(permission=>allow.includes(permission))){
     settings.permissions.allow=allow.filter(permission=>!claudePermissions.includes(permission));changed.push(settingsFile+'#permissions.allow');
   }
-  if(Array.isArray(stop)&&stop.some(group=>Array.isArray(group?.hooks)&&group.hooks.some(isTurnHook))){
-    settings.hooks.Stop=withoutTurnHook(stop);if(!settings.hooks.Stop.length)delete settings.hooks.Stop;changed.push(settingsFile+'#hooks.Stop');
-  }
+  const hooks=settings?.hooks?replaceHooks(settings.hooks,isClaudeHook):{removed:false};
+  if(hooks.removed){settings.hooks=hooks.hooks;if(!Object.keys(settings.hooks).length)delete settings.hooks;changed.push(settingsFile+'#hooks');}
   if(changed.length)await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');
   return [...removed,...changed];
 }

@@ -168,10 +168,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       jobs:states.flatMap(({runtime,status})=>status.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}))),
       studios:states.flatMap(({runtime,status})=>status.studios.map(studio=>({...studio,runtimeId:runtime.id,runtimeLabel:runtime.label})))};
   }
-  // A chat's turn end goes to every running runtime, since any may hold the chat; none is started.
-  async function endTurn(chatId){
-    const counts=await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'turn-ended',{chatId})));
-    return {handedBack:counts.reduce((total,count)=>total+count.handedBack,0)};
+  // A chat's turn end goes to every started runtime, since any may hold the chat; none is started.
+  async function endTurn(chatId,reason){
+    await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'end-turn',{chatId,reason})));
   }
   async function notifyStopping(reason){await Promise.all([...runtimes.values()].map(runtime=>rpc(runtime,'stopping',{reason})));}
   // Stops the runtime a message names; its windows keep their addresses for the next start.

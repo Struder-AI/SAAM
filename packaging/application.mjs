@@ -125,7 +125,9 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,...await state.runtime.status(),service:state.services.status()};
       if(message.command==='reload-runtime')return {ok:true,...await state.runtime.reloadRuntime(message)};
       if(message.command==='stop-runtime')return {ok:true,...await state.runtime.stopRuntime(message)};
-      if(message.command==='turn-ended')return {ok:true,...await state.runtime.endTurn(message.chatId)};
+      // A client hook may be held to a second or two (Codex Interrupt, SessionEnd), so it is answered
+      // at once; the hand-back waits for the chat's operation underway.
+      if(message.command==='end-turn'){void state.runtime.endTurn(message.chatId,message.reason).catch(error=>console.error('Client event failed: '+error.message));return {ok:true};}
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};
       return state.runtime.command(message);

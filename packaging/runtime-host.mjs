@@ -75,9 +75,8 @@ async function start(args){
 }
 async function handle(message){
   if(message.type==='start')return start(message.args);
-  // A runtime still starting holds no chat whose turn could end.
-  if(message.type==='turn-ended')return host.runtime?host.runtime.endTurn(message.args.chatId):{handedBack:0};
   if(!host.runtime)throw Error('Runtime is not ready.');
+  if(message.type==='end-turn')return host.runtime.endTurn(message.args.chatId,message.args.reason);
   if(message.type==='command')return command(message.args);
   if(message.type==='status')return {jobs:await host.runtime.runningJobs(),active:host.runtime.activeCount(),studios:host.runtime.studios()};
   if(message.type==='open')return host.runtime.openStudio(message.args);

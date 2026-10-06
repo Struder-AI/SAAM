@@ -11474,7 +11474,13 @@
     "scripts/saam.mjs::runSaam": {
       "owner": "application"
     },
-    "scripts/saam.mjs::turnEnded": {
+    "scripts/saam.mjs::counterReasons": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::counterReason": {
+      "owner": "application"
+    },
+    "scripts/saam.mjs::clientEvent": {
       "owner": "application"
     },
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module": {
@@ -11820,6 +11826,9 @@
     "core/application/runtime.mjs::CLAUDE_LISTEN": {
       "owner": "application",
       "reason": "Application owns client monitor policy, local control transport and chat/Studio target validation."
+    },
+    "core/application/runtime.mjs::counterMessages": {
+      "owner": "application"
     },
     "core/application/runtime.mjs::expectedStudioSchema": {
       "owner": "application",
