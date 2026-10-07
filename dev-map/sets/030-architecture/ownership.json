@@ -89,7 +89,11 @@
     },
     "core/geom/mesh-autorefine.mjs": {
       "owner": "geometry",
-      "reason": "0.3.7 spike: JavaScript solid reconstruction replacing the CGAL helper; not wired in."
+      "reason": "SAAM's own solid reconstruction (exact arrangement, winding classification, snap rounding) replacing the CGAL helper's."
+    },
+    "core/geom/exact-predicates.mjs": {
+      "owner": "geometry",
+      "reason": "Exact orientation signs of double coordinates (expansion arithmetic) for mesh reconstruction."
     },
     "core/geom/mesh-spatial.mjs": {
       "owner": "geometry",

@@ -46,7 +46,6 @@
  "core/geom/text-layout.mjs": 2,
  "core/geom/text-outline.mjs": 1,
  "core/geom/tolerance.mjs": 7,
- "core/geom/triangle-bvh.mjs": 6,
  "core/geom/trimmed-surface.mjs": 2,
  "core/machine/denso-kinematics.mjs": 7,
  "core/machine/dobot-kinematics.mjs": 9,

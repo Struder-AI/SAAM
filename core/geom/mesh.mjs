@@ -6,7 +6,7 @@ import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {checkMeshTopology} from './mesh-topology.mjs';
-import {triangleBVH} from './triangle-bvh.mjs';
+import {overlappingBoxPairs,triangleBoxes} from './triangle-bvh.mjs';
 import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
@@ -91,15 +91,15 @@ function retainValidatedMesh(identity,derived){
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
   return derived;
 }
+// Nonadjacent triangles whose boxes come within numeric conditioning must be separated.
 function rejectIntersections(vertices,triangles,normals){
-  const tree=triangleBVH(vertices,triangles);
-  for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
-    const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
-      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-NUMERIC_MM||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+NUMERIC_MM))return;
-      if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
-    };
-    tree.query(min,max,inspectCandidate);
-  }
+  const boxes=triangleBoxes(vertices,triangles);
+  overlappingBoxPairs(triangleBoxes(vertices,triangles,NUMERIC_MM),(i,j)=>{
+    const ta=triangles[i],tb=triangles[j];if(ta[0]===tb[0]||ta[0]===tb[1]||ta[0]===tb[2]||ta[1]===tb[0]||ta[1]===tb[1]||ta[1]===tb[2]||ta[2]===tb[0]||ta[2]===tb[1]||ta[2]===tb[2])return;
+    for(let k=0;k<3;k++)if(boxes[6*j+3+k]<boxes[6*i+k]-NUMERIC_MM||boxes[6*j+k]>boxes[6*i+3+k]+NUMERIC_MM)return;
+    const pa=ta.map(v=>vertices[v]),pb=tb.map(v=>vertices[v]);
+    if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
+  });
 }
 
 // Shared closed-triangle separation predicate.
