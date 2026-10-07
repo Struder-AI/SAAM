@@ -17,8 +17,12 @@ Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); [0.3.2 SAAM 
 > "I don't want separate SAAM orchestrators. I was led to believe a single SAAM orchestrator could run and coordinate visible studio sessions, hidden background sessions (that I can still see in the tray), as well as both of these for source checkouts (all able to connect to relay and beam the diag telemetry)." — owner, 2026-10-06 (Claude 3594b461)
 >
 > "I want background instances to still show up on the tray, even though no studio window is visible." — owner, 2026-10-06 (Claude 3594b461)
+>
+> "testing of source checkout changes, which will not touch the orchestrator itself, is also done on the same saam orchestrator. If source checkout changes DO affect the orchestrator, they can't be tested until after the update" — owner, 2026-10-06 (Claude 3594b461)
+>
+> "Let's not change orchestrator itself" — owner, 2026-10-06 (Claude 3594b461)
 
-Summary: the home's one orchestrator runs visible and background (windowless, listed in the tray) Studio sessions for the installed code and for source checkouts; every session reports to the relay. No second orchestrator is started for development. Held by the owner, 2026-10-06, after hearing that orchestrator code itself cannot run under an older installed orchestrator: "Then don't be working on it, we don't have a solution."
+Summary: the home's one orchestrator runs visible and background (windowless, listed in the tray) Studio sessions for the installed code and for source checkouts; every session reports to the relay. No second orchestrator is started for development: source checkout changes that do not touch the orchestrator are tested on the same orchestrator; changes that do touch it are tested only after the update.
 
 Sources: Claude 3594b461 (2026-10-06); replaces the runtime-model line "dev-instance runs the checkout's own orchestrator in the background on a temporary home" (agent wording in a summary answered "Great, I think that all works, right?", 2026-10-05; no specific owner agreement).
 
