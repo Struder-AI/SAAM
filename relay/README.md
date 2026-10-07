@@ -38,14 +38,16 @@ the first line of `.local/relay-operator-token`.
 ```sh
 node relay/scripts/operator.mjs invite --for "Name" [--days 14]
 node relay/scripts/operator.mjs invites
-node relay/scripts/operator.mjs revoke-invite ID
+node relay/scripts/operator.mjs revoke-invite NAME
 node relay/scripts/operator.mjs devices
-node relay/scripts/operator.mjs remove DEVICE [DEVICE…]
-node relay/scripts/operator.mjs pull --device ID | --since 7d
-node relay/scripts/operator.mjs reports [--device ID] [--since 7d]
+node relay/scripts/operator.mjs remove NAME [NAME…]
+node relay/scripts/operator.mjs pull --device NAME | --since 7d
+node relay/scripts/operator.mjs reports [--device NAME] [--since 7d]
 ```
 
-The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the deployed origin.
+Commands name invites and installations by the `--for` name; an ID, shown in
+brackets, is needed only when two share a name or for a removed installation's
+records. The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the deployed origin.
 `pull` writes JSONL under `.local/relay-records/`; `reports` prints Studio and agent
 bug reports, each with its installation's records from the 30 minutes before.
 Removing a device invalidates its credential, not its retained records. Routes:
