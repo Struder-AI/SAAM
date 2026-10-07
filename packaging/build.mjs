@@ -1,14 +1,21 @@
 #!/usr/bin/env node
-// Builds an installable SAAM ZIP for one platform: the tracked application
-// files, production dependencies, a pinned Node runtime, release.json and the
-// platform installer. Alpha builds are unsigned: the macOS launcher uses
-// its menu-bar application and bundled Node is the official notarized build.
+// Builds installable SAAM ZIPs: the tracked application files, production
+// dependencies, a pinned Node runtime, release.json and the platform installer.
+// Alpha builds are unsigned: the macOS launcher uses its menu-bar application
+// and bundled Node is the official notarized build.
 //
-//   node packaging/build.mjs --platform win-x64 --version 0.1.0 --relay-url https://relay.example.com
-//   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for that platform>] [--out dist]
+//   node packaging/build.mjs --version 0.1.0 --relay-url https://relay.example.com [--platform win-x64,darwin-arm64,darwin-x64]
+//   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for one platform>]
+//   [--mesh-repair DIR] [--modules DIR] [--out dist]
 //   [--review --review-file packaging/application.mjs --review-file packaging/release-service.mjs]
-// --update-host is the release folder this build accepts updates from (see
-// packaging/update.mjs); without it the build never offers an update.
+// Each platform (all three by default) builds into <out>/<platform>/. --update-host is the release
+// folder this build accepts updates from (see packaging/update.mjs); without it the build never offers an update.
+// --mesh-repair applies to the platform its helper targets.
+//
+// Nothing is installed from the network. Dependencies come once per run from an installed
+// node_modules (--modules, default this checkout's), checked against package-lock.json; Node
+// runtimes come from build/node-runtime/<version>/, checked against nodejs.org's SHASUMS256
+// each build, and an official archive is fetched only when that cache lacks it.
 //
 // The ZIP holds one folder: the Windows double-click installer, README.txt, the application as one
 // archive (app.tar, so unpacking the ZIP writes a handful of files rather than
@@ -21,8 +28,9 @@ import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync} from 'node:fs';
 import {cp,mkdir,rm,writeFile,readFile,copyFile,mkdtemp,readdir,stat} from 'node:fs/promises';
+import {builtinModules} from 'node:module';
 import {tmpdir} from 'node:os';
-import {resolve,dirname,join,relative} from 'node:path';
+import {resolve,dirname,join,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
@@ -41,22 +49,13 @@ const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^
   /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
   /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
-// manifold-3d depends on these for its manifoldCAD tooling (glTF and 3MF export
-// with sharp's image processing, the esbuild bundler, source maps and its CLI).
-// SAAM imports only manifold-3d itself (core/geom/solid.mjs), whose manifold.js
-// and manifold.wasm use none of them, so the build removes them after npm ci:
-// about 700 files and 40 MB. `*` ends a name prefix (sharp's per-platform
-// binaries). Before removing anything the build checks package-lock.json that
-// only manifold-3d or another listed package needs each one, and fails otherwise.
-const MANIFOLD_EXTRAS=['@emnapi/runtime','@gltf-transform/core','@gltf-transform/extensions','@gltf-transform/functions',
-  '@img/colour','@img/sharp-*','@jridgewell/resolve-uri','@jridgewell/sourcemap-codec','@jridgewell/trace-mapping',
-  '@jscadui/3mf-export','@nodable/entities','@types/ndarray','anynum','commander','convert-source-map','cwise-compiler',
-  'detect-libc','esbuild-wasm','fast-xml-builder','fast-xml-parser','fflate','iota-array','is-buffer','is-unsafe',
-  'ktx-parse','magic-string','ndarray','ndarray-lanczos','ndarray-ops','ndarray-pixels','path-expression-matcher',
-  'property-graph','semver','sharp','strnum','uniq','xml-naming'];
+// SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.
+// Its other files and all its dependencies serve the manifoldCAD tooling (glTF and 3MF export,
+// sharp, esbuild, its CLI), so the package ships only these files and none of its dependencies.
+const PACKAGE_FILES={'manifold-3d':['package.json','LICENSE','manifold.js','manifold.wasm']};
 
 function run(command,args,options={}){
-  const result=spawnSync(command,args,{stdio:'inherit',shell:process.platform==='win32'&&/\.cmd$/.test(command),...options});
+  const result=spawnSync(command,args,{stdio:'inherit',...options});
   if(result.status!==0)throw Error(`${command} ${args.join(' ')} failed (${result.status??result.error?.message}).`);
   return result;
 }
@@ -65,6 +64,8 @@ const TAR=process.platform==='win32'?resolve(process.env.SystemRoot??'C:/Windows
 // On a Mac, keep Finder metadata (._ files) out of the archives.
 const TAR_ENV={...process.env,COPYFILE_DISABLE:'1'};
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
+const readJson=async path=>JSON.parse(await readFile(path,'utf8'));
+const nameOf=path=>path.slice(path.lastIndexOf('node_modules/')+'node_modules/'.length);
 
 async function measure(folder){
   let files=0,bytes=0;
@@ -85,11 +86,12 @@ async function writeMacZip(folder,zip){
   await writeFile(zip,zipSync(entries));
 }
 
-// The installed package paths (package-lock keys) that MANIFOLD_EXTRAS names,
-// after checking that nothing outside the list needs them.
-function manifoldExtras(lock){
-  const packages=lock.packages,nameOf=path=>path.slice(path.lastIndexOf('node_modules/')+'node_modules/'.length);
-  const listed=path=>MANIFOLD_EXTRAS.some(entry=>entry.endsWith('*')?nameOf(path).startsWith(entry.slice(0,-1)):nameOf(path)===entry);
+// The production dependencies, copied from an installed node_modules into `into`: every package
+// the application's dependencies reach through package-lock.json, except manifold-3d's own.
+// Each installed copy must carry the lock's version and, where npm recorded it, its integrity.
+async function dependencySet(lock,source,into){
+  const packages=lock.packages,hidden=await readJson(join(source,'.package-lock.json')).then(record=>record.packages).catch(()=>null);
+  if(!hidden)console.warn(`No ${join(source,'.package-lock.json')}: installed integrity not checked.`);
   // Node's resolution: the nearest node_modules/<name> from the requiring package outwards.
   const resolveFrom=(from,name)=>{
     for(let base=from;;base=base.slice(0,Math.max(base.lastIndexOf('/node_modules/'),0))){
@@ -98,50 +100,111 @@ function manifoldExtras(lock){
       if(!base)return null;
     }
   };
-  // Everything the application needs, with manifold-3d's own dependencies left out.
   const needed=new Set(),pending=[''];
   while(pending.length){
     const path=pending.pop();if(needed.has(path))continue;needed.add(path);
-    if(path==='node_modules/manifold-3d')continue;
+    if(PACKAGE_FILES[nameOf(path)])continue;
     const entry=packages[path];
     for(const name of Object.keys({...entry.dependencies,...entry.optionalDependencies,...(path?entry.peerDependencies:{})})){
       const found=resolveFrom(path,name);if(found)pending.push(found);
     }
   }
-  const clash=[...needed].filter(path=>path&&listed(path));
-  if(clash.length)throw Error(`Not removing ${clash.join(', ')}: another dependency needs it. Update MANIFOLD_EXTRAS in packaging/build.mjs.`);
-  const production=Object.keys(packages).filter(path=>path&&!packages[path].dev);
-  const unlisted=production.filter(path=>!needed.has(path)&&!listed(path));
-  if(unlisted.length)console.warn(`Only manifold-3d needs ${unlisted.join(', ')}, which MANIFOLD_EXTRAS does not list; they stay in the build.`);
-  return production.filter(listed);
+  needed.delete('');
+  for(const path of needed){
+    const entry=packages[path],name=nameOf(path);
+    const from=join(source,path.slice('node_modules/'.length)),to=join(into,path.slice('node_modules/'.length));
+    if(entry.os||entry.cpu)throw Error(`${path} is platform-specific; it cannot come from this host's node_modules.`);
+    if(!existsSync(from)){if(entry.optional)continue;throw Error(`${from} is missing: run npm ci in the checkout that supplies --modules.`);}
+    const version=(await readJson(join(from,'package.json'))).version;
+    if(version!==entry.version)throw Error(`${path} is ${version}; package-lock.json needs ${entry.version}.`);
+    const installed=hidden?.[path];
+    if(hidden&&(!installed||installed.version!==entry.version||installed.integrity!==entry.integrity))throw Error(`${path} was not installed from package-lock.json's ${entry.version} (integrity differs).`);
+    if(PACKAGE_FILES[name]){await mkdir(to,{recursive:true});for(const file of PACKAGE_FILES[name])await copyFile(join(from,file),join(to,file));}
+    else await cp(from,to,{recursive:true,filter:file=>!relative(from,file).split(sep).includes('node_modules')});
+  }
+  return needed.size;
 }
 
-// The official Node build for the platform, checked against the release's SHASUMS256.
-async function fetchNode(version,platform,into){
-  const {archive,binary}=PLATFORMS[platform],name=`node-${version}-${platform}`,file=`${name}.${archive}`;
-  const base=`https://nodejs.org/dist/${version}/`;
-  const sums=await(await fetch(base+'SHASUMS256.txt')).text();
-  const expected=sums.split('\n').map(line=>line.trim().split(/\s+/)).find(([,entry])=>entry===file)?.[0];
-  if(!expected)throw Error(`No published checksum for ${file}.`);
-  const response=await fetch(base+file);if(!response.ok)throw Error(`Download of ${file} failed: ${response.status}.`);
-  const bytes=Buffer.from(await response.arrayBuffer());
-  if(sha256(bytes)!==expected)throw Error(`Checksum mismatch for ${file}.`);
-  const scratch=await mkdtemp(join(tmpdir(),'saam-node-'));
-  try{
-    await writeFile(join(scratch,file),bytes);
-    run(TAR,['-xf',file,`${name}/${binary}`,`${name}/LICENSE`],{cwd:scratch});
-    await mkdir(into,{recursive:true});
-    await copyFile(join(scratch,name,binary),join(into,binary.split('/').pop()));
-    await copyFile(join(scratch,name,'LICENSE'),join(into,'LICENSE'));
-  }finally{await rm(scratch,{recursive:true,force:true});}
+// Every bare import in the application's own code must resolve to a file in its node_modules.
+async function checkImports(app,files){
+  const pattern=/(?:^|[^\w$.])(?:import|export)\s+(?:[^'"`;]*?\sfrom\s*)?['"]([^'"\n]+)['"]|(?:^|[^\w$.])import\s*\(\s*['"]([^'"\n]+)['"]\s*\)|(?:^|[^\w$.])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/gm;
+  const missing=new Set();
+  for(const file of files.filter(file=>/\.(m?js|cjs)$/.test(file))){
+    for(const match of (await readFile(resolve(app,file),'utf8')).matchAll(pattern)){
+      const specifier=match[1]??match[2]??match[3];
+      if(/^(\.|\/|[a-z]+:)/.test(specifier)||builtinModules.includes(specifier))continue;
+      const parts=specifier.split('/'),name=parts.slice(0,specifier.startsWith('@')?2:1).join('/'),subpath=['.',...parts.slice(name.split('/').length)].join('/');
+      const folder=resolve(app,'node_modules',name),manifest=await readJson(join(folder,'package.json')).catch(()=>null);
+      let exports=manifest?.exports,target=null;
+      if(manifest&&exports===undefined)target=subpath==='.'?manifest.main??'index.js':subpath;
+      else if(manifest){
+        if(typeof exports==='string'||!Object.keys(exports).some(key=>key.startsWith('.')))exports={'.':exports};
+        target=exports[subpath];
+      }
+      while(target&&typeof target==='object')target=target.import??target.node??target.default;
+      if(!target||!existsSync(join(folder,target)))missing.add(`${specifier} (${file})`);
+    }
+  }
+  if(missing.size)throw Error(`The dependency set lacks imports: ${[...missing].join(', ')}.`);
+}
+
+// The official Node runtime for the platform, copied into `into`. build/node-runtime/<version>/ caches
+// nodejs.org's SHASUMS256.txt and each official archive; every build checks them against it. win-x64 may
+// instead be seeded from this host's own Node when it is that version and its node.exe carries the
+// published win-x64/node.exe checksum (LICENSE from another verified archive of the version).
+async function nodeRuntime(version,platform,into){
+  const cache=resolve(root,'build','node-runtime',version),sumsFile=join(cache,'SHASUMS256.txt');
+  await mkdir(cache,{recursive:true});
+  if(!existsSync(sumsFile)){
+    const response=await fetch(`https://nodejs.org/dist/${version}/SHASUMS256.txt`);
+    if(!response.ok)throw Error(`No SHASUMS256.txt for Node ${version}: ${response.status}.`);
+    await writeFile(sumsFile,await response.text());
+  }
+  const sums=new Map((await readFile(sumsFile,'utf8')).split('\n').map(line=>line.trim().split(/\s+/).reverse()));
+  const archiveOf=async target=>{
+    const file=`node-${version}-${target}.${PLATFORMS[target].archive}`,path=join(cache,file),expected=sums.get(file);
+    if(!expected)throw Error(`No published checksum for ${file}.`);
+    if(!existsSync(path)){
+      const response=await fetch(`https://nodejs.org/dist/${version}/${file}`);if(!response.ok)throw Error(`Download of ${file} failed: ${response.status}.`);
+      const bytes=Buffer.from(await response.arrayBuffer());
+      if(sha256(bytes)!==expected)throw Error(`Checksum mismatch for ${file}.`);
+      await writeFile(path,bytes);console.log(`Fetched ${file} into ${cache}.`);
+    }
+    if(sha256(await readFile(path))!==expected)throw Error(`Cached ${path} does not match SHASUMS256.txt.`);
+    return {path,name:`node-${version}-${target}`};
+  };
+  const extract=async({path,name},entries)=>{
+    const scratch=await mkdtemp(join(tmpdir(),'saam-node-'));
+    try{
+      run(TAR,['-xf',path,...entries.map(entry=>`${name}/${entry}`)],{cwd:scratch});
+      await mkdir(into,{recursive:true});
+      for(const entry of entries)await copyFile(join(scratch,name,entry),join(into,entry.split('/').pop()));
+    }finally{await rm(scratch,{recursive:true,force:true});}
+  };
+  const {binary}=PLATFORMS[platform];
+  if(platform==='win-x64'&&!existsSync(join(cache,`node-${version}-win-x64.zip`))){
+    const seeded=join(cache,'win-x64'),exe=join(seeded,'node.exe'),expected=sums.get('win-x64/node.exe');
+    if(!existsSync(exe)&&process.platform==='win32'&&process.version===version&&sha256(await readFile(process.execPath))===expected){
+      await mkdir(seeded,{recursive:true});await copyFile(process.execPath,exe);
+      await extract(await archiveOf('darwin-arm64'),['LICENSE']).then(()=>copyFile(join(into,'LICENSE'),join(seeded,'LICENSE')));
+      console.log(`Seeded ${seeded} from ${process.execPath}.`);
+    }
+    if(existsSync(exe)){
+      if(!expected||sha256(await readFile(exe))!==expected)throw Error(`Cached ${exe} does not match win-x64/node.exe in SHASUMS256.txt.`);
+      await mkdir(into,{recursive:true});await copyFile(exe,join(into,'node.exe'));await copyFile(join(seeded,'LICENSE'),join(into,'LICENSE'));
+      return;
+    }
+  }
+  await extract(await archiveOf(platform),[binary,'LICENSE']);
 }
 
 async function main(){
-  const {values}=parseArgs({options:{platform:{type:'string'},version:{type:'string'},'relay-url':{type:'string'},
+  const {values}=parseArgs({options:{platform:{type:'string',multiple:true},version:{type:'string'},'relay-url':{type:'string'},
     'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'},
-    review:{type:'boolean',default:false},'review-file':{type:'string',multiple:true}}});
-  const platform=values.platform,target=PLATFORMS[platform];
-  if(!target)throw Error(`Choose --platform: ${Object.keys(PLATFORMS).join(', ')}.`);
+    modules:{type:'string'},review:{type:'boolean',default:false},'review-file':{type:'string',multiple:true}}});
+  const platforms=values.platform?.flatMap(value=>value.split(','))??Object.keys(PLATFORMS);
+  for(const platform of platforms)if(!PLATFORMS[platform])throw Error(`Choose --platform from ${Object.keys(PLATFORMS).join(', ')}.`);
+  if(values.node&&platforms.length!==1)throw Error('--node supplies one platform\'s runtime: give one --platform.');
   if(!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(values.version??''))throw Error('Give --version as major.minor.patch.');
   const relayUrl=new URL(values['relay-url']??'').origin;
   if(!relayUrl.startsWith('https://')&&!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(relayUrl))throw Error('The relay URL must be https (or loopback for a local test build).');
@@ -157,7 +220,7 @@ async function main(){
   const untracked=spawnSync('git',['ls-files','-z','--others','--exclude-standard'],{cwd:root,encoding:'utf8'}).stdout.split('\0').filter(Boolean);
   const selected=values['review-file']??[];
   if(selected.length&&!values.review)throw Error('--review-file requires --review.');
-  const platformFile=file=>file.startsWith(`packaging/${target.os}/`);
+  const platformFile=file=>platforms.some(platform=>file.startsWith(`packaging/${PLATFORMS[platform].os}/`));
   for(const file of selected)if(!untracked.includes(file)||(EXCLUDED.some(pattern=>pattern.test(file))&&!platformFile(file)))
     throw Error(`Review source must be an untracked application file: ${file}`);
   const unpacked=untracked.filter(file=>!file.startsWith(outputPrefix)&&(!EXCLUDED.some(pattern=>pattern.test(file))||platformFile(file))&&!selected.includes(file));
@@ -171,67 +234,73 @@ async function main(){
     const [,index,disk]=/^i\/(\S*)\s+w\/(\S*)/.exec(line),expected=index==='lf'&&/\beol=crlf\b/.test(line)?'crlf':index;
     return disk&&disk!==expected?[line.slice(line.indexOf('\t')+1)]:[];});
   if(stale.length)throw Error(`${stale.length} files on disk have line endings other than .gitattributes gives (e.g. ${stale.slice(0,3).join(', ')}); build from a fresh checkout.`);
-  // stage/app is the application; stage/<top> becomes the ZIP.
-  const top=`SAAM-${values.version}-${platform}`,app=resolve(out,'stage','app'),folder=resolve(out,'stage',top);
-  await rm(resolve(out,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});await mkdir(folder,{recursive:true});
-
   const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&!EXCLUDED.some(pattern=>pattern.test(file)));
-  for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
-  await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
-  console.log(`Copied ${files.length} tracked files.`);
-  const nativeRepair=await packageNativeRepair({root,app,platform,artifact:values['mesh-repair']});
-  console.log('Native mesh repair:',nativeRepair.available?'included for '+platform:nativeRepair.reason);
+  const helper=values['mesh-repair']&&resolve(values['mesh-repair']);
+  const helperFor=platform=>helper&&existsSync(join(helper,'saam-mesh-repair'+(platform==='win-x64'?'.exe':'')))?helper:undefined;
+  if(helper&&!platforms.some(helperFor))throw Error(`${helper} holds no native helper for ${platforms.join(', ')}.`);
 
-  run(process.platform==='win32'?'npm.cmd':'npm',['ci','--omit=dev','--ignore-scripts','--no-audit','--no-fund'],{cwd:app});
-  const modules=resolve(app,'node_modules'),installed=await measure(modules);
-  for(const path of manifoldExtras(JSON.parse(await readFile(resolve(app,'package-lock.json'),'utf8'))))
-    await rm(resolve(app,path),{recursive:true,force:true});
-  // Command shims for npm scripts; an installed SAAM runs none.
-  await rm(resolve(modules,'.bin'),{recursive:true,force:true});
-  console.log(`node_modules: ${describe(installed)} installed, ${describe(await measure(modules))} kept.`);
+  const modules=resolve(out,'modules');
+  await rm(modules,{recursive:true,force:true});
+  const count=await dependencySet(await readJson(resolve(root,'package-lock.json')),resolve(values.modules??resolve(root,'node_modules')),modules);
+  console.log(`Dependencies: ${count} packages, ${describe(await measure(modules))}.`);
 
-  const runtime=resolve(app,'runtime');
-  if(values.node){
-    const binary=resolve(values.node),bytes=await readFile(binary);
-    if(executablePlatform(bytes)!==platform)throw Error(`The supplied Node binary does not target ${platform}.`);
-    const license=resolve(dirname(binary),'LICENSE');
-    if(!existsSync(license))throw Error('The supplied Node binary needs its adjacent LICENSE file.');
-    await mkdir(runtime,{recursive:true});
-    await copyFile(binary,resolve(runtime,target.binary.split('/').pop()));
-    await copyFile(license,resolve(runtime,'LICENSE'));
+  for(const platform of platforms){
+    const target=PLATFORMS[platform],base=resolve(out,platform);
+    // stage/app is the application; stage/<top> becomes the ZIP.
+    const top=`SAAM-${values.version}-${platform}`,app=resolve(base,'stage','app'),folder=resolve(base,'stage',top);
+    await rm(resolve(base,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});await mkdir(folder,{recursive:true});
+    for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
+    await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
+    console.log(`${platform}: copied ${files.length} tracked files.`);
+    const nativeRepair=await packageNativeRepair({root,app,platform,artifact:helperFor(platform)});
+    console.log('Native mesh repair:',nativeRepair.available?'included for '+platform:nativeRepair.reason);
+    await cp(modules,resolve(app,'node_modules'),{recursive:true});
+    await checkImports(app,files);
+
+    const runtime=resolve(app,'runtime');
+    if(values.node){
+      const binary=resolve(values.node),bytes=await readFile(binary);
+      if(executablePlatform(bytes)!==platform)throw Error(`The supplied Node binary does not target ${platform}.`);
+      const license=resolve(dirname(binary),'LICENSE');
+      if(!existsSync(license))throw Error('The supplied Node binary needs its adjacent LICENSE file.');
+      await mkdir(runtime,{recursive:true});
+      await copyFile(binary,resolve(runtime,target.binary.split('/').pop()));
+      await copyFile(license,resolve(runtime,'LICENSE'));
+    }
+    else await nodeRuntime(values['node-version'],platform,runtime);
+
+    const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
+    const releaseJson=JSON.stringify(release,null,2)+'\n';
+    await writeFile(resolve(app,'release.json'),releaseJson);
+    console.log(`Application: ${describe(await measure(app))}.`);
+    // The package is accepted only when its own modules pass the setup check in a disposable home,
+    // on its own Node when this host can run it.
+    const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch,home=resolve(base,'stage','home');
+    if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
+    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app,env:{...process.env,SAAM_DATA:home}});
+    await rm(home,{recursive:true,force:true});
+    run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
+
+    // What installation needs before app.tar is unpacked. macOS has no double-click
+    // installer: an agent installs it (a browser download meets Gatekeeper).
+    if(target.installer)await copyFile(resolve(root,'packaging',target.os,target.installer),resolve(folder,target.installer));
+    await copyFile(resolve(root,'packaging',target.os,'README.txt'),resolve(folder,'README.txt'));
+    const scripts=resolve(folder,'app','packaging',target.os);await mkdir(scripts,{recursive:true});
+    for(const script of target.scripts)await copyFile(resolve(root,'packaging',target.os,script),resolve(scripts,script));
+    await writeFile(resolve(folder,'app','release.json'),releaseJson);
+
+    const zip=resolve(base,`${top}.zip`);await rm(zip,{force:true});
+    if(target.os==='macos')await writeMacZip(folder,zip);
+    else run(TAR,['-a','-cf',zip,'-C',resolve(base,'stage'),top],{env:TAR_ENV});
+    const digest=sha256(await readFile(zip));
+    await writeFile(zip+'.sha256',`${digest}  ${top}.zip\n`);
+    console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
+    // To offer this build as an update, host the ZIP under the update host and add
+    // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
+    console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:digest}}));
   }
-  else await fetchNode(values['node-version'],platform,runtime);
-
-  const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
-  const releaseJson=JSON.stringify(release,null,2)+'\n';
-  await writeFile(resolve(app,'release.json'),releaseJson);
-  console.log(`Application: ${describe(await measure(app))}.`);
-  // The package is accepted only when its own modules pass the setup check in a disposable home,
-  // on its own Node when this host can run it.
-  const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch,home=resolve(out,'stage','home');
-  if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
-  run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app,env:{...process.env,SAAM_DATA:home}});
-  await rm(home,{recursive:true,force:true});
-  run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
-
-  // What installation needs before app.tar is unpacked. macOS has no double-click
-  // installer: an agent installs it (a browser download meets Gatekeeper).
-  if(target.installer)await copyFile(resolve(root,'packaging',target.os,target.installer),resolve(folder,target.installer));
-  await copyFile(resolve(root,'packaging',target.os,'README.txt'),resolve(folder,'README.txt'));
-  const scripts=resolve(folder,'app','packaging',target.os);await mkdir(scripts,{recursive:true});
-  for(const script of target.scripts)await copyFile(resolve(root,'packaging',target.os,script),resolve(scripts,script));
-  await writeFile(resolve(folder,'app','release.json'),releaseJson);
-
-  const zip=resolve(out,`${top}.zip`);await rm(zip,{force:true});
-  if(target.os==='macos')await writeMacZip(folder,zip);
-  else run(TAR,['-a','-cf',zip,'-C',resolve(out,'stage'),top],{env:TAR_ENV});
-  const digest=sha256(await readFile(zip));
-  await writeFile(zip+'.sha256',`${digest}  ${top}.zip\n`);
+  await rm(modules,{recursive:true,force:true});
   await copyFile(resolve(root,'packaging','INSTALL.md'),resolve(out,'INSTALL.md'));
-  console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
-  // To offer this build as an update, host the ZIP under the update host and add
-  // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
-  console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:digest}}));
 }
 
 main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});
