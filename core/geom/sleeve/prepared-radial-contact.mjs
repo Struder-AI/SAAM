@@ -1,4 +1,5 @@
 import {requireThat} from '../tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../../dimensions.mjs';
 // Continuous source-side contact preparation. Fixed arc sample correspondence
 // advects steep radial details between Z profiles without switching branches.
 
@@ -97,9 +98,9 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
     return {a,b,fa,fb,depth,good:good||radial,radial,left:null,right:null};
   }
   function select(z){
-    requireThat(z>=startMm-1e-9&&z<=endMm+1e-9,'Contact query is outside its prepared height interval.');
+    requireThat(z>=startMm-PRINT_RESOLUTION_MM&&z<=endMm+PRINT_RESOLUTION_MM,'Contact query is outside its prepared height interval.');
     z=Math.max(startMm,Math.min(endMm,z));
-    const index=Math.min(Math.max(1,Math.ceil((endMm-startMm)/stepMm-1e-12))-1,Math.floor((z-startMm)/stepMm));
+    const index=Math.min(Math.max(1,Math.ceil((endMm-startMm)/stepMm-ROUNDING_RELATIVE))-1,Math.floor((z-startMm)/stepMm));
     let node=slabs.get(index);
     if(!node){const a=startMm+index*stepMm;node=interval(a,Math.min(endMm,a+stepMm));if(slabs.size>=4)slabs.delete(slabs.keys().next().value);slabs.set(index,node);}
     while(!node.good){
@@ -117,7 +118,7 @@ export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepM
     requireThat(point.length===3&&point.every(Number.isFinite)&&Number.isFinite(fidelity)&&fidelity>=0&&fidelity<=1,'Contact requires finite XYZ and fidelity from0 to1.');
     if(fidelity===0)return [...point];
     const c=anchorAt(point[2]),dx=point[0]-c[0],dy=point[1]-c[1],r=Math.hypot(dx,dy);
-    if(r<1e-12){requireThat(side==='inside','Outside contact has no direction at the fitted center.');return [...point];}
+    if(r<ROUNDING_MM){requireThat(side==='inside','Outside contact has no direction at the fitted center.');return [...point];}
     const {node,t}=select(point[2]),theta=Math.atan2(dy,dx),target=node.radial?
       (1-t)*radius(node.fa,node.fa,0,theta)+t*radius(node.fb,node.fb,0,theta):radius(node.fa,node.fb,t,theta);report.contactSamples++;
     if(side==='inside'?r<=target:r>=target)return [...point];

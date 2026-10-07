@@ -19,6 +19,7 @@ import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 
 import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {patchOffset,projectedFillStrokes,patchPatternStrokes,sampledChartPatternStrokes} from './patch-strokes.mjs';
 import {offsetSurfaceRegion} from './surface-offset.mjs';
 import {metricFillStrokes} from './metric-fill.mjs';
@@ -54,7 +55,7 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
     if (!found.length) break;
     // Simplify only the finished deposition contour to machine precision; the
     // offset region keeps owning material topology.
-    const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? TOLERANCE.plane : wallToleranceMm));
+    const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm));
     for (const points of cleaned)
       walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points, beadWidthMm: widthMm });
   }
@@ -139,7 +140,7 @@ export function mapSliceStroke(stroke,slice,{sampleStepMm=slice.sampleStepMm??.2
   requireThat(sampleStepMm>0&&Number.isFinite(sampleStepMm)&&toleranceMm>0&&Number.isFinite(toleranceMm),'Slice mapping needs positive physical tolerances.');
   const chartPoint=point=>slice.kind==='patch'?point.map((x,k)=>{
     const [lo,hi]=[slice.patch.domainU,slice.patch.domainV][k];
-    requireThat(x>=lo-1e-9&&x<=hi+1e-9,'Slice mapping leaves its spline chart.');
+    requireThat(x>=lo-PRINT_RESOLUTION_MM&&x<=hi+PRINT_RESOLUTION_MM,'Slice mapping leaves its spline chart.');
     return Math.max(lo,Math.min(hi,x));
   }):point;
   const source=(stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points).map(chartPoint);

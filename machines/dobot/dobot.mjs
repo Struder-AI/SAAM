@@ -17,8 +17,11 @@ export const WAIT_COMMAND_MS=60000;
 export const num=value=>{requireThat(Number.isFinite(value),'Nonfinite Dobot number.');return Number(value.toFixed(10));};
 export const transform=(p,c)=>[p[0]*c.scaleX+c.offsetXMm,p[1]*c.scaleY+c.offsetYMm,p[2]+c.bedZMm];
 export const inverse=(p,c)=>[(p[0]-c.offsetXMm)/c.scaleX,(p[1]-c.offsetYMm)/c.scaleY,p[2]-c.bedZMm];
-export const inside=(p,c)=>requireThat(p.every((v,i)=>Number.isFinite(v)&&v>=c.workspaceMinMm[i]-1e-6&&v<=c.workspaceMaxMm[i]+1e-6),'Dobot command exceeds the configured Cartesian workspace (reachability is not checked).');
-export const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<1e-6);
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// Workspace bounds and the start pose are judged at print resolution.
+export const inside=(p,c)=>requireThat(p.every((v,i)=>Number.isFinite(v)&&v>=c.workspaceMinMm[i]-PRINT_RESOLUTION_MM&&v<=c.workspaceMaxMm[i]+PRINT_RESOLUTION_MM),'Dobot command exceeds the configured Cartesian workspace (reachability is not checked).');
+export const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<PRINT_RESOLUTION_MM);
 
 // Adopted from the selected legacy motion-trace/trace-lib.mjs. No assumed
 // velocity or acceleration: both come from this instance's locked setup.

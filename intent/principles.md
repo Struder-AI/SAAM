@@ -67,9 +67,9 @@ Sources: [dev-maps "What SAAM code is"](../plans/dev-maps.md#what-saam-code-is);
 >
 > "make sure the tolerances for 'touching' are reasonable" — owner, 2026-09-30 ([D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries))
 
-Summary: every tolerance in SAAM and its extensions comes from the dimensions SAAM actually prints at and names what it protects; guidance and checks keep that from drifting. **Owner question pending**: the agent-written code-shape rule 6 keeps a 1e-9 mm "numeric conditioning" class; questions-036 #38 asks whether that is acceptable and is unanswered.
+> "We have the functional tolerances that are needed for our prints. Then we have the tolerances needed to absorb any rounding error, and these are determined by the functional tolerances, and I'd be very surprised if that was six digits. And meshes with vertex spacing under our functional tolerances should automatically be merged, such a case would almost always be a mesh error anyway." — owner, 2026-10-06 (Claude 3594b461 22:52 UTC); approval reaffirmed 2026-10-07.
 
-Sources: [0.3.6 "Dimensions and tolerances"](../plans/0.3.6.md); [DEVELOPER-CONTEXT code shape 6](../DEVELOPER-CONTEXT.md#code-shape) (agent wording); [core/README dimensions and tolerances](../core/README.md#dimensions-and-tolerances); `.local/team/questions-036.md` #38; Claude 3594b461 10-06 19:11 (queued: "tolerances were supposed to be completed by the last orchestrator").
+Sources: [0.3.6 "Dimensions and tolerances"](../plans/0.3.6.md); [0.3.7 migration](../plans/0.3.7.md); [DEVELOPER-CONTEXT code shape 6](../DEVELOPER-CONTEXT.md#code-shape); [core/README dimensions and tolerances](../core/README.md#dimensions-and-tolerances). The quoted instruction answers the earlier `.local/team/questions-036.md` #38; owner, 2026-10-07: "I definitely gave full approval and instruction for that."
 
 ## Memory limits adapt to the system
 > "memory limits must be adaptive and appropriately sized for the system." — owner, 2026-10-06 (Claude 3594b461)

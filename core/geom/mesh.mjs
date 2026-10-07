@@ -1,6 +1,6 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import { requireThat, cross } from './tolerance.mjs';
-import { NUMERIC_MM } from '../dimensions.mjs';
+import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE, PROGRAM_STEP_MM } from '../dimensions.mjs';
 import { orientLoops } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
@@ -12,6 +12,31 @@ import {decodeSTLBuffer} from './stl-decoder.mjs';
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
 const dot = (a,b) => a.reduce((s,v,i)=>s+v*b[i],0);
 const edgeKey = (a,b) => a<b ? `${a}:${b}` : `${b}:${a}`;
+
+// Mesh tolerances by class (core/README.md#dimensions-and-tolerances). Print resolution
+// judges shape where a mesh enters: import merges closer vertices and
+// repair closes thinner features (mesh-repair.mjs). The contract
+// below certifies with rounding guards: generated surfaces (lettering, blob fields) and
+// repair results legitimately keep triangles lower than print resolution and faces
+// closer than it that share no vertex (fine tessellation of one sheet, a cut film).
+// Rounding guard: a triangle lower than this (smallest height) has no direction, so it
+// is degenerate.
+const DEGENERATE_HEIGHT_MM = ROUNDING_MM;
+// Rounding guard: triangles that share no vertex must be farther apart than this to be
+// certified disjoint.
+const SEPARATION_MM = ROUNDING_MM;
+// Rounding guard: a cross product or 2D determinant of mm edges (square mm) below this
+// has no direction to normalize (parallel separating axis, vertical triangle).
+export const MESH_DEGENERATE_MM2 = ROUNDING_MM**2;
+// Rounding guard: a cut height this close to a vertex height gives contour points too
+// close to tell apart, so the section is nudged off it.
+const VERTEX_CUT_CLEARANCE_MM = ROUNDING_MM;
+// Section nudges clear that guard. None moves a cut by more than one program step, so
+// the written program cannot tell the nudged section from the requested one.
+const SECTION_NUDGES_MM = [0,-2*ROUNDING_MM,2*ROUNDING_MM,-PROGRAM_STEP_MM,PROGRAM_STEP_MM];
+// Rounding guard on barycentric coordinates (dimensionless): a vertical line grazing a
+// triangle edge still counts as crossing it.
+const BARYCENTRIC_SLACK = ROUNDING_RELATIVE;
 
 // Geometry is validated at ingestion. Reusing identical coordinates and indices
 // must not rerun topology/intersection checks at every plan/preview boundary.
@@ -33,12 +58,12 @@ function meshResult(vertices,triangles,name,derived){
     bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice()};
 }
 
-// Unit normal of triangle abc, or null when its smallest height is within
-// numeric conditioning (NUMERIC_MM), where the normal is not determined. Scale-free:
+// Unit normal of triangle abc, or null when the triangle is degenerate: its smallest
+// height is below the rounding guard, where the normal is not determined. Scale-free:
 // a long sliver and a micro triangle are judged by the same height.
 export function triangleNormal(a,b,c){
   const n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);
-  return length>NUMERIC_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
+  return length>=DEGENERATE_HEIGHT_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
 }
 
 // Unit normal of triangle i as validated at ingestion (packed xyz per triangle).
@@ -91,12 +116,12 @@ function retainValidatedMesh(identity,derived){
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
   return derived;
 }
-// Nonadjacent triangles whose boxes come within numeric conditioning must be separated.
+// Nonadjacent triangles whose boxes come within the rounding guard must be separated.
 function rejectIntersections(vertices,triangles,normals){
   const boxes=triangleBoxes(vertices,triangles);
-  overlappingBoxPairs(triangleBoxes(vertices,triangles,NUMERIC_MM),(i,j)=>{
+  overlappingBoxPairs(triangleBoxes(vertices,triangles,ROUNDING_MM),(i,j)=>{
     const ta=triangles[i],tb=triangles[j];if(ta[0]===tb[0]||ta[0]===tb[1]||ta[0]===tb[2]||ta[1]===tb[0]||ta[1]===tb[1]||ta[1]===tb[2]||ta[2]===tb[0]||ta[2]===tb[1]||ta[2]===tb[2])return;
-    for(let k=0;k<3;k++)if(boxes[6*j+3+k]<boxes[6*i+k]-NUMERIC_MM||boxes[6*j+k]>boxes[6*i+3+k]+NUMERIC_MM)return;
+    for(let k=0;k<3;k++)if(boxes[6*j+3+k]<boxes[6*i+k]-ROUNDING_MM||boxes[6*j+k]>boxes[6*i+3+k]+ROUNDING_MM)return;
     const pa=ta.map(v=>vertices[v]),pb=tb.map(v=>vertices[v]);
     if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
   });
@@ -104,15 +129,15 @@ function rejectIntersections(vertices,triangles,normals){
 
 // Shared closed-triangle separation predicate: the projections onto one of the
 // triangles' separating axes (normals, edge cross products, in-plane edge normals)
-// are more than numeric conditioning apart. Allocation-free; validation runs it
+// are more than the rounding guard apart. Allocation-free; validation runs it
 // for every nearby pair. In-plane edge normals come before edge cross products,
 // which for coplanar triangles all repeat the normal.
 const separation=new Float64Array(24);
-function separatedAlong(x,y,z,pa,pb){
-  const length=Math.hypot(x,y,z);if(length<1e-12)return false;
+function separatedAlong(x,y,z,pa,pb,minimumLength=ROUNDING_RELATIVE){
+  const length=Math.hypot(x,y,z);if(length<minimumLength)return false;
   const ux=x/length,uy=y/length,uz=z/length;let amin=Infinity,amax=-Infinity,bmin=Infinity,bmax=-Infinity;
   for(let k=0;k<3;k++){const a=pa[k][0]*ux+pa[k][1]*uy+pa[k][2]*uz,b=pb[k][0]*ux+pb[k][1]*uy+pb[k][2]*uz;amin=Math.min(amin,a);amax=Math.max(amax,a);bmin=Math.min(bmin,b);bmax=Math.max(bmax,b);}
-  return amax<bmin-NUMERIC_MM||bmax<amin-NUMERIC_MM;
+  return amax<bmin-ROUNDING_MM||bmax<amin-ROUNDING_MM;
 }
 // Scratch layout: edges of A at 0..8, of B at 9..17, unit normals at 18 and 21.
 function setNormal(o,given,edges){
@@ -120,7 +145,7 @@ function setNormal(o,given,edges){
   const x=e[edges+1]*e[edges+5]-e[edges+2]*e[edges+4],y=e[edges+2]*e[edges+3]-e[edges]*e[edges+5],z=e[edges]*e[edges+4]-e[edges+1]*e[edges+3],length=Math.hypot(x,y,z);
   e[o]=x/length;e[o+1]=y/length;e[o+2]=z/length;
 }
-function crossSeparates(p,q,pa,pb){const e=separation;return separatedAlong(e[p+1]*e[q+2]-e[p+2]*e[q+1],e[p+2]*e[q]-e[p]*e[q+2],e[p]*e[q+1]-e[p+1]*e[q],pa,pb);}
+function crossSeparates(p,q,pa,pb){const e=separation;return separatedAlong(e[p+1]*e[q+2]-e[p+2]*e[q+1],e[p+2]*e[q]-e[p]*e[q+2],e[p]*e[q+1]-e[p+1]*e[q],pa,pb,p>=18?ROUNDING_MM:MESH_DEGENERATE_MM2);}
 export function separatedTriangles(pa,pb,normalA,normalB) {
   const e=separation;
   for(let k=0;k<3;k++)for(let c=0;c<3;c++){e[3*k+c]=pa[(k+1)%3][c]-pa[k][c];e[9+3*k+c]=pb[(k+1)%3][c]-pb[k][c];}
@@ -166,10 +191,10 @@ function heightTree(items) {
   return {min,max,left:heightTree(items.slice(0,middle)),right:heightTree(items.slice(middle))};
 }
 function nearVertex(index,cut) {
-  if(!index.heights)return index.vertices.some(p=>Math.abs(p[2]-cut)<1e-10);
+  if(!index.heights)return index.vertices.some(p=>Math.abs(p[2]-cut)<VERTEX_CUT_CLEARANCE_MM);
   const heights=index.heights;let lo=0,hi=heights.length;
   while(lo<hi){const mid=(lo+hi)>>1;if(heights[mid]<cut)lo=mid+1;else hi=mid;}
-  return (lo<heights.length&&Math.abs(heights[lo]-cut)<1e-10)||(lo>0&&Math.abs(heights[lo-1]-cut)<1e-10);
+  return (lo<heights.length&&Math.abs(heights[lo]-cut)<VERTEX_CUT_CLEARANCE_MM)||(lo>0&&Math.abs(heights[lo-1]-cut)<VERTEX_CUT_CLEARANCE_MM);
 }
 // Triangles strictly spanning the cut, in index order: contour traversal and
 // the shared-edge record below depend on that order.
@@ -223,14 +248,16 @@ export function sectionMeshIndex(index,h) {
   const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
   if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0};
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
-  for(const nudge of [0,-1e-6,1e-6,-1e-5,1e-5]) {
+  for(const nudge of SECTION_NUDGES_MM) {
     const cut=h+nudge;
     if(cut<=min||cut>=max||nearVertex(index,cut))continue;
     const loops=[];
     for(const edges of meshContourEdges(index.vertices,cut,trianglesAt(index,cut))){
       const loop=edges.map(([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];});
-      // Remove collinear triangle seams before offsetting regions.
-      const clean=cleanPlanarLoop(loop);
+      // Remove triangle seams collinear to rounding before offsetting regions. The section
+      // stays the exact cut: a shape tolerance here would switch retained vertices as Z
+      // moves, and callers simplify at their own tolerance (contour-sleeve, layer-strokes).
+      const clean=cleanPlanarLoop(loop,ROUNDING_MM);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
     }
     return {loops:orientLoops(loops),nudgedByMm:nudge};
@@ -244,10 +271,10 @@ export function meshCrossingsAt(mesh,x,y) {
   for(const [i,t] of mesh.triangles.entries()) {
     const [a,b,c]=t.map(k=>mesh.vertices[k]);
     const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-    if(Math.abs(det)<1e-12)continue;
+    if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;
     const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
     const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
-    if(Math.min(u,v,w)<-1e-9)continue;
+    if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
     const n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
     crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI,feature:`triangle:${i}`,patch:`triangle:${i}`});
   }
@@ -259,19 +286,20 @@ export function meshTopAt(mesh,x,y) {
   for(const [i,t] of mesh.triangles.entries()) {
     const [a,b,c]=t.map(k=>mesh.vertices[k]);
     const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-    if(Math.abs(det)<1e-12)continue;
+    if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;
     const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
     const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
-    if(Math.min(u,v,w)<-1e-9)continue;
+    if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
     const zMm=u*a[2]+v*b[2]+w*c[2],n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
     const slopeDeg=Math.acos(Math.min(1,normal[2]))*180/Math.PI;
-    if(!best||zMm>best.zMm+1e-8||(Math.abs(zMm-best.zMm)<=1e-8&&slopeDeg>best.slopeDeg))best={zMm,normal,slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`};
+    // Tops closer than print resolution coincide; the steeper triangle wins the tie.
+    if(!best||zMm>best.zMm+PRINT_RESOLUTION_MM||(Math.abs(zMm-best.zMm)<=PRINT_RESOLUTION_MM&&slopeDeg>best.slopeDeg))best={zMm,normal,slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`};
   }
   return best;
 }
 
-// STL has no units. Exact duplicate coordinates are indexed without moving them.
-// Decoding is also used by explicit repair. Ordinary import still validates below.
+// STL parsing indexes exact coordinates; source admission separately normalizes
+// vertices in physical millimetres. Repair output reimport remains exact.
 export function decodeSTL(bytes,{units,scale=1}={}) {
   try{return decodeSTLBuffer(bytes,{units,scale});}
   catch(error){

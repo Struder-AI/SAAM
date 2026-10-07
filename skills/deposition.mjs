@@ -2,7 +2,7 @@
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
 import {requireExclusiveClaims} from '../core/region/ownership.mjs';
-import {TOLERANCE} from '../core/geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../core/dimensions.mjs';
 
 export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,processForAssignment,engines}){
   const support=plan.skills?.supports?.enabled?await (await loadExtensionEntry('supports','deposition-runtime'))(engines):null;
@@ -31,7 +31,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
-    if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
+    if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>PRINT_RESOLUTION_MM)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
   for(const context of sleeves)if(!context.geometry)context.geometry=vase.prepareSleeveGeometry({...context,onProgress});
   const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];

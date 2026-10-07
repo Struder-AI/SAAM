@@ -1,4 +1,5 @@
 import {requireThat} from '../private/extensions/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {create} from 'fontkit';
 
 import {union} from '../region/intersection.mjs';
@@ -48,7 +49,7 @@ export function textOutlines(feature,toleranceMm){
     run.glyphs.forEach((glyph,index)=>{
       const position=run.positions[index],loops=[];let loop=[],point;
       const xy=(a,b)=>[(a+position.xOffset)*scale+x,(b+position.yOffset)*scale+y];
-      const finish=()=>{if(loop.length>1&&Math.hypot(...loop[0].map((v,i)=>v-loop.at(-1)[i]))<1e-10)loop.pop();if(loop.length>=3)loops.push(loop);loop=[];};
+      const finish=()=>{if(loop.length>1&&Math.hypot(...loop[0].map((v,i)=>v-loop.at(-1)[i]))<PRINT_RESOLUTION_MM)loop.pop();if(loop.length>=3)loops.push(loop);loop=[];};
       for(const {command,args} of glyph.path.commands){
         if(command==='moveTo'){finish();point=xy(...args);loop.push(point);}
         else if(command==='lineTo'){point=xy(...args);loop.push(point);}

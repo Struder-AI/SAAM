@@ -2,13 +2,15 @@
 // its native chart; other families may intersect it without a trimmed B-rep.
 import {projectToPatch} from './field.mjs';
 import {pointInRegion,pointSegmentDistance} from '../region/region2d.mjs';
-import {normalize,cross,dot,requireThat} from './tolerance.mjs';
+import {normalize,cross,dot,requireThat,TOLERANCE} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {DIRECTION_TOLERANCE} from './frame.mjs';
 import {heightSlicePoint,heightReferenceRange,referenceHeight} from './height-slice.mjs';
 
 export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
   requireThat(['patch','height-field'].includes(reference.kind)&&fromMm<toMm&&loopsUv.length,'A chart prism needs a surface region and increasing translation bounds.');
   if(reference.kind==='height-field'){
-    requireThat(Math.hypot(direction[0],direction[1])<1e-9&&direction[2]>0,'A height-field chart prism translates along positive Z.');
+    requireThat(Math.hypot(direction[0],direction[1])<DIRECTION_TOLERANCE*Math.hypot(...direction)&&direction[2]>0,'A height-field chart prism translates along positive Z.');
     const [low,high]=heightReferenceRange(reference.reference,loopsUv),points=loopsUv.flat(),min=[Math.min(...points.map(p=>p[0])),Math.min(...points.map(p=>p[1])),low+reference.offsetMm+fromMm],max=[Math.max(...points.map(p=>p[0])),Math.max(...points.map(p=>p[1])),high+reference.offsetMm+toMm];
     return {kind:'chart-prism',reference,loopsUv,direction:[0,0,1],fromMm,toMm,bounds:{min,max}};
   }
@@ -22,7 +24,7 @@ export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
 }
 
 export function chartPrismContains(prism,point){
-  if(point.some((v,k)=>v<prism.bounds.min[k]-1e-8||v>prism.bounds.max[k]+1e-8))return false;
+  if(point.some((v,k)=>v<prism.bounds.min[k]-PRINT_RESOLUTION_MM||v>prism.bounds.max[k]+PRINT_RESOLUTION_MM))return false;
   if(prism.reference.kind==='height-field'){
     const uv=point.slice(0,2);
     if(!pointInRegion(uv,prism.loopsUv))return false;
@@ -31,12 +33,12 @@ export function chartPrismContains(prism,point){
     // fails in heightSlicePoint. Invalid/folded references retain their errors.
     if(!referenceHeight(prism.reference.reference,...uv))return false;
     const surface=heightSlicePoint(prism.reference,uv),distance=point[2]-surface[2];
-    return distance>prism.fromMm+1e-8&&distance<=prism.toMm+1e-8;
+    return distance>prism.fromMm+PRINT_RESOLUTION_MM&&distance<=prism.toMm+PRINT_RESOLUTION_MM;
   }
   const p=prism.axes.map(axis=>dot(axis,point));
   return projectToPatch(prism.projectedPatch,p[0],p[1]).some(hit=>{
     const distance=p[2]-hit.point[2],uv=[hit.u,hit.v];
-    if(distance<=prism.fromMm+1e-8||distance>prism.toMm+1e-8)return false;
-    return pointInRegion(uv,prism.loopsUv)||prism.loopsUv.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=1e-8));
+    if(distance<=prism.fromMm+PRINT_RESOLUTION_MM||distance>prism.toMm+PRINT_RESOLUTION_MM)return false;
+    return pointInRegion(uv,prism.loopsUv)||prism.loopsUv.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=TOLERANCE.parameter));
   });
 }

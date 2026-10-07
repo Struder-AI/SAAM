@@ -5,18 +5,24 @@ import {checkMeshTopology} from './mesh-topology.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
-import {NUMERIC_MM,NUMERIC_RELATIVE} from '../dimensions.mjs';
+import {normalizeSourceMesh} from './mesh-source.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
+// Source vertices closer than print resolution merge first; faces that collapse
+// or fail triangleNormal go. A vertex within print resolution of an opposite
+// boundary edge is stitched into it.
 export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
   requireThat(Number.isFinite(mergeToleranceMm)&&mergeToleranceMm>=0,'mergeToleranceMm must be a finite nonnegative distance in millimetres.');
   checkMeshCapacity(input.vertices.length,input.triangles.length);
-  const {vertices,mapping,merge}=indexRepairVertices(input.vertices,mergeToleranceMm);
+  for(const p of input.vertices)requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
+  for(const face of input.triangles)requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<input.vertices.length),'Invalid repair triangle indices.');
+  const normalized=normalizeSourceMesh(input),resolution={...normalized.geometry,merge:normalized.report};
+  const {vertices,mapping,merge}=indexRepairVertices(resolution.vertices,mergeToleranceMm);
   // Coincident triangles keep one copy facing their net orientation; an
   // opposed pair is a zero-thickness wall and cancels, so the surface stays closed.
   const kept=[],groups=new Map();let degenerate=0;
-  for(const face of input.triangles){
-    requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<mapping.length),'Invalid repair triangle indices.');
+  for(const face of resolution.triangles){
     const t=face.map(i=>mapping[i]);
     if(new Set(t).size!==3||!triangleNormal(...t.map(i=>vertices[i]))){degenerate++;continue;}
     const s=[...t].sort((a,b)=>a-b),key=s.join(','),sign=(s.indexOf(t[1])-s.indexOf(t[0])+3)%3===1?1:-1;
@@ -24,22 +30,21 @@ export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   }
   const triangles=[];
   for(const key of kept){const {triangle:t,sign,net}=groups.get(key);if(net)triangles.push(Math.sign(net)===sign?t:[t[0],t[2],t[1]]);}
-  const duplicates=input.triangles.length-degenerate-triangles.length;
+  const duplicates=resolution.triangles.length-degenerate-triangles.length;
   requireThat(triangles.length>=4,'Repair has no usable solid surface.');
-  const stitching=degenerate?stitchCollapsedEdges(vertices,triangles):{triangles,stitchedEdges:0,addedTriangles:0};
+  // A removed or merged face can leave a vertex on the opposite edge (a T-junction);
+  // stitching closes it wherever the boundary allows, and finds nothing on a closed mesh.
+  const stitching=stitchCollapsedEdges(vertices,triangles);
   const compact=compactMesh(vertices,stitching.triangles);
-  return {...compact,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
-    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:NUMERIC_MM}};
+  return {...compact,resolutionMerge:resolution.merge,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
+    stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:PRINT_RESOLUTION_MM}};
 }
 
 // Retained representatives never move: every snap is measured directly, not
 // through a chain of neighbours. Repeated coordinates reuse the same decision.
 function indexRepairVertices(points,toleranceMm){
   const magnitude=[0,0,0];
-  for(const p of points){
-    requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
-    for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
-  }
+  for(const p of points)for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
   // Power-of-two cells avoid rounding the tolerance into a coarser snap rule.
   // Widen only the search cells for extreme coordinate/tolerance ratios, keeping
   // integer neighbours representable; actual Euclidean distance still decides.
@@ -77,6 +82,7 @@ function indexRepairVertices(points,toleranceMm){
 
 // Removing a collinear face can expose A--C opposite C--B--A. Split the
 // surviving A--C face at B, preserving its orientation and existing coordinates.
+// B is on A--C when it lies within print resolution of it.
 // Only stitch a complete, oppositely directed boundary chain: never cap a hole
 // or guess how to join branching/nonmanifold boundaries.
 function stitchCollapsedEdges(vertices,triangles) {
@@ -91,14 +97,14 @@ function stitchCollapsedEdges(vertices,triangles) {
   const splits=new Map();let stitchedEdges=0,addedTriangles=0;
   for(const edge of boundary){
     const a=vertices[edge.a],b=vertices[edge.b],ab=sub(b,a),length=Math.hypot(...ab);
-    if(length<=NUMERIC_MM)continue;
+    if(length<=PRINT_RESOLUTION_MM)continue;
     const direction=ab.map(v=>v/length),chain=[edge.b];let at=edge.b,previous=length;
     const visited=new Set(chain);
     while(at!==edge.a){
       const next=(outgoing.get(at)??[]).filter(e=>{
         if(e===edge||visited.has(e.b))return false;
         const offset=sub(vertices[e.b],a),position=dot(offset,direction);
-        return position>=-NUMERIC_MM&&position<previous&&Math.hypot(...cross(offset,direction))<=NUMERIC_MM;
+        return position>=-PRINT_RESOLUTION_MM&&position<previous&&Math.hypot(...cross(offset,direction))<=PRINT_RESOLUTION_MM;
       });
       if(next.length!==1)break;
       at=next[0].b;chain.push(at);visited.add(at);previous=dot(sub(vertices[at],a),direction);
@@ -266,9 +272,9 @@ export function triangulateHole(points,sideNormals,hasEdge){
       const p=5*(first+m),q=5*(last+m);if(!(cell[p]>=0&&column[q]>=0))continue;
       const mx=P[3*m]-ix,my=P[3*m+1]-iy,mz=P[3*m+2]-iz,ex=kx-mx,ey=ky-my,ez=kz-mz;
       const nx=my*kz-mz*ky,ny=mz*kx-mx*kz,nz=mx*ky-my*kx,squared=nx*nx+ny*ny+nz*nz;
-      const longest=Math.max(mx*mx+my*my+mz*mz,ex*ex+ey*ey+ez*ez,ik),limit=NUMERIC_MM*NUMERIC_MM*longest;
+      const longest=Math.max(mx*mx+my*my+mz*mz,ex*ex+ey*ey+ez*ez,ik),limit=ROUNDING_MM*ROUNDING_MM*longest;
       // The height contract in triangleNormal's own arithmetic when it is close.
-      if(squared<=limit*(1+NUMERIC_RELATIVE)&&!triangleNormal([ix,iy,iz],P.slice(3*m,3*m+3),P.slice(3*k,3*k+3)))continue;
+      if(squared<=limit*(1+ROUNDING_RELATIVE)&&!triangleNormal([ix,iy,iz],P.slice(3*m,3*m+3),P.slice(3*k,3*k+3)))continue;
       const length=Math.sqrt(squared),ux=nx/length,uy=ny/length,uz=nz/length;
       const ax=ux-cell[p+2],ay=uy-cell[p+3],az=uz-cell[p+4],bx2=ux-column[q+2],by2=uy-column[q+3],bz2=uz-column[q+4];
       let a=Math.max(cell[p],column[q],ax*ax+ay*ay+az*az,bx2*bx2+by2*by2+bz2*bz2);

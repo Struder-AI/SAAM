@@ -2,7 +2,8 @@
 // it preserves the source roof or spline, never fits a replacement surface.
 import {topAt,containsPoint} from './query.mjs';
 import {projectToPatch,patchCoversChart} from './field.mjs';
-import {normalize,requireThat,TOLERANCE} from './tolerance.mjs';
+import {normalize,requireThat} from './tolerance.mjs';
+import {ROUNDING_RELATIVE,PRINT_RESOLUTION_MM,PROGRAM_STEP_MM} from '../dimensions.mjs';
 import {extractLevelSet,SENTINEL} from './level-set.mjs';
 import {validateSplineSolid,clampedKnots,splineSolidBounds} from './spline-solid.mjs';
 
@@ -33,7 +34,7 @@ export function heightReferenceRange(reference,loops){
   if(reference.kind!=='roof')return [bounds.min[2],bounds.max[2]];
   const solid=reference.geometry;let floor=-Infinity;
   if(solid.kind==='triangle-mesh'){
-    const lo=[0,1].map(k=>Math.min(...points.map(p=>p[k]))-TOLERANCE.point),hi=[0,1].map(k=>Math.max(...points.map(p=>p[k]))+TOLERANCE.point);
+    const lo=[0,1].map(k=>Math.min(...points.map(p=>p[k]))-PRINT_RESOLUTION_MM),hi=[0,1].map(k=>Math.max(...points.map(p=>p[k]))+PRINT_RESOLUTION_MM);
     const faces=solid.triangles.map(t=>t.map(i=>solid.vertices[i]));
     const winding=Math.sign(faces.reduce((sum,[a,b,c])=>sum+a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]),0));
     const upward=([a,b,c])=>winding*((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))>0;
@@ -58,7 +59,7 @@ export function heightReferenceMetric(reference,{sampleStepMm=.5}={}){
     const point=[i,j].map((v,k)=>bounds.min[k]+(v+.5)*(bounds.max[k]-bounds.min[k])/counts[k]),top=referenceHeight(reference,...point);
     if(!top||top.patch==='bottom')continue;
     const projected=(bounds.max[0]-bounds.min[0])*(bounds.max[1]-bounds.min[1])/(counts[0]*counts[1]);
-    requireThat(top.normal[2]>1e-9,'A height reference has no positive vertical advance.');
+    requireThat(top.normal[2]>ROUNDING_RELATIVE,'A height reference has no positive vertical advance.');
     projectedAreaMm2+=projected;areaMm2+=projected/top.normal[2];minProjection=Math.min(minProjection,top.normal[2]);maxProjection=Math.max(maxProjection,top.normal[2]);
   }
   requireThat(areaMm2>0,'The height reference has no measurable surface area.');
@@ -90,9 +91,9 @@ function evaluateReferenceHeight(reference,x,y) {
   if(reference.kind==='roof')return topAt(reference.geometry,x,y);
   const hits=projectToPatch(reference.patch,x,y);
   if(!hits.length)return null;
-  requireThat(hits.every(hit=>Math.abs(hit.point[2]-hits[0].point[2])<=TOLERANCE.point),'Spline slice folds over its XY chart; choose a single-valued height reference.');
+  requireThat(hits.every(hit=>Math.abs(hit.point[2]-hits[0].point[2])<=PRINT_RESOLUTION_MM),'Spline slice folds over its XY chart; choose a single-valued height reference.');
   const hit=hits[0],normal=hit.normal?.[2]<0?hit.normal.map(v=>-v):hit.normal;
-  requireThat(normal&&normal[2]>1e-9,'Spline height reference has a vertical or singular normal.');
+  requireThat(normal&&normal[2]>ROUNDING_RELATIVE,'Spline height reference has a vertical or singular normal.');
   return {zMm:hit.point[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI};
 }
 
@@ -114,7 +115,8 @@ export function heightSliceNormal(slice,[x,y]) {
   // across facets would mistake a crease/jump for a smooth local derivative.
   // Mapping still checks chord convergence and actual path slope across it.
   if(top.feature?.startsWith('triangle:'))return top.normal;
-  const h=Math.max(TOLERANCE.point*10,Math.min(.001,slice.sampleStepMm/100));
+  // The slope a print follows: a difference across print resolution.
+  const h=PRINT_RESOLUTION_MM;
   const z=heightSlicePoint(slice,[x,y])[2],gradient=[];
   for(const axis of [0,1]) {
     const a=[x,y],b=[x,y];a[axis]-=h;b[axis]+=h;
@@ -128,7 +130,7 @@ export function heightSliceNormal(slice,[x,y]) {
 }
 
 // Contours of an evaluated predicate, sampled at the requested spatial pitch
-// and bisected to point tolerance at each detected crossing. Features wholly
+// and bisected to program resolution at each detected crossing. Features wholly
 // between grid samples are outside this explicitly sampled topology contract.
 export function sampledChartRegion(bounds,stepMm,contains) {
   requireThat((Array.isArray(stepMm)?stepMm:[stepMm]).every(s=>Number.isFinite(s)&&s>0),'Chart sampling pitch must be positive.');
@@ -137,7 +139,7 @@ export function sampledChartRegion(bounds,stepMm,contains) {
   const [xs,ys]=axes,values=xs.map(x=>Float64Array.from(ys,y=>contains([x,y])?SENTINEL:-SENTINEL));
   const refine=(inside,outside)=>{
     let a=inside,b=outside;
-    while(Math.hypot(a[0]-b[0],a[1]-b[1])>TOLERANCE.point) {
+    while(Math.hypot(a[0]-b[0],a[1]-b[1])>PROGRAM_STEP_MM) {
       const middle=[(a[0]+b[0])/2,(a[1]+b[1])/2];
       requireThat(middle[0]!==a[0]||middle[1]!==a[1],'Chart boundary refinement cannot progress at floating-point precision.');
       if(contains(middle))a=middle;else b=middle;
@@ -155,7 +157,7 @@ export function sectionHeightSlice(geometry,slice,{sampleStepMm=slice.sampleStep
       requireThat(!fullCrossing||slice.reference.kind!=='spline'||!topAt(source,...point),'Spline slice domain stops over the part; extend the reference to fully cross its material.');
       return false;
     }
-    const p=heightSlicePoint(slice,point),epsilon=TOLERANCE.point*2;
+    const p=heightSlicePoint(slice,point),epsilon=PRINT_RESOLUTION_MM;
     return containsPoint(source,[p[0],p[1],p[2]-epsilon])||containsPoint(source,[p[0],p[1],p[2]+epsilon]);
   };
   return {loops:sampledChartRegion(source.bounds,sampleStepMm,contains),nudgedByMm:0};

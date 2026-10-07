@@ -3,12 +3,12 @@ import {AdaptationMotion,machinePriming} from '../private/export/adaptation-moti
 import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../machine/rules.mjs';
 import {materialProcess,materialTool} from '../machine/filaments.mjs';
 import {contextualActions} from '../path/action-context.mjs';
+import {samePose,uprightPose} from '../path/pose.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
 const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
-const upright=pose=>!pose||Math.abs(pose.rotaryDeg)<1e-9&&
-  pose.toolAxis.every((v,i)=>Math.abs(v-[0,0,-1][i])<1e-9)&&
-  pose.toolUp.every((v,i)=>Math.abs(v-[0,1,0][i])<1e-9);
+const upright=pose=>!pose||samePose(pose,uprightPose());
 const selection=(plan,machine,index)=>{
   const tool=materialTool(plan,index);
   return {filament:index,tool,process:materialProcess(plan,index),bounds:toolBounds(machine,tool)};
@@ -99,8 +99,9 @@ export function prepareExportPath(path,plan,machine,adapter){
       motion.travel(neutralFrom);relocating=false;
     }
     if(original.kind==='move'){
-      if(original.volumeMm3>0&&distance(motion.position,neutralFrom)>1e-8)motion.travel(neutralFrom);
-      if(distance(motion.position,original.to)<1e-10&&!original.pose){
+      // Rounding guard: a neutral move of zero length within rounding is no move.
+      if(original.volumeMm3>0&&distance(motion.position,neutralFrom)>ROUNDING_MM)motion.travel(neutralFrom);
+      if(distance(motion.position,original.to)<ROUNDING_MM&&!original.pose){
         requireThat(original.volumeMm3===0,'A zero-length move needs stationary extrusion.');neutralFrom=original.to;continue;
       }
       motion.position=[...original.to];motion.pose=original.pose??null;

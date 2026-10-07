@@ -6,11 +6,10 @@
 //
 //   node packaging/build.mjs --version 0.1.0 --relay-url https://relay.example.com [--platform win-x64,darwin-arm64,darwin-x64]
 //   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for one platform>]
-//   [--mesh-repair DIR] [--modules DIR] [--out dist]
+//   [--modules DIR] [--out dist]
 //   [--review --review-file packaging/application.mjs --review-file packaging/release-service.mjs]
 // Each platform (all three by default) builds into <out>/<platform>/. --update-host is the release
 // folder this build accepts updates from (see packaging/update.mjs); without it the build never offers an update.
-// --mesh-repair applies to the platform its helper targets.
 //
 // Nothing is installed from the network. Dependencies come once per run from an installed
 // node_modules (--modules, default this checkout's), checked against package-lock.json; Node
@@ -34,7 +33,7 @@ import {resolve,dirname,join,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
-import {executablePlatform,packageNativeRepair} from './native-repair.mjs';
+import {executablePlatform} from './native-repair.mjs';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -47,7 +46,8 @@ const PLATFORMS={
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
   /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
-  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
+  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|native-repair\.mjs|windows\/|macos\/)/,
+  /^core\/geom\/(native\/|mesh-native\.mjs$)/,/^scripts\/build-mesh-repair\.mjs$/];
 
 // SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.
 // Its other files and all its dependencies serve the manifoldCAD tooling (glTF and 3MF export,
@@ -200,7 +200,7 @@ async function nodeRuntime(version,platform,into){
 
 async function main(){
   const {values}=parseArgs({options:{platform:{type:'string',multiple:true},version:{type:'string'},'relay-url':{type:'string'},
-    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'},
+    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},
     modules:{type:'string'},review:{type:'boolean',default:false},'review-file':{type:'string',multiple:true}}});
   const platforms=values.platform?.flatMap(value=>value.split(','))??Object.keys(PLATFORMS);
   for(const platform of platforms)if(!PLATFORMS[platform])throw Error(`Choose --platform from ${Object.keys(PLATFORMS).join(', ')}.`);
@@ -235,10 +235,6 @@ async function main(){
     return disk&&disk!==expected?[line.slice(line.indexOf('\t')+1)]:[];});
   if(stale.length)throw Error(`${stale.length} files on disk have line endings other than .gitattributes gives (e.g. ${stale.slice(0,3).join(', ')}); build from a fresh checkout.`);
   const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&!EXCLUDED.some(pattern=>pattern.test(file)));
-  const helper=values['mesh-repair']&&resolve(values['mesh-repair']);
-  const helperFor=platform=>helper&&existsSync(join(helper,'saam-mesh-repair'+(platform==='win-x64'?'.exe':'')))?helper:undefined;
-  if(helper&&!platforms.some(helperFor))throw Error(`${helper} holds no native helper for ${platforms.join(', ')}.`);
-
   const modules=resolve(out,'modules');
   await rm(modules,{recursive:true,force:true});
   const count=await dependencySet(await readJson(resolve(root,'package-lock.json')),resolve(values.modules??resolve(root,'node_modules')),modules);
@@ -252,8 +248,6 @@ async function main(){
     for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
     await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
     console.log(`${platform}: copied ${files.length} tracked files.`);
-    const nativeRepair=await packageNativeRepair({root,app,platform,artifact:helperFor(platform)});
-    console.log('Native mesh repair:',nativeRepair.available?'included for '+platform:nativeRepair.reason);
     await cp(modules,resolve(app,'node_modules'),{recursive:true});
     await checkImports(app,files);
 
@@ -269,7 +263,7 @@ async function main(){
     }
     else await nodeRuntime(values['node-version'],platform,runtime);
 
-    const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
+    const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
     const releaseJson=JSON.stringify(release,null,2)+'\n';
     await writeFile(resolve(app,'release.json'),releaseJson);
     console.log(`Application: ${describe(await measure(app))}.`);

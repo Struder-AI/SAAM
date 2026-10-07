@@ -1,4 +1,5 @@
 import {requireThat,distance2} from '../tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../../dimensions.mjs';
 // Bounded directional unfolding of a closed contour. Radius and traversal order
 // are retained; weighted isotonic regression regularizes only polar angle.
 // A fixed arc-length quadrature gives section vertex splits no new fit weight.
@@ -35,14 +36,15 @@ function sampleDirectionalContour(curve,samples,toleranceMm){
 
 function unwrapDirectionalProfile(points,anchor){
   const samples=points.length,radii=points.map(p=>distance2(p,anchor));
-  requireThat(radii.every(r=>r>1e-8),'Directional contour touches its fitted center.');
+  requireThat(radii.every(r=>r>PRINT_RESOLUTION_MM),'Directional contour touches its fitted center.');
   const theta=points.map(p=>Math.atan2(p[1]-anchor[1],p[0]-anchor[0])),angles=[theta[0]];
   let turn=0;
   for(let i=1;i<=samples;i++){
     const delta=theta[i%samples]-theta[i-1];
     turn+=Math.atan2(Math.sin(delta),Math.cos(delta));angles.push(theta[0]+turn);
   }
-  requireThat(Math.abs(turn-TAU)<1e-8,'Directional contour must wind once counterclockwise around its fitted center.');
+  // The turn is a whole number of turns up to rounding; half a turn separates them.
+  requireThat(Math.abs(turn-TAU)<Math.PI,'Directional contour must wind once counterclockwise around its fitted center.');
   return {radii,angles};
 }
 
@@ -90,7 +92,7 @@ function reconstructDirectionalContour(points,radii,adjusted,anchor){
   let angularAdjustmentMm=0,movedVertices=0;
   const loop=points.map((p,i)=>{
     const q=[anchor[0]+radii[i]*Math.cos(adjusted[i]),anchor[1]+radii[i]*Math.sin(adjusted[i])],d=distance2(p,q);
-    angularAdjustmentMm=Math.max(angularAdjustmentMm,d);if(d>1e-9)movedVertices++;return q;
+    angularAdjustmentMm=Math.max(angularAdjustmentMm,d);if(d>PRINT_RESOLUTION_MM)movedVertices++;return q;
   });
   return {loop,angularAdjustmentMm,movedVertices};
 }
@@ -99,7 +101,7 @@ function verifyDirectionalContour({loop,angularAdjustmentMm,movedVertices},sampl
   const correspondenceErrorMm=samplingErrorMm+angularAdjustmentMm;
   // Corresponding edges are linear interpolations of paired endpoints. Thus
   // endpoint displacement bounds the whole-edge displacement, in both senses.
-  requireThat(correspondenceErrorMm<=toleranceMm+1e-10,
+  requireThat(correspondenceErrorMm<=toleranceMm+ROUNDING_MM,
     `Directional folds need ${correspondenceErrorMm.toFixed(6)} mm of contour adjustment, above detail tolerance ${toleranceMm} mm.`);
   let maxChordLogRadiusSlope=0;
   for(let i=0;i<loop.length;i++){

@@ -4,6 +4,7 @@ import {makeMesh} from './mesh.mjs';
 import {pointTriangleDistanceSquared} from './mesh-distance.mjs';
 import {containsPoint} from './query.mjs';
 import {requireThat} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 // Native construction and tessellation finish before synchronous sampling.
 export async function prepareSolidDistance(geometry,{toleranceMm}){
@@ -19,5 +20,6 @@ export function solidDistance(prepared,point,{signed}){
   let squared=Infinity;
   for(const triangle of prepared.triangles)squared=Math.min(squared,pointTriangleDistanceSquared(point,...triangle.map(i=>prepared.vertices[i])));
   const magnitude=Math.sqrt(squared);
-  return signed&&magnitude>1e-12&&containsPoint(prepared,point)?-magnitude:magnitude;
+  // A point within print resolution of the surface is on it and keeps a positive distance.
+  return signed&&magnitude>PRINT_RESOLUTION_MM&&containsPoint(prepared,point)?-magnitude:magnitude;
 }

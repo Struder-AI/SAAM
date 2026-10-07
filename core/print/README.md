@@ -26,11 +26,11 @@ guards display and export, `editRevision` authored changes, `revision` every com
 Geometry includes solids, curves and points; recipe/machine may be incomplete.
 Operations report missing prerequisites; opening/retry never generates ordinary output.
 
-Geometry extensions return proposals through Geometry; only deposition or hybrid
-assignment contributions need Toolpath composition. Bundle accepts one revisioned
-edit. Saved geometry remains viewable without rerunning the extension.
-Saved records receive structural checks when opened; the selected extension copy
-validates technique semantics at edit and regeneration, after prerequisite resolution.
+Geometry extensions supply prepared artifacts; Bundle admits new authored meshes once.
+Its adapter returns `{plan,meshNormalization}` from `normalizePlan`, given prior geometry
+and any prepared artifact. Reports persist in the geometry descriptor; unchanged,
+prepared and loaded geometry stay exact. Technique semantics are checked at edit
+and regeneration after prerequisites exist; saved geometry needs no extension rerun.
 
 `prepareSliceRegionContext` accepts a supplied Geometry slice stack, preset,
 recipe, process resolver and report. Toolpath resolves the assignment's filament

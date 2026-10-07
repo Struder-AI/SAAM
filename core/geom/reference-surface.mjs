@@ -2,6 +2,7 @@
 import {requireGeometry} from './query.mjs';
 import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,cross,normalize} from './tolerance.mjs';
+import {DIRECTION_TOLERANCE} from './frame.mjs';
 
 export function referencePatch(spec){
   const {degreeU,degreeV,controlPoints}=spec;
@@ -50,7 +51,7 @@ export function referenceSurface(spec,part){
     const {origin,xAxis,yAxis}=spec;
     requireThat([origin,xAxis,yAxis].every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Plane needs origin, xAxis and yAxis XYZ vectors.');
     const x=normalize(xAxis),y=normalize(yAxis);
-    requireThat(Math.abs(x.reduce((sum,v,i)=>sum+v*y[i],0))<1e-8,'Plane axes must be perpendicular.');
+    requireThat(Math.abs(x.reduce((sum,v,i)=>sum+v*y[i],0))<DIRECTION_TOLERANCE,'Plane axes must be perpendicular.');
     const n=normalize(cross(x,y)).map(v=>v*normalSide);
     return (a,b)=>evaluateSurface({kind:'plane',origin,xAxis:x,yAxis:y,normal:n},[a,b]);
   }

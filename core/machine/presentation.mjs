@@ -3,7 +3,8 @@ import {frameAtTime} from './path-time.mjs';
 
 import {densoGeometry,densoInverse,densoWristFromPose} from './denso-kinematics.mjs';
 import {dobotGeometry,dobotInverse} from './dobot-kinematics.mjs';
-import {constrainedJog} from './jog.mjs';
+import {constrainedJog,MARGIN_ROUNDING} from './jog.mjs';
+import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 // Gantry machines are drawn from profile data alone; each arm has its own trusted model.
 const ARMS=new Set(['dobot-mg400','denso-vs068a4-rc8a']);
@@ -91,10 +92,13 @@ function machineControlLayout(machine,{manualEnabled,coordinateBounds}){
   return {controls,angleAxes};
 }
 
+// Gimbal lock, a shape judgement: within a turn that moves a point at build scale by
+// less than print resolution (as core/path/pose.mjs), the outer angles merge.
+const GIMBAL_LOCK=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
 function controlPose({controls,angleAxes},at,manual){
   if(!controls.length)return {at,controlValues:[]};
   const R=at.rotation??axisFrame(scale(at.toolAxis??[0,0,-1],-1),at.toolUp??[0,1,0]);
-  const b=Math.asin(Math.max(-1,Math.min(1,-R[2][0]))),singular=Math.abs(Math.cos(b))<1e-7;
+  const b=Math.asin(Math.max(-1,Math.min(1,-R[2][0]))),singular=Math.abs(Math.cos(b))<GIMBAL_LOCK;
   const a=[singular?0:Math.atan2(R[2][1],R[2][2]),b,singular?Math.atan2(-R[0][1],R[1][1]):Math.atan2(R[1][0],R[0][0])];
   if(!manual)return {at,controlValues:[...at.point,...angleAxes.map(i=>a[i]*180/Math.PI)]};
   angleAxes.forEach((axis,i)=>a[axis]=manual[i+3]*Math.PI/180);
@@ -117,7 +121,7 @@ function sampleMachinePresentation(program,descriptor,mechanism,layout,request){
     if(request.jog){
       const evaluate=(values,probe=false)=>{const posed=controlPose(layout,sourceAt,values),s=probe&&probeMargins?{margins:probeMargins(posed.at)}:solve(posed.at),f={world:rigid(),...extraStatic,...s.worldFromFrame};
         const margins=[...(s.margins??[]),...values.flatMap((v,i)=>[v-controls[i].min,controls[i].max-v])];
-        return {...s,margins,valid:margins.every(v=>Number.isFinite(v)&&v>=-1e-7)&&components.every(c=>f[c.frameId])&&!s.diagnostics?.some(d=>d.severity==='warning'),controlValues:values};};
+        return {...s,margins,valid:margins.every(v=>Number.isFinite(v)&&v>=-MARGIN_ROUNDING)&&components.every(c=>f[c.frameId])&&!s.diagnostics?.some(d=>d.severity==='warning'),controlValues:values};};
       const jog=constrainedJog({from:request.jog.from,target:request.manual,axis:request.jog.axis,scales:controls.map(c=>c.unit==='mm'?1:angularLever*Math.PI/180),evaluate});
       result=jog.result;controlValues=jog.values;
       if(jog.limited||jog.adjusted)result={...result,diagnostics:[{code:'jog-boundary',severity:'info',message:jog.limited?'Reached the modeled boundary; holding a reachable pose.':'Other coordinates adjusted to stay within the machine boundaries.'}]};

@@ -1,14 +1,19 @@
 // Geometry turns a normalized text feature into a mapped solid request. The
 // extension owns feature defaults, ordering, Boolean composition and records.
 import {requireThat,distance,cross,normalize} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {textOutlines} from './text-outline.mjs';
 import {textLayout} from './text-layout.mjs';
 import {referenceSurface} from './reference-surface.mjs';
 import {union} from '../region/intersection.mjs';
 
+// Differencing step of an anchor frame: a tenth of print resolution, so the frame is the
+// tangent at the anchor itself, while far above rounding in the differenced direction.
+const FRAME_STEP_MM=PRINT_RESOLUTION_MM/10;
+
 // The layout's tangent frame at the anchor, applied rigidly to the whole group.
 function anchoredLayout(layout,a,anchor,mirror){
-  const h=0.0001,dx=layout(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);
+  const h=FRAME_STEP_MM,dx=layout(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);
   const x=dx.map(v=>v/length),y=[-x[1],x[0]].map(v=>v*(mirror?-1:1));
   return (u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
 }
@@ -30,7 +35,7 @@ function layoutGroup(group,feature,toleranceMm){
 
 function mapper(reference,anchor){
   if(anchor){
-    const e=reference(...anchor),h=0.0001;
+    const e=reference(...anchor),h=FRAME_STEP_MM;
     const right=reference(anchor[0]+h,anchor[1]),up=reference(anchor[0],anchor[1]+h);
     const x=normalize(right.point.map((v,i)=>v-e.point[i])),n=e.normal;
     let y=normalize(cross(n,x));if(y.reduce((sum,v,i)=>sum+v*(up.point[i]-e.point[i]),0)<0)y=y.map(v=>-v);

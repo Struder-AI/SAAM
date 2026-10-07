@@ -1,12 +1,14 @@
 // Physical parallel cells on an evaluated chart. This operation has no stack,
 // source-result, ownership or deposition lifecycle; any slice surface can use it.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {sampleSurfaceCurve} from './normal-surface.mjs';
 import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 import {clipOpenPaths} from './intersection.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 
+// Process scale: default sampling step and chord tolerance (a fortieth of a 0.4 mm line).
 export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFactor:spacing=1,sampleStepMm=.5,toleranceMm=.01,direction='axial',heightMm=.2,speedMmS,startU=0,axialStart=0,layoutChart=chart}){
   if(!region.length||density===0)return {strokes:[],report:{points:0},nextU:startU,nextAxial:axialStart};
   // Cell coordinates are normalized locally; authored charts keep their domains.
@@ -41,7 +43,8 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
     meridianMax=Math.max(meridianMax,samples.slice(1).reduce((n,e,j)=>n+distance(samples[j].point,e.point),0));
   }
   requireThat(meridianMax>w,'Surface region must exceed one bead width to leave a positive centerline span.');
-  const margin=w/(2*meridianMax),v0=margin,v1=1-margin;
+  // Print resolution in the normalized axial parameter, measured on the longest meridian.
+  const margin=w/(2*meridianMax),v0=margin,v1=1-margin,vResolution=PRINT_RESOLUTION_MM/meridianMax;
   const nv=Math.max(32,Math.ceil(meridianMax/s.sampleStepMm));
   const vs=Array.from({length:nv+1},(_,i)=>v0+(v1-v0)*i/nv);
   const cuts=[...new Set([...(chart.breaksU??[]),...Array.from({length:17},(_,i)=>i/16)])].sort((a,b)=>a-b);
@@ -65,13 +68,13 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
             return {u,width};
           };
           const run=(a,b)=>{
-            if(b-a<1e-8)return;
+            if(b-a<vResolution)return;
             let samples=sampleSurfaceCurve(chart,t=>{const v=a+(b-a)*t;return [centerAt(v).u,v];},0,options);
             let widths=samples.map(e=>centerAt(e.v).width);
             if((axialStart+report.axialPasses)%2){samples.reverse();widths.reverse();}
             const stroke=newStroke('axial');emit(stroke,samples,widths);strokes.push(stroke);
             report.axialPasses++;
-            if(a>v0+1e-7||b<v1-1e-7)report.partialAxialPasses++;else report.fullAxialPasses++;
+            if(a>v0+vResolution||b<v1-vResolution)report.partialAxialPasses++;else report.fullAxialPasses++;
           };
           for(const [a,b] of sampledPositiveIntervals(v=>ring(v).length-threshold,vs,lengths.map(n=>n-threshold)))run(a,b);
         }

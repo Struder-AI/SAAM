@@ -2,6 +2,14 @@ import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+// (the other line-text modules import it from here).
+export const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs ROUNDING_RELATIVE (ROUNDING_MM over BUILD_SCALE_MM); this runtime has no release-relative imports
+const ROUNDING_RELATIVE=PRINT_RESOLUTION_MM/1000/1000;
+// Font coordinates are font units spanning about one em (1000 units), so the
+// rounding guard there is the dimensionless one across that span.
+const ROUNDING_UNITS=ROUNDING_RELATIVE*1000;
 
 
 // SVG stroke fonts (Hershey, EMS and Relief SingleLine) store each glyph as
@@ -24,7 +32,7 @@ const near = (a, b, eps) => Math.hypot(a[0] - b[0], a[1] - b[1]) <= eps;
 // toleranceUnits of the chord.
 function flattenCubic(p0, p1, p2, p3, tolerance, out, depth = 0) {
   const [dx, dy] = [p3[0] - p0[0], p3[1] - p0[1]], length = Math.hypot(dx, dy);
-  const off = p => length < 1e-12 ? Math.hypot(p[0] - p0[0], p[1] - p0[1]) : Math.abs((p[0] - p0[0]) * dy - (p[1] - p0[1]) * dx) / length;
+  const off = p => length < ROUNDING_UNITS ? Math.hypot(p[0] - p0[0], p[1] - p0[1]) : Math.abs((p[0] - p0[0]) * dy - (p[1] - p0[1]) * dx) / length;
   if (Math.max(off(p1), off(p2)) <= tolerance) { out.push(p3); return; }
   const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
   const p01 = mid(p0, p1), p12 = mid(p1, p2), p23 = mid(p2, p3), p012 = mid(p01, p12), p123 = mid(p12, p23), m = mid(p012, p123);
@@ -51,7 +59,7 @@ export function parsePathData(d, {toleranceUnits = 1, closeEpsilon = 0.5} = {}) 
     if (points.length === 1) strokes.push({closed: false, dot: true, points});
     else strokes.push({closed: closed && points.length >= 3, points});
   };
-  const lineTo = p => { if (!near(current.at(-1), p, 1e-9)) current.push(p); at = p; };
+  const lineTo = p => { if (!near(current.at(-1), p, ROUNDING_UNITS)) current.push(p); at = p; };
 
   while (i < tokens.length) {
     if (typeof tokens[i] === 'string') command = tokens[i++];

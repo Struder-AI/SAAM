@@ -1,4 +1,4 @@
-import {fontMetrics, kernUnits} from './strokefont.mjs';
+import {fontMetrics, kernUnits, PRINT_RESOLUTION_MM} from './strokefont.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -76,7 +76,7 @@ export function chainStrokes(strokes, toleranceMm) {
       if (best) {
         used.add(best.j);
         const next = best.reverse ? [...open[best.j].points].reverse() : open[best.j].points;
-        chain = [...chain, ...(best.join < 1e-9 ? next.slice(1) : next)];
+        chain = [...chain, ...(best.join < PRINT_RESOLUTION_MM ? next.slice(1) : next)];
         grew = true;
       }
     }

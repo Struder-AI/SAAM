@@ -3,11 +3,10 @@
 Mesh repair is preparation work; accepted geometry returns to the
 [import and review workflow](../../core/print/USAGE.md#import-an-stl).
 
-Ordinary imports validate first, then repair recognized defects without proximity
-merging; they fill a hole only when it is at most 2 mm across and has at most 500
-edges, and refuse a mesh with a larger opening. They retain original/repaired STL and a report. Imports
-are cancellable; progress names stages, not an ETA. Use explicit repair below to
-request tolerance-based vertex merging, diagnosis or bounded hole filling.
+Ordinary imports normalize source vertices below print resolution, then validate and repair recognized defects.
+Approved hole limits are a 2 mm boundary bounding-box diagonal and 500 edges; larger openings are refused.
+Original/repaired STL and reports are retained. Imports are cancellable; progress names stages, not an ETA.
+Explicit repair adds a larger vertex-merge tolerance, diagnosis or chosen hole bounds.
 
 | Finding | Operation |
 |---|---|
@@ -34,7 +33,7 @@ nothing; source bytes stay unchanged.
 
 | Option | Meaning |
 |---|---|
-| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 means exact duplicates only. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
+| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 merges only vertices closer than print resolution, as every import does. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both limits must be positive to fill. |
 | `maxSampledDistanceMm` | Reject results exceeding this sampled two-way shape change; sampling is not a certified bound. |

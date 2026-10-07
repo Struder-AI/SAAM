@@ -8,7 +8,8 @@
 // curvature radius the moved patch folds, and trimming folds is left to
 // trimmed-surface records.
 import {evaluate,findSpan,basisFunctions} from './nurbs.mjs';
-import {requireThat} from './tolerance.mjs';
+import {requireThat,TOLERANCE} from './tolerance.mjs';
+import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {leastSquares} from './least-squares.mjs';
 import {trimmedSurface,isSleeve,sleeveFoldHoles,rejectFolds} from './trimmed-surface.mjs';
 
@@ -51,7 +52,7 @@ function unitDirection(kind,evaluated){
   requireThat(n?.every(Number.isFinite),'Surface offset reference has a collapsed normal (a pole or degenerate point).');
   if(kind==='offset')return n;
   const size=Math.hypot(n[0],n[1]);
-  requireThat(size>1e-12,'Surface ribbon reference is horizontal here: its normal has no plan-view direction.');
+  requireThat(size>ROUNDING_RELATIVE,'Surface ribbon reference is horizontal here: its normal has no plan-view direction.');
   return [n[0]/size,n[1]/size,0];
 }
 
@@ -82,7 +83,7 @@ function prepareLooseSurface(kind,{patch,periodicU=false,periodicV=false}){
   const parameter=(value,domain,periodic)=>{
     requireThat(Number.isFinite(value),'Surface offset parameters must be finite.');
     if(periodic)return wrapped(value,domain);
-    requireThat(value>=domain[0]-1e-12&&value<=domain[1]+1e-12,'Surface offset parameter is outside its patch domain.');
+    requireThat(value>=domain[0]-TOLERANCE.parameter&&value<=domain[1]+TOLERANCE.parameter,'Surface offset parameter is outside its patch domain.');
     return Math.max(domain[0],Math.min(domain[1],value));
   };
   const parameters=(u,v)=>[parameter(u,patch.domainU,periodicU),parameter(v,patch.domainV,periodicV)];

@@ -1,10 +1,12 @@
 import {wingDesign,wingSections,wingStation,sectionRoute,foil,wingletThickness} from './design.mjs';
 import {aircraftContext} from './aircraft.mjs';
-import {airfoilProfile} from './airfoils.mjs';
+import {airfoilProfile,PRINT_RESOLUTION_MM} from './airfoils.mjs';
+// Spans, heights and path points coincide to print resolution. The small chord
+// fractions in wingEnvelope keep it off the leading and trailing edges: shape, not tolerance.
 
 export function wingEnvelope(d,piece,span,{samples=60}={}){
   const s=wingStation(d,piece,span),points=[],n=samples;
-  const plate=piece.integratedTip&&span>=piece.toMm-wingletThickness(d)-1e-8;
+  const plate=piece.integratedTip&&span>=piece.toMm-wingletThickness(d)-PRINT_RESOLUTION_MM;
   // The integrated endplate has a connected, filled bed face even when a
   // highly cambered airfoil's lower surface arches above its leading/trailing edges.
   const bedLower=plate?Math.min(...Array.from({length:n+1},(_,i)=>{
@@ -39,7 +41,7 @@ function sectionStations(d,piece,stepMm=5){
 export function continuousWingCurve(d,piece,{clipLineToRegion}){
   const height=piece.toMm-piece.fromMm,points=[],pitch=d.layerMm;let skinSpeed=d.speedMmS;
   const sense=piece.integratedTip?-1:1,spanAt=z=>piece.integratedTip?piece.toMm-z:piece.fromMm+z;
-  const append=p=>{const q=points.at(-1);if(!q||Math.hypot(...p.map((v,i)=>v-q[i]))>1e-8)points.push(p);};
+  const append=p=>{const q=points.at(-1);if(!q||Math.hypot(...p.map((v,i)=>v-q[i]))>PRINT_RESOLUTION_MM)points.push(p);};
   let z=pitch,baseCount;
   if(piece.integratedTip){
     // The flat OUTSIDE winglet face is the bed face. Fill the thin endplate
@@ -68,7 +70,7 @@ export function continuousWingCurve(d,piece,{clipLineToRegion}){
     for(const p of [...first,first[0]])append([...p,pitch]);
     baseCount=points.length;
   }
-  while(z<height-1e-8){
+  while(z<height-PRINT_RESOLUTION_MM){
     const next=Math.min(height,z+pitch),a=sectionRoute(d,piece,spanAt(z)),b=sectionRoute(d,piece,spanAt(next));
     if(a.length!==b.length)throw Error('Wing feature correspondence changed inside a print.');
     const distances=[0];
@@ -89,7 +91,7 @@ export function continuousWingCurve(d,piece,{clipLineToRegion}){
   let lengthMm=0,maxRise=0,maxStep=0;
   for(let i=1;i<points.length;i++){
     const a=points[i-1],b=points[i],xy=Math.hypot(b[0]-a[0],b[1]-a[1]),dz=b[2]-a[2];
-    if(dz< -1e-8)throw Error('Wing path must rise monotonically.');
+    if(dz< -PRINT_RESOLUTION_MM)throw Error('Wing path must rise monotonically.');
     lengthMm+=Math.hypot(xy,dz);maxRise=Math.max(maxRise,Math.atan2(dz,xy)*180/Math.PI);maxStep=Math.max(maxStep,Math.hypot(xy,dz));
   }
   const mirrored=points.map(([x,y,z])=>[x,piece.hand*sense*y,z]),skin=mirrored.slice(baseCount-1);

@@ -158,9 +158,8 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 a default owner retains the remainder after explicit regions and reservations.
 Shared ownership and overlap between different slice stacks are deferred to [0.3.0](../../plans/0.3.0.md).
 Diagnostics identify assignments/components. Planar polygon contact uses the
-shared `TOLERANCE.point` (`1e-6` mm), not bead dimensions; spline section evidence
-also accounts for `TOLERANCE.chord` (`1e-3` mm). Bounds and control-hull separating
-directions can prove disjointness, never overlap. Boundary-interval probes catch
+print resolution rather than bead dimensions; spline evidence includes `TOLERANCE.chord`
+(print resolution). Bounds and control hulls prove separation, never overlap. Boundary-interval probes catch
 thin claims between print layers. Uncertifiable curved, rotated or concave pairs
 report that exclusivity cannot be established; touching is not universally certified.
 Matching reference charts compare regions/depth directly. See the

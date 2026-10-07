@@ -21,17 +21,17 @@ export async function packageNativeRepair({root,app,platform,artifact}){
   const folder=resolve(artifact??join(root,'build/mesh-repair'));
   let manifest;
   try{manifest=JSON.parse(await readFile(join(folder,'build.json'),'utf8'));}
-  catch(error){if(!artifact&&error.code==='ENOENT')return {available:false,reason:'Native backend not built; exact mesh cleanup only.'};throw error;}
+  catch(error){if(!artifact&&error.code==='ENOENT')return {available:false,reason:'Native backend not built; JavaScript mesh repair remains available.'};throw error;}
   const sourceSha256=sha(await readFile(join(root,'core/geom/native/mesh-repair.cpp')));
-  if(manifest.cgal!=='6.2.1'||manifest.sourceSha256!==sourceSha256)throw Error('Native mesh repair artifact is stale; rebuild against the packaged wrapper.');
+  if(manifest.cgal!=='6.2.1'||manifest.sourceSha256!==sourceSha256)throw Error('Native CGAL reference artifact is stale; rebuild against the current wrapper.');
   const name='saam-mesh-repair'+(platform==='win-x64'?'.exe':''),file=join(folder,name);
   let bytes;
   try{bytes=await readFile(file);}catch(error){
-    if(!artifact&&error.code==='ENOENT')return {available:false,reason:'No native helper for '+platform+'; exact mesh cleanup only.'};throw error;
+    if(!artifact&&error.code==='ENOENT')return {available:false,reason:'No native comparison helper for '+platform+'; JavaScript mesh repair remains available.'};throw error;
   }
   const actualPlatform=executablePlatform(bytes);
   if(actualPlatform!==platform){
-    if(!artifact)return {available:false,reason:'Native helper targets '+(actualPlatform??'an unsupported executable format')+', not '+platform+'; exact mesh cleanup only.'};
+    if(!artifact)return {available:false,reason:'Native comparison helper targets '+(actualPlatform??'an unsupported executable format')+', not '+platform+'; JavaScript mesh repair remains available.'};
     throw Error('Native repair artifact does not match target '+platform+'.');
   }
   const binarySha256=sha(bytes);

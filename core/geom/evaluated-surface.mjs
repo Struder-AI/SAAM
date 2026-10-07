@@ -1,12 +1,13 @@
 import {evaluateSurface} from './surface-evaluation.mjs';
 
-import {cross,dot,requireThat,distance} from './tolerance.mjs';
+import {cross,dot,requireThat,distance,TOLERANCE} from './tolerance.mjs';
+import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // Plain slice descriptors retain their native geometry. Numerical derivatives
 // supply the metric only where no analytic chart derivatives are available.
-export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=.01}={}){
+export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=.01/* process scale: default derivative accuracy, ten times print resolution */}={}){
   const domains=[surface.domainU,surface.domainV],coordinates=[u,v];
-  requireThat(domains.every((d,k)=>coordinates[k]>=d[0]-1e-9&&coordinates[k]<=d[1]+1e-9),'Evaluated surface sample leaves its chart domain.');
+  requireThat(domains.every((d,k)=>coordinates[k]>=d[0]-TOLERANCE.parameter&&coordinates[k]<=d[1]+TOLERANCE.parameter),'Evaluated surface sample leaves its chart domain.');
   [u,v]=coordinates.map((x,k)=>Math.max(domains[k][0],Math.min(domains[k][1],x)));coordinates[0]=u;coordinates[1]=v;
   const pointAt=(a,b)=>evaluateSurface(surface.slice??surface,[a,b],normalMm).point;
   const point=pointAt(u,v);
@@ -31,6 +32,6 @@ export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=
   const corners=[pointAt(us[0],vs[0]),pointAt(us[1],vs[0]),pointAt(us[0],vs[1]),pointAt(us[1],vs[1])];
   const duv=[0,1,2].map(k=>(corners[3][k]-corners[2][k]-corners[1][k]+corners[0][k])/((us[1]-us[0])*(vs[1]-vs[0])));
   const du=U.first,dv=V.first,area=cross(du,dv),det=dot(area,area),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
-  requireThat(Number.isFinite(det)&&det>E*G*1e-14,'Evaluated surface has a singular physical metric.');
+  requireThat(Number.isFinite(det)&&det>E*G*ROUNDING_RELATIVE**2,/* the tangents' angle sine above relative rounding */'Evaluated surface has a singular physical metric.');
   return {point,du,dv,duu:U.second,duv,dvv:V.second,normal:area.map(n=>n/Math.sqrt(det)),uvOf(vector){const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/det,(E*b-F*a)/det];},method:'adaptive-numerical-slice-chart'};
 }

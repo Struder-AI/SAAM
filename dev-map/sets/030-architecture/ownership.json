@@ -1518,6 +1518,14 @@
     "core/application/result-images.mjs": {
       "owner": "application",
       "reason": "Visual check: software-rasterized geometry and drawn-path images an operation result names, kept in the runtime temporary workspace."
+    },
+    "core/geom/mesh-source.mjs": {
+      "owner": "geometry",
+      "reason": "Source-authored mesh admission and bounded vertex normalization; parsing and validated generated geometry remain exact."
+    },
+    "core/geom/mesh-vertices.mjs": {
+      "owner": "geometry",
+      "reason": "Bounded coordinate normalization shared by source admission and repair; decoder and generated meshes remain exact."
     }
   },
   "leaves": {
@@ -13379,6 +13387,249 @@
     },
     "core/geom/mesh-repair.mjs::repairSolid::edgeKey": {
       "owner": "geometry"
+    },
+    "core/print/bundle.mjs::normalizePlan": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::geometryNormalizationReport": {
+      "owner": "bundle"
+    },
+    "core/dimensions.mjs::@module": {
+      "owner": "geometry-leaf-2047beebf63c"
+    },
+    "core/geom/exact-predicates.mjs::@module": {
+      "owner": "geometry-leaf-90d95b47fe9c"
+    },
+    "core/geom/mesh-autorefine.mjs::@module": {
+      "owner": "geometry-leaf-67d5cd4228a1"
+    },
+    "core/geom/mesh-source.mjs::@module": {
+      "owner": "geometry-leaf-17051a8dbbd7"
+    },
+    "core/geom/mesh-vertices.mjs::@module": {
+      "owner": "geometry-leaf-72242358baab"
+    },
+    "core/dimensions.mjs::ROUNDING_MM": {
+      "owner": "geometry-leaf-a7ad1e4ba040"
+    },
+    "core/dimensions.mjs::ROUNDING_RELATIVE": {
+      "owner": "geometry-leaf-a80c12fb16e2"
+    },
+    "core/geom/exact-predicates.mjs::SPLITTER": {
+      "owner": "geometry-leaf-2c10bdb4d2d6"
+    },
+    "core/geom/exact-predicates.mjs::buffer": {
+      "owner": "geometry-leaf-f509b96d594f"
+    },
+    "core/geom/exact-predicates.mjs::D": {
+      "owner": "geometry-leaf-544a6ade6dd7"
+    },
+    "core/geom/exact-predicates.mjs::P": {
+      "owner": "geometry-leaf-7f4f6579676e"
+    },
+    "core/geom/exact-predicates.mjs::Q": {
+      "owner": "geometry-leaf-b4e33884df7a"
+    },
+    "core/geom/exact-predicates.mjs::C": {
+      "owner": "geometry-leaf-97b35a0e44ca"
+    },
+    "core/geom/exact-predicates.mjs::T": {
+      "owner": "geometry-leaf-5445dcf6ce33"
+    },
+    "core/geom/exact-predicates.mjs::S": {
+      "owner": "geometry-leaf-4983d3f6b763"
+    },
+    "core/geom/exact-predicates.mjs::F": {
+      "owner": "geometry-leaf-513df72b05e2"
+    },
+    "core/geom/exact-predicates.mjs::A": {
+      "owner": "geometry-leaf-339740ebdba3"
+    },
+    "core/geom/exact-predicates.mjs::B": {
+      "owner": "geometry-leaf-a3373b5b15df"
+    },
+    "core/geom/exact-predicates.mjs::sum": {
+      "owner": "geometry-leaf-38ae5b61a603"
+    },
+    "core/geom/exact-predicates.mjs::scale": {
+      "owner": "geometry-leaf-7a0d82586c8c"
+    },
+    "core/geom/exact-predicates.mjs::product": {
+      "owner": "geometry-leaf-1e68c4cb398c"
+    },
+    "core/geom/exact-predicates.mjs::difference": {
+      "owner": "geometry-leaf-26d486767014"
+    },
+    "core/geom/exact-predicates.mjs::negate": {
+      "owner": "geometry-leaf-ebe837cd6c37"
+    },
+    "core/geom/exact-predicates.mjs::cofactor": {
+      "owner": "geometry-leaf-82085c1055a0"
+    },
+    "core/geom/exact-predicates.mjs::orient3dExact": {
+      "owner": "geometry-leaf-05e256bbdb19"
+    },
+    "core/geom/exact-predicates.mjs::orient2dExact": {
+      "owner": "geometry-leaf-843e15aba5bb"
+    },
+    "core/geom/mesh-autorefine.mjs::babs": {
+      "owner": "geometry-leaf-97c2c6316be6"
+    },
+    "core/geom/mesh-autorefine.mjs::bsign": {
+      "owner": "geometry-leaf-90c763d5812d"
+    },
+    "core/geom/mesh-autorefine.mjs::gcd": {
+      "owner": "geometry-leaf-851b03ca91e2"
+    },
+    "core/geom/mesh-autorefine.mjs::llround": {
+      "owner": "geometry-leaf-f2384113e6d0"
+    },
+    "core/geom/mesh-autorefine.mjs::FILTER": {
+      "owner": "geometry-leaf-1b0b5de91786"
+    },
+    "core/geom/mesh-autorefine.mjs::PLANE_FILTER": {
+      "owner": "geometry-leaf-d9441433c2a1"
+    },
+    "core/geom/mesh-autorefine.mjs::hashF64": {
+      "owner": "geometry-leaf-87bac6e68c3f"
+    },
+    "core/geom/mesh-autorefine.mjs::hashU32": {
+      "owner": "geometry-leaf-5458b5db2ea6"
+    },
+    "core/geom/mesh-autorefine.mjs::mix32": {
+      "owner": "geometry-leaf-767988a93686"
+    },
+    "core/geom/mesh-autorefine.mjs::hashWord": {
+      "owner": "geometry-leaf-10aaefa1ab1c"
+    },
+    "core/geom/mesh-autorefine.mjs::PointMap": {
+      "owner": "geometry-leaf-e28fd951ffdc"
+    },
+    "core/geom/mesh-autorefine.mjs::incidence": {
+      "owner": "geometry-leaf-9fc96c2e752c"
+    },
+    "core/geom/mesh-autorefine.mjs::packedBoxes": {
+      "owner": "geometry-leaf-3af2b1c0dc7a"
+    },
+    "core/geom/mesh-autorefine.mjs::bitsView": {
+      "owner": "geometry-leaf-ea3dc0ea15ff"
+    },
+    "core/geom/mesh-autorefine.mjs::latticeInteger": {
+      "owner": "geometry-leaf-d183da30c77d"
+    },
+    "core/geom/mesh-autorefine.mjs::PointStore": {
+      "owner": "geometry-leaf-6ffbd1c49f9e"
+    },
+    "core/geom/mesh-autorefine.mjs::createConstructions": {
+      "owner": "geometry-leaf-00b61795f48d"
+    },
+    "core/geom/mesh-autorefine.mjs::sectionDisjoint": {
+      "owner": "geometry-leaf-5adcfc1d1960"
+    },
+    "core/geom/mesh-autorefine.mjs::meetOnlyAtShared": {
+      "owner": "geometry-leaf-9211d7abd0e6"
+    },
+    "core/geom/mesh-autorefine.mjs::intersectAll": {
+      "owner": "geometry-leaf-135185efc258"
+    },
+    "core/geom/mesh-autorefine.mjs::triangulateGroup": {
+      "owner": "geometry-leaf-c813ee69fa38"
+    },
+    "core/geom/mesh-autorefine.mjs::segSeg2": {
+      "owner": "geometry-leaf-4a9823b64040"
+    },
+    "core/geom/mesh-autorefine.mjs::trianglesWithin": {
+      "owner": "geometry-leaf-6a0987648456"
+    },
+    "core/geom/mesh-autorefine.mjs::latticePlane": {
+      "owner": "geometry-leaf-25f430229fd3"
+    },
+    "core/geom/mesh-autorefine.mjs::latticePlanePoint": {
+      "owner": "geometry-leaf-b93cfea915f1"
+    },
+    "core/geom/mesh-autorefine.mjs::closeOpposedSheets": {
+      "owner": "geometry-leaf-92c276a8fe90"
+    },
+    "core/geom/mesh-autorefine.mjs::anyIntersection": {
+      "owner": "geometry-leaf-6a4c300effa0"
+    },
+    "core/geom/mesh-autorefine.mjs::autorefine": {
+      "owner": "geometry-leaf-b93838763c50"
+    },
+    "core/geom/mesh-autorefine.mjs::classify": {
+      "owner": "geometry-leaf-1c76720e2d29"
+    },
+    "core/geom/mesh-autorefine.mjs::belowHeightContract": {
+      "owner": "geometry-leaf-b38dc0858365"
+    },
+    "core/geom/mesh-autorefine.mjs::edgeCollapses": {
+      "owner": "geometry-leaf-a3d59b665ffc"
+    },
+    "core/geom/mesh-autorefine.mjs::collapseTinyTriangles": {
+      "owner": "geometry-leaf-f980b83b808c"
+    },
+    "core/geom/mesh-autorefine.mjs::mergeMeshVertices": {
+      "owner": "geometry-leaf-2feefa2e6964"
+    },
+    "core/geom/mesh-autorefine.mjs::SNAP_GRID_MM": {
+      "owner": "geometry-leaf-9e146fb2fbcd"
+    },
+    "core/geom/mesh-autorefine.mjs::reconstructSolid": {
+      "owner": "geometry-leaf-b6fdf8b24c6f"
+    },
+    "core/geom/mesh-autorefine.mjs::reconstructOnce": {
+      "owner": "geometry-leaf-18fe8b33531e"
+    },
+    "core/geom/mesh-repair.mjs::repairSolid": {
+      "owner": "geometry-leaf-d480455f6c61"
+    },
+    "core/geom/mesh-source.mjs::sourceMeshStatus": {
+      "owner": "geometry-leaf-f61f4473c234"
+    },
+    "core/geom/mesh-source.mjs::normalizeSourceMesh": {
+      "owner": "geometry-leaf-3daa26ef1cef"
+    },
+    "core/geom/mesh-source.mjs::retainedMeshes": {
+      "owner": "geometry-leaf-601333d40311"
+    },
+    "core/geom/mesh-source.mjs::sameMesh": {
+      "owner": "geometry-leaf-cc6cbd0e9084"
+    },
+    "core/geom/mesh-source.mjs::normalizeAuthoredGeometry": {
+      "owner": "geometry-leaf-4e93022d9cce"
+    },
+    "core/geom/mesh-vertices.mjs::VERTEX_MERGE_METHOD": {
+      "owner": "geometry-leaf-46cec1a1acd0"
+    },
+    "core/geom/mesh-vertices.mjs::mergeCloseVertices": {
+      "owner": "geometry-leaf-76952f7be2dc"
+    },
+    "core/geom/triangle-bvh.mjs::boxHierarchy": {
+      "owner": "geometry-leaf-6f8b1351f0a8"
+    },
+    "core/geom/triangle-bvh.mjs::hierarchiesBySize": {
+      "owner": "geometry-leaf-430888f964bb"
+    },
+    "core/geom/triangle-bvh.mjs::overlappingBoxPairs": {
+      "owner": "geometry-leaf-93029678f93a"
+    },
+    "core/geom/triangle-bvh.mjs::nearestBoxQuery": {
+      "owner": "geometry-leaf-8167264ca5a8"
+    },
+    "core/geom/triangle-bvh.mjs::segmentMeetsBox": {
+      "owner": "geometry-leaf-39656d59b612"
+    },
+    "core/geom/triangle-bvh.mjs::triangleBoxes": {
+      "owner": "geometry-leaf-679537a48d2e"
+    },
+    "core/geom/piecewise-chart.mjs::norm2": {
+      "owner": "geometry-leaf-c9f8285047c4"
+    },
+    "core/geom/piecewise-chart.mjs::uvTolerance": {
+      "owner": "geometry-leaf-c9327ff4d002"
+    },
+    "core/geom/piecewise-chart.mjs::crossSlack": {
+      "owner": "geometry-leaf-01b3ff67de1a"
     }
   },
   "retiredAssignments": [

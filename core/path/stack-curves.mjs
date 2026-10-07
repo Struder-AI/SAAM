@@ -1,5 +1,6 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,dot,cross,normalize,distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 import {sampleAuthoredCurve} from './authored-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
@@ -27,6 +28,8 @@ function stackNormal(sleeve,u,v){
   return normalize(a.map((x,k)=>x+(b[k]-x)*t));
 }
 
+// Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm
+// line; widthMm is in scope but the defaults are kept so existing spirals do not move.
 export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role='spiral'}){
   const sleeve=boundarySleeve(referenceStack),n=sleeve.layers.length;
   requireThat(firstHeightMm>0&&widthMm>0&&speedMmS>0,'Spiral joining needs positive bead/process values.');
@@ -35,8 +38,8 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
   let curve,turns;
   if(referenceStack.boundary){
     const cuts=[0];
-    for(let t=0;t<profile.turns-1e-10;){
-      const next=Math.min(profile.turns,t<profile.risingTurns-1e-10?profile.risingTurns:Infinity,(Math.floor(t*16+1e-8)+1)/16);
+    for(let t=0;t<profile.turns-ROUNDING_RELATIVE;){ // turn counts compare within rounding
+      const next=Math.min(profile.turns,t<profile.risingTurns-ROUNDING_RELATIVE?profile.risingTurns:Infinity,(Math.floor(t*16+ROUNDING_RELATIVE)+1)/16);
       cuts.push(next);t=next;
     }
     const samples=sampleCurveIntervals({at:t=>({...referenceStack.boundary.at(t,spiralHeight(profile,t)),chart:[t,spiralHeight(profile,t)]}),
@@ -59,19 +62,19 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
     if(u<=1)return firstHeightMm;
     const normal=stackNormal(sleeve,u,v),current=evaluateSurface(sleeve,[u,v]).point,previous=evaluateSurface(sleeve,[u,Math.max(0,Math.min(n-1,u-2))]).point;
     const gap=dot(current.map((x,k)=>x-previous[k]),normal);
-    requireThat(gap>=-1e-8,'Spiral stack reverses its deposited layer gap.');return Math.max(0,gap);
+    requireThat(gap>=-PRINT_RESOLUTION_MM,'Spiral stack reverses its deposited layer gap.');return Math.max(0,gap);
   });
   const segmentMetadata=bead.segmentMetadata.map((metadata,i)=>{
     const mid=(turns[i]+turns[i+1])/2;
     const index=referenceStack.boundary?Math.min(n-1,Math.max(0,Math.floor(mid-1))):Math.min(n-1,Math.max(0,Math.floor((curve.frameSamples[i].point[1]+curve.frameSamples[i+1].point[1])/2)));
-    const terminal=levelEnd&&turns[i]>=profile.risingTurns-1e-9;
+    const terminal=levelEnd&&turns[i]>=profile.risingTurns-ROUNDING_RELATIVE;
     return {...metadata,layer:terminal?referenceStack.layers.at(-1).index:referenceStack.layers[index].index,
       ...(referenceStack.boundary?{}:{surfaceNormal:stackNormal(sleeve,mid,(curve.frameSamples[i].point[1]+curve.frameSamples[i+1].point[1])/2),beadHeightMm:heightsMm[i]})};
   });
   return {...curve,...bead,frameSamples:curve.frameSamples,heightsMm,beadWidthMm:widthMm,segmentMetadata,profile};
 }
 
-export function joinCurveSequence(curves,{mode='separate',toleranceMm=1e-6,transition='travel',speedMmS,heightMm}={}){
+export function joinCurveSequence(curves,{mode='separate',toleranceMm=PRINT_RESOLUTION_MM,transition='travel',speedMmS,heightMm}={}){
   requireThat(['separate','ordered','continuous'].includes(mode)&&['travel','deposit'].includes(transition)&&toleranceMm>=0,'Invalid curve joining rule.');
   if(mode==='separate'||mode==='ordered')return {curves,continuous:mode==='ordered'};
   const output=[];

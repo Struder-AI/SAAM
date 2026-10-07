@@ -8,9 +8,8 @@ metadata:
 # Find and import existing meshes
 
 Use this extension when an existing model serves the request, including
-"fetch me a bunny" or a supplied Thingiverse link. Prefer making tailored
-geometry when that is attractive; an explicit request to fetch a model or use a
-link is a reason to search directly.
+"fetch me a bunny" or a supplied Thingiverse link. Prefer tailored geometry when
+appropriate; an explicit fetch request is a reason to search directly.
 
 ## Search and select
 
@@ -38,26 +37,15 @@ to Hugging Face and its CDN; no account is needed.
 Call `import_thingi10k_bundle` with a new `bundleId`, the `fileId`, `machineId` and
 optional `units` (`auto`). The SAAM computer downloads it.
 
-**For every downloaded mesh, briefly say where it came from unless the request
-makes that obvious, and always give a clickable link to that file's license**,
-even when import fails. Use the returned `attribution` and `chatNotice`, for
-example: "I fetched Low Poly Stanford Bunny by johnny6 from the Thingi10K mirror.
-[License: CC BY-SA](https://www.thingiverse.com/thing:151081#license)." When the
-person supplied the link, the license link alone can suffice.
-
-`license` is the per-file label and `licenseUrl` links the model's license
-section; the mirror gives no license version, so don't invent one or substitute
-the dataset's license. Check exact terms and intended-use permissions at the
-source when they matter, and report uncertainty if it is unavailable. Unknown
-labels are not permission; prefer verified public-domain or CC BY models (CC
-BY-SA also binds shared adaptations). Keep creator, source, license and change
-notices with shared results; delivery writes `source-attribution.json` beside the
-program.
+For every downloaded part, give a clickable link using `attribution.licenseUrl`,
+even if import fails: "Here's a link to the license for this part:
+[license information](https://www.thingiverse.com/thing:151081#license)."
+Keep the returned source attribution with the bundle and shared results.
 
 On `imported: true`, call `request_review` and follow the
 [STL workflow](../../core/print/USAGE.md#import-an-stl): show dimensions and
-assumptions, choose toolpath skills and review in Studio. Import never
-silently repairs, simplifies or rescales the model.
+assumptions, choose toolpath skills and review in Studio. Source bytes are retained;
+review reported normalization and automatic repairs before proceeding.
 
 On `imported: false`, the result has the error, attribution, chat notice and
 `sourcePath`: the downloaded original, kept as diagnostics evidence until another

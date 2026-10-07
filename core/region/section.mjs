@@ -16,8 +16,9 @@ import { intersectPatches } from '../geom/surface-intersection.mjs';
 import { containsPoint } from '../geom/query.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import { requireThat, dot, TOLERANCE } from '../geom/tolerance.mjs';
+import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
 
-const OFF_SURFACE_MM = 1e-4;
+const OFF_SURFACE_MM = PRINT_RESOLUTION_MM; // material within print resolution of a sheet is that sheet's side
 
 // +1 where a patch's normal (du x dv) points out of its solid, -1 where it
 // points in: a point just along the normal is tested for containment.
@@ -39,7 +40,7 @@ export function outwardSigns(shell) {
 // Curve pieces joined end to end in P's (u,v); every vertex keeps the partner
 // patch and its parameters there, for exact refinement later.
 function chainPieces(pieces, P) {
-  const tolerance = 1e-7 * Math.hypot(P.domainU[1] - P.domainU[0], P.domainV[1] - P.domainV[0]);
+  const tolerance = TOLERANCE.domainFraction * Math.hypot(P.domainU[1] - P.domainU[0], P.domainV[1] - P.domainV[0]);
   const close = (a, b) => Math.hypot(a.uv[0] - b.uv[0], a.uv[1] - b.uv[1]) <= tolerance;
   const pool = pieces.filter(p => !p.closed), chains = pieces.filter(p => p.closed).map(p => ({ vertices: p.vertices, closed: true }));
   while (pool.length) {
@@ -70,9 +71,9 @@ function orient(chain, P, shell) {
   const across = [0, 1, 2].map(k => e.du[k] * left[0] + e.dv[k] * left[1]);
   const partner = evaluate(b.partner, ...b.partnerUv), outward = partner.normal?.map(n => n * b.sign);
   let insideLeft = outward ? dot(across, outward) < 0 : null;
-  if (insideLeft === null || Math.abs(dot(across, outward)) < 1e-12) {
+  if (insideLeft === null || Math.abs(dot(across, outward)) < ROUNDING_RELATIVE) {
     // Tangential crossing: test a point just to the left instead.
-    const scale = OFF_SURFACE_MM / Math.max(1e-300, Math.hypot(...across));
+    const scale = OFF_SURFACE_MM / Math.max(ROUNDING_MM, Math.hypot(...across));
     insideLeft = containsPoint(shell, evaluate(P, mid[0] + left[0] * scale, mid[1] + left[1] * scale, false).point);
   }
   return insideLeft ? chain : { ...chain, vertices: [...v].reverse() };
@@ -80,7 +81,7 @@ function orient(chain, P, shell) {
 
 // Position on the domain boundary, counterclockwise from (u0, v0), in [0, 4).
 function perimeterAt(P, [u, v]) {
-  const [u0, u1] = P.domainU, [v0, v1] = P.domainV, du = u1 - u0, dv = v1 - v0, eps = 1e-7;
+  const [u0, u1] = P.domainU, [v0, v1] = P.domainV, du = u1 - u0, dv = v1 - v0, eps = TOLERANCE.domainFraction;
   const sides = [[Math.abs(v - v0) / dv, (u - u0) / du], [Math.abs(u - u1) / du, 1 + (v - v0) / dv],
     [Math.abs(v - v1) / dv, 2 + (u1 - u) / du], [Math.abs(u - u0) / du, 3 + (v1 - v) / dv]];
   const [gap, s] = sides.reduce((best, side) => side[0] < best[0] ? side : best);
@@ -106,7 +107,7 @@ function closeOnBoundary(P, chains, domainInside) {
         const gap = ((candidate.s - end) % 4 + 4) % 4;
         return !best || gap < best.gap ? { ...candidate, gap } : best;
       }, null);
-      for (let k = Math.floor(end) + 1; k < end + next.gap; k++) if (k - end > 1e-12) loop.push(corner(P, k));
+      for (let k = Math.floor(end) + 1; k < end + next.gap; k++) if (k - end > ROUNDING_RELATIVE) loop.push(corner(P, k));
       current = next;
     }
     loops.push(loop);
@@ -145,7 +146,7 @@ function bezierHull(P) {
 // a triangle mesh): loops in P's (u,v) (counterclockwise outer loops,
 // clockwise holes) and the oriented boundary curves, each vertex carrying its
 // partner patch and parameters there.
-export function surfaceInside(P, solid, { chordMm = 1e-3, seedMm = 0.4 } = {}) {
+export function surfaceInside(P, solid, { chordMm = TOLERANCE.chord, seedMm = 0.4 } = {}) {
   const shell = solid, pieces = [];
   for (const { patch: y, sign } of boundaryPatches(solid, P)) {
     const { curves } = intersectPatches(P, y, { chordMm, seedMm });
@@ -191,16 +192,16 @@ function sectionLoops(geometry, slice, options) {
   if(slice.kind==='plane'){
     const low=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.min[k]:geometry.bounds.max[k])-slice.origin[k]),0);
     const high=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]),0);
-    if(low>TOLERANCE.plane||high<-TOLERANCE.plane)return {loops:[],nudgedByMm:0};
+    if(low>PRINT_RESOLUTION_MM||high<-PRINT_RESOLUTION_MM)return {loops:[],nudgedByMm:0};
   }
   if(geometry.kind==='chart-prism'){
     if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
       const offset=slice.offsetMm-geometry.reference.offsetMm;
-      return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
+      return {loops:offset>geometry.fromMm+PRINT_RESOLUTION_MM&&offset<=geometry.toMm+PRINT_RESOLUTION_MM?geometry.loopsUv:[],nudgedByMm:0};
     }
     if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
       const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
-      if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<1e-8)return {loops:offset>geometry.fromMm+1e-8&&offset<=geometry.toMm+1e-8?geometry.loopsUv:[],nudgedByMm:0};
+      if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<=PRINT_RESOLUTION_MM)return {loops:offset>geometry.fromMm+PRINT_RESOLUTION_MM&&offset<=geometry.toMm+PRINT_RESOLUTION_MM?geometry.loopsUv:[],nudgedByMm:0};
     }
     let extent;
     if(slice.kind==='patch')extent={min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};

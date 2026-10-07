@@ -1,4 +1,5 @@
 import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 import {beadContactAlong,depositedBeadBounds} from './deposited-curves.mjs';
 
@@ -22,8 +23,8 @@ export function depositedContact(segments,{toleranceMm=0}={}){
   const intersects=(box,point,normal)=>{
     let low=0,high=Infinity;
     for(let k=0;k<3;k++){
-      const epsilon=64*Number.EPSILON*Math.max(1,Math.abs(point[k]),Math.abs(box.min[k]),Math.abs(box.max[k]))+toleranceMm;
-      if(Math.abs(normal[k])<1e-14){if(point[k]<box.min[k]-epsilon||point[k]>box.max[k]+epsilon)return false;continue;}
+      const epsilon=ROUNDING_RELATIVE*Math.max(1,Math.abs(point[k]),Math.abs(box.min[k]),Math.abs(box.max[k]))+toleranceMm;
+      if(Math.abs(normal[k])<ROUNDING_RELATIVE){if(point[k]<box.min[k]-epsilon||point[k]>box.max[k]+epsilon)return false;continue;}
       const a=(point[k]-box.max[k]-epsilon)/normal[k],b=(point[k]-box.min[k]+epsilon)/normal[k];
       low=Math.max(low,Math.min(a,b));high=Math.min(high,Math.max(a,b));if(high<low)return false;
     }
@@ -42,7 +43,9 @@ export function depositedContact(segments,{toleranceMm=0}={}){
 // Evaluated substrate chart: its points and metric both come from final beads.
 // Finite differences shrink until their physical change meets the authored
 // tolerance. Missing material is a real hole, never bridged by interpolation.
-export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
+// Process scale: default contact chord tolerance, a fortieth of a 0.4 mm line.
+const CONTACT_CHORD_MM=.01;
+export function depositedContactChart(chart,segments,{toleranceMm=CONTACT_CHORD_MM}={}){
   requireThat(toleranceMm>0,'Contact chart needs positive tolerance.');
   const contact=depositedContact(segments),positions=new Map(),frames=new Map();
   const position=(u,v)=>{
@@ -56,6 +59,7 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
     const center=position(u,v);
     const derivative=axis=>{
       const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
+      // Finite-difference step: square root of the tolerance over the chart scale, capped.
       let h=Math.min(.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
       const estimate=step=>{
         // A periodic seam is interior to the surface. Keep the differentiation
@@ -77,7 +81,7 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
       }
     };
     const du=derivative(0),dv=derivative(1),oriented=cross(du,dv);
-    requireThat(Math.hypot(...oriented)>1e-12,'Deposited contact chart is locally singular.');
+    requireThat(Math.hypot(...oriented)>ROUNDING_MM**2,'Deposited contact chart is locally singular.');
     const normal=normalize(oriented),side=dot(normal,center.normal)<0?-1:1;
     const frame={...center,du,dv,normal:normal.map(n=>n*side)};frames.set(key,frame);return frame;
   };
@@ -87,7 +91,7 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
 // Keep authored positions; only marked contact segments acquire their actual
 // normal gap. Contact-field integration refines independently of the geometry
 // chord, preserving authored positions and every existing per-segment channel.
-export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=.001,contactRole='foundation'}){
+export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=PRINT_RESOLUTION_MM,contactRole='foundation'}){
   requireThat(toleranceMm>0&&Number.isFinite(toleranceMm),'Foundation contact needs a positive physical tolerance.');
   const contact=depositedContact(segments);
   const stepMm=segments.reduce((smallest,s)=>Math.min(smallest,s.radius),Infinity);
@@ -129,7 +133,7 @@ export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=
 
 // Curves on an existing deposition: retain lateral coordinates, find the final
 // supporting bead surface, and raise each sample by the declared normal gap.
-export function contactCurveCourses(curves,{segments,direction=[0,0,1],gapMm,ceilingMm,sampleStepMm=.2,toleranceMm=.01,footprintRadiusMm=0}){
+export function contactCurveCourses(curves,{segments,direction=[0,0,1],gapMm,ceilingMm,sampleStepMm=.2,toleranceMm=CONTACT_CHORD_MM,footprintRadiusMm=0}){ // process-scale defaults
   requireThat(gapMm>0&&sampleStepMm>0&&toleranceMm>0&&Number.isFinite(ceilingMm),'Contact curves need positive gap/sampling and a finite ceiling.');
   const normal=normalize(direction);
   const contact=p=>{
@@ -150,7 +154,7 @@ export function contactCurveCourses(curves,{segments,direction=[0,0,1],gapMm,cei
     }
     // Contact validation may sample densely without changing a flat curve's
     // authored seam candidates or connector choices in the composer.
-    const planar=normal[0]===0&&normal[1]===0&&points.every(p=>Math.abs(p[2]-points[0][2])<1e-9);
+    const planar=normal[0]===0&&normal[1]===0&&points.every(p=>Math.abs(p[2]-points[0][2])<PRINT_RESOLUTION_MM);
     const mapped=planar?source.map(p=>[p[0],p[1],points[0][2]]):points;
     return {...curve,closed:curve.closed,points:curve.closed?mapped.slice(0,-1):mapped,heightMm:gapMm,segmentMetadata:mapped.slice(1).map(()=>({surfaceNormal:normal,beadHeightMm:gapMm}))};
   });

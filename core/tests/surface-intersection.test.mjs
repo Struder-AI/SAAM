@@ -7,6 +7,7 @@ import {intersectPatches} from '../geom/surface-intersection.mjs';
 import {surfaceInside} from '../region/section.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluate} from '../geom/nurbs.mjs';
+import {PROGRAM_STEP_MM} from '../dimensions.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -25,7 +26,7 @@ const patch=async(g,name)=>(await shell(g)).patches.find(p=>p.name===name);
 test('a plane cuts a cylinder in a circle that ends exactly on the seam',async()=>{
   const {curves}=intersectPatches(await patch(splineBox({runMm:20,widthMm:20,heightMm:5}),'top'),await patch(cylinder(4,-1,6),'side'));
   assert.equal(curves.length,1);assert.deepEqual(curves[0].ends,['boundary','boundary']);
-  for(const p of curves[0].points){close(Math.hypot(p[0]-10,p[1]-10),4,1e-8);close(p[2],5,1e-8);}
+  for(const p of curves[0].points){close(Math.hypot(p[0]-10,p[1]-10),4,PROGRAM_STEP_MM);close(p[2],5,PROGRAM_STEP_MM);}
   close(length(curves[0].points),8*Math.PI,2e-3);
   assert.deepEqual(curves[0].uvB.map(uv=>uv[0]).filter(u=>u===0||u===1).length,2);
 });
@@ -34,7 +35,7 @@ test('crossed cylinders intersect in two loops, split only at their seams, on bo
   const {curves}=intersectPatches(await patch(cylinder(4,-1,11),'side'),crosswise(3));
   assert.equal(curves.length,4);
   assert.ok(curves.every(c=>c.ends.every(e=>e==='boundary')));
-  for(const c of curves)for(const p of c.points){close(Math.hypot(p[0]-10,p[1]-10),4,1e-8);close(Math.hypot(p[1]-10,p[2]-5),3,1e-8);}
+  for(const c of curves)for(const p of c.points){close(Math.hypot(p[0]-10,p[1]-10),4,PROGRAM_STEP_MM);close(Math.hypot(p[1]-10,p[2]-5),3,PROGRAM_STEP_MM);}
   close(curves.reduce((sum,c)=>sum+length(c.points),0),39.5519,5e-3);
 });
 

@@ -1,4 +1,5 @@
 import {distance,requireThat} from '../../../core/private/extensions/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../../../core/dimensions.mjs';
 
 
 export function railAnchors(rails,overlapsMm) {
@@ -23,7 +24,8 @@ export function attachmentCurves({rails,mode,overlapMm,attachmentSpeedMmS,pressM
   const end=endAttachment??{overlapMm,pressMm,jogMm:0,speedMmS:attachmentSpeedMmS,flowMultiplier:1};
   const anchors=railAnchors(rails,[overlapMm,mode==='one-way'?end.overlapMm:overlapMm]),curves=[];
   function add(role,points,speed=attachmentSpeedMmS,flow=1,segmentMetadata=null,depositionAction=null) {
-    if(points.every(p=>distance(p,points[0])<1e-9))return;
+    // A curve whose points coincide to print resolution deposits nothing.
+    if(points.every(p=>distance(p,points[0])<PRINT_RESOLUTION_MM))return;
     curves.push({role,closed:false,points,speedMmS:speed,flowMultiplier:flow,...(segmentMetadata?{segmentMetadata}:{}),...(depositionAction?{depositionAction}:{})});
   }
   function press(a,depth=pressMm,speed=attachmentSpeedMmS,flow=1) {

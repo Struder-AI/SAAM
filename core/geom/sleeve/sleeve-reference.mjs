@@ -1,12 +1,12 @@
 import {requireThat} from '../tolerance.mjs';
 // Mesh estimation and unilateral contact feed the same vase path producer.
-import {fitMeshSleeve} from './mesh-sleeve.mjs';
+import {fitMeshSleeve,keepsAreaAsSimpleLoop} from './mesh-sleeve.mjs';
+import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
 import {prepareSleeveContours} from './sleeve-frame.mjs';
 import {prepareRadialSleeveContact} from './prepared-radial-contact.mjs';
 import {createMeshDistanceQuery} from '../../geom/mesh-distance.mjs';
 
 import {loopArea} from '../../region/region2d.mjs';
-import {union} from '../../region/intersection.mjs';
 
 // Growing periodic control resolution for the automatic standard-mode fit. Each
 // step costs one separable least-squares solve; the first meeting the requested
@@ -64,8 +64,8 @@ export function createAutomaticSleeveReference({shell,settings,start,end,centerl
       throw error;
     }
     const loop=contour.breakpoints().slice(0,-1).map(p=>p.p);
-    const area=loopArea(loop),normalized=union([loop],[],{precisionMm:1e-7});
-    if(!(area>1e-9&&normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max(1e-5,area*1e-8)))return null;
+    const area=loopArea(loop);
+    if(!(area>PRINT_RESOLUTION_MM**2&&keepsAreaAsSimpleLoop(loop,area)))return null;
   }
   onProgress?.({stage:'Fitting vase sleeve reference',completed:1,total:1});
   return {sectionAt:fit.sectionAt,mappingErrorMm:Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8,referenceLengthMm:fit.sectionAt(start).curve.length,

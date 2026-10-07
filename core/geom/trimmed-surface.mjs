@@ -8,6 +8,7 @@
 // resolving their folds.
 import {findSpan,basisFunctions,evaluate} from './nurbs.mjs';
 import {requireThat,cross,dot} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {foldCuts} from './curve-ribbon.mjs';
 
 // A degree-1 curve through (u, v) points, uniformly parameterized on [0, 1].
@@ -37,11 +38,12 @@ function isoCurveU({nu,nv,orderU,orderV,knotsU,knotsV,cp,domainU},v){
 }
 
 // A sleeve here: every control column's Z depends on its V index only and the
-// weights are separable, so each U isocurve lies at one Z.
+// weights are separable, so each U isocurve lies at one Z (to print resolution; the
+// weight products agree to relative rounding).
 export function isSleeve({nu,nv,cp}){
   for(let j=0;j<nv;j++)for(let i=1;i<nu;i++){
     const a=j*4,b=(i*nv+j)*4;
-    if(Math.abs(cp[b+2]/cp[b+3]-cp[a+2]/cp[a+3])>1e-9||Math.abs(cp[b+3]*cp[(0*nv)*4+3]-cp[(i*nv)*4+3]*cp[a+3])>1e-12)return false;
+    if(Math.abs(cp[b+2]/cp[b+3]-cp[a+2]/cp[a+3])>PRINT_RESOLUTION_MM||Math.abs(cp[b+3]*cp[(0*nv)*4+3]-cp[(i*nv)*4+3]*cp[a+3])>ROUNDING_RELATIVE)return false;
   }
   return true;
 }

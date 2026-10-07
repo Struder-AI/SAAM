@@ -1,5 +1,18 @@
 // Local constrained jogging. All feasibility and boundary values belong to the
-// model. Continue locally from the current feasible configuration.
+// model. Continue locally from the current feasible configuration. Weighted units
+// are mm (angles carry the model's lever).
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+
+// Rounding slack on a model margin (mm, or degrees): a margin within it counts as
+// met, and corrections aim this far inside the boundary. Shared with presentation.
+export const MARGIN_ROUNDING=ROUNDING_MM;
+// Machine kinematics: finite-difference step, boundary search resolution and the
+// smallest reported adjustment, all one print resolution of weighted motion.
+const JOG_STEP=PRINT_RESOLUTION_MM;
+// Deferred: absolute progress floor for a margin near zero and the smallest
+// correction worth taking; ROUNDING_MM would reject the final approach to a
+// boundary near a singularity, where margin gradients are large.
+const PROGRESS_FLOOR=1e-12,STILL_CORRECTION=1e-9;
 export function constrainedJog({from,target,axis,scales,evaluate}){
   if(!Number.isInteger(axis)||axis<0||axis>=from.length||target.length!==from.length||!from.every(Number.isFinite)||!target.every(Number.isFinite))throw Error('Invalid jog request');
   const initial=evaluate(from);if(!initial.valid)throw Error('Jog must start from a reachable pose');
@@ -16,19 +29,19 @@ export function constrainedJog({from,target,axis,scales,evaluate}){
     for(;;){
       const s=evaluate(x);if(s.valid)return {values:x,result:s};
       const margins=s.margins;if(!margins?.length||!margins.every(Number.isFinite))return null;
-      if(!margins.some(v=>v<1e-7))return null;
+      if(!margins.some(v=>v<MARGIN_ROUNDING))return null;
       const worst=Math.min(...margins);
-      if(worst>best+Math.abs(best)*1e-9+1e-12){best=worst;stalls=0;}
+      if(worst>best+Math.abs(best)*ROUNDING_RELATIVE+PROGRESS_FLOOR){best=worst;stalls=0;}
       else if(++stalls>=8)return null;
       const boundaries=margins.map((v,i)=>({v,i}));
-      const columns=free.map(j=>{const y=[...x],h=.001/scales[j];y[j]+=h;const m=evaluate(y,true).margins;return margins.map((v,i)=>((m?.[i]??v)-v)/.001);});
+      const columns=free.map(j=>{const y=[...x],h=JOG_STEP/scales[j];y[j]+=h;const m=evaluate(y,true).margins;return margins.map((v,i)=>((m?.[i]??v)-v)/JOG_STEP);});
       const delta=free.map(()=>0);
       // Project a minimum-size correction onto the linearized active boundaries.
       for(let pass=0;pass<6;pass++)for(const c of boundaries){
-        const g=columns.map(col=>col[c.i]),square=g.reduce((sum,v)=>sum+v*v,0),need=1e-6-c.v-g.reduce((sum,v,i)=>sum+v*delta[i],0);
-        if(need>0&&square>1e-16)g.forEach((v,i)=>delta[i]+=v*need/square);
+        const g=columns.map(col=>col[c.i]),square=g.reduce((sum,v)=>sum+v*v,0),need=MARGIN_ROUNDING-c.v-g.reduce((sum,v,i)=>sum+v*delta[i],0);
+        if(need>0&&square>ROUNDING_RELATIVE**2)g.forEach((v,i)=>delta[i]+=v*need/square);
       }
-      const distance=Math.hypot(...delta);if(distance<1e-9)return null;
+      const distance=Math.hypot(...delta);if(distance<STILL_CORRECTION)return null;
       const factor=Math.min(1,8/distance);free.forEach((j,i)=>x[j]+=delta[i]*factor/scales[j]);
       if(!x.every(Number.isFinite))return null;
     }
@@ -38,12 +51,12 @@ export function constrainedJog({from,target,axis,scales,evaluate}){
     if(solved){accepted=solved.values;result=solved.result;continue;}
     // Locate the last reachable position along this local continuation.
     let lo=accepted[axis],hi=wanted;
-    while(Math.abs(hi-lo)*scales[axis]>.001){
+    while(Math.abs(hi-lo)*scales[axis]>JOG_STEP){
       const middle=(lo+hi)/2;if(middle===lo||middle===hi)break;
       const s=project(accepted,middle);
       if(s){lo=middle;accepted=s.values;result=s.result;}else hi=middle;
     }
     limited=true;break;
   }
-  return {values:accepted,result,limited,adjusted:accepted.some((v,i)=>i!==axis&&Math.abs(v-from[i])*scales[i]>.001)};
+  return {values:accepted,result,limited,adjusted:accepted.some((v,i)=>i!==axis&&Math.abs(v-from[i])*scales[i]>JOG_STEP)};
 }

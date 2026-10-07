@@ -6,6 +6,7 @@
 // helix's turns, stay.
 import {evaluateCurve} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {requireCurve,looseCurveField,curveAtDepth,sideAt} from './curve-offset.mjs';
 import {extract,join,curveCrossings} from './curve-ops.mjs';
 
@@ -60,11 +61,11 @@ export function foldCuts(moved,source,closed=false){
   const search=closed?tripled(moved):moved,turns=closed?tripled(source):source,shift=closed?P:0,[s0,s1]=search.domain;
   let extent=0;
   for(let i=0;i<moved.n;i++)for(let j=0;j<moved.n;j+=Math.max(1,moved.n>>4))extent=Math.max(extent,Math.hypot(moved.cp[i*4]/moved.cp[i*4+3]-moved.cp[j*4]/moved.cp[j*4+3],moved.cp[i*4+1]/moved.cp[i*4+3]-moved.cp[j*4+1]/moved.cp[j*4+3]));
-  const tol=1e-9*Math.max(extent,1e-9),cuts=[];
+  const tol=ROUNDING_RELATIVE*Math.max(extent,ROUNDING_MM),cuts=[];
   for(const [q0,q1] of reversals){
     const r0=q0+shift,r1=q1+shift;
     // Widen windows before and after the reversal until the loop's closing
-    // crossing appears.
+    // crossing appears, starting from a millionth of the period (a seed width, not a tolerance).
     let cut=null;
     for(let width=Math.max(r1-r0,P*1e-6);;width*=2){
       const a0=Math.max(s0,r0-width),b1=Math.min(s1,r1+width);
@@ -94,7 +95,7 @@ export function prepareCurveRibbon({curve,closed=false}){
   requireThat(typeof closed==='boolean','Ribbon needs an explicit closed flag.');
   const field=looseCurveField(curve,closed,t=>sideAt(curve,t,closed,tangent=>{
     const size=Math.hypot(tangent[0],tangent[1]);
-    requireThat(size>1e-12,'Ribbon reference has a vertical or collapsed tangent.');
+    requireThat(size>ROUNDING_MM,'Ribbon reference has a vertical or collapsed tangent.');
     return [tangent[1]/size,-tangent[0]/size,0];
   }));
   function ribbon(depth){

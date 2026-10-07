@@ -1,4 +1,5 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Resolve ownership and prerequisites before selecting work. Every construction
 // consumes finalized predecessor beads; authored rank never becomes run order.
 import {prepareSliceContexts,sliceContextResult,ownershipDependencies} from './slices.mjs';
@@ -45,8 +46,8 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part)))needs.add(other.key);
       if(node.kind==='slice'&&node.first&&node.record.contact){
         const source=node.record.contact.source;
-        if(source!==null?other.sourceId===source&&other.part===node.part&&(other.kind!=='slice'||other.record.reference||other.nominalRank<=node.nominalRank+1e-8):
-          other.part===node.part&&other.sourceId!==node.sourceId&&!(other.kind==='slice'&&other.record.contact)&&other.nominalRank<=node.nominalRank+1e-8)needs.add(other.key);
+        if(source!==null?other.sourceId===source&&other.part===node.part&&(other.kind!=='slice'||other.record.reference||other.nominalRank<=node.nominalRank+PRINT_RESOLUTION_MM):
+          other.part===node.part&&other.sourceId!==node.sourceId&&!(other.kind==='slice'&&other.record.contact)&&other.nominalRank<=node.nominalRank+PRINT_RESOLUTION_MM)needs.add(other.key);
       }
       if(references.includes(other.sourceId)||references.includes(other.record?.spec.id))needs.add(other.key);
       if(node.kind==='slice'&&node.record.reference&&other.part===node.part){

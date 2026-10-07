@@ -1,5 +1,6 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 import {curvePoint} from '../geom/surface-curves.mjs';
 
@@ -44,10 +45,13 @@ function authoredSegment(lengths,distanceMm){
   while(lo<hi){const mid=Math.floor((lo+hi)/2);if(lengths[mid]<distanceMm)lo=mid+1;else hi=mid;}
   return lo;
 }
-export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
+// Process scale: default chord tolerance of an authored curve, a twentieth of a 0.4 mm
+// line; callers normally pass the repetition's own toleranceMm.
+const AUTHORED_CHORD_MM=.02;
+export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,0,0],toleranceMm=AUTHORED_CHORD_MM,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
   const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,repetition):null;
-  if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<1e-7,'Closed NURBS must meet at their domain endpoints.');
+  if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<PRINT_RESOLUTION_MM,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
   const local=t=>{if(native)return curvePoint(native,t).slice(0,dimension);const d=t*lengths.at(-1),i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return source[i-1].map((v,k)=>v+(source[i][k]-v)*f);};
@@ -109,14 +113,14 @@ function sampleRoundedCurve(curve,options,chart){
   const path=mapPiecewiseChartPath(chart,{points:source.frameSamples.map(f=>f.point.slice(0,2)),parameters:source.curveParameters});
   if(curve.closed){
     const first=[...path.points[0]],last=path.points.at(-1);if(chart.periodic)first[0]+=Math.round(last[0]-first[0]);
-    if(distance(first,last)>1e-12){path.points.push(first);path.parameters.push(1);}
+    if(distance(first,last)>ROUNDING_RELATIVE){path.points.push(first);path.parameters.push(1);} // chart units: closes unless already closed within rounding
   }
   return samplePiecewiseCurve(source,chart,path,{...options,toleranceMm:curve.toleranceMm??options.toleranceMm,sampleStepMm:curve.sampleStepMm??options.sampleStepMm});
 }
 
 // Piece addresses are internal; frame locations retain original authored UV.
 // Added round segments hold their source parameter at the crease crossing.
-function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
+function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=AUTHORED_CHORD_MM,sampleStepMm=1}={}){
   const split=splitPiecewiseChartPath(chart,path),samples=[];
   for(let i=1;i<split.points.length;i++){
     const a=split.points[i-1],b=split.points[i],hint=a.map((v,k)=>(v+b[k])/2);
@@ -139,7 +143,7 @@ export function constructAuthoredCurves(curve,options={}){
     if(entry.layers||entry.reference?.kind==='roof'){
       const bounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
       offsetDescriptor=entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:{kind:'slice-chart',slice:entry,domainU:[bounds.min[0],bounds.max[0]],domainV:[bounds.min[1],bounds.max[1]]};
-      offsetChart=piecewiseChart(offsetDescriptor,{normalMm:curve.uv.normalMm,toleranceMm:(curve.toleranceMm??options.toleranceMm??.02)/4});
+      offsetChart=piecewiseChart(offsetDescriptor,{normalMm:curve.uv.normalMm,toleranceMm:(curve.toleranceMm??options.toleranceMm??AUTHORED_CHORD_MM)/4});
       offsetDescriptor={...offsetDescriptor,atlas:offsetChart};
     }
   }
@@ -163,8 +167,8 @@ export function constructAuthoredCurves(curve,options={}){
     const chartPoints=offsetChart?source.chartPoints:source.frameSamples.map(f=>f.point.slice(0,2));
     for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){
       const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;
-      if(radius<=1e-9){paths.push(source);continue;}
-      const region=strokeSurfaceRegion(patch,[{closed:false,points:chartPoints}],radius,{toleranceMm:curve.toleranceMm??.02,maxStepMm:curve.sampleStepMm??1,normalMm:curve.uv.normalMm??0});
+      if(radius<=PRINT_RESOLUTION_MM){paths.push(source);continue;} // the center curve: an offset below print resolution
+      const region=strokeSurfaceRegion(patch,[{closed:false,points:chartPoints}],radius,{toleranceMm:curve.toleranceMm??AUTHORED_CHORD_MM,maxStepMm:curve.sampleStepMm??1,normalMm:curve.uv.normalMm??0});
       paths.push(...region.loopsUv.map(points=>offsetChart?samplePiecewiseCurve({...source,closed:false},offsetChart,{points,closed:true},options):sampleAuthoredCurve({...plain,closed:true,uv:{...curve.uv,nurbs:undefined,points}},options)));
     }
     }

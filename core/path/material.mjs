@@ -3,7 +3,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 // field over a footprint, not a swept nozzle/head or reconstructed bead model.
 import {clipLineToRegion} from '../geom/curve-region.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {SegmentIndex} from '../region/region2d.mjs';
 
 export function materialRegion(loops,{heightAt,maxZ,sampleStepMm=0.5,index=null}) {
@@ -12,24 +12,24 @@ export function materialRegion(loops,{heightAt,maxZ,sampleStepMm=0.5,index=null}
   for(const loop of loops)for(const p of loop)for(let i=0;i<2;i++){min[i]=Math.min(min[i],p[i]);max[i]=Math.max(max[i],p[i]);}
   let footprint;
   return {maxZ,blocksSegment(from,to){
-    if(maxZ<=Math.min(from[2],to[2])+TOLERANCE.plane)return false;
-    if([0,1].some(i=>Math.max(from[i],to[i])<min[i]-TOLERANCE.plane||Math.min(from[i],to[i])>max[i]+TOLERANCE.plane))return false;
+    if(maxZ<=Math.min(from[2],to[2])+PRINT_RESOLUTION_MM)return false;
+    if([0,1].some(i=>Math.max(from[i],to[i])<min[i]-PRINT_RESOLUTION_MM||Math.min(from[i],to[i])>max[i]+PRINT_RESOLUTION_MM))return false;
     index??=new SegmentIndex(loops);
-    const boxMin=[0,1].map(i=>Math.min(from[i],to[i])-TOLERANCE.plane),
-      boxMax=[0,1].map(i=>Math.max(from[i],to[i])+TOLERANCE.plane);
+    const boxMin=[0,1].map(i=>Math.min(from[i],to[i])-PRINT_RESOLUTION_MM),
+      boxMax=[0,1].map(i=>Math.max(from[i],to[i])+PRINT_RESOLUTION_MM);
     const edges=index.inBox(boxMin,boxMax).filter(([a,b])=>[0,1].every(i=>Math.max(a[i],b[i])>=boxMin[i]&&Math.min(a[i],b[i])<=boxMax[i]));
     // With no boundary in the segment's box, membership is constant along it.
     // Reuse the comb index; reserve clipping for possible boundary crossings.
     if(!edges.length&&!index.contains(from))return false;
     // Include boundary contact, including collinear travel. The expansion is
     // numerical predicate slack, not an extra process clearance or bead width.
-    if(edges.length)footprint??=offsetRegion(loops,TOLERANCE.plane,{precisionMm:TOLERANCE.plane/10});
+    if(edges.length)footprint??=offsetRegion(loops,PRINT_RESOLUTION_MM,{precisionMm:PRINT_RESOLUTION_MM/10});
     const dx=to[0]-from[0],dy=to[1]-from[1],length2=dx*dx+dy*dy;
     const blocked=(x,y,t)=>{
       const z=heightAt?heightAt(x,y):maxZ;
-      return !Number.isFinite(z)||z>from[2]+(to[2]-from[2])*t+TOLERANCE.plane;
+      return !Number.isFinite(z)||z>from[2]+(to[2]-from[2])*t+PRINT_RESOLUTION_MM;
     };
-    if(length2<1e-18){
+    if(length2<ROUNDING_MM**2){
       // A singleton parameter range queries the vertical move's XY location.
       const clipped=edges.length?clipLineToRegion(from.slice(0,2),[1,0],footprint,{range:[0,0]}):null;
       const inside=!clipped||clipped.spans.length>0||clipped.contacts.length>0;

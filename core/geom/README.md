@@ -66,7 +66,7 @@ Tolerance classes and values belong to [Dimensions and tolerances](../README.md#
 Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
 `precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
 curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
-steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+steps (not a certified surface-error bound) and predicate slack (rounding guards only). A determinant of two
 length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
 in U and V; a normal dot product is dimensionless.
 
@@ -102,7 +102,7 @@ physical-invariant failures rather than loosening checks.
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
 
 Level extraction retains high-side equality, ordered ambiguous-cell pairing, sentinel refinement,
-`1e-7` chart endpoint matching and `TOLERANCE.point` cleanup. Only regions add domain edges; curves
+chart endpoint matching and point cleanup at print resolution. Only regions add domain edges; curves
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
@@ -371,7 +371,7 @@ and saved compiled meshes retain their semantics.
 [Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
 Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
 There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
-The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
+Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
@@ -423,24 +423,23 @@ complete Rhino computation engine.
 
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
-source, runs exact cleanup, and repairs the solid when cleanup alone does not
+source, normalizes close vertices, and repairs the solid when cleanup alone does not
 yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds,
 and imports pass their own (`IMPORT_HOLE_DIAMETER_MM`, `IMPORT_HOLE_EDGES` in
 [import-stl.mjs](./import-stl.mjs)).
 
-[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
-faces keep one copy facing their net orientation (an opposed pair cancels).
-`cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
-An explicit positive tolerance snaps each point to its nearest retained vertex
-within that Euclidean distance in mm; input order breaks ties. Representatives
-never move, repeated coordinates share a decision, and neighbours do not chain.
-Spatial buckets only find candidates; they never round accepted coordinates.
-Collapsed-face stitching uses existing collinear boundary vertices (numeric
-conditioning), without guessing branches or filling holes. Ordinary imports remain
-exact-only in cleanup. Reports include merge counts and maximum displacement; shape-change
-evidence includes the merge. [Solid repair](./mesh-repair.mjs) orients faces across
+[Source admission](./mesh-source.mjs) normalizes authored, STL and explicit-repair sources
+in physical millimetres. Valid solids use the reconstruction's constrained vertex merge,
+reporting retained close pairs by cause; raw seams use [bounded coordinate indexing](./mesh-vertices.mjs).
+Units resolve first. Parsing, prepared geometry and repaired-output validation stay exact.
+[Cleanup](./mesh-repair.mjs) repeats source normalization, removes degenerate faces
+and unused vertices, keeps coincident faces in their net orientation (an opposed
+pair cancels), and stitches complete boundary chains within print resolution.
+An explicit positive `mergeToleranceMm` adds its requested nearest-retained snap.
+Reports include merge counts and maximum displacement; change measurements retain
+original source coordinates. [Solid repair](./mesh-repair.mjs) orients faces across
 two-face edges (each component keeps the orientation of most of its area), refuses
 unorientable edges, fills holes within both explicit bounds and refuses any other open
 edge, reverses an inside-out solid and replaces a self-crossing
@@ -454,7 +453,7 @@ is positive on one side only. New points round to the rounding guard, except tha
 point constructed in a sheet's plane rounds on that plane's lattice, as closing places
 the vertices it moves, so sheets stay exact planes through every rounding pass (and
 pairs of faces on one sheet are coplanar without orientation tests); source points stay,
-and only triangles below numeric conditioning collapse. Once no crossing remains,
+and only triangles below the rounding guard collapse. Once no crossing remains,
 vertices closer than print resolution merge, closest pairs first: their edge collapses
 into the end that stays (a source vertex, else a sheet vertex), so every merged vertex
 ends within print resolution of where it was; a collapse that would break the manifold,
@@ -478,7 +477,7 @@ Reports give `holesFilled` and `holeTrianglesAdded`.
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
-numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
+rounding guard, not proved exactly. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review.
@@ -492,7 +491,7 @@ have one owner. The wrapper computes the source hash and reports progress while
 reading; the parser retains only indexed geometry, an 84-byte format prefix and
 the current record/token remainder. The public import
 and repair file entries accept paths so callers need not allocate the entire
-source buffer. Output STL is written in bounded text chunks. Native temporary
+source buffer. Output STL is written in bounded text chunks. Repair temporary
 files are private to each request and deleted on success, failure or cancellation;
 file results are staged and validated before publishing a new destination.
 

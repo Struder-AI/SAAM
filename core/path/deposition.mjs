@@ -1,4 +1,5 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Deposition geometry contains no travel. The composer connects these strokes.
 
 
@@ -48,7 +49,7 @@ export function depositionStroke({points,heightsMm,widthMm,widthsMm,speedMmS,rol
 // An unrotated circuit retains its seam sample (native t=1 when implicit);
 // rotated circuits retain the parameters of their original source vertices.
 export function strokeRange(stroke,from=0,to){
-  const count=stroke.points.length-(stroke.closed&&distance(stroke.points[0],stroke.points.at(-1))<1e-12?1:0);
+  const count=stroke.points.length-(stroke.closed&&distance(stroke.points[0],stroke.points.at(-1))<PRINT_RESOLUTION_MM?1:0);
   if(stroke.closed&&to===undefined)from%=count;
   to??=stroke.closed?from+count:count-1;
   requireThat(Number.isInteger(from)&&Number.isInteger(to)&&from>=0&&to>=0&&from!==to&&
@@ -71,7 +72,11 @@ export function strokeRange(stroke,from=0,to){
 // A bead that tapers to nothing ends where its remaining material is no longer
 // writable: a machine program can only express those last moves as travel.
 // Return shortened arrays while preserving the producer's stroke.
-export function trimVanishingEnd(stroke,minimumMm3=1e-3) {
+// Process scale, deferred: the default should be the print's lineWidthMm*layerMm*
+// PRINT_RESOLUTION_MM (a bead shorter than print resolution cannot change the print);
+// kept until vase and Bambu change curves, which trim, are regression-checked.
+const VANISHING_BEAD_MM3=1e-3;
+export function trimVanishingEnd(stroke,minimumMm3=VANISHING_BEAD_MM3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];
   return strokeRange(stroke,0,keep);

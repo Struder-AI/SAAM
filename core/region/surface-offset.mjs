@@ -15,6 +15,15 @@ import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,union,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 import {piecewiseChart,piecewiseChartFrame,piecewiseChartRay,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
+import {PROGRAM_STEP_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+
+// Native spline parameters carry no metric: points coincide or touch an edge within
+// the dimensionless rounding tolerance, and booleans snap to a grid a tenth of it so
+// that snapping stays inside that tolerance.
+export const UV_ROUNDING=ROUNDING_RELATIVE,UV_GRID=UV_ROUNDING/10;
+// Process scale: the default construction chord of a surface offset (callers pass
+// their own, usually from the print's line width).
+const SURFACE_OFFSET_CHORD_MM=0.01;
 
 const plus=(a,b,s=1)=>a.map((x,k)=>x+b[k]*s);
 const midpoint=(a,b)=>a.map((x,k)=>(x+b[k])/2);
@@ -36,7 +45,7 @@ export function strokeSurfaceRegion(patch,paths,radiusMm,settings={}){
 }
 
 export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
-  toleranceMm=0.01, maxStepMm=0.5, precisionUv=1e-10,
+  toleranceMm=SURFACE_OFFSET_CHORD_MM, maxStepMm=0.5, precisionUv=UV_GRID,
   constraintLoopsUv=null,normalMm=0
 }={}) {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
@@ -147,6 +156,7 @@ export function sweepSurfaceOffset(patch,prepared){
         h/=2; requireThat(travel+h>travel,'Surface offset integration cannot resolve the requested tolerance.');continue;
       }
       state=half;travel+=h;integrations++;ray.push(state.slice(0,2));
+      // Step control: grow when the error is a small fraction of the halving threshold (a fraction, not a tolerance).
       if(err<toleranceMm*h/Math.max(radius,1)*0.001)h=Math.min(h*2,maxStepMm);
     }
     if(constraint!==null&&ray.length>1){
@@ -185,7 +195,7 @@ export function sweepSurfaceOffset(patch,prepared){
         const p=l[side].at(-1),q=r[side].at(-1),s=m[side].at(-1);
         error=Math.max(error,distance(at(s).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point));
       }
-      if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=toleranceMm*1e-3)) {
+      if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=PROGRAM_STEP_MM)) { // subdividing below one program step changes nothing
         requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
         subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
       }else {connectRays(l.offset,r.offset);}
@@ -200,7 +210,7 @@ export function sweepSurfaceOffset(patch,prepared){
     // Same corner distinction as Clipper: closing sides overlap in the strips;
     // only opening sides require a round join. No disks outside an inward
     // offset's material side, including when the source is the patch boundary.
-    if(!full&&turn*Math.sign(deltaMm)<=1e-14)return;
+    if(!full&&turn*Math.sign(deltaMm)<=ROUNDING_RELATIVE)return; // the sine of the turn, within rounding
     const x=cross(before,frame.normal).map(v=>v*Math.sign(deltaMm)),y=cross(frame.normal,x);
     const end=cross(after,frame.normal).map(v=>v*Math.sign(deltaMm));
     const sweep=full?2*Math.PI:Math.atan2(dot(end,y),dot(end,x)),rays=new Map();
@@ -211,7 +221,7 @@ export function sweepSurfaceOffset(patch,prepared){
     };
     const sector=(a,b)=>{
       const p=ray(a).at(-1),q=ray(b).at(-1),m=ray((a+b)/2).at(-1);
-      if(distance(at(m).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point)>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&radius*Math.abs(b-a)<=toleranceMm*1e-3)) {
+      if(distance(at(m).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point)>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&radius*Math.abs(b-a)<=PROGRAM_STEP_MM)) { // an arc below one program step
         requireThat((a+b)/2!==a&&(a+b)/2!==b,'Surface offset disk cannot resolve the requested tolerance: the sector is one representable step of angle.');
         subdivisions++;sector(a,(a+b)/2);sector((a+b)/2,b);
       }else {
@@ -232,7 +242,7 @@ export function sweepSurfaceOffset(patch,prepared){
       }
     }
     angles.sort((a,b)=>(a-b)*Math.sign(sweep));
-    for(let i=1;i<angles.length;i++)if(Math.abs(angles[i]-angles[i-1])>1e-14)sector(angles[i-1],angles[i]);
+    for(let i=1;i<angles.length;i++)if(Math.abs(angles[i]-angles[i-1])>ROUNDING_RELATIVE)sector(angles[i-1],angles[i]);
   };
   if(radius>0)for(const loop of source)for(let i=0;i<loop.length;i++) {
     const a=loop[i],b=loop[(i+1)%loop.length];
@@ -284,7 +294,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
 // their records are reused without copying the accumulated cache per ray.
-function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0,toleranceMm=.01},priorSamples=[]){
+function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0,toleranceMm=SURFACE_OFFSET_CHORD_MM},priorSamples=[]){
   const samples=new Map();
   const at=(uv,hint=null)=>{
     if(constrained)uv=uv.map((x,k)=>{

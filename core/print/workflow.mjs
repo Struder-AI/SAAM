@@ -148,7 +148,8 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
     plan=recipe;
     machineSnapshot=bundle.machine;
   }
-  plan=adapter.normalizePlan?await adapter.normalizePlan(plan):plan;
+  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan,{preparedGeometry}):{plan};
+  plan=normalized.plan;
   const machine = machineId?loadMachine(machineId):machineSnapshot??null;
   requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
   const geometry = preparedGeometry??(plan.geometry?await createGeometry(plan.geometry):null);
@@ -161,12 +162,17 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
     if(sourcePath){await mkdir(dirname(target),{recursive:true});await copyFile(sourcePath,target);}
     else{requireThat(sourceBytes,'STL source bytes are required; use import-stl.');await save(target,sourceBytes);}
   }
-  const geometryArtifact=await saveGeometry(dir,geometry),id=randomUUID();
+  const geometryArtifact=await saveGeometry(dir,geometryNormalizationReport(geometry,normalized.meshNormalization)),id=randomUUID();
   const review={schema:'saam-review/1',history:[],generation:null};
   await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact,ids:{editRevision:id,geometryInputId:id,pathInputId:id},deferRememberSetup,phaseColours},null);
   return dir;
 }
 
+// Admission reports describe the stored artifact, without extending recipe fields.
+function geometryNormalizationReport(geometry,reports){
+  if(!geometry||!reports?.length)return geometry;
+  return {...geometry,descriptor:{...geometry.descriptor,meshNormalization:reports}};
+}
 async function saveGeometry(dir, geometry) {
   if(!geometry)return null;
   const id=randomUUID(),file=`geometry/${id}${nativeSuffix(geometry.descriptor)}`;
@@ -487,7 +493,8 @@ async function adjustBundle(directory, patch, { expectedRevision, expectedEditRe
 async function updatePlan(directory, plan, revision, {preparedGeometry,expectedEditRevision} = {}) {
   const state = await loadBundle(directory, { program: false });
   requireEditRevision(state,{expectedRevision:revision,expectedEditRevision});
-  plan=adapter.normalizePlan?await adapter.normalizePlan(plan):plan;
+  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan,{previousGeometry:state.plan.geometry,preparedGeometry}):{plan};
+  plan=normalized.plan;
   if(!Object.hasOwn(plan,'workspace')&&Object.hasOwn(state.plan,'workspace'))plan={...plan,workspace:state.plan.workspace};
   const change = validatePlanUpdate(state, plan);
   const source=await generationSource(change.plan),sourceChanged=staleGenerationSource(state,source);
@@ -496,7 +503,7 @@ async function updatePlan(directory, plan, revision, {preparedGeometry,expectedE
   // Build before committing anything; plan.json remains the edit commit point.
   const geometry = change.geometryChanged&&change.plan.geometry ? preparedGeometry??await createGeometry(change.plan.geometry) : null;
   const review = editedPlanReview(sourceChanged?sourceInvalidatedReview(state.review):state.review, change.geometryChanged, planChanges(state.plan, change.plan));
-  await persistPlanUpdate(state,change.plan,geometry,review);
+  await persistPlanUpdate(state,change.plan,geometryNormalizationReport(geometry,normalized.meshNormalization),review);
   return loadBundle(directory);
 }
 

@@ -60,19 +60,24 @@ bool segmentMeetsBox(const double a[3],const double b[3],const CGAL::Bbox_3& box
  return true;
 }
 
-// SAAM's mesh contract (core/geom/mesh.mjs triangleNormal) needs every triangle's
-// smallest height above numeric conditioning, 1e-9 mm (core/dimensions.mjs).
-// Arrangement corners can leave flatter triangles: each loses its shortest edge
-// with a constructed end, which moves onto the other end. Source vertices stay.
+// Arrangement corners can leave triangles too flat for a direction: each loses its
+// shortest edge with a constructed end, which moves onto the other end. Source
+// vertices stay. Flat is a rounding guard, a thousandth of print resolution
+// (core/dimensions.mjs ROUNDING_MM); collapsing every triangle lower than print
+// resolution here moves constructed points far enough to cross the films the
+// reconstruction keeps (tried: the result then self-intersects). SAAM's cleanup of
+// the result merges vertices closer than print resolution and drops what collapses,
+// and its checks decide. Triangles that cannot collapse are counted, not refused.
 struct Collapse{std::size_t edges=0,remaining=0;double maxMoveMm=0;};
-Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source){
+Collapse collapseTinyTriangles(Mesh& mesh,std::vector<K::Point_3> source,double closeMm){
+ const double flatMm=closeMm/1000;
  std::sort(source.begin(),source.end());
  const auto isSource=[&](Mesh::Vertex_index v){return std::binary_search(source.begin(),source.end(),mesh.point(v));};
  const auto tiny=[&](Mesh::Face_index f){
   const auto h=mesh.halfedge(f);const auto& a=mesh.point(mesh.source(h));const auto& b=mesh.point(mesh.target(h));const auto& c=mesh.point(mesh.target(mesh.next(h)));
   const double u[3]={b.x()-a.x(),b.y()-a.y(),b.z()-a.z()},v[3]={c.x()-a.x(),c.y()-a.y(),c.z()-a.z()};
   const double w[3]={c.x()-b.x(),c.y()-b.y(),c.z()-b.z()},longest=std::sqrt(std::max({u[0]*u[0]+u[1]*u[1]+u[2]*u[2],v[0]*v[0]+v[1]*v[1]+v[2]*v[2],w[0]*w[0]+w[1]*w[1]+w[2]*w[2]}));
-  return std::hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=1e-9*longest;
+  return std::hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<flatMm*longest;
  };
  Collapse out;
  for(bool changed=true;changed;){
@@ -274,7 +279,9 @@ std::string reconstruct(Mesh& mesh,double closeMm){
  for(std::size_t f=0;f<faces.size();++f){boxes[f]=points[faces[f].v[0]].bbox()+points[faces[f].v[1]].bbox()+points[faces[f].v[2]].bbox();all+=boxes[f];}
  Bvh bvh;bvh.order.resize(faces.size());std::iota(bvh.order.begin(),bvh.order.end(),0);bvh.build(boxes,0,faces.size());
  double size=0;for(int k=0;k<3;++k)size=std::max(size,all.max(k)-all.min(k));
- const double reach=4*size+1,margin=1e-9*(size+1);
+ // Rounding margin: 2^-30 of the part size, far above the double rounding of the
+ // segment ends (2^-52 relative), so it never decides a crossing.
+ const double reach=4*size+1,margin=std::ldexp(size+1,-30);
  double centre[3];for(int k=0;k<3;++k)centre[k]=(all.min(k)+all.max(k))/2;
 
  // Winding on the side of face f that faces q, from the signed crossings of
@@ -340,14 +347,13 @@ std::string reconstruct(Mesh& mesh,double closeMm){
   throw std::runtime_error("Rounding the reconstructed surface to doubles left intersections; no result accepted");
  if(!PMP::is_polygon_soup_a_polygon_mesh(kept))throw std::runtime_error("The reconstructed solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted");
  mesh.clear();PMP::polygon_soup_to_polygon_mesh(rounded,kept,mesh);
- const Collapse collapse=collapseTinyTriangles(mesh,std::move(source));
- if(collapse.remaining)throw std::runtime_error(std::to_string(collapse.remaining)+" reconstructed triangles stay below SAAM's minimum height and cannot be collapsed; no result accepted");
+ const Collapse collapse=collapseTinyTriangles(mesh,std::move(source),closeMm);
  std::ostringstream report;
  report<<"{\"closing\":{\"method\":\"opposed-sheet-plane/1\",\"toleranceMm\":"<<closeMm<<",\"groups\":"<<closing.groups<<",\"faces\":"<<closing.faces
   <<",\"movedVertices\":"<<closing.moved<<",\"unmovedVertices\":"<<closing.unmoved<<",\"maxDisplacementMm\":"<<closing.maxMoveMm<<"}"
   <<",\"reversedOrientation\":"<<(reversed?"true":"false")<<",\"refinedTriangles\":"<<refined<<",\"coincidentGroups\":"<<coincident
   <<",\"cancelledTriangles\":"<<cancelled<<",\"cancelledAreaMm2\":"<<cancelledArea<<",\"patches\":"<<patches<<",\"rays\":"<<rays<<",\"rayRetries\":"<<retries
-  <<",\"boundaryTriangles\":"<<boundary<<",\"interiorTriangles\":"<<interior<<",\"collapsedEdges\":"<<collapse.edges<<",\"maxCollapseMm\":"<<collapse.maxMoveMm<<"}";
+  <<",\"boundaryTriangles\":"<<boundary<<",\"interiorTriangles\":"<<interior<<",\"collapsedEdges\":"<<collapse.edges<<",\"maxCollapseMm\":"<<collapse.maxMoveMm<<",\"uncollapsedTriangles\":"<<collapse.remaining<<"}";
  return report.str();
 }
 
@@ -395,7 +401,7 @@ int main(int argc,char** argv){
   for(auto v:mesh.vertices())output<<mesh.point(v)<<'\n';
   for(auto f:mesh.faces()){auto h=mesh.halfedge(f);output<<"3 "<<mesh.target(h).idx()<<' '<<mesh.target(mesh.next(h)).idx()<<' '<<mesh.target(mesh.next(mesh.next(h))).idx()<<'\n';}
   output.close();if(!output)throw std::runtime_error("Cannot write repair output");
-  std::cout<<"{\"backend\":\"CGAL "<<CGAL_VERSION_STR<<"\",\"method\":\"cgal-solid-repair/3\",\"inputTriangles\":"<<before_faces
+  std::cout<<"{\"backend\":\"CGAL "<<CGAL_VERSION_STR<<"\",\"method\":\"cgal-solid-repair/4\",\"inputTriangles\":"<<before_faces
    <<",\"orientReturned\":"<<(oriented?"true":"false")<<",\"splitVertices\":"<<split_vertices<<",\"stitchedPairs\":"<<stitched
    <<",\"holesFilled\":"<<filled<<",\"holeTrianglesAdded\":"<<added<<",\"holesSkipped\":"<<skipped
    <<",\"selfIntersectionsRepaired\":"<<(intersected?"true":"false")<<",\"reconstruction\":"<<reconstruction

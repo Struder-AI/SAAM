@@ -18,9 +18,20 @@
 // Tangential contact (n1 parallel to n2) ends a branch; flat pieces lying in
 // one plane are reported as coplanar, not traced; a pole edge is not a curve.
 import { evaluate } from './nurbs.mjs';
-import { cross, dot, subtract, distance, length } from './tolerance.mjs';
+import { cross, dot, subtract, distance, length, TOLERANCE } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
+import { DIRECTION_TOLERANCE } from './frame.mjs';
 
-const PARAMETER_EPSILON = 1e-10, POINT_TOLERANCE = 1e-9, TANGENT_LIMIT = 1e-7;
+// Tolerances (core/README.md#dimensions-and-tolerances). A stalled solve still lands on
+// both surfaces within print resolution. Domain membership is in parameter units.
+// Tangential contact is a shape judgement on the sine between the normals. A solve has
+// stalled when its step no longer changes the parameters in floating point.
+// Surface distance and the predictor constraint are millimetre residuals.
+// They converge within one program step, below functional print resolution.
+const PARAMETER_EPSILON = TOLERANCE.parameter, POINT_TOLERANCE = PROGRAM_STEP_MM, TANGENT_LIMIT = DIRECTION_TOLERANCE;
+const stalled = (x, step) => step.every((d, k) => x[k] + d === x[k]);
+// An edge-coincidence probe steps this fraction of the edge's domain (a probe offset, not a tolerance).
+const PROBE_FRACTION = 1e-4;
 
 // ---------------------------------------------------------------- Bezier pieces
 
@@ -114,7 +125,7 @@ function solveLinear(A, b) {
   for (let c = 0; c < n; c++) {
     let pivot = c;
     for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[pivot][c])) pivot = r;
-    if (!(Math.abs(M[pivot][c]) > 1e-13 * scale)) return null;
+    if (!(Math.abs(M[pivot][c]) > ROUNDING_RELATIVE * scale)) return null;
     [M[c], M[pivot]] = [M[pivot], M[c]];
     for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c] / M[c][c]; for (let k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
   }
@@ -144,10 +155,10 @@ function projectToCurve(A, B, x0) {
     if (!y) return null;
     const dx = [0, 1, 2, 3].map(k => y.reduce((sum, v, i) => sum + v * s.J[i][k], 0));
     const next = clampParameters(A, B, x.map((v, k) => v + dx[k]));
-    if (next.every((v, k) => Math.abs(v - x[k]) < 1e-15)) return length(s.F) <= 1e-7 ? s : null;
+    if (next.every((v, k) => v === x[k])) return length(s.F) <= PRINT_RESOLUTION_MM ? s : null;
     x = next;
   }
-  const s = state(A, B, x);return length(s.F) <= 1e-7 ? s : null;
+  const s = state(A, B, x);return length(s.F) <= PRINT_RESOLUTION_MM ? s : null;
 }
 
 // Newton with a fourth equation: extra(x) = [value, gradient over x].
@@ -158,11 +169,12 @@ function solveConstrained(A, B, x0, extra) {
     if (length(s.F) <= POINT_TOLERANCE && Math.abs(g) <= POINT_TOLERANCE) return s;
     const dx = solveLinear([...s.J, dg], [...s.F.map(v => -v), -g]);
     if (!dx || !dx.every(Number.isFinite)) return null;
+    const done = stalled(x, dx);
     x = x.map((v, k) => v + dx[k]);
-    if (dx.every(d => Math.abs(d) < 1e-14)) break;
+    if (done) break;
   }
   const s = state(A, B, x);
-  return length(s.F) <= 1e-7 ? s : null;
+  return length(s.F) <= PRINT_RESOLUTION_MM ? s : null;
 }
 
 // ------------------------------------------------------------------ boundary points
@@ -207,8 +219,9 @@ function edgeSurfacePoint(E, edge, S, x0) {
     if (length(F) <= POINT_TOLERANCE) return { t: x[0], s: [x[1], x[2]], point: c.point, dC, normal: b.normal };
     const dx = solveLinear([0, 1, 2].map(k => [dC[k], -b.du[k], -b.dv[k]]), F.map(v => -v));
     if (!dx) return null;
+    const done = stalled(x, dx);
     x = [clampTo(x[0] + dx[0], range), clampTo(x[1] + dx[1], S.domainU), clampTo(x[2] + dx[2], S.domainV)];
-    if (dx.every(d => Math.abs(d) < 1e-15)) break;
+    if (done) break;
   }
   return null;
 }
@@ -219,10 +232,10 @@ function projectToSurface(S, p, guess) {
   for (let step = 0; step < 50; step++) {
     const b = evaluate(S, x[0], x[1]), r = subtract(p, b.point);
     const a = dot(b.du, b.du), c = dot(b.du, b.dv), d = dot(b.dv, b.dv), det = a * d - c * c;
-    if (Math.abs(det) < 1e-300) break;
+    if (!det) break; // a tiny determinant sends the step to a domain bound
     const r0 = dot(b.du, r), r1 = dot(b.dv, r), du = (d * r0 - c * r1) / det, dv = (a * r1 - c * r0) / det;
     const next = [clampTo(x[0] + du, S.domainU), clampTo(x[1] + dv, S.domainV)];
-    if (Math.abs(next[0] - x[0]) < 1e-15 && Math.abs(next[1] - x[1]) < 1e-15) { x = next; break; }
+    if (next[0] === x[0] && next[1] === x[1]) break;
     x = next;
   }
   const b = evaluate(S, x[0], x[1]);
@@ -235,11 +248,11 @@ function coincidentRun(E, edge, S, hit, { chordMm, toleranceMm }) {
   const range = EDGES[edge].along ? E.domainV : E.domainU, span = range[1] - range[0];
   const onS = (t, guess) => { const point = evaluate(E, ...EDGES[edge].at(E, t), false).point, pr = projectToSurface(S, point, guess);
     return pr.distance <= toleranceMm ? { t, point, uv: pr.uv } : null; };
-  const probe = onS(clampTo(hit.t + 1e-4 * span, range), hit.s) ?? onS(clampTo(hit.t - 1e-4 * span, range), hit.s);
-  if (!probe || Math.abs(probe.t - hit.t) < 1e-12) return null;
+  const probe = onS(clampTo(hit.t + PROBE_FRACTION * span, range), hit.s) ?? onS(clampTo(hit.t - PROBE_FRACTION * span, range), hit.s);
+  if (!probe || Math.abs(probe.t - hit.t) < ROUNDING_RELATIVE * span) return null;
   const walk = direction => {
     const out = [];let last = { t: hit.t, point: hit.point, uv: hit.s }, dt = span / 64;
-    while (Math.abs(dt) > span * 1e-12) {
+    while (Math.abs(dt) > span * ROUNDING_RELATIVE) {
       const t = clampTo(last.t + direction * dt, range);
       if (t === last.t) break;
       const next = onS(t, last.uv);
@@ -269,14 +282,14 @@ function boundaryHits(E, S, eIsA, { seedMm, toleranceMm, chordMm }) {
   }
   const edgeRange = edge => EDGES[edge].along ? E.domainV : E.domainU;
   for (const [c, s] of leaves) {
-    if (runs.some(r => r.edge === c.edge && c.range[0] >= r.from - 1e-12 && c.range[1] <= r.to + 1e-12)) continue;
+    if (runs.some(r => r.edge === c.edge && c.range[0] >= r.from - TOLERANCE.parameter && c.range[1] <= r.to + TOLERANCE.parameter)) continue;
     // An edge lying in S makes the point system singular; there the edge
     // itself is the intersection curve.
     const tMid = (c.range[0] + c.range[1]) / 2, onEdge = evaluate(E, ...EDGES[c.edge].at(E, tMid));
     const projected = projectToSurface(S, onEdge.point, [(s.u[0] + s.u[1]) / 2, (s.v[0] + s.v[1]) / 2]);
     if (projected.distance <= toleranceMm) {
       const dC = EDGES[c.edge].along ? onEdge.dv : onEdge.du, normal = evaluate(S, ...projected.uv).normal;
-      if (normal && Math.abs(dot(dC, normal)) <= 1e-9 * length(dC)) {
+      if (normal && Math.abs(dot(dC, normal)) <= DIRECTION_TOLERANCE * length(dC)) {
         const run = coincidentRun(E, c.edge, S, { t: tMid, s: projected.uv, point: onEdge.point }, { chordMm, toleranceMm });
         if (run) { runs.push({ edge: c.edge, from: run[0].t, to: run.at(-1).t, run }); continue; }
       }
@@ -303,7 +316,7 @@ function tangent(s) {
 function increments(s, T, h) {
   const move = (d0, d1) => {
     const a = dot(d0, d0), b = dot(d0, d1), c = dot(d1, d1), r0 = h * dot(d0, T), r1 = h * dot(d1, T), det = a * c - b * b;
-    return Math.abs(det) < 1e-300 ? [0, 0] : [(c * r0 - b * r1) / det, (a * r1 - b * r0) / det];
+    return !det ? [0, 0] : [(c * r0 - b * r1) / det, (a * r1 - b * r0) / det];
   };
   return [...move(s.a.du, s.a.dv), ...move(s.b.du, s.b.dv)];
 }
@@ -333,7 +346,7 @@ function endpointWithin(s, T, h, endpoints) {
     if (e.used) continue;
     const d = dot(subtract(e.point, s.a.point), T);
     if (d <= 0 || d > h) continue;
-    const inc = increments(s, T, d), scaleA = Math.hypot(inc[0], inc[1]) + 1e-12, scaleB = Math.hypot(inc[2], inc[3]) + 1e-12;
+    const inc = increments(s, T, d), scaleA = Math.hypot(inc[0], inc[1]) + TOLERANCE.parameter, scaleB = Math.hypot(inc[2], inc[3]) + TOLERANCE.parameter;
     const offA = Math.hypot(e.x[0] - s.x[0] - inc[0], e.x[1] - s.x[1] - inc[1]), offB = Math.hypot(e.x[2] - s.x[2] - inc[2], e.x[3] - s.x[3] - inc[3]);
     if (offA > 0.5 * scaleA || offB > 0.5 * scaleB) continue;
     if (!best || d < best.d) best = { e, d };
@@ -354,13 +367,13 @@ function march(A, B, start, T0, endpoints, { chordMm, stepMm }) {
       const step = stepAlong(A, B, s, T, h);
       if (step.next && chordHolds(A, B, s, T, step.next, chordMm)) { next = step.next; break; }
       h /= 2;
-      if (h < 1e-9) return { states, end: step.leaving ? 'missed-boundary' : 'stalled' };
+      if (h < PROGRAM_STEP_MM) return { states, end: step.leaving ? 'missed-boundary' : 'stalled' };
     }
     states.push(next);
     if (reached) { reached.used = true; return { states, end: 'boundary' }; }
     // Back at the start in both patches' parameters: a closed loop.
     const reach = next.x.map((v, k) => Math.abs(v - s.x[k]));
-    if (states.length > 3 && distance(next.a.point, start.a.point) <= h && start.x.every((v, k) => Math.abs(v - next.x[k]) <= 2 * reach[k] + 1e-9)) {
+    if (states.length > 3 && distance(next.a.point, start.a.point) <= h && start.x.every((v, k) => Math.abs(v - next.x[k]) <= 2 * reach[k] + TOLERANCE.parameter)) {
       states[states.length - 1] = start;return { states, end: 'closed' };
     }
     const nextT = tangent(next);
@@ -374,10 +387,11 @@ function march(A, B, start, T0, endpoints, { chordMm, stepMm }) {
 function inwardTangent(A, B, s) {
   const T = tangent(s);
   if (!T) return null;
-  const bounds = [A.domainU, A.domainV, B.domainU, B.domainV], probe = 1e-6;
+  // Increments are linear in the step: per millimetre, outward beyond relative rounding.
+  const bounds = [A.domainU, A.domainV, B.domainU, B.domainV], probe = 1;
   for (const sign of [1, -1]) {
     const d = T.map(v => sign * v), inc = increments(s, d, probe);
-    const inward = bounds.every(([lo, hi], k) => !(Math.abs(s.x[k] - lo) <= PARAMETER_EPSILON && inc[k] < -1e-15) && !(Math.abs(s.x[k] - hi) <= PARAMETER_EPSILON && inc[k] > 1e-15));
+    const inward = bounds.every(([lo, hi], k) => !(Math.abs(s.x[k] - lo) <= PARAMETER_EPSILON && inc[k] < -ROUNDING_RELATIVE) && !(Math.abs(s.x[k] - hi) <= PARAMETER_EPSILON && inc[k] > ROUNDING_RELATIVE));
     if (inward) return d;
   }
   return null;
@@ -389,14 +403,18 @@ function inwardTangent(A, B, s) {
 // parameters on both patches. Coplanar flat regions are reported separately.
 // Curve ends: 'boundary' (exactly on a patch boundary), 'closed', 'edge' (a
 // boundary edge lying in the other surface), 'tangent', or a failure to report.
-export function intersectPatches(A, B, { chordMm = 1e-3, seedMm = 0.4, stepMm = 2, toleranceMm = 1e-6 } = {}) {
+// Defaults: chord and on-surface tolerance at print resolution; seed and step are process scale.
+export function intersectPatches(A, B, { chordMm = TOLERANCE.chord, seedMm = 0.4, stepMm = 2, toleranceMm = PRINT_RESOLUTION_MM } = {}) {
   const options = { chordMm, seedMm, stepMm, toleranceMm };
   const fromA = boundaryHits(A, B, true, options), fromB = boundaryHits(B, A, false, options);
   const curves = [...fromA.runs, ...fromB.runs].map(r => ({ points: r.points, uvA: r.eIsA ? r.uvE : r.uvS, uvB: r.eIsA ? r.uvS : r.uvE, closed: false, ends: ['edge', 'edge'] }));
   const onRun = p => curves.some(c => c.points.some((q, i) => i && segmentDistance(p, c.points[i - 1], q) <= toleranceMm));
+  // One endpoint: the same point within print resolution, and parameters within print
+  // resolution read in parameter units (unit or mm-length domains), which keeps a seam
+  // point apart from its twin a whole period away.
   const endpoints = [];
   for (const h of [...fromA.hits, ...fromB.hits]) {
-    if (onRun(h.point) || endpoints.some(e => distance(e.point, h.point) <= 1e-7 && e.x.every((v, k) => Math.abs(v - h.x[k]) <= 1e-7))) continue;
+    if (onRun(h.point) || endpoints.some(e => distance(e.point, h.point) <= PRINT_RESOLUTION_MM && e.x.every((v, k) => Math.abs(v - h.x[k]) <= PRINT_RESOLUTION_MM))) continue;
     endpoints.push({ ...h, used: false });
   }
   const record = (states, closed, ends) => curves.push({ points: states.map(s => s.a.point), uvA: states.map(s => [s.x[0], s.x[1]]),
@@ -431,7 +449,8 @@ function subdivide(A, B, { seedMm, toleranceMm }) {
     const [a, b] = stack.pop();
     if (!overlap(a, b)) continue;
     const flat = a.flatness <= toleranceMm && b.flatness <= toleranceMm;
-    if (flat && Math.abs(Math.abs(dot(a.normal, b.normal)) - 1) < 1e-9 && Math.abs(dot(a.normal, b.net[0][0].slice(0, 3).map(v => v / b.net[0][0][3])) - a.offset) <= toleranceMm) {
+    // Parallel to rounding is only a prefilter; the coplanar judgement is the offset at toleranceMm.
+    if (flat && Math.abs(Math.abs(dot(a.normal, b.normal)) - 1) < ROUNDING_RELATIVE && Math.abs(dot(a.normal, b.net[0][0].slice(0, 3).map(v => v / b.net[0][0][3])) - a.offset) <= toleranceMm) {
       coplanar.push({ a: { u: a.u, v: a.v }, b: { u: b.u, v: b.v } });continue;
     }
     if (a.size <= seedMm && b.size <= seedMm) { pairs.push([a, b]); continue; }

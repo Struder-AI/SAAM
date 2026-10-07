@@ -1,6 +1,7 @@
 // Display-only aircraft context. Only wingSections enters the print handoff.
 export function aircraftContext(d){
   const c=d.chordMm,parts=[],faces=[],rings=[];
+  // Fuselage stations in root chords [station, half-width, half-height, centre]: shape data, not tolerances.
   for(const [y,rx,rz,z] of [[-.9,.008,.008,-.09],[-.7,.12,.12,-.07],[-.3,.16,.17,-.03],[.45,.15,.16,-.025],[1.15,.095,.095,-.045],[2.65,.028,.03,-.05],[3.05,.008,.008,-.05]]){
     rings.push(Array.from({length:24},(_,i)=>{const a=i*Math.PI/12;return [c*rx*Math.cos(a),c*y,c*(z+rz*Math.sin(a))];}));
   }

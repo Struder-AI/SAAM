@@ -26,10 +26,9 @@ Manage dependencies through `package.json`, `package-lock.json` and installation
 with `npm ci`. Installed source in `node_modules/` stays outside project edits
 and Git.
 
-Mesh repair beyond exact cleanup uses an optional native CGAL helper. Build it
-with `npm run setup:mesh` and the compiler/dependency paths described in
-[native mesh repair](core/geom/native/README.md). The helper has its own license
-notice and build manifest. Ordinary valid STL import does not need it.
+Mesh import and explicit repair run in JavaScript on Windows and macOS. The
+[native comparison helper](core/geom/native/README.md) remains in the source checkout
+via `npm run setup:mesh`; setup and installable packages do not require it.
 
 Reuse completed setup while its relevant dependencies and environment are
 unchanged. A new agent or print does not require another setup run.

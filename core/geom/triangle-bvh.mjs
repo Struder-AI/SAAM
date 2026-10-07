@@ -1,6 +1,6 @@
 // Packed AABB hierarchies: one index per item, no spatial cell duplication. Boxes
 // are [minx,miny,minz,maxx,maxy,maxz] per item in one Float64Array.
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 
 export function boxHierarchy(boxes,count=boxes.length/6){
   const order=new Int32Array(count),centre=new Float64Array(3*count);
@@ -87,8 +87,8 @@ export function triangleBoxes(vertices,triangles,margin=0){
   triangles.forEach((t,i)=>{for(let k=0;k<3;k++){const a=vertices[t[0]][k],b=vertices[t[1]][k],c=vertices[t[2]][k];boxes[6*i+k]=Math.min(a,b,c)-margin;boxes[6*i+3+k]=Math.max(a,b,c)+margin;}});
   return boxes;
 }
-// Triangles whose boxes may meet the box [min, max] (numeric conditioning slack).
+// Triangles whose boxes may meet the box [min, max] (rounding guard slack).
 export function triangleBVH(vertices,triangles){
-  const tree=boxHierarchy(triangleBoxes(vertices,triangles,NUMERIC_MM));
+  const tree=boxHierarchy(triangleBoxes(vertices,triangles,ROUNDING_MM));
   return {query(min,max,visit){tree.queryBox([...min,...max],0,visit);}};
 }

@@ -4,6 +4,7 @@
 // winding numbers.
 import {findSpan,evaluateCurve} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // Boehm knot insertion of t up to multiplicity degree. The control at index
 // `at` is then the curve point at t.
@@ -189,7 +190,8 @@ function refine(A,B,s,t,tol,x,y){
     if(best&&!(residual<.9*best.residual))return best;
     best={s,t,residual,point:a.point};
     const det=-a.derivative[0]*b.derivative[1]+a.derivative[1]*b.derivative[0];
-    if(residual<=tol*1e-3||Math.abs(det)<1e-300)return best;
+    // A Jacobian too small to divide by sends the step out of the pieces or to a non-finite value below.
+    if(residual<=tol/1000||!det)return best;
     s-=(-b.derivative[1]*r[0]+b.derivative[0]*r[1])/det;
     t-=(-a.derivative[1]*r[0]+a.derivative[0]*r[1])/det;
     if(!Number.isFinite(s)||!Number.isFinite(t))return best;
@@ -243,7 +245,7 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
       if(split[0])return split[0].forEach(h=>visit(h,y));
       if(split[1])return split[1].forEach(h=>visit(x,h));
       const hit=refine(curves[p.ci],curves[q.ci],(x.a+x.b)/2,(y.a+y.b)/2,tol,p,q);
-      const within=(t,piece)=>t>=piece.a-1e-12*(piece.b-piece.a+1)&&t<=piece.b+1e-12*(piece.b-piece.a+1);
+      const within=(t,piece)=>t>=piece.a-ROUNDING_RELATIVE*(piece.b-piece.a+1)&&t<=piece.b+ROUNDING_RELATIVE*(piece.b-piece.a+1);
       if(hit&&hit.residual<=tol&&within(hit.s,p)&&within(hit.t,q)&&!hits.some(h=>Math.hypot(h.point[0]-hit.point[0],h.point[1]-hit.point[1])<=tol))hits.push(hit);
     };
     visit(p,q);for(const hit of hits)record(p,q,hit);
@@ -258,7 +260,7 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
 // Sorted interior crossing parameters per curve, repeats merged.
 function distinctParams(curves,params){
   return params.map((list,c)=>{
-    const [d0,d1]=curves[c].domain,e=1e-10*(d1-d0),out=[];
+    const [d0,d1]=curves[c].domain,e=ROUNDING_RELATIVE*(d1-d0),out=[];
     for(const t of list.sort((x,y)=>x-y))if(t>d0+e&&t<d1-e&&!(out.length&&t-out.at(-1)<=e))out.push(t);
     return out;
   });
@@ -299,7 +301,7 @@ export function periodicCurveCrossings(curves,tol,closed,{axis,length}){
 // counted twice.
 export function prepareWinding(curves){
   const spans=curves.map(curve=>bezierSpans(curve).map(s=>({...s,box:box(s.cp)})));
-  const extent=Math.max(1e-9,...spans.flat().map(s=>size(s.box))),lift=extent*1e-11*Math.SQRT1_2;
+  const extent=Math.max(ROUNDING_MM,...spans.flat().map(s=>size(s.box))),lift=extent*ROUNDING_RELATIVE*Math.SQRT1_2;
   return point=>{
     const q=[point[0],point[1]+lift];let w=0;
     curves.forEach((curve,c)=>{
@@ -308,7 +310,7 @@ export function prepareWinding(curves){
         if(s.box.max[0]<q[0]||s.box.min[1]>q[1]||s.box.max[1]<q[1])continue;
         bezierRoots(Array.from({length:s.cp.length/4},(_,j)=>s.cp[j*4+1]-q[1]*s.cp[j*4+3]),s.a,s.b,roots);
       }
-      const [d0,d1]=curve.domain,e=1e-12*(d1-d0);let last=-Infinity;
+      const [d0,d1]=curve.domain,e=ROUNDING_RELATIVE*(d1-d0);let last=-Infinity;
       for(const t of roots.sort((x,y)=>x-y)){
         if(t-last<=e)continue;last=t;
         const {point,derivative}=evaluateCurve(curve,t);

@@ -7,9 +7,17 @@ import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {normalizeSpatialPlan,placementInput} from './spatial-inputs.mjs';
+import {normalizeAuthoredGeometry} from '../geom/mesh-source.mjs';
 
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
 const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
+// Bundle admission normalizes authored meshes once; compile/load remain check-only.
+function normalizePlan(plan,{previousGeometry,preparedGeometry}={}){
+  const spatial=normalizeSpatialPlan(plan);
+  if(preparedGeometry)return {plan:spatial,meshNormalization:[]};
+  const normalized=normalizeAuthoredGeometry(spatial.geometry,previousGeometry);
+  return {plan:{...spatial,...(spatial.geometry?{geometry:normalized.geometry}:{})},meshNormalization:normalized.reports};
+}
 async function presentGeometry(plan,descriptor){
   if(plan.geometry?.shape==='spatial'||plan.geometry&&!(plan.slices?.assignments??[]).some(a=>['curves','inject'].includes(a.construction)))return descriptor;
   const normalized=normalizeSpatialPlan(plan);
@@ -58,7 +66,7 @@ export async function pathSource(plan){
 }
 
 export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readToolpath, readDrawnPath, prepareGeneration, commitGeneration, generateToolpath, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
-  kind:'shell',defaults,patchPlan,createGeometry,normalizePlan:normalizeSpatialPlan,placementInput,presentGeometry,
+  kind:'shell',defaults,patchPlan,createGeometry,normalizePlan,placementInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
   limitations:limitationsFor

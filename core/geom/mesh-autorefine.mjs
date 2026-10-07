@@ -10,7 +10,7 @@
 // a constructed point takes part. Coplanar overlapping triangles share one 2D
 // triangulation, so their common pieces are identical triangles and opposed copies
 // cancel.
-import {NUMERIC_MM,NUMERIC_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {closestTrianglePoint} from './mesh-spatial.mjs';
 import {separatedTriangles} from './mesh.mjs';
 import {orient2dExact,orient3dExact} from './exact-predicates.mjs';
@@ -486,7 +486,7 @@ function classify(store,soup){
     boxes[o+3]=Math.max(px[a],px[b],px[c])+d;boxes[o+4]=Math.max(py[a],py[b],py[c])+d;boxes[o+5]=Math.max(pz[a],pz[b],pz[c])+d;
     for(let k=0;k<3;k++){all[k]=Math.min(all[k],boxes[o+k]);all[3+k]=Math.max(all[3+k],boxes[o+3+k]);}}
   const tree=boxHierarchy(boxes,nf);let size=0;for(let k=0;k<3;k++)size=Math.max(size,all[3+k]-all[k]);
-  const reach=4*size+1,margin=NUMERIC_RELATIVE*(size+1),centre=[0,1,2].map(k=>(all[k]+all[3+k])/2);
+  const reach=4*size+1,margin=ROUNDING_RELATIVE*(size+1),centre=[0,1,2].map(k=>(all[k]+all[3+k])/2);
   // Winding on the side of face f that faces q, from the signed crossings of the
   // segment centroid->q (w(q)=0 outside); null when the segment meets an edge,
   // vertex or plane degenerately and another q is needed.
@@ -517,11 +517,11 @@ function classify(store,soup){
 }
 
 // ---------------- edge collapse ----------------
-// SAAM's mesh contract needs every triangle's height above numeric conditioning.
+// SAAM's mesh contract needs every triangle's height above the rounding guard.
 function belowHeightContract(xyz,a,b,c){
   const A=3*a,B=3*b,C=3*c,u=[xyz[B]-xyz[A],xyz[B+1]-xyz[A+1],xyz[B+2]-xyz[A+2]],v=[xyz[C]-xyz[A],xyz[C+1]-xyz[A+1],xyz[C+2]-xyz[A+2]],w=[xyz[C]-xyz[B],xyz[C+1]-xyz[B+1],xyz[C+2]-xyz[B+2]];
   const longest=Math.sqrt(Math.max(u[0]**2+u[1]**2+u[2]**2,v[0]**2+v[1]**2+v[2]**2,w[0]**2+w[1]**2+w[2]**2));
-  return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=NUMERIC_MM*longest;
+  return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=ROUNDING_MM*longest;
 }
 // Edge collapses on a flat triangle list (removed triangles -1) with its vertex
 // incidence. Collapsing s into d keeps d where it is; the surface stays a manifold when
@@ -578,7 +578,7 @@ function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
 // the triangles the round changed then undoes every collapse among them that crosses,
 // and that direction is not tried again. Rounds repeat while one collapses. Pairs that
 // stay are counted by cause.
-function mergeCloseVertices({xyz,tri,source,onSheet},mergeMm){
+export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUTION_MM){
   const nv=xyz.length/3,n=tri.length/3,T=tri.slice(),edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v;
   const dist=(a,b)=>Math.hypot(xyz[P(a)]-xyz[P(b)],xyz[P(a)+1]-xyz[P(b)+1],xyz[P(a)+2]-xyz[P(b)+2]),rank=v=>source[v]?2:onSheet[v]>=0?1:0;
   // Vertex pairs closer than mergeMm, closest first (a sweep along x); vertices keep
@@ -636,8 +636,8 @@ function mergeCloseVertices({xyz,tri,source,onSheet},mergeMm){
 // stay exact planes; source points stay. When rounding creates crossings, the
 // triangles it touched are reconstructed again; sheets and the vertices on them carry
 // over to later passes. Once no crossing remains, vertices closer than mergeMm (print
-// resolution) merge (mergeCloseVertices).
-export const SNAP_GRID_MM=2**Math.floor(Math.log2(PRINT_RESOLUTION_MM/1000));
+// resolution) merge (mergeMeshVertices).
+export const SNAP_GRID_MM=2**Math.floor(Math.log2(ROUNDING_MM));
 export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,mergeMm=PRINT_RESOLUTION_MM,snapGridMm=SNAP_GRID_MM,maxPasses=6,progress=()=>{}}={}){
   const passes=[],timings=[];let current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null,onSheet:null,sheets:null};
   for(let pass=0;pass<maxPasses;pass++){
@@ -646,7 +646,7 @@ export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,mergeMm=
     if(pass===maxPasses-1)throw Error('Rounding the reconstructed surface still creates crossings after '+maxPasses+' passes; no result accepted');
   }
   if(!passes.length)return null;
-  progress({stage:'merge'});const t0=performance.now(),merged=mergeCloseVertices(current,mergeMm);timings.push({merge:performance.now()-t0});
+  progress({stage:'merge'});const t0=performance.now(),merged=mergeMeshVertices(current,mergeMm);timings.push({merge:performance.now()-t0});
   return {xyz:merged.xyz,tri:merged.tri,passes,merge:merged.merge,timings};
 }
 function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGridMm,pass,progress}){

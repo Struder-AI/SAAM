@@ -146,7 +146,7 @@ changing; read the maps for what it affects and what affects it.
 | Core architecture and shared boundaries | [core/README.md](core/README.md) |
 | Agent CLI toolkit | [core/agent/README.md](core/agent/README.md) |
 | Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](machines/bambu/SKILL.md), [DENSO](machines/denso/SKILL.md), [Dobot](machines/dobot/SKILL.md), [Griffin](machines/ultimaker/SKILL.md) and the [exporter implementation](core/export/DEVELOP.md), which is off the map |
-| Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native mesh repair](core/geom/native/README.md) |
+| Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native comparison](core/geom/native/README.md) |
 | Machine presentation models | [core/machine/README.md](core/machine/README.md) |
 | Skill composition and travel | [core/path/README.md](core/path/README.md), with the [collision-planning proposal](core/path/collision-proposal.md) |
 | Print lifecycle and persistence | [core/print/README.md](core/print/README.md) |
@@ -281,7 +281,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
 | Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the boxes and `@link` arrows the change touches |
-| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map @cluster/geometry` for influence |
+| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native comparison](core/geom/native/README.md); `read-map @cluster/geometry` for influence |
 | Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map @cluster/geometry` and `@cluster/toolpath` for influence |
 | Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map @cluster/toolpath` for influence |
 | Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map @cluster/bundle` and `@cluster/toolpath` for influence |

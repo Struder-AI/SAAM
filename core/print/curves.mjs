@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 import {curveLength} from '../path/curve-construction.mjs';
 import {authoredNurbs,validateCurveProfiles,constructAuthoredCurves} from '../path/authored-curves.mjs';
@@ -96,14 +97,14 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       requireCurveContact(curve,supportSegments,heightMm,assignment.id);
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
-    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Trace repetition exceeds its authored Z excursion limit.');}
+    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
     const spec={key:assignment.repetitionIds?.[repetition]??repetition,curves:ready,heightMm,speedMmS,layer:repetition,layerIndex:repetition,layerCount:count,rank:repetition,
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
       const raw=traceResult({...assignment,after:previous},{batches:[spec],process,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
       for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
-      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace repetition exceeds its authored Z excursion limit.');}
+      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Final Trace repetition exceeds its authored Z excursion limit.');}
       parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
     }
   }

@@ -14,9 +14,11 @@ import { evaluate } from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 
 const BOUNDARY_SAMPLES = 16;
-const JOIN_TOLERANCE = 1e-5;
+// Section pieces whose ends lie within print resolution join.
+const JOIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 export function makeShell(patches, { name = 'shell' } = {}) {
   // Closure, not a patch count, decides whether a shell is solid: one
@@ -62,7 +64,7 @@ function verifyClosure(patches) {
       const curve = surfaceIsoCurve(patch,axis,value);
       const samples = [];
       for (let i = 0; i <= BOUNDARY_SAMPLES; i++) samples.push(curvePoint(curve,i / BOUNDARY_SAMPLES));
-      const degenerate = samples.every(p => distance(p, samples[0]) <= TOLERANCE.point);
+      const degenerate = samples.every(p => distance(p, samples[0]) <= PRINT_RESOLUTION_MM);
       edges.push({ patch: patch.name, edge, curve, samples, degenerate, matched: degenerate });
     }
   for (let i = 0; i < edges.length; i++) {
@@ -97,7 +99,7 @@ function distanceToCurve(point, curve, scan = 32) {
   let lo = Math.max(0, bestT - 1 / scan), hi = Math.min(1, bestT + 1 / scan);
   let c = hi - phi * (hi - lo), d = lo + phi * (hi - lo);
   let fc = distance(point, curvePoint(curve,c)), fd = distance(point, curvePoint(curve,d));
-  for (let i = 0; i < 60 && hi - lo > 1e-12; i++) {
+  for (let i = 0; i < 60 && hi - lo > TOLERANCE.parameter; i++) {
     if (fc < fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = distance(point, curvePoint(curve,c)); }
     else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = distance(point, curvePoint(curve,d)); }
   }
@@ -110,11 +112,12 @@ function distanceToCurve(point, curve, scan = 32) {
 // A plane through a critical point of the surface (a saddle, where the contour
 // self-touches) or flush with a whole face is genuinely ambiguous: the contour
 // there is not a set of disjoint curves. Both cases are resolved the way
-// slicers resolve them, by displacing the plane along its normal far below
-// process resolution and re-cutting. The displacement is reported, and a
+// slicers resolve them, by displacing the plane along its normal and
+// re-cutting: twice print resolution clears a face judged flush at print
+// resolution, ten times a saddle that still pinches; both stay far below a layer. The displacement is reported, and a
 // section that still will not close raises rather than returning a part with a
 // gap in it.
-const NUDGES = [0, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4];
+const NUDGES = [0, 2, -2, 10, -10].map(k => k * PRINT_RESOLUTION_MM);
 
 export function sectionShell(shell, slice, options = {}) {
   let first = null;
@@ -180,8 +183,8 @@ const toChart = (points, { origin: o, xAxis: x, yAxis: y }) => {
   const loop = points.map(p => horizontal ? [p[0] - o[0], p[1] - o[1]] : [dot(subtract(p, o), x), dot(subtract(p, o), y)]);
   // Drop the duplicated closing point and any repeats introduced by joining.
   const out = [];
-  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > TOLERANCE.point) out.push(point);
-  if (out.length > 1 && distance2(out[0], out[out.length - 1]) <= TOLERANCE.point) out.pop();
+  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > PRINT_RESOLUTION_MM) out.push(point);
+  if (out.length > 1 && distance2(out[0], out[out.length - 1]) <= PRINT_RESOLUTION_MM) out.pop();
   return out;
 };
 

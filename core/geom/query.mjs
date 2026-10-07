@@ -4,6 +4,7 @@ import { meshTopAt,meshCrossingsAt } from './mesh.mjs';
 import {horizontalSlice} from './slice.mjs';
 import {section,prepareSection} from '../region/section.mjs';
 import { requireThat } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 import {chartPrismContains} from './chart-prism.mjs';
 
 export function requireGeometry(geometry, capabilities) {
@@ -58,8 +59,9 @@ function unionTopAt(shell,x,y){
 // just below it and none just above. A solid holds a height when an odd number
 // of its crossings lie above it; coincident crossings (a shared patch edge,
 // neighbouring triangles) count once. The line grazing a vertical wall exactly
-// is outside this parity test.
-const COINCIDENT_MM=1e-7,PROBE_MM=1e-6;
+// is outside this parity test. Crossings within print resolution are one; a
+// probe steps past such a merged pair.
+const COINCIDENT_MM=PRINT_RESOLUTION_MM,PROBE_MM=2*PRINT_RESOLUTION_MM;
 function booleanTopAt(shell,x,y){
   const leaves=columnCrossings(shell,x,y);
   const candidates=[...leaves.values()].flat().sort((a,b)=>b.zMm-a.zMm);

@@ -258,22 +258,20 @@ holds less than 0.001 mm3, which a machine program could only write as travel.
 segment-metadata arrays; callers use it for both deposition and rim reporting.
 
 `planMove` coalesces forward moves with equal speed, flow density, pose and
-semantic metadata. A fixed original axis prevents accumulated curve flattening:
-ordinary collinear runs use 0.0000001 mm tolerance; merging a movement below
-0.0001 mm bounds original-point deviation from the final chord by 0.0001 mm.
+semantic metadata. Each merged endpoint stays within half print resolution of the
+run's original axis, so successive merges cannot accumulate curve flattening.
 Volume, elapsed time and final endpoints survive. Reversals, changed poses,
 process/flow and operation/layer/role boundaries, and intervening controls stay
 explicit. All producers use this shared SAAMpath writer after field evaluation
 and before export; tiny meaningful movements are retained when merging would
 lose those semantics.
 
-Mesh sections remove numerical triangle seams with `cleanPlanarLoop` before
-offsetting. The distance bound is the existing 0.0000001 mm plane tolerance,
-tested against every original point in the replacement span; it does not use
-an angle cutoff or accumulate successive local simplifications. Closed contours
-retain winding, corners and reversals. Slice loops also clean offset
-deposition contours at that tolerance, while retaining the offset kernel's region
-output for booleans. No curve-resolution or Clipper precision setting is relaxed.
+Mesh sections remove triangle seams collinear to the rounding guard with
+`cleanPlanarLoop` before offsetting, testing every original point in the
+replacement span, not an angle cutoff or successive local simplifications.
+Closed contours retain winding, corners and reversals. Slice loops clean offset
+deposition contours at the wall tolerance (print resolution by default), while
+retaining the offset kernel's region output for booleans. No curve-resolution or Clipper precision setting is relaxed.
 
 `prepareSection` in `core/geom/slice.mjs` prepares repeated sections of one
 fixed geometry by slices of one orientation: each mesh gets sorted vertex
@@ -321,7 +319,7 @@ below another operation's deposited material.
 completed operation's footprint through the shared Clipper2 open-path tool.
 Planar heights are compared at clipped endpoints, so a descending move cannot
 hide a low collision behind its high endpoint. Surface heights are sampled
-within each clipped interval. A numerical plane-tolerance expansion includes
+within each clipped interval. A print-resolution expansion includes
 boundary contact; it is not nozzle-width expansion. A missing height inside
 declared material blocks travel. Bounds and maximum height skip irrelevant
 queries; the shared boundary index resolves segments with constant footprint

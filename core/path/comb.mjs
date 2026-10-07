@@ -1,6 +1,6 @@
 import {pointInRegion,pointSegmentDistance,segmentIntersection,regionComponents} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 const span=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 
 // Prepared for one fixed layer, like its segment index. Share the closure when
@@ -21,7 +21,7 @@ export function combSegment(a,b,policy) {
   const loops=policy.combRegion,clear=policy.combClearanceMm??0;
   const index=policy.combIndex,inside=p=>index?index.contains(p):pointInRegion(p,loops);
   if(!loops||!inside(a)||!inside(b)||!inside([(a[0]+b[0])/2,(a[1]+b[1])/2]))return false;
-  const threshold=Math.max(clear,1e-8)-Math.min(clear/2,TOLERANCE.plane);
+  const threshold=Math.max(clear,ROUNDING_MM)-Math.min(clear/2,PRINT_RESOLUTION_MM);
   // Only boundary segments along the travel itself can cross or approach it.
   const edges=index?index.inCorridor(a,b,threshold):loops.flatMap(loop=>loop.map((c,i)=>[c,loop[(i+1)%loop.length]]));
   // Crossings first: four distances cost several times one crossing test, and a
@@ -36,7 +36,7 @@ export function combSegment(a,b,policy) {
 
 // Bounded visibility graph inside an inset region. Failure falls back to a hop.
 export function combRoute(from,to,policy) {
-  if(!policy.combRegion||!(policy.maxCombMm>0)||(!policy.combSurfaceZ&&Math.abs(from[2]-to[2])>1e-9)||span(from,to)>policy.maxCombMm)return null;
+  if(!policy.combRegion||!(policy.maxCombMm>0)||(!policy.combSurfaceZ&&Math.abs(from[2]-to[2])>PRINT_RESOLUTION_MM)||span(from,to)>policy.maxCombMm)return null;
   if(policy.combSurfaceZ&&!(Number.isFinite(policy.combStepMm)&&policy.combStepMm>0))return null;
   // A graph cannot repair an endpoint outside its usable footprint/surface.
   // Reject it before evaluating heights at hundreds of unreachable corners.

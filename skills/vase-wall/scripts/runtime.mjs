@@ -1,7 +1,11 @@
 // Standard continuous wall composition over public Toolpath operations.
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// Heights (the part bottom, a layer rank, a sleeve start or end, the layer grid)
+// coincide to print resolution.
 export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress},{prepareContourSleeve}){
   const base=zStartMm??shell.bounds.min[2]+assignment.zStartMm;
-  const firstHeight=Math.abs(base-shell.bounds.min[2])<1e-9?process.firstLayerMm:process.layerMm;
+  const firstHeight=Math.abs(base-shell.bounds.min[2])<PRINT_RESOLUTION_MM?process.firstLayerMm:process.layerMm;
   const start=base+firstHeight,end=zEndMm??(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm);
   const fitMode=assignment.meshSleeve?'mesh':assignment.pattern===null&&assignment.sleeveToleranceMm>0?'automatic':'none';
   const centerlineOffsetMm=(assignment.meshSleeve?.contactSide==='outside'?1:-1)*process.lineWidthMm/2;
@@ -40,10 +44,10 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
 
 function vaseFoundationSegments({node,samePart,substrateAdaptation}){
   const context=node.context??node.record.context,assignment=node.context?.assignment??node.record.spec.settings;
-  const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+1e-8);
+  const foundations=samePart.filter(item=>item.node.nominalRank<=context.startMm+PRINT_RESOLUTION_MM);
   if(assignment.zStartMm>0){
     const grid=(assignment.zStartMm-context.process.firstLayerMm)/context.process.layerMm;
-    requireThat(Math.abs(grid-Math.round(grid))<1e-8,'A raised sleeve must start on its resolved process layer grid.');
+    requireThat(Math.abs(grid-Math.round(grid))*context.process.layerMm<PRINT_RESOLUTION_MM,'A raised sleeve must start on its resolved process layer grid.');
     requireThat(foundations.some(item=>item.result.operations.length),'A raised sleeve needs supporting deposition below its start.');
   }
   return substrateAdaptation&&assignment.zStartMm>0?depositedBeadSegments(foundations.flatMap(item=>item.result.operations),{widthMm:context.process.lineWidthMm}):[];
@@ -54,9 +58,9 @@ function vaseDependencies(node,nodes){
   for(const other of nodes){
     if(other===node)continue;
     if(node.construction==='sleeve'&&other.part===node.part){
-      if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=(node.context??node.record.context).startMm+1e-8||other.construction==='sleeve'&&(other.context??other.record.context).endMm<=(node.context??node.record.context).startMm+1e-8)needs.add(other.key);
+      if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=(node.context??node.record.context).startMm+PRINT_RESOLUTION_MM||other.construction==='sleeve'&&(other.context??other.record.context).endMm<=(node.context??node.record.context).startMm+PRINT_RESOLUTION_MM)needs.add(other.key);
     }
-    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+1e-8){
+    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+PRINT_RESOLUTION_MM){
       requireThat((other.context?.assignment??other.record.spec.settings).endTransition==='level','Slices above a sleeve need its ending transition to be level.');needs.add(other.key);
     }
   }

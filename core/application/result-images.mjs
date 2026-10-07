@@ -7,7 +7,7 @@ import {writeFile,readdir,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {encodePng} from '../export/png.mjs';
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
 import {bundleFor} from '../../studio/adapter-resolution.mjs';
 import {resolvePhaseColours,phaseColour} from '../print/phase-colours.mjs';
@@ -135,7 +135,7 @@ export function geometryImage(geometry){
     for(const face of faces)for(let k=1;k+1<face.length;k++){
       const a=vertices[face[0]],b=vertices[face[k]],c=vertices[face[k+1]];
       const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
-      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,size=Math.sqrt(nx*nx+ny*ny+nz*nz);if(size<NUMERIC_MM)continue;
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,size=Math.sqrt(nx*nx+ny*ny+nz*nz);if(size<ROUNDING_MM**2)continue;
       const shade=Math.min(1.08,0.42+0.64*Math.abs(nx*light[0]+ny*light[1]+nz*light[2])/size);
       fillTriangle(canvas,frame,projected,face[0]*3,face[k]*3,face[k+1]*3,Math.min(255,Math.round(PART[0]*shade)),Math.min(255,Math.round(PART[1]*shade)),Math.min(255,Math.round(PART[2]*shade)));
     }

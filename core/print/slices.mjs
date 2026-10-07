@@ -16,6 +16,7 @@ import { heightSlice, heightSliceNormal, referenceHeight, heightReferencePatch, 
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
 import { geometrySelections } from '../geom/selections.mjs';
 import {TOLERANCE} from '../geom/tolerance.mjs';
+import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {horizontalSlice,planeSlice,patchSlice,translateSlice,sliceStack,sliceBoundaryEdges,sliceChartStep,patchMeanNormal} from '../geom/slice.mjs';
 import {prepareSection,section} from '../region/section.mjs';
 import {surfaceGapCurves} from '../region/surface-curves.mjs';
@@ -262,7 +263,7 @@ function volumeBox(owner) {
   if(owner.kind==='outline'){const pad=(Array.isArray(owner.assignment.loops)?Math.max(...owner.assignment.loops):owner.assignment.loops)*lineSpacing(owner.widthMm,owner.assignment);for(const k of [0,1]){box.min[k]-=pad;box.max[k]+=pad;}}
   return box;
 }
-const boxesMeet = (a, b) => [0, 1, 2].every(i => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]) > TOLERANCE.point);
+const boxesMeet = (a, b) => [0, 1, 2].every(i => Math.min(a.max[i], b.max[i]) - Math.max(a.min[i], b.min[i]) > PRINT_RESOLUTION_MM);
 
 // Conservative control hulls can prove separation; intersecting hulls never
 // prove material overlap. A centroid direction also proves touching fin boundaries
@@ -284,7 +285,7 @@ function hullsSeparate(a,b){
   return axes.some(axis=>{
     const extent=points=>{let lo=Infinity,hi=-Infinity;for(const p of points){const v=p.reduce((sum,v,k)=>sum+v*axis[k],0);lo=Math.min(lo,v);hi=Math.max(hi,v);}return [lo,hi];};
     const [alo,ahi]=extent(ap),[blo,bhi]=extent(bp);
-    return Math.min(ahi,bhi)-Math.max(alo,blo)<=TOLERANCE.point;
+    return Math.min(ahi,bhi)-Math.max(alo,blo)<=PRINT_RESOLUTION_MM;
   });
 }
 // Check effective claims, including default remainders, on both stacks and
@@ -307,10 +308,10 @@ export function resolveSliceOwnership(owners,{claim=null}={}) {
     if(!boxesMeet(ab,bb))continue;
     if(a.shell.kind==='chart-prism'&&b.shell.kind==='chart-prism'){
       const x=a.shell,y=b.shell,r=x.reference,t=y.reference,same=r.kind===t.kind&&(r.kind==='height-field'?r.reference.kind===t.reference.kind&&r.reference.geometry===t.reference.geometry:r.referencePatch===t.referencePatch);
-      if(same&&x.direction.every((v,k)=>Math.abs(v-y.direction[k])<1e-12)){
+      if(same&&x.direction.every((v,k)=>Math.abs(v-y.direction[k])<ROUNDING_RELATIVE)){
         const offset=s=>s.kind==='height-field'?s.offsetMm:(s.translation??[0,0,0]).reduce((sum,v,k)=>sum+v*x.direction[k],0);
-        if(Math.min(x.toMm+offset(r),y.toMm+offset(t))-Math.max(x.fromMm+offset(r),y.fromMm+offset(t))<=TOLERANCE.point)continue;
-        if(!positiveClaimRegion(intersect(x.loopsUv,y.loopsUv),Math.min(...sliceChartStep(r,TOLERANCE.point))))continue;
+        if(Math.min(x.toMm+offset(r),y.toMm+offset(t))-Math.max(x.fromMm+offset(r),y.fromMm+offset(t))<=PRINT_RESOLUTION_MM)continue;
+        if(!positiveClaimRegion(intersect(x.loopsUv,y.loopsUv),Math.min(...sliceChartStep(r,PRINT_RESOLUTION_MM))))continue;
         requireExclusiveClaims(a,b);
       }
     }
@@ -318,13 +319,13 @@ export function resolveSliceOwnership(owners,{claim=null}={}) {
     if(av.some(x=>bv.some(y=>hullsSeparate(x,y))))continue;
     const low=Math.max(ab.min[2],bb.min[2]),high=Math.min(ab.max[2],bb.max[2]);
     const heights=[low,high,...av.flatMap(s=>[s.bounds.min[2],s.bounds.max[2]]),...bv.flatMap(s=>[s.bounds.min[2],s.bounds.max[2]])].filter(z=>z>=low&&z<=high).sort((a,b)=>a-b);
-    const probes=heights.slice(1).flatMap((z,i)=>z-heights[i]>TOLERANCE.point?[{slice:horizontalSlice((z+heights[i])/2)}]:[]);
+    const probes=heights.slice(1).flatMap((z,i)=>z-heights[i]>PRINT_RESOLUTION_MM?[{slice:horizontalSlice((z+heights[i])/2)}]:[]);
     for(const layer of [...probes,...a.referenceStack.layers,...b.referenceStack.layers]){
       if(layer.slice.kind!=='plane')continue; // UV distances are not millimetres.
       const overlap=intersect(claimAt(a,layer),claimAt(b,layer));
       const exact=s=>s.kind==='triangle-mesh'||s.kind==='boolean'&&s.operands.every(exact);
       const polygonal=[...av,...bv].every(exact);
-      if(positiveClaimRegion(overlap,polygonal?TOLERANCE.point:2*TOLERANCE.chord))requireExclusiveClaims(a,b,{uncertain:av.concat(bv).some(s=>s.kind==='chart-prism')});
+      if(positiveClaimRegion(overlap,polygonal?PRINT_RESOLUTION_MM:2*TOLERANCE.chord))requireExclusiveClaims(a,b,{uncertain:av.concat(bv).some(s=>s.kind==='chart-prism')});
     }
     requireExclusiveClaims(a,b,{uncertain:true});
   }
@@ -340,7 +341,7 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
     return section(prepared, slice).loops;
   });
   const material = (owner, slice) => cached(`material|${owner.sectionKey??owner.part}|${sliceKey(slice)}`, () => {
-    if (owner.kind === 'support') return slice.origin[2] <= owner.endMm + 1e-8 ? owner.footprint : [];
+    if (owner.kind === 'support') return slice.origin[2] <= owner.endMm + PRINT_RESOLUTION_MM ? owner.footprint : [];
     let region = partSection(owner, slice);
     for (const band of bands.filter(b => b.part === owner.part)) {
       const cut = volumeSection({ kind: 'slab', fromMm: band.startMm, toMm: band.endMm }, { slice }, chartExtent(owner, slice));
@@ -355,7 +356,7 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
   });
   const explicit = owners.filter(o => o.kind === 'part' && o.within.length), results = [];
   const claim=(owner,layer)=>{
-    if(layer.slice.kind==='plane'&&(layer.slice.origin[2]<=owner.startMm+TOLERANCE.point||layer.slice.origin[2]>owner.endMm+TOLERANCE.point)&&horizontal(layer.slice))return [];
+    if(layer.slice.kind==='plane'&&(layer.slice.origin[2]<=owner.startMm+PRINT_RESOLUTION_MM||layer.slice.origin[2]>owner.endMm+PRINT_RESOLUTION_MM)&&horizontal(layer.slice))return [];
     let region=material(owner,layer.slice),cut=volume(owner,layer);
     if(owner.kind==='outline')return difference(offsetRegion(region,(Array.isArray(owner.assignment.loops)?Math.max(...owner.assignment.loops):owner.assignment.loops)*lineSpacing(owner.widthMm,owner.assignment)),region);
     if(cut!==null)region=intersect(region,cut);
@@ -375,7 +376,7 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
       materialMasks.set(layer.index, own);
       if (!own.length) continue;
       const z = layer.slice.origin?.[2]??layer.slice.offsetMm;
-      if (horizontal(layer.slice) && (z <= principal.startMm + 1e-9 || z > principal.endMm + 1e-9)) continue;
+      if (horizontal(layer.slice) && (z <= principal.startMm + PRINT_RESOLUTION_MM || z > principal.endMm + PRINT_RESOLUTION_MM)) continue;
       const candidates = explicit.filter(o => o.part === principal.part);
       let allocated;
       if (principal.kind === 'outline') {
@@ -383,14 +384,14 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
         allocated = [{ owner: principal, region: difference(offsetRegion(boundary, (Array.isArray(principal.assignment.loops)?Math.max(...principal.assignment.loops):principal.assignment.loops) * lineSpacing(principal.widthMm, principal.assignment)), boundary), boundary }];
       } else if (principal.kind === 'support') {
         for (const [part, shell, whole] of shells) {
-          if (!whole || z < shell.bounds.min[2] - 1e-8 || z > shell.bounds.max[2] + 1e-8) continue;
+          if (!whole || z < shell.bounds.min[2] - PRINT_RESOLUTION_MM || z > shell.bounds.max[2] + PRINT_RESOLUTION_MM) continue;
           const obstacle = offsetRegion(partSection({ part, shell }, layer.slice), principal.gaps.xyGapMm);
-          requireThat(regionArea(intersect(own, obstacle)) < 1e-8, `Support ${principal.id} meets its part clearance at Z ${z.toFixed(3)} mm; revise its footprint.`);
+          requireThat(!positiveClaimRegion(intersect(own, obstacle), PRINT_RESOLUTION_MM), `Support ${principal.id} meets its part clearance at Z ${z.toFixed(3)} mm; revise its footprint.`);
         }
         allocated = [{ owner: principal, region: own, boundary: own }];
       } else {
         const claims=allocateChartClaims(own,candidates.map(owner=>({owner,region:volume(owner,layer)})),
-          {principal,retainUnclaimed:!principal.within.length,toleranceMm:layer.slice.kind==='patch'?Math.min(...sliceChartStep(layer.slice,TOLERANCE.point)):TOLERANCE.point});
+          {principal,retainUnclaimed:!principal.within.length,toleranceMm:layer.slice.kind==='patch'?Math.min(...sliceChartStep(layer.slice,PRINT_RESOLUTION_MM)):PRINT_RESOLUTION_MM});
         allocated=claims.allocated.map(cell=>({...cell,boundary:own}));
       }
       for (const owner of new Set(allocated.map(a => a.owner))) {
@@ -422,7 +423,7 @@ function planeContactGaps(curves, { slice, heightMm }, bottom) {
   if (horizontal(slice)) return curves;
   const cosine = slice.normal[2], ceiling = bottom + heightMm / cosine;
   return curves.map(curve => {
-    if (curve.points.every(p => p[2] >= ceiling - 1e-9)) return curve;
+    if (curve.points.every(p => p[2] >= ceiling - PRINT_RESOLUTION_MM)) return curve;
     const source = curve.closed ? [...curve.points, curve.points[0]] : curve.points, points = [source[0]], heightsMm = [];
     const gap = point => Math.max(0, Math.min(heightMm, (point[2] - bottom) * cosine));
     for (let i = 1; i < source.length; i++) {
@@ -453,7 +454,7 @@ function sliceRank(slice, bounds) {
 function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
   const options = { liftMm: process.liftMm, maxCombMm: process.maxCombMm, lineWidthMm: process.lineWidthMm };
   if (horizontal(slice)) return planarPolicy(region, { ...options, layerZ: slice.origin[2] });
-  if(slice.kind==='patch'||slice.kind==='surface-chart'||Math.abs(slice.normal?.[2]??1)<1e-8)return {maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ+process.liftMm};
+  if(slice.kind==='patch'||slice.kind==='surface-chart'||Math.abs(slice.normal?.[2]??1)<PRINT_RESOLUTION_MM/BUILD_SCALE_MM)return {maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>maxZ+process.liftMm};
   const surfaceZ = slice.kind==='height-field'?(x,y)=>referenceHeight(slice.reference,x,y)?evaluateSurface(slice,[x,y]).point[2]:null:(x, y) => slice.origin[2] - ((x - slice.origin[0]) * slice.normal[0] + (y - slice.origin[1]) * slice.normal[1]) / slice.normal[2];
   return surfacePolicy(worldRegion, { ...options, surfaceZ, maxZ });
 }
@@ -507,7 +508,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
     nextFillState=strokes.nextFillState;
     if(strokes.constructionReport)report.fillOrder=strokes.constructionReport;
     const boundaries=mapSliceStrokes(strokes.walls,slice,{frames:true,sampleStepMm:layerSettings.sampleStepMm}).map(curve=>{
-      const duplicate=curve.points.length>2&&Math.hypot(...curve.points[0].map((v,k)=>v-curve.points.at(-1)[k]))<1e-8;
+      const duplicate=curve.points.length>2&&Math.hypot(...curve.points[0].map((v,k)=>v-curve.points.at(-1)[k]))<=PRINT_RESOLUTION_MM;
       return !duplicate?curve:{...curve,closed:true,points:curve.points.slice(0,-1),chartPoints:curve.chartPoints.slice(0,-1),normals:curve.normals.slice(0,-1),frameSamples:curve.frameSamples.slice(0,-1)};
     });
     stackLayers.push({...layer,curves:boundaries});
@@ -531,7 +532,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
           {id,layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherStackContactSegments},
             contactFragments,predecessorReference,substrateAdaptation,required:requiredContact}:null});
       const deposited=evaluated.operation,lifted=deposited.strokes;
-      const heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planarBatch=top-Math.min(...heights)<1e-8;
+      const heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planarBatch=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
       const batchTravel=layer.contactPlacement?(planarBatch?planarPolicy(worldRegion,{layerZ:top,liftMm:process.liftMm,maxCombMm:process.maxCombMm,lineWidthMm:width}):{maxCombMm:0,clearanceFor:()=>top+process.liftMm}):travelPolicy;
       const contactAfter=deposited.after;
       const measured=evaluated.contactReport;
@@ -549,7 +550,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
           return covered ??= (slice.kind==='patch'||slice.kind==='surface-chart'?region:group === 'walls' ? wallMaterial()
             : fillMaterial(group === 'infill' ? strokes.sparseRegion : strokes.solidRegion, width)).map(loop => loop.map(point => evaluateSurface(slice,point).point.slice(0, 2)));
         },
-        materialCoverage: group !== 'walls' && spacing > width + 1e-8 ? 'sparse' : 'area',
+        materialCoverage: group !== 'walls' && spacing > width + PRINT_RESOLUTION_MM ? 'sparse' : 'area',
         travelPolicy:batchTravel, ...((Object.hasOwn(layerSettings.process??{},'fanPercent')||(horizontal(slice) ? index === 1 : ordinal === 1)) ? { fanPercent: process.fanPercent } : {}), ...(filament === null ? {} : { filament }) });
       current.push(opId);
     }
@@ -560,7 +561,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
   const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));
   if(widths.length){report.minBeadWidthMm=Math.min(...widths);report.maxBeadWidthMm=Math.max(...widths);}
   if (support) return {id,operations,report,stackLayers,nextFillState};
-  const coverage = layers.every(layer=>{const s={...settings,...layer.settings,...settings.sliceOverrides?.[layer.index]};return s.fillDensity>=1&&lineSpacing(width,s)<=width+1e-8;}) ? 'nominal' : 'sparse';
+  const coverage = layers.every(layer=>{const s={...settings,...layer.settings,...settings.sliceOverrides?.[layer.index]};return s.fillDensity>=1&&lineSpacing(width,s)<=width+PRINT_RESOLUTION_MM;}) ? 'nominal' : 'sparse';
   const segments=depositedBeadSegments(operations,{widthMm:width});
   if(!shell)return {id,operations,report,stackLayers,nextFillState};
   return publishFinishedBoundary({id,operations,report,stackLayers,nextFillState}, { shell, startMm, endMm, coverage,contains:({point})=>depositedBeadsContain(segments,point) });
@@ -585,7 +586,7 @@ function requireExclusiveNormalBands(assignments){
     const same=JSON.stringify([a.contact?.source,a.surface,a.stack?.offsetTightness??a.fillOrder?.offsetTightness??1])===JSON.stringify([b.contact?.source,b.surface,b.stack?.offsetTightness??b.fillOrder?.offsetTightness??1]);
     if(!same)requireExclusiveClaims(a,b,{uncertain:true});
     const x=a.within[0],y=b.within[0];
-    if(Math.min(x.toMm,y.toMm)-Math.max(x.fromMm,y.fromMm)>TOLERANCE.point)requireExclusiveClaims(a,b);
+    if(Math.min(x.toMm,y.toMm)-Math.max(x.fromMm,y.fromMm)>PRINT_RESOLUTION_MM)requireExclusiveClaims(a,b);
   }
 }
 
@@ -615,7 +616,7 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
     const a=context.assignment,band=a.within[0],pad=Math.max(Math.abs(band.fromMm),Math.abs(band.toMm)),box=context.shell.bounds;
     const normalBounds={min:box.min.map(v=>v-pad),max:box.max.map(v=>v+pad)};
     for(const owner of owners){
-      if(owner.part===a.part&&owner.kind==='part'&&owner.shell.kind!=='chart-prism'&&band.fromMm*a.surface.normalSide>=-TOLERANCE.point&&band.toMm*a.surface.normalSide>=-TOLERANCE.point)continue;
+      if(owner.part===a.part&&owner.kind==='part'&&owner.shell.kind!=='chart-prism'&&band.fromMm*a.surface.normalSide>=-PRINT_RESOLUTION_MM&&band.toMm*a.surface.normalSide>=-PRINT_RESOLUTION_MM)continue;
       if(boxesMeet(normalBounds,volumeBox(owner)))requireExclusiveClaims(a,owner,{uncertain:true});
     }
   }

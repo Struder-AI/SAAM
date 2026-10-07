@@ -1,4 +1,4 @@
-// Build a shared native helper. Dependency paths are build inputs, never runtime paths.
+// Build the source-only native comparison helper. Dependency paths are build inputs, never runtime paths.
 import {mkdir,readFile,writeFile,rm} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {resolve,join} from 'node:path';

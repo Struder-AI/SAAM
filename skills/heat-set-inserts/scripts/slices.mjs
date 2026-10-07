@@ -7,7 +7,11 @@
 import {dimensions,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
 
 export const HEAT_SET_SLICE_PREFIX='heat-set-';
-const SIDES=96,LIFT=1e-3;
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// The owner volumes rise by print resolution so no layer lies on their faces: a
+// layer at the mouth height falls inside, one at the floor height below.
+const SIDES=96,LIFT=PRINT_RESOLUTION_MM;
 
 // A closed prism between two polygons, counterclockwise seen from above.
 function prism(bottom,top){

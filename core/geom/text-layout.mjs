@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../private/extensions/numeric.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 // Shared flat text layout, before mapping its solid to a surface.
 
 import {flattenBezier} from './text-outline.mjs';
@@ -27,11 +28,11 @@ function baselineMapper(spec,toleranceMm){
     const s=x+start;requireThat(s>=0&&s<=lengths.at(-1),'Text exceeds baseline length; change size or startMm.');
     let i=1;while(i<lengths.length-1&&lengths[i]<s)i++;
     const len=lengths[i]-lengths[i-1];
-    requireThat(len>1e-10,'Text baseline has a degenerate segment.');
+    requireThat(len>ROUNDING_MM,'Text baseline has a degenerate segment.');
     const t=parameters[i-1]+(parameters[i]-parameters[i-1])*(s-lengths[i-1])/len;
     const at=cp=>{let row=cp;while(row.length>1)row=row.slice(1).map((p,i)=>p.map((v,k)=>row[i][k]+(v-row[i][k])*t));return row[0];};
     const p=at(spec.controlPoints),d=at(spec.controlPoints.slice(1).map((p,i)=>p.map((v,k)=>(v-spec.controlPoints[i][k])*(spec.controlPoints.length-1)))),norm=Math.hypot(...d);
-    requireThat(norm>1e-10,'Text baseline has a singular tangent.');
+    requireThat(norm>ROUNDING_MM,'Text baseline has a singular tangent.');
     return [p[0]-d[1]*y/norm,p[1]+d[0]*y/norm];
   };
 }

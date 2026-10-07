@@ -69,5 +69,5 @@ test('combine drills a print, which reopens, generates, and answers intersect',a
   const answer=await intersectRequest(bundle,{sectionsAtZ:[2.5]});
   assert.equal(answer.sections[0].holes,1);
   await generateBundle(bundle,{development:true});state=await loadBundle(bundle);
-  assert.equal(state.programError,undefined);assert.ok(state.program.moves.length>0);
+  assert.equal(state.programError,undefined);assert.ok(state.program.moves>0);
 });

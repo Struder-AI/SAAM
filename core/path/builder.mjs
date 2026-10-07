@@ -1,7 +1,7 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Travel policies and stroke ordering for functional path planning.
 
-import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {prepareCombCorners} from './comb.mjs';
 import {materialRegion} from './material.mjs';
 import {strokeRange} from './deposition.mjs';
@@ -52,7 +52,7 @@ export function surfacePolicy(loops,{surfaceZ,maxZ,maxCombMm,lineWidthMm,liftMm,
       const steps=Math.max(2,Math.ceil(span/sampleStepMm));
       for(let i=0;i<=steps;i++){
         const t=i/steps,z=surfaceZ(from[0]+(to[0]-from[0])*t,from[1]+(to[1]-from[1])*t);
-        if(!Number.isFinite(z)||from[2]+(to[2]-from[2])*t<z-sagMm-TOLERANCE.plane)return false;
+        if(!Number.isFinite(z)||from[2]+(to[2]-from[2])*t<z-sagMm-PRINT_RESOLUTION_MM)return false;
       }
       return true;
     }

@@ -16,7 +16,7 @@ async function checkInstallation(){
   try{await access(nativeMeshExecutable);const build=JSON.parse(await readFile(join(dirname(nativeMeshExecutable),'build.json'),'utf8'));
     const source=createHash('sha256').update(await readFile(new URL('./native/mesh-repair.cpp',import.meta.url))).digest('hex');
     if(build.sourceSha256!==source||build.cgal!=='6.2.1')throw Error('stale');
-  }catch{throw Object.assign(Error('Hole filling needs the CGAL helper, which is not built for this checkout. Run npm run setup:mesh; see core/geom/native/README.md. Repair without hole filling does not need it.'),{code:'MESH_BACKEND_UNAVAILABLE'});}
+  }catch{throw Object.assign(Error('Native CGAL comparison helper is unavailable or stale in this checkout. Rebuild with npm run setup:mesh; see core/geom/native/README.md. Production repair uses JavaScript.'),{code:'MESH_BACKEND_UNAVAILABLE'});}
 }
 async function* offChunks(mesh){yield `OFF\n${mesh.vertices.length} ${mesh.triangles.length} 0\n`;let chunk='';for(const p of mesh.vertices){chunk+=p.join(' ')+'\n';if(chunk.length>=65536){yield chunk;chunk='';}}for(const t of mesh.triangles){chunk+='3 '+t.join(' ')+'\n';if(chunk.length>=65536){yield chunk;chunk='';}}if(chunk)yield chunk;}
 async function readOff(path,{signal,progress}){
@@ -31,7 +31,7 @@ async function readOff(path,{signal,progress}){
 }
 // Elapsed time never refuses a repair: the child runs until it finishes, fails
 // or is cancelled through signal. The pinned helper reports only at stage
-// boundaries, so silence is not evidence of a stalled child; see native-repair.md.
+// boundaries, so silence is not evidence of a stalled child; see native/README.md.
 export async function repairMeshNative(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,signal,progress=()=>{},nativeDirectory,nativeRun}={}){
   signal?.throwIfAborted();await checkInstallation();
   const workspace=nativeDirectory?null:await createTemporaryWorkspace('mesh-repair');

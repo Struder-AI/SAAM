@@ -10,6 +10,7 @@ import {cleanTriangleSoup,encodeRepairSTL,validateRepair} from '../geom/mesh-rep
 import {repairSTL,repairSTLFiles} from '../print/repair-stl.mjs';
 import {triangleIndex,trianglesContact} from '../geom/mesh-spatial.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 import {importSTLBundle} from '../print/import-stl.mjs';
 import {loadBundle} from '../print/bundle.mjs';
 const volume=m=>Math.abs(m.triangles.reduce((sum,t)=>{const [a,b,c]=t.map(i=>m.vertices[i]);return sum+(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;},0));
@@ -17,7 +18,7 @@ test('valid input keeps exact geometry and repair cleanup is explicit',async()=>
   const box=boxMesh(),bytes=encodeRepairSTL(box),result=await repairSTL(bytes,{units:'mm'});
   assert.equal(result.report.method,'exact-cleanup/1');assert.equal(result.report.sampledDistanceMm.sourceToResult,0);assert.equal(result.report.outputTriangles,12);
   const dirty=Buffer.from(bytes.toString().replace('endsolid saam_repaired','facet normal 0 0 0\nouter loop\nvertex 0 0 0\nvertex 0 0 0\nvertex 1 1 1\nendloop\nendfacet\nendsolid saam_repaired'));
-  assert.equal((await repairSTL(dirty,{units:'mm'})).report.removed.degenerate,1);
+  assert.equal((await repairSTL(dirty,{units:'mm'})).report.resolutionMerge.collapsedTriangles,1);
   await assert.rejects(repairSTL(bytes,{}),/explicit/);
 });
 
@@ -39,7 +40,7 @@ test('collapsed-face cleanup stitches a long edge to its subdivided opposite wit
   const result=await repairSTL(bytes,{units:'mm'});
   assert.equal(result.report.method,'edge-stitch-cleanup/1');assert.equal(result.report.stitching.edges,1);
   assert.ok(Math.abs(volume(parseSTL(result.repairedBytes,{units:'mm'}))-1/6)<1e-12);
-  assert.equal(result.report.sampledDistanceMm.sourceToResult,0);
+  assert.ok(result.report.sampledDistanceMm.sourceToResult<=ROUNDING_MM);
   // An actual missing surface is not a collinear seam to stitch closed.
   const open={...source,triangles:source.triangles.filter((_,i)=>i!==2)};
   const cleanedOpen=cleanTriangleSoup(open);assert.equal(cleanedOpen.stitching.edges,0);

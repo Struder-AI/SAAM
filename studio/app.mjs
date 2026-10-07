@@ -570,6 +570,7 @@ function planCanvasDrag(current,point){
   return {drag:{...current.drag,x:point.x,y:point.y},
     moved:current.moved||Math.hypot(point.x-current.drag.startX,point.y-current.drag.startY)>2,
     pan:current.drag.pan?[current.pan[0]+dx,current.pan[1]+dy]:[...current.pan],
+    // Display only: orbit radians per dragged pixel.
     yaw:current.drag.pan?current.yaw:current.yaw+dx*.008,
     tilt:current.drag.pan?current.tilt:Math.max(-1.5,Math.min(1.5,current.tilt+dy*.008))};
 }
@@ -604,6 +605,7 @@ function connectCanvasPointerEvents(){
   canvas.oncontextmenu=suppressCanvasContextMenu;
 }
 connectCanvasPointerEvents();
+// Display only: zoom per wheel delta unit.
 canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom');orbitView.zoom=Math.max(.08,Math.min(4,orbitView.zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){orbitView.pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;orbitView.pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')orbitView.yaw-=.1;else if(e.key==='ArrowRight')orbitView.yaw+=.1;else if(e.key==='ArrowUp')orbitView.tilt-=.1;else orbitView.tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);

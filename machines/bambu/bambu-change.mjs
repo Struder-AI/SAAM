@@ -17,7 +17,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
     requireThat(sameNozzleMaterialChanges(machine),'Same-nozzle material changes require a separate flushing contract.');
     for(const p of [old,next])requireThat(p.setup.filaments[p.setup.filament].source?.type!=='external',
       'Automatic H2D material changes require AMS feeds, not an external spool.');
-    requireThat(Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
+    requireThat(Math.abs(incomingDebt-next.process.retractMm)<=Export.slackMm,'AMS change must hand off the new filament retracted.');
   }
   requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+Export.slackMm,'Invalid incoming nozzle retraction.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid changeover fan state.');

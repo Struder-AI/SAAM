@@ -1,5 +1,6 @@
 import {distance,requireThat} from './numeric.mjs';
 import {rotatePointZ as bedPoint} from '../../geom/frame.mjs';
+import {ROUNDING_MM} from '../../dimensions.mjs';
 
 // Motion needed only to enter a selected installation and service its material
 // changes. The authored deposition/travel actions are retained by Export.
@@ -13,7 +14,8 @@ export class AdaptationMotion {
   append(action){this.actions.push({...action,phase:this.phase,layer:this.layer,...(this.operationId?{operation:this.operationId}:{})});}
   move(to,speed,volumeMm3=0,extra={}){
     const length=distance(this.position,to),pose=extra.pose??null;
-    if(length<1e-10&&!pose){requireThat(volumeMm3===0,'A zero-length move needs stationary extrusion.');return;}
+    // Rounding guard: a move of zero length within rounding is no move.
+    if(length<ROUNDING_MM&&!pose){requireThat(volumeMm3===0,'A zero-length move needs stationary extrusion.');return;}
     requireThat(Number.isFinite(speed)&&speed>0,'Machine adaptation needs positive speed.');
     const durationSeconds=pose?(extra.durationSeconds??(length?length/speed:this.motion.transitionSeconds)):undefined;
     this.append({kind:'move',to:[...to],speedMmS:speed,volumeMm3,...extra,...(pose?{durationSeconds}:{} )});
@@ -42,7 +44,7 @@ export class AdaptationMotion {
       this.move(target,this.process.travelSpeedMmS,0,{pose:targetPose,travel:'approach'});
       this.recover();return;
     }
-    if(distance(this.position,target)>1e-9){
+    if(distance(this.position,target)>ROUNDING_MM){
       this.retract();
       const z=Math.max(this.depositedMaxZ+this.process.liftMm,this.position[2],target[2]);
       this.move([this.position[0],this.position[1],z],this.process.zSpeedMmS);
