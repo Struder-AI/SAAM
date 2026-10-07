@@ -1,18 +1,19 @@
 #!/usr/bin/env node
-import {spawn} from 'node:child_process';
-import {resolve} from 'node:path';
 import {startApplication} from './application.mjs';
-import {background,showOpened} from '../studio/browser.mjs';
-import {homePaths} from '../core/application/home.mjs';
+import {showOpened} from '../studio/browser.mjs';
+import {readyInstance,controlRequest} from '../core/application/control.mjs';
+import {selectRuntime} from '../core/application/runtime-selection.mjs';
+import {pathIdentity} from '../core/application/home.mjs';
 import {orchestratorRoot,invocationRoot} from '../core/application/runtime-selection.mjs';
 
 async function launch(){
-  const paths=homePaths(),root=await orchestratorRoot(paths);
-  if(root!==invocationRoot){
-    const child=spawn(resolve(root,'runtime',process.platform==='win32'?'node.exe':'node'),[resolve(root,'packaging/launch.mjs'),...process.argv.slice(2)],{detached:true,stdio:'ignore',windowsHide:true,env:process.env});
-    await new Promise((done,fail)=>{child.once('spawn',done);child.once('error',fail);});child.unref();return;
+  const root=await orchestratorRoot();
+  if(pathIdentity(root)!==pathIdentity(invocationRoot)){
+    const instance=await readyInstance();
+    if(!process.argv.includes('--no-open'))await showOpened(await controlRequest(instance,{command:'open',runtime:await selectRuntime(),visibility:'visible',display:'caller'}));
+    return;
   }
-  const application=await startApplication(background?{autoOpen:false,openOnStart:false,tray:false}:{openOnStart:!process.argv.includes('--no-open')});
+  const application=await startApplication({openOnStart:!process.argv.includes('--no-open')});
   // This process holds the foreground right from the person's launch, so it shows the Studio.
   await showOpened(application.opened);
   if(application.existing)return;

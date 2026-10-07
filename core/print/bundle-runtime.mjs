@@ -23,7 +23,7 @@ export async function bundleRuntime(dir){
 // Callers hold the bundle write lock.
 export async function recordBundleRuntime(dir,runtime=processRuntime()){
   if(!runtime)return;
-  const next=JSON.stringify({id:runtime.id,label:runtime.label,command:runtime.command,codeRoot:runtime.codeRoot??null})+'\n';
+  const next=JSON.stringify({id:runtime.id,label:runtime.label,command:runtime.command,codeRoot:runtime.codeRoot??null,dataHome:runtime.dataHome??null})+'\n';
   const current=await readFile(recordFile(dir),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
   if(current!==next)await replaceFile(recordFile(dir),next);
 }

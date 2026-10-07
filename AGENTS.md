@@ -31,18 +31,15 @@ read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md
 
 ## Using the saam command
 
-The installed `saam` command makes parts, opens Studio and starts the tour;
-[application commands](core/application/README.md) own chat attachment, tours,
-Studio, waits, jobs and the SAAM home. `saam help` lists operations and
-`saam help OPERATION` describes one. Pass JSON through stdin or `--input FILE`,
-because Windows PowerShell 5.1 changes quoted JSON arguments.
+Never use `dev-instance.mjs`; use the installed SAAM orchestrator.
+[Application commands](core/application/README.md) own Studio, chat attachment,
+tours, waits, jobs and the SAAM home. Use `saam help` or `saam help OPERATION`.
+Pass JSON through stdin or `--input FILE`; PowerShell 5.1 changes quoted JSON.
 
-The command sends the client's session ID when available. If a response supplies
-a chat ID, retain it for this chat and pass `--chat-id ID` on every later command.
-Naming an existing print attaches to its open Studio when available. Respect
-Bundle reservations and request IDs. Show intermediate edits; use the returned
-`workRequest` to hand work back when finished, needing discussion, or receiving
-a user interjection.
+The command sends the client's session ID when available. Retain a returned chat
+ID and pass `--chat-id ID` on later commands. Naming a print attaches to its open
+Studio when available. Respect Bundle reservations and request IDs; show edits
+and hand back the returned `workRequest` when finished, needing discussion or interrupted.
 
 Follow [client queue monitoring](core/application/README.md#client-queue-monitoring)
 and a tour's returned participation context. Commands ending and browser tabs

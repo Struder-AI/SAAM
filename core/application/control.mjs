@@ -5,16 +5,16 @@ import {request} from 'node:http';
 import {createHash} from 'node:crypto';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {homePaths} from './home.mjs';
-import {orchestratorRoot} from './runtime-selection.mjs';
+import {homePaths,canonicalHome} from './home.mjs';
+import {orchestratorRoot,orchestratorContract} from './runtime-selection.mjs';
 import {userInfo} from 'node:os';
 
-export function applicationPort(home=homePaths().home){
+export function applicationPort(home=canonicalHome()){
   const identity=process.platform==='win32'?resolve(home).toLowerCase():resolve(home);
   return 49152+createHash('sha256').update(identity).digest().readUInt16BE(0)%16384;
 }
 export async function readInstance(){
-  try{return JSON.parse(await readFile(resolve(homePaths().state,'instance.json'),'utf8'));}
+  try{return JSON.parse(await readFile(resolve(homePaths(canonicalHome()).state,'instance.json'),'utf8'));}
   catch(error){if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw Error('The SAAM instance record cannot be read.',{cause:error});}
 }
 export async function controlRequest(instance,body,{waitMs}={}){
@@ -24,7 +24,7 @@ export async function controlRequest(instance,body,{waitMs}={}){
     const command=request({hostname:'127.0.0.1',port:instance.port,path:'/control',method:'POST',agent:false,timeout:0,
       headers:{'Content-Type':'application/json','X-SAAM-Control':instance.token},
       ...(waitMs===undefined?{}:{signal:AbortSignal.timeout(waitMs)})},received);
-    command.once('error',failed);command.end(JSON.stringify(body));
+    command.once('error',failed);command.end(JSON.stringify({...body,contract:orchestratorContract}));
   });
   const chunks=[];for await(const chunk of response)chunks.push(Buffer.from(chunk));
   const value=JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -51,18 +51,20 @@ export async function runningInstance(){
   if(!existing)return null;
   if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
   try{await controlRequest(existing,{command:'status'},{waitMs:3000});return existing;}
-  catch{return null;}
+  catch(error){if(error.result?.code==='RUNTIME_CONTRACT')throw error;return null;}
 }
 export async function readyInstance(){
   const running=await runningInstance();
   if(running)return running;
   // The OS control listener decides whether a new application can own this home.
-  const paths=homePaths();await mkdir(paths.state,{recursive:true});
-  const root=await orchestratorRoot(paths);
-  const node=root===paths.app?resolve(root,'runtime',process.platform==='win32'?'node.exe':'node'):process.execPath;
+  const paths=homePaths(canonicalHome()),root=await orchestratorRoot();
+  await mkdir(paths.state,{recursive:true});
+  const node=resolve(root,'runtime',process.platform==='win32'?'node.exe':'node');
+  const environment={...process.env};
+  for(const name of ['SAAM_DATA','SAAM_BACKGROUND','SAAM_DEV_INSTANCE','SAAM_SESSION_MODE','SAAM_RUNTIME'])delete environment[name];
   // The launched process tells its startup failure over IPC; waiting lasts while it lives.
   const child=spawn(node,[resolve(root,'packaging/launch.mjs'),'--no-open'],
-    {detached:true,stdio:['ignore','ignore','ignore','ipc'],windowsHide:true,env:process.env});
+    {detached:true,stdio:['ignore','ignore','ignore','ipc'],windowsHide:true,env:environment});
   const launched={failure:null,exitCode:undefined};
   child.on('message',message=>{if(typeof message?.startupFailure==='string')launched.failure=message.startupFailure;});
   child.once('close',code=>{launched.exitCode=code;});

@@ -1,9 +1,9 @@
 import {spawn,execFile} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
-// Reports dispatch, not proof that a browser rendered the page. Background
-// development instances and test runs never touch a browser.
-export const background = process.env.SAAM_BACKGROUND === '1' || Boolean(process.env.NODE_TEST_CONTEXT);
+// Reports dispatch, not proof that a browser rendered the page. Runtime children
+// ask the installed orchestrator to show Studio; test runs never touch a browser.
+export const background = Boolean(process.env.SAAM_RUNTIME) || Boolean(process.env.NODE_TEST_CONTEXT);
 export async function openBrowser(url) {
   if (background) return false;
   const command = process.platform === 'win32' ? 'rundll32.exe' : process.platform === 'darwin' ? 'open' : 'xdg-open';

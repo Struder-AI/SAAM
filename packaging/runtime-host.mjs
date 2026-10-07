@@ -52,7 +52,7 @@ async function command(message){
   for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
   if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
   definition.schema.parse(args);
-  const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,
+  const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
     bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
   return {ok:true,result:await chat.invoke(operationName,args)};
 }
@@ -72,7 +72,7 @@ async function start(args){
     application:{setupProblem:setup.problem,runtime,fingerprint:code.started,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),
-      showStudio:async url=>request('show',{url}),
+      showStudio:async(url,visibility)=>request('show',{url,visibility}),
       releaseBundle:async bundleId=>request('release-bundle',{bundleId}),
       routeWindow:async args=>request('route',args),
       adoptWindow:async args=>request('adopt',args)}});

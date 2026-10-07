@@ -11010,6 +11010,15 @@
     "core/application/home.mjs::saamHome": {
       "owner": "application"
     },
+    "core/application/home.mjs::canonicalHome": {
+      "owner": "application"
+    },
+    "core/application/home.mjs::pathIdentity": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::createRuntimeRegistry::stopSession": {
+      "owner": "application"
+    },
     "scripts/extensions.mjs::@module": {
       "owner": "application"
     },
@@ -11165,10 +11174,6 @@
     },
     "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
       "owner": "extensions"
-    },
-    "scripts/dev-instance.mjs::@module": {
-      "owner": "development",
-      "reason": "Development tool: runs saam against a background instance of this checkout."
     },
     "scripts/check-repo.mjs::@module": {
       "owner": "development"

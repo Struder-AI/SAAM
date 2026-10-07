@@ -123,15 +123,15 @@ export const instructions = 'Use saam help for operations and saam help OP for c
 // stateRoot; the optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay,application={} }) {
   const libraryRoot = resolve(paths.prints);
-  async function showStudio(url){
-    if(application.showStudio)return application.showStudio(url);
+  async function showStudio(url,visibility){
+    if(application.showStudio)return application.showStudio(url,visibility);
     return openBrowser(url);
   }
   // A window opened for a viewer counts as present while the browser starts, so no second one opens.
   const present=session=>session.server.viewerCount()>0||Date.now()-(session.shownAt??0)<60000;
   async function show(session,url=session.url){
-    if(!autoOpen||session.server.viewerCount())return false;
-    const opened=await showStudio(url);if(opened)session.shownAt=Date.now();return opened;
+    if(!autoOpen||session.visibility==='hidden'||session.server.viewerCount())return false;
+    const opened=await showStudio(url,session.visibility);if(opened)session.shownAt=Date.now();return opened;
   }
   let resourceClient;
   const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client').then(create=>create());
@@ -145,7 +145,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // A request belongs to the chat attached to its Studio, else to the chat that wrote it.
   const requestOwner=record=>allStudios.get(record.studioInstanceId)?.ownerId??record.ownerId;
   function observeEvent(event){for(const observer of eventObservers)try{observer(agentEvent(structuredClone(event)));}catch{/* Diagnostics never fail work. */}}
-  function createChat(ownerId,{name=ownerId,client=null,lobby=false}={}){
+  function createChat(ownerId,{name=ownerId,client=null,lobby=false,visibility='visible'}={}){
+  const presentation={visibility};
   const {requests:agentRequests,events:studioEvents,binding}=createChatChannel(libraryRoot,{ownerId,folder:resolve(stateRoot,'.studio-requests'),ownerOf:requestOwner,
     attachment:lobby?null:Object.freeze({ownerId,name,client})});
   studioEvents.observe(observeEvent);
@@ -220,7 +221,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }finally{imports.delete(jobId);}
   }
   // Every runtime-owned Studio instance starts here, showing dir or no print.
-  async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
+  async function startStudio(dir,{instanceId,sessionToken,restoring=false,visibility=presentation.visibility}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
     const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,localPhaseColours:()=>readLocalPhaseColours(paths),chat:binding,relay,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,studioTitle:application.runtime?.studioTitle,fingerprint:application.fingerprint,
       routeStudio:target=>routeWindow(allStudios.get(studio.agentSession().instanceId),target) });
@@ -229,10 +230,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const upstreamUrl=`http://127.0.0.1:${studio.address().port}`,studioInstanceId=studio.agentSession().instanceId;
     const registration={visible:null};
-    try{registration.visible=application.registerStudio?await application.registerStudio({instanceId:studioInstanceId,upstreamUrl,sessionToken:studio.sessionToken()}):{url:upstreamUrl};}
+    try{registration.visible=application.registerStudio?await application.registerStudio({instanceId:studioInstanceId,upstreamUrl,visibility,chatVisibility:presentation.visibility,sessionToken:studio.sessionToken()}):{url:upstreamUrl};}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const visible=registration.visible;
-    const session={server:studio,url:visible.url};
+    const session={server:studio,url:visible.url,visibility};
     session.ownerId=ownerId;allStudios.set(studioInstanceId,session);studioSessions.set(studioInstanceId, session);
 
     studio.once('close',()=>{
@@ -247,8 +248,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // window) in another runtime; its own window; a new one. dir: the saved print to show, if any.
   async function viewStudio(dir){
     const own=[...studioSessions.values()].filter(session=>session.server.listening&&!session.server.creationTarget());
-    const session=own.filter(present).at(-1)??await adoptWindow(chats.get(ownerId));
-    const moved=session?null:await application.adoptWindow?.({chatId:ownerId});
+    const session=own.filter(present).at(-1)??(presentation.visibility==='hidden'?null:await adoptWindow(chats.get(ownerId)));
+    const moved=session||presentation.visibility==='hidden'?null:await application.adoptWindow?.({chatId:ownerId});
     // The moved window's viewer is reconnecting to it.
     if(moved)return Object.assign(await startStudio(dir,moved),{shownAt:Date.now()});
     const reused=session??own.at(-1);
@@ -850,7 +851,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{bundleId:bundleIdSchema.optional(),history:z.boolean().default(false)});
   async function getStudioRequests({bundleId,...options}){return {requests:(await agentRequests.query({...options,printId:bundleId})).map(agentRequest)};}
   operation('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{});
-  async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url})=>({...agentStudioSession(studio.agentSession()),url}))};}
+  async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url,visibility})=>({...agentStudioSession(studio.agentSession()),url,visibility}))};}
   operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work, including toolpath generation; omit it for a tool geometry calculation or import. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or the toolpath editRevision. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),editRevision:z.string().optional()},false);
   async function cancelStudioCalculation({studioInstanceId,...identity}){
       if(!studioInstanceId){
@@ -1062,10 +1063,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       workspaceSessions.set(workspaceInstanceId,session);
       session.server.once('close',()=>{if(workspaceSessions.get(workspaceInstanceId)===session)workspaceSessions.delete(workspaceInstanceId);});
     }
-    const browserOpenRequested=autoOpen&&!session.server.viewerCount?.()?await showStudio(session.url):false;
+    const browserOpenRequested=autoOpen&&presentation.visibility!=='hidden'&&!session.server.viewerCount?.()?await showStudio(session.url):false;
     return {workspaceInstanceId:session.workspaceInstanceId,url:session.url,directory:session.directory,extension:session.extension,browserOpenRequested};
   }
   return {id:ownerId,name,client,requests:agentRequests,binding,
+    visibility:()=>presentation.visibility,
+    setVisibility(value){if(!['hidden','visible'].includes(value))throw Error('Studio visibility must be hidden or visible.');presentation.visibility=value;for(const session of studioSessions.values())session.visibility=value;},
     operations:[...operations.values()].map(({action,...definition})=>definition),
     invoke:sessionInvoke,endTurn,validateTarget,openStudio,startStudio,
     releaseStudio(id){studioSessions.delete(id);for(const [bundle,idValue] of preferredStudioByPrint)if(idValue===id)preferredStudioByPrint.delete(bundle);},
@@ -1075,10 +1078,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     close(){agentRequests.close();studioEvents.close();}
   };
   }
-  function beginSession({id=randomUUID(),name,client,lobby=false}={}){
+  function beginSession({id=randomUUID(),name,client,lobby=false,visibility='visible'}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     if(typeof id!=='string'||!id.trim()||id.length>256||/[\x00-\x1f]/.test(id))throw Error('Invalid chat session ID.');
-    if(!chats.has(id))chats.set(id,createChat(id,{name,client,lobby}));
+    if(!chats.has(id))chats.set(id,createChat(id,{name,client,lobby,visibility}));
     return chats.get(id);
   }
   const lobby=beginSession({id:'studio:'+randomUUID(),name:null,lobby:true}),connectedChats=new Set();
@@ -1089,8 +1092,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     chats.get(session.ownerId)?.releaseStudio(session.server.agentSession().instanceId);
     session.ownerId=chat.id;chat.ownStudio(session.server.agentSession().instanceId,session);
   }
-  async function connectChat({id,name,client,bundleId,operation,args}={}){
-    const known=connectedChats.has(id),chat=beginSession({id,name,client});
+  async function connectChat({id,name,client,bundleId,operation,args,visibility}={}){
+    const known=connectedChats.has(id),chat=beginSession({id,name,client,visibility});
+    if(visibility!==undefined)chat.setVisibility(visibility);
     if(bundleId)bundleIdSchema.parse(bundleId);
     if(operation)await chat.validateTarget(operation,args,true);
     // Explicit capture owns its transfer; ordinary connection must not preempt it.
@@ -1099,8 +1103,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const targetInstance=args?.expectedStudio?.studioInstanceId??args?.studioInstanceId;
     const selected=targetInstance?allStudios.get(targetInstance):directory?[...allStudios.values()].find(session=>session.server.currentPrint()===directory):null;
     if(selected&&selected.ownerId!==chat.id){await transferStudio(chat,selected,false);}
-    else if(!known){
-      const available=[...allStudios.values()].find(session=>session.ownerId===lobby.id&&!session.server.currentPrint());
+    else if(!known&&chat.visibility()!=='hidden'){
+      const available=[...allStudios.values()].find(session=>session.visibility!=='hidden'&&session.ownerId===lobby.id&&!session.server.currentPrint());
       if(available)await transferStudio(chat,available,false);
     }
     connectedChats.add(chat.id);return chat;
@@ -1114,7 +1118,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return !requests.some(request=>request.studioInstanceId===instanceId&&['queued','working','waiting'].includes(request.status));
   }
   async function adoptWindow(chat){
-    const candidates=[...allStudios.values()].filter(session=>session.ownerId!==chat.id&&session.server.listening&&!session.server.creationTarget()&&present(session))
+    const candidates=[...allStudios.values()].filter(session=>session.visibility!=='hidden'&&session.ownerId!==chat.id&&session.server.listening&&!session.server.creationTarget()&&present(session))
       .sort((a,b)=>(b.ownerId===lobby.id)-(a.ownerId===lobby.id));
     for(const session of candidates){
       if(!await idleWindow(session))continue;
@@ -1194,12 +1198,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     try{return await application.routeWindow({instanceId:session.server.agentSession().instanceId,printId:bundleId,owner});}
     catch(error){if(error.code==='BUNDLE_INSTANCE_BUSY')throw error;throw Error(fallback+', which SAAM cannot start ('+error.message+'). '+agent);}
   }
-  async function openStudio({studioInstanceId,newInstance=false,dispatch=true}={}){
+  async function openStudio({studioInstanceId,newInstance=false,dispatch=true,visibility='visible'}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     if(newInstance&&studioInstanceId)throw Error('Choose an existing Studio or create a new instance.');
-    const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
+    const session=newInstance?await lobby.startStudio(null,{visibility}):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(session=>session.server.listening&&session.visibility===visibility).at(-1)??await lobby.startStudio(null,{visibility});
     if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
-    if(!session)return lobby.openStudio({dispatch});
+    session.visibility=visibility;
     const browserOpenRequested=dispatch?await show(session):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
@@ -1231,8 +1235,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function restoreStudios(windows){
     for(const window of windows){
       const attachment=window.attachment;
-      const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client}):lobby;
-      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true});
+      const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client,visibility:window.chatVisibility??window.visibility??'visible'}):lobby;
+      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true,visibility:window.visibility??'visible'});
       if(attachment)connectedChats.add(chat.id);
     }
   }
@@ -1253,7 +1257,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},
-    studios:()=>[...allStudios.values()].map(({server,url})=>({...server.agentSession(),url})),
+    studios:()=>[...allStudios.values()].map(({server,url,visibility})=>({...server.agentSession(),url,visibility,chatVisibility:chats.get(server.agentSession().attachment?.ownerId)?.visibility()??visibility})),
     chatIds:()=>[...chats.keys()].filter(id=>id!==lobby.id)
   };
 }
