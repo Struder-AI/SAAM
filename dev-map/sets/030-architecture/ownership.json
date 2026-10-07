@@ -4687,12 +4687,6 @@
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel": {
       "owner": "geometry-leaf-de443b92bba5"
     },
-    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeReady": {
-      "owner": "geometry-leaf-b73be049ec54"
-    },
-    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeRun": {
-      "owner": "geometry-leaf-0c96cf324ee6"
-    },
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::onGeometry": {
       "owner": "geometry-leaf-f547501c0799"
     },
@@ -13346,6 +13340,36 @@
     },
     "core/application/result-images.mjs::createResultImages": {
       "owner": "application"
+    },
+    "core/geom/mesh-repair.mjs::holeLoops": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::holeLoops::from": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::holeLoops::to": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::holeLoops::into": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::holeGeometry": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::holeDiameter": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::triangulateHole": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::triangulateHole::store": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::repairSolid::meshHasEdge": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh-repair.mjs::repairSolid::edgeKey": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [
@@ -14071,7 +14095,9 @@
     "core/private/geometry/hash.mjs::canonical",
     "core/private/geometry/hash.mjs::hash",
     "core/private/studio/hash.mjs::@module",
-    "core/private/studio/hash.mjs::canonical"
+    "core/private/studio/hash.mjs::canonical",
+    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeReady",
+    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeRun"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

@@ -425,9 +425,11 @@ complete Rhino computation engine.
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
 source, runs exact cleanup, and repairs the solid when cleanup alone does not
-yield a valid mesh; only hole filling uses the [native CGAL adapter](./mesh-native.mjs). Studio and agent imports
+yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
-formats retain their diagnostics; repair never fills holes without explicit bounds.
+formats retain their diagnostics; repair never fills holes without explicit bounds,
+and imports pass their own (`IMPORT_HOLE_DIAMETER_MM`, `IMPORT_HOLE_EDGES` in
+[import-stl.mjs](./import-stl.mjs)).
 
 [Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
 faces keep one copy facing their net orientation (an opposed pair cancels).
@@ -438,16 +440,31 @@ never move, repeated coordinates share a decision, and neighbours do not chain.
 Spatial buckets only find candidates; they never round accepted coordinates.
 Collapsed-face stitching uses existing collinear boundary vertices (numeric
 conditioning), without guessing branches or filling holes. Ordinary imports remain
-exact-only. Reports include merge counts and maximum displacement; shape-change
+exact-only in cleanup. Reports include merge counts and maximum displacement; shape-change
 evidence includes the merge. [Solid repair](./mesh-repair.mjs) orients faces across
 two-face edges (each component keeps the orientation of most of its area), refuses
-open or unorientable edges, reverses an inside-out solid and replaces a self-crossing
+unorientable edges, fills holes within both explicit bounds and refuses any other open
+edge, reverses an inside-out solid and replaces a self-crossing
 surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)): opposed
 sheets within print resolution close onto one plane, exact arrangement splits faces
 along every crossing, a face stays where the winding number is positive on one side
 only, new points round to the rounding guard and new vertices closer than print
 resolution merge. Reports give the closing, cancelled area and inward/outward shells
 before and after (fewer inward shells: cavities opened).
+
+Hole filling follows each hole's boundary from face to face around each vertex, as a
+halfedge mesh links borders, and splits a boundary that meets a vertex twice, so
+holes touching at a vertex fill apart. A hole fills only when its edge count is at
+most `maxHoleEdges` and its boundary's bounding-box diagonal at most
+`maxHoleDiameterMm`; if any hole exceeds either, nothing is filled and the repair is
+refused. Each hole is triangulated without new vertices by Liepa's dynamic programme
+(P. Liepa, "Filling Holes in Meshes", SGP 2003) with the weight CGAL's
+`triangulate_hole` uses: the largest dihedral angle between adjacent faces, then
+area. Patch triangles meet the mesh height contract and never repeat an existing
+edge; a patch that crosses the surface is resolved by reconstruction. Time grows as
+the cube of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at
+2,000 on the development machine) and memory as its square (about 170 MB at 2,000).
+Reports give `holesFilled` and `holeTrianglesAdded`.
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Non-intersection is certified at the

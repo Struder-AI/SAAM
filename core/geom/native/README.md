@@ -1,8 +1,9 @@
 # Native mesh repair
 
-The shared adapter runs unmodified **CGAL 6.2.1** in a child process, only for
-repair with hole filling (`maxHoleEdges` > 0); other repair is SAAM's own
-([explicit mesh repair](../README.md#explicit-mesh-repair)). It orients triangle soup,
+The shared adapter runs unmodified **CGAL 6.2.1** in a child process. No repair route
+calls it: all repair, including hole filling, is SAAM's own
+([explicit mesh repair](../README.md#explicit-mesh-repair)). It stays for a speed
+comparison before it is deleted (0.3.7, Retire CGAL). It orients triangle soup,
 stitches compatible borders, fills holes only within both an edge-count limit and a
 boundary bounding-box diagonal in millimeters, then replaces a surface that crosses
 itself by the boundary of its solid as SAAM's reconstruction does. A non-manifold,
@@ -49,8 +50,7 @@ Runtime files are `build/mesh-repair/saam-mesh-repair[.exe]` and `build.json`.
 Generated binaries stay ignored. The adapter checks the manifest against the
 current wrapper source; rebuild after source changes. There is no runtime
 dependency on `.local`, a global executable search or automatic download.
-Import, cleanup and repair without hole filling work without this optional backend;
-hole filling reports the setup command when it is unavailable.
+Import, cleanup and repair work without this optional backend.
 
 ## Licenses and provenance
 

@@ -11,7 +11,7 @@ async function runMeshRepairWorker(){
     const response=prepareRepairWorkerResponse(result);
     parentPort.postMessage(response.message,response.transfer);
   }catch(error){
-    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic,nativeDiagnostic:error.nativeDiagnostic}});
+    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic}});
   }finally{
     parentPort.close();
   }
@@ -20,12 +20,11 @@ async function runMeshRepairWorker(){
 function initializeRepairWorkerChannel(geometry){
   const controller=new AbortController(),pending=new Map();let sequence=0;
   function receiveMessage(message){
-    if(message.type==='native-progress'){pending.get(message.id)?.progress?.(message.event);return;}
     if(message.type==='abort'){
       controller.abort();
       for(const entry of pending.values())entry.reject(controller.signal.reason);
       pending.clear();
-    }else if(message.type==='geometry-ack'||message.type==='native-ack'||message.type==='native-result'){
+    }else if(message.type==='geometry-ack'){
       const entry=pending.get(message.id);
       if(entry){
         pending.delete(message.id);
@@ -34,18 +33,6 @@ function initializeRepairWorkerChannel(geometry){
     }
   }
   function progress(event){parentPort.postMessage({type:'progress',event});}
-  function nativeReady(){
-    controller.signal.throwIfAborted();
-    return new Promise((resolve,reject)=>{
-      const id=sequence++;pending.set(id,{resolve,reject});parentPort.postMessage({type:'native-start',id});
-    });
-  }
-  function nativeRun(input,output,{maxHoleEdges,maxHoleDiameterMm,progress}){
-    controller.signal.throwIfAborted();
-    return new Promise((resolve,reject)=>{
-      const id=sequence++;pending.set(id,{resolve,reject,progress});parentPort.postMessage({type:'native-run',id,input,output,maxHoleEdges,maxHoleDiameterMm});
-    });
-  }
   function onGeometry(event){
     return new Promise((resolve,reject)=>{
       const id=sequence++;
@@ -54,7 +41,7 @@ function initializeRepairWorkerChannel(geometry){
     });
   }
   parentPort.on('message',receiveMessage);
-  return {signal:controller.signal,progress,nativeReady,nativeRun,...(geometry?{onGeometry}:{})};
+  return {signal:controller.signal,progress,...(geometry?{onGeometry}:{})};
 }
 
 async function executeRepairWorkerJob(job,options){

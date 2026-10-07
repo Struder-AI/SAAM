@@ -8,7 +8,6 @@ import {createHash} from 'node:crypto';
 import {decodeSTL,cleanTriangleSoup,repairSolid,encodeRepairSTLChunks,validateRepair} from '../geom/mesh-repair.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
-import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
 import {NUMERIC_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {cross,dot} from '../geom/tolerance.mjs';
@@ -50,11 +49,7 @@ async function prepare(source,options){
   const comparison=clean.merge?cleanTriangleSoup(input):clean;
   let result,sourceError;
   try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.merge?.movedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
-  // Hole filling still runs in the native CGAL helper; every other repair is SAAM's own.
-  if(!result&&maxHoleEdges){
-    const nativeDirectory=await options.nativeReady?.();
-    signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
-  }else if(!result)result=repairSolid(clean,{progress});
+  if(!result)result=repairSolid(clean,{maxHoleEdges,maxHoleDiameterMm,progress});
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
   const changes=shapeChanges(comparison,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});

@@ -10,6 +10,17 @@ import {join} from 'node:path';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 
 const importScratch=new Map();
+// Import repair closes small openings and refuses larger ones. A hole fills only
+// when it is at most this wide (bounding-box diagonal of its boundary) and has at
+// most IMPORT_HOLE_EDGES edges. Owner, 2026-10-06: "I'd like our mesh repair to
+// have BOTH an edge limit and a size limit (2mm? unless the size check is too
+// costly, then let me know)", and on filling ordinary imports automatically
+// within those limits: "Yeah I think A."
+export const IMPORT_HOLE_DIAMETER_MM=2;
+// Agent-determined, pending the owner (2026-10-06): filling time grows as the cube
+// of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at 2,000);
+// 500 edges around a 2 mm opening are already about 13 um long.
+export const IMPORT_HOLE_EDGES=500;
 const repairable=error=>error.meshDiagnostic?.kind==='triangle-intersection'
   ||/^(?:Degenerate mesh triangle\.|Duplicate mesh triangle\.|Invalid mesh triangle indices\.|Mesh must be closed, manifold and consistently wound;|Unused or nonmanifold mesh vertex\.|Nonmanifold mesh vertex\.)/.test(error.message);
 
@@ -58,11 +69,11 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
       importDiagnostic.repairAttempted=true;importDiagnostic.stage='repair';
       if(units==='auto')units=inferSTLUnits(await decode(),bounds);
       const directory=join(scratch,'repair');progress?.({stage:'repair'});
-      repairReport=await repairSTLFiles(directory,sourcePath,{...options,units,maxHoleEdges:0,maxHoleDiameterMm:0,signal,
+      repairReport=await repairSTLFiles(directory,sourcePath,{...options,units,maxHoleEdges:IMPORT_HOLE_EDGES,maxHoleDiameterMm:IMPORT_HOLE_DIAMETER_MM,signal,
         progress:event=>{importDiagnostic.repairStage=event.stage;progress?.({...event,stage:'repair',step:event.stage});}});
       importDiagnostic.repairedSha256=repairReport.repairedSha256;importDiagnostic.repaired=true;
       importDiagnostic.repair={method:repairReport.method,inputTriangles:repairReport.inputTriangles,outputTriangles:repairReport.outputTriangles,
-        removed:repairReport.removed,shells:repairReport.shells,stitching:repairReport.stitching,reconstruction:repairReport.reconstruction??null,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces,
+        removed:repairReport.removed,shells:repairReport.shells,stitching:repairReport.stitching,holesFilled:repairReport.holesFilled??0,holeTrianglesAdded:repairReport.holeTrianglesAdded??0,reconstruction:repairReport.reconstruction??null,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces,
         sampledDistanceMm:repairReport.sampledDistanceMm};
       sourcePath=join(directory,'repaired.stl');units='mm';repaired=true;
       attachments=['original.stl','repaired.stl','repair.json'].map(name=>({file:'repair/'+name,sourcePath:join(directory,name)}));
@@ -74,7 +85,6 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
     return {...result,placement,sourcePath,attachments,repaired,importDiagnostic};
   }catch(error){
     importDiagnostic.failure={name:error.name,code:error.code??null,message:error.message,meshDiagnostic:error.meshDiagnostic??null};
-    if(error.nativeDiagnostic)importDiagnostic.native=error.nativeDiagnostic;
     throw Object.assign(error,{importDiagnostic});
   }
 }

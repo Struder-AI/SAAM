@@ -5,8 +5,6 @@ import {mkdtemp,readFile,writeFile,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {boxMesh,ringMesh,subdividedBox} from './fixtures/mesh.mjs';
-import {existsSync} from 'node:fs';
-import {nativeMeshExecutable} from '../geom/mesh-native.mjs';
 import {makeMesh,parseSTL} from '../geom/mesh.mjs';
 import {cleanTriangleSoup,encodeRepairSTL,validateRepair} from '../geom/mesh-repair.mjs';
 import {repairSTL,repairSTLFiles} from '../print/repair-stl.mjs';
@@ -65,13 +63,12 @@ test('contact checks distinguish valid adjacency from folded overlapping faces',
   assert.equal(trianglesContact(left,right,[[0,0,0]]),false);
 });
 
-const native={skip:existsSync(nativeMeshExecutable)?false:'Build the CGAL helper with npm run setup:mesh to run hole-filling tests.'};
-test('native repair closes only holes within both explicit bounds',native,async()=>{
+test('repair closes only holes within both explicit bounds',async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);const bytes=encodeRepairSTL(source);
   await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
   await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
-  assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
+  assert.equal(report.method,'saam-solid-repair/2');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
 test('solid repair resolves a penetrating fold and retains remote facets',async()=>{
@@ -96,7 +93,7 @@ test('repair stops on cancellation or failure, never on elapsed time',async t=>{
   // The retired timeoutMs is inert; a repair is never refused for taking long.
   assert.equal((await repairSTLFiles(join(root,'kept'),bytes,{units:'mm',timeoutMs:1})).outputTriangles,12);
 });
-test('repair shape threshold rejects a changed patch even when output vertices lie on the source',native,async()=>{
+test('repair shape threshold rejects a changed patch even when output vertices lie on the source',async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);
   await assert.rejects(repairSTL(encodeRepairSTL(source),{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3,maxSampledDistanceMm:0.01}),{code:'MESH_SHAPE_CHANGE'});
 });
