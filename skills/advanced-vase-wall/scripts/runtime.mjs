@@ -3,12 +3,12 @@
 export function advancedVaseRuntime({Geometry,Toolpath},vase){
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
-const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
-// Pattern heights stay inside the sleeve interval to rounding: the sleeve's height
-// queries accept no more (core/geom/sleeve).
+  // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+  const PRINT_RESOLUTION_MM=1e-3;
+  // copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
+  const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
+  // Pattern heights stay inside the sleeve interval to rounding, within the print
+  // resolution its height queries accept (core/geom/sleeve).
   const {sampleCurveIntervals}=Geometry;
   const {maximumPathAngle,traceResult,contactCurveGaps}=Toolpath;
 // A pattern is a stack of repeats in unwrapped strip coordinates [turns,

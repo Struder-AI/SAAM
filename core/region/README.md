@@ -158,8 +158,8 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 a default owner retains the remainder after explicit regions and reservations.
 Shared ownership and connected mixed-family overlap are deferred to [0.3.0](../../plans/0.3.0.md).
 Diagnostics identify assignments/components. Planar polygon contact uses the
-shared `TOLERANCE.point` (`1e-6` mm), not bead dimensions; spline section evidence
-also accounts for `TOLERANCE.chord` (`1e-3` mm). Bounds and control-hull separating
+print resolution, not bead dimensions; spline section evidence
+also accounts for `TOLERANCE.chord` (print resolution). Bounds and control-hull separating
 directions can prove disjointness, never overlap. Boundary-interval probes catch
 thin claims between print layers. Uncertifiable curved, rotated or concave pairs
 report that exclusivity cannot be established; touching is not universally certified.

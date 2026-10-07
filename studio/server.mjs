@@ -68,7 +68,7 @@ const playerModules=new Set(['core/private/studio/numeric.mjs','core/geom/frame.
   'core/machine/presentation.mjs','core/machine/jog.mjs',
   'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
   'core/print/review-state.mjs','core/print/phase-colours.mjs',
-  'core/path/pose.mjs','core/path/action-context.mjs','core/geom/tolerance.mjs']);
+  'core/path/pose.mjs','core/path/action-context.mjs','core/geom/tolerance.mjs','core/dimensions.mjs']);
 
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.

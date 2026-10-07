@@ -33,7 +33,7 @@ nothing; source bytes stay unchanged. Only native fallback needs [CGAL setup](..
 
 | Option | Meaning |
 |---|---|
-| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 means exact duplicates only. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
+| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 merges only vertices closer than print resolution, as every import does. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both limits must be positive to fill. |
 | `maxSampledDistanceMm` | Reject results exceeding this sampled two-way shape change; sampling is not a certified bound. |

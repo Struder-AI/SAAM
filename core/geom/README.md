@@ -103,7 +103,7 @@ physical-invariant failures rather than loosening checks.
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
 
 Level extraction retains high-side equality, ordered ambiguous-cell pairing, sentinel refinement,
-`1e-7` chart endpoint matching and `TOLERANCE.point` cleanup. Only regions add domain edges; curves
+chart endpoint matching and point cleanup at print resolution. Only regions add domain edges; curves
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
@@ -372,7 +372,7 @@ and saved compiled meshes retain their semantics.
 [Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
 Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
 There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
-The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
+Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
@@ -429,16 +429,15 @@ when cleanup alone does not yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
-[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
-faces keep one copy facing their net orientation (an opposed pair cancels).
-`cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
-An explicit positive tolerance snaps each point to its nearest retained vertex
-within that Euclidean distance in mm; input order breaks ties. Representatives
-never move, repeated coordinates share a decision, and neighbours do not chain.
-Spatial buckets only find candidates; they never round accepted coordinates.
-Collapsed-face stitching uses existing collinear boundary vertices (numeric
-conditioning), without guessing branches or filling holes. Ordinary imports remain
-exact-only. Reports include merge counts and maximum displacement; shape-change
+Every STL import merges vertices closer than print resolution ([decoder](./stl-decoder.mjs)):
+each cluster keeps the source vertex nearest its centroid and collapsed triangles go.
+[Cleanup](./mesh-repair.mjs) repeats that merge, removes degenerate faces and unused
+vertices, and keeps one copy of coincident faces facing their net orientation (an
+opposed pair cancels). An explicit positive `mergeToleranceMm` also snaps each point
+to its nearest retained vertex within that distance; input order breaks ties,
+representatives never move and neighbours do not chain. Stitching closes a vertex
+left within print resolution of an opposite boundary edge, without guessing branches
+or filling holes. Reports include merge counts and maximum displacement; shape-change
 evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
 only within explicit limits, closes opposed sheets within print resolution and
 replaces a self-crossing surface by its solid's boundary; reports give the closing,
@@ -447,7 +446,7 @@ cavities opened).
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
-numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
+rounding guard, not proved exactly. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review.
