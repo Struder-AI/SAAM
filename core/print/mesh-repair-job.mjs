@@ -1,8 +1,7 @@
-import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {runNativeMeshRepair} from '../geom/mesh-native.mjs';
-import {workerResourceLimits,workerMemoryError} from './computation-job.mjs';
+import {computationWorker,workerMemoryError} from './computation-job.mjs';
 // Runs repairSTL ('bytes'), repairSTLFiles ('files') or prepareSTLImportInWorker
 // ('import') in a worker. It settles only after the worker has stopped, so a
 // caller may then remove the directory the job was writing.
@@ -15,7 +14,7 @@ export function repairMemoryError(error,source){
 export function runRepairJob(mode,directory,source,options){
   const {signal,progress,onGeometry,...settings}=options;signal?.throwIfAborted();
   return new Promise((resolve,reject)=>{
-    const worker=new Worker(new URL('./mesh-repair-worker.mjs',import.meta.url),{execArgv:[],resourceLimits:workerResourceLimits(),workerData:{mode,directory,source,options:settings,geometry:!!onGeometry}});let settled=false,callbackError;
+    const worker=computationWorker(new URL('./mesh-repair-worker.mjs',import.meta.url),{mode,directory,source,options:settings,geometry:!!onGeometry});let settled=false,callbackError;
     const nativeController=new AbortController();let nativeDirectory,nativeRun;
     // The supervisor owns native scratch and the child process. It can stop
     // synchronous import work without losing either resource, including on OOM.

@@ -1,10 +1,9 @@
 import {createServer} from 'node:http';
 import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
-import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
 import {replaceFile} from '../core/file-write.mjs';
-import {workerResourceLimits,workerMemoryError} from '../core/print/computation-job.mjs';
+import {computationWorker,workerMemoryError} from '../core/print/computation-job.mjs';
 import {recoverWorkspaceExport,currentWorkspaceExport,lockWorkspaceExport,beginWorkspaceExport,publishWorkspaceExport,finishWorkspaceExport,retireWorkspaceExport,workspaceExportPath} from './export-publication.mjs';
 import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {relativeExtensionFile} from '../core/extensions/library.mjs';
@@ -76,7 +75,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
         try{
           await lockWorkspaceExport(previous,async()=>{
             if(closed)throw Error('Workspace closed before construction.');
-            worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{execArgv:[],resourceLimits:workerResourceLimits(),workerData:{extensionId,extension,design:normalized,directory:workspaceExportPath(directory,stagingName),previous,...options}});
+            worker=computationWorker(new URL('./export-worker.mjs',import.meta.url),{extensionId,extension,design:normalized,directory:workspaceExportPath(directory,stagingName),previous,...options});
             const running=worker;
             publication.source=await new Promise((done,fail)=>{
               const completed={received:false};

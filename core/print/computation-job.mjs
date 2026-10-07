@@ -1,26 +1,26 @@
 import {Worker} from 'node:worker_threads';
 import {totalmem} from 'node:os';
 
-// Heap ceiling for every SAAM worker thread: three quarters of the memory this
-// process may use (the OS constraint where one is set, else physical memory).
-// Without it Node gives a worker V8's default, about a quarter of RAM capped near
-// 4 GiB, which fails large jobs on machines with room to spare. One job dominates
-// memory while it runs; the other quarter is for the OS, the runtime's main thread,
-// Studio's browser and the native helper. The ceiling is not reserved, only where
-// V8 gives up: past physical memory a job would page the machine to a standstill
-// instead of failing with a named error. A --max-old-space-size flag given to the
-// process overrides it (V8 flags are process-wide).
-export function workerResourceLimits(){
+// Every SAAM worker thread starts here. Its heap ceiling is three quarters of
+// the memory this process may use: the OS constraint where one is set, else
+// physical memory. Node's default, about a quarter of RAM capped near 4 GiB,
+// fails large jobs on machines with room to spare. One job dominates memory while
+// it runs; the other quarter is for the OS, the runtime's main thread, Studio's
+// browser and the native helper. The ceiling reserves nothing; it is where V8
+// gives up, so a job fails with a named error before it pages the machine to a
+// standstill. A --max-old-space-size given to the process overrides it.
+function heapCeilingMb(){
   const physical=totalmem(),constrained=process.constrainedMemory?.()||0;
-  const usable=constrained>0&&constrained<physical?constrained:physical;
-  return {maxOldGenerationSizeMb:Math.floor(usable*3/4/1048576)};
+  return Math.floor((constrained>0&&constrained<physical?constrained:physical)*3/4/1048576);
 }
-// A worker that exhausts this heap reaches the supervisor as
+export function computationWorker(entry,workerData){
+  return new Worker(entry,{execArgv:[],resourceLimits:{maxOldGenerationSizeMb:heapCeilingMb()},workerData});
+}
+// A worker that exhausts its heap reaches the supervisor as
 // ERR_WORKER_OUT_OF_MEMORY; say what ran out, on what, and how large the heap was.
 export function workerMemoryError(error,subject,{detail='',code='WORKER_MEMORY_EXHAUSTED'}={}){
   if(error?.code!=='ERR_WORKER_OUT_OF_MEMORY')return error;
-  const gib=(workerResourceLimits().maxOldGenerationSizeMb/1024).toFixed(1);
-  return Object.assign(Error(`${subject} ran out of memory${detail}: its ${gib} GiB heap (three quarters of this machine's memory) was exhausted. Nothing is simplified automatically; a machine with more RAM can finish it.`),{code,cause:error});
+  return Object.assign(Error(`${subject} ran out of memory${detail}: its ${(heapCeilingMb()/1024).toFixed(1)} GiB heap, sized to this machine, was exhausted. Nothing is simplified automatically; a machine with more RAM can finish it.`),{code,cause:error});
 }
 
 // Callers own staging cleanup and publication. Settle after worker termination
@@ -29,7 +29,7 @@ export function workerMemoryError(error,subject,{detail='',code='WORKER_MEMORY_E
 export function runComputationJob(entry,input,{signal,progress,beforeCommit,subject='This computation'}={}){
   signal?.throwIfAborted();
   return new Promise((resolve,reject)=>{
-    const worker=new Worker(entry,{execArgv:[],resourceLimits:workerResourceLimits(),workerData:input});
+    const worker=computationWorker(entry,input);
     const state={settled:false,committing:false};
     const finish=async(error,value)=>{
       if(state.settled)return;
