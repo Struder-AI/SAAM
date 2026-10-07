@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-06 — 0.3.6 replaced: Studio draws toolpaths
+
+- Owner: "Toolpath lines don't show with 0.3.6 update. Fix this and replace the 0.3.6 release files immediately. Not a new release, the same number." The stored report's `program.moves` is a move count; `studio/studio-state.mjs` spread it over the drawn path, so the renderer received a number. The drawn moves, events and summary now win. Seen in the owner's installed simple-table Studio before the fix.
+- Rebuilt at 33316716 (9b77fdbb plus the fix, `release/0.3.6-build`); tag v0.3.6 moved there and the three ZIPs and sidecars replaced. Windows 293b95dd0c7875677b340c68aa57157d90521bab366c5a279109ef7f81365c5f; arm64 Mac d800857b6baebabcd0aa408c2f884ff7d5d406645c4c5d8c8c77a592634bc0a8; Intel Mac 3b6cc5c7f475e080a0d22c3cde80e41f94501165033adb9fa812010d7f9d87d7; GitHub digests match. Relay deployed (a5d2a1e4-3d9b-4ff9-8594-1be99fee06ed). The owner's C:\SAAM reinstalled from the downloaded, checksum-verified ZIP (`-NoLaunch`; Update does not offer an equal version).
+- Checks: each package's setup check. Not run (owner: no further checks): Studio view of the fixed build, tests, authenticated relay offer.
+
 ## 2026-10-06 — Publish SAAM 0.3.6
 
 - Owner: "let's package 0.3.6, update locally". Published v0.3.6 at source 9b77fdbbc4998cd5b4d7684246b223462ac3b150 (8b1044cd plus the builder change). Windows 43,472,948 bytes, 016d40b280cb169e34e0a52da6badcd2a64d6ec99abe02cd5f99d657a94f73a9; arm64 Mac 47,410,304 bytes, fa6056173d5a47d2b0c4659697747e4f2fbbd7b53614f42f396a6e75937baf5c; Intel Mac 48,763,953 bytes, 7e85af04ba3747901a974a24c1c8f7328adcce869b83ae879cd39156a824220f. Windows mesh helper rebuilt for the current source (95134816…); Mac packages without native repair. Node v24.19.0, checksum-verified.
