@@ -1,4 +1,4 @@
-import { TOLERANCE } from './tolerance.mjs';
+import { ROUNDING_RELATIVE, PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 
 // The ordinary bounded-coordinate case does not need Math.hypot's general
 // rescaling/compensation loop. Retain it for overflow and underflow ranges.
@@ -14,7 +14,7 @@ const norm2=(x,y)=>{
 // The default preserves even tiny reversals. A caller performing an explicitly
 // tolerance-bounded detail approximation may opt out; all original vertices
 // still participate in the replacement-segment distance check.
-export function cleanPlanarLoop(loop, tolerance = TOLERANCE.plane, {preserveReversals=true}={}) {
+export function cleanPlanarLoop(loop, tolerance = PRINT_RESOLUTION_MM, {preserveReversals=true}={}) {
   if (loop.length < 4) return loop;
   let opposite = 1, farthest = 0;
   for (let i = 1; i < loop.length; i++) {
@@ -34,7 +34,7 @@ export function cleanPlanarLoop(loop, tolerance = TOLERANCE.plane, {preserveReve
         const error = norm2(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
         if (error > worst) { worst = error; split = i; }
         // Retain reversals even when all points lie on the same straight line.
-        if (preserveReversals && along < previous - 16 * Number.EPSILON * Math.max(1, length)) { split = i - 1 > first ? i - 1 : i; break; }
+        if (preserveReversals && along < previous - ROUNDING_RELATIVE * Math.max(1, length)) { split = i - 1 > first ? i - 1 : i; break; }
         previous = along;
       }
       if (split >= 0) { keep.add(split); pending.push([first, split], [split, last]); }

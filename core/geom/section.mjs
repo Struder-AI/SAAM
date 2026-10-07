@@ -6,8 +6,8 @@
 // w_ij (n . P_ij - d), so the convex-hull property culls whole knot spans with
 // an exact sign test (see nurbs.mjs). Surviving spans are sampled on a grid,
 // contoured by marching squares, and every crossing is refined by a bracketed
-// 1D root find, so contour vertices lie on the plane to TOLERANCE.plane rather
-// than being interpolated. Segments are then subdivided until they follow the
+// 1D root find, so contour vertices lie on the plane to program resolution
+// rather than being interpolated. Segments are then subdivided until they follow the
 // surface within TOLERANCE.chord.
 //
 // Known sampling limit: a closed section loop smaller than the grid cell can be
@@ -17,6 +17,7 @@
 
 import { evaluate, evaluateScalar, gradientBound, planeCoefficients, candidateSpans, clamp } from './nurbs.mjs';
 import { TOLERANCE, requireThat, findRoot, distance, subtract, add, scale, dot } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
 
 const CELL_MAX = 96, SPLIT_LIMIT = 8;
 
@@ -29,8 +30,8 @@ export function sectionPatch(patch, plane, { minFeatureMm = 0.4 } = {}) {
   const { normal, offset } = plane;
   const coefficients = planeCoefficients(patch, normal, offset);
   let allZero = true;
-  for (const c of coefficients) if (Math.abs(c) > TOLERANCE.plane) { allZero = false; break; }
-  // The whole patch lies in the slice plane: a tangential face, not a curve.
+  for (const c of coefficients) if (Math.abs(c) > PRINT_RESOLUTION_MM) { allZero = false; break; }
+  // The whole patch lies in the slice plane at print resolution: a flush face, not a curve.
   if (allZero) return { chains: [], coincident: true };
 
   // Sign tests, root finds and cell sampling all use h; only the emitted points
@@ -128,7 +129,7 @@ function cellCounts(patch, span, minFeatureMm) {
       for (let k = 0; k < 3; k++) { const value = cp[b + k] / w; if (value < min[k]) min[k] = value; if (value > max[k]) max[k] = value; }
     }
   const extent = Math.max(max[0] - min[0], max[1] - min[1], max[2] - min[2]);
-  const dense = Math.min(CELL_MAX, Math.max(2, Math.ceil(2 * extent / Math.max(minFeatureMm, 1e-3))));
+  const dense = Math.min(CELL_MAX, Math.max(2, Math.ceil(2 * extent / Math.max(minFeatureMm, PRINT_RESOLUTION_MM))));
   return [patch.orderU > 2 ? dense : 1, patch.orderV > 2 ? dense : 1];
 }
 
@@ -172,11 +173,11 @@ function cellSegments(g, us, vs, values, i, j) {
 //
 // Endpoints are matched with a tolerance rather than by exact value: a crossing
 // on a shared knot-span boundary is solved separately by each span, from
-// different brackets, so the two results agree to roughly 1e-9 but not bit for
+// different brackets, so the two results agree to rounding but not bit for
 // bit. Exact keys leave the contour broken at every span boundary.
 function joinSegments(segments, patch, g) {
-  const epsU = (patch.domainU[1] - patch.domainU[0]) * 1e-7;
-  const epsV = (patch.domainV[1] - patch.domainV[0]) * 1e-7;
+  const epsU = (patch.domainU[1] - patch.domainU[0]) * TOLERANCE.domainFraction;
+  const epsV = (patch.domainV[1] - patch.domainV[0]) * TOLERANCE.domainFraction;
   const cell = p => [Math.round(p.u / epsU), Math.round(p.v / epsV)];
   const ends = new Map();
   const add = (p, segment) => {
@@ -243,7 +244,7 @@ function contourPointNear(patch, g, u, v, du, dv) {
   if (!(scale0 > 0)) return null;
   const pu = -dv / scale0, pv = du / scale0;
   const centre = g(u, v);
-  if (Math.abs(centre) <= TOLERANCE.plane) return { u, v, point: evaluate(patch, u, v, false).point };
+  if (Math.abs(centre) <= PROGRAM_STEP_MM) return { u, v, point: evaluate(patch, u, v, false).point };
   for (let step = scale0 / 8; step <= scale0 * 2; step *= 2) {
     for (const direction of [1, -1]) {
       const su = clamp(u + pu * step * direction, patch.domainU), sv = clamp(v + pv * step * direction, patch.domainV);

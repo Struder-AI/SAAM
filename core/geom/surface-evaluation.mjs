@@ -2,7 +2,7 @@
 // Coordinates retain their native units; offsets are physical millimetres.
 import {evaluate} from './nurbs.mjs';
 import {heightSlicePoint,heightSliceNormal} from './height-slice.mjs';
-import {cross,normalize,distance,requireThat} from './tolerance.mjs';
+import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
 
 const rings=new WeakMap();
 function sleeveRing(layer,u){
@@ -30,7 +30,7 @@ export function evaluateSurface(surface,[u,v],normalMm=0){
   }else if(surface.kind==='sleeve-chart'){
     const layers=surface.layers;
     requireThat(layers?.length>=2,'A sleeve reference needs at least two boundary layers.');
-    requireThat(v>=-1e-9&&v<=layers.length-1+1e-9,'Sleeve curve lies outside the along-coordinate domain.');
+    requireThat(v>=-TOLERANCE.parameter&&v<=layers.length-1+TOLERANCE.parameter,'Sleeve curve lies outside the along-coordinate domain.');
     const coordinate=Math.max(0,Math.min(layers.length-1,v)),i=Math.min(layers.length-2,Math.floor(coordinate)),t=coordinate-i;
     const a=sleeveRing(layers[i],u),b=sleeveRing(layers[i+1],u),du=a.du.map((x,k)=>x+t*(b.du[k]-x)),dv=b.point.map((x,k)=>x-a.point[k]);
     e={point:a.point.map((x,k)=>x+t*dv[k]),du,dv,normal:normalize(cross(du,dv))};
@@ -47,7 +47,7 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
   const breaks=(knots,b,k)=>[domain[k][0],...new Set([...(knots??[])].filter(x=>x>b[0]&&x<b[1]).map(x=>domain[k][0]+(x-b[0])/scale[k])),domain[k][1]];
   const at=(u,v)=>{
     const coordinates=[u,v];
-    requireThat(coordinates.every((x,k)=>{const t=(x-domain[k][0])/(domain[k][1]-domain[k][0]);return t>=-1e-9&&t<=1+1e-9;}),'Surface sample outside selected region.');
+    requireThat(coordinates.every((x,k)=>{const t=(x-domain[k][0])/(domain[k][1]-domain[k][0]);return t>=-TOLERANCE.domainFraction&&t<=1+TOLERANCE.domainFraction;}),'Surface sample outside selected region.');
     const uv=coordinates.map((x,k)=>bounds[k][0]+Math.max(0,Math.min(domain[k][1]-domain[k][0],x-domain[k][0]))*scale[k]),e=evaluateSurface(surface,uv);
     requireThat(e.normal,'Surface has a singular tangent at this chart point.');
     return {...e,uv,normal:e.normal.map(x=>x*normalSide),du:e.du?.map(x=>x*scale[0]),dv:e.dv?.map(x=>x*scale[1])};

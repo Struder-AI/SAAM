@@ -1,15 +1,19 @@
 import {add,subtract,scale,dot,cross,length,requireThat} from './tolerance.mjs';
+import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 export {add,subtract,scale,dot,cross,length} from './tolerance.mjs';
 export const innerProduct=(a,b)=>a.reduce((sum,value,i)=>sum+value*b[i],0);
 
 // Coordinate/frame operations use explicit vectors and transforms. They know
 // nothing about tool conventions, rotary installations or controller motion.
-export const unitDirection=v=>{const n=length(v);requireThat(n>1e-12,'Degenerate direction.');return scale(v,1/n);};
+// Unit, perpendicular, parallel: a direction off by this moves a point at build scale
+// by print resolution (a shape judgement in dimensionless form).
+export const DIRECTION_TOLERANCE=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
+export const unitDirection=v=>{const n=length(v);requireThat(n>ROUNDING_MM,'Degenerate direction.');return scale(v,1/n);};
 export const rotateZ=(v,degrees)=>{const a=degrees*Math.PI/180,c=Math.cos(a),s=Math.sin(a);return [c*v[0]-s*v[1],s*v[0]+c*v[1],v[2]];};
 export const rotatePointZ=(point,degrees,center,inverse=false)=>add(rotateZ(subtract(point,center),inverse?-degrees:degrees),center);
 export function validateDirectionPair(primary,secondary){
-  for(const v of [primary,secondary])requireThat(Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)&&Math.abs(length(v)-1)<1e-6,'Frame directions must be unit 3-vectors.');
-  requireThat(Math.abs(dot(primary,secondary))<1e-6,'Frame directions must be perpendicular.');
+  for(const v of [primary,secondary])requireThat(Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)&&Math.abs(length(v)-1)<DIRECTION_TOLERANCE,'Frame directions must be unit 3-vectors.');
+  requireThat(Math.abs(dot(primary,secondary))<DIRECTION_TOLERANCE,'Frame directions must be perpendicular.');
 }
 // Linear direction interpolation, re-orthogonalized; not a rotation trajectory
 // or inverse-kinematics solver. Opposed/degenerate intermediate axes fail.
@@ -39,6 +43,6 @@ export const rodFrame=(from,to)=>rigid(from,axisFrame(subtract(to,from)));
 export function validateRigid(transform){
   requireThat(Array.isArray(transform?.translationMm)&&transform.translationMm.length===3&&transform.translationMm.every(Number.isFinite)&&Array.isArray(transform.rotation)&&transform.rotation.length===3&&transform.rotation.every(row=>Array.isArray(row)&&row.length===3&&row.every(Number.isFinite)),'Invalid rigid transform');
   const gram=mm(transform.rotation,transpose(transform.rotation));
-  requireThat(!gram.some((row,i)=>row.some((v,j)=>Math.abs(v-(i===j?1:0))>1e-6))&&dot(transform.rotation[0],cross(transform.rotation[1],transform.rotation[2]))>=1-1e-6,'Transform rotation must be right-handed orthonormal');
+  requireThat(!gram.some((row,i)=>row.some((v,j)=>Math.abs(v-(i===j?1:0))>DIRECTION_TOLERANCE))&&dot(transform.rotation[0],cross(transform.rotation[1],transform.rotation[2]))>=1-DIRECTION_TOLERANCE,'Transform rotation must be right-handed orthonormal');
   return transform;
 }

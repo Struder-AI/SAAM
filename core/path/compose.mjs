@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Skill results describe deposition operations. The composer advances explicit
 // planning state through scheduled operations and returns action chunks.
 
@@ -78,7 +79,7 @@ export function planOperationEnd(state,op) {
 function operationTravelPolicy(policy,deposited) {
   return {...policy,isTravelClear:(from,to)=>(!policy.isTravelClear||policy.isTravelClear(from,to))
     &&!deposited.some(previous=>previous.material?previous.material.blocksSegment(from,to)
-      :previous.clearanceFor(from,to)>policy.clearanceFor(from,to)+1e-9)};
+      :previous.clearanceFor(from,to)>policy.clearanceFor(from,to)+PRINT_RESOLUTION_MM)};
 }
 
 function segmentExtras(stroke,op,index) {

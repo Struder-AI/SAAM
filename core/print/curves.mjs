@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 import {curveLength} from '../path/curve-construction.mjs';
 import {authoredNurbs,validateCurveProfiles,constructAuthoredCurves} from '../path/authored-curves.mjs';
@@ -95,14 +96,14 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,bounds
       requireCurveContact(curve,supportSegments,heightMm,assignment.id);
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
-    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Trace course exceeds its authored Z excursion limit.');}
+    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace course exceeds its authored Z excursion limit.');}
     const spec={key:assignment.courseIds?.[course]??course,curves:ready,heightMm,speedMmS,layer:course,layerIndex:course,layerCount:count,rank:course,
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||course===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     courses.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
       const raw=traceResult({...assignment,after:previous},{courses:[spec],process,bounds,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
       for(const op of result.operations)for(const stroke of op.strokes)requireCurveContact(stroke,supportSegments,heightMm,assignment.id);
-      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+1e-8,'Final Trace course exceeds its authored Z excursion limit.');}
+      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Final Trace course exceeds its authored Z excursion limit.');}
       parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
     }
   }
@@ -118,7 +119,7 @@ export function traceResult(assignment,{courses,process,bounds=null,sequential=t
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
     const width=(stroke.segmentMetadata??[]).reduce((width,m)=>Math.max(width,m.beadWidthMm??0),stroke.beadWidthMm??process.lineWidthMm);
-    if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-1e-8&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+1e-8)),
+    if(bounds)requireThat(stroke.points.every(p=>p.every((v,i)=>v>=(i===2?bounds.min[i]:bounds.min[i]+width/2)-PRINT_RESOLUTION_MM&&v<=(i===2?bounds.max[i]:bounds.max[i]-width/2)+PRINT_RESOLUTION_MM)),
       `Curve assignment ${assignment.id} exceeds selected tool bounds on course ${operation.layer}.`);
     const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
     const closing=stroke.closed?distance(stroke.points.at(-1),stroke.points[0]):0;

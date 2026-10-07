@@ -1,16 +1,15 @@
-// Shared numeric helpers and the tolerance vocabulary used across the core.
-//
-// Spatial tolerances are in mm; parameter convergence is in the native UV
-// parameter units, not mm. Keep predicate slack separate from geometric
-// approximation and choose each for its consumer (BUILDERS.md precision policy).
-// A fine chord target bounds that construction only, not accumulated downstream
-// shape error, mesh repair error, or the machine's physical accuracy.
+// Shared numeric helpers and the construction tolerances of the geometry kernel.
+// Classes and their reasoning: core/README.md#dimensions-and-tolerances. Shape
+// judgements (coincident, joined, on a plane, overlapping) import
+// PRINT_RESOLUTION_MM; constructed points converge to PROGRAM_STEP_MM, below what
+// a program can write and far below the judgements made on them.
+
+import { BUILD_SCALE_MM, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM } from '../dimensions.mjs';
 
 export const TOLERANCE = {
-  point: 1e-6,       // coincident-point tolerance for joining section pieces
-  chord: 1e-3,       // maximum sagitta between a section polyline and the surface
-  parameter: 1e-9,   // convergence limit for root finding in parameter space
-  plane: 1e-7        // distance from the slice plane accepted as "on plane"
+  chord: PRINT_RESOLUTION_MM, // maximum sagitta of a constructed polyline: no coarser than print resolution
+  parameter: PROGRAM_STEP_MM / BUILD_SCALE_MM, // root-finding convergence: program resolution on a build-scale domain
+  domainFraction: PRINT_RESOLUTION_MM / BUILD_SCALE_MM // a share of a parameter domain worth print resolution on a build-scale patch
 };
 
 export function requireThat(condition, message) { if (!condition) throw new Error(message); }
@@ -25,7 +24,7 @@ export const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], (a[2] ?? 
 export const distance2 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 export function normalize(a) {
   const l = length(a);
-  requireThat(l > 1e-15, 'Cannot normalize a zero-length vector.');
+  requireThat(l > ROUNDING_MM, 'Cannot normalize a zero-length vector.');
   return [a[0] / l, a[1] / l, a[2] / l];
 }
 // Bisection with a secant step. Used for 1D root finds along patch boundaries
@@ -39,7 +38,7 @@ export function findRoot(f, a, b, fa = f(a), fb = f(b), tolerance = TOLERANCE.pa
     const span = hi - lo;
     let mid = lo + span * (flo / (flo - fhi));
     // Keep the secant step inside the bracket, otherwise fall back to bisection.
-    if (!(mid > lo + span * 1e-3 && mid < hi - span * 1e-3)) mid = (lo + hi) / 2;
+    if (!(mid > lo + span / 1000 && mid < hi - span / 1000)) mid = (lo + hi) / 2; // a thousandth of the bracket: secant safeguard, not a tolerance
     const fm = f(mid);
     if (fm === 0) return mid;
     if ((fm < 0) === (flo < 0)) { lo = mid; flo = fm; } else { hi = mid; fhi = fm; }

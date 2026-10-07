@@ -3,6 +3,12 @@
 export function advancedVaseRuntime({Geometry,Toolpath},vase){
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
+const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
+// Pattern heights stay inside the sleeve interval to rounding: the sleeve's height
+// queries accept no more (core/geom/sleeve).
   const {sampleCurveIntervals}=Geometry;
   const {maximumPathAngle,traceResult,contactCurveGaps}=Toolpath;
 // A pattern is a stack of repeats in unwrapped strip coordinates [turns,
@@ -49,7 +55,7 @@ function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,first
         length+=Math.hypot((b[0]-a[0])*referenceLengthMm,b[1]-a[1],b[2]-a[2]);at.push(length);
       }
       progress.push(at);
-      for(const [,z] of path.vertices)requireThat(z>=-1e-9&&z+(count-1)*rise<=spanMm+1e-9,
+      for(const [,z] of path.vertices)requireThat(z>=-ROUNDING_MM&&z+(count-1)*rise<=spanMm+ROUNDING_MM,
         'Level pattern courses exceed the selected sleeve height interval; adjust explicit path coordinates, advance or repetition count. No course was trimmed.');
     }
     progressed.set(paths,{progress,length});return progressed.get(paths);
@@ -70,7 +76,8 @@ function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,first
       const vertices=path.vertices.map(([u,z,d],i)=>{
         const t=progress[p][i]/length,current=height(repeat,z,t);
         const gap=repeat<0?firstHeightMm:current-height(repeat-1,z,t);
-        requireThat(gap>=-1e-9,'Level pattern transition reverses the nominal course stack; revise the tile heights.');
+        // A reversal below print resolution changes nothing; its height clamps to zero.
+        requireThat(gap>=-PRINT_RESOLUTION_MM,'Level pattern transition reverses the nominal course stack; revise the tile heights.');
         heights.push(path.heights[i]*Math.max(0,gap)/rise);
         return [u+repeat*advance[0],current,d];
       });
@@ -98,7 +105,7 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
   const emitPath=(vertices,heights,layer,foundation)=>{
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=start+a[1]+(b[1]-a[1])*t;
-      requireThat(z>=start-1e-9&&z<=end+1e-9,'Mapped pattern exceeds its selected sleeve height interval; adjust repeats, advance or tile heights.');
+      requireThat(z>=start-ROUNDING_MM&&z<=end+ROUNDING_MM,'Mapped pattern exceeds its selected sleeve height interval; adjust repeats, advance or tile heights.');
       const depth=(a[2]??0)+((b[2]??0)-(a[2]??0))*t;
       return mapping.reference?mapping.reference.map(mapping.reference.pointAt(u,z,depth)):[...mapping.contours.at(u,z,depth),z];
     };
@@ -119,10 +126,10 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
         maximumBeadHeightMm=Math.max(maximumBeadHeightMm,h);segmentHeights.push(h);
       }
     }
-    if(continuous&&paths.length)requireThat(distance(paths.at(-1).points.at(-1),points[0])<=1e-9,'Mapped vase endpoints do not meet; use segmented mode for travel.');
+    if(continuous&&paths.length)requireThat(distance(paths.at(-1).points.at(-1),points[0])<=PRINT_RESOLUTION_MM,'Mapped vase endpoints do not meet; use segmented mode for travel.');
     maximumAngleDeg=Math.max(maximumAngleDeg,maximumPathAngle(points));
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
-    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<1e-8&&Math.abs(points[i+1][2]-end)<1e-8?{boundaryRole:'rim'}:{})}))});
+    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<PRINT_RESOLUTION_MM&&Math.abs(points[i+1][2]-end)<PRINT_RESOLUTION_MM?{boundaryRole:'rim'}:{})}))});
     return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
   };
   const total=stack.repeats+(level?2:0);let completed=0;
@@ -135,7 +142,7 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
     for(let i=first;i<paths.length;i++)paths[i].speedMmS=speed;
     onProgress?.({stage:'Mapping vase pattern courses',completed:++completed,total});
   }
-  // Reported to the program resolution, 1e-3 mm.
+  // Reported in thousandths of a millimetre: print resolution.
   const micro=v=>Math.round(v*1e3)/1e3;
   const runs=stack.turns?.filter((turn,i,all)=>!i||turn.courses!==all[i-1].courses).map(({turn,zMm,perimeterMm,courses})=>({turn,zMm:micro(zMm),perimeterMm:micro(perimeterMm),courses}));
   const widths=stack.turns?.reduce(([low,high],turn)=>[Math.min(low,turn.perimeterMm/turn.courses),Math.max(high,turn.perimeterMm/turn.courses)],[Infinity,-Infinity]);

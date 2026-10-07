@@ -2,10 +2,12 @@
 // region at/above the level. Sampling and the meaning of the scalar belong to
 // callers; both outputs share cell crossings and their topology.
 
-import { requireThat, distance2, TOLERANCE } from './tolerance.mjs';
+import { requireThat, distance2 } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 import { loopArea, dedupe } from '../region/region2d.mjs';
 
-const CHAIN_TOLERANCE = 1e-7;
+// Crossing pieces whose ends lie within print resolution are one contour.
+const CHAIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 // Directed pieces keep the high side on the left. Regions require closure;
 // contours can end at the sampled domain, without constructing border edges.
@@ -60,8 +62,8 @@ function chain(pieces, output) {
       current=[...prefix.reverse().flat(),...current];
       const closed=distance2(current[0],current.at(-1))<=CHAIN_TOLERANCE;
       const points=[];
-      for(const point of current)if(!points.length||distance2(points.at(-1),point)>TOLERANCE.point)points.push(point);
-      if(closed)while(points.length>1&&distance2(points[0],points.at(-1))<=TOLERANCE.point)points.pop();
+      for(const point of current)if(!points.length||distance2(points.at(-1),point)>PRINT_RESOLUTION_MM)points.push(point);
+      if(closed)while(points.length>1&&distance2(points[0],points.at(-1))<=PRINT_RESOLUTION_MM)points.pop();
       if(closed?points.length>=3&&Math.abs(loopArea(points))>0:points.length>1)loops.push({points,closed});
       continue;
     }

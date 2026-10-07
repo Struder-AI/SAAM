@@ -16,6 +16,7 @@ import { sampledChartRegion, referenceHeight } from '../geom/height-slice.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import {dot} from '../geom/frame.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // A volume's section in layer's chart: loops, or null where it covers the
 // whole plane. extent bounds the region it will be combined with.
@@ -33,15 +34,15 @@ function slabSection({ fromMm, toMm, axis = [0, 0, 1] }, slice, extent) {
   if(!(Number.isFinite(fromMm)&&Number.isFinite(toMm)&&toMm>fromMm))throw Error('A slab volume needs fromMm below toMm.');
   if(slice.kind==='height-field')return sampledChartRegion(extent,slice.sampleStepMm,point=>{
     if(!referenceHeight(slice.reference,...point))return false;
-    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+1e-9&&h<=toMm+1e-9;
+    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+PRINT_RESOLUTION_MM&&h<=toMm+PRINT_RESOLUTION_MM;
   });
   if(slice.kind==='patch')return sampledChartRegion(extent,sliceChartStep(slice,slice.sampleStepMm??.2),point=>{
     if(point.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
-    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+1e-9&&h<=toMm+1e-9;
+    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+PRINT_RESOLUTION_MM&&h<=toMm+PRINT_RESOLUTION_MM;
   });
   if(slice.kind!=='plane')throw Error('Unknown slice chart.');
   const h0 = dot(axis, slice.origin), ha = dot(axis, slice.xAxis), hb = dot(axis, slice.yAxis);
-  if (Math.hypot(ha, hb) <= 1e-12) return h0 > fromMm + 1e-9 && h0 <= toMm + 1e-9 ? null : [];
+  if (Math.hypot(ha, hb) <= ROUNDING_RELATIVE) return h0 > fromMm + PRINT_RESOLUTION_MM && h0 <= toMm + PRINT_RESOLUTION_MM ? null : [];
   let loop = extentLoop(extent)[0];
   loop = clipHalfPlane(loop, ([a, b]) => h0 + a * ha + b * hb - fromMm);
   loop = clipHalfPlane(loop, ([a, b]) => toMm - (h0 + a * ha + b * hb));

@@ -10,7 +10,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
 import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
-import {NUMERIC_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {cross,dot} from '../geom/tolerance.mjs';
 
 import {isMainThread} from 'node:worker_threads';
@@ -50,13 +50,17 @@ async function prepare(source,options){
   try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.merge?.movedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
   if(!result){
     const nativeDirectory=await options.nativeReady?.();
-    signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
+    signal?.throwIfAborted();const native=await repairMeshNative(clean,{...options,nativeDirectory});
+    // Features the reconstruction leaves below print resolution (vertices closer than it,
+    // faces lower than it) are closed by the same cleanup as the source and reported.
+    signal?.throwIfAborted();progress({stage:'cleanup'});const closed=cleanTriangleSoup(native);
+    result={...closed,report:{...native.report,resultCleanup:{merge:closed.resolutionMerge,removed:closed.removed,stitching:closed.stitching}}};
   }
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
   const changes=shapeChanges(comparison,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});
-  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,...(clean.merge?{merge:clean.merge}:{}),removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,shells:{input:shells(comparison),output:shells(result)},...changes,
-    validation:`Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Non-intersection is certified at the numeric margin (${NUMERIC_MM} mm); reconstruction closes opposed sheets within print resolution (${PRINT_RESOLUTION_MM} mm); sampled distances do not certify shape fidelity.`};
+  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,resolutionMerge:input.merge??clean.resolutionMerge,...(clean.merge?{merge:clean.merge}:{}),removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length+(input.merge?.collapsedTriangles??0),outputTriangles:result.triangles.length,shells:{input:shells(comparison),output:shells(result)},...changes,
+    validation:`Shared mesh topology/contact checks, adjacent-contact checks and exact-output STL reimport, judged at print resolution (${PRINT_RESOLUTION_MM} mm): closer vertices merge, lower faces are degenerate, closer faces sharing no vertex touch. Reconstruction closes opposed sheets within print resolution; sampled distances do not certify shape fidelity.`};
   return {result,report,start};
 }
 async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){

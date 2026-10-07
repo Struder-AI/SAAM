@@ -19,7 +19,7 @@ test('valid input keeps exact geometry and repair cleanup is explicit',async()=>
   const box=boxMesh(),bytes=encodeRepairSTL(box),result=await repairSTL(bytes,{units:'mm'});
   assert.equal(result.report.method,'exact-cleanup/1');assert.equal(result.report.sampledDistanceMm.sourceToResult,0);assert.equal(result.report.outputTriangles,12);
   const dirty=Buffer.from(bytes.toString().replace('endsolid saam_repaired','facet normal 0 0 0\nouter loop\nvertex 0 0 0\nvertex 0 0 0\nvertex 1 1 1\nendloop\nendfacet\nendsolid saam_repaired'));
-  assert.equal((await repairSTL(dirty,{units:'mm'})).report.removed.degenerate,1);
+  assert.equal((await repairSTL(dirty,{units:'mm'})).report.resolutionMerge.collapsedTriangles,1);
   await assert.rejects(repairSTL(bytes,{}),/explicit/);
 });
 
@@ -71,7 +71,7 @@ test('native repair closes only holes within both explicit bounds',native,async(
   await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
   await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
-  assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
+  assert.equal(report.method,'cgal-solid-repair/4');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
 test('native solid repair resolves a penetrating fold and retains remote facets',native,async()=>{

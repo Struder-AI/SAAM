@@ -1,6 +1,10 @@
 // Plastic weld composes public region, slice, evaluation and injection operations.
 // The selected extension copy owns the technique; it has no release-relative imports.
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// Heights (layer grid, rivet bottom and top, stroke levels) coincide and height
+// ranges overlap to print resolution; an overlap below a print-resolution square is none.
 export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
 const positive=(v,name)=>requireThat(Number.isFinite(v)&&v>0,'plastic-weld '+name+' must be positive.');
@@ -61,14 +65,14 @@ function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
     const x=plan.placement.xMm+(component?.xMm??0)+site.xMm,y=plan.placement.yMm+(component?.yMm??0)+site.yMm;
     const bottom=shell.bounds.min[2]+site.zBottomMm,top=shell.bounds.min[2]+site.zTopMm;
     const grid=z=>(z-shell.bounds.min[2]-process.firstLayerMm)/process.layerMm;
-    for(const z of [bottom,top,bottom-settings.floorMm])requireThat(z>=shell.bounds.min[2]-1e-8&&(Math.abs(z-shell.bounds.min[2])<1e-8||Math.abs(grid(z)-Math.round(grid(z)))<1e-7),'Rivet bottom, opening and floor must align with the component layer grid.');
-    requireThat(top<=shell.bounds.max[2]+1e-8,'Rivet opening exceeds its component.');
+    for(const z of [bottom,top,bottom-settings.floorMm])requireThat(z>=shell.bounds.min[2]-PRINT_RESOLUTION_MM&&(Math.abs(z-shell.bounds.min[2])<PRINT_RESOLUTION_MM||Math.abs(grid(z)-Math.round(grid(z)))*process.layerMm<PRINT_RESOLUTION_MM),'Rivet bottom, opening and floor must align with the component layer grid.');
+    requireThat(top<=shell.bounds.max[2]+PRINT_RESOLUTION_MM,'Rivet opening exceeds its component.');
     const radiusAt=z=>settings.shaftDiameterMm/2+(settings.basinDiameterMm-settings.shaftDiameterMm)/2*Math.max(0,1-(z-bottom)/settings.basinHeightMm);
     // The maximum radius over each bead's height preserves a printable stepped
     // cavity. Meter its actual polygonal volume, not an ideal cone's volume.
-    const regionAt=z=>z>bottom+1e-8&&z<=top+1e-8?circle(x,y,radiusAt(z-process.layerMm)):[];
+    const regionAt=z=>z>bottom+PRINT_RESOLUTION_MM&&z<=top+PRINT_RESOLUTION_MM?circle(x,y,radiusAt(z-process.layerMm)):[];
     const footprint=circle(x,y,settings.basinDiameterMm/2);
-    const solidRegionAt=z=>z>bottom-settings.floorMm+1e-8&&z<=top+1e-8?
+    const solidRegionAt=z=>z>bottom-settings.floorMm+PRINT_RESOLUTION_MM&&z<=top+PRINT_RESOLUTION_MM?
       difference(circle(x,y,settings.basinDiameterMm/2+settings.wallMm),regionAt(z)):[];
     const completion={z:top,region:regionAt(top),operationId:'plastic-weld:'+site.id};
     // Slice owners of the part yield the cavity and fill the envelope solid.
@@ -77,7 +81,7 @@ function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
   });
   for(let i=0;i<sites.length;i++)for(let j=0;j<i;j++){
     const a=sites[i],b=sites[j];
-    if(Math.min(a.top,b.top)>Math.max(a.bottom-settings.floorMm,b.bottom-settings.floorMm)+1e-8)
+    if(Math.min(a.top,b.top)>Math.max(a.bottom-settings.floorMm,b.bottom-settings.floorMm)+PRINT_RESOLUTION_MM)
       requireThat(Math.hypot(a.x-b.x,a.y-b.y)>=settings.basinDiameterMm+2*settings.wallMm,
         'Overlapping rivet envelopes: stagger sites farther apart or separate their height ranges.');
   }
@@ -89,8 +93,8 @@ function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
 function rivetEnclosureLayers(site,process){
   const {settings:s,shell,x,y,bottom,top}=site;
   return sliceFamily({base:horizontalSlice(shell.bounds.min[2]),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},
-    {min:shell.bounds.min,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(layer=>layer.slice.origin[2]).filter(z=>z>bottom-s.floorMm+1e-8).map(z=>{
-      const cavity=site.regionAt(z),outer=circle(x,y,(z<=bottom+1e-8?s.basinDiameterMm/2:site.radiusAt(z-process.layerMm))+s.wallMm);
+    {min:shell.bounds.min,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(layer=>layer.slice.origin[2]).filter(z=>z>bottom-s.floorMm+PRINT_RESOLUTION_MM).map(z=>{
+      const cavity=site.regionAt(z),outer=circle(x,y,(z<=bottom+PRINT_RESOLUTION_MM?s.basinDiameterMm/2:site.radiusAt(z-process.layerMm))+s.wallMm);
       return {z,cavity,required:cavity.length?difference(outer,cavity):outer};
     });
 }
@@ -137,10 +141,11 @@ function validateRivetClearance({plan,sites,modelResults}){
       const points=stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points;
       for(let i=1;i<points.length;i++){
         const a=points[i-1],b=points[i],lo=Math.min(a[2],b[2]),hi=Math.max(a[2],b[2]);
-        if(hi<=bottom+1e-8||lo>top+1e-8)continue;
+        if(hi<=bottom+PRINT_RESOLUTION_MM||lo>top+PRINT_RESOLUTION_MM)continue;
         // Planar owners already reserved the precise cavity. Curved paths are
         // bounded conservatively by the basin cylinder including bead width.
-        if(op.region&&Math.abs(a[2]-b[2])<1e-8){
+        if(op.region&&Math.abs(a[2]-b[2])<PRINT_RESOLUTION_MM){
+          // Process scale: 0.025 mm slack for the owner's offset beads against the 96-gon cavity.
           const width=stroke.beadWidthMm??plan.process.lineWidthMm;
           requireThat(pointSegmentDistance([x,y],a,b)>=site.radiusAt(a[2]-(site.process??plan.process).layerMm)+width/2-0.025,
             `Operation ${op.id} deposits inside rivet ${site.id}; separate overlapping material owners.`);
@@ -174,7 +179,7 @@ function weldDependencies(node,nodes){
       const enclosure=rivetEnclosureLayers(node.context.site,node.context.site.process);
       if(layers.some(layer=>{
         const points=layer.region.map(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point)),flat=points.flat();
-        return flat.length&&enclosure.some(({z,required})=>z>=Math.min(...flat.map(p=>p[2]))-1e-8&&z<=Math.max(...flat.map(p=>p[2]))+1e-8&&Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),required)))>1e-8);
+        return flat.length&&enclosure.some(({z,required})=>z>=Math.min(...flat.map(p=>p[2]))-PRINT_RESOLUTION_MM&&z<=Math.max(...flat.map(p=>p[2]))+PRINT_RESOLUTION_MM&&Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),required)))>PRINT_RESOLUTION_MM**2);
       }))needs.add(other.key);
     }
 
@@ -183,7 +188,7 @@ function weldDependencies(node,nodes){
 }
 
 function weldOperationDependencies(sites,operation){
-  return sites.filter(site=>operation.id!==site.reservation.completion.operationId&&operation.strokes.some(stroke=>stroke.points.some(p=>p[2]>site.top+1e-8)))
+  return sites.filter(site=>operation.id!==site.reservation.completion.operationId&&operation.strokes.some(stroke=>stroke.points.some(p=>p[2]>site.top+PRINT_RESOLUTION_MM)))
     .map(site=>site.reservation.completion.operationId);
 }
 

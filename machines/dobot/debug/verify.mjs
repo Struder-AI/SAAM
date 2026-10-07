@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {requireThat,distance,config,transform,inverse,inside,equal,motionProfile,WAIT_COMMAND_MS,DOBOT_LIMITATIONS} from '../dobot.mjs';
+import {requireThat,distance,num,config,transform,inverse,inside,equal,motionProfile,WAIT_COMMAND_MS,DOBOT_LIMITATIONS} from '../dobot.mjs';
 // Debug-only machine verification (machine-verify): executes the written Lua in
 // a bounded subset runtime. Generation, reopen, Studio and delivery never load
 // it; scripts/machine-verify.mjs runs it. Delete it after a physical trial.
@@ -41,13 +41,15 @@ function interpretDobotFiles(files,plan,machine,moves=[]) {
       const point=args[0],coordinates=point.get('coordinate'),options=args[1];
       need([...point.map.keys()].sort().join()==='coordinate,tool,user'&&point.get('tool')===c.toolFrame&&point.get('user')===c.userFrame,'Unexpected point fields or tool/user frame.',site);
       need(coordinates instanceof LuaTable&&coordinates.map.size===4&&coordinates.toArray().length===4,'MovL requires exactly XYZ and fixed R.',site);
-      const values=coordinates.toArray();need(values.every(Number.isFinite)&&Math.abs(values[3]-c.rDeg)<1e-8,'Unsupported orientation or nonfinite point.',site);
+      // R and AccL are written literally as num(setting) and parse back exactly.
+      const values=coordinates.toArray();need(values.every(Number.isFinite)&&values[3]===num(c.rDeg),'Unsupported orientation or nonfinite point.',site);
       need([...options.map.keys()].sort().join()==='AccL,CP,SpeedL'&&options.get('CP')===0,'Only explicit SpeedL/AccL and unblended CP=0 are supported.',site);
       const speedPercent=options.get('SpeedL'),accelPercent=options.get('AccL');
-      need(Number.isFinite(speedPercent)&&speedPercent>0&&speedPercent<=100&&Math.abs(accelPercent-c.accelerationPercent)<1e-8,'Invalid speed or changed acceleration.',site);
+      need(Number.isFinite(speedPercent)&&speedPercent>0&&speedPercent<=100&&accelPercent===num(c.accelerationPercent),'Invalid speed or changed acceleration.',site);
       need(relay!==null,'Unknown initial relay state.',site);
       const to=values.slice(0,3);inside(to,c);
-      const length=distance(controllerPosition,to);need(length>1e-9,'Zero-length MovL is unsupported.',site);
+      // Points come from written numbers by the same arithmetic, so a repeated point is exactly zero apart.
+      const length=distance(controllerPosition,to);need(length>0,'Zero-length MovL is unsupported.',site);
       const speed=speedPercent/100*c.maxLinearSpeedMmS,acceleration=accelPercent/100*c.maxLinearAccelMmS2;
       const timing=motionProfile(length,speed,acceleration);
       const match=/-- SAAM (\{.*\})\s*$/.exec(sourceLines[site.file]?.[site.line-1]??'');

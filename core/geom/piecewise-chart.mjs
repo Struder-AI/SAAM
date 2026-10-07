@@ -1,20 +1,29 @@
-import {distance,dot,cross,normalize,requireThat} from './tolerance.mjs';
+import {distance,dot,cross,normalize,requireThat,TOLERANCE} from './tolerance.mjs';
 import {tessellateShell} from './tessellate.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {DIRECTION_TOLERANCE} from './frame.mjs';
 
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
 const add=(a,b,s=1)=>a.map((x,k)=>x+s*b[k]);
 const cross2=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const dot2=(a,b)=>a[0]*b[0]+a[1]*b[1];
+const norm2=a=>Math.hypot(a[0],a[1]);
+// Same point / on an edge in chart coordinates: a roof chart is XY mm (print
+// resolution); a sleeve chart is perimeter fraction by layer index, unit domains whose
+// share worth print resolution is the domain fraction.
+const uvTolerance=chart=>chart.periodic?TOLERANCE.domainFraction:PRINT_RESOLUTION_MM;
+// Sign of a 2D cross product of two chart vectors, up to relative rounding.
+const crossSlack=(a,b)=>ROUNDING_RELATIVE*norm2(a)*norm2(b);
 
 // A local, indexed chart atlas for the two piecewise references SAAM authors:
 // contour sleeves and a mesh roof's visible facets. It preserves seams, creases
 // and missing facets; it does not recognize or parameterize arbitrary meshes.
-export function piecewiseChart(surface,{toleranceMm=.01,normalMm=0}={}){
+export function piecewiseChart(surface,{toleranceMm=.01/* process scale default: atlas chord tolerance */,normalMm=0}={}){
   const triangles=[];
   if(surface.kind==='sleeve-chart'){
     const rings=surface.layers.map(layer=>{
       requireThat(layer.curves.length===1&&layer.curves[0].closed,'Sleeve chart requires one closed boundary per layer.');
-      const raw=layer.curves[0].points,points=distance(raw[0],raw.at(-1))<1e-10?raw.slice(0,-1):raw;
+      const raw=layer.curves[0].points,points=distance(raw[0],raw.at(-1))<PRINT_RESOLUTION_MM?raw.slice(0,-1):raw;
       const lengths=[0];for(let i=0;i<points.length;i++)lengths.push(lengths.at(-1)+distance(points[i],points[(i+1)%points.length]));
       return {points,cuts:lengths.map(l=>l/lengths.at(-1))};
     });
@@ -54,7 +63,7 @@ export function piecewiseChart(surface,{toleranceMm=.01,normalMm=0}={}){
 function roofChartTriangles(mesh,slice){
   const facets=mesh.triangles.map(indices=>{
     const points=indices.map(i=>mesh.vertices[i]),raw=cross(sub(points[1],points[0]),sub(points[2],points[0]));
-    if(raw[2]<=1e-12)return null;
+    if(raw[2]<=ROUNDING_MM**2)return null;
     const normal=normalize(raw),polygon=points.map(p=>p.slice(0,2)),origin=points[0];
     return {normal,polygon,min:[0,1].map(k=>Math.min(...polygon.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...polygon.map(p=>p[k]))),height:p=>origin[2]-(normal[0]*(p[0]-origin[0])+normal[1]*(p[1]-origin[1]))/normal[2]};
   }).filter(Boolean);
@@ -73,10 +82,10 @@ function roofChartTriangles(mesh,slice){
     for(const [otherIndex,other] of facets.entries()){
       if(otherIndex===index||[0,1].some(k=>other.max[k]<=facet.min[k]||other.min[k]>=facet.max[k]))continue;
       const differences=facet.polygon.map(p=>other.height(p)-facet.height(p));
-      const coplanar=differences.every(d=>Math.abs(d)<1e-9);
-      if(Math.max(...differences)<-1e-9||coplanar&&otherIndex>index)continue;
+      const coplanar=differences.every(d=>Math.abs(d)<PRINT_RESOLUTION_MM);
+      if(Math.max(...differences)<-PRINT_RESOLUTION_MM||coplanar&&otherIndex>index)continue;
       const fields=other.polygon.map((a,i)=>{const edge=sub(other.polygon[(i+1)%3],a);return p=>cross2(edge,sub(p,a));});
-      if(!coplanar)fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?1e-12:-1e-12));
+      if(!coplanar)fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?ROUNDING_MM:-ROUNDING_MM));
       const retained=[];
       for(const piece of pieces){let remainder=piece;for(const field of fields){if(remainder.length<3)break;const {inside,outside}=split(remainder,field);if(outside.length>=3)retained.push(outside);remainder=inside;}}
       pieces=retained;if(!pieces.length)break;
@@ -87,15 +96,16 @@ function roofChartTriangles(mesh,slice){
   for(const {facet,polygon} of regions){
     const boundary=[];
     for(let i=0;i<polygon.length;i++){
-      const a=polygon[i],b=polygon[(i+1)%polygon.length],edge=sub(b,a),length2=dot2(edge,edge);if(length2<1e-20)continue;
+      const a=polygon[i],b=polygon[(i+1)%polygon.length],edge=sub(b,a),length2=dot2(edge,edge);if(length2<ROUNDING_MM**2)continue;
+      const length=Math.sqrt(length2),end=PRINT_RESOLUTION_MM/length;
       const cuts=[{t:0,point:a}];
-      for(const p of vertices){const v=sub(p,a),t=dot2(v,edge)/length2;if(t>1e-9&&t<1-1e-9&&Math.abs(cross2(edge,v))<=1e-9*Math.sqrt(length2))cuts.push({t,point:p});}
-      for(const {point} of cuts.sort((a,b)=>a.t-b.t))if(!boundary.length||distance(point,boundary.at(-1))>1e-9)boundary.push(point);
+      for(const p of vertices){const v=sub(p,a),t=dot2(v,edge)/length2;if(t>end&&t<1-end&&Math.abs(cross2(edge,v))<=PRINT_RESOLUTION_MM*length)cuts.push({t,point:p});}
+      for(const {point} of cuts.sort((a,b)=>a.t-b.t))if(!boundary.length||distance(point,boundary.at(-1))>PRINT_RESOLUTION_MM)boundary.push(point);
     }
     if(boundary.length<3)continue;
     const center=boundary.reduce((s,p)=>add(s,p,1/boundary.length),[0,0]);
     const vertex=uv=>({uv,point:[...uv,facet.height(uv)+slice.offsetMm-(slice.normalDepthMm??0)/facet.normal[2]]});
-    for(let i=0;i<boundary.length;i++)if(Math.abs(cross2(sub(boundary[i],center),sub(boundary[(i+1)%boundary.length],center)))>1e-15)triangles.push([vertex(center),vertex(boundary[i]),vertex(boundary[(i+1)%boundary.length])]);
+    for(let i=0;i<boundary.length;i++)if(Math.abs(cross2(sub(boundary[i],center),sub(boundary[(i+1)%boundary.length],center)))>ROUNDING_MM**2)triangles.push([vertex(center),vertex(boundary[i]),vertex(boundary[(i+1)%boundary.length])]);
   }
   return triangles;
 }
@@ -129,7 +139,7 @@ function roundedChart(base,{normalMm,toleranceMm}){
     const center=face.vertices.reduce((s,v)=>add(s,v.uv,1/3),[0,0]);
     return face.vertices.map(vertex=>{
       const key=vertexKey(vertex);if(!vertices.has(key))vertices.set(key,{uv:canonical(vertex.uv),point:vertex.point,groups:[]});
-      const shared=vertices.get(key);let group=shared.groups.find(g=>distance(g.normal,face.normal)<1e-9);
+      const shared=vertices.get(key);let group=shared.groups.find(g=>distance(g.normal,face.normal)<DIRECTION_TOLERANCE);
       if(!group){group={vertex:shared,normal:face.normal,directions:[]};shared.groups.push(group);groups.push(group);}
       group.directions.push(sub(center,vertex.uv));return group;
     });
@@ -147,8 +157,8 @@ function roundedChart(base,{normalMm,toleranceMm}){
   const edges=[];
   for(const [i,face] of base.faces.entries())for(let edge=0;edge<3;edge++){
     const next=face.neighbors[edge];if(!next||next.face<=i)continue;
-    const other=base.faces[next.face];if(distance(face.normal,other.normal)<1e-9)continue;
-    requireThat(dot(face.normal,other.normal)>-1+1e-10,'Rounded offset has reversing incident faces at a crease.');
+    const other=base.faces[next.face];if(distance(face.normal,other.normal)<DIRECTION_TOLERANCE)continue;
+    requireThat(dot(face.normal,other.normal)>-1+ROUNDING_RELATIVE,'Rounded offset has reversing incident faces at a crease.');
     edges.push({i,edge,next});
   }
   let count=1;
@@ -181,9 +191,9 @@ function roundedChart(base,{normalMm,toleranceMm}){
 }
 
 function candidates(chart,uv){
-  const shift=chart.periodic?Math.floor(uv[0]):0,found=[],shifts=chart.periodic?[shift,shift-1,shift+1]:[shift];
+  const shift=chart.periodic?Math.floor(uv[0]):0,tolerance=uvTolerance(chart),found=[],shifts=chart.periodic?[shift,shift-1,shift+1]:[shift];
   for(const shift of shifts){const p=[uv[0]-shift,uv[1]];for(const [index,face] of chart.faces.entries()){
-    const inside=face.vertices.every(({uv:a},i)=>cross2(sub(face.vertices[(i+1)%3].uv,a),sub(p,a))>=-1e-10);
+    const inside=face.vertices.every(({uv:a},i)=>{const edge=sub(face.vertices[(i+1)%3].uv,a);return cross2(edge,sub(p,a))>=-tolerance*norm2(edge);});
     if(inside)found.push({face,index,p,shift});
   }}
   requireThat(found.length,`Piecewise chart has no surface at (${uv.join(', ')}).`);
@@ -197,9 +207,9 @@ function candidates(chart,uv){
 }
 
 export function piecewiseChartFrame(chart,uv,hint=null){
-  const found=candidates(chart,uv),selected=hint?found.find(({face,p,shift})=>{
+  const found=candidates(chart,uv),tolerance=uvTolerance(chart),selected=hint?found.find(({face,p,shift})=>{
     const d=[hint[0]-uv[0],hint[1]-uv[1]];
-    return face.vertices.every(({uv:a},i)=>{const edge=sub(face.vertices[(i+1)%3].uv,a);return cross2(edge,sub(p,a))>1e-10||cross2(edge,d)>=-1e-12;});
+    return face.vertices.every(({uv:a},i)=>{const edge=sub(face.vertices[(i+1)%3].uv,a);return cross2(edge,sub(p,a))>tolerance*norm2(edge)||cross2(edge,d)>=-crossSlack(edge,d);});
   })??found[0]:found[0];
   const {face,p}=selected,a=face.vertices[0],point=add(add(a.point,face.du,p[0]-a.uv[0]),face.dv,p[1]-a.uv[1]);
   const [b,c]=face.vertices.slice(1),ab=sub(b.uv,a.uv),ac=sub(c.uv,a.uv),ap=sub(p,a.uv),det=cross2(ab,ac),x=cross2(ap,ac)/det,y=cross2(ab,ap)/det;
@@ -209,14 +219,14 @@ export function piecewiseChartFrame(chart,uv,hint=null){
 
 export function mapPiecewiseChartPath(chart,path){
   if(!chart.base)return path;
-  const split=splitPiecewiseChartPath(chart.base,path),points=[],parameters=[];
+  const split=splitPiecewiseChartPath(chart.base,path),tolerance=uvTolerance(chart.base),points=[],parameters=[];
   for(let i=1;i<split.points.length;i++){
     const a=split.points[i-1],b=split.points[i],frame=piecewiseChartFrame(chart.base,a,add(a,sub(b,a),.5));
     const original=chart.base.faces[frame.index].vertices,offset=chart.faceVertices[frame.index];
     for(const [p,t] of [[a,split.parameters[i-1]],[b,split.parameters[i]]]){
       const uv=[p[0]-frame.shift,p[1]],ab=sub(original[1].uv,original[0].uv),ac=sub(original[2].uv,original[0].uv),ap=sub(uv,original[0].uv),det=cross2(ab,ac),x=cross2(ap,ac)/det,y=cross2(ab,ap)/det;
       const mapped=add(add(offset[0].uv,sub(offset[1].uv,offset[0].uv),x),sub(offset[2].uv,offset[0].uv),y);mapped[0]+=frame.shift;
-      if(!points.length||distance(mapped,points.at(-1))>1e-12){points.push(mapped);parameters.push(t);}
+      if(!points.length||distance(mapped,points.at(-1))>tolerance){points.push(mapped);parameters.push(t);}
     }
   }
   return {points,parameters,closed:false};
@@ -228,24 +238,25 @@ export function mapPiecewiseChartPath(chart,path){
 export function piecewiseChartRay(chart,uv,direction,lengthMm,hint=null){
   let frame=piecewiseChartFrame(chart,uv,hint),index=frame.index,shift=frame.shift,p=[uv[0]-shift,uv[1]];
   let velocity=normalize(sub(direction,frame.normal.map(n=>n*dot(direction,frame.normal)))),remaining=lengthMm;
-  const ray=[[...uv]],visited=new Set();
-  while(remaining>1e-12){
+  const ray=[[...uv]],visited=new Set(),tolerance=uvTolerance(chart);
+  // The walk ends once less than a program step of the requested length remains.
+  while(remaining>PROGRAM_STEP_MM){
     const face=chart.faces[index],d=face.uvOf(velocity);let travel=remaining,edgeIndex=-1;
     for(let edge=0;edge<3;edge++){
       const a=face.vertices[edge].uv,b=face.vertices[(edge+1)%3].uv,e=sub(b,a),den=cross2(e,d);
-      if(den>=-1e-12)continue;
+      if(den>=-crossSlack(e,d))continue;
       const t=-cross2(e,sub(p,a))/den;
-      if(t>=-1e-9&&t<travel){travel=Math.max(0,t);edgeIndex=edge;}
+      if(t>=-ROUNDING_MM&&t<travel){travel=Math.max(0,t);edgeIndex=edge;}
     }
     p=add(p,d,travel);remaining-=travel;
-    const next=[p[0]+shift,p[1]];if(distance(next,ray.at(-1))>1e-12)ray.push(next);
-    if(edgeIndex<0||remaining<=1e-12)break;
+    const next=[p[0]+shift,p[1]];if(distance(next,ray.at(-1))>tolerance)ray.push(next);
+    if(edgeIndex<0||remaining<=PROGRAM_STEP_MM)break;
     const adjacent=face.neighbors[edgeIndex];
     if(!adjacent)break; // True chart edge or hole, never a synthetic bridge.
     const other=chart.faces[adjacent.face],a=face.vertices[edgeIndex],b=face.vertices[(edgeIndex+1)%3],axis=normalize(sub(b.point,a.point));
     const parallel=dot(velocity,axis),across=Math.sqrt(Math.max(0,1-parallel*parallel));
     const oa=other.vertices[adjacent.edge],ob=other.vertices[(adjacent.edge+1)%3],interior=normalize(cross(other.normal,sub(ob.point,oa.point)));
-    if(dot(face.normal,other.normal)<1-1e-12)velocity=add(axis.map(v=>v*parallel),interior,across);
+    if(distance(face.normal,other.normal)>=DIRECTION_TOLERANCE)velocity=add(axis.map(v=>v*parallel),interior,across);
     const delta=a.uv[0]-ob.uv[0];
     if(chart.periodic&&Math.abs(delta)>.5){p[0]-=delta;shift+=delta;}
     const key=`${index}:${edgeIndex}:${remaining}`;
@@ -256,16 +267,16 @@ export function piecewiseChartRay(chart,uv,direction,lengthMm,hint=null){
 }
 
 export function splitPiecewiseChartPath(chart,path){
-  const points=path.closed?[...path.points,path.points[0]]:path.points,result=[points[0]],parameters=[path.parameters?.[0]??0];
+  const tolerance=uvTolerance(chart),points=path.closed?[...path.points,path.points[0]]:path.points,result=[points[0]],parameters=[path.parameters?.[0]??0];
   for(let i=1;i<points.length;i++){
     const a=points[i-1],b=points[i],d=sub(b,a),cuts=[1],low=chart.periodic?Math.floor(Math.min(a[0],b[0]))-1:0,high=chart.periodic?Math.floor(Math.max(a[0],b[0]))+1:0;
     for(let shift=low;shift<=high;shift++)for(const face of chart.faces)for(let edge=0;edge<3;edge++){
       const p=add(face.vertices[edge].uv,[shift,0]),q=add(face.vertices[(edge+1)%3].uv,[shift,0]),e=sub(q,p),den=cross2(d,e);
-      if(Math.abs(den)<1e-14)continue;
-      const t=cross2(sub(p,a),e)/den,s=cross2(sub(p,a),d)/den;
-      if(t>1e-10&&t<1-1e-10&&s>=-1e-10&&s<=1+1e-10)cuts.push(t);
+      if(Math.abs(den)<crossSlack(d,e))continue;
+      const t=cross2(sub(p,a),e)/den,s=cross2(sub(p,a),d)/den,ta=tolerance/norm2(d),se=tolerance/norm2(e);
+      if(t>ta&&t<1-ta&&s>=-se&&s<=1+se)cuts.push(t);
     }
-    for(const t of [...new Set(cuts)].sort((a,b)=>a-b)){const p=add(a,d,t);if(distance(p,result.at(-1))>1e-10){result.push(p);const ta=path.parameters?.[i-1]??(i-1)/(points.length-1),tb=path.parameters?.[i]??i/(points.length-1);parameters.push(ta+(tb-ta)*t);}}
+    for(const t of [...new Set(cuts)].sort((a,b)=>a-b)){const p=add(a,d,t);if(distance(p,result.at(-1))>tolerance){result.push(p);const ta=path.parameters?.[i-1]??(i-1)/(points.length-1),tb=path.parameters?.[i]??i/(points.length-1);parameters.push(ta+(tb-ta)*t);}}
   }
   return {...path,closed:false,points:result,parameters};
 }

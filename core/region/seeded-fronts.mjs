@@ -7,7 +7,7 @@ import {surfaceDerivatives} from '../geom/surface-derivatives.mjs';
 import {patchSlice,sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 import {beadContactAlong} from '../path/deposited-curves.mjs';
-import {offsetSurfaceRegion} from './surface-offset.mjs';
+import {offsetSurfaceRegion,UV_ROUNDING,UV_GRID} from './surface-offset.mjs'; // uv rounding and boolean grid
 import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
@@ -37,8 +37,8 @@ export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationSt
 // a hole. Surface refinement measures its actual curved length.
 export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
   const budget={evaluations:0,points:0},passes=[];
-  const epsilon=1e-9,limit=Math.max(settings.lineSpacingMm,lineWidthMm)+settings.toleranceMm;
-  const options={precisionMm:1e-10,origin:[patch.domainU[0],patch.domainV[0]]};
+  const epsilon=UV_ROUNDING,limit=Math.max(settings.lineSpacingMm,lineWidthMm)+settings.toleranceMm;
+  const options={precisionMm:UV_GRID,origin:[patch.domainU[0],patch.domainV[0]]};
   const inside=(a,b)=>{
     if(distance(a,b)<=epsilon)return true;
     if(domain.some(loop=>loop.some((p,i)=>[a,b].every(q=>pointSegmentDistance(q,p,loop[(i+1)%loop.length])<=epsilon))))return true;
@@ -126,8 +126,8 @@ function frontPaths(covered,seed,domain,epsilon){
 function sliverWidth(path,domain){
   // Only closed residual contours or a cap returning to the SAME domain edge
   // can be a collapsed band artefact. An ordinary straight front is retained.
-  const uv=path.uv,closed=distance(uv[0],uv.at(-1))<1e-9;
-  const cap=domain.some(loop=>loop.some((a,i)=>[uv[0],uv.at(-1)].every(p=>pointSegmentDistance(p,a,loop[(i+1)%loop.length])<1e-9)));
+  const uv=path.uv,closed=distance(uv[0],uv.at(-1))<UV_ROUNDING;
+  const cap=domain.some(loop=>loop.some((a,i)=>[uv[0],uv.at(-1)].every(p=>pointSegmentDistance(p,a,loop[(i+1)%loop.length])<UV_ROUNDING)));
   if(!closed&&!cap)return Infinity;
   const points=path.points;
   const furthest=a=>points.reduce((best,p)=>distance(a,p)>distance(a,best)?p:best,points[0]);
@@ -140,7 +140,7 @@ function sliverWidth(path,domain){
 }
 
 export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
-  const precisionUv=1e-10,options={precisionMm:precisionUv,origin:[patch.domainU[0],patch.domainV[0]]};
+  const precisionUv=UV_GRID,options={precisionMm:precisionUv,origin:[patch.domainU[0],patch.domainV[0]]};
   requireThat(domainUv.flat().every(p=>p.every((x,k)=>x>=[patch.domainU,patch.domainV][k][0]&&x<=[patch.domainU,patch.domainV][k][1])),
     'Wave slice domain exceeds its native spline chart.');
   const domain=union(domainUv,[],options),seed=intersect(seedUv,domain,options);
@@ -154,7 +154,8 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
     // Integer intersection rounding can leave long, microscopic strips along
     // a curved rim. Accept only a residual wholly covered by a tiny expansion
     // of the reached region, and retain it as unresolved geometry in the report.
-    // The area test only avoids this extra work during ordinary wave growth.
+    // The area test only avoids this extra work during ordinary wave growth; its
+    // thousandth of the domain is a work-skipping fraction, not a tolerance.
     if(!remaining.length||regionArea(remaining)>regionArea(domain)*1e-3)return false;
     let stretch=0,maxDiameter=0;
     for(const loop of [...covered,...remaining]){

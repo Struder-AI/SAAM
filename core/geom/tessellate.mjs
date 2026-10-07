@@ -3,6 +3,7 @@ import {curvePoint} from './surface-curves.mjs';
 import {evaluate} from './nurbs.mjs';
 import {makeMesh} from './mesh.mjs';
 import {requireThat,distance} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 
 function closest(curve,p){
   let best=0,score=Infinity;
@@ -41,11 +42,11 @@ function sampleSharedBoundaries(edges,count){
     curves.set(edge,{points,parameters:points.map((_,i)=>i/count)});paired.add(edge);
     if(edge.degenerate)continue;
     const partner=edges.find(other=>other!==edge&&!paired.has(other)&&!other.degenerate&&
-      [0,0.25,0.5,0.75,1].every(t=>distance(curvePoint(other.curve,closest(other.curve,curvePoint(edge.curve,t))),curvePoint(edge.curve,t))<1e-5));
+      [0,0.25,0.5,0.75,1].every(t=>distance(curvePoint(other.curve,closest(other.curve,curvePoint(edge.curve,t))),curvePoint(edge.curve,t))<PRINT_RESOLUTION_MM));
     requireThat(partner,'Could not match spline boundaries for text tessellation.');
     // Both ends of a closed curve are one point, so a point just past the start
     // decides whether the partner runs the same way.
-    const closed=distance(curvePoint(partner.curve,0),curvePoint(partner.curve,1))<1e-7;
+    const closed=distance(curvePoint(partner.curve,0),curvePoint(partner.curve,1))<PRINT_RESOLUTION_MM;
     const forward=closed?closest(partner.curve,curvePoint(edge.curve,0.1))<0.5:distance(points[0],curvePoint(partner.curve,0))<distance(points.at(-1),curvePoint(partner.curve,0));
     const ordered=forward?points:[...points].reverse(),parameters=ordered.map(p=>closest(partner.curve,p));
     if(closed){parameters[0]=0;parameters[count]=1;}
@@ -57,7 +58,8 @@ function sampleSharedBoundaries(edges,count){
 function sampleTessellationCandidate(patches,edges,boundarySamples,count){
   const vertices=[],triangles=[],index=new Map();let error=0;
   const vertex=p=>{
-    const key=p.map(v=>Math.round(v/1e-7)).join(',');
+    // Welds one point computed twice (shared boundary samples): a rounding grid.
+    const key=p.map(v=>Math.round(v/ROUNDING_MM)).join(',');
     if(!index.has(key)){index.set(key,vertices.length);vertices.push(p);}
     return index.get(key);
   };

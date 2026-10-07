@@ -2,11 +2,16 @@
 // Geometry and Toolpath operations are supplied by the host; this package does
 // not import engine implementation or depend on an installed SAAM checkout.
 const check=(condition,message)=>{if(!condition)throw Error(message);};
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
+const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
+// Cavity radii, layer heights and probe offsets are judged at print resolution.
 const finite=v=>Number.isFinite(v);
 const area=loop=>loop.reduce((sum,[x,y],i)=>{const [u,v]=loop[(i+1)%loop.length];return sum+x*v-u*y;},0)/2;
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 const circle=(x,y,r)=>{
-  const count=Math.max(48,Math.ceil(2*Math.PI*r/.25));
+  const count=Math.max(48,Math.ceil(2*Math.PI*r/.25));// process scale: 0.25 mm chords
   return Array.from({length:count},(_,i)=>{
     const angle=i*2*Math.PI/count;
     return [x+r*Math.cos(angle),y+r*Math.sin(angle)];
@@ -21,7 +26,7 @@ function roundHole(loop,toleranceMm){
     const [x,y]=loop[i],[u,v]=loop[(i+1)%loop.length],cross=x*v-u*y;
     crossSum+=cross;xSum+=(x+u)*cross;ySum+=(y+v)*cross;
   }
-  if(Math.abs(crossSum)<1e-8)return null;
+  if(Math.abs(crossSum)<ROUNDING_MM**2)return null;// rounding: twice an area, guards the centroid division
   const center=[xSum/(3*crossSum),ySum/(3*crossSum)];
   const radii=loop.map(point=>distance(point,center)),radius=radii.reduce((a,b)=>a+b,0)/radii.length;
   const deviation=loop.reduce((max,point,i)=>{
@@ -32,6 +37,7 @@ function roundHole(loop,toleranceMm){
   return {centerMm:center,radiusMm:radius};
 }
 
+// toleranceMm is process scale: the deviation a tessellated CAD circle may show.
 export function findBedCounterbores(shell,createSectionQuery,{layerMm,lineWidthMm,toleranceMm=.08}={}){
   check(typeof createSectionQuery==='function','Hole detection needs Geometry.createSectionQuery.');
   check(finite(layerMm)&&layerMm>0&&finite(lineWidthMm)&&lineWidthMm>0,'Hole detection needs positive layer and bead widths.');
@@ -48,7 +54,7 @@ export function findBedCounterbores(shell,createSectionQuery,{layerMm,lineWidthM
   const tracks=holesAt(firstZ).map(lower=>({lower,previous:lower,last:firstZ,done:false}));
   const candidates=[];
   // The large bore must open at the bed. Match a smaller circular bore above it.
-  for(let i=1;step*(i+.5)<height-step*.25+1e-8&&tracks.some(track=>!track.done);i++){
+  for(let i=1;step*(i+.5)<height-step*.25+ROUNDING_MM&&tracks.some(track=>!track.done);i++){
     const z=step*(i+.5),holes=holesAt(z);
     for(const track of tracks){
       if(track.done)continue;
@@ -108,7 +114,7 @@ function materialAt(loops,[x,y]){
 function cavityAt(sectionAt,z,candidate,toleranceMm){
   const cut=sectionAt(z),hole=cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
     .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
-  check(hole&&hole.radiusMm+1e-4>=candidate.lowerRadiusMm-toleranceMm,
+  check(hole&&hole.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm,
     `The counterbore cavity narrows near Z ${z.toFixed(3)} mm; this support course would collide with the model.`);
   check(!cut.loops.some(loop=>area(loop)>0&&loop.every(point=>distance(point,hole.centerMm)<hole.radiusMm-toleranceMm)),
     `Material lies inside the counterbore cavity near Z ${z.toFixed(3)} mm.`);
@@ -118,10 +124,10 @@ function cavityAt(sectionAt,z,candidate,toleranceMm){
 function lastOpenCourse(candidate,process,sectionAt,toleranceMm){
   const {firstLayerMm,layerMm}=process;
   check([firstLayerMm,layerMm].every(v=>finite(v)&&v>0),'Hole supports need planar firstLayerMm and layerMm.');
-  for(let n=Math.floor((candidate.shoulderZMm-firstLayerMm+1e-8)/layerMm);n>=0;n--){
+  for(let n=Math.floor((candidate.shoulderZMm-firstLayerMm+PRINT_RESOLUTION_MM)/layerMm);n>=0;n--){
     const z=firstLayerMm+n*layerMm,cut=sectionAt(z),hole=cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
       .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
-    if(hole&&hole.radiusMm+1e-4>=candidate.lowerRadiusMm-toleranceMm)return z;
+    if(hole&&hole.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm)return z;
   }
   throw Error('No complete planar course lies inside the lower counterbore cavity.');
 }
@@ -166,7 +172,7 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
   const topIndex=Math.round((top-process.firstLayerMm)/process.layerMm);
   const atStage=stage=>process.firstLayerMm+(topIndex-2+stage)*process.layerMm;
   const z=atStage(0);
-  check(z>=process.firstLayerMm-1e-8,'A three-stage tangent bridge needs three complete lower-cavity layers.');
+  check(z>=process.firstLayerMm-PRINT_RESOLUTION_MM,'A three-stage tangent bridge needs three complete lower-cavity layers.');
   const curves=[];
   for(let stage=0;stage<2;stage++){
     const atZ=atStage(stage),{hole,loops}=cavityAt(sectionAt,atZ,candidate,toleranceMm);
@@ -197,16 +203,16 @@ function sleeve(candidate,request,process,id,shell,createSectionQuery,toleranceM
   check(finite(xyGapMm)&&xyGapMm>=0&&finite(topGapMm)&&topGapMm>=0,'Sleeve gaps must be nonnegative.');
   const outer=candidate.lowerRadiusMm-xyGapMm,inner=request.sleeveInnerRadiusMm??Math.max(w,candidate.upperRadiusMm-w);
   check(finite(inner)&&inner>=w&&outer-inner>=2*w,'The removable sleeve needs at least two beads of wall between its bore and cleared outer edge.');
-  const top=candidate.shoulderZMm-topGapMm,count=Math.floor((top-process.firstLayerMm+1e-8)/process.layerMm)+1;
+  const top=candidate.shoulderZMm-topGapMm,count=Math.floor((top-process.firstLayerMm+PRINT_RESOLUTION_MM)/process.layerMm)+1;
   check(count>=1,'The removable sleeve has no complete planar layer below its top gap.');
   // Trace does not participate in Slice's region-ownership proof. Check every
   // commanded bead envelope against the actual circular void section instead.
   const sectionAt=createSectionQuery(shell);
   for(let layer=0;layer<count;layer++){
     const z=process.firstLayerMm+layer*process.layerMm;
-    for(const probe of [Math.max(.001,z-(layer?process.layerMm:process.firstLayerMm)),z]){
+    for(const probe of [Math.max(PRINT_RESOLUTION_MM,z-(layer?process.layerMm:process.firstLayerMm)),z]){
       const {hole}=cavityAt(sectionAt,probe,candidate,toleranceMm);
-      check(hole.radiusMm+1e-4>=outer+xyGapMm,
+      check(hole.radiusMm+PRINT_RESOLUTION_MM>=outer+xyGapMm,
         `Sleeve envelope meets model material near Z ${probe.toFixed(3)} mm; revise the sleeve or use another support mode.`);
     }
   }

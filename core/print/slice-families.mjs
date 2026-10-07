@@ -1,7 +1,8 @@
 // Resolve reference geometry into ordinary course regions. No strokes,
 // deposition, travel or scheduling is constructed at this boundary.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {offsetRegion} from '../region/offset.mjs';
+import {offsetRegion,OFFSET_PRECISION_MM} from '../region/offset.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {intersect} from '../region/intersection.mjs';
 import {volumeSection} from '../region/layer-region.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
@@ -15,7 +16,7 @@ export function referenceSliceContext({assignment,shell,process,volumes},plan){
   const stack=assignment.stack??process,band=assignment.within.find(v=>v.kind==='normal-band');
   let layers=[];
   if(band){
-    for(let from=band.fromMm,index=0;from<band.toMm-1e-9;index++){
+    for(let from=band.fromMm,index=0;from<band.toMm-PRINT_RESOLUTION_MM;index++){ // a remainder thinner than print resolution is no layer
       const gap=Math.min(index===0?stack.firstLayerMm:stack.layerMm,band.toMm-from);
       requireThat(from+gap>from,'Reference-family pitch is below coordinate precision.');
       layers.push({index,offsetMm:from+gap/2,heightMm:gap,region:[[[0,0],[1,0],[1,1],[0,1]]]});from+=gap;
@@ -49,9 +50,11 @@ export function resolveSliceFamily(record,results,{substrateAdaptation=false}={}
       const loops=assignment.courses?.[layer.index]?.loops??(Array.isArray(assignment.loops)?assignment.loops[layer.index%assignment.loops.length]:assignment.loops);
       const slice=horizontalSlice(z),points=reference.boundary.flat(),extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))-process.lineWidthMm*loops),max:[0,1].map(k=>Math.max(...points.map(p=>p[k]))+process.lineWidthMm*loops)};
       let region=reference.boundary;for(const volume of record.reference.volumes){const cut=volumeSection(volume,{slice},extent);if(cut!==null)region=intersect(region,cut);}
-      return {...layer,slice,region:loops>1?offsetRegion(region,(loops-1)*process.lineWidthMm/2,{precisionMm:.00001}):region,loopBoundary:region,nominalThickness:true,onSubstrate:true,
-        settings:{loops,roles:assignment.roles??{perimeter:'lip-step-'+layer.index,'perimeter-inner':'lip-step-'+layer.index},loopInsetMm:assignment.loopInsetMm??reference.baselineInsetMm-(loops-1)*process.lineWidthMm/2,wallToleranceMm:.001,
-          order:'nearest',connectNearby:true,offsetOptions:{precisionMm:.00001,arcToleranceMm:selection.minFeatureMm/4}},
+      // Lip walls simplify at print resolution; contact placement samples at process scale
+      // from the line width (half a line, a twentieth for the chord), with fixed caps.
+      return {...layer,slice,region:loops>1?offsetRegion(region,(loops-1)*process.lineWidthMm/2,{precisionMm:OFFSET_PRECISION_MM}):region,loopBoundary:region,nominalThickness:true,onSubstrate:true,
+        settings:{loops,roles:assignment.roles??{perimeter:'lip-step-'+layer.index,'perimeter-inner':'lip-step-'+layer.index},loopInsetMm:assignment.loopInsetMm??reference.baselineInsetMm-(loops-1)*process.lineWidthMm/2,wallToleranceMm:PRINT_RESOLUTION_MM,
+          order:'nearest',connectNearby:true,offsetOptions:{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:selection.minFeatureMm/4}},
         contactPlacement:substrateAdaptation?{sourceOperationIds:sourceResult.operations.map(op=>op.id),gapMm:layer.heightMm,
           sampleStepMm:Math.min(process.lineWidthMm/2,.2),toleranceMm:Math.min(.01,process.lineWidthMm/20),footprintRadiusMm:process.lineWidthMm/2}:null};
     });

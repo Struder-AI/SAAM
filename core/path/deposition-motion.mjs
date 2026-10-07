@@ -1,4 +1,5 @@
 import {dot,normalize,subtract,scale,distance,requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Derive optional Slice orientation output. Machine compatibility belongs to export.
 
 import {strokeRange} from './deposition.mjs';
@@ -9,7 +10,7 @@ import {validatePose,uprightPose} from './pose.mjs';
 // Validate geometry independently of the producer's role name or claim.
 export function validateDepositionAction(stroke){
   const action=stroke.depositionAction;if(!action)return false;
-  const points=stroke.points,start=points[0],epsilon=1e-8;
+  const points=stroke.points,start=points[0],epsilon=PRINT_RESOLUTION_MM; // shape judgement: same position, declared depth
   requireThat(action.kind==='press'&&Number.isFinite(action.depthMm)&&action.depthMm>0&&
     Number.isFinite(action.layerHeightMm)&&action.layerHeightMm>action.depthMm&&!stroke.closed&&points.length>=3,
     'A deposition press needs positive depth strictly within its attachment layer.');

@@ -13,7 +13,7 @@ export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDe
   }
   const bounds=toolBounds(machine,0),k=machine.outputs.find(o=>o.id==='bambu-gcode').constraints;
   requireThat(position.every((v,i)=>Number.isFinite(v)&&v>=bounds.min[i]&&v<=bounds.max[i]),'AMS change handoff exceeds nozzle bounds.');
-  requireThat(Number.isFinite(incomingDebt)&&Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
+  requireThat(Number.isFinite(incomingDebt)&&Math.abs(incomingDebt-next.process.retractMm)<=Export.slackMm,'AMS change must hand off the new filament retracted.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid AMS change fan state.');
   const feed=n(k.startupPurgeFlowMm3S/2.4053*60),area=Math.PI*(next.setup.filamentMm/2)**2;
   requireThat(Number.isFinite(k.materialChangeFlushMm3)&&k.materialChangeFlushMm3>0,'AMS change needs a positive chute flush volume.');
@@ -26,9 +26,10 @@ export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDe
   lines.push(`M620.1 E F${feed} T${k.startupFlushC}`,`T${to}`,`M620.1 E F${feed} T${k.startupFlushC}`,
     'M620.11 S0','G90','M83','G92 E0',`M109 S${k.startupFlushC}`,
     `;SAAM_CHUTE_FLUSH_MM3:${k.materialChangeFlushMm3}`);
-  // Bound each extrusion command; the sum is the one profile-owned volume.
+  // Bound each extrusion command; the sum is the one profile-owned volume. A
+  // remainder the program writes as zero is done.
   let remaining=k.materialChangeFlushMm3/area;
-  while(remaining>1e-6){const part=Math.min(remaining,40);lines.push(`G1 E${n(part)} F${feed}`);remaining-=part;}
+  while(n(remaining)>0){const part=Math.min(remaining,40);lines.push(`G1 E${n(part)} F${feed}`);remaining-=part;}
   lines.push('M400',`M109 S${next.setup.nozzleC}`,`G1 E2 F${feed}`,'M400','G92 E0',
     `G1 E-${n(incomingDebt)} F1800`,'M106 P1 S255','M400 S3',
     'G1 X70 F5000','G1 X90 F3000','G1 Y255 F4000','G1 X105 F5000','G1 Y265 F5000',

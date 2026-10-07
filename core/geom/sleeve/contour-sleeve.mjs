@@ -1,4 +1,5 @@
 import {requireThat} from '../tolerance.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM} from '../../dimensions.mjs';
 // Vase reference construction: section offsets, seam correspondence and mapping.
 // The build caller also supplies this prepared boundary to standard spiral Slice.
 import {createSectionQuery} from '../../geom/query.mjs';
@@ -9,7 +10,8 @@ import {offsetRegion} from '../../region/offset.mjs';
 import {contourPath} from '../../geom/contour-path.mjs';
 import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
-const OFFSET_PRECISION_MM=.00001;
+// Section offsets snap to program resolution: below print resolution, and what a program writes.
+const OFFSET_PRECISION_MM=PROGRAM_STEP_MM;
 // The family uses horizontal cutting slices. Their chart is
 // world XY even when a fitted sleeve supplies the section boundary.
 const sliceFrame=p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]});
@@ -43,7 +45,7 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   requireThat([base,start,end,pitch,firstHeight,centerlineOffset,standoffMm,sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm].every(Number.isFinite)
     &&pitch>0&&firstHeight>0&&standoffMm>0&&sampleStepMm>0&&toleranceMm>0&&boundaryToleranceMm>0&&minFeatureMm>0,
     'Contour family needs finite positive spacing and tolerances.');
-  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Contour family needs its base, first section and end inside the geometry.');
+  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+PRINT_RESOLUTION_MM&&end>start+PRINT_RESOLUTION_MM,'Contour family needs its base, first section and end inside the geometry.');
   requireThat(settings.boundaryToleranceMm<standoffMm/2,'Contour boundary tolerance must be smaller than half the selected standoff.');
   // The wall takes as many points and section queries as its geometry, pitch
   // and tolerances require: turns are finite and each interval subdivides until
@@ -127,7 +129,7 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
     return [...xy,z];
   }
   const boundaryFamily=()=>{
-    const levels=[start];for(let z=start+pitch;z<end-1e-9;z+=pitch)levels.push(z);levels.push(end);
+    const levels=[start];for(let z=start+pitch;z<end-PRINT_RESOLUTION_MM;z+=pitch)levels.push(z);levels.push(end);
     const layers=levels.map((z,index)=>{
       let points;
       if(reference){const count=Math.max(16,Math.ceil(reference.referenceLengthMm/settings.sampleStepMm));points=Array.from({length:count},(_,i)=>reference.map(reference.pointAt(i/count,z,0)));}

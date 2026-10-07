@@ -2,6 +2,7 @@
 // Project a fixed first-section seam onto each later contour. Equal-distance
 // ties use coordinates rather than the sectioner's arbitrary vertex ordering.
 import {distance,requireThat} from './tolerance.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 
 export function contourPath(loop,anchor=null) {
   requireThat(loop.length>=3,'Contour path needs a closed contour.');
@@ -14,7 +15,7 @@ export function contourPath(loop,anchor=null) {
     const a=loop[i],b=loop[(i+1)%loop.length],length=lengths[i];if(!length)continue;
     const t=Math.max(0,Math.min(1,((anchor[0]-a[0])*(b[0]-a[0])+(anchor[1]-a[1])*(b[1]-a[1]))/(length*length)));
     const point=a.map((v,k)=>v+t*(b[k]-v)),d=distance(point,anchor);
-    if(!best||d<best.distance-1e-12||(Math.abs(d-best.distance)<=1e-12&&
+    if(!best||d<best.distance-ROUNDING_MM||(Math.abs(d-best.distance)<=ROUNDING_MM&&
       (point[0]>best.point[0]||(point[0]===best.point[0]&&point[1]<best.point[1]))))
       best={point,distance:d,offset:cumulative[i]+t*length};
   }

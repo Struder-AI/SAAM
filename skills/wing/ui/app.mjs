@@ -3,6 +3,7 @@ const $=id=>document.getElementById(id),renderer=createAssemblyRenderer(),canvas
 canvas.replaceWith(renderer.canvas);renderer.canvas.id='model';renderer.canvas.setAttribute('aria-label','Interactive aircraft with printable wing sections');
 const view={design:null,draft:null,preview:null,airfoils:[],stage:0,selected:null,mode:'assembled',yaw:-.45,tilt:.75,zoom:1,pan:[0,0],drag:null,job:null,invalid:false,dirty:false,dragging:false,liveBusy:false,livePending:false,liveSession:0,saving:false,saveQueued:false};
 const stages=['Airfoil','Planform','Construction'];
+// Display only: slider ranges and steps of the design form.
 const controls=[
   ['Planform'],['spanMm','Span',300,2400,20,' mm'],['chordMm','Root chord',100,300,5,' mm'],['taper','Tip / root chord',.75,1,.025,''],['sweepDeg','Quarter-chord sweep',0,25,1,'°'],['camber','Camber ratio',0,.1,.005,''],['thickness','Thickness ratio',.08,.2,.005,''],['wingletHeightMm','Winglet height',40,200,5,' mm'],
   ['Print limits'],['maxSectionHeightMm','Maximum section height',40,300,5,' mm'],['maxChordMm','Maximum chord',100,300,5,' mm'],['Print sections'],['flaps','Separate flaps'],['flapStart','Flap starts · half-span',.1,.7,.025,''],['flapEnd','Flap ends · half-span',.3,.9,.025,''],['flapChord','Flap chord fraction',.2,.32,.01,''],
@@ -16,6 +17,7 @@ function airfoilCard(f){
   const name=document.createElement('b');name.textContent=f.name;const family=document.createElement('small');family.textContent=f.family;head.append(name,family);
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 280 58');svg.setAttribute('aria-hidden','true');
   const path=document.createElementNS('http://www.w3.org/2000/svg','polygon');path.setAttribute('points',[...f.profile.upper.toReversed(),...f.profile.lower].map(([x,y])=>`${10+x*260},${30-y*190}`).join(' '));svg.append(path);
+  // Display only: label a built thickness that differs from the source by a tenth of a percent.
   const metrics=document.createElement('small');metrics.textContent=`Source ${(f.thickness*100).toFixed(1)}% thick · ${(f.camber*100).toFixed(1)}% camber`
     +(f.id===view.design.airfoil&&Math.abs(view.design.thickness-f.thickness)>.001?` · built ${(view.design.thickness*100).toFixed(1)}% thick`:'');
   const note=document.createElement('p');note.textContent=f.note;
@@ -106,6 +108,7 @@ function pieces(){
 function assembly(){
   const parts=view.mode==='print'?[]:[...view.preview.context],chosen=view.preview.pieces.find(p=>p.id===view.selected),list=view.mode==='print'?[chosen]:view.preview.pieces;
   for(const piece of list){
+    // Display only: the preview cut that ends this piece.
     const faces=[],lines=[],index=view.preview.cuts.findIndex(c=>c>=piece.toMm-1e-6)-1;
     const sense=piece.integratedTip?-1:1;
     const place=(point,span)=>view.mode==='print'?[point[0],piece.hand*sense*point[1],piece.integratedTip?piece.toMm-span:span-piece.fromMm]:[piece.hand*(span+(view.mode==='exploded'?index*28:0)),point[0]+(piece.kind==='flap'&&view.mode==='exploded'?35:0),point[1]];
@@ -159,6 +162,7 @@ for(const button of document.querySelectorAll('[data-camera]'))button.onclick=()
 };
 for(const id of ['wire','rods'])$(id).onchange=draw;$('fit').onclick=()=>{view.zoom=1;view.pan=[0,0];draw();};
 renderer.canvas.onpointerdown=e=>{renderer.canvas.setPointerCapture(e.pointerId);view.drag={x:e.clientX,y:e.clientY,pan:e.shiftKey||e.button===2};};
+// Display only: drag and wheel sensitivity of the preview camera.
 renderer.canvas.onpointermove=e=>{if(!view.drag)return;const dx=e.clientX-view.drag.x,dy=e.clientY-view.drag.y;if(view.drag.pan){view.pan=[view.pan[0]+dx,view.pan[1]+dy];}else{view.yaw+=dx*.008;view.tilt=Math.max(-1.5,Math.min(1.5,view.tilt+dy*.008));}view.drag={...view.drag,x:e.clientX,y:e.clientY};draw();};
 renderer.canvas.onpointerup=()=>view.drag=null;renderer.canvas.oncontextmenu=e=>e.preventDefault();renderer.canvas.onwheel=e=>{e.preventDefault();view.zoom=Math.max(.25,Math.min(8,view.zoom*Math.exp(-e.deltaY*.001)));draw();};
 renderer.canvas.tabIndex=0;renderer.canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;e.preventDefault();view.yaw+=(e.key==='ArrowRight'?.1:e.key==='ArrowLeft'?-.1:0);view.tilt+=(e.key==='ArrowUp'?.1:e.key==='ArrowDown'?-.1:0);draw();};

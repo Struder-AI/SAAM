@@ -75,6 +75,6 @@ test('header, token and insignificant-whitespace limits are chunk independent',(
   for(const size of [17,97,4096,10000]){
     assert.throws(()=>chunked(longHeader,size),/Invalid STL header/);
     assert.throws(()=>chunked(longToken,size),/Invalid STL token or closing line/);
-    assert.deepEqual(chunked(whitespace,size),{vertices:[],triangles:[]});
+    const {vertices,triangles}=chunked(whitespace,size);assert.deepEqual({vertices,triangles},{vertices:[],triangles:[]});
   }
 });

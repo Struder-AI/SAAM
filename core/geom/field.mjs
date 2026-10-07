@@ -9,7 +9,8 @@
 // only runs where a solution can exist.
 
 import { evaluate, clamp } from './nurbs.mjs';
-import { TOLERANCE } from './tolerance.mjs';
+import { TOLERANCE, distance } from './tolerance.mjs';
+import { ROUNDING_MM, ROUNDING_RELATIVE, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
 
 const affineProjections = new WeakMap();
 const SEEDS = 3;
@@ -20,9 +21,9 @@ const NEWTON_STEPS = 40;
 function candidateSpansAt(patch, x, y) {
   const { nu, nv, orderU, orderV, knotsU, knotsV, cp } = patch, spans = [];
   for (let su = orderU - 1; su < nu; su++) {
-    if (knotsU[su + 1] - knotsU[su] < 1e-12) continue;
+    if (knotsU[su + 1] - knotsU[su] < TOLERANCE.parameter) continue;
     for (let sv = orderV - 1; sv < nv; sv++) {
-      if (knotsV[sv + 1] - knotsV[sv] < 1e-12) continue;
+      if (knotsV[sv + 1] - knotsV[sv] < TOLERANCE.parameter) continue;
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       for (let i = su - orderU + 1; i <= su; i++)
         for (let j = sv - orderV + 1; j <= sv; j++) {
@@ -33,7 +34,7 @@ function candidateSpansAt(patch, x, y) {
           if (py < minY) minY = py;
           if (py > maxY) maxY = py;
         }
-      if (x >= minX - TOLERANCE.point && x <= maxX + TOLERANCE.point && y >= minY - TOLERANCE.point && y <= maxY + TOLERANCE.point)
+      if (x >= minX - PRINT_RESOLUTION_MM && x <= maxX + PRINT_RESOLUTION_MM && y >= minY - PRINT_RESOLUTION_MM && y <= maxY + PRINT_RESOLUTION_MM)
         spans.push({ u: [knotsU[su], knotsU[su + 1]], v: [knotsV[sv], knotsV[sv + 1]] });
     }
   }
@@ -51,9 +52,9 @@ function affineProjection(patch){
     const xy=(i,j)=>[0,1].map(k=>cp[(i*nv+j)*4+k]/cp[(i*nv+j)*4+3]);
     const origin=xy(0,0),du=xy(nu-1,0).map((v,k)=>(v-origin[k])/(us.at(-1)-us[0])),dv=xy(0,nv-1).map((v,k)=>(v-origin[k])/(vs.at(-1)-vs[0]));
     const determinant=du[0]*dv[1]-du[1]*dv[0];
-    let affine=Number.isFinite(determinant)&&Math.abs(determinant)>1e-14;
+    let affine=Number.isFinite(determinant)&&Math.abs(determinant)>ROUNDING_MM**2;
     for(let i=0;i<nu&&affine;i++)for(let j=0;j<nv&&affine;j++){
-      affine=cp[(i*nv+j)*4+3]===weight&&xy(i,j).every((v,k)=>Math.abs(v-origin[k]-du[k]*(us[i]-us[0])-dv[k]*(vs[j]-vs[0]))<=TOLERANCE.point*1e-3);
+      affine=cp[(i*nv+j)*4+3]===weight&&xy(i,j).every((v,k)=>Math.abs(v-origin[k]-du[k]*(us[i]-us[0])-dv[k]*(vs[j]-vs[0]))<=ROUNDING_MM);
     }
     affineProjections.set(patch,affine?{origin,du,dv,determinant,u0:us[0],v0:vs[0]}:null);
   }
@@ -77,7 +78,7 @@ export function projectToPatch(patch, x, y) {
     const [u,v]=affineUv(affine,x,y);
     if(u<patch.domainU[0]-TOLERANCE.parameter||u>patch.domainU[1]+TOLERANCE.parameter||v<patch.domainV[0]-TOLERANCE.parameter||v>patch.domainV[1]+TOLERANCE.parameter)return [];
     const cu=clamp(u,patch.domainU),cv=clamp(v,patch.domainV),frame=evaluate(patch,cu,cv);
-    if(Math.hypot(frame.point[0]-x,frame.point[1]-y)<=TOLERANCE.point)return [{u:cu,v:cv,point:frame.point,normal:frame.normal}];
+    if(Math.hypot(frame.point[0]-x,frame.point[1]-y)<=PROGRAM_STEP_MM)return [{u:cu,v:cv,point:frame.point,normal:frame.normal}];
   }
   const hits = [];
   for (const span of candidateSpansAt(patch, x, y))
@@ -87,7 +88,7 @@ export function projectToPatch(patch, x, y) {
           span.u[0] + (span.u[1] - span.u[0]) * i / (SEEDS + 1),
           span.v[0] + (span.v[1] - span.v[0]) * j / (SEEDS + 1));
         if (!solution) continue;
-        if (hits.some(hit => Math.abs(hit.u - solution.u) < 1e-7 && Math.abs(hit.v - solution.v) < 1e-7)) continue;
+        if (hits.some(hit => distance(hit.point, solution.point) <= PRINT_RESOLUTION_MM)) continue;
         hits.push(solution);
       }
   return hits;
@@ -98,16 +99,16 @@ function newton(patch, x, y, u0, v0) {
   for (let step = 0; step < NEWTON_STEPS; step++) {
     const { point, du, dv, normal } = evaluate(patch, u, v);
     const fx = point[0] - x, fy = point[1] - y;
-    if (Math.hypot(fx, fy) <= TOLERANCE.point) return { u, v, point, normal };
+    if (Math.hypot(fx, fy) <= PROGRAM_STEP_MM) return { u, v, point, normal };
     const determinant = du[0] * dv[1] - du[1] * dv[0];
     // A singular Jacobian is a fold or a pole in XY; another seed may reach it.
-    if (Math.abs(determinant) < 1e-14) return null;
+    if (Math.abs(determinant) < ROUNDING_MM**2) return null;
     const stepU = (fx * dv[1] - fy * dv[0]) / determinant;
     const stepV = (du[0] * fy - du[1] * fx) / determinant;
     const nextU = clamp(u - stepU, patch.domainU), nextV = clamp(v - stepV, patch.domainV);
     if (Math.abs(nextU - u) < TOLERANCE.parameter && Math.abs(nextV - v) < TOLERANCE.parameter) {
       const check = evaluate(patch, nextU, nextV);
-      return Math.hypot(check.point[0] - x, check.point[1] - y) <= 1e-6 ? { u: nextU, v: nextV, point: check.point, normal: check.normal } : null;
+      return Math.hypot(check.point[0] - x, check.point[1] - y) <= PROGRAM_STEP_MM ? { u: nextU, v: nextV, point: check.point, normal: check.normal } : null;
     }
     u = nextU;
     v = nextV;
@@ -118,7 +119,7 @@ function newton(patch, x, y, u0, v0) {
 // A pole (a revolved cap's centre) has no normal of its own; a smooth cap's
 // normal there is the limit from inside the patch.
 function limitNormal(patch, u, v) {
-  const inward = (t, [lo, hi]) => t + (t < (lo + hi) / 2 ? 1 : -1) * 1e-6 * (hi - lo);
+  const inward = (t, [lo, hi]) => t + (t < (lo + hi) / 2 ? 1 : -1) * TOLERANCE.domainFraction * (hi - lo);
   return evaluate(patch, inward(u, patch.domainU), inward(v, patch.domainV)).normal;
 }
 
@@ -127,7 +128,7 @@ function limitNormal(patch, u, v) {
 export function topAt(shell, x, y) {
   let best = null;
   for (const crossing of crossingsAt(shell, x, y))
-    if (!best || crossing.zMm > best.zMm + TOLERANCE.point) best = crossing;
+    if (!best || crossing.zMm > best.zMm + PRINT_RESOLUTION_MM) best = crossing;
   return best;
 }
 
@@ -139,7 +140,7 @@ export function crossingsAt(shell, x, y) {
   for (const patch of shell.patches)
     for (const hit of projectToPatch(patch, x, y)) {
       const normal = hit.normal ?? limitNormal(patch, hit.u, hit.v);
-      if (!normal || Math.abs(normal[2]) < 1e-9) continue;
+      if (!normal || Math.abs(normal[2]) < ROUNDING_RELATIVE) continue;
       const upward = normal[2] > 0 ? normal : normal.map(component => -component);
       crossings.push({
         zMm: hit.point[2],

@@ -1,6 +1,16 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+// (the other wing modules import these from here).
+export const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
+export const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
+// copies core/dimensions.mjs BUILD_SCALE_MM; this runtime has no release-relative imports
+const BUILD_SCALE_MM=1000;
+// copies core/dimensions.mjs ROUNDING_RELATIVE; this runtime has no release-relative imports
+const ROUNDING_RELATIVE=ROUNDING_MM/BUILD_SCALE_MM;
+
 const records=JSON.parse(readFileSync(new URL('./data/sources.json',import.meta.url))).records;
 const notes={
   naca2412:'Moderate camber and thickness for comparing a conventional wing.',
@@ -32,7 +42,7 @@ function parseDat(text){
 function ordinate(profile,x,side){
   const points=profile[side];let low=1,high=points.length-1;
   while(low<high){const middle=(low+high)>>1;if(points[middle][0]<x)low=middle+1;else high=middle;}
-  const a=points[low-1],b=points[low],t=(x-a[0])/Math.max(1e-12,b[0]-a[0]);
+  const a=points[low-1],b=points[low],t=(x-a[0])/Math.max(ROUNDING_RELATIVE,b[0]-a[0]);// unit chord: rounding guard
   return a[1]+(b[1]-a[1])*t;
 }
 

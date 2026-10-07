@@ -1,4 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {POSE_RESOLUTION_DEG} from './pose.mjs';
 // Nominal finished boundaries carry ownership and prerequisites independently
 // of the deposition strategy. They are not measured bead-surface reconstructions.
 import {surfaceRegion} from '../geom/surface-region.mjs';
@@ -10,13 +12,15 @@ import {pointSegmentDistance,loopArea} from '../region/region2d.mjs';
 import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from './deposited-curves.mjs';
 import {depositedContactChart} from './contact-curves.mjs';
 
+// Process scale: toleranceMm is the default height slack of a top boundary, a
+// twentieth of a 0.4 mm line.
 export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=.02,maxSlopeDeg=90,contains=null}){
   const sourceOperationIds=result.operations.filter(op=>op.strokes.length).map(op=>op.id);
   // Owned state of this boundary test: the section search data is built on first side
   // use, and the loops it returns are cached by Z.
   const sideState={prepared:null},sections=new Map();
   const onBoundary=contains??(e=>{
-    if(boundary==='top'){const top=topAt(shell,e.point[0],e.point[1]);return top&&top.slopeDeg<=maxSlopeDeg+1e-8&&Math.abs(top.zMm-e.point[2])<=toleranceMm;}
+    if(boundary==='top'){const top=topAt(shell,e.point[0],e.point[1]);return top&&top.slopeDeg<=maxSlopeDeg+POSE_RESOLUTION_DEG&&Math.abs(top.zMm-e.point[2])<=toleranceMm;}
     if(boundary!=='side')return true;
     // A hollow wall publishes its exterior, not the unprinted cap or center.
     sideState.prepared??=prepareSection(shell,horizontalSlice(0));
@@ -42,7 +46,7 @@ export function consumeFinishedSurface({shell,selection,results,substrateAdaptat
   }
   const at=(u,v)=>{
     const e=chart.at(u,v),z=e.point[2];
-    requireThat(sources.some(source=>z>=source.startMm-1e-7&&z<=source.endMm+1e-7&&source.contains(e)),
+    requireThat(sources.some(source=>z>=source.startMm-PRINT_RESOLUTION_MM&&z<=source.endMm+PRINT_RESOLUTION_MM&&source.contains(e)),
       `Selected cladding surface is not produced at Z ${z.toFixed(4)} mm; select a finished surface within the printed region.`);
     return e;
   };

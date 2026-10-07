@@ -67,7 +67,7 @@ Tolerance classes and values belong to [Dimensions and tolerances](../README.md#
 Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
 `precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
 curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
-steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+steps (not a certified surface-error bound) and predicate slack (rounding guards only). A determinant of two
 length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
 in U and V; a normal dot product is dimensionless.
 

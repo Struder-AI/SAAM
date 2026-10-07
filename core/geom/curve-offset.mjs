@@ -4,7 +4,8 @@
 // pieces bounding the offset region are kept. Pieces keep their curve's knots,
 // degree and weights; control counts change only where a piece is cut.
 import {basisDerivatives,findSpan,evaluate,evaluateCurve} from './nurbs.mjs';
-import {requireThat,cross,dot} from './tolerance.mjs';
+import {requireThat,cross,dot,TOLERANCE} from './tolerance.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {extract,join,reverseCurve,arcCurve,translateCurve,insideIntervals,curveCrossings,periodicCurveCrossings,prepareWinding,preparePeriodicWinding} from './curve-ops.mjs';
 
 export function requireCurve(curve){
@@ -13,6 +14,12 @@ export function requireCurve(curve){
     'Curve offsets need a NURBS curve record; build one with referenceCurve.');
   for(let i=0;i<n;i++)requireThat(Number.isFinite(cp[i*4+3])&&cp[i*4+3]>0,'Curve offset reference weights must be positive and finite.');
 }
+// Tolerances (core/README.md#dimensions-and-tolerances). The chart is mm on the XY
+// plane and patch parameters on a surface.
+// Offset-curve crossings are found and matched to rounding relative to the chart's
+// extent. Inside/outside probes step a hundred times that off a curve: clear of the
+// crossing precision, far below any feature.
+const PROBE_RELATIVE=100*ROUNDING_RELATIVE;
 const wrap=(t,[a,b],closed)=>closed?a+(((t-a)/(b-a)%1+1)%1)*(b-a):Math.max(a,Math.min(b,t));
 
 // Rational basis values R_i(t) = N_i(t) w_i / w(t) of the controls supporting t.
@@ -31,7 +38,7 @@ function solveSparse(rows,rhs){
   for(let k=0;k<n;k++){
     let pivot=-1,best=0;
     for(let i=k;i<n;i++){const v=Math.abs(rows[i].get(k)??0);if(v>best){best=v;pivot=i;}}
-    requireThat(best>1e-12,'Loose curve offset collocation is singular: two controls share a Greville parameter.');
+    requireThat(best>ROUNDING_RELATIVE,'Loose curve offset collocation is singular: two controls share a Greville parameter.');
     [rows[k],rows[pivot]]=[rows[pivot],rows[k]];[rhs[k],rhs[pivot]]=[rhs[pivot],rhs[k]];
     const head=rows[k].get(k);
     for(let i=k+1;i<n;i++){
@@ -95,8 +102,8 @@ export function sideAt(curve,t,closed,unitSide){
   const right=unitSide(evaluateCurve(curve,t).derivative);
   const left=t>curve.domain[0]?unitSide(evaluateCurve(curve,t,true).derivative):closed?unitSide(evaluateCurve(curve,curve.domain[1],true).derivative):right;
   const cosine=dot(left,right);
-  if(1-cosine<1e-12)return right;
-  requireThat(1+cosine>1e-9,'Curve offset reference reverses direction at a cusp.');
+  if(1-cosine<ROUNDING_RELATIVE)return right;
+  requireThat(1+cosine>ROUNDING_RELATIVE,'Curve offset reference reverses direction at a cusp.');
   return [0,1,2].map(k=>(left[k]+right[k])/(1+cosine));
 }
 
@@ -156,12 +163,12 @@ function curlArcs(system,{params,pairs},forward,tol){
   for(const {a,s,b,t} of pairs){
     const S=system[a];
     if(a!==b||S.source===undefined)continue;
-    const c=S.curve,[d0,d1]=c.domain,P=d1-d0,e=2e-10*P,p=evaluateCurve(c,s).point,q=evaluateCurve(c,t).point;
+    const c=S.curve,[d0,d1]=c.domain,P=d1-d0,e=ROUNDING_RELATIVE*P,p=evaluateCurve(c,s).point,q=evaluateCurve(c,t).point;
     // A crossing with the curve's own copy a period away closes no loop.
     if(Math.hypot(p[0]-q[0],p[1]-q[1])>2*tol)continue;
     const lo=Math.min(s,t),hi=Math.max(s,t),on=([x,y])=>r=>r>x&&r<y||r+P>x&&r+P<y;
     const arcs=S.closed?[[lo,hi],[hi,lo+P]]:[[lo,hi]],wrap=r=>r>d1?r-P:r;
-    const curls=arcs.filter(([x,y])=>!params[a].some(on([x+e,y-e]))&&forward(S,wrap(x+(y-x)*1e-3))!==forward(S,wrap(y-(y-x)*1e-3)));
+    const curls=arcs.filter(([x,y])=>!params[a].some(on([x+e,y-e]))&&forward(S,wrap(x+(y-x)/1000))!==forward(S,wrap(y-(y-x)/1000)));
     if(curls.length)out[a].push(on(curls.sort((f,g)=>f[1]-f[0]-(g[1]-g[0]))[0]));
   }
   return out;
@@ -198,11 +205,12 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
   const inputs=curves.map(({curve,closed=false})=>{
     requireCurve(curve);
     const [start,end]=curve.domain.map(t=>evaluateCurve(curve,t).point);
-    requireThat(!closed||gap(start,end)<=1e-9,'A closed curve must end where it starts (or whole periods from it on a periodic patch).');
+    // Closed: the ends meet within print resolution, or within parameter precision in a patch chart.
+    requireThat(!closed||gap(start,end)<=(patch?TOLERANCE.parameter:PRINT_RESOLUTION_MM),'A closed curve must end where it starts (or whole periods from it on a periodic patch).');
     return {curve,closed};
   });
   const bounds=patch?domains.flatMap((range,axis)=>period?.axis===axis?[]:range.map(value=>({axis,value}))):[];
-  const inside=([u,v])=>[u,v].every((x,k)=>period?.axis===k||x>=domains[k][0]-1e-9&&x<=domains[k][1]+1e-9);
+  const inside=([u,v])=>[u,v].every((x,k)=>period?.axis===k||x>=domains[k][0]-TOLERANCE.parameter&&x<=domains[k][1]+TOLERANCE.parameter);
   // The patch at a chart point, wrapped across a periodic seam.
   const onPatch=(u,v)=>{
     const x=[u,v];
@@ -215,19 +223,19 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
   }else{
     const z=inputs[0].curve.cp[2]/inputs[0].curve.cp[3];
     for(const {curve} of inputs)for(let i=0;i<curve.n;i++)
-      requireThat(Math.abs(curve.cp[i*4+2]/curve.cp[i*4+3]-z)<=1e-9,'Curves offset without a patch lie in one XY plane; a 3D curve takes a ribbon.');
+      requireThat(Math.abs(curve.cp[i*4+2]/curve.cp[i*4+3]-z)<=PRINT_RESOLUTION_MM,'Curves offset without a patch lie in one XY plane; a 3D curve takes a ribbon.');
   }
   const fields=inputs.map(({curve,closed})=>looseCurveField(curve,closed,t=>{
     if(!patch)return sideAt(curve,t,closed,tangent=>{
       const size=Math.hypot(tangent[0],tangent[1]);
-      requireThat(size>1e-12,'Curve offset reference has a collapsed tangent.');
+      requireThat(size>ROUNDING_MM,'Curve offset reference has a collapsed tangent.');
       return [tangent[1]/size,-tangent[0]/size,0];
     });
     const e=onPatch(...evaluateCurve(curve,t).point.slice(0,2));
     requireThat(e.normal,'Surface curve offset reference crosses a singular surface point.');
     const side=sideAt(curve,t,closed,([tu,tv])=>{
       const s=cross([0,1,2].map(k=>e.du[k]*tu+e.dv[k]*tv),e.normal),size=Math.hypot(...s);
-      requireThat(size>1e-12,'Surface curve offset reference has a collapsed tangent.');
+      requireThat(size>ROUNDING_MM,'Surface curve offset reference has a collapsed tangent.');
       return s.map(v=>v/size);
     });
     // Solve [du dv] x = side through the first fundamental form.
@@ -238,7 +246,7 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
   const tangentPerMm=(curve,t)=>{
     const {point,derivative}=evaluateCurve(curve,t);
     const length=patch?Math.hypot(...[0,1,2].map(k=>{const e=onPatch(point[0],point[1]);return e.du[k]*derivative[0]+e.dv[k]*derivative[1];})):Math.hypot(derivative[0],derivative[1]);
-    requireThat(length>1e-12,'Curve offset reference has a collapsed tangent at an end.');
+    requireThat(length>ROUNDING_MM,'Curve offset reference has a collapsed tangent at an end.');
     return [derivative[0]/length,derivative[1]/length];
   };
   // The winding far toward the ray's end: 1 where loops wrapping the seam put
@@ -247,7 +255,7 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
   const sources=inputs.filter(i=>i.closed).map(i=>i.curve);
   const base=period&&sources.length?(()=>{
     const c=sources[0],t=(c.domain[0]+c.domain[1])/2,{point,derivative}=evaluateCurve(c,t),size=Math.hypot(derivative[0],derivative[1]);
-    const eps=1e-7*Math.max(domains[0][1]-domains[0][0],domains[1][1]-domains[1][0]);
+    const eps=PROBE_RELATIVE*Math.max(domains[0][1]-domains[0][0],domains[1][1]-domains[1][0]);
     const sourceWinding=preparePeriodicWinding(sources,period);
     return 1-sourceWinding([point[0]-derivative[1]/size*eps,point[1]+derivative[0]/size*eps]);
   })():0;
@@ -272,7 +280,7 @@ export function prepareCurveOffsets({curves,patch=null,periodicU=false,periodicV
     });
     const all=system.map(s=>s.curve),mins=[Infinity,Infinity],maxs=[-Infinity,-Infinity];
     for(const c of all)for(let i=0;i<c.n;i++)for(let k=0;k<2;k++){const v=c.cp[i*4+k]/c.cp[i*4+3];mins[k]=Math.min(mins[k],v);maxs[k]=Math.max(maxs[k],v);}
-    const scale=Math.max(maxs[0]-mins[0],maxs[1]-mins[1],1e-9),tol=1e-9*scale,eps=1e-7*scale;
+    const scale=Math.max(maxs[0]-mins[0],maxs[1]-mins[1],ROUNDING_MM),tol=ROUNDING_RELATIVE*scale,eps=PROBE_RELATIVE*scale;
     const crossings=period?periodicCurveCrossings(all,tol,system.map(s=>!!s.closed),period):curveCrossings(all,tol,system.map(s=>!!s.closed));
     const winding=period?preparePeriodicWinding(all,period,base):prepareWinding(all);
     // A piece running against its source is inverted (a collapse); it bounds

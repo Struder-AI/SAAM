@@ -1,7 +1,59 @@
 import {StringDecoder} from 'node:string_decoder';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const invalid=(message)=>Error(message);
+
+// Vertices closer than print resolution are one vertex: a print cannot tell them
+// apart, so a mesh that keeps them apart is almost always in error. Every pair
+// closer than the tolerance joins one cluster (so clusters may chain); each
+// cluster keeps the member nearest its centroid, input order breaking ties, so
+// accepted coordinates are always source coordinates and the result does not
+// depend on visiting order. A triangle with two or more corners in one cluster
+// collapses and is removed; unused vertices go. Spatial cells only find
+// candidates; the Euclidean distance decides. Every mesh import passes this in
+// the STL decoder; repair runs it again on its own output.
+export const VERTEX_MERGE_METHOD='print-resolution-cluster/1';
+export function mergeCloseVertices(vertices,triangles,toleranceMm=PRINT_RESOLUTION_MM){
+  const n=vertices.length,report={method:VERTEX_MERGE_METHOD,toleranceMm,mergedVertices:0,collapsedTriangles:0,unusedVertices:0,maxDisplacementMm:0};
+  const magnitude=[0,0,0];for(const p of vertices)for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
+  // Power-of-two cells at least the tolerance wide, widened only where coordinates
+  // are so large that neighbouring cell numbers would stop being exact integers.
+  const width=magnitude.map(m=>2**Math.max(Math.ceil(Math.log2(toleranceMm)),Math.ceil(Math.log2(m||Number.MIN_VALUE))-48));
+  const parent=new Int32Array(n).map((_,i)=>i),root=x=>{while(parent[x]!==x)x=parent[x]=parent[parent[x]];return x;};
+  const cells=new Map(),key=(x,y,z)=>(Math.imul(x|0,73856093)^Math.imul(y|0,19349663)^Math.imul(z|0,83492791));
+  let joined=false;
+  for(let i=0;i<n;i++){
+    const p=vertices[i],c=[0,1,2].map(k=>Math.floor(p[k]/width[k]));
+    for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++)for(const j of cells.get(key(c[0]+x,c[1]+y,c[2]+z))??[]){
+      const q=vertices[j];if(Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2])>=toleranceMm)continue;
+      const a=root(i),b=root(j);if(a!==b){parent[Math.max(a,b)]=Math.min(a,b);joined=true;}
+    }
+    const name=key(...c),bucket=cells.get(name);if(bucket)bucket.push(i);else cells.set(name,[i]);
+  }
+  let representative=null;
+  if(joined){
+    const sum=new Float64Array(3*n),count=new Int32Array(n),best=new Int32Array(n).fill(-1),distance=new Float64Array(n).fill(Infinity);
+    for(let i=0;i<n;i++){const r=root(i);count[r]++;for(let k=0;k<3;k++)sum[3*r+k]+=vertices[i][k];}
+    for(let i=0;i<n;i++){
+      const r=root(i);if(count[r]===1){best[r]=i;continue;}
+      const p=vertices[i],d=Math.hypot(p[0]-sum[3*r]/count[r],p[1]-sum[3*r+1]/count[r],p[2]-sum[3*r+2]/count[r]);
+      if(d<distance[r]){distance[r]=d;best[r]=i;}
+    }
+    representative=new Int32Array(n);
+    for(let i=0;i<n;i++){
+      const r=best[root(i)],p=vertices[i],q=vertices[r];representative[i]=r;
+      if(r!==i){report.mergedVertices++;report.maxDisplacementMm=Math.max(report.maxDisplacementMm,Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]));}
+    }
+  }
+  const mapped=representative?triangles.map(t=>t.map(v=>representative[v])):triangles;
+  const kept=mapped.filter(t=>t[0]!==t[1]&&t[1]!==t[2]&&t[0]!==t[2]);report.collapsedTriangles=mapped.length-kept.length;
+  if(!representative&&!report.collapsedTriangles)return {vertices,triangles,merge:report};
+  const used=new Map(),points=[];
+  const output=kept.map(t=>t.map(v=>{let index=used.get(v);if(index===undefined){index=points.length;used.set(v,index);points.push(vertices[v]);}return index;}));
+  report.unusedVertices=n-report.mergedVertices-points.length;
+  return {vertices:points,triangles:output,merge:report};
+}
 
 // One incremental STL parser for complete buffers and streamed files. It retains
 // indexed geometry plus only a format prefix and the current binary/text token.
@@ -100,7 +152,7 @@ export class STLDecoder {
         throw invalid('Invalid or truncated ASCII STL.');
     }
     checkMeshCapacity(this.vertices.length,this.triangles.length);
-    return {vertices:this.vertices,triangles:this.triangles};
+    return mergeCloseVertices(this.vertices,this.triangles);
   }
 }
 

@@ -1,6 +1,13 @@
 import {createHash} from 'node:crypto';
 export const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 export const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs BUILD_SCALE_MM; this runtime has no release-relative imports
+const BUILD_SCALE_MM=1000;
+// Print resolution as a direction or angle: tilting the tool by this much moves a
+// point at build scale by print resolution (degrees are finer than radians).
+const POSE_RESOLUTION=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
 
 export const DENSO_LIMITATIONS=[
   'RC8A is confirmed; mounting, calibration and rotary installation are stated setup assumptions, not measured facts.',
@@ -51,9 +58,9 @@ const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
 const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
 function exportDenso(path,plan,machine,release,Export){
   const c=plan.setup.denso,{rotateZ,rotatePointZ:bedPoint,validateDirectionPair}=Export.frame;
-  requireThat(distance(path.initialPosition,c.initialPositionMm)<1e-8,'DENSO initial position differs from setup.');
+  requireThat(distance(path.initialPosition,c.initialPositionMm)<PRINT_RESOLUTION_MM,'DENSO initial position differs from setup.');
   const defaultPose={rotaryDeg:0,toolAxis:[0,0,-1],toolUp:[0,1,0]},initial=path.initialPose??defaultPose;
-  requireThat(Math.abs(initial.rotaryDeg-c.initialPose.rotaryDeg)<1e-9&&['toolAxis','toolUp'].every(k=>initial[k].every((v,i)=>Math.abs(v-c.initialPose[k][i])<1e-9)),'DENSO initial orientation or rotary position differs from setup.');
+  requireThat(Math.abs(initial.rotaryDeg-c.initialPose.rotaryDeg)<POSE_RESOLUTION&&['toolAxis','toolUp'].every(k=>initial[k].every((v,i)=>Math.abs(v-c.initialPose[k][i])<POSE_RESOLUTION)),'DENSO initial orientation or rotary position differs from setup.');
   let rotary=path.initialPose?.rotaryDeg??c.initialPose.rotaryDeg,from=path.initialPosition,relay=false,seconds=0,volumeMm3=0,onSeconds=0;
   const lines=[];
   for(const action of path.actions){

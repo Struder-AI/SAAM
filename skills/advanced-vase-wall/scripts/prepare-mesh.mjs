@@ -4,6 +4,13 @@ import {isDeepStrictEqual} from 'node:util';
 import {advancedVaseRecordRuntime} from './record.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+const PRINT_RESOLUTION_MM=1e-3;
+// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
+const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
+// The shared mesh sleeve fit's secondary-area allowance (core/geom/sleeve/mesh-sleeve.mjs):
+// an area fraction, not a length tolerance.
+const FITTED_SECONDARY_AREA_FRACTION=.001;
 const {validateSleevePattern}=advancedVaseRecordRuntime();
 const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
 
@@ -18,8 +25,8 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   // Generation uses the shared fit's 0.1% extraction allowance. Detection may
   // be stricter, but cannot accept a topology the persisted fit would reject.
   if(options.detect?.maxSecondaryAreaFraction!==undefined)requireThat(Number.isFinite(options.detect.maxSecondaryAreaFraction)
-    &&options.detect.maxSecondaryAreaFraction>=0&&options.detect.maxSecondaryAreaFraction<=.001,
-    'Mesh vase detection maxSecondaryAreaFraction must be between 0 and 0.001, matching the fitted sleeve extraction allowance; larger secondary features require another sleeve selection.');
+    &&options.detect.maxSecondaryAreaFraction>=0&&options.detect.maxSecondaryAreaFraction<=FITTED_SECONDARY_AREA_FRACTION,
+    `Mesh vase detection maxSecondaryAreaFraction must be between 0 and ${FITTED_SECONDARY_AREA_FRACTION}, matching the fitted sleeve extraction allowance; larger secondary features require another sleeve selection.`);
   if(Object.hasOwn(options,'meshSleeve'))keys(options.meshSleeve,Object.keys(MESH_SLEEVE_SETTINGS),'meshSleeve');
   const plan=structuredClone(source);
   requireThat(plan.geometry.shape==='mesh','Mesh vase preparation selects one mesh print. For assemblies, configure the selected component with the normal adjustment tools.');
@@ -36,11 +43,12 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   const detected=detectMeshSleeveInterval(mesh,{marginMm:Math.min(Math.max(plan.process.lineWidthMm,plan.process.layerMm),(mesh.bounds.max[2]-low)/4),toleranceMm:wall.boundaryToleranceMm,...options.detect});
   const minimumBase=Math.max(plan.process.firstLayerMm+2*plan.process.layerMm,detected.rangeMm[0]-low);
   const baseHeight=options.baseHeightMm??(existing.length?wall.zStartMm:
-    sliceFamily({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},{min:[0,0,0],max:[0,0,minimumBase+plan.process.layerMm]}).layers.map(l=>l.slice.origin[2]).find(z=>z>=minimumBase-1e-9));
+    sliceFamily({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},{min:[0,0,0],max:[0,0,minimumBase+plan.process.layerMm]}).layers.map(l=>l.slice.origin[2]).find(z=>z>=minimumBase-ROUNDING_MM));
   requireThat(Number.isFinite(baseHeight)&&baseHeight>=0,'baseHeightMm must be nonnegative.');
   const base=low+baseHeight,end=detected.rangeMm[1];
-  requireThat(base>=detected.rangeMm[0]-1e-9,'baseHeightMm must reach the detected sleeve start; choose a taller base explicitly.');
-  const firstHeight=baseHeight<1e-9?plan.process.firstLayerMm:plan.process.layerMm,start=base+firstHeight,span=end-start;
+  requireThat(base>=detected.rangeMm[0]-ROUNDING_MM,'baseHeightMm must reach the detected sleeve start; choose a taller base explicitly.');
+  // A base within print resolution of the part bottom is no base (as vase-wall decides).
+  const firstHeight=baseHeight<PRINT_RESOLUTION_MM?plan.process.firstLayerMm:plan.process.layerMm,start=base+firstHeight,span=end-start;
   requireThat(span>0,'The detected sleeve has no room above the selected base and first bead.');
   if(baseHeight===0&&body.length)requireThat(same(body,initial.slices.assignments),
     'Mesh vase preparation cannot discard customized slice assignments. Remove them explicitly before selecting a wall without a base.');
@@ -55,8 +63,8 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   if(pattern){
     let minimum=Infinity,maximum=-Infinity;
     for(const path of pattern.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
-    requireThat(minimum>=-1e-9,'The authored pattern descends below its first bead; revise the explicit path heights.');
-    requireThat(maximum+(sized?repeats*pattern.riseMm:(repeats-1)*pattern.advance[1])<=span+1e-9,
+    requireThat(minimum>=-ROUNDING_MM,'The authored pattern descends below its first bead; revise the explicit path heights.');
+    requireThat(maximum+(sized?repeats*pattern.riseMm:(repeats-1)*pattern.advance[1])<=span+ROUNDING_MM,
       'The requested complete pattern courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
     authoredPoints=sized?null:pattern.paths.reduce((n,p)=>n+p.points.length,0)*(repeats+(endTransition==='level'?2:0));
     requireThat(sized||Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');

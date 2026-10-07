@@ -4,6 +4,8 @@ import {materialProjection} from './material-view.mjs';
 
 // Display creases, not tessellation. Weld coincident proxy vertices for edge
 // adjacency without changing the source mesh or the geometry used for slicing.
+// Display only: the guards and depth slacks in this file serve shading, picking
+// and hidden-edge drawing in screen units; they never reach geometry or programs.
 export function buildMeshView({vertices,faces},creaseDeg=3) {
   const ids=new Map(),weld=vertices.map(p=>{
     const key=p.map(v=>Math.round(v*1e7)).join(',');

@@ -2,20 +2,20 @@
 // the shared-ownership contract is implemented; assignment order is not a fix.
 import {difference,intersect} from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
-import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 export function requireExclusiveClaims(a,b,{uncertain=false}={}){
   const name=o=>`${o.assignment?.id??o.id}${o.part!==undefined&&o.part!==null?` on ${o.part}`:''}`;
   requireThat(false,`Unsupported material overlap between assignments "${name(a)}" and "${name(b)}": ${uncertain?'cannot establish exclusive material claims for these intersecting volumes':'both claim positive material'}. Use disjoint regions or one assignment; shared ownership is deferred to 0.4.0.`);
 }
-// A shared edge, or at most one coincidence tolerance of polygon-rounding
-// noise, is not positive material. Fine offset precision avoids the ordinary
-// perimeter offset grid swallowing a real small overlap.
-export function positiveClaimRegion(region,toleranceMm=TOLERANCE.point){
-  return !!region.length&&offsetRegion(region,-toleranceMm/2,{precisionMm:1e-9,arcToleranceMm:toleranceMm/8}).length>0;
+// A shared edge, or a sliver no wider than the tolerance (print resolution by
+// default), is not positive material. An offset grid a hundredth of the
+// tolerance keeps the ordinary perimeter grid from swallowing a real overlap.
+export function positiveClaimRegion(region,toleranceMm=PRINT_RESOLUTION_MM){
+  return !!region.length&&offsetRegion(region,-toleranceMm/2,{precisionMm:toleranceMm/100,arcToleranceMm:toleranceMm/8}).length>0;
 }
-export function allocateChartClaims(region,claims,{principal,retainUnclaimed=false,toleranceMm=TOLERANCE.point}){
+export function allocateChartClaims(region,claims,{principal,retainUnclaimed=false,toleranceMm=PRINT_RESOLUTION_MM}){
   let cells=[{region,claimants:[]}];
   for(const {owner,region:cut} of claims){
     const next=[];

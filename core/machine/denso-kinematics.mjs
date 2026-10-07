@@ -1,4 +1,5 @@
 import {add,subtract as sub,scale,innerProduct as dot,cross,length as norm,mv,mm,transpose,identity,rotation,rigid,validateRigid} from '../geom/frame.mjs';
+import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // Nominal VS-068A4 standard-flange centerlines from DENSO's VS-068 drawing:
 // https://www.denso-wave.com/fsys/en/robot/product/five-six/vs068-087/en_VS-068-W.pdf
@@ -16,7 +17,7 @@ export function densoGeometry(config={}){
   if(g.flangeFromTool){
     validateRigid(g.flangeFromTool);
     const [x,y,z]=g.flangeFromTool.translationMm;
-    const toolVectors=[[0,0,z],[x,y,0]].filter(v=>norm(v)>1e-9).map(v=>mv(wristFromFlange,v));
+    const toolVectors=[[0,0,z],[x,y,0]].filter(v=>norm(v)>ROUNDING_MM).map(v=>mv(wristFromFlange,v));
     return {...g,toolVectors,toolRotation:mm(mm(wristFromFlange,g.flangeFromTool.rotation),nozzleToPresentation),toolReachMm:toolVectors.reduce((s,v)=>s+norm(v),0)};
   }
   return {...g,toolVectors:[[g.toolLengthMm,0,0]],toolRotation:[[0,0,-1],[0,1,0],[1,0,0]],toolReachMm:g.toolLengthMm};
@@ -41,13 +42,14 @@ export function densoWristFromPose(g,pose){
 const linear=(a,b)=>{
   const m=a.map((row,i)=>[...row,b[i]]),n=b.length;
   for(let i=0;i<n;i++){let p=i;for(let j=i+1;j<n;j++)if(Math.abs(m[j][i])>Math.abs(m[p][i]))p=j;[m[p],m[i]]=[m[i],m[p]];
-    if(Math.abs(m[i][i])<1e-12)throw Error('Singular DENSO solve');const d=m[i][i];for(let k=i;k<=n;k++)m[i][k]/=d;
+    // Rounding guard on a pivot of the normal matrix, in mm squared.
+    if(Math.abs(m[i][i])<ROUNDING_MM**2)throw Error('Singular DENSO solve');const d=m[i][i];for(let k=i;k<=n;k++)m[i][k]/=d;
     for(let j=0;j<n;j++)if(j!==i){const f=m[j][i];for(let k=i;k<=n;k++)m[j][k]-=f*m[i][k];}}
   return m.map(row=>row[n]);
 };
 function rotationError(target,current){
   const r=mm(target,transpose(current)),v=[r[2][1]-r[1][2],r[0][2]-r[2][0],r[1][0]-r[0][1]],s=norm(v)/2,c=Math.max(-1,Math.min(1,(r[0][0]+r[1][1]+r[2][2]-1)/2));
-  if(s<1e-10){
+  if(s<ROUNDING_RELATIVE){ // rounding guard: the sine is too small to divide by
     if(c>=0)return scale(v,.5);
     // At a half-turn the antisymmetric part vanishes. Recover the axis
     // from R + I, choosing its largest component for numerical stability.
@@ -62,7 +64,10 @@ export function densoInverse(g,pose,{seed}={}){
   validateRigid(rigid(pose.tcp,pose.rotation));
   if(!seed||seed.length!==6||!seed.every(Number.isFinite))throw Error('DENSO nominal IK requires an explicit model-angle seed');
   let q=[...seed];const lever=g.upperMm;
-  const sign=v=>Math.abs(v)<1e-5?0:Math.sign(v);
+  // Machine kinematics: a branch measure this close to zero (elbow in mm, wrist sine
+  // dimensionless) sits on the singularity and belongs to neither branch. Value kept
+  // pending an owner decision on the arm's repeatability as the band.
+  const BRANCH_NEUTRAL=1e-5,sign=v=>Math.abs(v)<BRANCH_NEUTRAL?0:Math.sign(v);
   const branch=q=>[sign(g.forearmMm*Math.cos(q[2]*Math.PI/180)+g.elbowOffsetMm*Math.sin(q[2]*Math.PI/180)),sign(Math.sin(q[4]*Math.PI/180))];
   const chosen=branch(seed);
   // The damped step keeps reducing the pose residual while the seed branch can
@@ -71,12 +76,12 @@ export function densoInverse(g,pose,{seed}={}){
   let best=Infinity,stalls=0;
   try{for(let iteration=0;;iteration++){
     const s=densoForward(g,q),p=sub(pose.tcp,s.tcp),r=rotationError(pose.rotation,s.rotation);
-    if(norm(p)<1e-5&&norm(r)<1e-7){
+    if(norm(p)<PROGRAM_STEP_MM&&norm(r)*lever<PROGRAM_STEP_MM){ // convergence: closer than one program step, rotation measured at the lever
       if(branch(q).some((v,i)=>v&&chosen[i]&&v!==chosen[i]))return {valid:false,errors:['DENSO solve leaves the declared elbow/wrist seed branch']};
       return {...s,valid:true,errors:[],iterations:iteration};
     }
     const residual=norm(p)+norm(r)*lever;
-    if(residual<best*(1-1e-9))
+    if(residual<best*(1-ROUNDING_RELATIVE)) // progress beyond rounding
       {best=residual;stalls=0;}
     else if(++stalls>=8)
       return {valid:false,errors:[`DENSO nominal IK stopped approaching the requested pose from the declared model seed after ${iteration} iterations`]};

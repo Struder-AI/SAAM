@@ -2,12 +2,14 @@ import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 
 import {strokeRange} from './deposition.mjs';
 import {validateModulationField,prepareScalarField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
-import {interpolatePose,validatePose,uprightPose} from './pose.mjs';
+import {interpolatePose,validatePose,uprightPose,POSE_RESOLUTION} from './pose.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
 
 const positive=n=>Number.isFinite(n)&&n>0;
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
-const unit=v=>{const length=Math.hypot(...v);requireThat(length>1e-12,'Modulation direction is ambiguous at a reversing corner.');return v.map(n=>n/length);};
+// Rounding guard; directions are mostly dimensionless (a mm segment this short is degenerate too).
+const unit=v=>{const length=Math.hypot(...v);requireThat(length>ROUNDING_RELATIVE,'Modulation direction is ambiguous at a reversing corner.');return v.map(n=>n/length);};
 const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
@@ -57,7 +59,7 @@ export function matchingModulations(result,role,record,operation=null) {
 // Both ends of a closed curve use this same averaged source tangent. Neither
 // corner directions nor modulation sampling change its authored ordering.
 function lateralDirections(points,closed) {
-  const duplicate=distance(points[0],points.at(-1))<1e-12;
+  const duplicate=distance(points[0],points.at(-1))<PRINT_RESOLUTION_MM;
   const count=duplicate?points.length-1:points.length,cyclic=closed||duplicate,result=[];
   for(let i=0;i<count;i++){
     const previous=i>0?points[i-1]:cyclic?points[count-1]:null,next=i+1<count?points[i+1]:cyclic?points[0]:null;
@@ -213,7 +215,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     for(let j=1;j<samples.length;j++){
       const left=samples[j-1],right=samples[j],mid=evaluateModulatedPoint(points[i],points[i+1],(left.t+right.t)/2,modifiers,directions?[directions[i],directions[i+1]]:null,context);
       const excursion=Math.max(distance(left.point,left.source),distance(right.point,right.source),distance(mid.point,mid.source));
-      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(s=>s.pose&&distance(s.pose.toolAxis,(sourcePoses?interpolatePose(...context.poses,s.t):uprightPose()).toolAxis)>1e-12);
+      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(s=>s.pose&&distance(s.pose.toolAxis,(sourcePoses?interpolatePose(...context.poses,s.t):uprightPose()).toolAxis)>POSE_RESOLUTION);
       maxExcursionMm=Math.max(maxExcursionMm,excursion);changed ||= excursion>0||mid.flow!==1||mid.width!==1||mid.speed!==1||poseChanged;
       append(right);volumes.push(volume/length*distance(left.point,right.point)*mid.flow*mid.width);
       const speedMmS=(stroke.segmentMetadata?.[i]?.speedMmS??stroke.speedMmS)*mid.speed;
@@ -222,8 +224,8 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     }
   }
   if(!changed)return {stroke,changed:false,maxExcursionMm:0};
-  const closedSource=stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<1e-12;
-  requireThat(!closedSource||distance(output[0],output.at(-1))<=1e-8,'Closed-curve modulation does not meet at its seam; make curve-frame periods/phases agree at both ends.');
+  const closedSource=stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<PRINT_RESOLUTION_MM;
+  requireThat(!closedSource||distance(output[0],output.at(-1))<=PRINT_RESOLUTION_MM,'Closed-curve modulation does not meet at its seam; make curve-frame periods/phases agree at both ends.');
   // Producer samples and process profiles belong to the original discretization.
   // Final segment metadata retains frozen surfaceNormal and bead dimensions;
   // resampled vertices/volumes replace those inputs and the former uniform area.

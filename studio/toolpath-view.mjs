@@ -126,6 +126,7 @@ export function layerEndSeconds(view,index){
   const clamped=Math.max(0,Math.min(index,view.groups.length-1));
   const group=view.groups[clamped],move=view.moves.at(group.last),end=move.startSeconds+move.durationSeconds;
   const next=view.groups[clamped+1];
+  // Display only: a microsecond before the next group starts.
   return next?Math.min(end,view.moves.at(next.first).startSeconds-1e-6):end;
 }
 export function stepLayerIndex(view,seconds,direction){
@@ -166,6 +167,7 @@ export function representativeLayer(view,{feature='contour'}={}){
       const move=view.moves.at(i);
       if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
       first??=move;walls++;
+      // Display only: consecutive wall moves that share an end are drawn as one.
       if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
         const a=previous.to.map((v,k)=>v-previous.from[k]),b=move.to.map((v,k)=>v-move.from[k]);
         const lengths=Math.hypot(...a)*Math.hypot(...b);

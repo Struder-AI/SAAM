@@ -1,5 +1,6 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 
 import {strokeRange} from './deposition.mjs';
@@ -16,7 +17,7 @@ export function depositedCurveSegments(operations,{widthMm,source=null,horizonta
     for(let i=1;i<points.length;i++){
       const a=points[i-1],b=points[i],length=distance(a,b);
       const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);
-      if(volume<=0||length<1e-8||horizontalOnly&&Math.abs(a[2]-b[2])>=1e-8)continue;
+      if(volume<=0||length<PRINT_RESOLUTION_MM||horizontalOnly&&Math.abs(a[2]-b[2])>=PRINT_RESOLUTION_MM)continue;
       const width=stroke.segmentMetadata?.[i-1]?.beadWidthMm??stroke.beadWidthMm??widthMm;
       segments.push({a,b,source,operationId:op.id,radius:width/2});
     }
@@ -24,6 +25,7 @@ export function depositedCurveSegments(operations,{widthMm,source=null,horizonta
   return segments;
 }
 
+// Process scale: default lateral support tolerance, a small fraction of a line width.
 export function curveSupportsPoint(segments,p,z,{source=null,toleranceMm=.015}={}) {
   return segments.some(s=>(source===null||s.source===source||s.operationId===source)&&
     p[0]>=Math.min(s.a[0],s.b[0])-s.radius-toleranceMm&&p[0]<=Math.max(s.a[0],s.b[0])+s.radius+toleranceMm&&
@@ -33,9 +35,9 @@ export function curveSupportsPoint(segments,p,z,{source=null,toleranceMm=.015}={
 
 function atSupportHeight(p,z,a,b){
   const dx=b[0]-a[0],dy=b[1]-a[1],squared=dx*dx+dy*dy;
-  if(squared<1e-16)return false;
+  if(squared<ROUNDING_MM**2)return false;
   const t=Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/squared));
-  return Math.abs(a[2]+t*(b[2]-a[2])-z)<1e-6;
+  return Math.abs(a[2]+t*(b[2]-a[2])-z)<PRINT_RESOLUTION_MM;
 }
 
 // Freeze the source reference normal before a field moves the centerline away
@@ -65,7 +67,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
     for(let i=1;i<points.length;i++){
       const a=points[i-1],b=points[i],length=distance(a,b);
       const volume=stroke.volumesMm3?.[i-1]??length*(stroke.beadAreaMm2??0);
-      if(length<1e-9||volume<=0)continue;
+      if(length<PRINT_RESOLUTION_MM||volume<=0)continue;
       const metadata=stroke.segmentMetadata?.[i-1];
       if(boundaryRole!==null&&metadata?.boundaryRole!==boundaryRole)continue;
       const width=metadata?.beadWidthMm??stroke.beadWidthMm??widthMm;
@@ -81,6 +83,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
   return segments;
 }
 
+// Process scale: default containment slack, a twentieth of a 0.4 mm line.
 export function depositedBeadsContain(segments,point,toleranceMm=.02){
   return segments.some(segment=>{
     const {x,y,z,length}=beadCoordinates(segment,point);
@@ -108,15 +111,15 @@ function beadCoordinates(segment,point){
 }
 
 function slabInterval(position,velocity,low,high){
-  const rounding=16*Number.EPSILON*Math.max(1,Math.abs(position),Math.abs(low),Math.abs(high));
-  if(Math.abs(velocity)<1e-14)return position>=low-rounding&&position<=high+rounding?[-Infinity,Infinity]:null;
+  const rounding=ROUNDING_RELATIVE*Math.max(1,Math.abs(position),Math.abs(low),Math.abs(high));
+  if(Math.abs(velocity)<ROUNDING_RELATIVE)return position>=low-rounding&&position<=high+rounding?[-Infinity,Infinity]:null;
   const a=(low-position)/velocity,b=(high-position)/velocity;
   return [Math.min(a,b),Math.max(a,b)];
 }
 
 function diskInterval(x,y,vx,vy,radius){
   const a=vx*vx+vy*vy,b=x*vx+y*vy,c=x*x+y*y-radius*radius;
-  if(a<1e-28)return c<=0?[-Infinity,Infinity]:null;
+  if(a<ROUNDING_RELATIVE**2)return c<=0?[-Infinity,Infinity]:null;
   const discriminant=b*b-a*c;
   if(discriminant<0)return null;
   const root=Math.sqrt(discriminant);
@@ -141,7 +144,7 @@ export function beadContactAlong(segments,point,direction,{maxDistanceMm=Infinit
     const vx=dot(ray,tangent),vy=dot(ray,side),vz=dot(ray,segment.normal);
     // Subtracting world coordinates loses precision before the local slab and
     // disk predicates run. Cover that arithmetic roundoff, not a physical gap.
-    const rounding=32*Number.EPSILON*Math.max(1,...point.map(Math.abs),...segment.a.map(Math.abs),...segment.b.map(Math.abs));
+    const rounding=ROUNDING_RELATIVE*Math.max(1,...point.map(Math.abs),...segment.a.map(Math.abs),...segment.b.map(Math.abs));
     const radius=segment.radius+toleranceMm+rounding;
     const depth=slabInterval(z,vz,-segment.heightMm,0);
     const candidates=[

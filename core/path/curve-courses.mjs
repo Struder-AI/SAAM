@@ -1,4 +1,5 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 import {depositCurves,trimVanishingEnd} from './deposition.mjs';
 import {joinCurveSequence} from './family-curves.mjs';
@@ -17,7 +18,7 @@ export function depositCurveCourses({id,courses,process,after=[],filament=null,s
     for(const p of points)for(let k=0;k<3;k++){low[k]=Math.min(low[k],p[k]);high[k]=Math.max(high[k],p[k]);}
     const top=high[2],key=course.key??index,operationId=`${id}:${key}`;
     const travel=course.travel??{kind:'clearance'},clearance=travel.clearanceZ??top+process.liftMm;
-    const inferred=travel.kind==='auto',planar=inferred&&top-low[2]<1e-9;
+    const inferred=travel.kind==='auto',planar=inferred&&top-low[2]<PRINT_RESOLUTION_MM;
     const width=Math.max(...strokes.map(s=>s.beadWidthMm??process.lineWidthMm));
     const min=[0,1].map(k=>low[k]-width/2),max=[0,1].map(k=>high[k]+width/2);
     const region=inferred?[[min,[max[0],min[1]],max,[min[0],max[1]]]]:travel.region;

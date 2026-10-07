@@ -1,4 +1,5 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
+import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 import {prepareBlobField,evaluateBlobField,validateBlobField,validateBumpsField} from '../geom/blob-field.mjs';
 import {solidDistance} from '../geom/solid-distance.mjs';
@@ -95,7 +96,7 @@ export function evaluateScalarField(field,point,{phaseRad=0,continuous=false,sid
       requireThat(!continuous||transition>0,'Position/orientation square fields need positive transitionFraction (default0.05 cycle).');
       if(transition){const t=Math.max(-1,Math.min(1,Math.sin(angle)/Math.sin(Math.PI*transition)));return t*(1.5-.5*t*t);}
       const sine=Math.sin(angle);
-      if(Math.abs(sine)<1e-12&&sideDirection){const slope=field.axis.reduce((s,v,i)=>s+v*sideDirection[i],0);if(slope)return Math.cos(angle)*slope>=0?1:-1;}
+      if(Math.abs(sine)<ROUNDING_RELATIVE&&sideDirection){const slope=field.axis.reduce((s,v,i)=>s+v*sideDirection[i],0);if(slope)return Math.cos(angle)*slope>=0?1:-1;}
       return sine>=0?1:-1;
     }
     return field.waveform==='triangle'?2/Math.PI*Math.asin(Math.sin(angle)):Math.sin(angle);
@@ -147,5 +148,5 @@ export function scalarFieldInvariant(field,translation){
   if(field.kind==='transfer')return scalarFieldInvariant(field.source,translation);
   if(field.sources)return field.sources.every(source=>scalarFieldInvariant(source,translation));
   if(!['periodic','ramp'].includes(field.kind))return false;
-  return Math.abs(field.axis.reduce((s,v,i)=>s+v*translation[i],0))<1e-10*Math.hypot(...field.axis)*Math.hypot(...translation);
+  return Math.abs(field.axis.reduce((s,v,i)=>s+v*translation[i],0))<ROUNDING_RELATIVE*Math.hypot(...field.axis)*Math.hypot(...translation); // perpendicular within rounding of the cosine
 }

@@ -1,7 +1,7 @@
 // Geometry-only triangle index shared by explicit mesh repair and its checks.
 import {subtract as sub,dot,cross} from './tolerance.mjs';
-import {separatedTriangles} from './mesh.mjs';
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {separatedTriangles,MESH_DEGENERATE_MM2} from './mesh.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 export function closestTrianglePoint(p,a,b,c) {
   const ab=sub(b,a),ac=sub(c,a),ap=sub(p,a),d1=dot(ab,ap),d2=dot(ac,ap);
@@ -22,11 +22,14 @@ export function closestTrianglePoint(p,a,b,c) {
 }
 
 // Closed triangle intersection, excluding only the actual shared vertex/edge.
-// Coplanar overlap uses projected segment and containment tests.
+// Coplanar overlap uses projected segment and containment tests. Like the mesh contract
+// (mesh.mjs) it certifies with rounding guards: a distance (mm) for coplanar, touching
+// and inside, and a dimensionless one for the segment crossing solve of noncoplanar
+// pairs.
 export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(!sharedPoints.length)return !separatedTriangles(pa,pb);
-  const eps=NUMERIC_MM,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
-  if(length<1e-12)return true;
+  const eps=ROUNDING_MM,slack=ROUNDING_RELATIVE,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
+  if(length<MESH_DEGENERATE_MM2)return true;
   const normal=n.map(v=>v/length),dist=pb.map(p=>dot(sub(p,pa[0]),normal));
   if(dist.every(d=>d>eps)||dist.every(d=>d< -eps))return false;
   const allowed=p=>sharedPoints.some(q=>Math.hypot(...sub(p,q))<=eps);
@@ -40,7 +43,8 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(sharedPoints.length===1){const other=dist.filter((_,i)=>!allowed(pb[i]));if(other.every(d=>d>eps)||other.every(d=>d< -eps))return false;}
   if(coplanar){
     const axis=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),project=p=>p.filter((_,k)=>k!==axis),a=pa.map(project),b=pb.map(project);
-    const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+    // Signed distance (mm) of c from the projected line ab.
+    const orient=(a,b,c)=>((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/(Math.hypot(b[0]-a[0],b[1]-a[1])||1);
     const strictInside=(p,t)=>{const s=t.map((a,i)=>orient(a,t[(i+1)%3],p));return s.every(v=>v>eps)||s.every(v=>v< -eps);};
     if(a.some(p=>strictInside(p,b))||b.some(p=>strictInside(p,a)))return true;
     // Centroids cover identical triangles and coincident edges on the same side.
@@ -60,10 +64,11 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
     // reach an opposite edge. Testing incident edges merely rediscovers the
     // shared endpoint with ill-conditioned barycentrics near parallel planes.
     if(sharedPoints.length===1&&(allowed(p)||allowed(q)))return false;
-    const e1=sub(t[1],t[0]),e2=sub(t[2],t[0]),d=sub(q,p),h=cross(d,e2),det=dot(e1,h);if(Math.abs(det)<1e-12)return false;
-    const s=sub(p,t[0]),u=dot(s,h)/det;if(u< -eps||u>1+eps)return false;
-    const r=cross(s,e1),v=dot(d,r)/det;if(v< -eps||u+v>1+eps)return false;
-    const f=dot(e2,r)/det;if(f< -eps||f>1+eps)return false;
+    // Rounding guard: a segment within this sine of the triangle plane runs parallel to it.
+    const e1=sub(t[1],t[0]),e2=sub(t[2],t[0]),d=sub(q,p),h=cross(d,e2),det=dot(e1,h);if(Math.abs(det)<=slack*Math.hypot(...e1)*Math.hypot(...e2)*Math.hypot(...d))return false;
+    const s=sub(p,t[0]),u=dot(s,h)/det;if(u< -slack||u>1+slack)return false;
+    const r=cross(s,e1),v=dot(d,r)/det;if(v< -slack||u+v>1+slack)return false;
+    const f=dot(e2,r)/det;if(f< -slack||f>1+slack)return false;
     const hit=p.map((x,k)=>x+f*d[k]);
     // In a noncoplanar pair sharing an edge, the planes meet only on that edge.
     if(sharedPoints.length===2)return false;

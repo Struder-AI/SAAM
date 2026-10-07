@@ -1,4 +1,7 @@
 // Packed AABB hierarchy: one index per triangle, no spatial cell duplication.
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+// Candidate filter slack: boxes within print resolution of the query are visited; callers test exactly.
+const SLACK=PRINT_RESOLUTION_MM;
 export function triangleBVH(vertices,triangles){
   const count=triangles.length,ids=Uint32Array.from({length:count},(_,i)=>i);
   const capacity=2*2**Math.ceil(Math.log2(Math.max(1,Math.ceil(count/8)))),bounds=new Float64Array(capacity*6),left=new Int32Array(capacity).fill(-1),right=new Int32Array(capacity).fill(-1),start=new Uint32Array(capacity),size=new Uint32Array(capacity);
@@ -14,7 +17,7 @@ export function triangleBVH(vertices,triangles){
   }
   if(count)build(0,count);
   function query(min,max,visit){const stack=count?[0]:[];while(stack.length){const n=stack.pop(),b=n*6;
-    if(min[0]>bounds[b+3]+1e-9||max[0]<bounds[b]-1e-9||min[1]>bounds[b+4]+1e-9||max[1]<bounds[b+1]-1e-9||min[2]>bounds[b+5]+1e-9||max[2]<bounds[b+2]-1e-9)continue;
+    if(min[0]>bounds[b+3]+SLACK||max[0]<bounds[b]-SLACK||min[1]>bounds[b+4]+SLACK||max[1]<bounds[b+1]-SLACK||min[2]>bounds[b+5]+SLACK||max[2]<bounds[b+2]-SLACK)continue;
     if(left[n]<0){for(let j=start[n],end=j+size[n];j<end;j++)visit(ids[j]);}else stack.push(left[n],right[n]);
   }}
   return {query,nodeCount:used};

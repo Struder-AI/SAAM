@@ -100,16 +100,17 @@ or derives from the print's own dimensions, and says which:
 
 | Class | Value | What it protects |
 |---|---|---|
-| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Shape judgements (coincident, touching, too thin, closed) use it. |
+| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Every shape judgement (same point, joined, touching, on a plane, overlapping, too thin, collinear) uses it. |
 | Process scale | the print's `lineWidthMm`, `layerMm`, or an operation's chord or sampling tolerance chosen from them | Construction accuracy that matters to one print: chord error, sampling steps, wall merging (`planarWallToleranceMm`). |
-| Program resolution, `PROGRAM_DECIMALS` | 5 decimals (1e-5 mm) | What an exporter can express; it stays below print resolution, so rounding the program never changes the print. |
-| Numeric conditioning, `NUMERIC_MM`, `NUMERIC_RELATIVE` | 1e-9 mm, 1e-12 | float64 safety at `BUILD_SCALE_MM` (1000 mm, where one ulp is 1.1e-13 mm): degeneracy guards and predicate certification. Never used to judge shape. |
+| Program resolution, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM` | 5 decimals (1e-5 mm) | What an exporter can express, 100x below print resolution. Constructed points converge to it: more accuracy cannot reach the program, and judgements at print resolution never see the error. |
+| Rounding guards, `ROUNDING_MM`, `ROUNDING_RELATIVE` | print resolution / 1000; / `BUILD_SCALE_MM` | Slack that absorbs floating-point rounding in a predicate or division. Never judges shape. |
 
 Display budgets are visual and never reach geometry or programs. Areas compare to
-areas; dimensionless quantities use `NUMERIC_RELATIVE` or their own scale. A feature
-far below print resolution that an operation produces is closed and reported, not
-rejected. `scripts/check-repo.mjs` fails a file whose raw tolerance literals exceed
-[its baseline](../scripts/tolerance-literals.json).
+areas (`ROUNDING_MM**2`, or a sliver no wider than print resolution); dimensionless
+quantities use `ROUNDING_RELATIVE` or their own scale. Mesh import merges vertices
+closer than print resolution; a feature far below print resolution that an operation
+produces is closed and reported, not rejected. `scripts/check-repo.mjs` fails a file
+whose raw tolerance literals exceed [its baseline](../scripts/tolerance-literals.json).
 
 Developer experiments use these same components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
 is a scoped example. A proposed parallel pipeline needs a reason the shared

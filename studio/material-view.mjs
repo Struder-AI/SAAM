@@ -1,6 +1,7 @@
 import {subtract,scale,dot,cross,length,normalize} from '../core/private/studio/numeric.mjs';
 // Display-only material geometry, derived from interpreted moves. No slicing,
 // machine commands, approval data or reference part mesh is changed here.
+// Display only: the zero-length and direction guards below shape no geometry or program.
 import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
@@ -172,6 +173,7 @@ export function createMaterialRenderer(documentApi=document){
     void main(){vec3 u=mix(u0,u1,vertex.x),v=mix(v0,v1,vertex.x);
       vec3 n=normalize(abs(vertex.w)>.5?normalize(b-a)*vertex.w:u*normalUV.x/dot(u,u)+v*normalUV.y/dot(v,v));
       vec2 rounded=vertex.yz;
+      // Display only: shader guard against a zero section coordinate.
       vec2 square=rounded/max(1e-6,max(abs(rounded.x),abs(rounded.y)));
       vec2 section=mix(square,rounded,detailed);
       gl_Position=projection*vec4(mix(a,b,vertex.x)+u*section.x+v*section.y,1.);
