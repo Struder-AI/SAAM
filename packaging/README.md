@@ -9,7 +9,7 @@ Nothing is installed from the network: dependencies come from the checkout's ins
 ## Publishing
 
 1. Fetch/integrate history and push release work explicitly to `origin/codex/remettub-dev-branch`, preserving existing commits.
-2. Verify three ZIPs/sidecars, embedded manifests and runtime architectures, installer permissions and archived bytes. Ask the owner each release whether to run the isolated Windows install, generation, Studio/Wing and repair checks (owner, 2026-10-06: "ask me about them next time"), and record the answer; record Mac acceptance limits. Never replace a user's installation as a test.
+2. The builder's own checks are the package verification. Ask the owner each release whether to run any trial beyond them (isolated install, generation, Studio/Wing, repair, isolated Update) and record the answer (owner, 2026-10-06: "ask me about them next time"); no such trial has yet found a defect. Never replace a user's installation as a test.
 3. With release authorization create `vVERSION` at the exact source SHA in [SAAM Releases](https://github.com/Struder-AI/SAAM/releases); upload three ZIPs, three checksums and `INSTALL.md`; the notes' first line tells agents to follow that release's `INSTALL.md` for exactly that version. Guide-only corrections need not rebuild unchanged archives.
-4. Verify public hashes, assets, tag and stable guide before updating all three relay `LATEST_RELEASE` entries and deploying the existing service.
-5. Verify authenticated `/device/release` offers without exposing credentials and the isolated Update/restart path with data preserved. Commit/push corrections to the same release branch and state native verification limits. A local ZIP or draft is not a published update.
+4. Compare the published assets' hashes with the build's, then update all three relay `LATEST_RELEASE` entries and deploy the existing service.
+5. Confirm the relay offers the new version (authenticated `/device/release`, credentials not printed). Commit/push corrections to the same release branch. A local ZIP or draft is not a published update.

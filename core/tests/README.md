@@ -5,7 +5,7 @@ agent needs in order to answer "does this work?" is written on demand by
 reasoning from the code and is not committed. Commands and source paths in code
 spans are relative to the repository root.
 
-Use [Avoid check spirals](../../BUILDERS.md#avoid-check-spirals) to decide
+Use [Avoid check spirals](../../DEVELOPER-CONTEXT.md#avoid-check-spirals) to decide
 whether verification is needed. First-use capability is checked by
 [setup](../../SETUP.md). The [CI workflow](../../.github/workflows/test.yml)
 provides the required `test` status through `npm run setup:check`; the suite

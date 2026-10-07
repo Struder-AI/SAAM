@@ -40,4 +40,4 @@ copies a release default into the local folder as an editable override that surv
 updates; `export` packages manifest, manuals, scripts, assets and hashes; `import`
 validates without executing code or replacing changed copies. Share explicitly; release
 promotion needs review. Document resource identity, provenance and license; callers save
-assets. Extensions have no technical sandbox or automatic I/O permission. Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../BUILDERS.md#avoid-check-spirals).
+assets. Extensions have no technical sandbox or automatic I/O permission. Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../DEVELOPER-CONTEXT.md#avoid-check-spirals).

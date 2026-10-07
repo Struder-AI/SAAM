@@ -83,6 +83,33 @@ The code itself must show the scanner and human reviewer the influence between o
 
 Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
 
+## Avoid check spirals
+
+Choose verification for the behavior being changed and a concrete failure it
+could introduce. Use [existing coverage](core/tests/README.md) first. Once the
+applicable checks resolve the uncertainty, continue toward completion. Run or
+broaden checks again only when relevant inputs change, a failure appears, or a
+specific uncertainty remains. Reuse valid results across tasks and contributors.
+
+Checkpointing, publication, rereading guidance and task completion do not
+invalidate results or create a verification pass. Prose-only edits and read-only
+work need no software tests. Use the full suite only for broad integration risk
+or a user request; skill manuals add no second gate. Setup belongs to first use
+of an environment, with reuse governed by [SETUP.md](SETUP.md).
+
+A check in production, CI or an agent workflow must earn its cost through a
+concrete failure it detects. Choose each check by the failure it would catch;
+a check with no such failure, or one whose record shows it never catching
+anything, is dropped. Account for compute, maintenance, false rejections
+and interruptions. Reuse the owning result for unchanged inputs. Reconsider an
+ineffective heuristic before adding a user-facing bypass. When a proposed
+geometry, toolpathing or extrusion gate has ambiguous value or placement, discuss
+its failure case, evidence, cost and alternatives within existing authorization.
+A maker's judgment about a print does not itself change general product policy.
+A failure states its real cause and what the person can change, leaving
+geometry and quality choices explicit. For count, size and elapsed-time limits, see
+[limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
+
 ## References and evidence
 Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.
 

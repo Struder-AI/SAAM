@@ -135,7 +135,7 @@ Sources: [0.3.5 "Dev map rebuild"](../plans/0.3.5.md) (bundles retirement with t
 
 Summary: developer agents verifying source changes use one development tool; a development instance a session starts is stopped before it reports back. Resolved by the owner, 2026-10-06 (Claude 3594b461): "I want background instances to still show up on the tray, even though no studio window is visible."
 
-Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); `.local/DEVELOPMENT.md` "No silent dev instances"; `.local/team/BRIEF.md`.
+Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); `.local/DEVELOPMENT.md` "No silent dev instances".
 
 ### Never take focus
 > "Sure, just don't window focus me away from whatever task I'm working on. I'm using my OS." — owner, 2026-10-05 (Claude 764ea5bb 21:21)

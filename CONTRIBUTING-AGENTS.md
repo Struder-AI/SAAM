@@ -31,7 +31,7 @@ services before relying on the integrated behavior.
 Update current manuals and record completed work and actual verification in
 [DEVLOG.md](DEVLOG.md). Update the work's status in its release intent.
 
-Reuse the evidence selected under [Avoid check spirals](BUILDERS.md#avoid-check-spirals).
+Reuse the evidence selected under [Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals).
 Obtain only missing, applicable evidence for the change or required branch checks;
 checkpointing, publication and rereading guidance do not invalidate valid results.
 

@@ -93,7 +93,7 @@ already available or better scheduled elsewhere. Reuse requires valid input
 identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
 and placement are justified. Apply that standard to agent workflows and CI under
-[Avoid check spirals](#avoid-check-spirals); task boundaries and commits do not
+[Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals); task boundaries and commits do not
 create verification work. Distinguish algorithmic preconditions from printing
 decisions that require domain judgment.
 
@@ -201,31 +201,6 @@ superseded work, identify its purpose and provenance and compare its producers a
 machine and lifecycle interfaces. Ordinary authorized development adds no
 per-task approval gate.
 
-## Avoid check spirals
-
-Choose verification for the behavior being changed and a concrete failure it
-could introduce. Use [existing coverage](core/tests/README.md) first. Once the
-applicable checks resolve the uncertainty, continue toward completion. Run or
-broaden checks again only when relevant inputs change, a failure appears, or a
-specific uncertainty remains. Reuse valid results across tasks and contributors.
-
-Checkpointing, publication, rereading guidance and task completion do not
-invalidate results or create a verification pass. Prose-only edits and read-only
-work need no software tests. Use the full suite only for broad integration risk
-or a user request; skill manuals add no second gate. Setup belongs to first use
-of an environment, with reuse governed by [SETUP.md](SETUP.md).
-
-A check in production, CI or an agent workflow must earn its cost through a
-concrete failure it detects. Account for compute, maintenance, false rejections
-and interruptions. Reuse the owning result for unchanged inputs. Reconsider an
-ineffective heuristic before adding a user-facing bypass. When a proposed
-geometry, toolpathing or extrusion gate has ambiguous value or placement, discuss
-its failure case, evidence, cost and alternatives within existing authorization.
-A maker's judgment about a print does not itself change general product policy.
-A failure states its real cause and what the person can change, leaving
-geometry and quality choices explicit. For count, size and elapsed-time limits, see
-[limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
-
 ## Reproducible examples
 
 A skill's [example recipes](skills/AUTHORING.md) are static references and the
@@ -302,7 +277,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Task | Start here |
 |---|---|
 | Unused checkout | [Setup](SETUP.md) |
-| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the [test reference](core/tests/README.md) |
+| Choosing or changing tests | [Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals), then the [test reference](core/tests/README.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
 | Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the boxes and `@link` arrows the change touches |
