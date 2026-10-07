@@ -239,8 +239,10 @@ export function sectionMeshIndex(index,h) {
     const loops=[];
     for(const edges of meshContourEdges(index.vertices,cut,trianglesAt(index,cut))){
       const loop=edges.map(([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];});
-      // Remove collinear triangle seams before offsetting regions.
-      const clean=cleanPlanarLoop(loop);
+      // Remove triangle seams collinear to rounding before offsetting regions. The section
+      // stays the exact cut: a shape tolerance here would switch retained vertices as Z
+      // moves, and callers simplify at their own tolerance (contour-sleeve, layer-strokes).
+      const clean=cleanPlanarLoop(loop,ROUNDING_MM);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
     }
     return {loops:orientLoops(loops),nudgedByMm:nudge};

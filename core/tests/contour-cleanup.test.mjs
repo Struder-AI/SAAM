@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 import {offsetRegion} from '../region/offset.mjs';
 import {regionArea,loopArea,pointSegmentDistance} from '../region/region2d.mjs';
 
@@ -53,7 +54,8 @@ test('contour cleanup retains corners, narrow features, reversals and accumulate
   assert.deepEqual(cleanPlanarLoop(narrow),narrow);
   const circle=Array.from({length:2000},(_,i)=>[10*Math.cos(i*Math.PI/1000),10*Math.sin(i*Math.PI/1000)]);
   assert.equal(cleanPlanarLoop(circle).length,circle.length);
-  const curved=Array.from({length:101},(_,i)=>[i*.1,1e-7*i*i]);
-  const loop=[...curved,[10,10],[0,10]];
-  assert.ok(cleanPlanarLoop(loop).length>50,'whole-run distance prevents incremental curve flattening');
+  // Each point turns by less than the rounding guard; the whole run bends far more.
+  const curved=Array.from({length:401},(_,i)=>[i*.1,ROUNDING_MM/2*i*i]);
+  const loop=[...curved,[40,10],[0,10]];
+  assert.ok(cleanPlanarLoop(loop).length>100,'whole-run distance prevents incremental curve flattening');
 });

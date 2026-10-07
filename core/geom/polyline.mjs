@@ -1,4 +1,4 @@
-import { ROUNDING_RELATIVE, PRINT_RESOLUTION_MM } from '../dimensions.mjs';
+import { ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
 
 // The ordinary bounded-coordinate case does not need Math.hypot's general
 // rescaling/compensation loop. Retain it for overflow and underflow ranges.
@@ -11,10 +11,12 @@ const norm2=(x,y)=>{
 // An angle test becomes unstable beside very short mesh/triangle edges. Testing
 // every original point also prevents small turns accumulating into a flattened
 // curve. Iterative subdivision avoids recursion limits on imported contours.
+// The default removes only points collinear to the rounding guard, so the loop
+// keeps its exact shape; a caller simplifying shape passes its own tolerance.
 // The default preserves even tiny reversals. A caller performing an explicitly
 // tolerance-bounded detail approximation may opt out; all original vertices
 // still participate in the replacement-segment distance check.
-export function cleanPlanarLoop(loop, tolerance = PRINT_RESOLUTION_MM, {preserveReversals=true}={}) {
+export function cleanPlanarLoop(loop, tolerance = ROUNDING_MM, {preserveReversals=true}={}) {
   if (loop.length < 4) return loop;
   let opposite = 1, farthest = 0;
   for (let i = 1; i < loop.length; i++) {
