@@ -15,7 +15,7 @@ request tolerance-based vertex merging, diagnosis or bounded hole filling.
 | Inconsistent winding or self-intersecting faces | Orientation; a self-crossing surface becomes its solid's boundary (overlaps unite, inward shells stay cavities). Review the changed areas. |
 | Open boundaries | Fill only openings within explicit edge-count and size limits, according to the intended solid. |
 | Nonmanifold topology | Compatible patches are split and oriented; ambiguous topology is rejected. |
-| Out of memory for this mesh | The reported stage could not allocate for the reported size; rerun with a larger `--max-old-space-size` or on a machine with more RAM. |
+| Out of memory for this mesh | The reported stage could not allocate for the reported size, within a heap sized to the machine; a machine with more RAM can finish it. |
 
 A diagnostic does not determine the intended solid. Preserve the original and
 explain consequential shape changes. Don't fill a large opening automatically or

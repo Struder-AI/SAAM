@@ -1,9 +1,9 @@
 import {createServer} from 'node:http';
 import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
-import {Worker} from 'node:worker_threads';
 import {randomUUID} from 'node:crypto';
 import {replaceFile} from '../core/file-write.mjs';
+import {computationWorker,workerMemoryError} from '../core/print/computation-job.mjs';
 import {recoverWorkspaceExport,currentWorkspaceExport,lockWorkspaceExport,beginWorkspaceExport,publishWorkspaceExport,finishWorkspaceExport,retireWorkspaceExport,workspaceExportPath} from './export-publication.mjs';
 import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces} from '../core/extensions/workspaces.mjs';
 import {relativeExtensionFile} from '../core/extensions/library.mjs';
@@ -75,7 +75,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
         try{
           await lockWorkspaceExport(previous,async()=>{
             if(closed)throw Error('Workspace closed before construction.');
-            worker=new Worker(new URL('./export-worker.mjs',import.meta.url),{execArgv:[],workerData:{extensionId,extension,design:normalized,directory:workspaceExportPath(directory,stagingName),previous,...options}});
+            worker=computationWorker(new URL('./export-worker.mjs',import.meta.url),{extensionId,extension,design:normalized,directory:workspaceExportPath(directory,stagingName),previous,...options});
             const running=worker;
             publication.source=await new Promise((done,fail)=>{
               const completed={received:false};
@@ -84,7 +84,7 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
                 else if(message.stage==='failed')fail(Error(message.error));
                 else{state.job={...state.job,...message};emit('workspace-bundles-progress',{jobId:id,directory:job.directory,stage:message.stage,piece:message.piece,completed:message.completed,total:message.total,bundles:message.bundles});}
               });
-              running.once('error',fail);
+              running.once('error',error=>fail(workerMemoryError(error,'Workspace construction')));
               running.once('exit',code=>{if(worker===running)worker=null;if(!completed.received)fail(Error('Workspace construction worker exited before completing ('+code+').'));});
             });
             if(closed)throw Error('Workspace closed before publication.');
