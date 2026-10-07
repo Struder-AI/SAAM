@@ -67,11 +67,11 @@ Replacing a cap, in order of preference: stop on the real criterion (a tolerance
 a chord error) and delete the count it stood in for; detect non-progress instead
 of counting iterations (parameter or midpoint underflow, a residual that stops
 falling relative to its own scale, a non-finite value); segment or stream when
-memory is genuinely at stake, and fail only on an actual allocation failure;
-split a command the machine cannot express in one piece rather than rejecting it;
-and for time, keep work alive while it progresses or until it is cancelled.
-A cap is never replaced by silent truncation: partial output must not pass as a
-complete result.
+memory is genuinely at stake, and fail only on an actual allocation failure in a
+[machine-sized heap](./print/computation-job.mjs); split a command the machine
+cannot express in one piece rather than rejecting it; and for time, keep work
+alive while it progresses or until it is cancelled. A cap is never replaced by
+silent truncation: partial output must not pass as a complete result.
 
 Numbers that refuse nothing are ordinary parameters, not limits: cache eviction,
 convergence and precision parameters, segmentation and command-splitting sizes,
