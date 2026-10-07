@@ -11,7 +11,7 @@ async function runMeshRepairWorker(){
     const response=prepareRepairWorkerResponse(result);
     parentPort.postMessage(response.message,response.transfer);
   }catch(error){
-    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError}});
+    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic,nativeDiagnostic:error.nativeDiagnostic}});
   }finally{
     parentPort.close();
   }

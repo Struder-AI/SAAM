@@ -1,10 +1,11 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import { requireThat, cross } from './tolerance.mjs';
+import { NUMERIC_MM } from '../dimensions.mjs';
 import { orientLoops } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
-import {meshTopology,meshEdgeMap} from './mesh-topology.mjs';
+import {checkMeshTopology} from './mesh-topology.mjs';
 import {triangleBVH} from './triangle-bvh.mjs';
 import {decodeSTLBuffer} from './stl-decoder.mjs';
 
@@ -23,20 +24,26 @@ const validatedMeshes=new Map();
 function requireMeshInput(condition,message) {
   if(!condition)throw meshInputError(message);
 }
-export function meshInputError(message){return new Error(`${message} Import through Studio or the normal import tool to attempt repair; malformed input needs a corrected source.`);}
+// `reason` keeps the finding without the import advice for callers that made the mesh.
+export function meshInputError(message){return Object.assign(new Error(`${message} Import through Studio or the normal import tool to attempt repair; malformed input needs a corrected source.`),{reason:message});}
 
 function meshResult(vertices,triangles,name,derived){
-  const mesh={kind:'triangle-mesh',name,vertices,triangles,
-    bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]}};
-  // Planar sectioning needs neither field. Copy private derived data only when
-  // a caller uses it; each makeMesh result owns its independent mutable copy.
-  for(const key of ['normals','edges']){
-    let copied=false,value;
-    Object.defineProperty(mesh,key,{enumerable:true,configurable:true,
-      get(){if(!copied){value=key==='edges'?meshEdgeMap(derived.edgeData):Array.from({length:derived.normals.length/3},(_,i)=>Array.from(derived.normals.subarray(i*3,i*3+3)));copied=true;}return value;},
-      set(next){Object.defineProperty(this,key,{value:next,writable:true,enumerable:true,configurable:true});}});
-  }
-  return mesh;
+  // Each record owns its copy of the cached normals.
+  return {kind:'triangle-mesh',name,vertices,triangles,
+    bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice()};
+}
+
+// Unit normal of triangle abc, or null when its smallest height is within
+// numeric conditioning (NUMERIC_MM), where the normal is not determined. Scale-free:
+// a long sliver and a micro triangle are judged by the same height.
+export function triangleNormal(a,b,c){
+  const n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);
+  return length>NUMERIC_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
+}
+
+// Unit normal of triangle i as validated at ingestion (packed xyz per triangle).
+export function meshFaceNormal(mesh,i){
+  return Array.from(mesh.faceNormals.subarray(i*3,i*3+3));
 }
 
 function meshIdentity(vertices,triangles){
@@ -67,28 +74,28 @@ function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
-  for(let i=0;i<triangles.length;i++){const t=triangles[i],n=cross(sub(vertices[t[1]],vertices[t[0]]),sub(vertices[t[2]],vertices[t[0]])),length=Math.hypot(...n);requireMeshInput(length>1e-10,'Degenerate mesh triangle.');for(let k=0;k<3;k++)normals[i*3+k]=n[k]/length;}
+  for(let i=0;i<triangles.length;i++){const t=triangles[i],n=triangleNormal(vertices[t[0]],vertices[t[1]],vertices[t[2]]);requireMeshInput(n,'Degenerate mesh triangle.');normals.set(n,i*3);}
   return {normals,bounds};
 }
 
 function validateMeshGeometry({vertices,triangles},{normals,bounds}){
   const counts=[vertices.length,triangles.length];
-  const edgeData=meshAllocation('Mesh edge topology',...counts,()=>meshTopology(vertices,triangles,requireMeshInput));
+  meshAllocation('Mesh edge topology',...counts,()=>checkMeshTopology(vertices,triangles,requireMeshInput));
   meshAllocation('Mesh intersection index',...counts,()=>rejectIntersections(vertices,triangles,normals));
-  return {normals,edgeData,bounds};
+  return {normals,bounds};
 }
 
 function retainValidatedMesh(identity,derived){
   // Keep at most 32 MiB of compact derived data, never a full JSON mesh key.
-  const bytes=derived.normals.byteLength+derived.edgeData.byteLength;
-  if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength+v.edgeData.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
+  const bytes=derived.normals.byteLength;
+  if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
   return derived;
 }
 function rejectIntersections(vertices,triangles,normals){
   const tree=triangleBVH(vertices,triangles);
   for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
     const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
-      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-1e-9||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+1e-9))return;
+      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-NUMERIC_MM||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+NUMERIC_MM))return;
       if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
     };
     tree.query(min,max,inspectCandidate);
@@ -104,21 +111,13 @@ export function separatedTriangles(pa,pb,normalA,normalB) {
   return axes.some(axis=>{
     const length=Math.hypot(...axis);if(length<1e-12)return false;
     const unit=axis.map(v=>v/length),aa=pa.map(p=>dot(p,unit)),bb=pb.map(p=>dot(p,unit));
-    return Math.max(...aa)<Math.min(...bb)-1e-9||Math.max(...bb)<Math.min(...aa)-1e-9;
+    return Math.max(...aa)<Math.min(...bb)-NUMERIC_MM||Math.max(...bb)<Math.min(...aa)-NUMERIC_MM;
   });
 }
 
 export function translateMesh(mesh,dx,dy,dz=0) {
-  // Preserve lazy derived fields and all other metadata without invoking
-  // getters. As before, translated meshes share already-owned derived values.
-  const data=value=>({value,writable:true,enumerable:true,configurable:true});
-  const descriptors=Object.getOwnPropertyDescriptors(mesh);
-  for(const descriptor of Object.values(descriptors)){
-    descriptor.configurable=true;if('value' in descriptor)descriptor.writable=true;
-  }
-  return Object.defineProperties({}, {...descriptors,
-    vertices:data(mesh.vertices.map(p=>[p[0]+dx,p[1]+dy,p[2]+dz])),
-    bounds:data({min:mesh.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:mesh.bounds.max.map((v,i)=>v+[dx,dy,dz][i])})});
+  return {...mesh,vertices:mesh.vertices.map(p=>[p[0]+dx,p[1]+dy,p[2]+dz]),
+    bounds:{min:mesh.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:mesh.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
 }
 
 // Mesh sections in a slice frame: three orthonormal axes [x, y, n]. The mesh is
@@ -233,7 +232,7 @@ export function meshCrossingsAt(mesh,x,y) {
     const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
     const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
     if(Math.min(u,v,w)<-1e-9)continue;
-    const n=mesh.normals[i],normal=n[2]<0?n.map(v=>-v):n;
+    const n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
     crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI,feature:`triangle:${i}`,patch:`triangle:${i}`});
   }
   return crossings;
@@ -248,7 +247,7 @@ export function meshTopAt(mesh,x,y) {
     const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
     const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
     if(Math.min(u,v,w)<-1e-9)continue;
-    const zMm=u*a[2]+v*b[2]+w*c[2],n=mesh.normals[i],normal=n[2]<0?n.map(v=>-v):n;
+    const zMm=u*a[2]+v*b[2]+w*c[2],n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
     const slopeDeg=Math.acos(Math.min(1,normal[2]))*180/Math.PI;
     if(!best||zMm>best.zMm+1e-8||(Math.abs(zMm-best.zMm)<=1e-8&&slopeDeg>best.slopeDeg))best={zMm,normal,slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`};
   }

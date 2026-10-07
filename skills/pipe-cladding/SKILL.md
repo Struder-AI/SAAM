@@ -20,10 +20,10 @@ Use the normal assignment editor; it supplies the remaining Slice defaults:
   "id":"coating", "loops":0, "fillDensity":1, "solidTop":0, "solidBottom":0,
   "surface":{"kind":"spline","patch":"outer","periodicU":true,
              "normalSide":1,"uvBounds":[[0,24],[0,1]]},
-  "stack":{"firstLayerMm":0.2,"layerMm":0.2,"direction":"normal"},
+  "stack":{"firstLayerMm":0.2,"layerMm":0.2,"direction":"normal","offsetTightness":1},
   "within":[{"kind":"normal-band","fromMm":0,"toMm":0.8}],
   "fillOrder":{"kind":"surface-cells","directions":["axial","circumferential"],
-               "toleranceMm":0.01,"offsetTightness":1},
+               "toleranceMm":0.01},
   "contact":{"source":null}
 }
 ```
@@ -32,7 +32,7 @@ The four 0.2 mm courses alternate axial tracks and circumferential helices.
 `directions:["forward","reverse"]` alternates helical winding. A longer list
 repeats in order. `spacingFactor` changes track pitch without changing bead
 width. `fromMm` and `toMm` select the owned normal-depth interval; overlapping
-owners use the common ownership allocator rather than depositing twice.
+owners reject before deposition; touching intervals are allowed.
 
 `part` selects an assembly component. A null contact source consumes its
 available finalized producers; an assignment ID selects one. Source operation
@@ -49,10 +49,10 @@ require explicit migration to these ordinary Slice fields.
   with a duplicate final seam row. Every cell matches two native triangles.
   Reordering or replacing mesh vertices requires revising this explicit chart.
 
-The current cell field needs a rectangular chart periodic in U. It does not
-unwrap arbitrary meshes or cover open patches. Those are geometric algorithm
-boundaries, not skill or machine eligibility. Use explicit Trace curves for
-other authored coverage.
+Physical cells use a rectangular chart. Open charts support axial and
+circumferential rows; helices require periodic U. This does not unwrap arbitrary
+meshes or certify global geodesic coverage. Fill and course variation are shared
+Slice settings, independent of the normal stack.
 
 The source must actually deposit the selected boundary. A vase's unfinished
 spiral only supplies its completed side height; patterns publish their real
@@ -69,14 +69,14 @@ Normals and metric come from the selected chart. Offsets are ambient normal
 placements, not geodesic offsets. Cell widths account for local surface metric;
 partial axial cells begin/end where coverage appears. `sampleStepMm` and
 `toleranceMm` control sampling; this is no global surface-error guarantee.
-For native spline references, `offsetTightness` interpolates loose to exact
+For native spline references, `stack.offsetTightness` interpolates loose to exact
 normal offsets (0–1); mesh strips use their interpolated normal field.
 
 Pose output is optional. `toolPose:{}` derives upright poses; use
 `toolPose:{alignToSliceNormal:true}` to follow the surface normal. Field `tilt`
 modulation can vary either mode. SAAMpath keeps these derived poses independent of
-the machine; its exporter handles their representation. The [DENSO demo](scripts/demo.mjs)
-uses normal alignment and synthetic setup, not installation calibration or approval.
+the machine; its exporter handles their representation. The [DENSO tube example](examples/denso-tube.json)
+uses normal alignment and synthetic setup, not installation calibration.
 
 No physical cladding print is qualified. Inspect adhesion, transitions,
 clearance and motion with the person through the ordinary Studio review.

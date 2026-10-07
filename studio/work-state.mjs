@@ -1,6 +1,10 @@
+import {completedOutputState} from '../core/print/review-state.mjs';
+
 // One request lifecycle for the viewport, persisted presentation and tour gates.
 // A target describes saved inputs; presentation describes a result actually drawn.
-const edits=request=>!['guidance','advisory'].includes(request.kind);
+// Guidance is visually quiet until the agent publishes an actual edit target.
+export const isEditRequest=request=>Boolean(request&&request.kind!=='advisory'
+  &&(request.kind!=='guidance'||request.target));
 function matchesReceipt(request,snapshot){
   if(!request?.baseline||!snapshot)return false;
   if(request.studioInstanceId&&snapshot.studioInstanceId&&request.studioInstanceId!==snapshot.studioInstanceId)return false;
@@ -9,63 +13,64 @@ function matchesReceipt(request,snapshot){
   if(!request.target)return false;
   return request.target.inputKey===snapshot.inputKey
     &&(request.target.stage==='geometry'||snapshot.stage==='toolpath')
-    &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.generationKey!==snapshot.generationKey);
+    &&(request.baseline.inputKey!==snapshot.inputKey||request.baseline.schema==='saam-work-evidence/1'&&request.baseline.generationKey!==snapshot.generationKey);
 }
 
-export function requestReceiptState(request,{now=Date.now(),closedOwners=new Map(),view,state,stage,requiresToolpath=false}={}){
+export function requestReceiptState(request,{view:displayedView,state,stage,requiresToolpath=false}={}){
+  const display={view:displayedView};
   if(state){
     const geometryReady=stage==='geometry'&&Boolean(state.geometry);
-    const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&!state.programError&&Boolean(state.program);
+    const toolpathReady=stage==='toolpath'&&!requiresToolpath&&!state.generationError&&completedOutputState(state).receipt;
     const ready=Boolean(state.work?.snapshot)&&(geometryReady||toolpathReady);
-    view={printId:state.work?.printId,snapshot:state.work?.snapshot?{...state.work.snapshot,stage}:null,ready,
+    display.view={printId:state.work?.printId,snapshot:state.work?.snapshot?{...state.work.snapshot,stage}:null,ready,
       awaitingConfirmation:false};
   }
-  const relevant=Boolean(request&&edits(request)&&(!view?.printId||request.printId===view.printId));
+  const view=display.view;
+  const relevant=Boolean(isEditRequest(request)&&(!view?.printId||request.printId===view.printId));
   const receipt=Boolean(relevant&&(request.presented||view?.ready&&matchesReceipt(request,view.snapshot)));
   const awaitingConfirmation=Boolean(relevant&&!receipt&&view?.ready&&view.awaitingConfirmation
     &&request.target?.stage==='toolpath'&&request.target.inputKey===view.snapshot?.inputKey);
-  if(!request)return {activity:'idle',receipt:Boolean(view?.ready),awaitingConfirmation:Boolean(view?.awaitingConfirmation)};
+  if(!request)return {activity:'idle',receipt:Boolean(view?.ready||state&&stage==='toolpath'&&completedOutputState(state).available&&state.work?.snapshot),awaitingConfirmation:Boolean(view?.awaitingConfirmation)};
   if(!relevant)return {activity:'idle',receipt:false,awaitingConfirmation:false};
   if(receipt)return {activity:'presented',receipt:true,awaitingConfirmation:false};
   if(['waiting','cancelled'].includes(request.status))return {activity:request.status,receipt:false,awaitingConfirmation};
-  if(request.status==='failed')return {activity:request.connectionClosed?'disconnected':request.timedOut?'expired':'failed',receipt:false,awaitingConfirmation};
+  if(request.status==='failed')return {activity:'failed',receipt:false,awaitingConfirmation};
   const pendingResult=request.status==='completed'&&request.result
     &&matchesReceipt(request,{...request.result,stage:request.target?.stage??'toolpath'});
-  let activity;
-  if(request.status==='completed'&&!pendingResult)activity='completed';
-  else if(request.updatedAt<=(closedOwners.get(request.ownerId)??-Infinity))activity='disconnected';
-  else if(request.expiresAt<=now)activity='expired';
-  else if(request.status==='queued')activity='queued';
-  else if(view?.errorAt&&request.updatedAt<=view.errorAt)activity='failed';
-  else if(awaitingConfirmation)activity='waiting';
-  else activity=request.status==='working'||pendingResult?'working':'idle';
+  const activity=receiptActivity(request,pendingResult,view,awaitingConfirmation);
   return {activity,receipt:false,awaitingConfirmation};
 }
 
-export function hasUnpreparedEdit(requests=[],snapshot,{now=Date.now()}={}){
-  return requests.some(request=>['queued','working'].includes(requestReceiptState(request,{now}).activity)
+function receiptActivity(request,pendingResult,view,awaitingConfirmation){
+  if(request.status==='completed'&&!pendingResult)return 'completed';
+  if(request.status==='queued')return 'queued';
+  if(view?.errorAt&&request.updatedAt<=view.errorAt)return 'failed';
+  if(awaitingConfirmation)return 'waiting';
+  return request.status==='working'||pendingResult?'working':'idle';
+}
+
+export function hasUnpreparedEdit(requests=[],snapshot){
+  return requests.some(request=>['queued','working'].includes(requestReceiptState(request).activity)
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
-// Which pane the active work is regenerating, so only that pane dims: 'toolpath'
-// when every active edit and any load target the toolpath, 'all' when something
-// broader (a geometry edit, a full reload) is in flight, or null when idle. A
-// toolpath-only result lets the geometry pane stay crisp while it computes.
-export function summarizeWork(requests=[],{now=Date.now(),closedOwners=new Map(),view}={}){
-  const context={now,closedOwners,view};
-  let working=false,allToolpath=true,latest=null,latestTime=-Infinity,status;
-  for(const request of requests){
-    if(!edits(request)||view?.printId&&request.printId!==view.printId)continue;
-    const state=requestReceiptState(request,context),time=Math.max(request.updatedAt,request.timedOut?request.expiresAt:0);
-    if(['queued','working'].includes(state.activity)){working=true;if(request.target?.stage!=='toolpath')allToolpath=false;}
-    const delta=time-latestTime;
-    if(!latest||Number.isNaN(delta)||delta>=0){latest=request;latestTime=time;status=state.activity;}
-  }
-  const loadingScope=view?.loading?(view.loadingStage??'all'):null;
-  const requestScope=working?(allToolpath?'toolpath':'all'):null;
-  const stage=loadingScope&&requestScope
-    ?loadingScope==='toolpath'&&requestScope==='toolpath'?'toolpath':'all'
-    :loadingScope??requestScope??null;
-  const active=Boolean(view?.loading)||working;
-  return {active,message:active?'':status==='disconnected'?'(connection closed)':status==='expired'?'(lost contact)':'',stage};
+export function inspectionReceipt(request,view){
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+    &&view?.ready&&!view.loading&&request.printId===view.printId&&request.inspectionTarget
+    &&request.inspectionTarget.revision===view.snapshot?.revision
+    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.snapshot?.stage));
+}
+export function inspectionFailure(request,view){
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+    &&request.inspectionTarget&&view?.errorAt&&request.printId===view.printId
+    &&request.inspectionTarget.revision===view.snapshot?.revision
+    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.errorStage));
+}
+export function summarizeWork(requests=[],{view}={}){
+  const scoped=requests.filter(r=>r.episode&&(!view?.printId||r.printId===view.printId));
+  const latest=scoped.reduce((value,r)=>Math.max(value,r.episodeStartedAt??r.createdAt),0);
+  const relevant=scoped.filter(r=>(r.episodeStartedAt??r.createdAt)===latest);
+  const active=relevant.some(r=>r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!inspectionReceipt(r,view)&&!inspectionFailure(r,view));
+  const failure=relevant.findLast(r=>['failed','cancelled'].includes(r.status)&&!r.workActive);
+  return {active:Boolean(view?.loading||active),message:relevant.findLast(r=>r.inspectionFailed)?.inspectionFailed??failure?.message??'',stage:active?'all':view?.loading?(view.loadingStage??'all'):null};
 }

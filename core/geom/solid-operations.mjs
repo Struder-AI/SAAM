@@ -14,6 +14,7 @@ export async function constructSolids(requests,{toleranceMm=.02}={}){
     let solid;
     switch(request.kind?null:request.operation){
       case 'union': solid=keep(kernel.Manifold.union(await operandsOf(request)));break;
+      case 'intersection': solid=keep(kernel.Manifold.intersection(await operandsOf(request)));break;
       case 'difference': {const [first,...rest]=await operandsOf(request);solid=first;for(const operand of rest)solid=keep(solid.subtract(operand));break;}
       case 'translate': solid=keep((await evaluate(request.geometry)).translate(request.offset));break;
       case 'box': solid=keep(kernel.Manifold.cube(request.size));break;

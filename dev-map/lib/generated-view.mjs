@@ -1,55 +1,18 @@
-// The whole stored map, drawn for the owner. This reads the store and nothing else: every page
-// it draws is what `generate` wrote, and a page whose source has moved since the store was
-// written is marked on its own drawing rather than quietly redrawn.
+// A stored map set drawn for the owner: a design set's stored design or an influence set's stored
+// model, rendered by generated-view.py. It reads the store, then places untouched influence maps;
+// it never analyses source or solves nesting.
 import {readFile,readdir,mkdir,rm,stat,copyFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {repoRoot,storeDir,readIndex,storedFreshness,matchingSource} from './store.mjs';
-import {presentationPage} from './presentation.mjs';
-import {snapshotIdentity} from './freshness.mjs';
-import {writeScorePage,scoreMaps} from './score.mjs';
-import {setFile,setName,mapSet} from './map-set.mjs';
-import {readTreeFile} from './tree.mjs';
-
-export const regenerate=`node dev-map/cli.mjs regenerate${setName==='default'?'':` --set ${setName}`}`;
-export const noStore=dir=>`No stored map at ${dir}. Run: ${regenerate}`;
+import {repoRoot,setFile,mapSet} from './map-set.mjs';
 
 // Every stored page, the source behind it, and which pages the source has moved out from under.
-export async function viewModel({repo=repoRoot,readSource=file=>readFile(resolve(repo,file),'utf8'),files}={}) {
+async function viewModel({repo}) {
   if(mapSet?.mode==='design')return (await import('./design.mjs')).designModel({repo});
-  const dir=storeDir(repo),held=await readIndex(dir);
-  if(!held)throw Error(noStore(dir));
-  const snapshotId=snapshotIdentity(held);
-  const freshness=await storedFreshness(held,{repo,readSource,files});
-  const sources={},sourceInfo={};
-  const pages=[held.root,...Object.values(held.groupPages??{})];
-  for(const [file,name] of Object.entries(held.records)) {
-    const record=JSON.parse(await readFile(resolve(dir,'files',name),'utf8'));
-    pages.push(...Object.values(record.pages));
-    const {text,...provenance}=await matchingSource(file,{repo,held,record,readSource});
-    if(text!==null)sources[file]=text;
-    sourceInfo[file]=provenance;
-  }
-  const stale=Object.fromEntries(freshness?pages.map(p=>[p.index,freshness]):[]);
-  // Each map's score and its parts, drawn in the viewer's bar while the owner checks the scorer.
-  const scores=Object.fromEntries((await scoreMaps({repo})).scores.map(s=>[s.index,s]));
-  const {layout}=await readTreeFile(repo);
-  for(const page of pages) {
-    const authored=layout[page.index==='0'?'0':page.cluster];
-    if(!authored)continue;
-    const positions={};
-    for(const [identity,position] of Object.entries(authored.positions??{})) {
-      const component=page.components.find(c=>c.cluster===identity||c.path===identity||c.boundary===identity||c.externals?.includes(identity));
-      if(!component)throw Error(`Layout ${page.path}: ${identity} is not a box on this map.`);
-      if(![position.x,position.y].every(n=>Number.isFinite(n)&&n>=0))throw Error(`Layout ${identity}: x and y must be nonnegative numbers.`);
-      positions[component.index]=position;
-    }
-    page.layout={...authored,positions};
-  }
-  return {generated:held.generated,regenerate,scores,snapshotId,pages:pages.map(presentationPage),sources,sourceInfo,stale,changed:freshness?.files??[],changedInputs:freshness?.inputs??[]};
+  if(mapSet?.mode==='influence')return (await import('../influence/solved-set.mjs')).solvedModel();
+  throw Error('Choose a map set: --set 030-influence, 030-architecture or 030-deployment.');
 }
-
 const bytesUnder=async dir=>{
   let total=0,files=0;
   for(const entry of await readdir(dir,{withFileTypes:true})) {
@@ -63,14 +26,14 @@ const bytesUnder=async dir=>{
 // The viewer is one stable place a person keeps open. It is drawn beside itself and then laid
 // over the old one file by file, the shell last, so an open viewer never finds the folder gone
 // and only sees the new stamp once every drawing behind it is in place.
-export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile('view')),readSource}={}) {
-  const model={...await viewModel({repo,...(readSource?{readSource}:{})}),built:new Date().toISOString()};
+export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile('view'))}={}) {
+  const model={...await viewModel({repo}),built:new Date().toISOString()};
   const next=`${out}.next`;
   await rm(next,{recursive:true,force:true});
   await mkdir(next,{recursive:true});
   const started=Date.now();
   const child=spawn(process.env.PYTHON??'python',[fileURLToPath(new URL('./generated-view.py',import.meta.url)),next],
-    {stdio:['pipe','inherit','inherit'],env:{...process.env,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
+    {stdio:['pipe',2,'inherit'],env:{...process.env,SAAM_NODE:process.execPath,PYTHONIOENCODING:'utf-8',PYTHONPATH:fileURLToPath(new URL('./',import.meta.url))}});
   child.stdin.end(JSON.stringify(model));
   await new Promise((done,reject)=>{child.on('error',reject);child.on('exit',code=>code===0?done():reject(Error(`Generated-map renderer exited ${code}`)));});
   await mkdir(resolve(out,'svg'),{recursive:true});
@@ -79,14 +42,9 @@ export async function buildGeneratedView({repo=repoRoot,out=resolve(repo,setFile
   for(const name of await readdir(resolve(out,'svg')))if(!drawn.has(name))await rm(resolve(out,'svg',name),{force:true});
   for(const name of ['sources.js','index.html','stamp.js'])await copyFile(resolve(next,name),resolve(out,name));
   await rm(next,{recursive:true,force:true});
-  if(mapSet?.mode!=='design')await writeScorePage({repo,out});
   const {bytes,files}=await bytesUnder(out);
   return {out,index:resolve(out,'index.html'),pages:model.pages.length,stale:Object.keys(model.stale).length,
-    changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files};
+    changed:model.changed,changedInputs:model.changedInputs,ms:Date.now()-started,bytes,files,
+    ...(model.placement?{placement:model.placement}:{})};
 }
 
-// After a regenerate the viewer follows. A machine without Python still regenerates.
-export async function drawView(options={}) {
-  try {const {index,pages,stale,ms}=await buildGeneratedView(options);return {index,pages,stale,ms};}
-  catch(error){return {error:error.message};}
-}

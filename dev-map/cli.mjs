@@ -1,157 +1,27 @@
 #!/usr/bin/env node
-// Building, auditing and checking the generated map. Agents read it with
-// `node scripts/agent-toolkit.mjs read-map INDEX|DECLARATION [--code]`, or `read --set NAME`.
-import {resolve} from 'node:path';
+// Reading, regenerating, drawing and checking a map set (dev-map/README.md#commands). Agents read
+// with `node scripts/agent-toolkit.mjs read-map ADDRESS`, or `read --set NAME`.
 import {parseArgs} from 'node:util';
-import {repoRoot as root} from './lib/store.mjs';
-import {commandArgs,setFile,mapSet} from './lib/map-set.mjs';
+import {repoRoot as root,commandArgs,mapSet} from './lib/map-set.mjs';
 
-const usage='Use: node dev-map/cli.mjs [--set NAME] read ADDRESS [--code|--details] | build | regenerate [INDEX] | solve [--seed N] | flow-evidence ADDRESS | check [--json] | score [--json] | watch-freshness [--once] [--interval-ms 2000]';
 const [command='build',...args]=commandArgs;
-if(mapSet?.mode==='design') {
+if(command==='read') {
+  const {positionals}=parseArgs({args,allowPositionals:true,options:{}});
+  if(positionals.length>1)throw Error('Read one map or contract address.');
+  const {readMap}=await import('./lib/read.mjs');
+  // A read that fails says why in one line: an unknown address lists the addresses there are.
+  const read=await readMap(positionals[0]??'0',{repo:root}).catch(error=>{console.error(error.message);process.exit(1);});
+  console.log(JSON.stringify(read,null,1));
+  process.exit(0);
+}
+// A solved influence set (influence/solved-set.mjs) is written whole by its generator; a design
+// set (lib/design.mjs) is authored. Each owns its other commands.
+if(mapSet.mode==='influence') {
+  const {influenceCommand}=await import('./influence/solved-set.mjs');
+  await influenceCommand(command,args);
+}
+else {
   const {designCommand}=await import('./lib/design.mjs');
   await designCommand(command,args,{repo:root});
-  process.exit(0);
 }
-if(!['read','build','check','regenerate','solve','flow-evidence','score','watch-freshness'].includes(command))throw Error(usage);
-if(command==='read') {
-  const {values,positionals}=parseArgs({args,allowPositionals:true,options:{code:{type:'boolean'},details:{type:'boolean'}}});
-  const {readGenerated}=await import('./lib/store.mjs');
-  const {presentationPage}=await import('./lib/presentation.mjs');
-  const page=await readGenerated(positionals[0]??'0',{repo:root,code:values.code});
-  console.log(JSON.stringify(values.details||values.code?page:presentationPage(page),null,1));
-  process.exit(0);
-}
-
-// The cluster solver (lib/solve.mjs): anneal the stored tree toward the lowest energy,
-// write it to tree.json, then regenerate so the maps and the viewer show it.
-if(command==='solve') {
-  if(mapSet?.authoring==='manual')throw Error('This map set is manually authored; edit its tree.json.');
-  const {values}=parseArgs({args,options:{seed:{type:'string',default:'1'}}});
-  const {solve}=await import('./lib/solve.mjs');
-  const started=Date.now();
-  const result=await solve({repo:root,seed:Number(values.seed),onStage:s=>{
-    if(s.stage%10===0||!s.changed){const {top,topClusters,clusters,depth}=s.shape();
-      console.log(`stage ${s.stage}: T ${s.temperature.toExponential(2)}, energy ${s.energy.toFixed(4)}, best ${s.best.toFixed(4)}, ${s.accepted}/${s.moves} taken, ${s.changed} changed it; 0 homes ${top} (${topClusters} clusters), ${clusters} clusters, leaf depth median ${depth.median} max ${depth.max}`);}}});
-  console.log(`Solved in ${Math.round((Date.now()-started)/1000)} s: energy ${result.start.toFixed(4)} → ${result.energy.toFixed(4)}, ${result.clusters} clusters (${result.carried} kept their labels), ${result.repeats} repeats. Wrote ${result.file}.`);
-  const {generate}=await import('./lib/store.mjs');
-  const {drawView}=await import('./lib/generated-view.mjs');
-  const generated=await generate({repo:root});
-  const view=await drawView({repo:root});
-  console.log(`Regenerated: ${generated.leaves} leaves, ${generated.clusters} clusters, ${generated.links} links.${view.error?` Viewer: ${view.error}`:` Viewer: ${view.index}`}`);
-  process.exit(0);
-}
-
-// How well each map reads (lib/score.mjs), ranked worst first beside the viewer as scores.html.
-if(command==='score') {
-  const {values}=parseArgs({args,options:{json:{type:'boolean'}}});
-  const {writeScorePage}=await import('./lib/score.mjs');
-  const result=await writeScorePage({repo:root,out:resolve(root,setFile('view'))});
-  if(values.json){console.log(JSON.stringify(result,null,1));process.exit(0);}
-  const line=s=>`  ${s.score.toFixed(2)}  ${s.index.padEnd(14)} ${s.kind.padEnd(7)} ${s.nodes} boxes, edge ${s.edge.boundary}+${s.edge.externals}, hub ${s.hubs.max}/${s.hubs.mean}, ${s.islands} islands, ${s.backflow.links} backward, balance ${s.balance}  ${s.label}`;
-  console.log(`${result.leaves} leaves, ${result.maps} maps, ${result.links} links, energy ${result.energy} (weighted map score per leaf). Worst:`);
-  for(const s of result.scores.slice(0,10))console.log(line(s));
-  console.log('Best:');
-  for(const s of result.scores.slice(-10))console.log(line(s));
-  console.log(`All maps: ${resolve(root,setFile('view/scores.html'))}`);
-  process.exit(0);
-}
-
-if(command==='watch-freshness') {
-  const {values}=parseArgs({args,options:{once:{type:'boolean'},'interval-ms':{type:'string',default:'2000'}}});
-  const {writeFreshness,watchFreshness}=await import('./lib/freshness.mjs');
-  if(values.once)console.log(JSON.stringify(await writeFreshness({repo:root})));
-  else {
-    const controller=new AbortController(),stop=()=>controller.abort();
-    process.once('SIGINT',stop);process.once('SIGTERM',stop);
-    let previous;
-    try{await watchFreshness({repo:root,intervalMs:Number(values['interval-ms']),signal:controller.signal,onStatus:status=>{
-      const key=JSON.stringify([status.state,status.snapshotId,status.stale,status.error]);
-      if(key!==previous){console.log(JSON.stringify(status));previous=key;}
-    }});}finally{process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}
-  }
-  process.exit(0);
-}
-
-if(command==='flow-evidence') {
-  const {loadFlow,flowPacket}=await import('./lib/flow.mjs');
-  const {readIndex,storeDir}=await import('./lib/store.mjs');
-  const held=await readIndex(storeDir(root));
-  const target=args[0]??'';
-  const path=held?.nodes[target]?.path??target;
-  console.log(JSON.stringify(flowPacket(await loadFlow(),path,{evidence:true}),null,1));
-  process.exit(0);
-}
-
-if(command==='regenerate') {
-  const {generate}=await import('./lib/store.mjs');
-  const index=args[0];
-  const result=await generate({repo:root});
-  const {drawView}=await import('./lib/generated-view.mjs');
-  console.log(JSON.stringify({...result,view:await drawView({repo:root})},null,1));
-  process.exit(0);
-}
-
-// The whole stored map drawn for a person. It reads the store and never scans. A store behind
-// the source is still drawn, with the pages that moved marked on their own drawings, so the
-// map stays readable while code is being changed; only a missing store is a failure here.
-if(command==='build') {
-  if(args.length)throw Error(usage);
-  const {buildGeneratedView,regenerate}=await import('./lib/generated-view.mjs');
-  let result;
-  try {result=await buildGeneratedView({repo:root,out:resolve(root,setFile('view'))});}
-  catch(error){console.error(error.message);process.exit(1);}
-  console.log(`${result.index}: ${result.pages} nodes, ${result.files} files, ${result.bytes.toLocaleString('en-US')} bytes, ${result.ms} ms`);
-  if(result.stale) {
-    console.log(`${result.stale} nodes are stale; generation dependencies changed or lack a matching fingerprint:`);
-    for(const file of [...result.changed,...result.changedInputs??[]])console.log(`  ${file}`);
-    console.log(`Run: ${regenerate}`);
-  }
-  process.exit(0);
-}
-
-const {values:options,positionals:only}=parseArgs({args,allowPositionals:true,
-  options:{json:{type:'boolean'},viewer:{type:'boolean'}}});
-const {storeStatus}=await import('./lib/store.mjs');
-const {regenerate}=await import('./lib/generated-view.mjs');
-const status=await storeStatus({repo:root});
-const result={store:status.dir,generated:status.generated??null,missing:status.missing,
-  stale:status.missing?null:status.stale,totals:status.missing?null:status.totals,
-  orphanFacts:status.orphanFacts,factErrors:status.facts.errors};
-const failed=status.missing||!!status.stale||status.facts.errors.length>0;
-
-// The owner reads the drawing and an agent reads the compact page, and the intent is that they
-// say the same thing. This asks the built drawing, item by item, whether it carried what the
-// read presents. It is opt-in: it needs a view `build` has drawn, which `check` otherwise never
-// touches, and it reads every sidecar drawing in it.
-if(options.viewer&&!status.missing) {
-  const {viewerCoverage}=await import('./coverage.mjs');
-  result.viewer=await viewerCoverage({repo:root,only});
-}
-if(options.json)console.log(JSON.stringify(result,null,1));
-else if(status.missing)console.log(`No stored map at ${status.dir}. Run: ${regenerate}`);
-else {
-  console.log(`Stored ${status.generated}: ${status.totals.leaves} leaves, ${status.totals.clusters} clusters, ${status.totals.links} links between leaves, ${status.totals.files} files.`);
-  console.log(`Links: ${status.totals.linked} linked, ${status.totals.unresolved} unresolved, ${status.totals.outside} outside, ${status.totals.platform} platform.`);
-  if(status.stale) {
-    console.log(`Stale: ${status.stale.reason}. ${status.stale.files.length} source files; ${status.stale.inputs?.length??0} generator/configuration inputs changed.`);
-    for(const file of [...status.stale.files,...status.stale.inputs??[]])console.log(`  ${file}`);
-    console.log(`Run: ${regenerate} ${status.stale.regenerate}`);
-  }
-  console.log(`Orphan facts: ${status.orphanFacts.length}`);
-  for(const row of status.orphanFacts)console.log(`  ${row.line}\t${row.declaration}\t${row.kind}\t${row.fact}\t${row.source}\t${row.date}`);
-  if(status.facts.errors.length) {
-    console.log(`Malformed facts: ${status.facts.errors.length}`);
-    for(const error of status.facts.errors)console.log(`  ${setFile('facts.tsv')}:${error.line}: ${error.reason}\n    ${error.row}`);
-  }
-  if(result.viewer?.undrawnView)console.log(`No drawing at ${result.viewer.undrawnView}. Run: node dev-map/cli.mjs build`);
-  else if(result.viewer) {
-    const {graph,drawing,undrawn}=result.viewer;
-    console.log(`Viewer coverage: ${graph.drawn}/${graph.presented} presented items drawn; ${graph.pages} maps have a gap.`);
-    const short=drawing.filter(row=>row.drawn<row.presented);
-    console.log(`Not on the drawing: ${short.length}`);
-    for(const row of short)console.log(`  ${row.field}\t${row.presented-row.drawn} of ${row.presented}\t${row.gapPages} maps\t${row.examples.join(' ')}`);
-    if(undrawn.length)console.log(`No drawing built for ${undrawn.length} maps: ${undrawn.slice(0,5).join(' ')}. Run: node dev-map/cli.mjs build`);
-  }
-}
-if(failed)process.exit(1);
+process.exit();

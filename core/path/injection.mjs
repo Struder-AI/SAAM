@@ -18,7 +18,7 @@ export function pointInjectionOperation(record,{plan,nozzleC=null,role='injectio
   const strokes=record.approachMm>0?[{points:[approach,point],closed:false,role:'injection-approach',
     beadAreaMm2:0,beadWidthMm:plan.process.lineWidthMm,speedMmS:plan.process.zSpeedMmS,volumesMm3:[0],segmentMetadata:[{travel:'injection-approach'}]}]:[];
   strokes.push({points:[point],closed:false,role,stationaryExtrusion:{volumeMm3:record.volumeMm3,flowMm3S:record.flowMm3S,holdSeconds:record.holdSeconds}});
-  return {...operation,order:'given',connectNearby:false,strokes,
+  return {...operation,order:'given',connectNearby:false,strokes,process:plan.process,
     fanPercent:plan.process.fanPercent,
     ...(nozzleC===null?{}:{nozzleC,restoreNozzleC:plan.setup.nozzleC}),
     clearanceZ:approach[2],travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>approach[2],constantClearanceZ:approach[2]}};

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import subprocess
 import pathlib
 import re
 import sys
@@ -14,7 +16,7 @@ import textwrap
 from xml.sax.saxutils import escape
 
 from leveled import (Page, STYLE, EDGE, ASPECT, MARGIN_L, FS_FOOT, FS_NOTE, LH_NOTE,
-                     LH_TITLE, PADX, PADY)
+                     LH_TITLE, PADX, PADY, box_rx, direct_routes)
 from svg import tw
 from flow import MARKERS, kind_of      # importing flow registers its box and wire styles
 from viewer import CSS as BASE_CSS
@@ -30,6 +32,12 @@ STYLE["caller"] = dict(fill="#fff1f2", stroke="#dc2626", sw=1.4, rx=13, tc="#991
 STYLE["invocation"] = dict(fill="#eef2ff", stroke="#4f46e5", sw=1.8, rx=7, tc="#312e81")
 STYLE["outside"] = dict(fill="#ecfdf5", stroke="#059669", sw=1.8, rx=7, tc="#065f46")
 STYLE["emphasis"] = dict(fill="#e0f2fe", stroke="#0284c7", sw=2.5, rx=9, tc="#0c4a6e")
+# An influence set's command leaf (it changes state; a query only answers), and the marker boxes
+# that stand for a list the drawing cannot show, one colour per list.
+STYLE["command"] = dict(fill="#eef2ff", stroke="#4f46e5", sw=1.8, rx=7, tc="#312e81")
+TONE = {"link": "#ea580c", "unowned": "#7c3aed", "missing": "#dc2626"}
+for _tone, _colour in TONE.items():
+    STYLE["mark-" + _tone] = dict(fill="#ffffff", stroke=_colour, sw=2.2, rx=12, tc=_colour, dash="6 3")
 EDGE["caller"] = dict(stroke="#dc2626", sw=1.5, head="l-co", dash="2 3")
 EDGE["capture"] = dict(stroke="#0369a1", sw=1.5, head="l-data", dash="3 3")
 ROW = 14.0
@@ -68,7 +76,10 @@ class MapPage(Page):
     def layout(self):
         super().layout()
         if getattr(self, "authored", None):
-            self.position_authored()
+            if self.authored.get("overlay"):
+                self.position_overlay()
+            else:
+                self.position_authored()
         # The expanded owner is the page frame. Its references leave that boundary;
         # diagnostic lists stay outside it rather than masquerading as function contents.
         self.frame_w = max(self.W, 2 * MARGIN_L + max(tw(self.title, 21), tw(self.subtitle, 12),
@@ -117,7 +128,9 @@ class MapPage(Page):
         return self
 
     def position_authored(self):
-        positions = self.authored["positions"]
+        positions = self.authored.get("positions") or {}
+        if not positions:
+            return
         for nid, point in positions.items():
             node = self.index[nid]
             node.x, node.y = point["x"], point["y"]
@@ -136,6 +149,9 @@ class MapPage(Page):
             for j, node in enumerate(row):
                 node.x, node.y = MARGIN_L + j * cell, y
             y += max(n.h for n in row) + 85
+        # A page whose unplaced boxes are part of what it says is fitted to all of them.
+        if self.authored.get("frame") == "all":
+            self.focus = [0, 0, max(n.x + n.w for n in self.nodes) + 50, max(n.y + n.h for n in self.nodes) + 70]
         for node in self.nodes:
             node.column = 0
         self.row_of, self.slot, self.gutter_lane, self.wrapped = {0: 0}, {}, {}, set()
@@ -146,25 +162,13 @@ class MapPage(Page):
         for i in self.long:
             for end in (self.edges[i]["src"], self.edges[i]["dst"]):
                 self.fan[end] = self.fan.get(end, 0) + 1
-        def route(edge):
+        direct = (self.direct_routes(range(len(self.edges)))
+                  if getattr(self, "design", False) or self.authored.get("route") == "direct" else {})
+
+        def route(k, edge):
             a, b = self.index[edge["src"]], self.index[edge["dst"]]
-            if getattr(self, "design", False):
-                paired = any(e["src"] == edge["dst"] and e["dst"] == edge["src"] for e in self.edges)
-                if abs(b.cy - a.cy) > abs(b.cx - a.cx):
-                    down = b.cy > a.cy
-                    offset = (35 if down else -35) if paired else 0
-                    sx, sy = a.cx + offset, a.y + a.h if down else a.y
-                    dx, dy = b.cx + offset, b.y if down else b.y + b.h
-                    bend = (dy - sy) * .45
-                    return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
-                            ((sx + dx) / 2 + (55 if down else -55) if paired else (sx + dx) / 2, (sy + dy) / 2))
-                right = b.cx > a.cx
-                offset = (20 if right else -20) if paired else 0
-                sx, sy = a.x + a.w if right else a.x, a.cy + offset
-                dx, dy = b.x if right else b.x + b.w, b.cy + offset
-                bend = (dx - sx) * .45
-                return ([(sx, sy), (sx + bend, sy), (dx - bend, dy), (dx, dy)],
-                        ((sx + dx) / 2, (sy + dy) / 2))
+            if k in direct:
+                return direct[k]
             if (a.id.startswith("external:") or b.id.startswith("external:")) and abs(b.cy - a.cy) > 100:
                 down = b.cy > a.cy
                 sx, sy = a.cx, a.y + a.h if down else a.y
@@ -173,9 +177,53 @@ class MapPage(Page):
                 return ([(sx, sy), (sx, sy + bend), (dx, dy - bend), (dx, dy)],
                         ((sx + dx) / 2, (sy + dy) / 2))
             return self._route(edge, set())
-        self.routes = [route(e) for e in self.edges]
+        self.routes = [route(k, e) for k, e in enumerate(self.edges)]
         self.W, self.H = self.right_edge + 30, max(n.y + n.h for n in self.nodes) + 100
         self.zone_rects = []
+
+    def direct_routes(self, ks):
+        """{edge index: (points, label point)} for wires `ks` drawn straight from one box to the
+        other: every wire of an authored page, and every wire touching a box the owner placed.
+        Each end meets its box where it faces the other end, spread along the side from the
+        page's other direct wires there (leveled.direct_routes). The viewer's live drag
+        (AUTHOR_JS directRoutes) draws the same curves, so a move looks the same before and
+        after it is redrawn."""
+        ks = sorted(ks)
+        self.direct = set(ks)
+        pairs = {(self.edges[k]["src"], self.edges[k]["dst"]) for k in ks}
+        boxes = {n.id: dict(x=n.x, y=n.y, w=n.w, h=n.box_h, rx=box_rx(n)) for n in self.nodes}
+        wires = [(self.edges[k]["src"], self.edges[k]["dst"],
+                  (self.edges[k]["dst"], self.edges[k]["src"]) in pairs) for k in ks]
+        return dict(zip(ks, direct_routes(boxes, wires)))
+
+    def position_overlay(self):
+        """Authored positions over the solved layout (plans/dev-maps.md milestone 5): each
+        placed box stands where the owner put it, every other box where the solver did, and
+        only the wires touching a placed box are re-routed, drawn whole and direct."""
+        moved = set()
+        for nid, point in (self.authored.get("positions") or {}).items():
+            node = self.index.get(nid)
+            if node is None:
+                continue
+            node.x, node.y = float(point["x"]), float(point["y"])
+            moved.add(nid)
+        if not moved:
+            return
+        touched = [k for k, e in enumerate(self.edges) if e["src"] in moved or e["dst"] in moved]
+        for k, r in self.direct_routes(touched).items():
+            self.routes[k] = r
+            self.long.discard(k)
+            self.wrapped.discard(k)
+        self.fan = {}
+        for k in self.long:
+            for end in (self.edges[k]["src"], self.edges[k]["dst"]):
+                self.fan[end] = self.fan.get(end, 0) + 1
+        self.right_edge = max(self.right_edge, max(n.x + n.w for n in self.nodes) + 24)
+        self.W = max(self.W, max(n.x + n.w for n in self.nodes) + 40)
+        self.H = max(self.H, max(n.y + n.h for n in self.nodes) + 34)
+        for e, (_pts, lab) in zip(self.edges, self.routes):
+            if lab:
+                self.H = max(self.H, lab[1] + 20 + 12 * e["label"].count(chr(10)))
 
     def _list_columns(self, want):
         """The ledger split into columns of about `want` rows, cut only between sections — a
@@ -259,6 +307,16 @@ class MapPage(Page):
                     if target:
                         o.append('</g>')
                     tx += tw(label, FS_NOTE)
+        # A count that opens a list: a whole marker box, or one badge row on a box.
+        for n in self.nodes:
+            if getattr(n, "list", ""):
+                o.append(f'<rect class="fm-list" data-list="{escape(n.list, QUOTE)}" data-node="{escape(n.id, QUOTE)}" x="{n.x:.1f}" y="{n.y:.1f}" '
+                         f'width="{n.w:.1f}" height="{n.box_h:.1f}" rx="12" fill="#0ea5e9" fill-opacity="0.004"/>')
+            for row, name in getattr(n, "list_rows", {}).items():
+                row_y = n.y + PADY + LH_TITLE * .75 + LH_TITLE * len(n.lines) + row * LH_NOTE
+                o.append(f'<rect class="fm-list" data-list="{escape(name, QUOTE)}" data-node="{escape(n.id, QUOTE)}" x="{n.x + PADX - 3:.1f}" '
+                         f'y="{row_y - FS_NOTE:.1f}" width="{tw(n.note_lines[row], FS_NOTE) + 6:.1f}" '
+                         f'height="{LH_NOTE:.1f}" fill="#0ea5e9" fill-opacity="0.004"/>')
         # The foot of a box is where its source is. Drawn by the base; the hit box goes over it.
         for n in self.nodes:
             note_refs = dict(getattr(n, "note_refs", {}))
@@ -266,7 +324,7 @@ class MapPage(Page):
                 note_refs[0] = n.gate_ref
             for row, gate_ref in note_refs.items():
                 gate_y = n.y + PADY + LH_TITLE * .75 + LH_TITLE * len(n.lines) + row * LH_NOTE
-                o.append(f'<rect class="fm-src fm-gate-source" data-ref="{escape(gate_ref, QUOTE)}" '
+                o.append(f'<rect class="fm-src fm-gate-source" data-ref="{escape(gate_ref, QUOTE)}" data-node="{escape(n.id, QUOTE)}" '
                          f'x="{n.x + PADX - 3:.1f}" y="{gate_y - FS_NOTE:.1f}" '
                          f'width="{tw(n.note_lines[row], FS_NOTE) + 6:.1f}" height="{LH_NOTE:.1f}" '
                          f'fill="#0ea5e9" fill-opacity="0.004"><title>Condition source</title></rect>')
@@ -275,7 +333,7 @@ class MapPage(Page):
                 continue
             ty = (n.y + PADY + LH_TITLE * 0.75 + LH_TITLE * len(n.lines)
                   + LH_NOTE * (len(n.note_lines) + len(n.reference_rows)))
-            o.append(f'<rect class="fm-src" data-ref="{escape(n.anchor_ref, QUOTE)}" data-key="{escape(n.id, QUOTE)}" '
+            o.append(f'<rect class="fm-src" data-ref="{escape(n.anchor_ref, QUOTE)}" data-key="{escape(n.id, QUOTE)}" data-node="{escape(n.id, QUOTE)}" '
                      f'x="{n.x + PADX - 4:.1f}" y="{ty - 1:.1f}" '
                      f'width="{tw(foot, FS_FOOT) + 9:.1f}" height="{FS_FOOT + 5:.1f}" rx="2" '
                      f'fill="#0ea5e9" fill-opacity="0.004"/>')
@@ -300,11 +358,27 @@ def port_target(name, pages):
     return name if name in pages else ""
 
 
-def wire(page, w, label, kind, drawn, dropped):
+def wire(page, w, label, kind, drawn, dropped, ends="one"):
     if w["from"] not in drawn or w["to"] not in drawn:
         dropped.append((page.key, w["from"], w["to"]))
         return
-    page.e(w["from"], w["to"], label, kind)
+    page.e(w["from"], w["to"], label, kind, ends=ends)
+
+
+def one_per_pair(wires):
+    """Each pair of boxes is drawn as one wire: a wire and its reverse become one wire with two
+    heads, its label naming each direction. The stored wires stay directional."""
+    by = {(w["from"], w["to"]): w for w in wires}
+    done = set()
+    for w in wires:
+        key = (w["from"], w["to"])
+        if key in done:
+            continue
+        back = by.get((w["to"], w["from"]))
+        done.add(key)
+        if back is not None and back is not w:
+            done.add((w["to"], w["from"]))
+        yield w, (back if back is not w else None)
 
 
 def value_bundles(wires):
@@ -496,19 +570,33 @@ def build_page(packet, ctx):
                 elif c["count"] > 1 and len(files) == 1 and next(iter(files)).endswith((".mjs", ".js")):
                     node.note = " · ".join(c["externals"][:6]) + (f' · +{c["count"] - 6}' if c["count"] > 6 else "")
                 continue
-            unit(c["index"], c["label"], "",
-                 f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
-                 ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
+            node = unit(c["index"], c["label"], "",
+                        f'{c["file"]}:{c["line"]}-{c["endLine"]}', "ast",
+                        ref=f'{c["file"]}:{c["line"]}-{c["endLine"]}', path=c.get("path") or f'{c["file"]}::{c["label"]}')
+            if c.get("role") == "command":
+                node.kind = "command"
+            if c.get("possiblyCallerDependent"):
+                node.note, node.note_fills = "mode argument?", {0: TONE["link"]}
         for p in packet["ports"]:
             if p.get("mechanism") == "boundary":
                 port(p["port"], f'{p["index"]} {p["label"]}', "caller", p["index"] if p["index"] in pages else "")
             else:
                 port(p["port"], p["port"], go=port_target(p["port"], pages))
+        # What the page cannot draw, as boxes: a count that opens its list, or a marked list.
+        for m in packet.get("markers", []):
+            node = page.n(m["id"], m["label"], kind="mark-" + m["tone"], note=m.get("note"))
+            node.list = m.get("list", "")
+            drawn.add(m["id"])
         for w in packet["wires"]:
             if w.get("kind") == "invocation":
                 invocation_edge(page, w, drawn, dropped)
+        for w, back in one_per_pair([w for w in packet["wires"] if w.get("kind") != "invocation"]):
+            if back is None:
+                wire(page, w, aggregate(w), "data", drawn, dropped, w.get("ends", "one"))
             else:
-                wire(page, w, aggregate(w), "data", drawn, dropped)
+                if back["from"] not in drawn or back["to"] not in drawn:
+                    dropped.append((page.key, back["from"], back["to"]))
+                wire(page, w, f'→ {aggregate(w)}' + chr(10) + f'← {aggregate(back)}', "data", drawn, dropped, "both")
     else:
         node_page(packet, page, unit, port, drawn, dropped)
     boundary = packet.get("callerBoundary")
@@ -537,6 +625,17 @@ def build_page(packet, ctx):
                 row = len(node.note.split("\n")) if node.note else 0
                 node.note = (node.note + "\n" if node.note else "") + f'{counts[cls]} {name}'
                 node.note_fills = {**getattr(node, "note_fills", {}), row: fill}
+    for b in packet.get("badges", []):
+        node = page.index.get(b["index"])
+        if node is None:
+            continue
+        row = len(node.note_lines)
+        node.note = (node.note + "\n" if node.note else "") + b["text"]
+        node.note_fills = {**getattr(node, "note_fills", {}), row: TONE[b["tone"]]}
+        node.list_rows = {**getattr(node, "list_rows", {}), row: b["list"]}
+    for nid, ident in packet.get("idents", {}).items():
+        if nid in page.index:
+            page.index[nid].ident = ident
     lists(packet, page, pages)
     page.layout()
     if getattr(page, "focus", None):
@@ -846,259 +945,13 @@ def lists(packet, page, pages):
                 page.row("item", line)
         page.row("item", "Click a source box to preview its file; click a wire for its contract and evidence. No transitive access.")
         return
-    # How this page came to be drawn: whether its wires are relationships rather than execution,
-    # how many call sites are behind them, and where its grouping was authored. A reader who does
-    # not know which kind of drawing this is would read every arrow wrong. A code destination is
-    # not drawn and its read carries none of this, so its panel says none of it either.
-    drawn = packet.get("destination") != "code"
-    if drawn and (packet.get("structural") or packet.get("relationshipSummary") or packet.get("composition")):
-        page.row("head", "this page", "", "")
-    if drawn and packet.get("structural"):
-        page.row("item", "containment view — a wire says the code under one box reaches the code "
-                         "under the other, not that it runs next", "", "structural")
-    if drawn and packet.get("relationshipSummary"):
-        summary = packet["relationshipSummary"]
-        page.row("item", f'{summary["sites"]} sites collapsed into {summary["connections"]} drawn '
-                         f'connections — every site remains under --details on {summary["details"]}',
-                 "", "relationshipSummary")
-    if drawn and packet.get("composition"):
-        c = packet["composition"]
-        counted = (f'  ·  {c["edges"]} relationships, {c["internal"]} inside groups, '
-                   f'{c["crossing"]} crossing') if c.get("edges") is not None else ""
-        page.row("item", f'authored: {", ".join(c["authored"])} — {c["source"]}  ·  '
-                         f'relations {c["relations"]}{counted}', "", "composition")
-    # A field the page lists but owns no box for: a group drawn out of a stateful declaration
-    # names the state its members touch, and the boxes for it stand on the declaration's own page.
-    if drawn and packet.get("stateFields") and not packet.get("state"):
-        page.row("head", f'state fields ({len(packet["stateFields"])}) — touched here, owned above: '
-                         f'the state boxes stand on the declaration that owns them', "", "stateFields")
-        for f in packet["stateFields"]:
-            where = f.get("source") or {}
-            at = f'{packet.get("file", "")}:{where["line"]}' if where.get("line") else ""
-            page.row("item", f'{f["name"]}  {f.get("receiver", "")}  {at}'.rstrip(),
-                     "", f'stateFields#{f["id"]}')
-    # The one authored thing on any page: a row of dev-map/facts.tsv about this declaration.
-    if packet.get("facts"):
-        page.row("head", f'facts ({len(packet["facts"])}) — authored, from dev-map/facts.tsv', "", "facts")
-        for i, f in enumerate(packet["facts"]):
-            page.row("item", f'{f["kind"]}  {f["date"]}  {f["fact"]}  [{f["source"]}]', "", f'facts#{i}')
-    if packet.get("requires"):
-        page.row("head", f'requires ({len(packet["requires"])})', "", "requires")
-        for i, item in enumerate(packet["requires"]):
-            text = f'{item["line"]}: {item["text"]}'
-            if item.get("message"):
-                text += "  |  " + item["message"]
-            page.row("item", text + f'  → {item["index"]} {item["by"]}', item.get("index", ""), f'requires#{i}')
-    if packet.get("formulas"):
-        page.row("head", f'formulas ({len(packet["formulas"])})', "", "formulas")
-        for i, f in enumerate(packet["formulas"]):
-            page.row("item", f'{f["index"]} {f["label"]}  {f["file"]}  lines '
-                             + ", ".join(str(n) for n in f["lines"]), f["index"], f'formulas#{i}')
-    if packet.get("couplings"):
-        page.row("head", f'couplings ({len(packet["couplings"])})', "", "couplings")
-        for i, c in enumerate(packet["couplings"]):
-            end = c.get("index") or c.get("path") or c.get("file") or ""
-            page.row("item", f'{c["kind"]} {c["direction"]} {c.get("label", "")}  → {end}'
-                             + (f'  {c["path"]}' if c.get("index") and c.get("path") else ""),
-                     c["index"] if c.get("index") in pages else "", f'couplings#{i}')
-    # A callable a caller passes into a parameter this page invokes. Its box is on the caller's
-    # page, where it is written and wired into the argument slot; here it is one row, so a page
-    # that only invokes its callback stays code rather than a wall of other people's lambdas.
-    targets = [(port, row) for port in packet.get("inputs", []) for row in port.get("parameterTargets", [])]
-    if targets:
-        page.row("head", f'parameter targets ({len(targets)}) — passed in by callers, drawn on the caller page',
-                 "", "parameterTargets")
-        for i, (port, row) in enumerate(targets):
-            supplier = row.get("from") or row.get("fromPath") or row.get("fromFile") or "caller"
-            page.row("item", f'{port["port"]} {port["name"]}  →  {row["index"]} {row["path"]}'
-                             + f'  · from {supplier}' + ("  · possible target" if row.get("possible") else ""),
-                     row["index"] if row["index"] in pages else "", f'parameterTargets#{i}')
-    if packet.get("declarationReferences"):
-        page.row("head", "declaration calls — invocation not established", "", "declarationReferences")
-        for i, relation in enumerate(packet["declarationReferences"]):
-            page.row("item", f'{relation["from"]} calls {relation["to"]}', relation["from"],
-                     f'declarationReferences#{i}')
-    # A row carries the file it is about, because a section lists the rows of a node this page
-    # only draws. The drawing names that file where it is not the file the page is about.
-    own_file = packet.get("file")
+    # A generator that has its own listings (a solved influence set: its arrows' leaf arrows,
+    # unlinked and unowned leaves, preview notes) supplies them as titled sections of rows.
+    for s, section in enumerate(packet.get("sections", [])):
+        page.row("head", section["title"], "", f'sections#{s}')
+        for i, item in enumerate(section["items"]):
+            page.row(item.get("style", "item"), item["text"], item.get("go", ""), f'sections#{s}#{i}')
 
-    def unresolved_rows(rows, go="", mark=""):
-        for i, u in enumerate(rows):
-            elsewhere = u.get("file") and u.get("file") != own_file
-            location = (u["file"] + ":" if elsewhere else "") + str(u["line"])
-            page.row(u.get("missing", "note"), f'{location}: {u["call"]}  —  {u["rule"]}', go, f'{mark}#{i}' if mark else "")
-
-    def uncertainty_rows(rows, go="", mark=""):
-        for i, u in enumerate(rows):
-            item = f'{mark}#{i}' if mark else ""
-            style = u.get("missing", "note")
-            u = {k: v for k, v in u.items() if k != "missing" and (k != "file" or v != own_file)}
-            if u.get("kind") == "closure-capture" and u.get("bindings"):
-                target = next((index for index, meta in pages.items() if meta.get("d") == u["closure"]), "")
-                identity = target or u["closure"]
-                limits = ", ".join(k for k, v in u.items() if k.endswith("Unknown") and v)
-                page.row(style, f'closure-capture {identity} · {u["count"]} bindings · {limits}',
-                         target or go, item)
-                for access, bindings in u["bindings"].items():
-                    for line in textwrap.wrap(f'{access}: ' + ", ".join(bindings), width=120):
-                        page.row(style, line, target or go, item)
-            else:
-                page.row(style, "  ".join(f'{k}: {value_text(v)}' for k, v in u.items()), go, item)
-
-    emit = {"unresolved": unresolved_rows, "uncertainty": uncertainty_rows}
-
-    # A list of findings is headed by what they are: a missing class when every row is of it.
-    def heading(category, rows):
-        classes = {r.get("missing") for r in rows}
-        name = MISSING[classes.pop()][1] if len(classes) == 1 and None not in classes else category
-        return f'{name} ({sum(r.get("count", 1) for r in rows)})'
-
-    if packet.get("unresolved"):
-        page.row("head", heading("unresolved", packet["unresolved"]), "", "unresolved")
-        unresolved_rows(packet["unresolved"], mark="unresolved")
-    if packet.get("uncertainty"):
-        page.row("head", heading("uncertainty", packet["uncertainty"]), "", "uncertainty")
-        uncertainty_rows(packet["uncertainty"], mark="uncertainty")
-    # A finding belongs to the node it is about, so every page that draws that node shows its
-    # rows under that box. A group or file box is not a node and carries its count alone.
-    def section(index, name, category, rows, mark):
-        go = index if index in pages else ""
-        page.row("head", f'{heading(category, rows)} — {index} {name}', go, mark)
-        emit[category](rows, go, mark)
-
-    for category in ("unresolved", "uncertainty"):
-        for c in packet.get("components", []):
-            if c.get(category):
-                section(c["index"], c.get("label") or c.get("path") or c.get("file") or c["index"],
-                        category, c[category], f'components#{c["index"]}#{category}')
-    # A node page draws the same declaration once per call site; its rows are listed once, in
-    # drawing order, under the node they are about.
-    for node in packet.get("nodeFindings", []):
-        for category in ("unresolved", "uncertainty"):
-            if node.get(category):
-                section(node["index"], node["path"].split("::", 1)[-1], category, node[category],
-                        f'nodeFindings#{node["index"]}#{category}')
-    if packet.get("analysisContext"):
-        context = packet["analysisContext"]
-        page.row("head", "analysis context", "", "analysisContext")
-        page.row("item", f'{context["index"]} {context["path"]}  uncertainty: {context["uncertainty"]}  '
-                         f'unresolved: {context["unresolved"]}', context["index"], "analysisContext#0")
-    if packet.get("consumedBy"):
-        page.row("head", f'consumedBy ({len(packet["consumedBy"])})', "", "consumedBy")
-        for i, c in enumerate(packet["consumedBy"]):
-            page.row("item", "  ".join(f'{k}: {value_text(v)}' for k, v in c.items()), c.get("index") or "",
-                     f'consumedBy#{i}')
-    if packet.get("outsideCallers"):
-        page.row("head", f'outside callers ({sum(packet["outsideCallers"].values())}) — not active while making a part',
-                 "", "outsideCallers")
-        for where, count in packet["outsideCallers"].items():
-            page.row("item", f'{where} · {count}', "", f'outsideCallers#{where}')
-    if packet.get("outside"):
-        page.row("head", f'outside ({packet["outside"]})', "", "outside")
-        page.row("item", f'{packet["outside"]} call sites reaching scanned source the map does not cover',
-                 "", "outside#0")
-    if packet.get("platform"):
-        page.row("head", f'platform ({packet["platform"]})', "", "platform")
-        page.row("item", f'{packet["platform"]} call sites with no target in any scanned root',
-                 "", "platform#0")
-
-
-LEGEND = [
-    ("h", None, "Generated relationships; authored grouping and external facts."),
-    ("p", None, "Declarations, wires, data labels and gates are produced from parsed source by "
-                "dev-map/lib/flow.mjs and dev-map/lib/store.mjs, and drawn by "
-                "dev-map/lib/generated-view.py. dev-map/flows.json selects groups and group labels; "
-                "group boundary ports are generated from the crossing relationships. Facts list rows "
-                "are written by hand in dev-map/facts.tsv because code cannot state a measurement, a "
-                "vendor behaviour or a recorded decision; each such list says so above itself. "
-                "This legend is the only other writing in the viewer."),
-    ("h", None, "Boxes"),
-    ("b", "ast", "a callee read straight from the AST (ast-call-site, ast-closure, ast-member)."),
-    ("b", "code", "opens the matching source directly. Other declaration boxes open a graph. "
-                  "The index and source span remain the same in the CLI and viewer."),
-    ("b", "assertion-code", "an assertion gate. Its condition caption opens the caller's predicate; "
-                           "its body opens the assertion implementation. Wires name its inputs, without "
-                           "claiming downstream success or exception order."),
-    ("b", "invocation", "an invocation whose callee is a parameter or is otherwise unresolved. Callable or "
-                        "receiver and argument ports come from source; optional calls retain their nullish "
-                        "gates. Where callers could be followed to concrete callables, those are listed as "
-                        "parameter-target rows below the drawing and drawn on the caller's own page."),
-    ("b", "outside", "a call to a resolved source declaration outside the mapped roots, such as a skill. "
-                      "Its wires come from the invocation; clicking opens that invocation's matching source. "
-                      "CLI target metadata names the outside declaration without inventing a map index."),
-    ("b", "recv", "a callee resolved by following the receiver's or callee's value "
-                  "(receiver-value, value-follow)."),
-    ("b", "subject", "the function this page is. Every box it draws is wired to it by an "
-                     "invocation edge, so no box floats; stub rows on a box name the argument "
-                     "slots the tracer could not source."),
-    ("b", "state", "local loop, update or collection state, with initial/current/next/final roles on its wires. "
-                   "A small named state box is owned state: a binding the enclosing declaration "
-                   "owns, or a `this.` field of the class this member belongs to. Its note says "
-                   "the binding kind, the access and which declaration owns it, and clicking it "
-                   "opens that owner."),
-    ("h", None, "Ports"),
-    ("b", "port", "in: a parameter, or a way in from outside this page — an outside caller, or a caller of this function. Out: a return, named "
-                  "as the source writes it. From/to caller rows link each observed call site. "
-                  "Unknown positions and origins stay explicit; full argument and result traces "
-                  "remain available through CLI --details. Throws do not imply a traced catcher."),
-    ("b", "throw", "a throw out, named by the constructor it throws."),
-    ("h", None, "Wires"),
-    ("p", None, "Red outward reference arrows attach to a shared box and point to observed callers elsewhere. Each index opens "
-                "that canonical destination. These references use stored calledFrom evidence; "
-                "unresolved and unrepresented callers are not invented. The expanded function instead "
-                "lists its own callers as plain links, without a frame-level arrow."),
-    ("w", "data", "ast-param / ast-def-use / ast-nested-call: a parameter, a bound call result, "
-                  "or a call written inside another call's arguments, passed on. Compatible values "
-                  "between the same boxes share one drawn connection with every value named; "
-                  "separate wires do not imply asynchronous execution."),
-    ("w", "caller", "calls: an observed caller already displayed on this page connects to its "
-                    "callee, or to the rounded page boundary. This is a call relationship, "
-                    "not returned data or an execution-order constraint."),
-    ("w", "capture", "a value's binding is captured by a nested function. This carries a reference, "
-                     "not an invocation or an execution-order constraint. Mutable or untraced captures "
-                     "retain their analysis limits."),
-    ("w", "state", "state-thread: the same receiver at successive call sites, in source order. On "
-                   "owned-state: a binding a factory owns or a field a class owns is a box; the "
-                   "arrow points out of it for a read and into it for a write, so the holder or "
-                   "class page says which members share which state and a member page says what "
-                   "it reads and writes. A write whose value the tracer could not follow leaves "
-                   "this function's own box and names the gap beside the name."),
-    ("w", "gate", "ast-guard: the call is reached only under a test. The label names the condition "
-                  "and branch; the full predicate remains under source and CLI --details."),
-    ("w", "io", "ast-return / ast-throw: what leaves through a return or a throw."),
-    ("w", "invocation", "this function invokes that box, as its Nth call (×N when one "
-                        "declaration is called from several sites that did not separate), or "
-                        "declares it without calling it here. It carries no value: the values "
-                        "are the data wires, and the slots with none are the box's stub rows."),
-    ("p", None, "On page 0 and on its clusters one wire stands for every link between "
-                "those two boxes; its label is the kinds and their counts."),
-    ("h", None, "What order means"),
-    ("p", None, "Boxes are possible callees at a call site, ordered by first call site and placed "
-                "left to right by the wires between them. That order is not an execution trace."),
-    ("p", None, "A state thread is one reaching construction of a receiver, drawn in source order: "
-                "not proof that these calls run on the same object, in this order."),
-    ("h", None, "Lists"),
-    ("p", None, "Assertion calls appear as connected gates; full requirements remain in source and CLI --details. "
-                "Formula-shaped functions remain boxes, with their generated data wires; "
-                "purity does not suppress a called stage. calledFrom — generated incoming call sites, including "
-                "callers outside mapped roots. consumedBy — observed consumers of return values. "
-                "couplings — links that are not calls. uncertainty — unsupported control or data analysis. "
-                "unresolved — a call site whose callee the scanner cannot name, with the rule that "
-                "stopped it. outside — call sites reaching scanned source the map does not cover; "
-                "platform — call sites with no target in any scanned root. Neither establishes "
-                "their runtime origin or a user/agent boundary."),
-    ("h", None, "Findings"),
-    ("f", "code", "red: code outside every leaf, which no box draws — module-level code that runs at "
-                  "load, or a callable no leaf holds. Listed on page 0."),
-    ("f", "link", "orange: a relationship between leaves that no link draws — a call whose target is "
-                  "unknown, a write to state another leaf shares, contents that escape the leaf."),
-    ("f", "note", "grey: a precise aspect of what a leaf or link already draws that the scanner could "
-                  "not trace. In the leaf's own read only."),
-    ("h", None, "Stale"),
-    ("p", None, "A red frame and a red band mean a file behind the page has changed since the "
-                "store was written: the drawing is what the code used to be. Run the command the "
-                "band names to regenerate the map and drawing."),
-]
 
 CSS = BASE_CSS + """
 #tree a{font-family:ui-monospace,Consolas,monospace;font-size:11.4px;white-space:nowrap;
@@ -1135,14 +988,16 @@ body.noside #side{display:none}
 #legendpane .r span{font-size:12.5px;line-height:1.5;color:#334155}
 #legendpane .r b{color:#0f172a}
 #crumb span.up{color:#0369a1;cursor:pointer}
-#stale{font-size:11.5px;color:#9f1239;background:#fee2e2;border-radius:5px;padding:2px 8px}
-#stale:empty{display:none}
 #score{order:9;flex:1 0 100%;font-size:11.5px;color:#334155;background:#f1f5f9;border-radius:5px;padding:2px 8px;font-variant-numeric:tabular-nums}
 #score:empty{display:none}
 #score[hidden]{display:none}
 #score b{color:#0f172a}
 #score .bad{color:#9f1239}
 #codepane .cb{min-width:0;min-height:0;overflow:auto}
+#codepane .cb.list button{display:block;width:100%;text-align:left;font:12.5px/1.4 inherit;background:none;border:0;border-bottom:1px solid #f1f5f9;padding:5px 14px;cursor:pointer}
+#codepane .cb.list button:hover{background:#f0f9ff}
+#codepane .cb.list span{color:#64748b;font:11.5px ui-monospace,Consolas,monospace}
+.fm-list{cursor:pointer}.fm-list:hover{fill-opacity:.12!important}
 #codepane .cb>pre{width:max-content;min-width:100%;box-sizing:border-box;overflow:visible;white-space:pre}
 #codepane details{margin:8px 14px;color:#475569}
 #codepane details summary{cursor:pointer;font-size:12px}
@@ -1160,7 +1015,15 @@ body.noside #side{display:none}
 #codepane .interface ul{margin:0;padding-left:20px}
 #codepane .endpoint{font:inherit;color:#0369a1;background:none;border:0;padding:0;cursor:pointer;text-align:left}
 #codepane .endpoint:hover{text-decoration:underline}
-#canvas.design .fm-edge,#canvas.design .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas.wires .fm-edge,#canvas.wires .fm-elab,.fm-wire-hit{cursor:pointer}
+#canvas>svg{overflow:visible}
+#canvas>svg>rect:first-of-type{fill:none;pointer-events:none}
+#canvas.wires:not(.design) .fm-page-heading{display:none}
+#canvas.arrange .fm-node[data-ident]{cursor:grab}
+#stage.drag #canvas.arrange .fm-node{cursor:grabbing}
+#arrange.on{background:#0284c7;color:#fff;border-color:#0284c7}
+#author-status{font-size:12px;color:#475569;margin:0 6px}
+#author-status.bad{color:#dc2626;font-weight:600}
 #canvas.design .fm-node[data-boundary-role="internal"]>rect{stroke:#334155;stroke-dasharray:none;stroke-width:1.8}
 #canvas.design .fm-node[data-boundary-role="external"]>rect{stroke:#64748b;stroke-dasharray:7 4;stroke-width:1.8;fill:#f8fafc}
 .boundary-key{display:flex;gap:16px;align-items:center;font-size:12px;color:#475569}
@@ -1173,8 +1036,11 @@ body.noside #side{display:none}
 .map-contents ul{padding:0;list-style:none}.map-contents li{margin:10px 0}
 .map-contents button{cursor:pointer;text-align:left;padding:8px 12px;background:#fff;border:1px solid #334155;border-radius:4px;font:inherit}
 .map-contents button.external{border-style:dashed;color:#475569}.map-contents small{display:block;margin:4px 0;color:#64748b}
-#canvas.design .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
-#canvas.design .fm-elab.wire-hot{opacity:1}
+#canvas.wires .fm-edge.wire-hot{stroke:#0284c7;stroke-width:3.4;opacity:1}
+#canvas.wires .fm-elab.wire-hot{opacity:1}
+#codepane .leafarrows ul{margin:0 0 10px;padding-left:16px}
+#codepane .leafarrows li{margin:3px 0;line-height:1.35}
+#codepane .leafarrows .tail{color:#64748b}
 #canvas.wire-focus .fm-node:not(.wire-end){opacity:.14}
 #canvas.wire-focus .fm-node.wire-end{opacity:1}
 #canvas.wire-focus .fm-node.wire-end rect:first-of-type{stroke:#0284c7;stroke-width:3.4}
@@ -1235,35 +1101,6 @@ const FAR=0.5;
 let pinId=null,peerAt=-1,jumped=[];
 const visits=[],visitSession=Date.now()+'-'+Math.random();
 let visitAt=-1,showVersion=0,sourceVersion=0;
-let liveFreshness=null;
-function freshnessMessage(now=Date.now()){
-  if(DESIGN)return {warning:'AUTHORED · conformance unchecked',source:'Source snapshot captured at build · check the design to verify freshness'};
-  const status=liveFreshness,checked=status&&Date.parse(status.checkedAt);
-  if(!status||!Number.isFinite(checked)||now<checked||now-checked>Math.min(status.validForMs||0,10000))
-    return {warning:'Live freshness unavailable',source:'Snapshot source · live freshness unavailable'};
-  if(status.snapshotId!==SNAPSHOT_ID)
-    return {warning:'Map generation changed; waiting for its drawing',source:'Previous snapshot source · generation changed'};
-  if(status.state==='current')return {warning:'',source:'Snapshot source · current with checked code'};
-  if(status.state==='stale'){
-    const instruction='regenerate '+(status.stale?.regenerate||'0');
-    return {warning:'STALE · '+instruction,source:'STALE snapshot source · '+instruction};
-  }
-  return {warning:'Freshness '+status.state+' · snapshot remains readable',source:'Snapshot source · freshness '+status.state};
-}
-function updateFreshness(){
-  const message=freshnessMessage(),drawn=PAGES[cur]?.x;
-  document.getElementById('freshness-status').textContent=message.warning||'Live check: current with the code.';
-  document.getElementById('stale').textContent=message.warning||(drawn?'Stale at drawing time; live check is current':'');
-  const sourceStatus=document.getElementById('source-freshness');
-  if(sourceStatus)sourceStatus.textContent=message.source;
-}
-function freshnessAt(status){liveFreshness=status;updateFreshness();}
-function pollFreshness(){
-  updateFreshness();
-  if(DESIGN)return;
-  const script=document.createElement('script');script.src='freshness.js?'+Date.now();
-  script.onload=script.onerror=()=>{script.remove();updateFreshness();};document.head.appendChild(script);
-}
 function remember(entry,push){
   if(JSON.stringify(visits[visitAt])===JSON.stringify(entry))return;
   visits.splice(visitAt+1);visits.push(entry);visitAt=visits.length-1;
@@ -1274,6 +1111,7 @@ function remember(entry,push){
 }
 function goBack(){if(visitAt>0)history.back();}
 function svgAt(k,v){SVG[k]=v;}
+const LINKS={};
 function srcAll(v){SRC=v;}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scale(${view.k})`;
@@ -1289,35 +1127,43 @@ function apply(){canvas.style.transform=`translate(${view.x}px,${view.y}px) scal
 function toggleMinimap(){const off=document.body.classList.toggle('nomini');
   try{localStorage.setItem('devmap-minimap',off?'off':'on');}catch(e){}}
 try{if(localStorage.getItem('devmap-minimap')==='off')document.body.classList.add('nomini');}catch(e){}
+/* A box's rectangle where it stands now: its drawn rect, plus the move an authored placement made. */
+function rectOf(g){const r=g.querySelector('rect');if(!r)return null;
+  const m=g.transform?.baseVal?.numberOfItems?g.transform.baseVal.consolidate().matrix:null;
+  return {x:r.x.baseVal.value+(m?m.e:0),y:r.y.baseVal.value+(m?m.f:0),w:r.width.baseVal.value,h:r.height.baseVal.value};}
+function drawingBounds(all=true){const bounds={x:Infinity,y:Infinity,right:-Infinity,bottom:-Infinity},ids=new Set();
+  const include=el=>{const r=el.getBBox(),t=el.transform?.baseVal?.numberOfItems?el.transform.baseVal.consolidate().matrix:null;
+    const x=r.x+(t?t.e:0),y=r.y+(t?t.f:0);
+    bounds.x=Math.min(bounds.x,x);bounds.y=Math.min(bounds.y,y);bounds.right=Math.max(bounds.right,x+r.width);bounds.bottom=Math.max(bounds.bottom,y+r.height);};
+  for(const g of canvas.querySelectorAll('.fm-node')){
+    if(!all&&PAGES[cur]?.focus&&(g.dataset.id.startsWith('list:')||g.dataset.id.startsWith('b:')))continue;
+    ids.add(g.dataset.id);include(g);}
+  for(const el of canvas.querySelectorAll('.fm-edge,.fm-elab,.fm-endtag'))
+    if(ids.has(el.dataset.a)&&ids.has(el.dataset.b)&&getComputedStyle(el).display!=='none')include(el);
+  if(!Number.isFinite(bounds.x))return {x:0,y:0,w:1,h:1};
+  return {x:bounds.x-32,y:bounds.y-32,w:Math.max(1,bounds.right-bounds.x+64),h:Math.max(1,bounds.bottom-bounds.y+64)};}
 function minimap(){const s=canvas.querySelector(':scope>svg');
   if(!s){mini.style.display='none';return;}
-  const w=s.width.baseVal.value,h=s.height.baseVal.value;
-  let body='';
-  for(const g of canvas.querySelectorAll('.fm-node')){const r=g.querySelector('rect');if(!r)continue;
-    body+=`<rect x="${r.x.baseVal.value.toFixed(0)}" y="${r.y.baseVal.value.toFixed(0)}" `+
-          `width="${r.width.baseVal.value.toFixed(0)}" height="${r.height.baseVal.value.toFixed(0)}" fill="#64748b"/>`;}
-  mini.innerHTML=`<svg viewBox="0 0 ${w} ${h}" width="200" height="132">${body}`+
-    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(w/200*1.6).toFixed(1)}"/></svg>`;
+  const bounds=drawingBounds();let body='';
+  for(const g of canvas.querySelectorAll('.fm-node')){const r=rectOf(g);if(!r)continue;
+    body+=`<rect x="${r.x.toFixed(0)}" y="${r.y.toFixed(0)}" `+
+          `width="${r.w.toFixed(0)}" height="${r.h.toFixed(0)}" fill="#64748b"/>`;}
+  mini.innerHTML=`<svg viewBox="${bounds.x} ${bounds.y} ${bounds.w} ${bounds.h}" width="200" height="132">${body}`+
+    `<rect id="mv" fill="#0284c7" fill-opacity="0.14" stroke="#0284c7" stroke-width="${(bounds.w/200*1.6).toFixed(1)}"/></svg>`;
   mini.style.display='block';apply();}
 function at(ux,uy){const r=stage.getBoundingClientRect();
   view.x=r.width/2-ux*view.k;view.y=r.height/2-uy*view.k;apply();}
-mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild,d=canvas.firstElementChild;
-  if(!s||!d)return;e.stopPropagation();
-  const b=s.getBoundingClientRect(),w=d.width.baseVal.value,h=d.height.baseVal.value,
-        k=Math.min(b.width/w,b.height/h);
-  at((e.clientX-b.left-(b.width-w*k)/2)/k,(e.clientY-b.top-(b.height-h*k)/2)/k);});
-function fit(){const s=canvas.querySelector(':scope>svg');if(!s)return;
-  const w=s.width.baseVal.value,h=s.height.baseVal.value,r=stage.getBoundingClientRect();
-  /* Never zero or negative: a stage narrower than its own padding would otherwise fold the
-     page inside out, and the drawing would be gone rather than small. */
-  view.k=Math.max(0.02,Math.min(Math.min((r.width-48)/w,(r.height-48)/h),1));
-  view.x=(r.width-w*view.k)/2;view.y=Math.max(18,(r.height-h*view.k)/2);apply();}
-function actual(){const s=canvas.querySelector(':scope>svg');if(!s)return;const r=stage.getBoundingClientRect();
-  view.k=1;view.x=(r.width-s.width.baseVal.value)/2;view.y=18;apply();}
-function overview(){const bounds=PAGES[cur]?.focus;if(!bounds)return fit();
-  const [x,y,w,h]=bounds,r=stage.getBoundingClientRect();
-  view.k=Math.max(.02,Math.min((r.width-48)/w,(r.height-48)/h,1));
-  view.x=(r.width-w*view.k)/2-x*view.k;view.y=18-y*view.k;apply();}
+mini.addEventListener('pointerdown',e=>{const s=mini.firstElementChild;if(!s)return;e.stopPropagation();
+  const b=s.getBoundingClientRect(),v=s.viewBox.baseVal,k=Math.min(b.width/v.width,b.height/v.height);
+  at(v.x+(e.clientX-b.left-(b.width-v.width*k)/2)/k,v.y+(e.clientY-b.top-(b.height-v.height*k)/2)/k);});
+function fitBounds(bounds){const r=stage.getBoundingClientRect();
+  view.k=Math.max(.02,Math.min((r.width-48)/bounds.w,(r.height-48)/bounds.h,1));
+  view.x=(r.width-bounds.w*view.k)/2-bounds.x*view.k;
+  view.y=(r.height-bounds.h*view.k)/2-bounds.y*view.k;apply();}
+function fit(){if(canvas.querySelector(':scope>svg'))fitBounds(drawingBounds());}
+function actual(){if(!canvas.querySelector(':scope>svg'))return;const b=drawingBounds(),r=stage.getBoundingClientRect();
+  view.k=1;view.x=(r.width-b.w)/2-b.x;view.y=18-b.y;apply();}
+function overview(){if(canvas.querySelector(':scope>svg'))fitBounds(drawingBounds(false));}
 
 /* One page's drawing at a time, fetched as a script so the viewer opens from file:// with no
    server. The whole map inlined is an order of magnitude more bytes on every open. */
@@ -1362,11 +1208,11 @@ function show(key,push,restore){const p=PAGES[key];if(!p)return false;
     canvas.innerHTML=listing?contents(PAGES[drawing]):SVG[drawing]||'';cur=drawing;graphCur=drawing;pinId=null;jumped=[];hot(null);highlightWire(null);
     if(listing)zoomLbl.textContent='';
     canvas.classList.toggle('authored',!!PAGES[drawing].focus);
-    canvas.classList.toggle('design',DESIGN);
+    canvas.classList.toggle('design',DESIGN);canvas.classList.toggle('wires',DESIGN||!!PAGES[drawing].links);
+    if(PAGES[drawing].links)wireHits();
+    if(AUTHORING)authorShow();
     document.getElementById('fit-all').hidden=!PAGES[drawing].focus;
     crumb.innerHTML=trail(drawing);showScore(PAGES[drawing].sc);
-    const mapped=PAGES[drawing];
-    updateFreshness();
     reveal(drawing);paint();
     document.querySelectorAll('#tree a.on').forEach(a=>a.classList.remove('on'));
     const row=document.querySelector(`#tree a[data-key="${CSS.escape(drawing)}"]`);
@@ -1399,8 +1245,8 @@ function hot(id){if(id===hotId)return;
   if(pinId===id){pinLbl.style.display='block';
     pinLbl.innerHTML=`<b>${esc(me?me.dataset.label:id)}</b> · ${near.length} connected · ] [ to walk them`;}
   else pinLbl.style.display='none';}
-function centre(id){const g=node(id);if(!g)return;const r=g.querySelector('rect');if(!r)return;
-  at(r.x.baseVal.value+r.width.baseVal.value/2,r.y.baseVal.value+r.height.baseVal.value/2);}
+function centre(id){const g=node(id);if(!g)return;const r=rectOf(g);if(!r)return;
+  at(r.x+r.w/2,r.y+r.h/2);}
 /* Stand at the other end of a wire, and be able to come back. */
 function standAt(id){if(!node(id))return;
   if(pinId&&pinId!==id)jumped.push(pinId);
@@ -1422,7 +1268,7 @@ function highlightWire(edge){
 }
 stage.addEventListener('pointerover',e=>{
   const el=document.elementFromPoint(e.clientX,e.clientY),g=el&&el.closest('.fm-node');
-  const edge=DESIGN&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
+  const edge=(DESIGN||PAGES[cur]?.links)&&el?.closest('.fm-edge,.fm-elab,.fm-wire-hit');
   hot(edge?null:pinId??g?.dataset.id??null);
   highlightWire(edge);});
 stage.addEventListener('pointerleave',()=>{highlightWire(null);hot(pinId);});
@@ -1433,7 +1279,7 @@ stage.addEventListener('focusin',e=>{
 stage.addEventListener('focusout',e=>{if(e.target.closest('.fm-wire-hit')){highlightWire(null);hot(pinId);}});
 stage.addEventListener('keydown',e=>{
   const edge=e.target.closest('.fm-wire-hit');
-  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openContracts(edge.dataset.a,edge.dataset.b);}
+  if(edge&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openWire(edge.dataset.a,edge.dataset.b);}
 });
 
 /* -- pan / zoom ------------------------------------------------------------ */
@@ -1442,13 +1288,16 @@ stage.addEventListener('wheel',e=>{if(e.target.closest('#codepane,#legendpane,.m
         nk=Math.min(8,Math.max(.02,view.k*Math.exp(-e.deltaY*.0015)));
   view.x=mx-(mx-view.x)*(nk/view.k);view.y=my-(my-view.y)*(nk/view.k);view.k=nk;apply();},
   {passive:false});
-stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
+stage.addEventListener('pointerdown',e=>{if(e.target.closest('#codepane,#legendpane,.map-contents')){moved=false;return;}
+  /* Arranging, a box under the pointer is picked up instead of the page (authorGrab). */
+  if(AUTHORING&&authorGrab(e)){moved=false;stage.setPointerCapture(e.pointerId);return;}
+  down={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};
   moved=false;stage.setPointerCapture(e.pointerId);stage.classList.add('drag');});
-stage.addEventListener('pointermove',e=>{if(!down)return;
+stage.addEventListener('pointermove',e=>{if(AUTHORING&&AUTHOR.drag){authorMove(e);return;}if(!down)return;
   const dx=e.clientX-down.x,dy=e.clientY-down.y;
   if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
   view.x=down.vx+dx;view.y=down.vy+dy;apply();});
-stage.addEventListener('pointerup',()=>{down=null;stage.classList.remove('drag');});
+stage.addEventListener('pointerup',()=>{if(AUTHORING&&AUTHOR.drag)authorDrop();down=null;stage.classList.remove('drag');});
 
 /* A captured pointer retargets the click to #stage, so the mark under the cursor is
    hit-tested rather than read off the event. */
@@ -1460,7 +1309,9 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   const jump=el.closest('.fm-endtag[data-jump]');
   if(jump){standAt(jump.dataset.jump);return;}
   const edge=el.closest('[data-a][data-b]');
-  if(edge&&DESIGN){openContracts(edge.dataset.a,edge.dataset.b);return;}
+  if(edge&&(DESIGN||PAGES[cur]?.links)){openWire(edge.dataset.a,edge.dataset.b);return;}
+  const list=el.closest('.fm-list');
+  if(list){openList(list.dataset.list);return;}
   const src=el.closest('.fm-src');
   if(src){const target=PAGES[src.dataset.key];
     if(target&&target.destination==='code')show(src.dataset.key);else openCode(src.dataset.ref);return;}
@@ -1473,6 +1324,8 @@ stage.addEventListener('click',e=>{if(e.target.closest('#codepane,#legendpane')|
   if(details){openExternal(details,PAGES[cur]?.externalConnections?.[external.dataset.id]??[]);return;}
   dismissCode();});
 document.addEventListener('click',e=>{
+  const leafEnd=e.target.closest('#codepane [data-ref]');
+  if(leafEnd){openCode(leafEnd.dataset.ref,PAGES[leafEnd.dataset.key]?leafEnd.dataset.key:null);return;}
   const evidence=e.target.closest('#codepane [data-go]');
   if(evidence&&PAGES[evidence.dataset.go]){dismissCode();show(evidence.dataset.go);return;}
   const tw=e.target.closest('#tree .tw');
@@ -1500,7 +1353,6 @@ function navigationKey(state,hash){
 function stampAt(v){if(v!==BUILT)location.reload();}
 setInterval(()=>{const s=document.createElement('script');s.src='stamp.js?'+Date.now();
   s.onload=s.onerror=()=>s.remove();document.head.appendChild(s);},3000);
-pollFreshness();setInterval(pollFreshness,3000);
 function shut(key){for(let p=PAGES[key].p;p!=null&&PAGES[p];p=PAGES[p].p)if(collapsed.has(p))return true;return false;}
 function paint(){const q=filter.value.trim().toLowerCase();
   for(const a of ROWS){const k=a.dataset.key;
@@ -1521,6 +1373,14 @@ function openExternal(details,connections){closeCode();legendPane.classList.remo
   codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
     `<h3>${details.length} external dependencies</h3><p>Grouped for navigation. Every declaration and its calculated connections are retained below.</p></div>`+
     `<div class="cb">${details.map(path=>`<p>${esc(path)}<br><small>${describe(path)}</small></p>`).join('')}</div>`;
+  codePane.classList.add('on');}
+/* A list the drawing counts but cannot show. A drawn leaf opens on its map; another opens its source. */
+function openList(name){const list=LISTS[name];if(!list)return;closeCode();legendPane.classList.remove('on');
+  codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
+    `<h3>${esc(list.title)}</h3></div><div class="cb list">`+list.items.map((it,i)=>
+      `<button data-item="${i}"><b>${esc(it.t)}</b> <span>${esc(it.ref??'')}${it.n?(it.ref?' · ':'')+esc(it.n):''}</span></button>`).join('')+`</div>`;
+  codePane.querySelectorAll('[data-item]').forEach(b=>b.onclick=()=>{const it=list.items[+b.dataset.item];
+    if(it.go&&PAGES[it.go]){graphCur=null;show(it.go);}else if(it.ref)openCode(it.ref);});
   codePane.classList.add('on');}
 function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
         span=ref.slice(cut+1).split('-'),a=+span[0],b=+span[1];
@@ -1543,13 +1403,13 @@ function openCode(ref,key){const cut=ref.lastIndexOf(':'),file=ref.slice(0,cut),
     const paint=()=>{if(version!==sourceVersion)return;
       codePane.innerHTML=`<div class="ch"><span class="x" onclick="dismissCode()">&times;</span>`+
         `<div class="num">${page?esc(page.t)+' · ':''}${esc(file)}</div><h3>lines ${a}–${b}</h3>`+
-        `<div id="source-freshness">${esc(freshnessMessage().source)}</div>`+
         `<button onclick="copy('${esc(file)}:${a}')">Copy path:line</button></div>`+
         `<div class="cb">${body}</div>`;
       codePane.classList.add('on');};
     paint();});}
 function openContracts(from,to){
-  const contracts=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to).flatMap(w=>w.contracts);
+  const links=(PAGES[cur]?.contracts??[]).filter(w=>w.from===from&&w.to===to||w.from===to&&w.to===from);
+  const contracts=links.flatMap(w=>w.contracts);
   if(!contracts.length)return;
   const name=index=>PAGES[index]?.t??PAGES[cur]?.componentLabels?.[index]??index;
   const endpoint=index=>PAGES[index]?`<button class="endpoint" data-go="${esc(index)}">${esc(name(index))}</button>`:esc(name(index));
@@ -1565,13 +1425,50 @@ function openContracts(from,to){
   };
   codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close interfaces">&times;</button>`+
     `<div class="num">${contracts.length===1?'Interface':`Interface set · ${contracts.length} interfaces`}</div>`+
-    `<h3>${esc(name(from))} → ${esc(name(to))}</h3></div>`+
-    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3>`+
+    `<h3>${esc(name(from))} ${links.some(w=>w.from===to)?'↔':'→'} ${esc(name(to))}</h3><div class="interface-id">${links.map(w=>esc(w.address)).join(' · ')}</div></div>`+
+    '<div class="cb interfaces">'+contracts.map(c=>`<section class="interface"><h3>${esc(c.label)}</h3><div class="interface-id">${esc(c.id)}</div>`+
       `<p>${endpoint(c.fromIndex)} → ${endpoint(c.toIndex)}</p>`+
       ((c.code??[]).length?c.code.map(entry).join(''):'<p class="note">No code entry is bound to this wire.</p>')+
       '</section>').join('')+'</div>';
   codePane.classList.add('on');});
 }
+/* An influence drawing ships its arrows bare; each gets the wide transparent hit path a design
+   wire is drawn with, here rather than in every sidecar, so it can be clicked and focused. The
+   hits sit above every arrow, the shortest on top: where wires share a run into a box, the
+   short one would otherwise lie wholly under a long one and could never be picked. */
+function wireHits(){const edges=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')];if(!edges.length)return;
+  const hits=edges.map(edge=>{const hit=document.createElementNS('http://www.w3.org/2000/svg','path');
+    hit.setAttribute('class','fm-wire-hit');hit.setAttribute('d',edge.getAttribute('d'));
+    hit.dataset.a=edge.dataset.a;hit.dataset.b=edge.dataset.b;
+    for(const [k,v] of [['fill','none'],['stroke','transparent'],['stroke-width','14'],['vector-effect','non-scaling-stroke'],
+      ['pointer-events','stroke'],['tabindex','0'],['role','button'],['aria-label',`Open leaf arrows: ${edge.dataset.a} → ${edge.dataset.b}`]])hit.setAttribute(k,v);
+    return [edge.getTotalLength(),hit];}).sort((x,y)=>y[0]-x[0]);
+  edges[edges.length-1].after(...hits.map(([,hit])=>hit));}
+function openWire(a,b){if(DESIGN)openContracts(a,b);else openLeafArrows(a,b);}
+/* An influence arrow's leaf arrows, as the agent link read @link/MAP/FROM/TO gives them (both
+   come from solved-set.mjs: viewerLinks and linkRead share linkGroups and leafArrowParts):
+   grouped by box direction, each `FROM → TO kind ×N`. A leaf end opens its source; a box opens
+   its map. A page's leaf arrows load on first use from svg/<page>.links.js. */
+function loadLinks(key,then){if(LINKS[key]!==undefined)return then();
+  const s=document.createElement('script');s.src='svg/'+key+'.links.js?'+encodeURIComponent(BUILT);
+  s.onload=()=>then();s.onerror=()=>{LINKS[key]=null;then();};document.head.appendChild(s);}
+function linksAt(k,v){LINKS[k]=v;}
+function openLeafArrows(from,to){const key=cur;closeCode();const version=sourceVersion;
+  loadLinks(key,()=>{if(version!==sourceVersion||key!==cur)return;
+    const data=LINKS[key],groups=data?.wires[from+'/'+to]??data?.wires[to+'/'+from];if(!groups)return;
+    const box=i=>{const k=i.startsWith('b:')?i.slice(2):i,t=esc(PAGES[k]?.t??i),b=i.startsWith('b:')?'boundary · ':'';
+      return PAGES[k]?`<button class="endpoint" data-go="${esc(k)}">${b}${t}</button>`:b+t;};
+    const end=n=>{const [name,ref,go]=data.leaves[n];
+      return ref?`<button class="endpoint" data-ref="${esc(ref)}" data-key="${esc(go)}">${esc(name)}</button>`:esc(name);};
+    const total=groups.reduce((t,[,l])=>t+l.length,0);
+    legendPane.classList.remove('on');
+    codePane.innerHTML=`<div class="ch"><button class="x" onclick="dismissCode()" aria-label="Close leaf arrows">&times;</button>`+
+      `<div class="num">@link/${esc(key)}/${esc(from)}/${esc(to)} · ${total} leaf arrow${total===1?'':'s'}</div>`+
+      `<h3>${box(from)} ${groups.length>1?'↔':'→'} ${box(to)}</h3></div><div class="cb leafarrows">`+
+      groups.map(([dir,list])=>{const [x,y]=dir.split(' → ');
+        return `<section class="leafdir"><h3>${box(x)} → ${box(y)} · ${list.length}</h3><ul>`+
+          list.map(([f,t,tail])=>`<li>${end(f)} → ${end(t)} <span class="tail">${esc(tail)}</span></li>`).join('')+'</ul></section>';}).join('')+'</div>';
+    codePane.classList.add('on');});}
 function pageCode(){const p=PAGES[cur];if(p&&p.r)openCode(p.r,p.destination==='code'?cur:null);}
 function copy(t){navigator.clipboard.writeText(t);}
 
@@ -1615,6 +1512,240 @@ show(navigationKey(history.state,location.hash.slice(1)),false);
 """
 
 
+AUTHOR_JS = """
+
+/* -- authored placement (plans/dev-maps.md milestone 5) ------------------------------------
+   Arranging, any box can be dragged: the wires touching it are re-routed as it moves
+   (directRoutes draws the curves leveled.py direct_routes draws) and every other box
+   stays put. A drop is saved at once, by box identity (data-ident), never by index: through
+   the authoring server (`node dev-map/cli.mjs --set NAME serve`) into the committed layout
+   files, or, opened any other way, into this browser's storage, which Export layout writes
+   out for `node dev-map/cli.mjs --set NAME import-layout FILE`. */
+const AUTHOR={server:false,on:false,maps:{},undo:[],first:{},at:{},drag:null,placement:null};
+const AUTHOR_STORE='devmap-layout:'+AUTHORING.set;
+function authorSay(text,bad){const s=document.getElementById('author-status');s.textContent=text;s.classList.toggle('bad',!!bad);}
+function authorCount(){return Object.values(AUTHOR.maps).reduce((t,m)=>t+Object.keys(m).length,0);}
+function authorBar(){const on=AUTHOR.on;document.getElementById('arrange').classList.toggle('on',on);
+  for(const id of ['author-undo','author-reset'])document.getElementById(id).hidden=!on;
+  document.getElementById('author-export').hidden=!on||AUTHOR.server;canvas.classList.toggle('arrange',on);authorFolderButton();}
+function arrange(){AUTHOR.on=!AUTHOR.on;authorBar();}
+function drawnBox(g){const [x,y,w,h,bh,rx]=g.dataset.box.split(',').map(Number);return {x,y,w,h,bh,rx:Number.isFinite(rx)?rx:Math.min(7,w/2,bh/2)};}
+function geom(id){const g=node(id);if(!g||!g.dataset.box)return null;const b=drawnBox(g),p=AUTHOR.at[id];
+  const x=p?p.x:b.x,y=p?p.y:b.y;return {x,y,w:b.w,h:b.h,cx:x+b.w/2,cy:y+b.bh/2};}
+/* leveled.py spread and direct_routes, line for line: each end of a direct wire meets its box
+   where it faces the other end, the ends on one side spread along it in the order they face. */
+const PORT_GAP=12,BEND_MIN=16,PORT_ADJ={L:['T','B'],R:['T','B'],T:['L','R'],B:['L','R']};
+const portSpan=(N,side)=>side==='L'||side==='R'?[N.y,N.y+N.h]:[N.x,N.x+N.w];
+function portRoom(N,side){const [s0,s1]=portSpan(N,side),free=s1-s0-2*(2+0.35*N.rx);return free<0?1:Math.floor(free/PORT_GAP)+1;}
+function spread(ts,lo,hi,gap){const n=ts.length;if(!n)return [];
+  if(hi<lo)return ts.map(()=>(lo+hi)/2);
+  if(n>1&&(n-1)*gap>hi-lo)return ts.map((_,i)=>lo+(hi-lo)*i/(n-1));
+  const runs=[];
+  ts.forEach((t,i)=>{let run=[i,1,t],last;
+    while(runs.length&&(last=runs[runs.length-1])[2]/last[1]+last[1]*gap>run[2]/run[1]){const p=runs.pop();run=[p[0],p[1]+run[1],p[2]+run[2]-run[1]*p[1]*gap];}
+    runs.push(run);});
+  const out=[];
+  for(const [,count,total] of runs){const at=Math.min(Math.max(total/count,lo),hi-(count-1)*gap);for(let j=0;j<count;j++)out.push(at+j*gap);}
+  for(let i=1;i<n;i++)out[i]=Math.max(out[i],out[i-1]+gap);
+  out[n-1]=Math.min(out[n-1],hi);
+  for(let i=n-2;i>=0;i--)out[i]=Math.min(out[i],out[i+1]-gap);
+  return out;}
+function bezierAt(p,t){const u=1-t,a=u*u*u,b=3*u*u*t,c=3*u*t*t,d=t*t*t;
+  return [a*p[0][0]+b*p[1][0]+c*p[2][0]+d*p[3][0],a*p[0][1]+b*p[1][1]+c*p[2][1]+d*p[3][1]];}
+function directRoutes(boxes,wires){const ends=new Map(),order=[],lr=s=>s==='L'||s==='R';
+  const group=(id,side)=>{const key=JSON.stringify([id,side]);return (ends.get(key)??ends.set(key,{id,side,g:[]}).get(key)).g;};
+  wires.forEach(([a,b],k)=>{[[a,boxes[a],boxes[b]],[b,boxes[b],boxes[a]]].forEach(([id,N,F],end)=>{
+    const ncx=N.x+N.w/2,ncy=N.y+N.h/2,ux=F.x+F.w/2-ncx,uy=F.y+F.h/2-ncy;let side,t;
+    if(Math.abs(uy)*(N.w/2)>Math.abs(ux)*(N.h/2)){side=uy>0?'B':'T';t=ncx+ux*(N.h/2)/Math.abs(uy);}
+    else{side=ux>=0?'R':'L';t=ncy+uy*(N.w/2)/Math.max(Math.abs(ux),1e-6);}
+    if(!order.includes(id))order.push(id);
+    group(id,side).push([t,k,end]);});});
+  const byPlace=(p,q)=>p[0]-q[0]||p[1]-q[1]||p[2]-q[2];
+  for(const id of order){const N=boxes[id];let moved=0;
+    for(const side of ['L','R','T','B']){const key=JSON.stringify([id,side]);if(!ends.has(key)||!ends.get(key).g.length)continue;
+      const g=ends.get(key).g;g.sort(byPlace);const [s0,s1]=portSpan(N,side),mid=(s0+s1)/2;
+      while(g.length>portRoom(N,side)){
+        const tries=[[mid-g[0][0],0,PORT_ADJ[side][0]],[g[g.length-1][0]-mid,1,PORT_ADJ[side][1]]];
+        if(tries[1][0]>tries[0][0])tries.reverse();
+        let done=false;
+        for(const [,high,to] of tries){const there=group(id,to);
+          if(there.length<portRoom(N,to)){const [,k,end]=high?g.pop():g.shift();moved++;
+            const t=lr(side)?(side==='L'?N.x-moved:N.x+N.w+moved):(side==='T'?N.y-moved:N.y+N.h+moved);
+            there.push([t,k,end]);done=true;break;}}
+        if(!done)break;}}}
+  const port={};
+  for(const {id,side,g} of ends.values()){const N=boxes[id];g.sort(byPlace);
+    const [s0,s1]=portSpan(N,side),r=N.rx,m=2+0.35*r;
+    const vs=spread(g.map(e=>e[0]),s0+m,s1-m,PORT_GAP);
+    g.forEach(([,k,end],i)=>{const v=vs[i],u=Math.min(v-s0,s1-v),inset=u<r?r-Math.sqrt(Math.max(0,r*r-(r-u)*(r-u))):0;
+      port[k+','+end]=side==='R'?[N.x+N.w-inset,v,1,0]:side==='L'?[N.x+inset,v,-1,0]:side==='B'?[v,N.y+N.h-inset,0,1]:[v,N.y+inset,0,-1];});}
+  return wires.map(([,,paired],k)=>{const [sx,sy,snx,sny]=port[k+',0'],[dx,dy,dnx,dny]=port[k+',1'];
+    const bs=Math.max(BEND_MIN,0.45*Math.abs((dx-sx)*snx+(dy-sy)*sny)),bd=Math.max(BEND_MIN,0.45*Math.abs((dx-sx)*dnx+(dy-sy)*dny));
+    const pts=[[sx,sy],[sx+snx*bs,sy+sny*bs],[dx+dnx*bd,dy+dny*bd],[dx,dy]];
+    let [lx,ly]=bezierAt(pts,.5);
+    if(paired){if(snx!==0)ly+=dx>sx?22:-22;else lx+=dy>sy?55:-55;}
+    return {pts,lab:[lx,ly]};});}
+function pathOf(pts){const xy=p=>p[0].toFixed(1)+','+p[1].toFixed(1);return 'M'+xy(pts[0])+' C'+pts.slice(1).map(xy).join(' ');}
+/* Every direct wire on the page -- each one the drawing routed direct, and each touching a box
+   moved here -- drawn from where its boxes stand now, with the ports on every side shared out
+   again as a rebuild would: the arrow (its head and tail marks ride on it), its hit path, its
+   label; a long wire's end tags go, since the wire is now drawn whole. A wire no longer direct
+   (its box moved back to where it was drawn) takes its drawn route again. */
+function directWires(){const edges=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')],boxes={};
+  for(const g of canvas.querySelectorAll('.fm-node[data-box]')){const b=drawnBox(g),p=AUTHOR.at[g.dataset.id];
+    boxes[g.dataset.id]={x:p?p.x:b.x,y:p?p.y:b.y,w:b.w,h:b.bh,rx:b.rx};}
+  const direct=edges.filter(e=>boxes[e.dataset.a]&&boxes[e.dataset.b]&&(e.dataset.direct||AUTHOR.at[e.dataset.a]||AUTHOR.at[e.dataset.b]));
+  const pairs=new Set(direct.map(e=>JSON.stringify([e.dataset.a,e.dataset.b])));
+  const routes=directRoutes(boxes,direct.map(e=>[e.dataset.a,e.dataset.b,pairs.has(JSON.stringify([e.dataset.b,e.dataset.a]))]));
+  return {edges,direct,routes};}
+function reroute(){const {edges,direct,routes}=directWires();
+  const set=(edge,d,lab)=>{const {a,b}=edge.dataset,pair=`[data-a="${CSS.escape(a)}"][data-b="${CSS.escape(b)}"]`;
+    if(edge.dataset.d0===undefined){edge.dataset.d0=edge.getAttribute('d');edge.dataset.long0=edge.classList.contains('long')?'1':'';}
+    if(edge.getAttribute('d')===d)return;
+    edge.setAttribute('d',d);edge.classList.toggle('long',!lab&&!!edge.dataset.long0);
+    canvas.querySelectorAll('.fm-wire-hit'+pair).forEach(h=>h.setAttribute('d',d));
+    canvas.querySelectorAll('.fm-endtag'+pair).forEach(t=>t.style.display=lab?'none':'');
+    canvas.querySelectorAll('.fm-elab'+pair).forEach(l=>lab?l.setAttribute('transform',
+      `translate(${(lab[0]-l.dataset.lx).toFixed(1)},${(lab[1]-l.dataset.ly).toFixed(1)})`):l.removeAttribute('transform'));};
+  const on=new Set(direct);
+  direct.forEach((edge,i)=>set(edge,pathOf(routes[i].pts),routes[i].lab));
+  for(const edge of edges)if(!on.has(edge)&&edge.dataset.d0!==undefined)set(edge,edge.dataset.d0,null);}
+/* A box, its overlay hit boxes (data-node) and its wires, moved to x,y on the drawing. */
+function place(id,x,y){const g=node(id);if(!g||!g.dataset.box)return;const b=drawnBox(g);
+  if(Math.abs(x-b.x)<.05&&Math.abs(y-b.y)<.05)delete AUTHOR.at[id];else AUTHOR.at[id]={x,y};
+  const t=AUTHOR.at[id]?`translate(${(x-b.x).toFixed(1)},${(y-b.y).toFixed(1)})`:null;
+  for(const el of [g,...canvas.querySelectorAll(`[data-node="${CSS.escape(id)}"]`)])t?el.setAttribute('transform',t):el.removeAttribute('transform');
+  reroute();}
+/* A drawing is laid out from the layout files as they were at build; what has been saved
+   since (or kept in this browser) is applied over it when the page opens. */
+function authorShow(){AUTHOR.at={};AUTHOR.drag=null;const saved=AUTHOR.maps[PAGES[cur]?.lp];if(!saved)return;
+  for(const g of canvas.querySelectorAll('.fm-node[data-ident][data-box]')){const p=saved[g.dataset.ident];if(!p)continue;
+    const b=drawnBox(g);if(Math.abs(p.x-b.x)>.5||Math.abs(p.y-b.y)>.5)place(g.dataset.id,p.x,p.y);}
+  minimap();}
+function authorGrab(e){if(!AUTHOR.on||!PAGES[cur]?.lp||!e.target.closest)return false;
+  let g=e.target.closest('.fm-node[data-box]');
+  if(!g){const o=e.target.closest('[data-node]');g=o&&node(o.dataset.node);}
+  if(!g||!g.dataset.ident||!g.dataset.box)return false;
+  const at=geom(g.dataset.id);AUTHOR.drag={id:g.dataset.id,ident:g.dataset.ident,cx:e.clientX,cy:e.clientY,x:at.x,y:at.y,
+    initial:authorSnapshot(),moved:false};
+  return true;}
+function authorMove(e){const d=AUTHOR.drag,dx=e.clientX-d.cx,dy=e.clientY-d.cy;
+  if(!d.moved&&Math.abs(dx)+Math.abs(dy)<=4)return;
+  authorCancelPlacement(PAGES[cur]?.lp);
+  d.moved=true;moved=true;place(d.id,d.x+dx/view.k,d.y+dy/view.k);}
+function authorDrop(){const d=AUTHOR.drag;AUTHOR.drag=null;if(!d||!d.moved)return;
+  const lp=PAGES[cur].lp,now=geom(d.id),point={x:Math.round(now.x),y:Math.round(now.y)};
+  const from={x:d.x,y:d.y,authored:!!AUTHOR.maps[lp]?.[d.ident]};
+  place(d.id,point.x,point.y);
+  AUTHOR.undo.push({map:lp,id:d.id,ident:d.ident,from});
+  const first=(AUTHOR.first[lp]??={});if(!(d.ident in first))first[d.ident]={...from,id:d.id};
+  authorSave(lp,{[d.ident]:point},d.initial);minimap();}
+function authorSnapshot(){const points={};
+  for(const g of canvas.querySelectorAll('.fm-node[data-ident][data-box]')){
+    const at=geom(g.dataset.id);points[g.dataset.ident]={x:at.x,y:at.y};}
+  return points;}
+async function authorSave(map,set,initial={}){
+  authorCancelPlacement(map);
+  if(!AUTHOR.server){const m=(AUTHOR.maps[map]??={});
+    for(const [k,v] of Object.entries(initial))if(m[k]===undefined)m[k]=v;
+    for(const [k,v] of Object.entries(set))v?m[k]=v:delete m[k];
+    if(!Object.keys(m).length)delete AUTHOR.maps[map];
+    try{localStorage.setItem(AUTHOR_STORE,JSON.stringify(AUTHOR.maps));
+      authorSay(`${authorCount()} positions kept in this browser only · Export layout to commit them`);}
+    catch(e){authorSay('browser storage unavailable: Export layout before closing',true);}
+    authorQueueFiles(map,set,initial);return true;}
+  authorSay('saving…');
+  try{const r=await fetch('api/positions',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map,set,initial})});
+    const j=await r.json();if(!r.ok)throw Error(j.error||r.status);
+    AUTHOR.maps=j.maps;authorSay('saved to '+j.wrote.join(' and '));return true;}
+  catch(e){authorSay('not saved: '+e.message,true);return false;}}
+/* Undo preserves the authored map and restores the box to its exact prior position. */
+function authorUndo(){const lp=PAGES[cur]?.lp;let k=AUTHOR.undo.length-1;
+  while(k>=0&&AUTHOR.undo[k].map!==lp)k--;
+  if(k<0){authorSay('nothing to undo on this map');return;}
+  const [u]=AUTHOR.undo.splice(k,1);place(u.id,u.from.x,u.from.y);minimap();
+  authorSave(lp,{[u.ident]:{x:u.from.x,y:u.from.y}});}
+function authorFinishPlacement(task){task.worker?.terminate();URL.revokeObjectURL(task.url);if(AUTHOR.placement===task)AUTHOR.placement=null;}
+function authorCancelPlacement(map){const task=AUTHOR.placement;if(!task||(map&&task.map!==map))return;
+  authorFinishPlacement(task);authorSay('placement cancelled · newer edits kept');}
+function authorSolveMap(boxes,wires,identities,map,page){
+  authorCancelPlacement();
+  const task={map,page,identities,saved:JSON.stringify(AUTHOR.maps[map]),worker:null,
+    url:URL.createObjectURL(new Blob([PLACEMENT_WORKER],{type:'text/javascript'}))};
+  try{task.worker=new Worker(task.url);AUTHOR.placement=task;
+    task.worker.onmessage=function placementFinished(event){
+      if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);
+      if(event.data.error){authorSay('placement failed: '+event.data.error,true);return;}
+      if(JSON.stringify(AUTHOR.maps[map])!==task.saved){authorSay('placement cancelled · newer edits kept');return;}
+      const result=event.data.result,set={};
+      for(const [id,p] of Object.entries(result.positions)){if(identities[id])set[identities[id]]=p;if(cur===page)place(id,p.x,p.y);}
+      AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==map);delete AUTHOR.first[map];AUTHOR.maps[map]={};
+      authorSave(map,set);if(cur===page){minimap();overview();}};
+    task.worker.onerror=function placementFailed(event){if(AUTHOR.placement!==task)return;
+      authorFinishPlacement(task);authorSay('placement failed: '+event.message,true);};
+    authorSay('solving placement… · you can keep browsing');task.worker.postMessage({boxes,wires});
+  }catch(error){authorFinishPlacement(task);authorSay('placement failed: '+error.message,true);}}
+/* Reset asks for a new placement; a worker keeps a large solve off the UI thread.
+   Any newer edit or folder refresh cancels it before it can replace authored positions. */
+async function authorReset(){const lp=PAGES[cur]?.lp;if(!lp)return;
+  if(lp==='0'){const first=AUTHOR.first[lp];
+    if(!first||!Object.keys(first).length){authorSay('no moves on map 0 this session');return;}
+    if(!confirm('Put every box moved on map 0 this session back where it stood?'))return;
+    const set={};for(const [ident,f] of Object.entries(first)){place(f.id,f.x,f.y);set[ident]=f.authored?{x:f.x,y:f.y}:null;}
+    delete AUTHOR.first[lp];AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);minimap();authorSave(lp,set);return;}
+  if(!confirm('Ask the placement solver to arrange this map again? This replaces its authored positions.'))return;
+  if(!AUTHOR.server){
+    const groups=[...canvas.querySelectorAll('.fm-node[data-box]')];
+    const boxes=groups.map(g=>({id:g.dataset.id,...geom(g.dataset.id)}));
+    const wires=[...canvas.querySelectorAll('.fm-edge[data-a][data-b]')].map(e=>[e.dataset.a,e.dataset.b]);
+    const identities=Object.fromEntries(groups.map(g=>[g.dataset.id,g.dataset.ident]));
+    authorSolveMap(boxes,wires,identities,lp,cur);return;}
+  AUTHOR.undo=AUTHOR.undo.filter(u=>u.map!==lp);delete AUTHOR.first[lp];
+  authorSay('resetting and redrawing…');
+  try{const r=await fetch('api/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({map:lp})});
+    const j=await r.json();if(!r.ok)throw Error(j.error||r.status);AUTHOR.maps=j.maps;authorSay('reset and redrawn; reloading');}
+  catch(e){authorSay('not reset: '+e.message,true);}}
+function authorExport(){const body=JSON.stringify({schema:1,set:AUTHORING.set,exported:new Date().toISOString(),maps:AUTHOR.maps},null,1);
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([body],{type:'application/json'}));
+  a.download=AUTHORING.set+'-layout.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  authorSay(`exported · commit with: node dev-map/cli.mjs --set ${AUTHORING.set} import-layout FILE`);}
+function authorStart(){let local={};try{local=JSON.parse(localStorage.getItem(AUTHOR_STORE)||'{}')||{};}catch(e){}
+  const offline=()=>{AUTHOR.server=false;AUTHOR.on=true;AUTHOR.maps={...AUTHORING.maps,...local};authorBar();const n=authorCount();
+    authorSay(n?`${n} saved positions · edits stay in this browser · Export layout to keep a file`:'Arrange · edits stay in this browser · Export layout to keep a file');
+    if(cur)authorShow();authorRestoreFiles();};
+  if(!/^https?:$/.test(location.protocol))return offline();
+  fetch('api/layout',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject(Error(r.status))).then(j=>{
+    if(j.mode!=='server')throw Error('not the authoring server');
+    AUTHOR.server=true;AUTHOR.on=true;AUTHOR.maps=j.maps;authorBar();
+    authorSay(`authoring · a drop saves to ${j.files.join(' and ')}`+(j.missing?` · ${j.missing} positions not found (map 0 list)`:''));
+    if(cur)authorShow();}).catch(offline);}
+addEventListener('keydown',e=>{if(!AUTHOR.on||e.target.closest?.('input,textarea'))return;
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();authorUndo();}});
+"""
+
+
+def influence_legend():
+    def box(style):
+        s = STYLE[style]
+        dash = f' stroke-dasharray="{s["dash"]}"' if "dash" in s else ""
+        return (f'<svg width="34" height="14"><rect x="1" y="1" width="32" height="12" rx="{min(s["rx"], 6)}" '
+                f'fill="{s["fill"]}" stroke="{s["stroke"]}" stroke-width="{s["sw"]}"{dash}/></svg>')
+    rows = [("stage", "cluster", "opens its map; a ≈ label is generated from its leaves, any other authored"),
+            ("code", "query leaf", "answers; its foot opens its source"),
+            ("command", "command leaf", "changes state"),
+            ("caller", "boundary", "the node on an enclosing map an arrow leaves to"),
+            ("mark-link", "unlinked", "leaves with no arrow, so not drawn; the count opens the list"),
+            ("mark-unowned", "unowned", "leaves no map-0 node owns; the count opens the list"),
+            ("mark-missing", "not analysed", "in-scope files whose leaves and arrows are absent")]
+    return ("<h2>Influence map</h2><p>Map 0 is the authored top level, placed as the authored set places it; "
+            "everything below it is unreviewed solver output. An arrow is every leaf arrow between two boxes, "
+            "labelled with its kinds and counts; two heads mean influence both ways. "
+            "<code>read ADDRESS</code> lists the leaf arrows.</p>"
+            + "".join(f'<div class="r">{box(style)}<span><b>{escape(name)}</b> — {escape(text)}</span></div>'
+                      for style, name, text in rows))
+
+
 def swatch(kind, key):
     if kind == "b":
         s = STYLE[key]
@@ -1622,46 +1753,54 @@ def swatch(kind, key):
         return (f'<svg width="34" height="14"><rect x="1" y="1" width="32" height="12" '
                 f'rx="{min(s["rx"], 6)}" fill="{s["fill"]}" stroke="{s["stroke"]}" '
                 f'stroke-width="{s["sw"]}"{dash}/></svg>')
+    key, _, tail = key.partition(":")
     e = EDGE[key]
     dash = f' stroke-dasharray="{e["dash"]}"' if "dash" in e else ""
+    start = {"ack": f' marker-start="url(#d-{key})"', "both": f' marker-start="url(#m-{key})"'}.get(tail, "")
     return (f'<svg width="34" height="14"><defs><marker id="m-{key}" viewBox="0 0 10 8" refX="9" '
             f'refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">'
-            f'<path d="M0,0 L10,4 L0,8 z" fill="{e["stroke"]}"/></marker></defs>'
-            f'<path d="M1,7 L26,7" fill="none" stroke="{e["stroke"]}" stroke-width="{e["sw"]}"'
-            f'{dash} marker-end="url(#m-{key})"/></svg>')
+            f'<path d="M0,0 L10,4 L0,8 z" fill="{e["stroke"]}"/></marker>'
+            f'<marker id="d-{key}" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6">'
+            f'<circle cx="5" cy="5" r="4" fill="{e["stroke"]}"/></marker></defs>'
+            f'<path d="M{8 if tail else 1},7 L26,7" fill="none" stroke="{e["stroke"]}" stroke-width="{e["sw"]}"'
+            f'{dash}{start} marker-end="url(#m-{key})"/></svg>')
 
 
-def legend_html():
-    o = []
-    for style, key, text in LEGEND:
-        if style == "h":
-            o.append(f'<h3>{escape(text)}</h3>' if key is None and text != LEGEND[0][2]
-                     else f'<h2>{escape(text)}</h2>')
-        elif style == "p":
-            o.append(f'<p>{escape(text)}</p>')
-        elif style == "f":
-            fill = {"note": NOTE_FILL, **{k: v[0] for k, v in MISSING.items()}}[key]
-            o.append(f'<div class="r"><svg width="34" height="14"><rect x="1" y="3" width="32" height="8" '
-                     f'rx="3" fill="{fill}"/></svg><span><b>{escape(key)}</b> — {escape(text)}</span></div>')
-        else:
-            o.append(f'<div class="r">{swatch(style, key)}<span><b>{escape(key)}</b> — '
-                     f'{escape(text)}</span></div>')
-    return "".join(o)
+AUTHOR_BAR = ('<button id="arrange" onclick="arrange()" title="drag boxes to place them; their wires follow">Arrange</button>'
+              '<button id="author-undo" onclick="authorUndo()" hidden title="undo the last move on this map (ctrl+z)">Undo move</button>'
+              '<button id="author-reset" onclick="authorReset()" hidden title="a submap: back to its solved layout; map 0: this session&#39;s moves undone">Reset map</button>'
+              '<button id="author-export" onclick="authorExport()" hidden title="write this browser&#39;s positions to a file for import-layout">Export layout</button>'
+              '<button id="author-files" onclick="authorConnectFiles()" hidden>Connect save folder</button>'
+              '<span id="author-status"></span>')
 
 
-def emit(out, model, pages, svgs):
+def emit(out, model, pages, svgs, links=None):
     (out / "svg").mkdir(parents=True, exist_ok=True)
     inline = 0
     for key, body in svgs.items():
         inline += len(body)
         (out / "svg" / f"{key}.js").write_text(f"svgAt({json.dumps(key)},{json.dumps(body)})",
                                                encoding="utf-8")
+    # An influence page's leaf arrows, fetched the first time one of its arrows is opened: the
+    # drawing stays light and the shell carries none of them.
+    for key, data in (links or {}).items():
+        body = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+        (out / "svg" / f"{key}.links.js").write_text(f"linksAt({json.dumps(key)},{body})",
+                                                     encoding="utf-8")
     (out / "sources.js").write_text("srcAll(" + json.dumps(model["sources"]).replace("</", r"<\/")
                                     + ")", encoding="utf-8")
     # A source line holding `</script>` would close the block early, so the sequence is broken
     # the way it has to be broken in HTML.
     (out / "stamp.js").write_text(f'stampAt({json.dumps(model.get("built", ""))})', encoding="utf-8")
     page_data = json.dumps(pages).replace("</", "<\\/")
+    authoring_data = json.dumps(model.get("authoring")).replace("</", "<" + chr(92) + "/")
+    placement_js = pathlib.Path(__file__).with_name("placement-solver.mjs").read_text(encoding="utf-8")
+    placement_js = placement_js.replace("export function solvePlacement", "function solvePlacement")
+    placement_worker = json.dumps(placement_js + "\nself.onmessage=function placementRequest(e){try{self.postMessage({result:solvePlacement(e.data)})}catch(error){self.postMessage({error:error.message})}};").replace("</", "<\\/")
+    documents_js = (pathlib.Path(__file__).parent.parent / "influence" / "position-documents.mjs").read_text(encoding="utf-8").replace("export function ", "function ")
+    files_js = pathlib.Path(__file__).with_name("file-authoring.mjs").read_text(encoding="utf-8")
+
+    lists_data = json.dumps(model.get("lists", {})).replace("</", "<\\/")
     graph_pages = {key: p for key, p in pages.items() if p["destination"] in ("graph", "contents")}
     rows, parents = [], {p["p"] for p in graph_pages.values()}
 
@@ -1693,17 +1832,17 @@ def emit(out, model, pages, svgs):
     legend = (boundary_key + "<p>Internal nodes belong to this displayed map. Dashed boundary nodes belong elsewhere and show connections across its edge.</p>"
               "<p>Authored target architecture, with source evidence where available.</p>"
               "<p>Boxes open submaps or referenced source. Wires open contracts and evidence, including exact nested endpoints. "
-              "Wire direction follows the stated contract flow. Separate access entries, where supplied, name permitted call/read directions. "
+              "Wire direction follows the stated contract flow. Each pair of boxes is one wire: two heads mean flow both ways, its label naming each direction; a dot at the tail marks an activation that returns only its outcome. Separate access entries, where supplied, name permitted call/read directions. "
               "No transitive access is granted. Implementation conformance remains unchecked.</p>"
-              if model.get("design") else legend_html())
+              if model.get("design") else INFLUENCE_LEGEND)
     html = f"""<!doctype html><meta charset="utf-8"><title>{escape(heading)}</title>
 <style>{CSS}</style>
 <div id="side">
   <h1>{escape(heading)}</h1>
-  <div class="sub">{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, stored {escape(model["generated"])}, drawn
+  {f'<div class="sub" style="color:#fca5a5;font-weight:600">{escape(model["notice"])}</div>' if model.get("notice") else ''}
+  <div class="sub">{'' if model.get('influence') else f"{len(svgs)} graph pages · {sum(p['destination']=='contents' for p in pages.values())} contents pages · {sum(p['destination']=='code' for p in pages.values())} source destinations, "}stored {escape(model["generated"][:16].replace("T", " "))}, drawn
     {escape(model.get("built", "")[:16].replace("T", " "))} UTC.
-    <span id="freshness-status">Live freshness unavailable; snapshot remains readable.</span>
-    Redrawn by every <code>regenerate</code>; this page reloads itself.</div>
+    {'' if model.get('influence') else 'Redrawn by every <code>regenerate</code>; this page reloads itself.'}</div>
   <input id="filter" placeholder="index or declaration path…" autocomplete="off">
   <div id="tree">{''.join(rows)}</div>
 </div>
@@ -1712,7 +1851,6 @@ def emit(out, model, pages, svgs):
     <button id="back" onclick="goBack()" disabled title="return to the previous map">&#8592; Back</button>
     <button onclick="document.body.classList.toggle('noside');overview()" title="show or hide the index">&#9776;</button>
     <div id="crumb"></div>
-    <span id="stale"></span>
     <span id="score" hidden title="Map score: 0 is ideal, each part is a penalty from 0 to -1. See scores.html for every map."></span>
     <button onclick="toggleLegend()">Legend</button>
     <button onclick="const s=document.getElementById('score');s.hidden=!s.hidden;overview()">Score</button>
@@ -1721,6 +1859,7 @@ def emit(out, model, pages, svgs):
     <button onclick="overview()">Fit</button><button id="fit-all" onclick="fit()" hidden>Fit all dependencies</button>
     <button onclick="actual()">100%</button>
     <button onclick="toggleMinimap()" title="show or hide the minimap">Minimap</button>
+    {AUTHOR_BAR if model.get("authoring") else ""}
     <span id="zoom"></span>
   </div>
   <div id="stage"><div id="canvas"></div>
@@ -1730,8 +1869,8 @@ def emit(out, model, pages, svgs):
       <div class="lb">{legend}</div></div>
     <div id="minimap"></div>
     <div id="pin"></div>
-    <div id="hint">{"click a wire = its interface set · " if model.get("design") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
-      source · hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
+    <div id="hint">{"click a wire = its interface set · " if model.get("design") else "click an arrow = its leaf arrows · " if model.get("influence") else ""}scroll = zoom · drag = pan · click a box = its page · click a box foot = its
+      source · {"Arrange: drag a box = place it, ctrl+z undo · " if model.get("authoring") else ""}hover = its wires · x pin focus · ] [ next/previous end · \ back to the box ·
       click a wire's end tag = stand at its other end · Back previous map · f fit · 0 actual ·
       u up · esc close</div>
   </div>
@@ -1739,9 +1878,10 @@ def emit(out, model, pages, svgs):
 <script>
 const PAGES={page_data};
 const BUILT={json.dumps(model.get("built", ""))};
-const SNAPSHOT_ID={json.dumps(model.get("snapshotId"))};
 const DESIGN={json.dumps(model.get("design", False))};
-{JS}
+const LISTS={lists_data};
+const AUTHORING={authoring_data};
+{"const PLACEMENT_WORKER=" + placement_worker + ";" + documents_js + files_js if model.get("authoring") else ""}{AUTHOR_JS if model.get("authoring") else ""}{JS}{"authorStart();" if model.get("authoring") else ""}
 </script>
 """
     (out / "index.html").write_text(html, encoding="utf-8")
@@ -1749,7 +1889,8 @@ const DESIGN={json.dumps(model.get("design", False))};
 
 
 def build(model, out):
-    global REGENERATE
+    global REGENERATE, INFLUENCE_LEGEND
+    INFLUENCE_LEGEND = influence_legend() if model.get("influence") else ""
     REGENERATE = model.get("regenerate", REGENERATE)
     packets = {p["index"]: p for p in model["pages"]}
     pages = {}
@@ -1761,6 +1902,12 @@ def build(model, out):
         elif kind == "group":
             title = f'{index} {p["label"]}'
             sub = f'cluster · {len(p["components"])} boxes · {p["leaves"]} leaves'
+            detail, ref = p["path"], None
+        elif not p.get("file"):
+            # An actor channel (channels.mjs) has no source file or lines.
+            title = f'{index} {p.get("label") or p["path"]}'
+            sub = (f'{p.get("kind") or "leaf"} · {p["path"]} · '
+                   f'{len(p["components"])} components, {len(p["wires"])} wires')
             detail, ref = p["path"], None
         else:
             title = f'{index} {p["path"][len(p["file"]) + 2:]}'
@@ -1779,7 +1926,6 @@ def build(model, out):
                     break
             if parent is None and index != "0":
                 parent = "0"
-        stale = model["stale"].get(index)
         destination = p.get("destination", "graph")
         source_span = p.get("sourceSpan")
         if source_span:
@@ -1787,8 +1933,7 @@ def build(model, out):
         # A leaf opens as its source alone; the shell holds the index and the way in, not the
         # pages themselves.
         pages[index] = dict(t=title, s=sub, find=f'{index} {detail}'.strip(), d=detail, r=ref, k=kind, p=parent,
-                            destination=destination,
-                            x=(stale["regenerate"] if stale else ""))
+                            destination=destination)
         if p.get("aliasOf"):
             pages[index]["aliasOf"] = p["aliasOf"]
         if destination == "contents":
@@ -1797,6 +1942,10 @@ def build(model, out):
             pages[index]["foldedCode"] = p["foldedCode"]
         pages[index]["externals"] = {c["index"]: c["externals"] for c in p.get("components", []) if c.get("kind") == "external"}
         pages[index]["externalConnections"] = {c["index"]: c.get("externalConnections", []) for c in p.get("components", []) if c.get("kind") == "external"}
+        if p.get("links"):
+            pages[index]["links"] = 1
+        if model.get("authoring") and destination == "graph":
+            pages[index]["lp"] = p["path"]
         if p.get("design"):
             pages[index]["contracts"] = p["wires"]
             pages[index]["componentLabels"] = {c["index"]: c["label"] for c in p["components"]}
@@ -1804,11 +1953,37 @@ def build(model, out):
         if score:
             pages[index]["sc"] = score
     ctx = dict(pages=pages, stale=model["stale"], dropped=[])
-    svgs = {}
-    for index in sorted(packets, key=at):
-        if pages[index]["destination"] == "graph":
-            svgs[index] = build_page(packets[index], ctx).render()
-    size, inline = emit(out, model, pages, svgs)
+    drawings = {index: build_page(packets[index], ctx) for index in sorted(packets, key=at)
+                if pages[index]["destination"] == "graph"}
+    # Nesting is already settled in the stored model. Place only untouched influence maps;
+    # map 0 and a map with any authored position retain their complete drawn arrangement.
+    untouched = {index: page for index, page in drawings.items()
+                 if model.get("influence") and index != "0" and not page.authored.get("positions")}
+    inputs = {index: dict(boxes=[dict(id=n.id, x=n.x, y=n.y, w=n.w, h=n.h) for n in page.nodes],
+                          wires=[[e["src"], e["dst"]] for e in page.edges])
+              for index, page in untouched.items()}
+    placed = {}
+    if inputs:
+        run = subprocess.run([os.environ.get("SAAM_NODE", "node"),
+                              str(pathlib.Path(__file__).with_name("place-maps.mjs"))],
+                             input=json.dumps(inputs), text=True, encoding="utf-8", capture_output=True,
+                             check=True)
+        placed = json.loads(run.stdout)
+    for index, result in placed.items():
+        page = drawings[index]
+        page.authored = dict(positions=result["positions"], overlay=True)
+        # Re-layout measures the ledger after the new geometry, then routes every wire.
+        page.layout()
+        pages[index]["placement"] = dict(kind="physics", settled=result["settled"],
+                                         overlaps=len(result["overlaps"]))
+    for index in drawings.keys() - placed.keys():
+        pages[index]["placement"] = dict(kind="authored")
+    unsettled = [index for index, result in placed.items() if not result["settled"]]
+    if unsettled:
+        print(f'placement still settling on {len(unsettled)} maps: ' + ', '.join(unsettled), file=sys.stderr)
+    svgs = {index: page.render() for index, page in drawings.items()}
+    links = {index: p["links"] for index, p in packets.items() if p.get("links")}
+    size, inline = emit(out, model, pages, svgs, links)
     kinds = {}
     for p in packets.values():
         kinds[p["kind"]] = kinds.get(p["kind"], 0) + 1

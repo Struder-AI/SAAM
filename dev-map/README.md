@@ -1,208 +1,164 @@
 # Dev maps
 
-Implementation-map intent: [DEVELOPER-CONTEXT.md](../DEVELOPER-CONTEXT.md);
-remaining work: [BR-052](../build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent).
-Release sets: [0.3.0](../plans/0.3.0.md) uses `030-deployment`; [0.3.1](../plans/0.3.1.md) uses `030-architecture` (identifier retained). Toolkit defaults to the latter; this CLI defaults to original scanned `default`, so pass `--set`. Designs express contracts, not conformance.
+[Dev maps intent](../plans/dev-maps.md) owns what the maps are for, what an arrow means, notation,
+leaves, levels, scope and milestones. This guide covers the tools as they stand.
 
-- `lib/`: source scanning, leaves (`leaves.mjs`), the tree (`tree.mjs`), the
-  store, scoring, the solver and rendering.
-- `tree.json`, `facts.tsv`, `lib/scope.mjs`: default authored inputs.
-- `sets/NAME/map.json`, `tree.json`, `facts.tsv`: independent named sets.
-- `store/`, `view/`: generated snapshots and the viewer; git-ignored.
+- `030-influence`: influence maps generated from all SAAM source under `030-architecture`'s map 0.
+  Product work reads these; the toolkit and onboarding default to them.
+- `030-deployment`: the authored deployment design, for installation and service work.
+- `030-architecture`: the authored top level `030-influence` builds on. Read it directly only to
+  author map 0 ([authoring](#authoring)), not to explore implementation.
+
+Pass the CLI `--set NAME` (or `--set-dir DIR` for a set kept outside `sets/`); the default is
+`030-influence`.
+
+## Influence sets
+
+An influence set is a folder holding `map.json`, solved by
+[influence/solved-set.mjs](influence/solved-set.mjs):
+
+```json
+{"mode": "influence", "title": "…", "authored": "dev-map/sets/030-architecture",
+ "analysis": "dev-map/sets/030-influence/store/analysis/analysis.json",
+ "analyse": {"maxHeapMB": 4096}, "sourceRoots": ["."], "preview": true, "jobs": 2}
+```
+
+`authored` names the design set whose map 0 and ownership are fixed. With `analyse`, `regenerate`
+makes `analysis` from the current source; without it, `analysis` is a
+[run.mjs](influence/run.mjs) `--out` result made elsewhere, and optional `missing` lists the files
+it did not cover. `sourceRoots` are checkouts holding the text the analysis read.
+
+Map 0 draws the authored nodes at their authored positions. Each node opens into clusters the
+middle-out solver groups its leaves into, nested down to leaves, which open as source. A cluster
+shows its [authored label](#authored-placement), else one generated from its leaves (`≈`); a node's
+library (shared queries treating every caller alike) is one `library ·` box. Pages carry no prose:
+unlinked and unowned leaves are counts on boxes and marker boxes that open their lists; files not
+analysed or changed since the analysis are marked lists on map 0 alone. The viewer is `sets/030-influence/view/index.html`.
 
 ## Commands
 
 ```sh
-node scripts/agent-toolkit.mjs read-map ADDRESS --set NAME [--source|--code] [--details]
-node scripts/agent-toolkit.mjs regenerate [INDEX] --set NAME
-node dev-map/cli.mjs check --set NAME [--json] [--viewer [ADDRESS…]]
-node dev-map/cli.mjs score --set default [--json] | solve --set default [--seed N]
-node dev-map/cli.mjs watch-freshness --set default [--once]
-node dev-map/cli.mjs read ADDRESS [--code] [--details] --set NAME
+node scripts/agent-toolkit.mjs read-map ADDRESS [--set NAME]   # default 030-influence
+node scripts/agent-toolkit.mjs regenerate [--set NAME]
+node dev-map/cli.mjs --set NAME read ADDRESS | regenerate [--solve changed|place] [--cold NODE] | build | check
+node dev-map/cli.mjs --set NAME serve [--port N] | import-layout FILE   # authored placement
 ```
 
-An ADDRESS is a node's index or its durable path: a declaration
-(`core/path/compose.mjs::planComposition`, which reads its leaf when it is
-folded into one) or a cluster (`@cluster/ID`), never a file or directory.
-`read-map` returns one node's read and never scans: a cluster's map or a
-leaf's code block; `--code` returns a leaf's source span or the spans of every
-leaf in a cluster (`0 --code` is refused), `--details` the read with its evidence:
-expressions, traces, byte offsets. Reads are compact JSON: `range` is
-`[first,last]` inclusive, nested locations inherit `file`, empty arrays omitted.
+Read map 0, then a box, then `@link/MAP/FROM/TO` for the leaf arrows behind an arrow, then the
+source at `file:lines` with ordinary file tools. Addresses are map indexes, `[@cluster/]NODE-ID`
+for an authored node, `@cluster/IDENTITY` for a solved cluster (a map read gives it as `address`),
+`@link/MAP/FROM/TO`, `@path/FILE-OR-FOLDER` (the map-0 boxes owning its leaves), `@unlinked`,
+`@unowned` and `@stale`; an unknown address lists them. Indexes change with any re-solve; cluster
+identities do not ([cluster identity](#cluster-identity)). A leaf is not a map: read its source.
 
-`regenerate` scans the selected set and redraws its viewer. Default generation
-places new leaves in the existing tree; manual sets require explicit homes. `solve` anneals the tree, writes `tree.json` and
-regenerates. It runs only when the owner asks; an agent may ask for one, never
-start one. `flow-evidence` re-derives one node from source, to audit the generator;
-`build` redraws `view/index.html` from the store, no scan (needs Python 3; set
-`PYTHON` otherwise); `watch-freshness` keeps the viewer's live status current.
+A map `read` is its drawing: `boxes` (a cluster's label and leaf count; a leaf as
+`NAME FILE:LINES`, marked only `command` or `command returning data`, outside `folded` ranges,
+`possibly caller-dependent`), `boundary` names, and `arrows`, each drawn pair (`→`, `•→`, `↔`) with
+its leaf-arrow count, read whole at `@link/MAP/FROM/TO` as `FROM → TO KIND ×N` by direction. Map 0
+alone adds the preview note, `notAnalysed`, counts for `@unlinked` and `@unowned` (whose reads list
+those leaves) and, after source changed, `stale`: how many files changed (`@stale` lists them) and
+the regenerate command. Reads never return code or solve; a missing store fails.
 
-## Addresses
+**Replacement contract:** a change to a reader or integration preserves this read on the direct
+CLI, toolkit and onboarding routes: every drawn relationship, exact source ranges and map 0's
+change warning. Do not bypass it with a raw snapshot or another serializer. `check` and every
+`regenerate` prove the reads match the drawings.
 
-Each map numbers the nodes it homes `N.1`, `N.2`, and so on under its own
-index, in its left-to-right flow order. Indexes change whenever the tree does;
-the declaration path is the durable name. Static methods are `file.mjs::Class::@static/method` (URI-encoded),
-instance methods `file.mjs::Class::method`, parameter defaults
-`OWNER::@default/NAME`, and anonymous callbacks a snapshot position authoring
-must not reference. A module-level `el.onclick = …` or `addEventListener('x', …)`
-names its site `file.mjs::@handler/<receiver>.<event>` (URI-encoded; the
-receiver an id selector's id, a binding or a member path) and is homed there. A
-record is no node at any depth, so `.` joins its members,
-`createStudio::lifetime.onViewers`; a module-level table keeps its entry keys.
+## Regenerate
 
-A leaf includes enclosed declarations it alone reaches and private module
-helpers called only by that stage (`lib/helpers.mjs`). Design uses the current audit's same source-proved containment;
-authored nesting alone proves nothing. Exports, shared callers and escaping references prevent folding.
-Effects, dependencies, source and findings stay visible; folding asserts ownership, not purity.
-No authored vocabulary list suppresses nodes. `new X()` reaches the class.
+Regenerate after each task. `regenerate --set 030-influence` runs:
 
-## What each read carries
+1. **Analyse** ([analyse.mjs](influence/analyse.mjs)): the scope ([scope.mjs](influence/scope.mjs))
+   is split into import closures, each analysed soundly by `run.mjs --closure` in its own process,
+   smallest first. A closure that fails at the heap cap gives way to the closures of the files it
+   imports; files no closure holds are listed as not analysed.
+2. **Merge** the closures into `store/analysis/analysis.json`, each callable taking its leaf and
+   role from the largest closure holding it.
+3. **Solve nesting** for each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
+   `jobs` at a time, into `store/solve/`.
+4. **Write** `store/model.json`, **place untouched maps**, **draw** `view/`, and **verify** reads match drawings.
+5. **Check the code** ([code-checks.mjs](influence/code-checks.mjs)) against
+   [what SAAM code is](../plans/dev-maps.md#what-saam-code-is): `regenerate` reports the counts
+   and still writes the maps; `check` lists each error as `FILE:LINE: RULE: REASON` and fails on
+   any. Rules: `unmodelled` (a shape the analysis does not model, [UNMODELLED.md](influence/UNMODELLED.md)),
+   `unowned`, `contract` (a leaf arrow between top-level nodes no authored contract permits),
+   `command-returns-data` and `unlinked` (load code that only declares is exempt).
 
-Field names predate the [glossary](../DEVELOPER-CONTEXT.md#dev-map-glossary): `destination`
-is the view (`graph` for a map, `code` for a code block), `components` are the
-boxes, `wires` the links, `couplings` the indirect links, a `group` a cluster,
-and `uncertainty` and `unresolved` rows the [findings](#findings).
-
-Every read: `index`, `kind`, `destination`, `stale` when its inputs moved,
-`facts` when a fact row names it, `home` on a repeat and `alsoOn` on the home.
-
-- **Top map** (`0`) and **cluster**: `components`, the leaves and clusters it
-  draws (a cluster box with its `label`, `[needs label]` until a label pass,
-  and `count` of leaves; an `external` box with its `externals` and `count`),
-  `leaves` nested, `ports` (a `boundary:` box for each node on another map a
-  link crosses to, shown where the two maps meet), and one link per box pair
-  lifted onto the boxes holding each end, with `kinds` and `count`. External
-  boxes count toward the map's edge. A link is a call, a value passed between calls or an indirect link.
-- **Leaf** (function, method, handler, class): `path`, `file`, `range`,
-  `folded` (owned declarations), `foldedCode` (helpers outside its source span),
-  `inputs` (`parameterTargets` on a port this node calls: each callable a
-  caller passes, by `index`, `path` and `from`; its box is on that caller's
-  map), `outputs` (each return and throw), `components` (what it calls, in call
-  order, outside calls naming their target included; an iteration method's
-  callback is a step of this flow, traced inline or called by name), `operators` (choices, iterations, updates,
-  collections, member calls; one only a finding names carries `keptFor`),
-  `wires` (data links between boxes, with `fromPort` and `toPort`; `argN` for
-  argument slots, `positionUnknown` after a spread; one call link, `kind:
-  invocation`, per box, so none floats: `from`, the function itself (`"self"`),
-  the call's `order`, `provenance`
-  (`call-site`, `declaration`/`reference` for a box held or named, not called,
-  `operation` for a `keptFor` operator), the `gate` its sites stand under, or
-  `siteGates` where they differ, and `stubs`, each a `slot` and either a
-  `literal`, the constant written there, cut past 40 characters (a number or
-  boolean as itself), or a `reason`), `gates` (each condition an item names, by
-  number), `requires`, `couplings`, `callerReferences` (mapped callers by
-  index; active outside callers by path with `unmapped: true`;
-  `callerSummary` with a count and canonical index above five),
-  `outsideCallers` (counts per inactive directory), `outside` and `platform`
-  (call sites with no mapped target), the findings `unresolved` and
-  `uncertainty` (repeated `closure-capture` rows share one with `count`; a
-  folded declaration's rows name it as `declaration`),
-  `stateFields` on a class, a node that owns no box for one writing it as a
-  row, and `state`, what the enclosing declaration owns and this node uses: a
-  factory's `let`/`const` bindings and a class's `this.` fields (`field`,
-  `static-field`), each `name`, `owner`, `ownerIndex`, `binding` kind, `access`
-  and site, never called. State
-  links carry `owned-state` provenance, leaving the node for a read and
-  entering it for a write, from `self` with a `stub` where the write has no
-  traced producer; the owner links each one to its initialisation and to every
-  member touching it. A carried value is an operator's `initial`, `next`,
-  `current` and `final` ports. A code block adds `source`, `sourceKind`,
-  `sourceSha256`, its callees and its call links.
-
-Indirect links are `file`, `http-route`, `worker-message`, `event-listener` (a
-callable handed to a registration or held by an `on<event>` property) and
-`registry-entry`, keyed dispatch: each entry of a named function table reached
-by key from the declaration naming it, computed keys and spreads being an
-analysis limit.
-
-## Findings
-
-`uncertainty` rows name a `kind`, `unresolved` rows a `rule`; each row names
-its `file`, and a leaf's read carries all of them. A map carries only the
-**missing** ones (`lib/findings.mjs`), each tagged `missing: code` (red: code
-outside every leaf) or `missing: link` (orange: a relationship between leaves
-no link draws): a leaf box carries its rows, a cluster box the count of each
-class nested in it as `findings`.
-
-| Kind or rule | Class | Not drawn |
-|---|---|---|
-| `module-code` (on `0`: what runs at load, or a callable no leaf holds) | code | the code itself |
-| `member-receiver-unresolved`, `parameter-target` (with `candidates`), `registered-subscriber`, `unresolved-local-value`, `callable-origin`, and an `argument-origin` beside `callable-origin` | link | the call's target |
-| `member-mutation`, `nested-receiver-effect`, `nested-collection-effect`, unless `ownership` is `local` | link | a write to an object another leaf shares |
-| `collection-escape`, `collection-capture`, `record-escape` | link | contents after they leave the leaf |
-| `closure-capture` whose closure is a leaf of its own | link | state two leaves share |
-
-**Uncertain**, a precise aspect of what a leaf or link already draws, in the
-leaf's read only: `argument-origin`, `return-origin`, `return-field-origin`,
-`return-field-override`, `choice-control`, `iteration-control`,
-`iteration-backedge-control`, `iteration-source`, `iteration-input`,
-`update-input`, `collection-input`, `callback-execution`, `loop-exception-path`,
-`branch-result`, `branch-data-join`, `loop-data-flow`, `collection-alias`,
-`collection-member-write`, `early-exit-control`, `exceptional-control-flow`,
-`switch-control-flow`, `loop-control-transfer`, `receiver-state-order`, and the
-rest of `closure-capture` and the write kinds.
-
-## Staleness
-
-Reads hash the recorded inputs: mapped and scanned source, generator modules,
-the lockfile, facts and `tree.json`. Any change produces `stale` with the reason
-and how to regenerate; the viewer marks stale maps. Each mapped file's source
-is stored beside its graph, so a code block shows the snapshot that made the
-read, a missing one reporting `sourceUnavailable`, not wrong line numbers.
+Each closure is cached under `store/analysis/closures/` with a hash of its files, the analyser's
+modules, Node and acorn, so only closures holding an edited file run again. Each node's solve is
+kept by a hash of exactly what it reads: its own leaves (by rank, so offsets that merely move do
+not count), its library leaves, the leaf arrows touching them with each far end as its owner node,
+the solve options and the solver's code. Only nodes whose slice changed solve again, warm and cold.
+Warm starts from the kept solve, new leaves placed in their file's cluster, and takes only moves
+that lower the objective; cold anneals from flat and reshuffles clusters, so it is kept only when
+its energy is 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable or a comma
+list; solves it even unchanged). `regenerate` prints each node's `warm` and `cold` energy and which
+it `kept`, and under `relabel` the new clusters to label where cold won. With `"solve": "place"` in
+`map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
+as `placement not solved` until a `"changed"` regenerate (the default) solves it. Timings
+(2026-10-04, 2 jobs): every node warm and cold 128 s (studio's cold solve); unchanged 8 s.
 
 ## Authoring
 
-**Design sets**: `map.json` declares `mode: "design"`, `title`, `authoring: "manual"`; `architecture.json` owns
-stable IDs, indexes, actors, contracts and layout. Nodes reference `source: {file, heading?}` or `{file, declaration?}`;
-`optional: true` allows absent local files. Terminal boxes preview source; `read INDEX|@design/ID|CONTRACT-ID --source`
-adds it to agent reads. `build --set NAME` captures sources; `check --viewer` checks freshness, boxes, wires and previews.
-Contract arrows carry information/actions; `access: [{from,to}]` separately records calls/reads, without transitive permission.
-`implementationLinks: [nodeId]` adds observed calls beneath selected roots using exact ownership homes; map 0 retains authored contracts.
-Scoped `source.declaration` identities open nested helpers/methods. External links lift to their nearest shared-parent boundary.
+The owner authors the top level in `030-architecture`; everything below it is computed.
 
-**Scanned trees**: `tree.json` owns `clusters` (`id,label,parent`), `leaves` (declaration → home), `repeats`
-(map → guests), optional `order`. Placement adds leaves beside links, drops gone leaves and dissolves
-empty/single-box clusters. Solving requires owner request; labels are authored.
+- `architecture.json`: `nodes` (stable `id`, `index`, `label`, `parent`), `actors`, `contracts`
+  (the arrows the top level permits, with their operations) and `layout` (`layout["0"].positions`
+  by index; `{x,y,emphasis?}`). Map 0 of `030-influence` uses these nodes and positions by id.
+- `ownership.json`: assigns each file or declaration to exactly one authored node. Leaves without
+  an owner are drawn as `unowned` and listed at `@unowned`.
+- `interfaces.json`: exact operation bindings for the authored contracts.
 
-**Scanned named sets**, `--set NAME`: `sets/NAME/map.json` declares `title`, `scope` (exact generated leaves),
-optional `scanFiles`, and `authoring: "manual"` to disable solving. Selected leaves need homes; folded declarations
-cannot be selected independently. Unselected connections stay external, including normally counted callers.
-Example: `toolpath-pipeline`. Each set owns its store/viewer.
+Design sets (`030-architecture`, `030-deployment`) declare `mode: "design"` and
+`authoring: "manual"` in `map.json`; `build --set NAME` redraws them and `check --set NAME --viewer`
+checks their drawings. Their reads follow the same contract.
 
-**Layout**: scanned `tree.json.layout[mapId]` keys positions by cluster/leaf/external identity; design
-`architecture.json.layout[index]` uses drawn indexes. Positions: `{x,y,emphasis?}`; viewport: `[x,y,width,height]`;
-captions: `{x,y,text}`. Unpositioned boxes stay below; absent layout uses automatic placement. `build` needs no scan.
-Fit frames the overview; Fit all includes dependencies. Scanned `externalLabels` names externals;
-`externalGroups` (`id,label,prefixes`) groups them, preserving every declaration/connection.
+## Authored placement
 
-**Facts**, `facts.tsv`: tab-separated `declaration kind fact source date`, for
-what the code cannot state. `kind` is `measurement`, `vendor` or `decision`
-(`source` a DECISIONS.md heading anchor); `date` is ISO. A row attaches to its
-node as `facts`; one naming a declaration no map holds any more is
-`orphanFacts`, never dropped; a malformed row fails `check`.
+Open `sets/030-influence/view/index.html` without a server; **Arrange** starts on; **Undo move** restores a drag.
+**Connect save folder** selects `dev-map/sets` and grants disk writes in supporting Chromium
+browsers. Each drop saves the existing architecture/layout files, which build and regenerate read.
+The viewer remembers the folder; the browser may require reconnection after reopening. Saving
+is serialized and merges fresh files, preserving labels and other boxes. A failed write is visible.
+Without file access, edits stay in browser storage; **Export layout** plus
+`node dev-map/cli.mjs --set 030-influence import-layout FILE` keeps them in the checkout.
 
-**Scope**, `lib/scope.mjs`: `mappedRoots` are mapped; `outsideRoots` are
-scanned only so their calls into the maps are seen; `unmappedAreas` are
-outside code inside a mapped root, each under its port name; `activeCallers`
-the outside files listed as callers on declarations, all else outside being
-counted; `importAliases` name served paths that are not the path on disk.
+The [placement solver](../plans/dev-maps.md#placement) seeds untouched maps with free-space
+physics, then refines link crossings, box occlusion, length and footprint with rectangle clearance.
+The nesting solver chooses membership and levels; map 0 and edited arrangements stay authored.
+**Reset map** runs submap placement in a worker, cancelled by newer edits; map 0 undoes session moves.
 
-## Checking
+Positions are signed coordinates in free space; Fit and the minimap follow boxes and wires.
+[placement.mjs](influence/placement.mjs) owns saved positions:
 
-Scanned `check` fails for missing/stale stores or malformed facts; `--json` reports totals and orphan facts.
-`--viewer [ADDRESS]` checks drawing coverage against stored reads (`coverage.mjs`).
-Design `inventory --set NAME` gathers runtime declarations/modules; `audit` compares exact `ownership.json`
-assignments against map 0 and evidenced public operation boundaries, writing `view/audit.html` and `store/audit.json`.
-`audit-check` rejects missing/stale snapshots. Boundary audit preserves raw sites, root classifications, private access,
-direction review and unresolved ownership/effects; navigation boxes alone impose no API boundary. Exact `interfaces.json`
-bindings and public import routes constrain operation access, without certifying schema/effect compliance or granting transitive access.
+- Map 0's nodes and actors: `030-architecture/architecture.json` `layout["0"].positions`;
+  only that block changes, and the architecture viewer shares it.
+- Other boxes: `sets/030-influence/layout.json`, `maps[MAP PATH][BOX]` = `{x,y}`, by identity:
+  `@cluster/IDENTITY`, `FILE::NAME[ #K]`, `b:IDENTITY` or `list:NAME`. Its authored cluster names
+  (`labels`) and cluster signatures (`clusters`, below) ride along.
 
-## Scoring
+Retired positions and labels stay in their files, reported by build/regenerate/check and on map 0.
+Wires meet box outlines and spread along each side; rebuild and dragging share the same routing.
 
-`score` reports size, boundary, hub, island, backflow and balance penalties (`lib/score.mjs`). Solver energy weights scores by nested
-leaf count. Crossing is reported, not scored. The viewer and `view/scores.html`
-show scores; `score` prints the worst and best maps.
+### Cluster identity
 
-## The viewer
+The solver numbers clusters afresh on every solve, so pages, positions and labels name a cluster by
+an identity carried by content instead ([cluster-identity.mjs](influence/cluster-identity.mjs)):
+`NODE/~HEX` (HEX from a hash of its leaves when first seen) or `NODE/library`. Each `regenerate`
+matches the clusters it solved to those of the stored model it replaces, node by node, by the
+Jaccard overlap of all their leaves (by leaf identity): best pairs first, one to one, at overlap
+0.25 or more (below 0.5 reported `weak`; a warm solve keeps most clusters whole, a cold one can
+reshuffle a node). A matched cluster keeps its identity, positions and label; when one splits, the
+best-overlapping part inherits them and the others are new (solver-placed, generated labels); when
+clusters merge, the best-overlapping one goes on and the others retire. The stored model keeps each
+cluster page's identity (`path`), this solve's `solverId` and `signature` (leaf count and a MinHash
+of its leaves); `summary.clusterIdentity` reports the run (`kept`, `rematched` with overlap and
+leaves before and now, `split`, `merged`, `retired`, `new`; for layout.json the keys `migrated` and
+the named clusters now `retired`), which `regenerate` prints in one line and `check` repeats.
 
-`view/index.html` follows declarations across renumbering. Leaves open source/helpers; externals open connections.
+`regenerate` also brings layout.json along: keys of the solver's old numbering (`@cluster/NODE/3`,
+from before identities) are migrated to the identity of the cluster that numbering named, and
+`clusters` is refreshed with the current signature of every cluster the maps or labels name (the
+authoring server adds one with each drop). Without an earlier stored model (a fresh checkout, a
+deleted store) those signatures still match the named clusters to the new solve, by estimated
+overlap (about ±0.09); the others then get new identities.

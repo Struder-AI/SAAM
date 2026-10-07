@@ -7,17 +7,26 @@ import {requireThat} from './tolerance.mjs';
 
 export const BOOLEAN_OPERATIONS=['union','difference','intersection'];
 export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','boolean'];
-export const booleanSolidTemplate=()=>({shape:'boolean',operation:'union',operands:[]});
+export const booleanSolidTemplate=(geometry={})=>({shape:'boolean',operation:'union',operands:[],...(Object.hasOwn(geometry,'displayOperand')?{displayOperand:0}:{})});
 
 // Structure only; the caller validates each operand by its own form's check.
 export function validateBooleanSolid(geometry){
-  requireThat(Object.keys(geometry).sort().join()==='operands,operation,shape','A boolean solid has shape, operation and operands.');
+  requireThat(Object.keys(geometry).filter(key=>key!=='displayOperand').sort().join()==='operands,operation,shape','A boolean solid has shape, operation, operands and optional displayOperand.');
   requireThat(BOOLEAN_OPERATIONS.includes(geometry.operation),`Boolean operation is one of ${BOOLEAN_OPERATIONS.join(', ')}.`);
   requireThat(Array.isArray(geometry.operands)&&geometry.operands.length>=2,'A boolean solid needs at least two operands.');
+  if(Object.hasOwn(geometry,'displayOperand'))requireThat(Number.isInteger(geometry.displayOperand)&&geometry.displayOperand>=0&&geometry.displayOperand<geometry.operands.length,'displayOperand must identify an existing operand.');
   for(const operand of geometry.operands){
     requireThat(BOOLEAN_OPERAND_SHAPES.includes(operand?.shape)||Array.isArray(operand?.vertices)&&!operand.base,`Boolean operands are ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
   }
   return geometry;
+}
+
+// Presentation selects authored geometry without changing the manufacturing solid.
+export function displayGeometry(geometry){
+  if(geometry.shape!=='boolean')return geometry;
+  validateBooleanSolid(geometry);
+  if(Object.hasOwn(geometry,'displayOperand'))return displayGeometry(geometry.operands[geometry.displayOperand]);
+  return {...geometry,operands:geometry.operands.map(displayGeometry)};
 }
 
 // Difference keeps the first operand's extent; intersection keeps the overlap.

@@ -1,24 +1,20 @@
-import {Worker} from 'node:worker_threads';
-import {mkdtemp,rm} from 'node:fs/promises';
-import {join,dirname,resolve as resolvePath} from 'node:path';
-import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {runNativeMeshRepair} from '../geom/mesh-native.mjs';
+import {computationWorker,workerMemoryError} from './computation-job.mjs';
 // Runs repairSTL ('bytes'), repairSTLFiles ('files') or prepareSTLImportInWorker
 // ('import') in a worker. It settles only after the worker has stopped, so a
 // caller may then remove the directory the job was writing.
-// A worker whose heap is exhausted reaches the supervisor as
-// ERR_WORKER_OUT_OF_MEMORY. Say what ran out and on what, rather than reporting
-// an anonymous worker failure; nothing refuses a mesh before trying it.
+// Nothing refuses a mesh before trying it; an exhausted heap names the source.
 export function repairMemoryError(error,source){
-  if(error?.code!=='ERR_WORKER_OUT_OF_MEMORY')return error;
   const bytes=typeof source==='string'?undefined:source?.byteLength??source?.length;
-  const subject=typeof source==='string'?` reading ${source}`:Number.isFinite(bytes)?` on a ${Math.ceil(bytes/1048576)} MiB STL source`:'';
-  return Object.assign(Error(`Mesh repair ran out of memory${subject}: Node's heap was exhausted (${error.message}). Run with a larger --max-old-space-size or on a machine with more RAM; geometry is never simplified automatically.`),{code:'MESH_MEMORY_EXHAUSTED',cause:error});
+  const detail=typeof source==='string'?` reading ${source}`:Number.isFinite(bytes)?` on a ${Math.ceil(bytes/1048576)} MiB STL source`:'';
+  return workerMemoryError(error,'Mesh repair',{detail,code:'MESH_MEMORY_EXHAUSTED'});
 }
 export function runRepairJob(mode,directory,source,options){
   const {signal,progress,onGeometry,...settings}=options;signal?.throwIfAborted();
   return new Promise((resolve,reject)=>{
-    const worker=new Worker(new URL('./mesh-repair-worker.mjs',import.meta.url),{execArgv:[],workerData:{mode,directory,source,options:settings,geometry:!!onGeometry}});let settled=false,callbackError;
+    const worker=computationWorker(new URL('./mesh-repair-worker.mjs',import.meta.url),{mode,directory,source,options:settings,geometry:!!onGeometry});let settled=false,callbackError;
     const nativeController=new AbortController();let nativeDirectory,nativeRun;
     // The supervisor owns native scratch and the child process. It can stop
     // synchronous import work without losing either resource, including on OOM.
@@ -34,11 +30,7 @@ export function runRepairJob(mode,directory,source,options){
       try{await worker.terminate();}catch(stopped){error??=stopped;}
       try{
         await nativeRun?.catch(()=>{});
-        const scratch=await nativeDirectory;
-        if(scratch){
-          if(dirname(resolvePath(scratch))!==resolvePath(tmpdir())||!scratch.startsWith(join(tmpdir(),'saam-mesh-repair-')))throw Error('Unexpected native repair scratch path');
-          await rm(scratch,{recursive:true,force:true,maxRetries:4,retryDelay:100});
-        }
+        await (await nativeDirectory)?.release();
       }catch(cleanup){if(error){error.cleanupError=cleanup.message;error.message+=' Native repair cleanup failed: '+cleanup.message;}else error=cleanup;}
       error?reject(error):resolve(value);
     };
@@ -46,20 +38,20 @@ export function runRepairJob(mode,directory,source,options){
       if(settled)return;
       if(message.type==='native-start'){
         try{
-          nativeDirectory??=mkdtemp(join(tmpdir(),'saam-mesh-repair-'));
-          const scratch=await nativeDirectory;
+          nativeDirectory??=createTemporaryWorkspace('mesh-repair');
+          const scratch=(await nativeDirectory).directory;
           if(!settled)worker.postMessage({type:'native-ack',id:message.id,value:scratch});
         }catch(error){void finish(error);}
       }
       else if(message.type==='native-run'){
         try{
-          const scratch=await nativeDirectory;
+          const workspace=await nativeDirectory,scratch=workspace?.directory;
           if(settled)return;
           if(!scratch||nativeRun||message.input!==join(scratch,'input.off')||message.output!==join(scratch,'output.off'))throw Error('Invalid native repair job paths.');
-          nativeRun=runNativeMeshRepair(message.input,message.output,{maxHoleEdges:message.maxHoleEdges,maxHoleDiameterMm:message.maxHoleDiameterMm,signal:nativeController.signal,
+          nativeRun=runNativeMeshRepair(message.input,message.output,{maxHoleEdges:message.maxHoleEdges,maxHoleDiameterMm:message.maxHoleDiameterMm,signal:nativeController.signal,temporaryWorkspace:workspace,
             progress:event=>{if(!settled)worker.postMessage({type:'native-progress',id:message.id,event});}});
           const value=await nativeRun;if(!settled)worker.postMessage({type:'native-result',id:message.id,value});
-        }catch(error){if(!settled)worker.postMessage({type:'native-result',id:message.id,error:{name:error.name,message:error.message,code:error.code}});}
+        }catch(error){if(!settled)worker.postMessage({type:'native-result',id:message.id,error:{name:error.name,message:error.message,code:error.code,nativeDiagnostic:error.nativeDiagnostic}});}
       }
       else if(message.type==='progress'){try{progress?.(message.event);}catch(error){callbackError=error;abort();}}
       else if(message.type==='geometry'){try{signal?.throwIfAborted();await onGeometry(message.event);worker.postMessage({type:'geometry-ack',id:message.id});}catch(error){callbackError=error;worker.postMessage({type:'geometry-ack',id:message.id,error:error.message});abort();}}

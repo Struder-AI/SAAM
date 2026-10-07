@@ -1,58 +1,34 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
+import {requireEditRevision} from './edit-identity.mjs';
+import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
+import {completedOutputState} from './review-state.mjs';
+import {checkedPhaseColours} from './phase-colours.mjs';
 // One print lifecycle for every geometry/generator adapter.
-import { readFile, mkdir, rename, access, rm,copyFile,readdir } from 'node:fs/promises';
-import {createReadStream} from 'node:fs';
-async function hashFile(path){const sha=createHash('sha256');for await(const chunk of createReadStream(path))sha.update(chunk);return sha.digest('hex');}
+import { readFile, mkdir, access, copyFile,readdir } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHash } from 'node:crypto';
-import { exportAndInterpretProgram, interpretProgram } from '../export/registry.mjs';
+import { randomUUID } from 'node:crypto';
+import { exportProgram, machineAdapter, preparePath, settingsRows } from '../export/registry.mjs';
 import { loadMachine } from '../machine/profile.mjs';
-import {consumeCheckedProgram,createPendingCheckedProgramStore} from './program-handoff.mjs';
+import {runComputationJob} from './computation-job.mjs';
+import {heldBundleInstance} from './studio-ownership.mjs';
 import {replaceFile} from '../file-write.mjs';
+import {canonicalJson} from '../canonical-json.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
-import {selectSettings,saveSetup} from '../machine/settings.mjs';
+import {selectSettings,saveSetup,withMachineSetupExport,neutralMaterials} from '../machine/settings.mjs';
 import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
-import {commitManifest,revisionOf,retainContent,restoreContent} from './revisions.mjs';
+import {commitManifest,retainContent,restoreContent,recordDelivery,saveDescriptor} from './revisions.mjs';
+import {geometryTree} from '../../skills/records.mjs';
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const BUNDLE_SCHEMA='saam-print-bundle/2';
 const nativeSuffix=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return name==='model.3dm'?'.3dm':'.mesh.json';};
-const canonical=value=>JSON.stringify(value,function(_key,item){return item&&typeof item==='object'&&!Array.isArray(item)?Object.fromEntries(Object.keys(item).sort().map(k=>[k,item[k]])):item;});
-const hash=value=>createHash('sha256').update(typeof value==='string'||value instanceof Uint8Array?value:canonical(value)).digest('hex');
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
-function migratedIdentity(record,newName,oldName,scope) {
-  if(!record||typeof record!=='object')return record;
-  const hasNew=Object.hasOwn(record,newName),hasOld=Object.hasOwn(record,oldName);
-  if(hasNew&&hasOld&&record[newName]!==record[oldName])throw Error(`Conflicting generation identity in ${scope}.`);
-  if(!hasOld)return record;
-  const next={...record,[newName]:record[newName]??record[oldName]};delete next[oldName];return next;
-}
-function migrateReview(review) {
-  const approvals={...review?.approvals};
-  if(Object.hasOwn(approvals,'toolpath'))approvals.toolpath=migratedIdentity(approvals.toolpath,'generationHash','planHash','toolpath approval');
-  return {...review,
-    generation:migratedIdentity(review?.generation,'generationHash','planHash','review generation'),
-    approvals,
-    history:(review?.history??[]).map((event,index)=>migratedIdentity(
-      migratedIdentity(event,'generationHash','planHash',`review history ${index}`),
-      'previousGenerationHash','previousPlanHash',`review history ${index}`))};
-}
-const migrateChecks=checks=>migratedIdentity(checks,'generationHash','planHash','saved checks');
-const originalSource=geometry=>geometry?.source??(geometry?.base?originalSource(geometry.base):null);
+// Events after a program that leave its inputs unchanged.
+const KEEPS_INPUTS=new Set(['generated','generation-reused','delivered','human-approval']);
+const originalSource=geometry=>geometry?.source??(geometry?.solid?originalSource(geometry.solid):geometry?.base?originalSource(geometry.base):null);
 async function save(file,value){
   await replaceFile(file,typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value,null,2)+'\n');
-}
-
-export function programCacheEntry(key,program,code) {
-  // Retain the large motion arrays once; only the outer record is separated
-  // from the producer. Removing source fields must not mutate an earlier stage.
-  const {code:sourceText,sources:sourceFiles,...motion}=program;
-  const text=sourceText??code.toString('utf8');
-  const sources=sourceFiles??{program:text};
-  const {moves,events,...metadata}=motion;
-  const sourceInfo=Object.entries(sources).map(([name,source])=>({name,sha256:hash(source)}));
-  return {key,bytes:Buffer.from(code),program:motion,code:text,sources,metadata:{...metadata,sources:sourceInfo}};
 }
 
 export function applyPlanPatch(previous, patch, geometryTemplate) {
@@ -60,8 +36,8 @@ export function applyPlanPatch(previous, patch, geometryTemplate) {
 }
 
 // changes: each recipe value the edit changed, from planChanges.
-export function editedPlanReview(review, previousGenerationHash, geometryChanged, changes = [], time = new Date().toISOString()) {
-  const event = {event:'plan-edited', time, previousGenerationHash, geometryChanged, changes, invalidated:['toolpath']};
+export function editedPlanReview(review, geometryChanged, changes = [], time = new Date().toISOString()) {
+  const event = {event:'plan-edited', time, geometryChanged, changes, invalidated:['toolpath']};
   return invalidateReview(review,event);
 }
 
@@ -74,19 +50,11 @@ export function planChanges(before, after, path = []) {
     return [...new Set([...Object.keys(before),...Object.keys(after)])].sort()
       .filter(key=>!(path.length===0&&key==='geometry'))
       .flatMap(key=>planChanges(before[key],after[key],[...path,key]));
-  return canonical(before)===canonical(after)?[]:[{path:path.join('.'),before:before??null,after:after??null}];
+  return canonicalJson(before)===canonicalJson(after)?[]:[{path:path.join('.'),before:before??null,after:after??null}];
 }
 
 function invalidateReview(review,event) {
-  return {...review, history:[...review.history,event], approvals:{}};
-}
-
-export function approvedReview(review, record) {
-  return {
-    ...review,
-    approvals:{toolpath:record},
-    history:[...review.history,{event:'human-approval',...record}]
-  };
+  return {...review, history:[...review.history,event]};
 }
 
 export function machineChangedReview(review, from, to, time = new Date().toISOString()) {
@@ -96,76 +64,104 @@ export function machineChangedReview(review, from, to, time = new Date().toISOSt
 export function createBundleWorkflow(adapter) {
   const {kind,defaults,createGeometry,generatePath,geometryTemplate,patchPlan,
     version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
+  const contract=adapter.generationContract??null;
   const exportName=(plan,machine)=>{
     const extension=machine.outputs.find(o=>o.id===plan.output)?.extension??'.gcode';
     requireThat(/^\.[a-z0-9.]+$/.test(extension),'Invalid export extension.');
     return EXPORT_NAME.replace(/\.gcode$/,extension);
   };
   const legacyExportPath=(plan,machine)=>{requireThat(/^[a-z0-9-]+$/.test(plan.output),'Invalid output ID.');return `exports/${plan.output}/${exportName(plan,machine)}`;};
-  const exportArtifactPath=(plan,machine,exportHash)=>{requireThat(/^[a-z0-9-]+$/.test(plan.output)&&/^[a-f0-9]{64}$/.test(exportHash),'Invalid generated program reference.');return `exports/${plan.output}/${exportHash}-${exportName(plan,machine)}`;};
-  // Retain only the latest verified program per adapter. Identity includes the
-  // actual file bytes, not mtimes or editable review claims. Approval state is
-  // always read afresh; callers receive copies so they cannot alter this cache.
-  let verifiedProgram;
-  const pendingCheckedPrograms=createPendingCheckedProgramStore();
-  let inputCache={};
+  const exportArtifactPath=(plan,machine,id)=>`exports/${plan.output}/${id}-${exportName(plan,machine)}`;
   // One preparation serves checking and saving unchanged inputs.
   let preparation, pathPreparation;
-  const programKey=(generationHash,exportHash)=>hash([generationHash,exportHash]);
+  // Bundle is the only writer: a commit that changes plan, machine or geometry
+  // mints a new edit revision, and new geometry-input and path-input ids when
+  // those parts changed. Programs and paths record the ids they were made from.
+  const pathInput=plan=>canonicalJson(adapter.pathDependencies?adapter.pathDependencies({...plan,geometry:null}):{...plan,geometry:null});
+  const placementKey=plan=>canonicalJson(adapter.placementInput?.(plan)??null);
+  function inputIds(state,next){
+    const current={editRevision:state.editRevision,geometryInputId:state.geometryInputId,pathInputId:state.pathInputId};
+    if(next.plan===undefined&&next.machine===undefined&&next.geometry===undefined)return current;
+    const plan=next.plan??state.plan,geometry=next.geometry===undefined?state.geometryArtifact:next.geometry;
+    const geometryChanged=(geometry?.id??null)!==(state.geometryArtifact?.id??null);
+    return {editRevision:randomUUID(),
+      geometryInputId:geometryChanged||placementKey(plan)!==placementKey(state.plan)?randomUUID():current.geometryInputId,
+      pathInputId:geometryChanged||pathInput(plan)!==pathInput(state.plan)?randomUUID():current.pathInputId};
+  }
+  // The one reading of prints saved before input ids: hashes, approvals and
+  // undo history are dropped; a program is kept when no recorded event after
+  // its last generation changed its inputs.
+  function savedBundle(bundle){
+    if(bundle.editRevision)return bundle;
+    const {approvals:_approvals,navigation:_navigation,generation:old,path:oldPath,...review}=bundle.review??{};
+    const history=review.history??[],last=history.findLastIndex(event=>event.event==='generated');
+    const kept=last>=0&&history.slice(last+1).every(event=>KEEPS_INPUTS.has(event.event)),id=bundle.revision;
+    const {generationHash:_g,exportHash,inputSnapshot:_s,checks,...generation}=old??{};
+    const {generationHash:_cg,exportHash:_ce,planHash:_cp,...keptChecks}=checks??{};
+    return {...bundle,editRevision:id,geometryInputId:id,pathInputId:id,
+      geometry:bundle.geometry&&{id:bundle.geometry.hash,file:bundle.geometry.file,descriptor:bundle.geometry.descriptor},
+      review:{...review,history,
+        path:kept&&oldPath?{id:oldPath.hash,file:oldPath.file,inputId:id,contract,...(oldPath.source?{source:oldPath.source}:{})}:null,
+        generation:kept&&old?{...generation,id:exportHash,editRevision:id,geometryInputId:id,contract,checks:checks?keptChecks:null}:null}};
+  }
 async function proposedPlan(machineId, options={}) {
   const {machine,settings}=await selectSettings(machineId,options);
   return {...await defaults(machine),...settings};
 }
-async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { setupFile, machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
+async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
     throw new Error('Print already exists. Open it or choose another directory.');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
 
+  const deferRememberSetup=plan?.bundle?.deferRememberSetup===true,phaseColours=checkedPhaseColours(plan?.bundle?.phaseColours);
   let machineSnapshot;
   if(plan?.bundle){
     const {bundle,...recipe}=plan;
     plan=recipe;
     machineSnapshot=bundle.machine;
   }
+  plan=adapter.normalizePlan?await adapter.normalizePlan(plan):plan;
   const machine = machineId?loadMachine(machineId):machineSnapshot??null;
   requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
   const geometry = preparedGeometry??(plan.geometry?await createGeometry(plan.geometry):null);
-  if(preparedGeometry)requireThat(hash(preparedGeometry.descriptor.parameters)===hash(plan.geometry)&&hash(preparedGeometry.bytes)===preparedGeometry.descriptor.fileHash,'Prepared geometry does not match the bundle recipe.');
   for(const attachment of attachments){
     requireThat(['repair/original.stl','repair/repaired.stl','repair/repair.json'].includes(attachment.file),'Unsupported import attachment.');
     const target=resolve(dir,attachment.file);await mkdir(dirname(target),{recursive:true});await copyFile(attachment.sourcePath,target);
   }
   if(originalSource(plan.geometry)){
-    if(sourcePath){
-      const target=resolve(dir,'geometry/source.stl'),temporary=target+'.tmp';await mkdir(dirname(target),{recursive:true});
-      try{await copyFile(sourcePath,temporary);requireThat(await hashFile(temporary)===originalSource(plan.geometry).sha256,'STL source changed during import.');await rename(temporary,target);}finally{await rm(temporary,{force:true});}
-    }else{requireThat(sourceBytes&&hash(sourceBytes)===originalSource(plan.geometry).sha256,'STL source bytes are required; use import-stl.');await save(resolve(dir,'geometry/source.stl'),sourceBytes);}
+    const target=resolve(dir,'geometry/source.stl');
+    if(sourcePath){await mkdir(dirname(target),{recursive:true});await copyFile(sourcePath,target);}
+    else{requireThat(sourceBytes,'STL source bytes are required; use import-stl.');await save(target,sourceBytes);}
   }
-  const geometryArtifact=await saveGeometry(dir,geometry);
-  const review={schema:'saam-review/1',approvals:{},history:[],generation:null};
-  await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact},null);
+  const geometryArtifact=await saveGeometry(dir,geometry),id=randomUUID();
+  const review={schema:'saam-review/1',history:[],generation:null};
+  await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact,ids:{editRevision:id,geometryInputId:id,pathInputId:id},deferRememberSetup,phaseColours},null);
   return dir;
 }
 
 async function saveGeometry(dir, geometry) {
   if(!geometry)return null;
-  const geometryHash=hash({file:hash(geometry.bytes),descriptor:geometry.descriptor});
-  const file=`geometry/${geometryHash}${nativeSuffix(geometry.descriptor)}`;
-  try{await access(resolve(dir,file));}catch(error){if(error.code!=='ENOENT')throw error;await save(resolve(dir,file),geometry.bytes);}
-  return {hash:geometryHash,file,descriptor:geometry.descriptor};
+  const id=randomUUID(),file=`geometry/${id}${nativeSuffix(geometry.descriptor)}`;
+  await save(resolve(dir,file),geometry.bytes);
+  return {id,file,descriptor:geometry.descriptor};
 }
 
-const manifestDocument=({plan,machine,review,geometry})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry}});
+const manifestDocument=({plan,machine,review,geometry,ids,deferRememberSetup,phaseColours})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry,...ids,
+  ...(deferRememberSetup?{deferRememberSetup:true}:{}),...(phaseColours?{phaseColours}:{})}});
 const saveManifest=(dir,state,expected)=>commitManifest(dir,manifestDocument(state),expected);
+const stateIds=state=>({editRevision:state.editRevision,geometryInputId:state.geometryInputId,pathInputId:state.pathInputId});
 
-async function commitState(state,next,{edit=false,history}={}){
-  const previous={plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review};
+// ids: the input ids to record, when restoring them from history.
+async function commitState(state,next,{edit=false,history,ids=inputIds(state,next)}={}){
+  const previous={plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup,phaseColours:state.phaseColours};
   const navigation=state.review.navigation??{past:[],future:[]};
-  const nextHistory=history??(edit?{past:[...navigation.past,await retainContent(state.dir,previous)],future:[]}:navigation);
-  const review={...next.review,navigation:nextHistory};
-  return saveManifest(state.dir,{...previous,...next,review},state.revision);
+  const nextHistory=history??(edit?{past:[...navigation.past,await retainContent(state.dir,{...previous,ids:stateIds(state)})],future:[]}:navigation);
+  const generation=next.review?.generation===state.review.generation&&state.artifacts?.program==='current'
+    ?await retainCompletedOutput(state,state.review.generation):next.review?.generation;
+  const review={...next.review,generation,navigation:nextHistory};
+  return saveManifest(state.dir,{...previous,...next,review,ids},state.revision);
 }
 
 async function restoreRevision(directory,{direction,expectedRevision}={}){
@@ -174,17 +170,12 @@ async function restoreRevision(directory,{direction,expectedRevision}={}){
   requireThat(typeof expectedRevision==='string'&&expectedRevision===state.revision,'This revision is stale. Reload before restoring the print.');
   const navigation=state.review.navigation??{past:[],future:[]},source=direction==='undo'?'past':'future',destination=direction==='undo'?'future':'past';
   requireThat(navigation[source].length>0,`Nothing to ${direction}.`);
-  const id=navigation[source].at(-1),restored=await restoreContent(state.dir,id);
-  const current=await retainContent(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review});
+  const id=navigation[source].at(-1),restored=await restoreContent(state.dir,id,state.geometryArtifact);
+  const current=await retainContent(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,ids:stateIds(state)});
   const history={...navigation,[source]:navigation[source].slice(0,-1),[destination]:[...navigation[destination],current]};
-  const review={...state.review,approvals:{},path:restored.path,generation:restored.generation,
+  const review={...state.review,path:restored.path,
     history:[...state.review.history,{event:direction,time:new Date().toISOString(),restored:id,previousRevision:state.revision}]};
-  // Validate the restored references before publishing a new revision.
-  const candidate={dir:state.dir,plan:restored.plan,machine:restored.machine,geometry:restored.geometry,review};
-  const bytes=candidate.geometry?await readFile(resolve(state.dir,candidate.geometry.file)):null;
-  const checked=await validateBundleInput({...candidate,bytes,planText:JSON.stringify(manifestDocument(candidate))},{});
-  if(checked.error)throw checked.error;
-  await commitState(state,{plan:restored.plan,machine:restored.machine,geometry:restored.geometry,review},{history});
+  await commitState(state,{plan:restored.plan,machine:restored.machine,geometry:restored.geometry,review},{history,ids:restored.ids});
   return loadBundle(directory);
 }
 
@@ -198,36 +189,29 @@ async function bundleFiles(dir,at=dir){
   return files.sort();
 }
 
+// A split-file bundle from before saam-print-bundle/2 becomes one manifest in
+// the saved format savedBundle reads.
 async function prepareLegacyMigration(dir,document,planText){
   const inputNames=['plan.json','machine.json','review.json','geometry/model.json'],inputBytes=await Promise.all(inputNames.slice(1).map(name=>readFile(resolve(dir,name))));
   const checksBytes=await readFile(resolve(dir,'checks.json')).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
-  const machine=JSON.parse(inputBytes[0]),storedReview=JSON.parse(inputBytes[1]),descriptor=JSON.parse(inputBytes[2]),legacyChecks=checksBytes?JSON.parse(checksBytes):null;
+  const machine=JSON.parse(inputBytes[0]),review=JSON.parse(inputBytes[1]),descriptor=JSON.parse(inputBytes[2]);
   const inputs=new Map([['plan.json',Buffer.from(planText)],...inputNames.slice(1).map((name,index)=>[name,inputBytes[index]])]);
-  if(checksBytes)inputs.set('checks.json',checksBytes);
-  else inputs.set('checks.json',null);
-  const review=migrateReview(storedReview),legacyFile=nativeSuffix(descriptor)==='.3dm'?'geometry/model.3dm':'geometry/model.mesh.json';
-  const bytes=await readFile(resolve(dir,legacyFile)),geometryHash=hash({file:hash(bytes),descriptor});
+  inputs.set('checks.json',checksBytes);
+  const legacyFile=nativeSuffix(descriptor)==='.3dm'?'geometry/model.3dm':'geometry/model.mesh.json';
+  const bytes=await readFile(resolve(dir,legacyFile)),geometryId=randomUUID();
   inputs.set(legacyFile,bytes);
-  const geometry={hash:geometryHash,file:`geometry/${geometryHash}${nativeSuffix(descriptor)}`,descriptor};
-  const artifacts=new Map([[geometry.file,bytes]]);let programBytes=null;
+  const geometry={hash:geometryId,file:`geometry/${geometryId}${nativeSuffix(descriptor)}`,descriptor};
+  const artifacts=new Map([[geometry.file,bytes]]);
   if(review.generation){
-    const oldProgram=resolve(dir,legacyExportPath(document,machine)),code=await readFile(oldProgram),exportHash=hash(code);
-    inputs.set(legacyExportPath(document,machine),code);programBytes=code;
-    requireThat(exportHash===review.generation.exportHash,'Legacy generated files changed; regenerate before migration.');
+    const oldProgram=legacyExportPath(document,machine),code=await readFile(resolve(dir,oldProgram)),exportHash=randomUUID();
+    inputs.set(oldProgram,code);
     const file=exportArtifactPath(document,machine,exportHash);artifacts.set(file,code);
-    review.generation={...review.generation,file,checks:legacyChecks?migrateChecks(legacyChecks):null};
+    review.generation={...review.generation,exportHash,file,checks:checksBytes?JSON.parse(checksBytes):null};
   }
-  const state={plan:document,machine,review,geometry};
-  const manifest=manifestDocument(state),preflight=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
-  if(preflight.error)throw preflight.error;
   const source=originalSource(document.geometry);
-  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));inputs.set('geometry/source.stl',sourceBytes);requireThat(hash(sourceBytes)===source.sha256,'Imported STL source changed; repair it before migration.');}
-  const programStatus=!review.generation?'none':review.generation.generationHash===preflight.identity.generationHash?'current':'stale';
-  if(programStatus==='current'){
-    const path=review.path?await readPathArtifact(dir,review.path):null;
-    interpretProgram(programBytes,document,machine,{authoredNozzleTemperatures:path?.completion?.authoredNozzleTemperatures});
-  }
-  return {state,manifest,artifacts,planText,inputs,programStatus};
+  if(source)inputs.set('geometry/source.stl',await readFile(resolve(dir,'geometry/source.stl')));
+  const manifest={...document,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry,revision:randomUUID()}};
+  return {manifest,artifacts,inputs,programStatus:!review.generation?'none':savedBundle(manifest.bundle).review.generation?'current':'stale'};
 }
 
 async function requireLegacyCurrent(dir,inputs){
@@ -240,214 +224,134 @@ async function requireLegacyCurrent(dir,inputs){
 async function migrateBundle(directory,{beforeCommit}={}){
   const dir=resolve(directory),planFile=resolve(dir,'plan.json'),planText=await readFile(planFile,'utf8'),document=JSON.parse(planText);
   const before=await bundleFiles(dir);
-  if(document.bundle?.schema===BUNDLE_SCHEMA)return migrateCurrentRecipe(dir,document,planText,before,{beforeCommit});
+  if(document.bundle?.schema===BUNDLE_SCHEMA)return migrateCurrentRecipe(dir,before,{beforeCommit});
   const prepared=await prepareLegacyMigration(dir,document,planText),created=[],retained=new Set(before);
   await requireLegacyCurrent(dir,prepared.inputs);
-  for(const [name,bytes] of prepared.artifacts){
-    try{
-      const existing=await readFile(resolve(dir,name));
-      requireThat(existing.equals(bytes),`Migration target already exists with different bytes: ${name}.`);
-    }catch(error){if(error.code!=='ENOENT')throw error;created.push(name);}
-  }
-  for(const name of created)await save(resolve(dir,name),prepared.artifacts.get(name));
+  for(const [name,bytes] of prepared.artifacts){await save(resolve(dir,name),bytes);created.push(name);}
   await beforeCommit?.();
   await requireLegacyCurrent(dir,prepared.inputs);
-  await commitManifest(dir,prepared.manifest,revisionOf(document));
-  const state=await loadBundle(dir,{program:'source'});
+  await commitManifest(dir,prepared.manifest,undefined);
+  const state=await loadBundle(dir,{program:true});
   return {status:'migrated',directory:dir,created,updated:['plan.json'],removed:[],retained:[...retained].filter(name=>name!=='plan.json'),
     legacyProgram:prepared.programStatus,
-    verification:{geometryHash:state.geometryHash,exportHash:state.exportHash??null,toolpathApproved:state.toolpathApproved,programError:state.programError??null}};
+    verification:{geometryId:state.geometryId,outputId:state.outputId??null,programError:state.programError??null}};
 }
 
-async function migrateCurrentRecipe(dir,document,planText,before,{beforeCommit}){
+async function migrateCurrentRecipe(dir,before,{beforeCommit}){
   const {migrateRecipeFields}=await import('./recipe-migration.mjs');
-  const {bundle,...previous}=document,{plan,changes}=migrateRecipeFields(previous,bundle.machine);
+  const state=await loadBundle(dir,{program:false}),{plan,changes}=migrateRecipeFields(state.plan,state.machine);
   if(!changes.length)return {status:'current',directory:dir,created:[],updated:[],removed:[],retained:before};
-  const geometry=bundle.geometry;
-  requireThat(geometry===null&&!plan.geometry||geometry&&/^[a-f0-9]{64}$/.test(geometry.hash)&&geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
-  const bytes=geometry?await readFile(resolve(dir,geometry.file)):null,machine=bundle.machine;
-  const review=invalidateReview(migrateReview(bundle.review),{event:'recipe-migrated',time:new Date().toISOString(),changes,previousGenerationHash:bundle.review.generation?.generationHash??null,invalidated:['generation','toolpath']});
-  const state={plan,machine,geometry,review},manifest=manifestDocument(state);
-  const checked=await validateBundleInput({dir,planText:JSON.stringify(manifest),...state,bytes},{});
-  if(checked.error)throw checked.error;
-  const inputs=new Map([['plan.json',Buffer.from(planText)],...(geometry?[[geometry.file,bytes]]:[])]),source=originalSource(plan.geometry);
-  if(source){const sourceBytes=await readFile(resolve(dir,'geometry/source.stl'));requireThat(hash(sourceBytes)===source.sha256,'Imported source changed; repair it before recipe migration.');inputs.set('geometry/source.stl',sourceBytes);}
-  await beforeCommit?.();await requireLegacyCurrent(dir,inputs);
-  await commitState({dir,plan:previous,machine,geometryArtifact:geometry,review:migrateReview(bundle.review),revision:revisionOf(document)},state,{edit:true});
+  const review=invalidateReview(state.review,{event:'recipe-migrated',time:new Date().toISOString(),changes,invalidated:['generation','toolpath']});
+  await beforeCommit?.();
+  await commitState(state,{plan,review},{edit:true});
   const reopened=await loadBundle(dir,{program:false});
   return {status:'migrated',directory:dir,changes,created:[],updated:['plan.json'],removed:[],retained:before.filter(name=>name!=='plan.json'),
-      verification:{geometryHash:reopened.geometryHash,toolpathApproved:reopened.toolpathApproved,generation:reopened.review.generation,revision:reopened.revision}};
+      verification:{geometryId:reopened.geometryId,generation:reopened.review.generation,revision:reopened.revision}};
 }
 
 async function readBundleInput(directory) {
   const dir = resolve(directory);
-  let planText=await readFile(resolve(dir,'plan.json'),'utf8'),document=JSON.parse(planText),state;
-  if(document.bundle?.schema===BUNDLE_SCHEMA){
-    const {bundle,...plan}=document,review=migrateReview(bundle.review);
-    if(review.generation?.checks)review.generation={...review.generation,checks:migrateChecks(review.generation.checks)};
-    state={plan,machine:bundle.machine,review,geometry:bundle.geometry,revision:revisionOf(document)};
-  }else{
-    throw Error(`Legacy split-file bundle requires explicit migration. Run: node core/print/cli.mjs migrate ${JSON.stringify(dir)}`);
-  }
-  requireThat(state.geometry===null&&!state.plan.geometry||state.geometry&&/^[a-f0-9]{64}$/.test(state.geometry.hash)
-    &&new RegExp(`^geometry/${state.geometry.hash.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\.(?:3dm|mesh\\.json)$`).test(state.geometry.file),
-  'Invalid geometry artifact reference.');
-  const bytes=state.geometry?await readFile(resolve(dir,state.geometry.file)):null;
-  return {dir,planText,...state,bytes};
+  const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));
+  if(document.bundle?.schema!==BUNDLE_SCHEMA)
+    throw Error(`Legacy split-file bundle requires explicit migration. Use saam call migrate_bundle with the bundleId, or offline source maintenance; see core/application/README.md#offline-maintenance.`);
+  const {bundle:saved,...plan}=document,bundle=savedBundle(saved);
+  // Compiled records of older prints carried a digest of their own mesh.
+  if(!saved.editRevision)for(const geometry of geometryTree(plan.geometry))delete geometry.compiledHash;
+  if(plan.setup)plan.setup=neutralMaterials(plan.setup);
+  requireThat(bundle.deferRememberSetup===undefined||typeof bundle.deferRememberSetup==='boolean','Invalid bundle setup remembering preference.');
+  return {dir,plan,machine:bundle.machine,review:bundle.review,geometryArtifact:bundle.geometry,revision:bundle.revision,
+    editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,
+    phaseColours:checkedPhaseColours(bundle.phaseColours,'Bundle phaseColours')};
 }
 
-async function validateBundleInput(input,previousCache) {
-  const {dir,planText,plan,review,machine,geometry,bytes,revision}=input;
-  const cache={...previousCache};
-  try {
-    // Read current bytes at every boundary, but canonicalize large mesh/plan
-    // trees only when those bytes change. Keep the established semantic hashes
-    // so formatting alone does not invalidate a person's recorded approval.
-    const fileHash=hash(bytes),identityKey=hash([hash(planText),fileHash]);
-    let identity=cache.identity;
-    if(identity?.key!==identityKey){
-      const geometryHash=geometry?hash({file:fileHash,descriptor:geometry.descriptor}):hash(null);
-      requireThat(!geometry||geometryHash===geometry.hash,'Saved geometry artifact changed; rebuild the print geometry.');
-      requireThat(!geometry||geometry.file===`geometry/${geometry.hash}${nativeSuffix(geometry.descriptor)}`,'Invalid geometry artifact reference.');
-      if(review.generation)requireThat(/^[a-f0-9]{64}$/.test(review.generation.exportHash)&&new RegExp(`^exports/[a-z0-9-]+/${review.generation.exportHash}-[a-z0-9.-]+$`).test(review.generation.file),
-        'Invalid generated program reference. Regenerate the print.');
-      requireThat(canonical(plan.geometry)===canonical(geometry?.descriptor.parameters),'Plan and geometry disagree. Rebuild the print geometry.');
-      identity={key:identityKey,geometryHash,pathHash:hash(adapter.pathDependencies?adapter.pathDependencies(plan,machine):{plan,machine}),generationHash:hash({plan,machine,geometryHash,...(adapter.generationContract?{generationContract:adapter.generationContract}:{})})};
-      cache.identity=identity;
-    }
-    return {dir,plan,machine,geometry:geometry?.descriptor??null,geometryArtifact:geometry,geometryChecks:[],review,identity,cache,revision};
-  } catch(error) {return {cache,error};}
-}
-
-async function describeBundle({dir,plan,machine,geometry,geometryArtifact,geometryChecks,review,identity,revision},program) {
-  const {geometryHash,generationHash,pathHash}=identity;
-  const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':review.path.inputHash===pathHash?'current':'stale',program:!review.generation?'absent':review.generation.generationHash===generationHash?'current':'stale'};
+async function describeBundle(input,program) {
+  const {dir,plan,machine,geometryArtifact,review,revision,editRevision,geometryInputId,pathInputId,deferRememberSetup,phaseColours}=input;
+  const geometry=adapter.presentGeometry?await adapter.presentGeometry(plan,geometryArtifact?.descriptor??null):geometryArtifact?.descriptor??null;
+  const pathCurrent=review.path?.inputId===pathInputId&&review.path.contract===contract;
+  const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':pathCurrent?'current':'stale',
+    program:!review.generation?'absent':review.generation.editRevision===editRevision&&review.generation.contract===contract?'current':'stale'};
+  const geometryId=geometryArtifact?.id??null;
+  const workEvidence={schema:'saam-work-evidence/1',revision,inputKey:editRevision,geometryKey:geometryId,generationKey:review.generation?.id??null,editRevision};
   const history={canUndo:Boolean(review.navigation?.past.length),canRedo:Boolean(review.navigation?.future.length)};
-  if(!machine){
-    const state={kind,dir,plan,machine:null,geometry,geometryChecks,review,geometryHash,generationHash,programChecked:false,exportName:null,limitations:[],skills:[],toolpathApproved:false,setupBasis:null,outputAvailability:'Ask the agent to supply a printer, material and toolpath recipe.'};
-    Object.assign(state,{revision,pathHash,artifacts,history});Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});return state;
-  }
-  const state = {
-    kind, dir, plan, machine, geometry, geometryChecks, review, geometryHash, generationHash, programChecked:Boolean(program&&review.generation),
-    exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine),
+  const state={kind,dir,plan,machine,geometry,geometryChecks:[],review,geometryId,geometryInputId,editRevision,pathInputId,revision,artifacts,history,workEvidence,deferRememberSetup,phaseColours};
+  Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});
+  if(!machine)return Object.assign(state,{programChecked:false,exportName:null,limitations:[],skills:[],setupBasis:null,outputAvailability:'Ask the agent to supply a printer, material and toolpath recipe.'});
+  return Object.assign(state,{programChecked:Boolean(program&&review.generation),
+    exportName: exportName(plan,machine), limitations: limitationsFor(plan, machine), settingsRows: await settingsRows(plan,machine),
     outputAvailability:machine.outputs.find(o=>o.id===plan.output)?.implemented===false?`Machine-file export for ${machine.name} is not available yet; geometry and settings can be reviewed.`:null,
     skills: [...new Set((plan.slices?.assignments??[]).map(assignment=>assignment.construction==='sleeve'
-      ?assignment.pattern===null?'slice':'trace':ordinaryAssignmentFamily(assignment))),
-      ...Object.entries(plan.skills??{}).filter(([,settings])=>settings?.enabled).map(([name])=>name)]
-  };
-  state.toolpathApproved = false;
-  Object.assign(state,{revision,pathHash,artifacts,history});
-  state.setupBasis = plan.setup?.startupVerified
-    ? 'Confirmed startup behavior'
-    : machine.startup?.validation;
+      ?'trace':ordinaryAssignmentFamily(assignment))),
+      ...Object.entries(plan.skills??{}).filter(([,settings])=>settings?.enabled).map(([name])=>name)],
+    setupBasis:plan.setup?.startupVerified?'Confirmed startup behavior':machine.startup?.validation});
+}
 
-  Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});
+// The adapter's report, stored at generation. Older prints stored decoded
+// metadata, which kept the relay estimate in its summary; their checks hold the rest.
+function storedReport({programMetadata,checks}){
+  const {summary,...report}=programMetadata??{};
+  return {limitations:checks.limitations??[],seconds:checks.estimatedMinutes*60,volumeMm3:checks.volumeMm3,shortTravel:checks.shortTravel,
+    ...report,...(summary?.materialModel?{materialModel:summary.materialModel,estimatedRelayVolumeMm3:summary.estimatedRelayVolumeMm3}:{})};
+}
 
+// Reopen reads the stored report and the exact bytes; it runs no adapter code.
+async function restoreBundleProgram(input,program) {
+  const state={...input},{review}=state;
+  Object.defineProperty(state,'geometryArtifact',{value:input.geometryArtifact,enumerable:false});
+  if (!program || !review.generation) return state;
+  try {
+    const output=await readCompletedOutput(input,adapter.presentGeometry);
+    state.programChecked=true;
+    state.program=storedReport(output.generation);
+    state.limitations=[...new Set([...state.limitations,...state.program.limitations])];
+    state.pathSummary = structuredClone(review.generation.summary??{});
+    state.outputId = output.id;
+    state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(review.path)===canonicalJson(output.path),
+      plan:output.plan,machine:output.machine,geometry:output.geometry,geometryId:output.geometryId,geometryInputId:output.geometryInputId,editRevision:output.generation.editRevision,
+      outputId:output.id,inputRevision:output.generation.inputRevision??null,exportName:exportName(output.plan,output.machine),review:{generation:output.generation},
+      limitations:limitationsFor(output.plan,output.machine),settingsRows:await settingsRows(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};
+    state.exportName=state.completedOutput.exportName;
+    Object.defineProperty(state,'checkedBytes',{value:output.bytes,enumerable:false});
+  } catch (error) { state.programError = error.message; }
   return state;
 }
 
-async function restoreBundleProgram(input,program,allSources,previousProgram) {
-  const state={...input},{dir,plan,machine,review,generationHash}=state;
-  Object.defineProperty(state,'geometryArtifact',{value:input.geometryArtifact,enumerable:false});
-  let cachedProgram=previousProgram;
-  let observedExportHash=null;
-  if (program && review.generation) {
-    try {
-      requireThat(review.generation.generationHash === generationHash, 'Generated program is stale; regenerate for the current plan.');
-      requireThat(typeof review.generation.file==='string','Generated program has no saved artifact. Regenerate it.');
-      const code = await readFile(resolve(dir,review.generation.file));
-      const exportHash=hash(code),key=programKey(generationHash,exportHash);observedExportHash=exportHash;
-      requireThat(exportHash === review.generation.exportHash,
-        'Generated files changed; regenerate and review again.');
-      const path=review.path?await readPathArtifact(dir,review.path):null;
-      const authoredNozzleTemperatures=path?.completion?.authoredNozzleTemperatures;
-      if(cachedProgram?.key!==key||(program!=='source'&&!cachedProgram.program)) {
-        // Reopen the saved machine program. Interpretation checks the actual
-        // commands; reopening never invokes a slicing skill or exporter. Source
-        // requests can reuse their job's checked result after the current-byte
-        // hash above matches. Full-motion and cold callers still interpret.
-        const source=program==='source'?pendingCheckedPrograms.take(key):null;
-        if(source)cachedProgram={key,...source,bytes:code,program:null};
-        else cachedProgram=programCacheEntry(key,interpretProgram(code, plan, machine,{authoredNozzleTemperatures}),code);
-      }
-      state.program = structuredClone(program==='source'?cachedProgram.metadata:cachedProgram.program);
-      state.authoredNozzleTemperatures=authoredNozzleTemperatures;
-      state.limitations=[...new Set([...state.limitations,...(state.program.limitations??[])])];
-      state.pathSummary = structuredClone(review.generation.summary??{});
-      state.exportHash = exportHash;
-      state.code = cachedProgram.code;
-      Object.defineProperty(state,'checkedBytes',{value:Buffer.from(cachedProgram.bytes),enumerable:false});
-      if(allSources)state.sources={...cachedProgram.sources};
-      state.toolpathApproved = review.approvals.toolpath?.hash === state.exportHash
-        && review.approvals.toolpath?.generationHash === generationHash
-        && review.generation.mode === 'production';
-    } catch (error) { state.programError = error.message; }
-  }
-  return {state,cachedProgram,observedExportHash};
+async function loadBundle(directory, { program = true } = {}) {
+  return restoreBundleProgram(await describeBundle(await readBundleInput(directory),program),program);
 }
 
-
-async function loadBundle(directory, { program = true, allSources=false } = {}) {
-  const input=await readBundleInput(directory);
-  const validated=await validateBundleInput(input,inputCache);
-  inputCache=validated.cache;
-  if(validated.error)throw validated.error;
-  const described=await describeBundle(validated,program);
-  const restored=await restoreBundleProgram(described,program,allSources,verifiedProgram);
-  verifiedProgram=restored.cachedProgram;
-  const {review,machine,plan,geometry}=validated;
-  const fingerprints={source:hash([hash(input.planText),validated.identity.geometryHash,
-      originalSource(plan.geometry)?.sha256??null,program?restored.observedExportHash:null]),
-    presentation:hash([['plan',hash(plan)],['machine',hash(machine)],['geometry',validated.identity.geometryHash],
-      ['generation',review.generation?{generationHash:review.generation.generationHash,exportHash:review.generation.exportHash,
-        summary:review.generation.summary,version:review.generation.version,file:review.generation.file,
-        checks:review.generation.checks?Object.fromEntries(Object.entries(review.generation.checks).filter(([key])=>key!=='mode')):null}:null]])};
-  Object.defineProperty(restored.state,'fingerprints',{value:fingerprints,enumerable:false});
-  return restored.state;
-}
-
+// Change tags for viewer updates: any commit changes the revision; the
+// presentation tag changes only with inputs, geometry or program, so delivery
+// history and mode changes update controls without replacing mesh/motion.
 async function loadBundleSnapshot(directory,options){
   const state=await loadBundle(directory,options);
-  return {schema:'saam-bundle-snapshot/1',state,fingerprint:state.fingerprints.source,presentationFingerprint:state.fingerprints.presentation};
+  return {schema:'saam-bundle-snapshot/1',state,fingerprint:state.revision,
+    presentationFingerprint:JSON.stringify([state.editRevision,state.geometryId,state.review.generation?.id??null])};
 }
 
-// A content fingerprint for automatic viewer updates. Changed geometry or plan
-// inputs invalidate their checks; an approval-only change does not.
-// One snapshot pass yields both change fingerprints: `source` covers the
-// manifest and every referenced artifact; `presentation` uses the generation
-// identity minus mode, so approval, delivery history and mode
-// changes update controls without replacing mesh/motion.
-async function bundleFingerprints(directory, {program=true}={}) {
-  const snapshot=await loadBundleSnapshot(directory,{program});
-  return {source:snapshot.fingerprint,presentation:snapshot.presentationFingerprint};
-}
-async function bundleFingerprint(directory, options) {
-  return (await bundleFingerprints(directory, options)).source;
-}
-
-// Feasibility inspection through the same generator, without persisted output
-// or approval. The approved generation/export step remains the delivery gate.
+// Feasibility inspection through the same generator, without persisted output.
 async function checkPathBundle(directory, {onProgress} = {}) {
   const candidate=await prepareGeneration(directory,{onProgress}),result=candidate.result;
   return {mode:'development-check-only',revision:candidate.revision,
-    ...structuredClone(result.summary),exportSummary:structuredClone(result.program.summary)};
+    ...structuredClone(result.summary),exportSummary:structuredClone(result.report)};
 }
 
 async function prepareGeneration(directory,{onProgress}={}){
   const state=await loadBundle(directory,{program:false}),source=await generationSource(state.plan);
   requireThat(state.machine,'Supply a machine, material and toolpath recipe before generation.');
-  const key=hash([state.dir,state.generationHash,source.release,source.hash??state.review.path?.source?.hash]);
+  // A profile without an output contract refuses before geometry or motion is built.
+  await machineAdapter(state.plan,state.machine);
+  const key=JSON.stringify([state.dir,state.editRevision,source.release,source.hash??state.review.path?.source?.hash]);
   if(preparation?.key!==key)preparation={key};
   const candidate=preparation;
   if(!candidate.result)candidate.result=Promise.resolve().then(async()=>{
     onProgress?.({stage:'Preparing geometry'});
     const {path,artifact}=await prepareToolpath(state,{onProgress,source});
-    onProgress?.({stage:'Writing and checking machine commands'});
-    try{return {pathArtifact:artifact,summary:path.summary,...exportAndInterpretProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
+    onProgress?.({stage:'Writing machine commands'});
+    try{return {pathArtifact:artifact,summary:path.summary,...await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
     catch(error){error.stage='export';throw error;}
   }).catch(error=>{candidate.result=null;throw error;});
   const result=await candidate.result;
-  return {directory:state.dir,revision:state.revision,generationHash:state.generationHash,source:{release:source.release,hash:source.hash},result};
+  return {directory:state.dir,revision:state.revision,editRevision:state.editRevision,source:{release:source.release,hash:source.hash},result};
 }
 
 // Generation-source currency is checked only when working on a print. Saved
@@ -458,12 +362,12 @@ async function generationSource(plan){
 
 function staleGenerationSource(state,source){
   const saved=state.review.path?.source;
-  return Boolean((state.review.path||state.review.generation)
+  return Boolean(state.review.path
     &&(source.release!==null&&saved?.release!==source.release||source.hash!==null&&saved?.hash!==source.hash));
 }
 
 function sourceInvalidatedReview(review){
-  return {...review,path:null,generation:null,approvals:{},history:[...review.history,
+  return {...review,path:null,history:[...review.history,
     {event:'generation-invalidated',reason:'generation-source-changed',time:new Date().toISOString()}]};
 }
 
@@ -481,39 +385,55 @@ async function requireGenerationSource(state,expected){
   if(!adapter.pathSource)return;
   const source=await generationSource(state.plan);
   if(source.release===expected?.release&&source.hash===expected?.hash)return;
-  if(state.review.path||state.review.generation||Object.keys(state.review.approvals).length)
+  if(state.review.path||state.review.generation)
     await commitState(state,{review:sourceInvalidatedReview(state.review)},{edit:true});
   if(source.missing)throw source.missing;
   throw Error('Generation source changed during calculation. Generate again using the current scripts.');
 }
 
 async function prepareToolpath(state,{onProgress,source}={}){
-  const key=hash([state.dir,state.pathHash,source.release,source.hash??state.review.path?.source?.hash]);
+  const key=JSON.stringify([state.dir,state.pathInputId,source.release,source.hash??state.review.path?.source?.hash]);
   if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
-    if(saved?.inputHash===state.pathHash&&!staleGenerationSource(state,source)){
+    if(state.artifacts.path==='current'&&!staleGenerationSource(state,source)){
       const path=await readPathArtifact(state.dir,saved);
       onProgress?.({stage:'Reusing saved SAAMpath'});
-      requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Saved SAAMpath completion does not match its inputs.');
       return {path,artifact:saved};
     }
     if(source.missing)throw source.missing;
-    const path=await generatePath(state.plan,{onProgress});
-    requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract&&path.completion.inputHash===state.pathHash,'Generated SAAMpath completion does not match its inputs.');
-    const bytes=JSON.stringify(path),contentHash=hash(bytes),file=`paths/${contentHash}.json`;
-    await save(resolve(state.dir,file),bytes);
-    return {path,artifact:{inputHash:state.pathHash,hash:contentHash,file,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{})}};
+    const path=await generatePath(state.plan,{onProgress}).catch(error=>requireMigrated(state,error));
+    requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract,'Generated SAAMpath completion does not match its contract.');
+    const id=randomUUID(),file=`paths/${id}.json`;
+    await save(resolve(state.dir,file),JSON.stringify(path));
+    return {path,artifact:{id,file,inputId:state.pathInputId,contract,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{})}};
   })();
   pathPreparation={key,result};
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
 }
 
-async function readPathArtifact(dir,artifact){
-  requireThat(/^[a-f0-9]{64}$/.test(artifact.hash)&&artifact.file===`paths/${artifact.hash}.json`,'Invalid SAAMpath reference.');
-  const bytes=await readFile(resolve(dir,artifact.file));
-  requireThat(hash(bytes)===artifact.hash,'Saved SAAMpath changed; regenerate it.');
-  return JSON.parse(bytes);
+// Migration stays explicit: a generation failure on a recipe that migration
+// would update names migrate_bundle; any other failure is reported unchanged.
+async function requireMigrated(state,error){
+  const migrates=await import('./recipe-migration.mjs')
+    .then(({migrateRecipeFields})=>migrateRecipeFields(state.plan,state.machine).changes.length>0).catch(()=>false);
+  if(migrates)throw Error(`${error.message} This recipe predates the current format: run saam call migrate_bundle with the bundleId, then generate again.`,{cause:error});
+  throw error;
+}
+
+const readPathBytes=(dir,artifact)=>readFile(resolve(dir,artifact.file));
+async function readPathArtifact(dir,artifact){return JSON.parse(await readPathBytes(dir,artifact));}
+async function readToolpath(state){
+  requireThat(state.artifacts.path==='current'&&state.review.path,'The saved SAAMpath changed. Reload before viewing.');
+  return readPathBytes(state.dir,state.review.path);
+}
+// What Studio draws: a completed output's prepared path, made from its saved
+// SAAMpath and locked settings (startup, priming, material-change motion), else
+// the saved SAAMpath.
+async function readDrawnPath(state){
+  const output=state.completedOutput;
+  if(!output)return readToolpath(state);
+  return Buffer.from(JSON.stringify(await preparePath(await readPathArtifact(state.dir,output.path),output.plan,output.machine)));
 }
 
 // Authored SAAMpath can be saved before choosing a machine-program output.
@@ -521,36 +441,35 @@ async function generateToolpath(directory,{onProgress,beforeCommit}={}){
   const {state,source}=await activeGenerationState(directory);
   const {artifact}=await prepareToolpath(state,{onProgress,source});
   await beforeCommit?.();
-  await readPathArtifact(state.dir,artifact);
   await requireGenerationSource(state,source);
-  const review=canonical(artifact)===canonical(state.review.path)?state.review:{...state.review,generation:null,approvals:{}};
-  await commitState(state,{review:{...review,path:artifact}});
+  await commitState(state,{review:{...state.review,path:artifact}});
   return loadBundle(directory,{program:false});
 }
 
 // Chat-driven adjustment: the agent applies a patch, the plan is revalidated,
-// and the affected approvals fall away. An unknown key is refused here as well
+// and dependent output becomes stale. An unknown key is refused here as well
 // as in the plan check, so a misspelled setting never silently does nothing.
-async function adjustBundle(directory, patch, { setupFile, expectedRevision } = {}) {
+async function adjustBundle(directory, patch, { expectedRevision, expectedEditRevision } = {}) {
   const state = await loadBundle(directory, { program: false });
-  if(expectedRevision!==undefined)requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the print.');
+  requireEditRevision(state,{expectedRevision,expectedEditRevision},{optional:true});
   const plan = patchPlan?await patchPlan(state.plan,patch):applyPlanPatch(state.plan, patch, geometryTemplate);
-  const updated=await updatePlan(directory, plan, state.revision);
-  if (patch.setup&&updated.machine) await saveSetup(updated.machine,updated.plan.setup,{setupFile});
+  const updated=await updatePlan(directory, plan, state.revision,{expectedEditRevision});
   return updated;
 }
 
 
-async function updatePlan(directory, plan, revision) {
+async function updatePlan(directory, plan, revision, {preparedGeometry,expectedEditRevision} = {}) {
   const state = await loadBundle(directory, { program: false });
-  requireThat(revision === state.revision, 'This view is stale. Reload before changing the print.');
+  requireEditRevision(state,{expectedRevision:revision,expectedEditRevision});
+  plan=adapter.normalizePlan?await adapter.normalizePlan(plan):plan;
+  if(!Object.hasOwn(plan,'workspace')&&Object.hasOwn(state.plan,'workspace'))plan={...plan,workspace:state.plan.workspace};
   const change = validatePlanUpdate(state, plan);
   const source=await generationSource(change.plan),sourceChanged=staleGenerationSource(state,source);
   if (!change.changed&&!sourceChanged) return state;
 
   // Build before committing anything; plan.json remains the edit commit point.
-  const geometry = change.geometryChanged&&change.plan.geometry ? await createGeometry(change.plan.geometry) : null;
-  const review = editedPlanReview(sourceChanged?sourceInvalidatedReview(state.review):state.review, state.generationHash, change.geometryChanged, planChanges(state.plan, change.plan));
+  const geometry = change.geometryChanged&&change.plan.geometry ? preparedGeometry??await createGeometry(change.plan.geometry) : null;
+  const review = editedPlanReview(sourceChanged?sourceInvalidatedReview(state.review):state.review, change.geometryChanged, planChanges(state.plan, change.plan));
   await persistPlanUpdate(state,change.plan,geometry,review);
   return loadBundle(directory);
 }
@@ -558,8 +477,8 @@ async function updatePlan(directory, plan, revision) {
 function validatePlanUpdate(state, candidate) {
   const plan = structuredClone(candidate);
   requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
-  const changed = canonical(plan) !== canonical(state.plan);
-  const geometryChanged = changed && canonical(plan.geometry) !== canonical(state.plan.geometry);
+  const changed = canonicalJson(plan) !== canonicalJson(state.plan);
+  const geometryChanged = changed && canonicalJson(plan.geometry) !== canonicalJson(state.plan.geometry);
   return {plan, changed, geometryChanged};
 }
 
@@ -570,8 +489,11 @@ async function persistPlanUpdate(state,plan,geometry,review) {
 
 // Generation performs the calculations the locked plan specifies. Both modes
 // may be inspected freely; development output is recorded as a preview and can
-// never satisfy the final reviewed-export delivery gate.
-async function generateBundle(directory, { development = false, onProgress, beforeCommit, dispatchComputation } = {}) {
+// never satisfy the final reviewed-export delivery gate. A current checked
+// program is reused (and promoted for production); otherwise the generation
+// worker computes and commits under the caller's held reservation. The signal
+// cancels until beforeCommit is acknowledged.
+async function generateBundle(directory, { development = false, signal, onProgress, beforeCommit } = {}) {
   const {state,source} = await activeGenerationState(directory);
   const current=await currentGenerationCandidate(directory,state);
   if(current){
@@ -581,47 +503,34 @@ async function generateBundle(directory, { development = false, onProgress, befo
     await requireGenerationSource(state,source);
     const confirmed=await currentGenerationCandidate(directory,state);
     requireThat(confirmed&&confirmed.checks.mode==='development'
-      &&confirmed.current.generationHash===current.current.generationHash
-      &&confirmed.current.exportHash===current.current.exportHash
+      &&confirmed.current.outputId===current.current.outputId
       &&confirmed.current.revision===current.current.revision,
     'The reviewed export changed before promotion. Generate it again.');
     return promoteReviewedGeneration(state.dir,confirmed);
   }
-  if(dispatchComputation){
-    const computed=await dispatchComputation({directory:state.dir,generationHash:state.generationHash});
-    if(computed!==null){
-      const checks=computed?.checks,source=consumeCheckedProgram(computed?.checkedProgram,
-        checks?.generationHash,checks?.exportHash);
-      requireThat(checks&&source,'The generation worker returned unchecked machine source.');
-      pendingCheckedPrograms.retain(programKey(checks.generationHash,checks.exportHash),source);
-      return checks;
-    }
-  }
-  const prepared=await prepareGeneration(directory,{onProgress});
-  return commitGeneration(directory,prepared,{development,onProgress,beforeCommit});
+  return runComputationJob(new URL('./generation-worker.mjs',import.meta.url),
+    {directory:state.dir,editRevision:state.editRevision,development,instance:heldBundleInstance(state.dir)},
+    {signal,progress:onProgress,beforeCommit:beforeCommit??(()=>{}),subject:'Generation'});
 }
 
 async function commitGeneration(directory,prepared,{development=false,onProgress,beforeCommit}={}){
   const {result}=prepared;
   const state=await loadBundle(directory,{program:false});
-  requireThat(state.dir===prepared.directory&&state.generationHash===prepared.generationHash&&state.revision===prepared.revision,
+  requireThat(state.dir===prepared.directory&&state.editRevision===prepared.editRevision&&state.revision===prepared.revision,
     'The print changed during generation. Review the updated print.');
   await beforeCommit?.();
   await requireGenerationSource(state,prepared.source);
   onProgress?.({stage:'Saving your toolpath'});
   const checks=generationChecks(state,result,development);
-  const committed=await persistGeneratedProgram(state,result,checks);
-  verifiedProgram=committed.cachedProgram;
-  return committed.checks;
+  return persistGeneratedProgram(state,result,checks);
 }
 
 async function currentGenerationCandidate(directory,state){
   if(!state.review.generation)return null;
-  const current=await loadBundle(directory,{program:'source'});
-  if(!current.program||current.programError)return null;
+  const current=await loadBundle(directory,{program:true});
+  if(!current.program||current.programError||!current.completedOutput?.current)return null;
   const checks=current.review.generation.checks;
   requireThat(checks?.schema==='saam-checks/1'&&checks.result==='pass'
-    &&checks.generationHash===current.generationHash&&checks.exportHash===current.exportHash
     &&checks.mode===current.review.generation?.mode,'Saved checks do not match the reviewed export.');
   return {checks,current};
 }
@@ -629,77 +538,53 @@ async function currentGenerationCandidate(directory,state){
 async function promoteReviewedGeneration(dir,{checks,current}){
   const promoted={...checks,mode:'production'};
   const review={...current.review,generation:{...current.review.generation,mode:'production',checks:promoted},
-    history:[...current.review.history,{event:'generation-reused',mode:'production',time:new Date().toISOString(),exportHash:current.exportHash}]};
+    history:[...current.review.history,{event:'generation-reused',mode:'production',time:new Date().toISOString(),outputId:current.outputId}]};
   await commitState(current,{review});
   return promoted;
 }
 
-function generationChecks(state,prepared,development){
-  const {bytes:code,program,summary}=prepared;
+function generationChecks(state,{report,summary},development){
   return {
     schema: 'saam-checks/1', result: 'pass', mode: development ? 'development' : 'production',
-    generatorVersion: VERSION, generationHash: state.generationHash, exportHash: hash(code),
-    moves: program.moves.length,
-    volumeMm3: Number(program.volumeMm3.toFixed(3)),
-    estimatedMinutes: Number((program.seconds / 60).toFixed(1)),
+    generatorVersion: VERSION,
+    moves: report.moves,
+    volumeMm3: Number(report.volumeMm3.toFixed(3)),
+    estimatedMinutes: Number((report.seconds / 60).toFixed(1)),
     travel: summary.travel,
-    shortTravel: program.summary.shortTravel,
+    shortTravel: report.shortTravel,
     surfaceDomain: summary.surfaceDomain ?? null,
-    checks: ['plan-inputs',...(state.geometryChecks??[]),'declared-output',...(program.checks??[])],
-    clearance: 'operator responsibility; no collision model implemented',
-    physicalValidation: 'not performed',
-    firmwareEnvelope: program.envelope??null,
-    limitations: [...limitationsFor(state.plan, state.machine),...(program.limitations??[])],
-    ...(program.summary.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:program.summary.commandedVolumeMm3,estimatedRelayVolumeMm3:program.summary.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:program.summary.relayEstimateDifferenceMm3}:{})
+    limitations: [...limitationsFor(state.plan, state.machine),...report.limitations],
+    ...(report.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:report.volumeMm3,estimatedRelayVolumeMm3:report.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:report.estimatedRelayVolumeMm3-report.volumeMm3}:{})
   };
 }
 
-async function persistGeneratedProgram(state,{bytes:code,program,summary,pathArtifact},checks){
-  await readPathArtifact(state.dir,pathArtifact);
-  const file=exportArtifactPath(state.plan,state.machine,checks.exportHash);
-  await save(resolve(state.dir,file),code);
-  const review={...state.review,approvals:{},path:pathArtifact,
-    generation:{mode:checks.mode,generationHash:state.generationHash,exportHash:checks.exportHash,summary,version:VERSION,file,checks},
-    history:[...state.review.history,{event:'generated',mode:checks.mode,time:new Date().toISOString(),exportHash:checks.exportHash}]};
+async function persistGeneratedProgram(state,{bytes,report,summary,pathArtifact},checks){
+  const id=randomUUID(),file=exportArtifactPath(state.plan,state.machine,id);
+  await save(resolve(state.dir,file),bytes);
+  const generation=await retainCompletedOutput(state,{id,mode:checks.mode,editRevision:state.editRevision,geometryInputId:state.geometryInputId,contract,
+    summary,version:VERSION,file,checks,programMetadata:report},pathArtifact);
+  const review={...state.review,path:pathArtifact,generation,
+    history:[...state.review.history,{event:'generated',mode:checks.mode,time:new Date().toISOString(),outputId:id}]};
   await commitState(state,{review});
-  return {checks,cachedProgram:programCacheEntry(programKey(state.generationHash,checks.exportHash),program,code)};
+  return checks;
 }
 
-// The one human approval: current settings and the exact checked export together.
-async function approve(directory, { actor, revision, program = true }) {
-  const state = await loadBundle(directory,{program});
-  requireThat(revision === state.revision, 'This review is stale. Reload before approving.');
-  requireThat(!state.programError,state.programError);
-  requireThat(state.program && !state.programError
-    && state.review.generation?.mode === 'production',
-  'Generate and check the production plan before toolpath approval.');
-  const record = {
-    actor: typeof actor==='string'?actor.trim():'Local user', time: new Date().toISOString(),
-    hash: state.exportHash, generationHash: state.generationHash, scope: ['settings','toolpath']
-  };
-  const review=approvedReview(state.review,record);
-  const committed=await commitState(state,{review});
-  return {
-    ...state,
-    review,
-    toolpathApproved:true,
-    revision:revisionOf(committed)
-  };
+// The person's Export in Studio is the one confirmation: it writes the displayed
+// result, and later edits do not change that snapshot.
+async function exportReviewed(state,{machineSetups}={}){
+  const live=await loadBundle(state.dir,{program:true});
+  requireThat(completedOutputState(live).exportable&&state.completedOutput?.id===live.completedOutput.id
+    &&state.checkedBytes,'The displayed program changed. Reload before exporting.');
+  return writeDelivery({...state,checkedBytes:state.checkedBytes,plan:live.completedOutput.plan,machine:live.completedOutput.machine,
+    exportName:live.completedOutput.exportName,outputId:live.outputId,deferRememberSetup:live.deferRememberSetup},true,machineSetups);
 }
 
-// Export captures the displayed result; later edits do not change that snapshot.
-async function exportReviewed(state){
-  return writeDelivery(state,true);
+// The setup store (machineSetups) remembers the delivered setup unless the bundle defers it.
+async function writeDelivery(state,artifact,machineSetups){
+  if(state.deferRememberSetup||!machineSetups)return writeAndRememberDelivery(state,artifact,null);
+  return withMachineSetupExport(machineSetups,state.machine,()=>writeAndRememberDelivery(state,artifact,machineSetups));
 }
-
-// Non-Studio callers retain their explicit approval API.
-async function deliver(directory,{artifact=false}={}) {
-  const state = await loadBundle(directory,{program:'source'});
-  requireThat(state.toolpathApproved, 'Delivery requires approval of the exact current export.');
-  return writeDelivery(state,artifact);
-}
-
-async function writeDelivery(state,artifact){
+async function writeAndRememberDelivery(state,artifact,machineSetups){
   const bytes = state.checkedBytes;
   const destination = resolve(state.dir, `delivery/${state.exportName}`);
   await save(destination, bytes);
@@ -709,27 +594,55 @@ async function writeDelivery(state,artifact){
     changes:'SAAM imported and positioned/scaled the source for printing. The saved plan records the current geometry and printing settings; consult it and any repair reports for subsequent changes.',
     planRevision:state.revision
   });
-  return artifact?{file:destination,bytes,exportHash:state.exportHash}:destination;
+  const output=state.completedOutput;
+  try{await recordDelivery(state.dir,{time:new Date().toISOString(),file:`delivery/${state.exportName}`,
+    outputId:output.id,inputRevision:output.inputRevision??null});}
+  catch(error){const failure=Error('The export was copied to '+destination+', but recording its delivery failed: '+error.message,{cause:error});
+    failure.code='DELIVERY_RECORD_FAILED';failure.delivered={file:destination,outputId:output.id};throw failure;}
+  if(machineSetups)try{await saveSetup(output.machine,output.plan.setup,{machineSetups,exportReceipt:{
+    directory:state.dir,outputId:output.id,inputRevision:output.inputRevision??null}});}
+  catch(error){const failure=Error('The export was copied to '+destination+', but remembering its machine setup failed: '+error.message,{cause:error});
+    failure.code='EXPORTED_SETUP_SAVE_FAILED';failure.delivered={file:destination,outputId:output.id};throw failure;}
+  return artifact?{file:destination,bytes,outputId:output.id}:destination;
 }
 
-async function applySettingsSnapshot(directory,selection,expectedRevision) {
+async function setDeferredSetupSave(directory,{defer,expectedRevision}){
+  requireThat(typeof defer==='boolean','Supply whether this bundle defers remembering its exported machine setup.');
   const state=await loadBundle(directory,{program:false});
-  requireThat(expectedRevision===state.revision,'This review is stale. Reload before changing the printer.');
+  requireThat(expectedRevision===state.revision,'This revision is stale. Reload before changing setup remembering.');
+  if(state.deferRememberSetup===defer)return {directory:state.dir,revision:state.revision,deferRememberSetup:defer};
+  const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:defer,phaseColours:state.phaseColours},state.revision);
+  return {directory:state.dir,revision:committed.bundle.revision,deferRememberSetup:defer};
+}
+
+// Display only: the choice replaces the print's previous one and changes no
+// recipe, path or program identity.
+async function setPhaseColours(directory,{phaseColours,expectedRevision}){
+  const choice=checkedPhaseColours(phaseColours),state=await loadBundle(directory,{program:false});
+  requireThat(expectedRevision===state.revision,'This revision is stale. Reload before changing phase colours.');
+  if(canonicalJson(choice)===canonicalJson(state.phaseColours))return {directory:state.dir,revision:state.revision,phaseColours:choice};
+  const committed=await saveManifest(state.dir,{plan:state.plan,machine:state.machine,geometry:state.geometryArtifact,review:state.review,deferRememberSetup:state.deferRememberSetup,phaseColours:choice},state.revision);
+  return {directory:state.dir,revision:committed.bundle.revision,phaseColours:choice};
+}
+
+async function applySettingsSnapshot(directory,selection,expectedRevision,{expectedEditRevision}={}) {
+  const state=await loadBundle(directory,{program:false});
+  requireEditRevision(state,{expectedRevision,expectedEditRevision});
   const {machine,settings}=structuredClone(selection);
   requireThat((machine===null||machine&&typeof machine==='object'&&!Array.isArray(machine))
     &&settings&&typeof settings==='object'&&!Array.isArray(settings)
     &&Object.keys(settings).every(k=>['setup','process','output','placement','skills'].includes(k)),'Invalid selected settings snapshot.');
   const plan={...state.plan,...settings};
   const source=await generationSource(plan),sourceChanged=staleGenerationSource(state,source);
-  if(canonical(machine)===canonical(state.machine)&&canonical(plan)===canonical(state.plan)&&!sourceChanged)return state;
+  if(canonicalJson(machine)===canonicalJson(state.machine)&&canonicalJson(plan)===canonicalJson(state.plan)&&!sourceChanged)return state;
   const previousReview=sourceChanged?sourceInvalidatedReview(state.review):state.review;
-  const review=canonical(machine)===canonical(state.machine)
-    ?editedPlanReview(previousReview,state.generationHash,false,planChanges(state.plan,plan))
+  const review=canonicalJson(machine)===canonicalJson(state.machine)
+    ?editedPlanReview(previousReview,false,planChanges(state.plan,plan))
     :machineChangedReview(previousReview,state.machine?.id??null,machine?.id??null);
   await commitState(state,{plan,machine,review},{edit:true});
   return loadBundle(directory,{program:false});
 }
 
-return {root,EXPORT_NAME,atomicManifest:true,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,bundleFingerprint,bundleFingerprints,
-  migrateBundle,prepareGeneration,commitGeneration,generateToolpath,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,approve,deliver,exportReviewed,applySettingsSnapshot};
+return {root,EXPORT_NAME,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,
+  migrateBundle,readToolpath,readDrawnPath,prepareGeneration,commitGeneration,generateToolpath,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,exportReviewed,setDeferredSetupSave,setPhaseColours,applySettingsSnapshot};
 }

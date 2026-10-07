@@ -3,7 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, BUILDER_IDS, skillMetadata } from '../skills/catalog.mjs';
 import { gatedIndex, indexLine } from '../core/agent/layers.mjs';
-import { MACHINE_IDS, loadMachine } from '../core/machine/profile.mjs';
+import { machineIds, loadMachine } from '../core/machine/profile.mjs';
 
 const start = '<!-- BEGIN GENERATED SKILL DIGEST -->';
 const end = '<!-- END GENERATED SKILL DIGEST -->';
@@ -41,12 +41,12 @@ export async function updatedSkillIndex(repoRoot) {
   // sections are not capabilities of their own: a script client reads them anyway, and a
   // web read lists them as omitted.
   const gated = await gatedIndex(repoRoot);
-  const known = new Set(MACHINE_IDS.flatMap(id => loadMachine(id).capabilities ?? []));
+  const known = new Set(machineIds().flatMap(id => loadMachine(id).capabilities ?? []));
   for (const section of gated) for (const token of section.requires)
     if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);
   const advanced = gated.filter(section => section.layer === 'advanced');
   const index = advanced.length ? `\n\n## Advanced sections\n\n${advanced.map(indexLine).join('\n')}` : '';
-  const block = `${start}\n\n## Core toolpath skills\n\n${table('toolpath')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}\n\n## Extensions\n\n${table('extension')}${index}\n\n${end}`;
+  const block = `${start}\n\n## Core toolpath skills\n\n${table('toolpath')}\n\n## Guidance manuals\n\nRecipes and techniques using Slice, Trace and Inject; no additional deposition families.\n\n${table('guidance')}\n\n## Extensions\n\n${table('extension')}\n\n## Workspace extensions\n\n${table('workspace')}${index}\n\n${end}`;
   const current = await readFile(resolve(skillsRoot, 'DIGEST.md'), 'utf8');
   if (current.split(start).length !== 2 || current.split(end).length !== 2 || current.indexOf(end) < current.indexOf(start)) {
     throw new Error('skills/DIGEST.md needs exactly one ordered pair of generated skill digest markers.');

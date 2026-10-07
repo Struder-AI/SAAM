@@ -1,14 +1,9 @@
 export const TOUR_VERSION=1; // Saved example marker format.
 export const TOUR_DECK_VERSION=6;
 export const TOUR_LESSONS={geometry:0,playback:1,settings:2,setup:3,export:4};
-export const TOUR_DEMOS=[
-  {id:'starter',title:'Fin block',subtitle:'A simple part with one bold feature'},
-  {id:'surface-drape',title:'Wavy roof',subtitle:'Let layers follow the shape'},
-  {id:'nudge-cup',title:'Nudge Cup',subtitle:'Combine patterns in one useful part'},
-  {id:'wavy-denso',title:'Wavy DENSO',subtitle:'Print in more than one direction'}
-];
+export const TOUR_EXAMPLE='starter'; // The fin block, the tour's one example.
 export const TOUR_STEPS=[
-  {demo:'starter',tab:'geometry',gate:'geometry',title:'Change the shape',body:'This block has a raised fin. Ask your agent to make the fin taller, wider or shorter.',try:'Send your change in chat. Continue when the new shape appears here.'},
+  {example:true,tab:'geometry',gate:'geometry',title:'Change the shape',body:'This block has a raised fin. Ask your agent to make the fin taller, wider or shorter.',try:'Send your change in chat. Continue when the new shape appears here.'},
   {tab:'toolpath',gate:'playback',highlight:'play',title:'Watch how it prints',body:'The coloured lines show where the printer will put material. Press Play to watch one layer build.',try:'You can pause, scrub through layers and change the speed. Continue whenever you are ready.'},
   {tab:'toolpath',gate:'settings',title:'Change how it prints',body:'Keep the shape, but make its interior look different: use much denser infill or change the fill pattern.',try:'Ask for a change, or let your agent choose. Compare the new path and material estimate before continuing.'},
   {tab:'toolpath',gate:'setup',highlight:'print-setup',title:'Check printer and material',body:'This tour begins with an example Ultimaker S5 and PLA setup. The file must match the printer and filament you will actually use.',try:'Ask your agent to change either setting if needed. Review the updated path before continuing.'},

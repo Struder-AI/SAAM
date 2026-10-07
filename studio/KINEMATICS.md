@@ -10,7 +10,7 @@ See [the recorded direction](../DECISIONS.md#d-028--simple-machine-ghost-and-mac
 This document owns the boundary between incremental machine models and Studio.
 It does not prescribe a kinematic solver or a general machine-description format.
 [Rendering](./RENDERING.md) owns existing toolpath appearance;
-[machine output](../core/export/README.md) owns source interpretation;
+[path preview](./path-preview.mjs) owns the drawn path;
 [print lifecycle](../core/print/README.md) owns review and delivery.
 
 ## Responsibilities and independent work
@@ -19,7 +19,7 @@ It does not prescribe a kinematic solver or a general machine-description format
 |---|---|---|
 | Kinematic-model task | A presentation provider: stable component IDs, simple local geometry, resolved world transforms at source time, availability and diagnostics | Camera, theme colors, transparency, UI or an alternative toolpath renderer |
 | Studio task | Provider registration/transport, primitive drawing, ghost/Machine switch, camera and visibility behavior, synchronized playback and movies | Link lengths, joint coupling, IK branches, guessed frames or machine-specific motion equations |
-| Shared source/playback owner | Interpretation of checked export bytes and the command-time interpolation used by both views | Motion reconstructed from comments or a separately replanned path |
+| Shared path/playback owner | The drawn path (prepared path, saved SAAMpath or study) and the path-time interpolation (`core/machine/path-time.mjs`) used by both views | Motion decoded from program bytes or a separately replanned path |
 
 **Studio delivers the complete presentation upgrade as one work package:**
 ghost/Machine switching, camera behavior, links, rails and print carriages,
@@ -100,12 +100,12 @@ and verify an explicit compositing strategy rather than assuming one exists.
 
 ### Implemented consumer
 
-[source-worker.mjs](./source-worker.mjs) decodes source once and retains compact
+[source-worker.mjs](./source-worker.mjs) reads the drawn path once and retains compact
 motion for the provider. [machine-session.mjs](./machine-session.mjs) owns bounded
 requests, cancellation, stale-response rejection and the current-time cache.
 Descriptor validation and primitive compilation happen once on receipt; poses
 are validated in the worker. Invalid or unsupported model data disables its
-overlay while preserving the decoded toolpath.
+overlay while preserving the drawn toolpath.
 
 [machine-view.mjs](./machine-view.mjs) compiles every v1 primitive, applies resolved
 frames and supplies both WebGL and Canvas drawing. WebGL primitives share the
@@ -141,8 +141,8 @@ apply. Consumers distinguish manual requests in their cache and request identity
 
 Sliders appear only in Machine view and pause playback. Play, timeline seeks,
 Return to playback, changing mode/stage/source, and movie export clear the manual
-override. Manual posing is temporary simulation: source bytes, approvals and
-machine delivery are unchanged. Studio renders the frozen source path with the
+override. Manual posing is temporary simulation: source bytes and machine
+delivery are unchanged. Studio renders the frozen source path with the
 manually posed machine and does not add a deposition/contact marker at its tip.
 While a manual solve is pending or fails, the view retains the last complete pose
 at that source time. Diagnostics describe the requested pose; retained geometry
@@ -180,7 +180,7 @@ type Bounds = { min: Vec3; max: Vec3 };
 type Binding = {
   printId: string;
   revision: string;   // opaque current review identity, normalized by the host
-  exportHash: string; // identity of the checked export, including its inventory
+  outputId: string;   // id of the checked program
   modelKey: string;   // see identity rules below
 };
 type Primitive =
@@ -236,13 +236,13 @@ type Provider = {
 The creation boundary is
 `createMachinePresentation({ program, machine, setup, sourceIdentity, signal })`.
 It returns `Promise<Provider | null>`; `null` means no registered model.
-`program` is the existing immutable interpreted export with its move/event access,
-not generated SAAMpath or a new serialized trajectory. Explicitly read-only
-[machine studies](../tools/kinematics/README.md) also supply decoded authored
+`program` is the drawn path's preview with its move/event access and, when posed,
+its declared `rotaryCenterMm`. Explicitly read-only
+[machine studies](../tools/kinematics/README.md) supply authored
 motion; these are labeled simulation and
 cannot authorize machine delivery. `machine` and `setup` are
 the resolved existing profile and job installation. `sourceIdentity` supplies
-`printId`, `revision` and `exportHash`; the provider adds `modelKey`. The Studio
+`printId`, `revision` and `outputId`; the provider adds `modelKey`. The Studio
 host owns passing these existing values and any worker bridge. Creation failures
 produce a model-unavailable message while leaving ordinary source playback usable.
 
@@ -273,7 +273,7 @@ in orthonormality/determinant; this is not a mechanical tolerance.
 and mounting transforms, including ceiling-mounted robots. It supplies:
 
 - `world`: identity.
-- `part`: world transform of the exact coordinate frame used by interpreted
+- `part`: world transform of the exact coordinate frame used by drawn
   toolpath points, including configured placement/rotary motion exactly once.
   Do not reinterpret these points as raw CAD coordinates or reapply placement.
 - `tcp`: nozzle-tip origin. For this **presentation** frame, local -Z points
@@ -342,8 +342,7 @@ Studio; numeric joint readouts and solver-specific metrics are later extensions.
 
 `modelKey` changes with model dimensions, calibration, tool transforms, branch
 policy, solver behavior or presentation geometry. The full binding associates
-every descriptor, cached pose and response with one print/review/export/model.
-Display preferences are separate and do not change manufacturing approvals.
+every descriptor, cached pose and response with one print/review/output/model.
 No pose/trajectory cache becomes a required saved print artifact.
 
 Studio gives requests increasing IDs, discards responses for obsolete bindings
@@ -362,8 +361,7 @@ UI drawing loop. Reduce optional machine detail before reducing toolpath quality
 Validate descriptor structure once per binding and response structure at the
 provider/worker boundary; renderers consume that result. Reuse model diagnostics
 instead of adding a second kinematic check in Studio. This interface adds no
-manufacturing approval or feasibility gate and removes none from existing
-workflow. Labels describe simulated motion, not live hardware telemetry.
+feasibility gate and removes none from existing workflow. Labels describe simulated motion, not live hardware telemetry.
 
 ## Complete Studio delivery and incremental model compatibility
 

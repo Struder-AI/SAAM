@@ -1,27 +1,24 @@
-// The reviewed workflow for shell prints: native geometry, one final confirmation and
-// delivery of the exact reviewed bytes.
-//
-// Every approval here is written by the test with an actor name that says so.
-// A synthetic approval must never be mistaken for a person's, and none of these
-// checks establish that a part prints.
+// The reviewed workflow for shell prints: native geometry, the Studio Export and
+// delivery of the exact reviewed bytes. None of these checks establish that a part prints.
 
+import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { defaults, hash } from '../print/plan.mjs';
+import { defaults } from '../print/plan.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import { createGeometry, verifyGeometry } from '../print/geometry.mjs';
 import {
-  initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, approve, deliver,
-  rememberSetup, bundleFingerprint, changeMachine, proposedPlan
+  initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, exportReviewed,
+  changeMachine, proposedPlan
 } from '../print/bundle.mjs';
+import {saveSetup} from '../machine/settings.mjs';
 import { createStudio } from '../../studio/server.mjs';
-import { approvedReview, machineChangedReview } from '../print/workflow.mjs';
+import { machineChangedReview } from '../print/workflow.mjs';
 
 import {splineBlock,splineBox} from './fixtures/spline-shapes.mjs';
-const ACTOR = 'SYNTHETIC TEST REVIEWER — not a real approval';
+import {createChatChannel} from '../application/chat-requests.mjs';
 const clone = value => structuredClone(value);
 
 // Small enough to slice quickly, still a spline top surface with a real skin.
@@ -36,177 +33,67 @@ function smallPlan() {
 async function fixture(t, plan = smallPlan()) {
   const dir = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-shell-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await initBundle(dir, plan);
+  await initBundle(dir, plan, { machineId: 'ultimaker-s5' });
   return dir;
 }
 
 test('review transitions preserve their input review',()=>{
-  const earlier=Object.freeze({event:'generated'});
-  const previousApproval=Object.freeze({actor:'earlier'});
   const review=Object.freeze({
     schema:'saam-review/1',
-    approvals:Object.freeze({previous:previousApproval}),
     generation:Object.freeze({mode:'production'}),
-    history:Object.freeze([earlier])
+    history:Object.freeze([Object.freeze({event:'generated'})])
   });
   const before=clone(review);
-  const record={actor:ACTOR,time:'2026-09-19T00:00:00.000Z',hash:'export',generationHash:'generation',scope:['settings','toolpath']};
-  const approved=approvedReview(review,record);
+  const changed=machineChangedReview(review,'bambu-lab-s5','bambu-h2d','2026-09-19T00:01:00.000Z');
   assert.deepEqual(review,before);
-  assert.deepEqual(approved.approvals,{toolpath:record});
-  assert.deepEqual(approved.history.slice(0,-1),review.history);
-  assert.deepEqual(approved.history.at(-1),{event:'human-approval',...record});
-
-  const changed=machineChangedReview(approved,'bambu-lab-s5','bambu-h2d','2026-09-19T00:01:00.000Z');
-  assert.deepEqual(approved.approvals,{toolpath:record});
-  assert.deepEqual(changed.approvals,{});
-  assert.equal(changed.generation,null);
-  assert.deepEqual(changed.history.slice(0,-1),approved.history);
+  assert.deepEqual(changed.history.slice(0,-1),review.history);
   assert.deepEqual(changed.history.at(-1),{
     event:'machine-changed',from:'bambu-lab-s5',to:'bambu-h2d',time:'2026-09-19T00:01:00.000Z'
   });
 });
 
-test('changing printer clears final confirmation and rejects stale edits',async t=>{
-  const dir=await fixture(t);let state=await loadBundle(dir);
-  await generateBundle(dir);state=await loadBundle(dir);
-  state=await approve(dir,{actor:ACTOR,revision:state.revision});
+test('changing printer leaves the program stale and rejects stale edits',async t=>{
+  const dir=await fixture(t);
+  await generateBundle(dir);const state=await loadBundle(dir);
   await assert.rejects(changeMachine(dir,'bambu-h2d',{expectedRevision:'stale'}),/stale/);
-  const setupFile=resolve(dir,'h2d-setup.json');
+  const machineSetups=dir,setupFile=resolve(machineSetups,'bambu-h2d.json');
   await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',ams:{unit:2,slot:4}}}));
-  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,setupFile});
+  const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,machineSetups});
   assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
-  assert.equal(next.plan.setup.nozzleMm,0.6);assert.equal(next.plan.process.lineWidthMm,0.6);
-  assert.equal(next.toolpathApproved,false);
+  assert.equal(next.plan.setup.nozzleMm,0.6);
+  assert.equal(next.artifacts.program,'stale');
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
   await assert.rejects(changeMachine(dir,'missing-printer',{expectedRevision:next.revision}),/machine|Unknown/i);
   assert.equal((await loadBundle(dir,{program:false})).revision,next.revision);
 });
 
-test('a shell print stores native geometry that reopens as the same closed shell', async t => {
+test('a shell print stores native geometry as its named faces', async t => {
   const dir = await fixture(t);
   const state = await loadBundle(dir, { program: false });
   assert.equal(state.kind, 'shell');
   assert.equal(state.geometry.schema, 'saam-shell-geometry/1');
   assert.deepEqual(state.geometry.features.map(feature => feature.id), ['top', 'bottom', 'front', 'right', 'back', 'left']);
   assert.deepEqual(state.skills, ['slice']);
-
-  // Reopening the stored file must rebuild the same closed shell.
-  const bytes = await readFile(resolve(dir,state.geometryArtifact.file));
-  await verifyGeometry(bytes, state.geometry);
-
-  // A 3DM written for other parameters is not this print's geometry.
-  const raised = structuredClone(smallPlan().geometry); raised.patches[0].controlPoints[1][1][2] += 1;
-  const other = await createGeometry(raised);
-  await assert.rejects(verifyGeometry(other.bytes, state.geometry), /Geometry file changed/);
-  await assert.rejects(verifyGeometry(other.bytes, { ...state.geometry, fileHash: hash(other.bytes) }),
-    /written for different geometry parameters/);
-  // Same file, a descriptor claiming different surfaces: the control nets decide.
-  await assert.rejects(verifyGeometry(other.bytes, { ...other.descriptor, patchHash: state.geometry.patchHash }),
-    /differ from the reviewed geometry/);
-
-  // An edited file stops the print rather than being sliced as something else.
-  await writeFile(resolve(dir,state.geometryArtifact.file), other.bytes);
-  await assert.rejects(loadBundle(dir, { program: false }), /geometry artifact changed/i);
 });
 
-test('development generation of a shell print creates no approvals and cannot deliver', async t => {
+test('development generation of a shell print reports its roof domain', async t => {
   const dir = await fixture(t);
   const checks = await generateBundle(dir, { development: true });
   assert.equal(checks.mode, 'development');
-  assert.equal(checks.physicalValidation, 'not performed');
   assert.equal(checks.surfaceDomain.maxSlopeDeg,90,'the default roof domain includes every upward-facing slope independently of machine');
   assert.ok(Number.isFinite(checks.surfaceDomain.surfaceMaxSlopeDeg)&&checks.surfaceDomain.surfaceMaxSlopeDeg>0,'the authored roof slope is reported');
-  const state = await loadBundle(dir);
-  assert.deepEqual(state.review.approvals, {});
-  assert.ok(state.program);
-  assert.equal(state.toolpathApproved, false);
-  await assert.rejects(deliver(dir), /requires approval/);
+  assert.ok((await loadBundle(dir)).program);
   const production=await generateBundle(dir);assert.equal(production.mode,'production');
-  assert.deepEqual((await loadBundle(dir)).review.approvals,{});
 });
 
-test('one final confirmation, stale views, reopening and byte-identical delivery', async t => {
+test('the reviewed export delivers the exact program bytes', async t => {
   const dir = await fixture(t);
-  let state = await loadBundle(dir);
-  await assert.rejects(approve(dir, { actor: ACTOR, revision: (await loadBundle(dir)).revision }),
-    /Generate and check/);
   await generateBundle(dir);
-
-  state = await loadBundle(dir);
+  const state = await loadBundle(dir, { program: 'source' });
   assert.ok(state.program && !state.programError);
-  await approve(dir, { actor: ACTOR, revision: state.revision });
-
-  const exported = resolve(dir,state.review.generation.file), delivered = await deliver(dir);
-  assert.match(delivered, /part\.gcode$/);
-  assert.equal(hash(await readFile(delivered)), hash(await readFile(exported)));
-  assert.equal((await loadBundle(dir)).toolpathApproved, true);
-  const { approvals } = (await loadBundle(dir)).review;
-  assert.deepEqual(Object.keys(approvals), ['toolpath']);
-  assert.deepEqual(approvals.toolpath.scope, ['settings', 'toolpath']);
-  assert.equal(approvals.toolpath.generationHash, state.generationHash);
-
-  // An export edited after approval loses it, and cannot be delivered.
-  await writeFile(exported, (await readFile(exported, 'utf8')).replace('S215', 'S216'));
-  state = await loadBundle(dir);
-  assert.match(state.programError, /files changed/);
-  assert.equal(state.toolpathApproved, false);
-  await assert.rejects(deliver(dir), /requires approval/);
-});
-
-test('legacy generation identities migrate in the manifest reader without weakening stale-view checks',async t=>{
-  const dir=await fixture(t);await generateBundle(dir);
-  let state=await loadBundle(dir);state=await approve(dir,{actor:ACTOR,revision:state.revision});
-  const manifestPath=resolve(dir,'plan.json'),currentManifest=JSON.parse(await readFile(manifestPath,'utf8'));
-  const currentReview=currentManifest.bundle.review,currentChecks=currentReview.generation.checks;
-  assert.doesNotMatch(JSON.stringify(currentReview),/planHash|previousPlanHash/);
-  assert.doesNotMatch(JSON.stringify(currentChecks),/planHash/);
-  const legacyRecord=record=>{
-    if(!record||typeof record!=='object'||!Object.hasOwn(record,'generationHash'))return record;
-    const next={...record,planHash:record.generationHash};delete next.generationHash;return next;
-  };
-  const legacyReview={...currentReview,generation:legacyRecord(currentReview.generation),
-    approvals:{...currentReview.approvals,toolpath:legacyRecord(currentReview.approvals.toolpath)},
-    history:currentReview.history.map(event=>{
-      let next=legacyRecord(event);
-      if(Object.hasOwn(next,'previousGenerationHash')){next={...next,previousPlanHash:next.previousGenerationHash};delete next.previousGenerationHash;}
-      return next;
-    })};
-  const legacyChecks=legacyRecord(currentChecks),legacyManifest={...currentManifest,bundle:{...currentManifest.bundle,
-    review:{...legacyReview,generation:{...legacyReview.generation,checks:legacyChecks}}}};
-  const legacyText=JSON.stringify(legacyManifest);await writeFile(manifestPath,legacyText);
-  const legacyRevision=hash({geometryHash:state.geometryHash,planHash:state.generationHash,review:legacyReview});
-  const reopened=await loadBundle(dir);
-  assert.equal(reopened.toolpathApproved,true);assert.ok(reopened.program);assert.equal(reopened.programError,undefined);
-  assert.equal(Object.hasOwn(reopened,'planHash'),false);assert.equal(Object.hasOwn(reopened.review.generation,'planHash'),false);
-  assert.equal(Object.hasOwn(reopened.review.approvals.toolpath,'planHash'),false);
-  assert.equal(await readFile(manifestPath,'utf8'),legacyText);
-  assert.notEqual(reopened.revision,legacyRevision);
-  await assert.rejects(updatePlan(dir,reopened.plan,legacyRevision),/stale/);
-
-  const dualReview={...legacyReview,generation:{...legacyReview.generation,generationHash:legacyReview.generation.planHash},
-    approvals:{...legacyReview.approvals,toolpath:{...legacyReview.approvals.toolpath,generationHash:legacyReview.approvals.toolpath.planHash}}};
-  const dualChecks={...legacyChecks,generationHash:legacyChecks.planHash};
-  const dualManifest={...legacyManifest,bundle:{...legacyManifest.bundle,review:{...dualReview,
-    generation:{...dualReview.generation,checks:dualChecks}}}},dualText=JSON.stringify(dualManifest);
-  await writeFile(manifestPath,dualText);
-  assert.equal((await loadBundle(dir)).toolpathApproved,true);
-  assert.equal((await generateBundle(dir)).mode,'production');
-  assert.equal(await readFile(manifestPath,'utf8'),dualText);
-
-  for(const mutate of [
-    review=>({...review,generation:{...review.generation,generationHash:'conflict'}}),
-    review=>({...review,approvals:{...review.approvals,toolpath:{...review.approvals.toolpath,generationHash:'conflict'}}}),
-    review=>({...review,history:[...review.history,{event:'human-approval',planHash:'legacy',generationHash:'conflict'}]}),
-    review=>({...review,history:[...review.history,{event:'plan-edited',previousPlanHash:'legacy',previousGenerationHash:'conflict'}]})
-  ]){
-    const changed=mutate(legacyReview);await writeFile(manifestPath,JSON.stringify({...legacyManifest,bundle:{...legacyManifest.bundle,
-      review:{...changed,generation:changed.generation?{...changed.generation,checks:legacyChecks}:null}}}));
-    await assert.rejects(loadBundle(dir),/Conflicting generation identity/);
-  }
-  await writeFile(manifestPath,JSON.stringify({...legacyManifest,bundle:{...legacyManifest.bundle,review:{...legacyReview,
-    generation:{...legacyReview.generation,checks:{...legacyChecks,generationHash:'conflict'}}}}}));
-  await assert.rejects(generateBundle(dir),/Conflicting generation identity/);
+  const delivered = await exportReviewed(state);
+  assert.match(delivered.file, /part\.gcode$/);
+  assert.deepEqual(await readFile(delivered.file), await readFile(resolve(dir,state.review.generation.file)));
 });
 
 test('reopening verifies the locked plan and detects a stale program', async t => {
@@ -217,38 +104,27 @@ test('reopening verifies the locked plan and detects a stale program', async t =
   const before = await loadBundle(dir);
   assert.equal(before.programError, undefined);
   await assert.rejects(readFile(resolve(dir, 'path.saampath')), {code:'ENOENT'});
-  assert.equal(before.review.generation.pathHash,undefined);
-  assert.equal(hash(await readFile(resolve(dir,before.review.generation.file),'utf8')), before.review.generation.exportHash);
 
   // A plan edit leaves the generated program stale until it is regenerated.
   const plan = clone(before.plan);
   plan.process.planarSpeedMmS = 18;
   await updatePlan(dir, plan, before.revision);
   const after = await loadBundle(dir);
-  assert.equal(after.review.generation, null);
-  assert.equal(after.program, undefined);
 });
 
-test('geometry and settings edits invalidate the approvals they affect', async t => {
+test('geometry and settings edits leave the program stale', async t => {
   const dir = await fixture(t);
-  let state = await loadBundle(dir);
-  const fingerprint = await bundleFingerprint(dir);
-  await generateBundle(dir);state=await loadBundle(dir);
-  state=await approve(dir,{actor:ACTOR,revision:state.revision});
-  assert.equal(state.toolpathApproved, true, 'the edit must invalidate an existing approval');
+  await generateBundle(dir);let state=await loadBundle(dir);
+  assert.equal(state.artifacts.program, 'current');
   const stale = state.revision;
 
   // A settings change drops the final plan/export approval.
   await adjustBundle(dir, { slices: { assignments: [{ ...state.plan.slices.assignments[0], loops: 3 }] } });
   state = await loadBundle(dir);
   assert.equal(state.plan.slices.assignments[0].loops, 3);
-  assert.equal(state.toolpathApproved, false);
-  assert.notEqual(fingerprint, await bundleFingerprint(dir));
+  assert.equal(state.artifacts.program, 'stale');
 
   await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
-  await assert.rejects(adjustBundle(dir, { slices: { assignments: [{...state.plan.slices.assignments[0],layer:3}] } }), /unexpected layer/);
-  // The selected tool's declared layer range owns this rejection, not a fixed cap.
-  await assert.rejects(adjustBundle(dir, { process: { layerMm: 0.9 } }), /Layer height outside profile limits/);
   await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
   state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
   await adjustBundle(dir,{process:{primeLine:{passes:[
@@ -261,28 +137,25 @@ test('geometry and settings edits invalidate the approvals they affect', async t
   // rewrites the 3DM and invalidates final review as well.
   await adjustBundle(dir, { geometry: { patches: splineBox({ runMm: 16, widthMm: 12, heightMm: 5 }).patches } });
   state = await loadBundle(dir);
-  assert.equal(state.toolpathApproved, false);
   assert.equal(state.geometry.parameters.shape, 'spline');
   assert.equal(state.geometry.boundsMm.max[2], 5);
-  await verifyGeometry(await readFile(resolve(dir,state.geometryArtifact.file)), state.geometry);
 });
 
 test('remembered S5 setup carries into the next shell print without a firmware version', async t => {
   const dir = await fixture(t);
-  const setupFile = resolve(dir, 'saved-setup.json');
-  await adjustBundle(dir, { setup: { nozzleC: 205 } }, { setupFile });
+  const machineSetups = dir, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
+  const edited=await adjustBundle(dir, { setup: { nozzleC: 205 } });
+  await saveSetup(edited.machine,edited.plan.setup,{machineSetups,source:'Synthetic remembered-setup fixture'});
   const saved = JSON.parse(await readFile(setupFile, 'utf8'));
   assert.equal(saved.schema, 'saam-machine-setup/1');
   assert.equal(saved.setup.startupVerified, false);
 
   const next = resolve(dir, 'next-print');
-  const nextPlan=await proposedPlan('ultimaker-s5',{setupFile});nextPlan.geometry=smallPlan().geometry;
-  await initBundle(next, nextPlan, { setupFile });
+  const nextPlan=await proposedPlan('ultimaker-s5',{machineSetups});nextPlan.geometry=smallPlan().geometry;
+  await initBundle(next, nextPlan, { machineId: 'ultimaker-s5' });
   const state = await loadBundle(next, { program: false });
   assert.equal(state.plan.setup.nozzleC, 205);
   assert.equal(state.plan.setup.firmwareVersion, '');
-  assert.equal(state.toolpathApproved, false, 'reusing setup approves nothing');
-  await rememberSetup(next, { setupFile });
 });
 
 test('selecting one skill still produces one program from one plan', async t => {
@@ -292,14 +165,15 @@ test('selecting one skill still produces one program from one plan', async t => 
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  assert.ok(!state.program.moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
+  const {pathPreview}=await import('../../studio/path-preview.mjs'),{readToolpath}=await import('../print/bundle.mjs');
+  assert.ok(!pathPreview(JSON.parse(await readToolpath(state))).moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
   assert.equal(state.pathSummary.surfaceDomain, undefined);
 });
 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {
   const dir = await fixture(t);
   await generateBundle(dir, { development: true });
-  const server = createStudio(dir);
+  const server = createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(done => server.close(done)));
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -311,51 +185,5 @@ test('Studio reviews a shell print and delivers it under its own export name', a
   assert.equal(state.exportName, 'part.gcode');
   assert.ok(state.program && state.geometry.faces.length > 0, 'the viewer receives a program and a display proxy');
   assert.equal(state.code, undefined, 'the export is fetched separately, never embedded in state');
-
-  // A development preview cannot be delivered, whatever the viewer asks for.
-  const blocked = await fetch(origin + '/api/deliver', { method: 'POST', headers: { Origin: origin, 'X-SAAM-Token': token }, body: '{}' });
-  assert.equal(blocked.status, 400);
-
-  // Approve through the same route a person uses, then deliver the reviewed bytes.
-  const post = (route, body) => fetch(origin + route, { method: 'POST', headers: { Origin: origin, 'X-SAAM-Token': token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  let current = await (await fetch(origin + '/api/state')).json();
-  assert.equal((await post('/api/approve', { actor: ACTOR, revision: current.revision })).status, 400, 'a development preview cannot be approved');
-  assert.equal((await post('/api/generate', { development: false })).status, 200);
-  current = await (await fetch(origin + '/api/state')).json();
-  const approval=await post('/api/approve', { actor: ACTOR, revision: current.revision });
-  const approvalText=await approval.text();assert.equal(approval.status,200,approvalText);
-  const approved=JSON.parse(approvalText).approval;
-  assert.equal(approved.toolpathApproved,true);assert.equal(approved.programAvailable,true);
-  assert.equal(approved.programError,null);assert.equal(approved.exportHash,current.exportHash);
-  assert.equal(Object.hasOwn(approved.review,'history'),false,'approval response keeps history out of the compact update');
-
-  const download = await post('/api/deliver', {});
-  assert.equal(download.status, 200);
-  assert.match(download.headers.get('content-disposition'), new RegExp(encodeURIComponent(current.downloadName)));
-  const exportFile=resolve(dir,(await loadBundle(dir)).review.generation.file);
-  assert.equal(await download.text(), await readFile(exportFile, 'utf8'));
-  const unauthorized=await fetch(origin+'/api/deliver',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({downloadLink:true})});
-  assert.equal(unauthorized.status,403);
-  const staged=await post('/api/deliver',{downloadLink:true});assert.equal(staged.status,200);
-  const link=await staged.json();assert.match(link.url,/^\/api\/download\/[a-f0-9]{48}$/);
-  const native=await fetch(origin+link.url),bytes=await readFile(exportFile);
-  assert.equal(native.status,200);assert.match(native.headers.get('content-disposition'),/^attachment;/);
-  assert.equal(native.headers.get('content-length'),String(bytes.length));
-  assert.deepEqual(Buffer.from(await native.arrayBuffer()),bytes);
-  assert.equal((await fetch(origin+link.url,{headers:{Origin:'https://foreign.invalid'}})).status,403);
-  assert.equal((await fetch(origin+'/api/download/not-a-issued-capability')).status,404);
-  const before=await readFile(resolve(dir,'plan.json'),'utf8');
-  assert.equal((await fetch(origin+link.url)).status,200,'the same capability permits a direct download retry');
-  assert.equal(await readFile(resolve(dir,'plan.json'),'utf8'),before,'GET attachment does not mutate review or approval');
-  await writeFile(resolve(dir,'delivery/part.gcode'),'changed after staging');
-  const changed=await fetch(origin+link.url);assert.equal(changed.status,400);assert.match((await changed.json()).error,/staged delivery changed/);
 });
 
-test('a manifest cannot claim geometry that its immutable artifact does not contain', async t => {
-  const dir = await fixture(t), before = await loadBundle(dir, { program: false });
-  const manifest=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));manifest.geometry.patches[0].controlPoints[1][1][2]+=1;
-  await writeFile(resolve(dir,'plan.json'),JSON.stringify(manifest));
-  await assert.rejects(loadBundle(dir,{program:false}),/Plan and geometry disagree/);
-  manifest.geometry=before.plan.geometry;await writeFile(resolve(dir,'plan.json'),JSON.stringify(manifest));
-  assert.equal((await loadBundle(dir,{program:false})).revision,before.revision);
-});

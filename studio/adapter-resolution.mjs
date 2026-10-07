@@ -17,25 +17,3 @@ export async function bundleFor(directory) {
   if(!load)throw new Error(`This print uses ${plan.schema??'an unknown plan format'}, which Studio cannot review.`);
   return load();
 }
-
-// Production print manifests commit atomically and refer only to immutable
-// artifacts. Machine studies retain their legacy multi-file reader until that
-// separate format is retired.
-export async function readStableBundle(adapter,directory,options){
-  if(adapter.atomicManifest){
-    return adapter.loadBundleSnapshot(directory,options);
-  }
-  for(let attempt=0;;attempt++){
-    let before;
-    try{
-      before=await adapter.bundleFingerprints(directory,options);
-      const state=await adapter.loadBundle(directory,options);
-      if(before.source!==(await adapter.bundleFingerprints(directory,options)).source)throw Error('The print is being updated.');
-      return {state,fingerprint:before.source,presentationFingerprint:before.presentation};
-    }catch(error){
-      const changing=before!==undefined&&before.source!==(await adapter.bundleFingerprints(directory,options)).source;
-      if(attempt>=3||!changing&&error.code!=='ENOENT'&&!/Plan and geometry disagree|being updated/.test(error.message))throw error;
-      await new Promise(resolve=>setTimeout(resolve,60*(attempt+1)));
-    }
-  }
-}

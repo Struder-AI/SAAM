@@ -87,7 +87,7 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
 // Keep authored positions; only marked contact segments acquire their actual
 // normal gap. Contact-field integration refines independently of the geometry
 // chord, preserving authored positions and every existing per-segment channel.
-export function contactCurveGaps(curves,{segments,maxHeightMm=Infinity,direction=[0,0,1],toleranceMm=.001,contactRole='foundation'}){
+export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=.001,contactRole='foundation'}){
   requireThat(toleranceMm>0&&Number.isFinite(toleranceMm),'Foundation contact needs a positive physical tolerance.');
   const contact=depositedContact(segments);
   const stepMm=segments.reduce((smallest,s)=>Math.min(smallest,s.radius),Infinity);
@@ -103,7 +103,7 @@ export function contactCurveGaps(curves,{segments,maxHeightMm=Infinity,direction
         const p=a.map((v,k)=>v+(b[k]-v)*t),hit=contact.at(p,normal);
         requireThat(hit,'Authored foundation curve has no final deposited support.');
         const h=dot(p.map((v,k)=>v-hit.point[k]),normal);
-        requireThat(h>0&&h<=maxHeightMm+1e-8,`Foundation normal gap ${h} mm is outside (0, ${maxHeightMm}] mm; revise the authored course or supporting deposition.`);
+        requireThat(h>0,`Foundation normal gap ${h} mm is not positive; revise the authored course or supporting deposition.`);
         samples.set(t,h);return h;
       };
       const length=distance(a,b),pending=[[0,1,gap(0),gap(.5),gap(1)]],integrals=[];

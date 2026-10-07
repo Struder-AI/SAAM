@@ -24,5 +24,24 @@ export function splineBlock({runMm,widthMm,heightsMm}){
 
 export const splineBox=({runMm,widthMm,heightMm})=>splineBlock({runMm,widthMm,heightsMm:[[heightMm,heightMm],[heightMm,heightMm]]});
 
-// The periodic tube is the pipe-cladding demo's substrate.
-export {splineTube} from '../../../skills/pipe-cladding/scripts/demo.mjs';
+// A tube written as four spline patches that share one periodic cubic basis
+// around the axis: the exterior, the bore and the two annular ends ruled
+// between them. radiusAt(angle, t) gives the exterior control radius at
+// height fraction t on a clamped cubic grid of `rows` controls (linear when
+// rows is 2). Uniform cubic B-splines sit slightly inside their control
+// circle, so control radii are scaled to put the curve's knots on the radius.
+export function splineTube({columns,rows=2,heightMm,boreRadiusMm,radiusAt}){
+  const degreeV=Math.min(3,rows-1),vKnots=clampedKnots(rows,degreeV);
+  const grevilleV=j=>vKnots.slice(j+1,j+degreeV+1).reduce((a,b)=>a+b,0)/degreeV;
+  const onCurve=(4+2*Math.cos(2*Math.PI/columns))/6;
+  const ring=(radius,z,i)=>{const a=2*Math.PI*(i%columns)/columns,r=radius/onCurve;return [r*Math.cos(a),r*Math.sin(a),z];};
+  const around=Array.from({length:columns+3},(_,i)=>i);
+  const knotsU=Array.from({length:columns+7},(_,i)=>i-3);
+  const outer=around.map(i=>Array.from({length:rows},(_,j)=>ring(radiusAt(2*Math.PI*(i%columns)/columns,grevilleV(j)),heightMm*grevilleV(j),i)));
+  const bore=around.map(i=>[ring(boreRadiusMm,0,i),ring(boreRadiusMm,heightMm,i)]);
+  return {shape:'spline',patches:[
+    {name:'outer',degreeU:3,degreeV,knotsU,controlPoints:outer},
+    {name:'bore',degreeU:3,degreeV:1,knotsU,controlPoints:bore},
+    {name:'bottom',degreeU:3,degreeV:1,knotsU,controlPoints:around.map((i,k)=>[bore[k][0],outer[k][0]])},
+    {name:'top',degreeU:3,degreeV:1,knotsU,controlPoints:around.map((i,k)=>[bore[k][1],outer[k][rows-1]])}]};
+}

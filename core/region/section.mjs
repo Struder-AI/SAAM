@@ -2,7 +2,7 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {sectionHeightSlice,sampledChartRegion,referenceHeight} from '../geom/height-slice.mjs';
 import {chartPrismContains} from '../geom/chart-prism.mjs';
 import {sectionShell} from '../geom/shell.mjs';
-import {meshSectionIndex,sectionMeshIndex} from '../geom/mesh.mjs';
+import {meshSectionIndex,sectionMeshIndex,meshFaceNormal} from '../geom/mesh.mjs';
 import {sliceChartStep,touchesSliceEdge} from '../geom/slice.mjs';
 // The part of a surface that lies inside a solid, as closed loops in the
 // surface's own (u,v): the region a curved slice owns, or the part of a patch a
@@ -15,7 +15,7 @@ import { evaluate } from '../geom/nurbs.mjs';
 import { intersectPatches } from '../geom/surface-intersection.mjs';
 import { containsPoint } from '../geom/query.mjs';
 import { union, intersect, difference } from './intersection.mjs';
-import { requireThat, dot } from '../geom/tolerance.mjs';
+import { requireThat, dot, TOLERANCE } from '../geom/tolerance.mjs';
 
 const OFF_SURFACE_MM = 1e-4;
 
@@ -122,7 +122,7 @@ function trianglePatch(mesh, i) {
   const patch = { name: `triangle:${i}`, nu: 2, nv: 2, orderU: 2, orderV: 2, knotsU: [0, 0, 1, 1], knotsV: [0, 0, 1, 1],
     cp: Float64Array.from([...a, 1, ...b, 1, ...c, 1, ...c, 1]), domainU: [0, 1], domainV: [0, 1] };
   const e = evaluate(patch, 0, 0.5);
-  return { patch, sign: dot(e.normal, mesh.normals[i]) > 0 ? 1 : -1 };
+  return { patch, sign: dot(e.normal, meshFaceNormal(mesh, i)) > 0 ? 1 : -1 };
 }
 
 // The solid's boundary as patches with outward signs: a spline shell's own
@@ -188,6 +188,11 @@ export function section(geometry, slice, options = {}) {
 }
 
 function sectionLoops(geometry, slice, options) {
+  if(slice.kind==='plane'){
+    const low=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.min[k]:geometry.bounds.max[k])-slice.origin[k]),0);
+    const high=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]),0);
+    if(low>TOLERANCE.plane||high<-TOLERANCE.plane)return {loops:[],nudgedByMm:0};
+  }
   if(geometry.kind==='chart-prism'){
     if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
       const offset=slice.offsetMm-geometry.reference.offsetMm;

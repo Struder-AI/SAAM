@@ -1,8 +1,8 @@
-// First-use runtime check. No Git, regression suite, slicing or job approvals.
+// Runtime check shared by checkouts, release builds and each installed version's first start.
+// No Git, regression suite, slicing or machine actions.
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp,rm,access} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join,resolve} from 'node:path';
+import {readFile,access} from 'node:fs/promises';
+import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {performance} from 'node:perf_hooks';
 
@@ -11,12 +11,14 @@ export async function checkSetup({log=console.log}={}) {
   const started=performance.now(),stages={};
   const stage=async(name,action)=>{
     log(`Checking ${name}...`);
-    const start=performance.now();await action();stages[name]=Math.round(performance.now()-start);
+    const start=performance.now();
+    try{await action();}catch(error){error.message=`${name}: ${error.message}`;throw error;}
+    stages[name]=Math.round(performance.now()-start);
   };
   const manifest=JSON.parse(await readFile(new URL('../package.json',import.meta.url),'utf8'));
   await stage('dependency entry points',async()=>{
     for(const name of Object.keys(manifest.dependencies)){
-      const entry=import.meta.resolve(name==='@modelcontextprotocol/sdk'?'@modelcontextprotocol/sdk/server/index.js':name);
+      const entry=import.meta.resolve(name);
       await access(fileURLToPath(entry));
     }
   });
@@ -34,7 +36,8 @@ export async function checkSetup({log=console.log}={}) {
     }
   });
   await stage('unapproved geometry and Studio',async()=>{
-    const directory=await mkdtemp(join(tmpdir(),'saam-setup-'));let server;
+    const {createTemporaryWorkspace}=await import('../core/application/temporary-workspace.mjs');
+    const workspace=await createTemporaryWorkspace('setup-check'),directory=resolve(workspace.directory,'bundle');let server;
     try{
       const {initBundle}=await import('../core/print/bundle.mjs');
       const {defaults}=await import('../core/print/plan.mjs');
@@ -46,22 +49,23 @@ export async function checkSetup({log=console.log}={}) {
       const plan=defaults();plan.geometry=box;
       await initBundle(directory,plan,{machineId:'ultimaker-s5'});
       const {createStudio}=await import('../studio/server.mjs');
-      server=createStudio(directory);
+      const {createChatChannel}=await import('../core/application/chat-requests.mjs');
+      server=createStudio(directory,{libraryRoot:workspace.directory,chat:createChatChannel(workspace.directory,{ownerId:'setup-check'}).binding});
       await new Promise((done,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',done);});
       const origin=`http://127.0.0.1:${server.address().port}`;
       const page=await fetch(origin,{signal:AbortSignal.timeout(10000)});
       assert.equal(page.status,200);assert.match(await page.text(),/saam-token/);
       const response=await fetch(origin+'/api/state',{signal:AbortSignal.timeout(10000)});
       const state=await response.json();assert.equal(response.status,200,state.error);
-      assert.ok(state.geometry);assert.equal(state.toolpathApproved,false);
+      assert.ok(state.geometry);
       assert.equal(state.program,undefined);
     }finally{
       if(server?.listening)await server.shutdown();
-      await rm(directory,{recursive:true,force:true});
+      await workspace.release();
     }
   });
   const result={node:process.version,platform:process.platform,arch:process.arch,stagesMs:stages,totalMs:Math.round(performance.now()-started)};
-  log(`SAAM is ready (${(result.totalMs/1000).toFixed(2)}s). No print approvals or machine actions were created.`);
+  log(`SAAM is ready (${(result.totalMs/1000).toFixed(2)}s). No machine actions were created.`);
   return result;
 }
 

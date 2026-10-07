@@ -2,14 +2,10 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Query and offset a completed producer's terminal boundary.
 import {cleanPlanarLoop} from '../geom/polyline.mjs';
 import {loopArea} from '../region/region2d.mjs';
-import {offsetRegion} from '../region/offset.mjs';
 
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section as geometrySection} from '../region/section.mjs';
 
-// Ten-nanometer integer grid: independent of contour/chord and boundary
-// tolerances; shared Clipper2 offsets use this same grid by default.
-const OFFSET_PRECISION_MM=0.00001;
 export function terminalBoundaryReference({shell,assignment,sourceAssignment,sourceResult,substrateAdaptation=false}) {
   requireThat(sourceAssignment?.id===assignment.surface.assignment&&sourceAssignment.part===assignment.part,'A rim must name a source assignment on the same part.');
   requireThat(sourceResult?.operations?.length,'A terminal boundary needs completed source deposition.');
@@ -42,17 +38,4 @@ export function terminalBoundaryReference({shell,assignment,sourceAssignment,sou
     zStartMm=Math.max(...strands.map(p=>p[2]));
   }
   return {boundary,baselineInsetMm,zStartMm,sourceWidth,modified};
-}
-
-// Offset fields on the terminal region; they carry no operations or publication.
-export function boundaryOffsetField(reference,{count,index,widthMm,minFeatureMm}){
-  const {boundary,baselineInsetMm}=reference,strokes=[];
-  for(let i=0;i<count;i++){
-    const inset=baselineInsetMm+(i-(count-1)/2)*widthMm;
-    const loops=offsetRegion(boundary,-inset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:minFeatureMm/4});
-    requireThat(loops.length,'Requested rim offset collapsed; reduce the loop count or width.');
-    strokes.push(...loops.map(loop=>({role:`lip-step-${index}`,closed:true,points:cleanPlanarLoop(loop)})));
-  }
-  const region=count>1?offsetRegion(boundary,(count-1)/2*widthMm,{precisionMm:OFFSET_PRECISION_MM}):boundary;
-  return {strokes,region};
 }

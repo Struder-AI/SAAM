@@ -1,0 +1,253 @@
+{
+  "schema": 1,
+  "status": "Post-install packaging owners, 2026-10-04 (owner decision: post-install packaging belongs to 030-deployment; packaging/build.mjs and its native-repair packaging are release build tooling, owned by 030-architecture map-0 node 11 Development tooling, not here). Not conformance approval.",
+  "policy": "Exact declaration/module ownership under solve-middle's rule: each listed anchor owns its declaration and those nested in it; owners are 030-deployment map-0 nodes.",
+  "files": {
+    "packaging/client-setup.mjs": {
+      "owner": "installer",
+      "reason": "Installed command PATH, scoped Codex/Claude client skills and permissions, home startup guidance; also re-run by the application to repair client setup."
+    },
+    "packaging/migrate-home.mjs": {
+      "owner": "installer",
+      "reason": "The single migration boundary both installers run into one SAAM home before app replacement."
+    },
+    "packaging/application.mjs": {
+      "owner": "installation",
+      "reason": "The one ready local application: control listener and command dispatch into the runtime, release-service, tray and client-setup attachment, explicit Quit and Update."
+    },
+    "packaging/launch.mjs": {
+      "owner": "installation",
+      "reason": "Process entry into the one ready application; icon and source launches reuse existing control."
+    },
+    "packaging/tray.mjs": {
+      "owner": "installation",
+      "reason": "OS tray/menu-bar host; explicit Open, Update and Quit reach application control."
+    },
+    "packaging/update.mjs": {
+      "owner": "installation",
+      "reason": "The running installation downloads, verifies and starts the installer for an announced newer release."
+    },
+    "packaging/release-service.mjs": {
+      "owner": "service",
+      "reason": "Installed-app connection to alpha releases: invite validation, update manifests and consented live diagnostics; state is installation data."
+    }
+  },
+  "leaves": {
+    "packaging/client-setup.mjs::@module": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::atomicWrite": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::claudePermissions": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::clientFolders": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::clientStatus": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::codexDesktop": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::commandPath": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::guidance": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::installedProgram": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::marker": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::minimum": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::optionalRead": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::ownedServer": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::probe": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::programRoot": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::registerClaude": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::registerCodex": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::registerSkill": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::reportUnregistration": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::retireClaude": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::retireCodex": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::ruleMarker": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::setupClients": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterClaude": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterClients": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterCodex": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::unregisterSkill": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::writeHomeGuidance": {
+      "owner": "installer"
+    },
+    "packaging/migrate-home.mjs::@module": {
+      "owner": "installer"
+    },
+    "packaging/migrate-home.mjs::exists": {
+      "owner": "installer"
+    },
+    "packaging/migrate-home.mjs::migrateHome": {
+      "owner": "installer"
+    },
+    "packaging/migrate-home.mjs::preserve": {
+      "owner": "installer"
+    },
+    "packaging/application.mjs::@module": {
+      "owner": "installation"
+    },
+    "packaging/application.mjs::jsonBody": {
+      "owner": "installation"
+    },
+    "packaging/application.mjs::respond": {
+      "owner": "installation"
+    },
+    "packaging/application.mjs::startApplication": {
+      "owner": "installation"
+    },
+    "packaging/launch.mjs::<callback@11:10>": {
+      "owner": "installation"
+    },
+    "packaging/launch.mjs::<callback@7:74>": {
+      "owner": "installation"
+    },
+    "packaging/launch.mjs::@module": {
+      "owner": "installation"
+    },
+    "packaging/tray.mjs::@module": {
+      "owner": "installation"
+    },
+    "packaging/tray.mjs::startTray": {
+      "owner": "installation"
+    },
+    "packaging/update.mjs::@module": {
+      "owner": "installation"
+    },
+    "packaging/update.mjs::TAR": {
+      "owner": "installation"
+    },
+    "packaging/update.mjs::installUpdate": {
+      "owner": "installation"
+    },
+    "packaging/update.mjs::releaseUrl": {
+      "owner": "installation"
+    },
+    "packaging/update.mjs::run": {
+      "owner": "installation"
+    },
+    "packaging/release-service.mjs::@module": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::VERSION": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::appRoot": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::createInstalledReleaseService": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::createReleaseService": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::diagnostic": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::errorMessage": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::newer": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::releaseConfiguration": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::request": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::save": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::savedDevice": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::scrubText": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::sensitive": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::serviceOrigin": {
+      "owner": "service"
+    },
+    "packaging/release-service.mjs::studioEvent": {
+      "owner": "service"
+    },
+    "packaging/client-setup.mjs::script": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::foreground": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::claudeEvents": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::codexEvents": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::isClaudeHook": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::isCodexHook": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::commandLine": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::claudeGroups": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::codexGroups": {
+      "owner": "installer"
+    },
+    "packaging/client-setup.mjs::replaceHooks": {
+      "owner": "installer"
+    }
+  }
+}

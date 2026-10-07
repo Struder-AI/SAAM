@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
-import {createBlobFieldEvaluator,validateBlobField} from '../geom/blob-field.mjs';
+import {prepareBlobField,evaluateBlobField,validateBlobField,validateBumpsField} from '../geom/blob-field.mjs';
 import {solidDistance} from '../geom/solid-distance.mjs';
 
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
@@ -34,7 +34,7 @@ export function validateModulationField(field) {
     validateModulationField(field.source);return field;
   }
   if(field.kind==='bumps'){
-    createBlobFieldEvaluator(field);return field;
+    validateBumpsField(field);return field;
   }
   if(field.kind==='blob'){
     requireThat(fields(field,'kind,field'),'Blob modulation needs kind and field.');
@@ -60,7 +60,7 @@ function latticeNoise(x,y,z,seed) {
 const smooth=t=>t*t*(3-2*t);
 
 export function prepareScalarField(field){
-  if(field.kind==='blob'||field.kind==='bumps')return field.prepared?field:{...field,prepared:createBlobFieldEvaluator(field.kind==='blob'?field.field:field)};
+  if(field.kind==='blob'||field.kind==='bumps')return field.prepared?field:{...field,prepared:prepareBlobField(field.kind==='blob'?field.field:field)};
   if(field.sources)return {...field,sources:field.sources.map(prepareScalarField)};
   if(field.source)return {...field,source:prepareScalarField(field.source)};
   return field;
@@ -76,7 +76,7 @@ export function evaluateScalarField(field,point,{phaseRad=0,continuous=false,sid
     const t=Math.max(0,Math.min(1,(value-field.input[0])/(field.input[1]-field.input[0])));
     return field.output[0]+t*(field.output[1]-field.output[0]);
   }
-  if(field.kind==='bumps'||field.kind==='blob')return (field.prepared??prepareScalarField(field).prepared)(point).value;
+  if(field.kind==='bumps'||field.kind==='blob')return evaluateBlobField(field.prepared??prepareScalarField(field).prepared,point).value;
   if(field.kind==='noise'){
     const grid=point.map(v=>v/field.cellMm),base=grid.map(Math.floor),fraction=grid.map((v,i)=>smooth(v-base[i]));
     let value=0;

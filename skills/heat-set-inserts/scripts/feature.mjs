@@ -1,5 +1,3 @@
-import {createHash} from 'node:crypto';
-
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 import {INSERT_CATALOG} from './catalog.mjs';
@@ -24,18 +22,13 @@ export function dimensions(f){
   requireThat(insert,'Unknown heat-set catalog entry.');
   return {diameterMm:insert.holeDiameterMm+f.diameterAdjustmentMm,depthMm:f.depthMm??insert.lengthMm+insert.bottomClearanceMm};
 }
-export const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[],compiledHash:''});
-export function heatSetDigest(record){
-  const {compiledHash,...content}=record;
-  return createHash('sha256').update(JSON.stringify(content,(_k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v)).digest('hex');
-}
+export const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[]});
 export function validateHeatSetRecord(record){
   requireThat(Object.keys(record).sort().join()===Object.keys(heatSetTemplate()).sort().join(),'Unexpected heat-set geometry fields.');
   requireThat(record.base&&Array.isArray(record.features)&&record.features.length>0,'Heat-set geometry needs a base and nonempty feature list.');
   record.features.forEach(heatSetFeature);
   requireThat(new Set(record.features.map(f=>f.id)).size===record.features.length,'Duplicate heat-set feature id.');
   requireThat(Number.isFinite(record.toleranceMm)&&record.toleranceMm>0,'Heat-set toleranceMm must be positive.');
-  requireThat(record.compiledHash===heatSetDigest(record),'Heat-set recipe or mesh changed; rebuild with apply_heat_set / shell heat-set.');
 }
 // Reversible readable identifiers keep component and editable feature identity.
 // Escapes never contain '--', which separates owner, feature and fin identities.

@@ -39,7 +39,7 @@ The residual geometry, band and actual sampled diameter remain explicit.
 The field returns curves for an ordinary Slice operation. Shared travel connects
 separate passes; the slice is the cooling unit.
 Named predecessor/successor components bind existing operations. It does not
-infer material support or replace other skills' regions. Shared functional planning stages own travel, cooling and flow limits; exporters
+infer material support or replace other skills' regions. Shared functional planning stages own travel and cooling; exporters
 own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
 
@@ -113,6 +113,6 @@ boolean references run with:
 node --test skills/wave-overhangs/tests/wave.test.mjs core/tests/intersection.test.mjs
 ```
 
-Software fixtures and synthetic approvals establish no physical result. The
+Software fixtures establish no physical result. The
 user has Grasshopper available as an optional future comparison host; no
 comparison result or physical validation is claimed.

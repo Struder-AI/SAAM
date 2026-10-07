@@ -28,7 +28,7 @@ export function depositCurveCourses({id,courses,process,after=[],filament=null,s
       ...(course.connectNearby===undefined?{}:{connectNearby:course.connectNearby}),...(course.regionId===undefined?{}:{regionId:course.regionId}),
       ...(course.layerIndex===undefined?{}:{layerIndex:course.layerIndex}),...(course.layerCount===undefined?{}:{layerCount:course.layerCount}),
       ...(inferred?{region,clearanceZ:clearance}:{}),
-      ...(course.fanPercent===undefined?{}:{fanPercent:course.fanPercent}),...(filament===null?{}:{filament}),travelPolicy});
+      ...(course.fanPercent===undefined?{}:{fanPercent:course.fanPercent}),...(filament===null?{}:{filament}),process,travelPolicy});
     if(sequential)previous=[operationId];
   }
   return operations;

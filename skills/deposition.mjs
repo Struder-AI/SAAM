@@ -4,34 +4,42 @@ import {loadExtensionEntry} from '../core/extensions/library.mjs';
 import {requireExclusiveClaims} from '../core/region/ownership.mjs';
 import {TOLERANCE} from '../core/geom/tolerance.mjs';
 
-export async function extensionDeposition({plan,placed,componentShells,contexts,onProgress,processForAssignment,engines}){
+export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,processForAssignment,engines}){
   const support=plan.skills?.supports?.enabled?await (await loadExtensionEntry('supports','deposition-runtime'))(engines):null;
   const weld=plan.skills?.['plastic-weld']?.enabled?await (await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines):null;
   const sites=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
-  const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve');
+  const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
   const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
   const vaseWork=vase?args=>{
     const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
-    return node.kind==='slice'?vase.standardVaseResult(node.record,{foundationSegments,substrateAdaptation})
+    return node.context.assignment.pattern===null?vase.standardVaseResult({...node.context,after},{foundationSegments,substrateAdaptation})
       :advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
   }:null;
-  const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve').map(context=>{
+  const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
+    if(context.assignment.join){
+      const prepared=engines.Toolpath.prepareSliceBoundaryFamily({plan,assignment:context.assignment,shells,volumes});
+      const family=prepared.family,first=family.layers[0];
+      return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
+        startMm:prepared.startMm,endMm:prepared.endMm,geometry:{family:()=>family,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
+          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',course:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
+        construct:vaseWork,providesSurface:true,kind:'trace'};
+    }
     const {assignment,shell}=context;
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
-      construct:vaseWork,providesSurface:true,kind:assignment.pattern===null?'slice':'trace'};
+      construct:vaseWork,providesSurface:true,kind:'trace'};
   });
   for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
     if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
       requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  const boundaries=sleeves.filter(context=>context.kind==='slice').map(context=>({...context,geometry:vase.prepareSleeveGeometry({...context,onProgress})}));
+  for(const context of sleeves)if(!context.geometry)context.geometry=vase.prepareSleeveGeometry({...context,onProgress});
   const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
   return {
-    bands:sleeves.map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
+    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
-    constructions:sleeves.filter(context=>context.kind==='trace'),
-    additionalContexts:[...(vase?.standardVaseContexts(boundaries)??[]).map(record=>({...record,constructWork:vaseWork,providesSurface:true})),...trees],
+    constructions:sleeves,
+    additionalContexts:trees,
     work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(vase?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
     operationDependencies:operation=>weld?.weldOperationDependencies(sites,operation)??[],
     finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):batch.results

@@ -1,0 +1,102 @@
+param([int]$Port,[string]$Token,[int]$AppPid,[string]$RaiseScript)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='',[string]$Display='') {
+  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
+  # Without -TimeoutSec the request waits while SAAM works on it, such as an open that
+  # starts a runtime. A failure throws SAAM's error (its 400 body), else the HTTP error.
+  try { Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body }
+  catch {
+    $problem = $_
+    $failure = try { (New-Object System.IO.StreamReader($problem.Exception.Response.GetResponseStream())).ReadToEnd() | ConvertFrom-Json } catch { $null }
+    if ($failure.error) { throw [string]$failure.error }
+    throw $problem
+  }
+}
+function Show-Problem($Problem) { [System.Windows.Forms.MessageBox]::Show([string]$Problem,'SAAM') | Out-Null }
+# A click opens Studio and this process, which received it, shows the window
+# SAAM answers (studio/browser.mjs showOpened does the same for a launch).
+function Show-Studio([string]$Command,[string]$StudioInstanceId='',[string]$RuntimeId='') {
+  $answer = Invoke-Control $Command $false $StudioInstanceId $RuntimeId 'caller'
+  if ($answer.display -eq 'raise') {
+    $outcome = try { & $RaiseScript -Port ([Uri]$answer.url).Port } catch { 'not-found' }
+    if ($outcome -ne 'not-found') { return }
+  }
+  if ($answer.display -eq 'raise' -or $answer.display -eq 'open') { Start-Process $answer.url }
+}
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.Icon = [System.Drawing.SystemIcons]::Application
+$notify.Text = 'SAAM'
+$menu = New-Object System.Windows.Forms.ContextMenuStrip
+$open = $menu.Items.Add('Open Studio')
+$open.add_Click({ try { Show-Studio 'open' } catch { Show-Problem $_.Exception.Message } })
+$newInstance = $menu.Items.Add('New Instance')
+$newInstance.add_Click({ try { Show-Studio 'new-instance' } catch { Show-Problem $_.Exception.Message } })
+$end = New-Object System.Windows.Forms.ToolStripSeparator
+[void]$menu.Items.Add($end)
+$update = $menu.Items.Add('Update')
+$update.Visible = $false
+function Add-Entry($Item,[string]$Tag='',[scriptblock]$Click) {
+  $Item.Tag = $Tag
+  if ($Click) { $Item.add_Click($Click) }
+  $menu.Items.Insert($menu.Items.IndexOf($end), $Item)
+}
+# One flat menu: each runtime's Studios, after a separator, between New Instance
+# and Update. A source runtime also has its own open and stop items.
+function Build-Menu($Status) {
+  $update.Visible = [bool]$Status.service.activated -and [bool]$Status.service.update
+  $first = $menu.Items.IndexOf($newInstance) + 1
+  while ($menu.Items[$first] -ne $end) { $menu.Items.RemoveAt($first) }
+  foreach ($runtime in $Status.runtimes) {
+    $source = $runtime.id -ne 'installed'
+    $studios = @($Status.studios | Where-Object { $_.runtimeId -eq $runtime.id })
+    if (-not $source -and -not $studios.Count) { continue }
+    Add-Entry (New-Object System.Windows.Forms.ToolStripSeparator)
+    if ($source) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Open Studio ($($runtime.label))") $runtime.id { param($sender,$eventArgs) try { Show-Studio 'open' '' $sender.Tag } catch { Show-Problem $_.Exception.Message } } }
+    foreach ($studio in $studios) {
+      $label = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
+      if ($studio.attachment) { $label += " - $($studio.attachment.name)" }
+      Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem $label) $studio.instanceId { param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } }
+    }
+    if ($source) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Stop $($runtime.label)") $runtime.id { param($sender,$eventArgs) try {
+      $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
+      if ($result.confirmationRequired) {
+        $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+        if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'stop-runtime' $true '' $sender.Tag | Out-Null }
+      }
+    } catch { Show-Problem $_.Exception.Message } } }
+  }
+}
+function Refresh-Menu { try { Build-Menu (Invoke-Control 'status') } catch { Build-Menu $null } }
+$menu.add_Opening({ Refresh-Menu })
+$update.add_Click({
+  try {
+    $result = Invoke-Control 'update'
+    if ($result.confirmationRequired) {
+      $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'Update SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+      if ($answer -eq [System.Windows.Forms.DialogResult]::Yes) { Invoke-Control 'update' $true | Out-Null }
+    }
+  } catch { Show-Problem $_.Exception.Message }
+})
+$quit = $menu.Items.Add('Quit')
+$quit.add_Click({
+  try {
+    $result = Invoke-Control 'quit'
+    if ($result.confirmationRequired) {
+      $answer = [System.Windows.Forms.MessageBox]::Show([string]$result.message,'Quit SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)
+      if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) { return }
+      Invoke-Control 'quit' $true | Out-Null
+    }
+    [System.Windows.Forms.Application]::Exit()
+  } catch { Show-Problem $_.Exception.Message }
+})
+$notify.ContextMenuStrip = $menu
+$notify.add_DoubleClick({ try { Show-Studio 'open' } catch { Show-Problem $_.Exception.Message } })
+$notify.Visible = $true
+Write-Output 'saam-tray-ready'
+$timer = New-Object System.Windows.Forms.Timer
+$timer.Interval = 2000
+$timer.add_Tick({ if (-not (Get-Process -Id $AppPid -ErrorAction SilentlyContinue)) { [System.Windows.Forms.Application]::Exit() } elseif (-not $menu.Visible) { Refresh-Menu } })
+$timer.Start()
+try { [System.Windows.Forms.Application]::Run() } finally { $timer.Stop();$timer.Dispose();$notify.Visible=$false;$notify.Dispose();$menu.Dispose() }

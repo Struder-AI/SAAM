@@ -1,4 +1,4 @@
-import {heatSetFeature,dimensions,heatSetTemplate,heatSetDigest} from './feature.mjs';
+import {heatSetFeature,dimensions,heatSetTemplate} from './feature.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -24,6 +24,5 @@ export async function compileHeatSet(base,features,{buildGeometry,constructSolid
     }
     const [mesh]=await constructSolids([solid],{toleranceMm});
     requireThat(mesh,'Heat-set operation produced an empty solid.');
-    const record={...heatSetTemplate(),base:structuredClone(base),features:normalized,toleranceMm,vertices:mesh.vertices,triangles:mesh.triangles};
-    record.compiledHash=heatSetDigest(record);return record;
+    return {...heatSetTemplate(),base:structuredClone(base),features:normalized,toleranceMm,vertices:mesh.vertices,triangles:mesh.triangles};
 }

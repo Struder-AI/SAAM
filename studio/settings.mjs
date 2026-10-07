@@ -40,15 +40,15 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     if(key==='spacingFactor'&&v===1)continue;
     if(key==='pattern'&&name==='vase-wall'){
       if(v){
-        const paths=v.paths;
+        const paths=v.paths,sized=Object.hasOwn(v,'tileWidthMm');
         rows.push([prefix+' · Pattern','Repeated tile on the selected solid or sleeve'],
           [prefix+' · Deposition','Pattern strokes only; the sleeve is not printed'],
-          [prefix+' · Repetitions',String(v.repeats)],
-          [prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise'],
+          ...(sized?[[prefix+' · Turns',String(v.turns)],[prefix+' · Tile width',v.tileWidthMm+' mm of perimeter; each turn holds the nearest whole number of tiles'],[prefix+' · Rise',v.riseMm+' mm per turn']]
+            :[[prefix+' · Repetitions',String(v.repeats)],[prefix+' · Advance',v.advance[0]+' perimeter turns / '+v.advance[1]+' mm rise']]),
           [prefix+' · Mapping',settings.meshSleeve?'Smooth fitted sleeve, followed by one-sided mesh contact':'Actual inset contour at each height; fraction of perimeter length']);
         for(const [i,path] of paths.entries())rows.push(
           [prefix+' · Pattern path '+(i+1),path.points.length+' points'],
-          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+' (turns, mm)'],
+          [prefix+' · Start / end '+(i+1),path.points[0].join(', ')+' → '+path.points.at(-1).join(', ')+(sized?' (arc mm, mm above the turn)':' (turns, mm)')],
           [prefix+' · Bead height '+(i+1),Array.isArray(path.beadHeightMm)?path.beadHeightMm.join(', ')+' mm':path.beadHeightMm+' mm']);
         for(const [i,path] of paths.entries())if(path.offsetMm!==undefined){
           const values=Array.isArray(path.offsetMm)?path.offsetMm:[path.offsetMm];
@@ -109,7 +109,7 @@ export function sliceSummary(a){
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
-  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a):curveAssignmentRows(a)):[
+  return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a,plan):curveAssignmentRows(a,plan)):[
     [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
@@ -120,12 +120,13 @@ export function sliceRows(plan){
     ...(a.spacingFactor!==1?[[a.id+' · Line spacing',a.spacingFactor+'× nominal spacing; bead width unchanged']]:[])
   ]),
     ...(a.filament!==null?[[a.id+' · Filament',String(a.filament+1)]]:[]),
-    ...Object.entries(a.process??{}).map(([key,v])=>[a.id+' · '+({firstLayerMm:'First layer',layerMm:'Layer pitch',lineWidthMm:'Bead width',planarSpeedMmS:'Deposition speed',firstLayerSpeedMmS:'First-layer speed',fanPercent:'Part cooling'}[key]??key),v+(key==='fanPercent'?'%':key.endsWith('MmS')?' mm/s':' mm')])
+    ...Object.entries(a.process??{}).map(([key,v])=>[a.id+' · '+({firstLayerMm:'First layer',layerMm:'Layer pitch',lineWidthMm:'Bead width',planarSpeedMmS:'Deposition speed',firstLayerSpeedMmS:'First-layer speed',fanPercent:'Part cooling',liftMm:'Travel lift',retractMm:'Retraction'}[key]??key),v+(key==='fanPercent'?'%':key.endsWith('MmS')?' mm/s':' mm')])
   ]);
 }
 export function injectionPoints(plan){
-  return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...p,id:`${a.id}:${index}`})));
+  return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...spatialRecord(plan,'points',p),id:`${a.id}:${index}`})));
 }
+const spatialRecord=(plan,kind,record)=>record.geometry?{...plan.geometry?.[kind]?.find(p=>p.id===record.geometry),...record}:record;
 export const depositionUnit=kind=>({slice:'slice',trace:'trace course',inject:'injection point'}[kind]??'deposition course');
 export function depositionFamilyRows(inspection){
   const families=new Map();
@@ -135,9 +136,9 @@ export function depositionFamilyRows(inspection){
   }
   return [...families].map(([id,{kind,indices}])=>[id+' · Family',indices.size+' '+depositionUnit(kind)+'(s)']);
 }
-function injectionRows(a){
+function injectionRows(a,plan){
   return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
-    ...a.points.flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point.join(', ')+' mm before XY placement'],
+    ...a.points.map(p=>spatialRecord(plan,'points',p)).flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point?.join(', ')+' mm before XY placement'],
       [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm vertical approach']])];
 }
 function sliceReferenceName(surface){
@@ -147,12 +148,13 @@ function sliceReferenceName(surface){
   if(surface.kind==='roof')return 'Part roof · vertical offset '+surface.offsetMm+' mm';
   return surface.kind==='mesh-strip'?'Explicit mesh strip':surface.kind+' surface · '+(typeof surface.patch==='string'?surface.patch:surface.patch?.name??'authored patch');
 }
-function curveAssignmentRows(a){
+function curveAssignmentRows(a,plan){
   const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
   if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
   if(a.construction==='curves'){
     if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
-    for(const [i,c] of a.curves.entries()){
+    for(const [i,record] of a.curves.entries()){
+      const c=spatialRecord(plan,'curves',record);
       const label=a.id+' · Curve '+(i+1);
       const source=c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
       rows.push([label,(c.closed?'Closed':'Open')+' · '+source+' · '+(c.role??'trace')]);
@@ -164,27 +166,9 @@ function curveAssignmentRows(a){
   if(a.maxExcursionMm!==null)rows.push([a.id+' · Maximum vertical excursion',a.maxExcursionMm+' mm']);
   return rows;
 }
-export function recipeRows(plan,machine){
+export function recipeRows(plan){
   const composition=plan.composition,rows=[];
   rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
-  if(plan.setup.bambu){
-    rows.push(['Bambu startup',plan.setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']);
-    const used=[...new Set([plan.setup.bambu.filament,
-      ...(plan.slices?.assignments??[]).map(a=>a.filament),
-      ...(plan.composition?.filaments??[]).map(route=>route.filament)].filter(i=>i!==undefined&&i!==null))];
-    const change=machine.outputs.find(o=>o.id===plan.output)?.constraints;
-    if(used.length>1&&change?.materialChangeMode==='single-nozzle-ams')rows.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
-    for(const id of used){
-      const entry=plan.setup.bambu.filaments?.[id],tool=entry?.tool??plan.setup.tool;
-      const nozzleMm=tool===plan.setup.tool?plan.setup.nozzleMm:plan.setup.bambu.otherNozzleMm;
-      const p={...plan.process,...entry?.process};
-      const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
-        entry?.source?.type==='external'?null:id===plan.setup.bambu.filament?plan.setup.ams:null;
-      const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
-      rows.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${plan.setup.material} ${entry?.colour??plan.setup.filamentColor??''} · ${entry?.nozzleC??plan.setup.nozzleC}°C · ${source}`],
-        [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
-    }
-  }
   rows.push(['Process · Planar wall tolerance',plan.process.planarWallToleranceMm+' mm'],...sliceRows(plan));
   for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':m.channel==='tilt'?'°':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],
@@ -202,40 +186,6 @@ export function recipeRows(plan,machine){
     }
   }
   return rows;
-}
-export function robotRows(plan,machine){
-  const c=plan.setup.denso;
-  if(c)return [
-    ['Robot / controller',machine?.name??'DENSO / RC8A'],['Installation basis',c.configurationSource??'Not configured'],['Mounting',c.mounting],
-    ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
-    ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
-    ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],
-    ['External starting point',value(c.initialPositionMm)+' mm'],['Starting bed angle',c.initialPose.rotaryDeg+'°'],
-    ['Starting tool direction',value(c.initialPose.toolAxis)],['Starting tool up',value(c.initialPose.toolUp)],
-    ['Relay output / rate',value(c.extrusionOutput)+' / '+value(c.extrusionRateMm3S)+' mm³/s; estimate'],
-    ['Transition retreat / time',c.retreatMm+' mm / '+c.transitionSeconds+' s'],['Heating',c.temperatureControl+' · '+plan.setup.nozzleC+' / '+plan.setup.bedC+'°C'],
-    ['Motion interpretation','Nominal Cartesian / rotary progress; controller IK; robot feasibility deferred']
-  ];
-  const d=plan.setup.dobot;if(!d)return [];
-  return [
-    ['Robot setup',d.configurationSource??'Not configured; supply installation settings through chat'],
-    ['Tool / user frame',value(d.toolFrame)+' / '+value(d.userFrame)],
-    ['Nozzle orientation',value(d.rDeg)+'° fixed'],
-    ['XY calibration scale',value(d.scaleX)+' / '+value(d.scaleY)],
-    ['XY calibration offset',value(d.offsetXMm)+' / '+value(d.offsetYMm)+' mm'],
-    ['Bed Z offset',value(d.bedZMm)+' mm'],
-    ['External starting position',value(d.initialPositionMm)+' mm in design coordinates'],
-    ['Controller workspace minimum',value(d.workspaceMinMm)+' mm'],
-    ['Controller workspace maximum',value(d.workspaceMaxMm)+' mm'],
-    ['Controller linear speed limit',value(d.maxLinearSpeedMmS)+' mm/s'],
-    ['Controller acceleration limit',value(d.maxLinearAccelMmS2)+' mm/s²'],
-    ['Commanded acceleration',value(d.accelerationPercent)+'%'],
-    ['Extrusion output',value(d.extrusionOutput)],
-    ['Extrusion policy',value(d.relayPolicy)],
-    ['External extrusion rate',value(d.extrusionRateMm3S)+' mm³/s; estimate only'],
-    ['Thermal control',value(d.temperatureControl)],
-    ['Externally established nozzle / bed temperature',plan.setup.nozzleC+' / '+plan.setup.bedC+'°C']
-  ];
 }
 // User-selected display estimate: 1.2 g/cm³, shared by all materials/machines.
 export const materialGrams=volumeMm3=>volumeMm3*1.2/1000;

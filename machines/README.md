@@ -1,62 +1,74 @@
-# Machine files
+# Machines
 
-A machine file describes a machine and the output options it supports. An
-export generated from SAAMpath must match one of those options.
+Each machine is a **machine extension**: a folder `machines/<id>/` (release) or
+`<SAAM home>/local/extensions/<id>/` (local; a local copy of the same id wins) holding
+an `extension.json` manifest (`saam-extension/1`, `kind: "machine"`, `machines`: its
+profile files named `<profile id>.json`, entries `machine-adapter` and optional
+`machine-verify`), the `saam-machine/1` profiles, the adapter and its output contract
+as `SKILL.md` (`saam-kind: machine`). `list_machines` names each profile's extension;
+`extension_library checkout` copies one for editing.
 
-## Profiles for geometry and setup review
-
-The following profiles are selectable through the shared machine catalog. They
-support planar geometry/setup review; their output declarations have
-`implemented: false`. Generation reports the missing machine contract before
-constructing a toolpath. They do not inherit another printer's startup sequence.
-The [Bambu X1 Carbon](./bambu-x1-carbon.json) profile (single
-hardened 0.4 mm nozzle, conservative bounds excluding the cutter strip) has an
-experimental PLA [output contract](../core/export/bambu.md#x1-carbon-output-contract); its
-PETG, ABS, ASA, PC and TPU entries remain setup-review material profiles.
-
-| Profile | Installed nozzle assumption | Default / other declared materials | Output still needed |
+| Extension | Profiles | Output | Contract |
 |---|---|---|---|
-| [Ultimaker 2 Extended](./ultimaker-2-extended.json) | Original single 0.4 mm nozzle, 2.85 mm filament; 305 mm height | PLA / ABS | UltiGCode, with volumetric extrusion and firmware-owned material/startup settings |
-| [Ultimaker 3](./ultimaker-3.json) | One selected AA 0.4 core, 2.85 mm filament; 200 mm height | PLA / ABS | UM3-specific Griffin startup and shutdown |
+| `ultimaker` | S5; 2 Extended and 3 for review only | `griffin-gcode` | [Griffin](ultimaker/SKILL.md) |
+| `bambu` | H2D, X1 Carbon | `bambu-gcode` | [Bambu](bambu/SKILL.md) |
+| `dobot` | MG400 | `dobot-lua` | [Dobot](dobot/SKILL.md) |
+| `denso` | VS-068A4 / RC8A with rotary | `denso-pacscript` | [DENSO](denso/SKILL.md) |
 
-PLA is a default. Material selection does not retune temperature, cooling,
-retraction or flow. SAAM preserves authored flow and dimensions; it applies no
-material-range gates. Export rejects temperatures above 350 °C. A particular
-firmware template can still require a material, GUID or temperature branch.
+A review-only output declares `implemented: false`; generation names the missing
+contract before building a toolpath. The original UM2 Extended needs volumetric UltiGCode,
+the standard UM3 its own Griffin startup (one selected AA core; no BB core or tool
+changes); neither inherits the S5 startup. X1 Carbon PETG, ABS, ASA, PC and TPU are
+setup-review materials; only PLA has an output contract; material selection retunes nothing.
+Tool bounds are conservative rectangles (X1 cutter strip, UltiMaker glass clips) with
+sources in each profile, used for placement, priming and material-change handoff; arm
+display bounds are not reach limits. No nonplanar
+clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and experimental.
+[Machine presentation models](../core/machine/README.md) draw each machine.
 
-These are the original **2 Extended** and standard **3**, not the 2+, Extended+,
-2+ Connect, 3 Extended or S3. UM3 hardware has two nozzles, but SAAM plans select
-one installed AA core; a BB support core and tool changes are not supported here.
-No nonplanar clearance limit is assigned to the Ultimaker profiles; the X1 Carbon carries only a user-chosen experimental 10° limit with no clearance rating. Conservative
-rectangular tool bounds avoid the X1 cutter region and UltiMaker glass clips;
-each profile records the reduced area and official hardware/Cura sources.
+## Adding a machine
 
-## Existing machine contracts
+1. **Profile.** Copy the nearest one. Declare capabilities (`relay-extrusion`: external
+   extrusion, so Studio omits filament, bed and fan settings; `coordinated-rotary`: Studio
+   draws the rotary table), tools, bounds, startup hand-over, `defaultSetup` (your setup
+   block's template; `null` marks installation values the person must supply) and
+   `outputs[]`: `id`, `implemented`, vendor-fixed `program` blocks and `constraints`
+   (`materialChangeMode` `tool-swap` or `single-nozzle-ams` with `toolChangeLiftMm`
+   permit material changes). Studio draws a gantry
+   (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; an arm model is core code.
+2. **Adapter.** `createAdapter(Export)` returns
+   `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
+   - `output` is the profile's `outputs[].id`. `poses: true` only when the program writes tool
+     orientation and rotary motion; otherwise posed paths are refused.
+   - `settings.key` names the block `plan.setup[key]`. Preparation reads its `initialPositionMm`
+     and, when posed, `initialPose`, `retreatMm`, `transitionSeconds` and `rotaryCenterMm`.
+     `validate({machine, setup, process, output}, {required})` throws on invalid values and,
+     when `required` (export), names unresolved ones; `rows` (same input) returns
+     `[[label, text]]` for Studio's settings panel.
+   - `export` receives the prepared path (the SAAMpath plus startup, priming, material-change
+     lifts and axis-feed limits; [prepare-path.mjs](../core/export/prepare-path.mjs)) and
+     `{machine, setup, process, output, release}`. `report` holds `notice`, `limitations`,
+     optional `seconds` and `volumeMm3` of what was written (else the path's) and any facts
+     Studio shows. Core adds the move count and [short-travel advisory](../core/export/README.md#short-travel-advisory);
+     Bundle stores the report, and reopen and delivery run no adapter code.
+   - `Export` is everything an adapter uses besides its own files: `number` (program
+     resolution), `slackMm`, `gcodeMotion(prepared, settings, options)` (G-code lines and the
+     totals written), `packZip`, `unpackZip`, `crc32`, `encodePng`, `temperatureC` (ceiling check) and
+     `frame` (stateless rotation math). Adapters import no core module.
+3. **Verification, debug only.** `machine-verify` exports `verify(bytes, plan, machine, Export)`,
+   which executes a checked program; `node scripts/machine-verify.mjs BUNDLE_DIR` compares it
+   with the stored report. Nothing else loads it. Delete it once the contract records a physical trial.
+4. **Contract.** `SKILL.md` states what the output contains, its settings, vendor evidence and trials.
 
-For incremental kinematic-model development, the
-[Studio presentation contract](../studio/KINEMATICS.md) defines how links, rails,
-carriages and other components reach the complete shared viewer. Model providers
-own motion and frame alignment; profiles do not embed rendering code.
-The [model reference](../core/machine/README.md) describes the implemented
-providers and their nominal/installation limits. [Studio studies](../tools/kinematics/README.md)
-provide a read-only route for machines without controller output.
-
-[ultimaker-s5.json](./ultimaker-s5.json) defines the first machine and its
-`griffin-gcode` output. It contains nominal motion limits, tool offsets and the
-startup contract. The locked plan selects the installed tool and material.
-Exporting introduces no new process choices. Physical clearance is delegated
-to the operator; no general 15° clearance rating is claimed.
-
-Standard S5 startup is assumed; firmware version is optional metadata.
-Physical printing remains unvalidated.
-
-[denso-vs068a4-rc8a.json](./denso-vs068a4-rc8a.json) describes the six-axis VS-068A4 with
-RC8A and an external rotary for the [pipe demo](../skills/pipe-cladding/SKILL.md).
-Installation fields start unresolved. Its experimental PacScript source ZIP uses
-the shared Studio/review/delivery pipeline. The profile's display bounds are not
-robot reach limits; production kinematic validation, motion limits and collisions
-remain deferred. Its nominal presentation model does not establish RC8A branch parity.
-See the [RC8A contract](../core/export/denso.md#denso-rc8a-output-contract) for calibration,
-rotary assumptions, relay behavior and unverified vendor execution.
-
-See [GLOSSARY.md](../GLOSSARY.md) and [build requests](../build_request.md).
+| # | Standard |
+|---|---|
+| S1 | Use only the prepared path, settings and `Export`. |
+| S2 | Write every action kind or reject it at export with a named error; drop none. |
+| S3 | Write coordinates and amounts at program resolution (`PROGRAM_DECIMALS`, [core/dimensions.mjs](../core/dimensions.mjs), through `Export.number`); quantize once and derive later values from written ones; a deposition that collapses is an error naming the move. |
+| S4 | Enforce physical limits from settings: workspace, axis feed, temperature ceiling, park and material-change clearance. |
+| S5 | Unresolved installation values block export and are named. |
+| S6 | The same prepared path, settings and adapter give identical bytes; dates come from `release`. |
+| S7 | The report states what the drawn path does not show (firmware blocks, purge, park, external start or heating) and the time and material estimates with their model. |
+| S8 | Vendor-fixed blocks are profile data pinned by hash; changing one needs review. |
+| S9 | No fixed size or count cap: split into what the controller accepts ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)). |
+| S10 | Verification is debug-only; the first physical trial changes one thing from a file known to load. |

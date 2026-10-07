@@ -6,11 +6,7 @@ a weighted solid foot and three curved contact-skin layers belong to one
 continuous object. The component meshes and explicit operation dependency show
 why different toolpath skills can be useful in the same part.
 
-```sh
-node studio/server.mjs
-```
-
-Choose this example from the tour. Your copy is saved automatically.
+Outside the [guided tour](../README.md): create a copy from its recipe.
 
 Inspect each material region and the transition from the spiral wall into the
 foot. Ask the agent to explain the mass distribution, change the lip reinforcement,
@@ -18,7 +14,7 @@ or compare a heavier upper wall. The cup component is a solid guide; its printin
 recipe creates the open interior. The foot mesh contains its own narrowing cavity.
 
 [recipe.mjs](recipe.mjs) reproduces the original Nudge Cup geometry and composition
-using current S5 defaults, with no saved personal setup or approvals. The underlying
+using current S5 defaults, with no saved personal setup. The underlying
 skills are [vase wall](../../../skills/vase-wall/SKILL.md),
 [slices](../../../skills/slice/SKILL.md) and [draped skin](../../../skills/draped-skin/SKILL.md).
 

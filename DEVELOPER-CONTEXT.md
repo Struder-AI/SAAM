@@ -2,192 +2,88 @@
 
 ## Orientation
 
-Developers own core skills, core capabilities, Studio and shared interfaces;
-builders compose existing interfaces and author guidance. See [role boundaries](AGENTS.md#choose-your-role).
-Before planning or editing, **read the active release intents: [0.3.0 installation](plans/0.3.0.md) and [0.3.1 architecture](plans/0.3.1.md)**, then [shared terms](GLOSSARY.md), dev maps and this file. Keep these pointers current; open component manuals as needed.
+Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). The versioned intent docs in [plans](plans/) are the spec ([intent and rules](#intent-and-rules)); the [intent tree](intent/README.md) indexes current intent by area in the owner's words. Read the parts that bear on your work. The newest version's plan holds scheduled work. Onboarding supplies shared terms and this whole document; read map `0` yourself before editing.
 
-### What the dev maps are for
+### Working with dev maps
 
-**Choose the release's map set explicitly:** `030-deployment` for 0.3.0 installation/service work; `030-architecture` for 0.3.1 product architecture (its existing identifier is retained). Toolkit developer onboarding/read-map default to `030-architecture`; pass `--set 030-deployment` for installation work. Onboarding returns both active intent documents.
-The original scanned set is `default`, selected only with `--set default` for implementation evidence. Its indexes/scope are not the target architecture. Lower-level `dev-map/cli.mjs` still defaults to that original set, so always pass `--set`. Authored design contracts and scanned evidence are distinct; the glossary/default-map rules below do not override release contracts.
-The goal is an order-of-magnitude faster review with greater confidence: the
-person and agent trace the same trustworthy path. For any code to edit, maps
-must show its location, interactions and every consequence of changing it,
-without a separate trace or hidden context: exactly everything, nothing more.
-Map compatibility warrants code changes within [Code shape](#code-shape).
+Walk the map before editing, on the same page the person reviews: read map 0, open the boxes you will change, read an arrow's `@link` for the leaf arrows it carries, then open source at the `file:lines` shown. Map reads never return code. When you add code, give each new declaration its map-0 owner in `dev-map/sets/030-architecture/ownership.json`; regenerate lists any leaf still unowned. Regenerate the set after each task. The [map guide](dev-map/README.md) owns commands and authoring.
 
-### Dev map glossary
+**A link records influence between two pieces of SAAM: one can change what the other does or receives.** Its arrow points from the influencer to the influenced: a query's answer runs against the call, a command's activation with it. Maps exist so you can change a node knowing everything it affects and everything that affects it, without reading source to find out; a link's kind only says how the influence travels. The [dev maps intent](plans/dev-maps.md) owns the rebuild. Platform code (language, runtime, browser, packages) is modelled, never drawn as nodes. An absent link reads as "no influence", so influence that cannot be ruled out is drawn as possible. A generated link needs source evidence; file placement and a cleaner picture are none. Judge analysis work by whether the map's account of influence becomes more complete and truthful, not by the counts it changes.
 
-These terms are still settling and this list owns them. The map guide, the
-tools and the read fields still use some older names. Nothing in the maps
-comes from files or directories.
+Use `030-influence` for product work (toolkit default) and `030-deployment` for installation and service work; `030-architecture` is the authored top level they build on, where map-0 nodes, positions and contracts are authored. Follow [Code shape](#code-shape) when editing; map compatibility authorizes no unrelated work.
 
-- **Dev maps**: the whole system: every map, the viewer and the tools that
-  read and regenerate them. A **map** is one graph in it.
-- **Node**: anything with an index: a leaf or a cluster. It has exactly one
-  **parent map**, its **home**, which numbers it and draws it as a box; it is
-  a **child node** there.
-- **Leaf**: one scoped declaration with enclosed code and private helpers
-  owned by that stage folded into it. Source, effects, links and findings stay
-  on the owner; shared or escaping helpers remain separate. Leaves are generated;
-  their view is a **code block**. No manual vocabulary suppression is applied.
-- **Inner** and **outer**: a declaration written inside another's body is
-  inner to that outer one. It is folded into the outer's leaf unless code
-  outside the outer calls or links to it directly, or code outside the maps
-  calls it; then it is a leaf of its own.
-- **Cluster**: a node that groups boxes under a label. Its view is its map,
-  which draws its members and calculated links. Groups and labels may be
-  manually authored; a solver-created unlabeled group reads `[needs label]`.
-- **Top map**: `0`, the master cluster: the root of the nesting and no node's
-  box.
-- **Nesting**: the tree of maps, `0` and the clusters down to leaves, authored
-  in the set's `tree.json`. Each map numbers the nodes it homes
-  `N.1`, `N.2`, … in its left-to-right order: `2.1.3` is homed in `2.1`.
-- **Box**: one drawing of a node on a map. A box on any map other than the
-  node's home is a **repeat** (a guest there); it keeps the node's index and
-  names its home.
-- **Port**: reserved for the junction where a link meets a box, as in
-  Grasshopper: an argument slot a data link enters, or the result it leaves
-  from. A **stub** is a port no link reaches, showing its literal value or why
-  the value could not be traced.
-- **Boundary box**: a box at a map's **edge** (its boundary and external
-  boxes) that stands for a node on another map that a link crosses to.
-- **External**: what outside the maps links to a leaf: an active outside
-  declaration, the browser (DOM events) or module load. `0` draws every
-  external; a cluster map draws those linked to what it nests. Externals a map
-  cannot tell apart (linked, in the same directions, to exactly the same boxes
-  there) share one box, so a parent map may group externals its child maps
-  draw apart.
-- **Link** (or wire): a relationship between two leaves, generated from the
-  scan: a **call link**; a **data link** carrying a value from one call's
-  result into another call; or an **indirect link**, reached through a medium
-  rather than a call: a file, an HTTP route, a worker message, an event
-  listener, or **keyed dispatch**, a function looked up by key in a named
-  table. A map draws one link between the two boxes holding its ends, with a
-  count. Beside a leaf's code block are its calls in call order, each under
-  its **gate**, the condition the call stands under, and its **state links**,
-  state read or written.
-- **Operator**: a step in a leaf that is not a call: a choice, a loop, an
-  update, a collection or a member call. **State**: bindings and fields that
-  an outer function or class owns and its inner ones or members read or write.
-  A **carried value** is a variable a loop updates on every pass: `initial`
-  and `next` in, `current` and `final` out. They are read beside a leaf's code
-  block and are not nodes.
-- **Finding**: the scanner's record of something it could not represent in
-  full, in one of two classes. An **uncertain** finding is about a precise
-  aspect of a leaf or link that is drawn. A **missing** finding is something
-  the code does that no leaf or link stands for; maps show only these.
-- **Annotation**: a sourced, dated statement about a node that the code cannot
-  make: a `measurement`, `vendor` behaviour or a recorded `decision`, kept in
-  `dev-map/facts.tsv`.
-- **Outside**: code that is scanned but not mapped ([scope](#scope)). An
-  outside caller is **active** when it runs while a person makes a part or
-  operates Studio. Active outside code is drawn as externals; a call to
-  nothing scanned is **platform**.
-- **Node path**: the durable name of a node, as against its index, which
-  changes whenever the tree does: `file.mjs::name` for a leaf (a folded
-  declaration's path reads its leaf), `@cluster/ID` for a cluster.
-- **Score** and **energy**: a map's score is the sum of its penalties for
-  size, edge, hubs (a box with far more wires than the map's mean), islands,
-  backflow and balance (`dev-map/lib/score.mjs`), each squared; the
-  energy, the solver's goal, sums the scores of `0` and every cluster, each
-  weighted by 1 + log₂ of its nested leaves, per leaf.
-- **Authored inputs**: tree, labels, optional page positions, annotations and scope.
-  Leaves and links are generated.
+### Architectural discipline
 
-### Scope
+You are working in a codebase whose owner is unusually explicit about architectural shape. Its past failures did not come from unclear requests; they came from competent work that quietly substituted an easier property for the structure asked for. Read this so you recognize that substitution in yourself before it happens.
 
-- Mapped: core and Studio product code. Two areas inside core are scanned as
-  outside callers and never mapped: the agent CLI toolkit, `core/agent`, and
-  the exporters, every dialect under `core/export` that turns a SAAMpath into
-  a machine program and reads it back ([exporter implementation](core/export/DEVELOP.md)).
-  Output routing, the travel advisory and playback timing stay mapped.
-- Outside, scanned but not mapped: skills, adapters, scripts and the areas
-  above. Active outside callers are a catalogued skill's implementation
-  scripts, the MCP adapter, the agent toolkit and its CLI entry, and the
-  exporters. They are listed on the nodes they call; everything else outside
-  (skill tests and demos, benchmarks, audits) is counted, never drawn.
-- The scope edge is drawn both ways, as externals: outside code calling in
-  and every call that leaves the maps, at every level.
+#### The direction
 
-These are the default rules in `dev-map/lib/scope.mjs`. Named sets select
-scanner leaves and retain all scanned outside connections; see
-[set authoring](dev-map/README.md#authoring).
+We want complexity reduction. SAAM is being pulled toward a small number of deep, general operations. Inject, Trace and Slice are meant to be *how every technique is expressed*, not shared vocabulary draped over technique-specific lifecycles. Geometry owns construction, numerical representation and native lifetime, so that extensions like text, heat-set and gridfinity simply ask for ordinary geometry. Neutral toolpath completion knows nothing about the selected machine. Bundle is the only shared part-state authority. The same shape is wanted outside the engines. An operation runs when its own prerequisites exist; no stage order or complete recipe gates it.
 
-### The tree
+#### The philosophy
 
-- The walk is `0`, cluster maps down to a leaf, then its code block, the edit,
-  `regenerate`, and the read again. Where the code lives does not enter into
-  it: the nesting is functional, never a file tree.
-- The default solver groups leaves to lower energy; default placement accepts
-  new or gone leaves. Manual sets require an explicit home for each selected leaf.
-- The solver runs only when the owner asks for it. `regenerate` places a new
-  leaf beside its links in the existing tree and never re-solves; an agent
-  that thinks the clustering needs a solve asks the owner, never runs one.
-- No map draws a single box, and a cluster homes at least one node. A repeat
-  is drawn where it keeps a link on the map. There is no cap on map size or
-  depth; the score judges them.
+Working code is not the bar. Complexity reduction is an outcome you can describe: fewer concepts a caller must understand, fewer lifecycle paths, fewer hidden dependencies, cases that no longer exist. Shorter functions, moved files and shared names are not that outcome.
 
-### Findings
+Special cases are a red flag. Always ask "can there be fewer special cases if I did this differently"? The ones that survive need justification that matches current intent, not just historical.
 
-Findings are never dropped: every one is in its leaf's read. A map shows a
-**missing** finding, something no leaf or link there stands for: code outside
-every leaf, or a relationship between leaves no link draws, such as an
-unresolved call or a write to shared state. The absence of a link is no
-evidence of absence. An **uncertain** finding, about a precise aspect of what
-a map already draws such as a branch or an argument's producer, stays in the
-leaf's read. [The map guide](dev-map/README.md#findings) assigns every kind.
-Most are analysis limits and generator work; a few are the code's shape,
-handled below. Do not turn a finding into an invented link, and do not infer
-that no caller exists from an unscanned or dynamic boundary.
+Put the invariant in the operation boundary. If the operation still has the access or representation that permits the unwanted behavior, a reminder will not survive the next integration.
 
-### Code shape
+Consolidation is done when consumers use the general operation and the old routes are gone. An adapter that stays needs a current consumer and a concrete reason.
 
-The map is trustworthy only when everything a piece of code does is visible
-at its boundary: the scanner and a human reviewer read the same syntax, and
-three patterns hide a relationship from both, so the map would draw nothing
-or something false and no scanner work could recover it. They are strongly
-preferred against; the restricted form needs the owner's explicit permission
-for a compelling case:
+#### How it has gone wrong
 
-1. No callable and no state in a reassigned binding: what runs, or what a
-   value is, would depend on execution history rather than the text at the
-   site. Owned state lives in an explicit record or behind an explicit
-   stateful boundary; a callback chosen once is a `const` or a named function.
-2. No callee chosen by an expression: the call site would not name its callee.
-3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data: earlier stages/other consumers must not retain access to the same changing value. No hidden lookbacks to shared mutable sources; Bundle remains the explicit shared part-state authority. Private UI/session/job controllers own their state. Copies are needed only where ownership actually branches or a snapshot must be retained.
+**Proxy promotion.** A shared helper stood in for a general operation. Complete declaration assignment stood in for semantic containment. A shorter diagnostic list stood in for knowing callers and effects. Installer success stood in for a usable agent session. The internal map model stood in for the visible page. Each proxy was useful. The failure was calling it done.
 
-A rewrite must preserve intended behavior and expose its actual interactions. Apply the [release's simplification rule](plans/0.3.1.md) before choosing scanner work: direct wiring and explicit operations should remove unnecessary indirection, retaining necessary lifecycle handling. Improve syntax resolution where the existing abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
-Also: give conceptual stages and callbacks code names, so clusters survive
-line edits; when code replaces an entity, rewire every consumer and remove the
-old one, with no compatibility wrapper or parallel path.
+**Preservation bias.** Old consumer expectations kept alive behind new names. A pass-through channel added to legalize exactly the coupling the refactor existed to remove. Keeping things working is a good instinct; here it defeated the purpose of the work.
 
-### Working the map
+**Loss through replacement.** Export capture was implemented correctly, then an integration reintroduced live currency checks. Compact map reads were corrected, then a new read path bypassed the presentation boundary and inflated every read. The right behavior existed; the replacement did not carry its semantics.
 
-```sh
-node scripts/agent-toolkit.mjs developer-onboarding --set 030-deployment
-node scripts/agent-toolkit.mjs read-map 0 --set 030-architecture
-node dev-map/cli.mjs read agent-bundle --set 030-architecture
-node dev-map/cli.mjs audit --set 030-architecture
-node dev-map/cli.mjs audit-check --set 030-architecture
-```
+**Local completion reported as end-to-end.** An agent-originated test for a Studio-originated route. A bundled extension for an independent local one. Example parity for lifecycle consolidation. Focused evidence was honest, but it was treated as wider than it was.
 
-Reads never scan. Design reads accept node/contract IDs and `--source` for explicit source references; scanned reads accept declarations and `--code`. Design `build`/`regenerate` redraws contracts, not implementation evidence; `audit` rescans and `audit-check` checks freshness. Scanned `regenerate` rescans its selected set. Never substitute one set's index for another's or infer compliance from a design rendering.
-Walk the selected map to understand interactions before editing. Use its index in discussion and stable declaration/contract identities in records. The [map guide](dev-map/README.md) owns commands/authoring; [BR-052](build_request.md#br-052--complete-the-dev-map-against-the-2026-09-21-intent) retains implementation-map follow-ups.
+**Restoring history.** The mirror failure matters just as much: bringing something back because a superseded decision, an overridden plan statement or an old note describes it. Current intent is the versioned plans read cumulatively, and the component manuals; anything they do not describe is absent by choice, not a regression.
 
-### What keeps its own owner
+#### What success has looked like
 
-Repository policy, setup, contribution procedures, decisions and historical
-evidence keep their owners. Skills, [client adapters](adapters/mcp/DEVELOP.md),
-[exporters](core/export/DEVELOP.md) and the [agent CLI toolkit](core/agent/README.md) keep their references; their exclusion applies only to the original default map, not the release architecture audit. [CONTRIBUTING-AGENTS.md](CONTRIBUTING-AGENTS.md)
-owns checkpoint and publication rules; read it immediately before committing.
-Source is authoritative for implementation; software checks do not establish
-physical results. Run a check to settle a concrete uncertainty and reuse its
-result until its inputs change; commits and task completion add no test gate.
-Work from older repositories or conversations is reference only, and the
-[September 12 withdrawal](DECISIONS.md#d-029--withdraw-september-12-contributions-and-vet-readmission)
-names work that must not be restored wholesale.
+Architectural success has usually removed something. Geometry consolidation deleted the private native implementations; their owners became ordinary callers. Neutral/machine separation deleted machine facts from construction instead of hiding them behind a permitted import. Standalone Trace and Inject deleted the dummy-geometry assumption from the whole workflow, not from one generator. Operation-scoped validation deleted the mandatory recipe; each operation checks its own prerequisites. If you are doing consolidation work, and cannot name what your change removes, it is probably a proxy.
 
-## Status note
+#### Reporting
 
-As of 9/17/2026 and likely until 10/1/2026, we are not yet at the development stage where we care about backwards compatibility with print bundles. Back compat should not be a design priority or significant consideration in any new code, and any cumbersome back compat extras that are noticed should be flagged for removal.
+Report against the obligation, not the work. State what the general operation now is, which callers changed, which routes are gone, and why any surviving case is physically necessary. Where you replaced a path, state what the old one did that the new one does not. Use one status: implemented, integrated, verified for a named scope, deferred, or superseded. Where your evidence covers less than the obligation, say exactly how much less and at which entrypoint. Partial work honestly scoped is worth more here than a narrower task reported as complete.
+
+#### Intent and rules
+
+State intent positively, at its one owner: what SAAM does, not what must never happen again. A ban outlives the situation it was written for and has to be remembered and revoked; a statement of current intent already excludes the alternatives and stays true until someone edits it. When direction changes, edit the owner, and nothing else needs revoking. The owner, 2026-10-06: "The versioned intent docs essentially define the spec unless something overrides it." Read them in order; a later statement overrides an earlier one only where they conflict. Read future versions' intent too, so current work does not contradict what is planned (owner, 2026-10-06). History (DECISIONS, DEVLOG) is reference, never authority.
+
+## Rules
+
+Hard rules for builders and developers. The same list appears in
+[BUILDERS.md](BUILDERS.md#rules) and [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#rules);
+change both together.
+
+1. Hard rules come only in the owner's wording or with the owner's approval. An agent reacting to a complaint or a failure writes guidance or proposes a rule.
+2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
+3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
+4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
+5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+6. Record approvals as given, without widening their scope. Report software and physical results separately.
+7. Work enters a release intent only on the owner's request or approval.
+8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
+9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
+
+## Code shape
+
+The code itself must show the scanner and human reviewer the influence between operations. These restrictions need the owner's explicit permission for a compelling exception:
+
+1. No callable and no state in a reassigned binding: execution history would determine what runs or what a value is. Owned state lives in an explicit record or stateful boundary; a callback chosen once is a `const` or named function.
+2. No callee chosen by an expression: the call site must name its callee.
+3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data; earlier stages and other consumers must not retain access to the changing value. No hidden lookbacks to shared mutable sources. Bundle owns shared part state; private UI/session/job controllers own theirs. Copy only where ownership branches or a snapshot must survive.
+4. A callable answers or acts: a query returns a value and has no effect another callable can observe; a command has effects and returns only its outcome (completed or failed, and the identity of what it created). Private caches and a leaf's own working state are not effects. Larger boxes relate both ways; [notation](plans/dev-maps.md#notation).
+5. Avoid passthrough wires — generic code that routes values by keys known only at run time — without good reason; they increase complexity and reduce visibility.
+6. Every tolerance names its class from [dimensions and tolerances](core/README.md#dimensions-and-tolerances) (print resolution, process scale, program resolution, numeric conditioning, display) or derives from the print's line width or layer height. Numeric conditioning guards robustness and never judges shape; a feature far below print resolution that an operation produces is closed and reported, not rejected. `check-repo` holds raw literals per file to a falling baseline.
+
+Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
+
+## References and evidence
+Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.
+
+Source establishes implementation, not physical results. Check concrete uncertainties and reuse evidence until its inputs change; completion adds no test gate.

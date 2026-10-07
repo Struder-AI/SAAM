@@ -1,19 +1,15 @@
 # Packaging SAAM
 
-[Agent installation instructions](INSTALL.md) are published at the stable [latest-release URL](https://github.com/Struder-AI/SAAM/releases/latest/download/INSTALL.md) for desktop Claude Code and Codex. SAAM installs per user with an app icon. Prints and optional release-service state stay outside the replaceable application: `%LOCALAPPDATA%\SAAM` on Windows or `~/Library/Application Support/SAAM` on macOS (`SAAM_DATA` overrides either). The bundled Node runtime runs the local Studio and stdio MCP adapter; an invite is optional for making and enables official updates and live diagnostics.
+[INSTALL.md](INSTALL.md), published at the stable [latest-release URL](https://github.com/Struder-AI/SAAM/releases/latest/download/INSTALL.md), owns installation, migration and client setup. [Application](../core/application/README.md) owns commands, chat attachment and the SAAM home; `app/` is replaceable while prints, extensions and `state/` persist. An invite is optional for local making.
 
-Build one ZIP per platform from a clean tracked snapshot:
+Ship all three platforms: `win-x64`, `darwin-arm64` and `darwin-x64`; omit one only by owner decision. Build from one clean committed snapshot:
+`node packaging/build.mjs --version VERSION --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download --mesh-repair DIR` (all three into `dist/PLATFORM/`; `--platform` picks some).
+Nothing is installed from the network: dependencies come from the checkout's installed `node_modules` (`--modules DIR`), checked against `package-lock.json`, with manifold-3d reduced to the files SAAM loads; official Node comes from `build/node-runtime/VERSION/`, checked against nodejs.org's SHASUMS256, fetching an archive only when the cache lacks it (or platform-checked `--node PATH` plus LICENSE). Each package is setup-checked (on its own Node when the host can run it). `--mesh-repair DIR` supplies the verified Windows helper; Mac availability is separate. Record SHA, platform, ZIP size/hash and runtime provenance. Review candidates use `--review` and explicit `--review-file`; publication requires clean tracked source. Installation preserves a recoverable app while replacing it and leaves user data intact. Unsigned alpha archive checks do not establish native execution.
 
-```sh
-node packaging/build.mjs --platform darwin-arm64 --version 0.3.1 --relay-url https://saam-relay.remettub.workers.dev --update-host https://github.com/Struder-AI/SAAM/releases/download
-```
+## Publishing
 
-Platforms are `win-x64`, `darwin-arm64`, and `darwin-x64`. `--relay-url` remains the package CLI/`release.json.relayUrl` key for the optional release service; the local launcher interprets it as a service URL. The build downloads and checksum-checks the official Node runtime, or accepts `--node PATH` for a target-platform binary. Optional native mesh repair is included only when the helper matches the target. Each ZIP has an adjacent `.zip.sha256` for agent installation verification.
-
-For an isolated candidate before the release sources are committed, pass `--review` and one `--review-file <relative path>` for each untracked application module or asset. Modified tracked files are copied as they stand; omitted untracked application files fail the build. The manifest records `reviewBuild:true`; production builds require a clean tracked snapshot.
-
-The ZIP contains `app.tar`, the platform installer, a short README and the installer scripts used by in-app updates. The installer stages extraction before replacing the application, creates a SAAM shortcut/icon, and refuses to replace a running SAAM. `packaging/launch.mjs` is the installed entry point; the same per-user data survives installs and updates. Alpha packages are unsigned. Windows packaging can inspect a macOS archive, but macOS installation must be accepted on a Mac.
-
-## Releasing an update
-
-Build the selected shipping platforms from the approved clean release commit. Record each printed ZIP SHA-256 and size. Publish the ZIPs, `.zip.sha256` sidecars **and** generated `dist/INSTALL.md` as assets of `v<version>` in [Struder-AI/SAAM Releases](https://github.com/Struder-AI/SAAM/releases). Set the release-service `LATEST_RELEASE` to the printed asset entries, deploy that service, then verify the installed app's Update button restarts into the new version without moving the data folder. These publication/deployment steps require the owner's release decision; a local review ZIP is never a published release.
+1. Fetch/integrate history and push release work explicitly to `origin/codex/remettub-dev-branch`, preserving existing commits.
+2. Verify three ZIPs/sidecars, embedded manifests and runtime architectures, installer permissions and archived bytes. Ask the owner each release whether to run the isolated Windows install, generation, Studio/Wing and repair checks (owner, 2026-10-06: "ask me about them next time"), and record the answer; record Mac acceptance limits. Never replace a user's installation as a test.
+3. With release authorization create `vVERSION` at the exact source SHA in [SAAM Releases](https://github.com/Struder-AI/SAAM/releases); upload three ZIPs, three checksums and `INSTALL.md`; the notes' first line tells agents to follow that release's `INSTALL.md` for exactly that version. Guide-only corrections need not rebuild unchanged archives.
+4. Verify public hashes, assets, tag and stable guide before updating all three relay `LATEST_RELEASE` entries and deploying the existing service.
+5. Verify authenticated `/device/release` offers without exposing credentials and the isolated Update/restart path with data preserved. Commit/push corrections to the same release branch and state native verification limits. A local ZIP or draft is not a published update.

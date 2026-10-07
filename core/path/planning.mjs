@@ -12,8 +12,8 @@ export const MINIMUM_MOVE_MM=1e-4,NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
 export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
-    pose:motion?.initialPose?structuredClone(motion.initialPose):null,retracted,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
+  return {start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
+    pose:motion?.initialPose?structuredClone(motion.initialPose):null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
     stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
@@ -28,8 +28,14 @@ export function planSelection(state,filament){
   if(incoming.filament===state.selection.filament)return planningResult(state);
   // The action names material intent. Installed nozzle changes, clearance and
   // retraction debt are resolved by the selected output adapter.
-  return appendAction({...state,selection:incoming,process:incoming.process,retracted:false,moveRun:null},
+  return appendAction({...state,selection:incoming,process:incoming.process,retraction:null,moveRun:null},
     {kind:'toolChange',filament:incoming.filament,phase:state.phase,layer:state.layer,operation:state.operationId});
+}
+
+// Operations use resolved settings; omission restores the selected material's
+// defaults, never the previous operation's overrides.
+export function planProcess(state,process=state.selection?.process??state.baseProcess) {
+  return planningResult({...state,process});
 }
 
 // Local emission storage for ONE planning stage, never shared planning state.
@@ -78,15 +84,15 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
   if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
   const seconds=pose?(extra.durationSeconds??(length>0?length/limited:state.motion.transitionSeconds)):length/limited;
   requireThat(Number.isFinite(seconds)&&seconds>0,'Motion needs positive duration.');
-  const action={...extra,kind:'move',to:[...to],speedMmS:limited,volumeMm3,phase:state.phase,layer:state.layer,
-    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),durationSeconds:seconds}:{})};
+  const {durationSeconds:requestedDuration,...properties}=extra;
+  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,
+    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0?{durationSeconds:seconds}:{})}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
   if(run&&state.lastAction===run.action&&mergeableMove(run,action)){
     const previousLength=distance(run.from,run.action.to),combinedLength=distance(run.from,to);
     const duration=(run.action.durationSeconds??previousLength/run.action.speedMmS)+seconds;
-    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration,
-      ...(pose?{durationSeconds:duration}:{})};
+    const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration};
     shortenedMm=previousLength+length-combinedLength;
     state.moveRun={...run,action:replacement};state.lastAction=replacement;state.lastNonFan=replacement;
     emitted={replaceLast:replacement,append:[]};
@@ -102,15 +108,16 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
 }
 
 export function planRetraction(state) {
-  if(state.retracted||!(state.process.retractMm>0))return planningResult(state);
-  return appendAction({...state,retracted:true,stats:{...state.stats,retractions:state.stats.retractions+1}},
-    {kind:'retract',filamentMm:state.process.retractMm,speedMmS:state.process.retractSpeedMmS,phase:state.phase,layer:state.layer});
+  if(state.retraction||!(state.process.retractMm>0))return planningResult(state);
+  const retraction={filamentMm:state.process.retractMm,speedMmS:state.process.retractSpeedMmS};
+  return appendAction({...state,retraction,stats:{...state.stats,retractions:state.stats.retractions+1}},
+    {kind:'retract',...retraction,phase:state.phase,layer:state.layer});
 }
 
 export function planRecovery(state) {
-  if(!state.retracted)return planningResult(state);
-  return appendAction({...state,retracted:false},
-    {kind:'recover',filamentMm:state.process.retractMm,speedMmS:state.process.retractSpeedMmS,phase:state.phase,layer:state.layer});
+  if(!state.retraction)return planningResult(state);
+  return appendAction({...state,retraction:null},
+    {kind:'recover',...state.retraction,phase:state.phase,layer:state.layer});
 }
 
 export function planFan(state,percent) {return appendAction(state,{kind:'fan',percent,phase:state.phase,layer:state.layer});}
@@ -119,7 +126,7 @@ export function planNozzle(state,targetC) {
   return appendAction(state,{kind:'temperature',targetC,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
 export function planExtrusion(state,volumeMm3,flowMm3S) {
-  requireThat(!state.retracted&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
+  requireThat(!state.retraction&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
   const flow=flowMm3S;
   return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,
     depositedMaxZ:Math.max(state.depositedMaxZ,state.position[2]),moveRun:null},
@@ -171,7 +178,7 @@ export function planTravel(state,target,policy,targetPose) {
     return {...recovered,travelKind:'joined'};
   }
   const nearby=gap<=NEARBY_MOVE_MM&&canPlanComb(state,target,policy,NEARBY_MOVE_MM);
-  const layerStep=!nearby&&gap<=CONNECT_MOVE_MM&&!policy.canTravelDirect&&!state.retracted&&target[2]>state.position[2]&&state.position[2]>=state.depositedMaxZ-1e-9
+  const layerStep=!nearby&&gap<=CONNECT_MOVE_MM&&!policy.canTravelDirect&&!state.retraction&&target[2]>state.position[2]&&state.position[2]>=state.depositedMaxZ-1e-9
     &&canPlanComb(state,target,{...policy,combClearanceMm:policy.connectClearanceMm??policy.combClearanceMm},CONNECT_MOVE_MM,[state.position[0],state.position[1],target[2]]);
   const direct=nearby||layerStep||canPlanComb(state,target,policy);
   const route=direct?null:combRoute(state.position,target,policy);
@@ -185,12 +192,12 @@ export function planTravel(state,target,policy,targetPose) {
     }
     return planningResult(cursor,actions.finish(),{travelKind:'combed'});
   }
-  const retracted=planRetraction({...state,stats:{...state.stats,hopped:state.stats.hopped+1}});
-  const clearance=travelClearance(retracted.state,target);
+  const clearance=travelClearance(state,target),hopped=clearance>Math.max(state.position[2],target[2])+1e-9;
+  const retracted=planRetraction({...state,stats:{...state.stats,hopped:state.stats.hopped+Number(hopped)}});
   const lifted=planMove(retracted.state,[state.position[0],state.position[1],clearance],state.process.zSpeedMmS);
   const traversed=planMove(lifted.state,[target[0],target[1],clearance],state.process.travelSpeedMmS);
   const descended=planMove(traversed.state,target,state.process.zSpeedMmS),recovered=planRecovery(descended.state);
-  return planningResult(recovered.state,{chunks:[retracted.actions,lifted.actions,traversed.actions,descended.actions,recovered.actions]},{travelKind:'hopped'});
+  return planningResult(recovered.state,{chunks:[retracted.actions,lifted.actions,traversed.actions,descended.actions,recovered.actions]},{travelKind:hopped?'hopped':'direct'});
 }
 
 export function planPoseTravel(state,target,policy,targetPose) {

@@ -1,0 +1,221 @@
+{
+  "machineId": "ultimaker-s5",
+  "plan": {
+    "schema": "saam-shell-plan/1",
+    "generatorVersion": "0.1.0",
+    "experimental": {
+      "substrateAdaptation": false
+    },
+    "skills": {
+      "plastic-weld": {
+        "enabled": false,
+        "sites": [],
+        "shaftDiameterMm": 1.2,
+        "basinDiameterMm": 3,
+        "basinHeightMm": 1.2,
+        "wallMm": 1.2,
+        "floorMm": 0.8,
+        "seatDepthMm": 0,
+        "volumeFactor": 1,
+        "flowMm3S": 0.5,
+        "holdSeconds": 1,
+        "nozzleC": null
+      },
+      "supports": {
+        "enabled": false,
+        "assignments": [],
+        "topGapMm": 0.2,
+        "xyGapMm": 0.3,
+        "treeChordMm": 0.02
+      }
+    },
+    "slices": {
+      "version": 1,
+      "assignments": [
+        {
+          "id": "body",
+          "part": null,
+          "preset": null,
+          "filament": null,
+          "process": null,
+          "loops": 2,
+          "fillDensity": 0.2,
+          "fillPattern": "rectilinear",
+          "fillAnglesDeg": [45,135],
+          "rotateFill": true,
+          "solidTop": 3,
+          "solidBottom": 3,
+          "fillOverlap": 0.15,
+          "spacingFactor": 1,
+          "sampleStepMm": 0.2,
+          "within": [],
+          "surface": {
+            "kind": "horizontal"
+          },
+          "stack": null,
+          "join": null,
+          "fillOrder": null,
+          "contact": null,
+          "toolPose": null,
+          "dependencies": {
+            "afterParts": [],
+            "beforeParts": [],
+            "after": []
+          },
+          "description": ""
+        },
+        {
+          "id": "cantilever",
+          "part": null,
+          "preset": null,
+          "filament": null,
+          "process": {
+            "planarSpeedMmS": 5,
+            "firstLayerSpeedMmS": 5,
+            "fanPercent": 100
+          },
+          "loops": 0,
+          "fillDensity": 1,
+          "fillPattern": "rectilinear",
+          "fillAnglesDeg": [45,135],
+          "rotateFill": true,
+          "solidTop": 0,
+          "solidBottom": 0,
+          "fillOverlap": 0.15,
+          "spacingFactor": 1,
+          "sampleStepMm": 0.5,
+          "within": [
+            {
+              "kind": "surface-domain",
+              "loopsUv": [[[0.4,0],[1,0],[1,1],[0.4,1]]],
+              "fromLayer": -1,
+              "toLayer": 0
+            }
+          ],
+          "surface": {
+            "kind": "spline",
+            "offsetMm": 0,
+            "patch": {
+              "name": "cantilever",
+              "degreeU": 1,
+              "degreeV": 1,
+              "controlPoints": [[[0,0,0.7],[0,5,0.45]],[[10,0,1.3],[10,5,1.55]]]
+            }
+          },
+          "stack": {
+            "firstLayerMm": 0.2,
+            "layerMm": 0.2
+          },
+          "join": null,
+          "fillOrder": {
+            "kind": "fronts",
+            "seedUv": [[[0.4,0],[0.5,0],[0.5,1],[0.4,1]]],
+            "lineSpacingMm": 0.3,
+            "propagationStepMm": 0.3,
+            "toleranceMm": 0.01
+          },
+          "contact": null,
+          "toolPose": null,
+          "dependencies": {
+            "afterParts": [
+              null
+            ],
+            "beforeParts": [],
+            "after": []
+          },
+          "description": "The X=5 edge matches the box top at Z=1; grow a saddle-shaped surface beyond it in one continuous pass."
+        }
+      ]
+    },
+    "modulations": {
+      "version": 1,
+      "modifiers": []
+    },
+    "composition": {
+      "order": [],
+      "dependencies": [],
+      "filaments": []
+    },
+    "placement": {
+      "xMm": 165,
+      "yMm": 120
+    },
+    "setup": {
+      "tool": 1,
+      "core": "AA 0.4",
+      "nozzleMm": 0.4,
+      "material": "PLA",
+      "filamentMm": 2.85,
+      "nozzleC": 215,
+      "bedC": 60,
+      "buildVolumeC": 28,
+      "materialGuid": "506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9",
+      "firmwareVersion": "",
+      "startupVerified": false
+    },
+    "process": {
+      "firstLayerMm": 0.2,
+      "layerMm": 0.2,
+      "lineWidthMm": 0.4,
+      "planarWallToleranceMm": 0.01,
+      "planarSpeedMmS": 40,
+      "skinSpeedMmS": 20,
+      "firstLayerSpeedMmS": 24,
+      "travelSpeedMmS": 120,
+      "zSpeedMmS": 10,
+      "retractMm": 6.5,
+      "retractSpeedMmS": 25,
+      "liftMm": 1,
+      "maxCombMm": 6,
+      "fanPercent": 100,
+      "maxFlowMm3S": 4,
+      "minimumLayerSeconds": 6,
+      "experimentalDeposition": false,
+      "primeLine": null,
+      "clearanceResponsibility": "operator",
+      "clearanceNote": "No collision model is implemented; the operator owns physical clearance."
+    },
+    "output": "griffin-gcode",
+    "geometry": {
+      "shape": "spline",
+      "patches": [
+        {
+          "name": "top",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[0,0,1],[0,5,1]],[[5,0,1],[5,5,1]]]
+        },
+        {
+          "name": "bottom",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[0,0,0],[0,5,0]],[[5,0,0],[5,5,0]]]
+        },
+        {
+          "name": "front",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[0,0,0],[0,0,1]],[[5,0,0],[5,0,1]]]
+        },
+        {
+          "name": "right",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[5,0,0],[5,0,1]],[[5,5,0],[5,5,1]]]
+        },
+        {
+          "name": "back",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[0,5,0],[0,5,1]],[[5,5,0],[5,5,1]]]
+        },
+        {
+          "name": "left",
+          "degreeU": 1,
+          "degreeV": 1,
+          "controlPoints": [[[0,0,0],[0,0,1]],[[0,5,0],[0,5,1]]]
+        }
+      ]
+    }
+  }
+}

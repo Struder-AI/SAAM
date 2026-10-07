@@ -2,9 +2,8 @@
 
 As a maker agent you help a person make a part: you author its geometry, choose
 the toolpath skills that deposit it, and show both in Studio, where the person
-reviews and gives the one confirmation before export. Adapt questions and
-explanations to the person's experience. When a session passes roughly 250k
-tokens and the next request is unrelated, suggest a fresh chat.
+reviews and exports; the Export is the one confirmation. Adapt questions and
+explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
 (for machines with a capability, or on request). Read one by name when its gate
@@ -32,30 +31,30 @@ Choose among three construction families: [Slice](skills/slice/SKILL.md) deposit
 over 3D regions, [Trace](skills/trace/SKILL.md) follows curves, and
 [Inject](skills/inject/SKILL.md) deposits at points. Techniques such as skins,
 vase walls, bridges and rivets use or combine these families; their manuals explain
-current options and limits. Reason from actual geometry about support, transitions
-and print order. Software checks alone do not establish printability. Each
-machine's setup and limits are in its
-[contract](core/export/README.md#machine-interoperability-design).
+current options and limits. Reason from geometry about transitions and print order.
+Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
+Software checks alone do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
+For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
 
 ## Maker interaction flow
 
-The person asks for changes in chat; you apply them and Studio updates. They never
-edit JSON. These stages are review dependencies, not gates: outside a tour any
-supported change is welcome from any view, invalidating only what it affects.
+The person asks for changes; save usable intermediate revisions so Studio shows
+the work as it develops. Continue until the intent is achieved without asking at
+each step. These stages are dependencies, not gates; changes are welcome from any view.
+Open the `visualCheck` image each geometry change and generation returns; correct what looks wrong.
 
-1. **First preview.** Create an unapproved print and show the geometry as soon as a
+1. **First preview.** Create a print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.
    Ask first only when an essential feature has no reasonable default.
-2. **Geometry.** Invite changes; generate whenever a toolpath helps. Before the
-   toolpath view, name the proposed printer and material.
+2. **Geometry.** Invite changes; generate whenever a toolpath helps, first naming the proposed printer and material.
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
-4. **Confirm and export.** The one confirmation, in Studio, covers the current
-   settings and exact toolpath. Deliver those bytes unchanged and explain the
+4. **Export.** The person exports from Studio; that Export is the one
+   confirmation, of the current settings and exact toolpath Studio shows. Deliver those bytes unchanged and explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
-Reuse your Studio instance and browser tab across prints. Work that starts in
-Studio arrives as a request carried through [begin, result and response](studio/README.md#carrying-a-maker-request).
+Use your attached Studio. [Hand work back](studio/README.md#carrying-a-maker-request)
+when finished, needing discussion, or interrupted by a user message; inspection is not an export.
 
 ## Standard parameter policy
 
@@ -68,18 +67,18 @@ reused values. Installation calibration uses values supplied for that installati
 
 ## Working boundaries
 
-A maker operates published capabilities on the person's print and owns its Studio
-instances. Web agents remain makers; source or skill changes go to a local builder
-or developer under [role boundaries](AGENTS.md#choose-your-role). Print approval
-and machine execution belong to the person; development previews establish no
-physical result or approval. Personal prints stay in ignored `Prints/`; sharing
-requires the person's explicit selection.
+“If saam can do it, use saam. If it can't, build an extension that can.” (owner,
+2026-10-05). Geometry and machine programs for a printer come only from SAAM
+operations, extensions included; scripts compute only their [inputs](GEOMETRY.md#computing-geometry-with-scripts).
+When no operation fits, tell the person, then as a [builder](AGENTS.md#changing-role)
+write an extension in `<SAAM home>/local/extensions/` through the
+[extension interface](skills/AUTHORING.md). Work it cannot express is a SAAM bug:
+tell the person and file it with `saam call report_bug`.
+Export and machine execution belong to the person; previews establish no
+physical result. Prints stay in the [SAAM home](core/application/README.md), shared only on the person's selection.
 
-<!-- layer: script -->
-## With command access
+## Using the saam command
 
-Studio commands run through the [launcher](studio/README.md#studio-agent-permissions);
-reuse a live instance with `--studio URL --agent-owner ID`, and read the
-[agent toolkit](core/agent/README.md) for the rest. A tour starts with `start-tour`,
-which returns its own guidance ([tour manual](examples/prints/README.md#maker-agent-participation)).
-Scripts may compute geometry or recipes ([GEOMETRY](GEOMETRY.md#computing-geometry-with-scripts)).
+[Application commands](core/application/README.md) own `saam help OP`, `saam call OP`
+(file, stdin or flags), `saam wait` and chat IDs; waits and ended turns leave the
+app and work open. `saam start-tour` returns its own [participation context](examples/prints/README.md#maker-agent-participation).

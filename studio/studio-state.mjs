@@ -1,26 +1,30 @@
-import {planPresentation} from './refresh-plan.mjs';
+import {planPresentation,outputView,presentationIdentity} from './refresh-plan.mjs';
+import {completedOutputState} from '../core/print/review-state.mjs';
 
 async function adoptProgramState(next,{presentation,decode,bind}){
   if(!next.program)return next;
-  const reusable=presentation?.identity.printId===next.printId&&presentation.identity.exportHash===next.exportHash
-    &&presentation.identity.generationHash===next.generationHash&&presentation.program;
-  if(reusable){
-    await bind?.(next);
-    return {...next,program:presentation.program};
-  }
+  if(!completedOutputState(next).available)return {...next,program:null};
+  const identity=presentationIdentity(next),shown=outputView(next);
+  const reusable=presentation?.identity.printId===identity.printId&&presentation.identity.outputId===identity.outputId
+    &&presentation.identity.editRevision===identity.editRevision&&presentation.program;
   try{
-    const decoded=await decode(next);
-    return {...next,program:{...next.program,...decoded,summary:{...decoded.summary,...next.program.summary}}};
+    if(reusable){
+      await bind?.(shown);
+      return {...next,program:presentation.program};
+    }
+    const decoded=await decode(shown);
+    // The drawn path supplies motion and playback time; the stored report the machine facts.
+    return {...next,program:{...decoded,...next.program,summary:decoded.summary}};
   }catch(error){
     const {program,...withoutProgram}=next;
-    return {...withoutProgram,programError:error.message,toolpathApproved:false};
+    return {...withoutProgram,programViewError:'Could not load the saved toolpath view: '+error.message};
   }
 }
 
 async function adoptNeutralPath(next,{presentation,decodeNeutral}){
-  if(next.program||next.artifacts?.path!=='current'||!next.review?.path)return next;
+  if(next.completedOutput||next.program||next.programViewError||next.artifacts?.path!=='current'||!next.review?.path)return next;
   const reusable=presentation?.identity.printId===next.printId
-    &&presentation.identity.pathHash===next.review.path.hash&&presentation.program?.neutral;
+    &&presentation.identity.pathId===next.review.path.id&&presentation.program?.neutral;
   if(reusable)return {...next,neutralProgram:presentation.program};
   try{return {...next,neutralProgram:await decodeNeutral(next)};}
   catch(error){return {...next,neutralPathError:error.message};}

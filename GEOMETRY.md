@@ -1,9 +1,8 @@
 # Geometry
 
-You author the part in one of three forms, combined with [booleans](#booleans)
-when one form alone won't do; [MAKERS](MAKERS.md#geometry) says which form suits
-what. Coordinates are millimetres relative to the recipe's `placement`, Z = 0 on
-the bed. Every toolpath skill slices and follows the result.
+Geometry holds solids, curves and points, in millimetres relative to recipe XY `placement`, with Z = 0 on the bed. [MAKERS](MAKERS.md#geometry) guides solid construction; [booleans](#booleans) combine solids.
+`{shape:"spatial",solid:null,curves:[],points:[]}` also represents geometry-only and empty drafts; `solid` can hold any ordinary solid/assembly. Curves are `{id,visible,closed,points|nurbs|uv}`; points are `{id,visible,point:XYZ}`. IDs are unique and stable.
+Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain deposition settings. Existing inline authoring inputs are separated when saved; old bundles remain readable without rewriting on open. XYZ/NURBS curves and points display; recipe-derived UV curves stay hidden until toolpath generation.
 
 ## Spline surfaces
 
@@ -106,12 +105,10 @@ recognized defects and reports cancellable progress.
 spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
 joins them, `intersection` keeps what they share, and `difference` subtracts
 every later operand from the first: a drilled plate is a box minus a cylinder.
-Spline sections remain exact; all booleans provide tops for roof-following work.
-Named-patch operations need a plain spline part.
-
+Spline sections remain exact; named-patch operations need a plain spline part.
+Optional `displayOperand` selects a zero-based operand for the geometry preview; manufacturing still uses the full Boolean. Standard support uses `0` to hide its support solid. Nested choices compose.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
-repeating the operation appends. Text and heat-set operands cannot preserve their
-material/reinforcement metadata: apply those features to the completed boolean.
+repeating the operation appends, except a display-selected solid stays nested so additions remain visible. Apply text/heat-set metadata after combining.
 
 ## Assembly
 
@@ -148,11 +145,10 @@ setting. Arrays replace, so send the whole `patches` array, mesh or operand list
 Validation names what failed; `request_review` shows the result in Studio, and
 `get_print` with `includeGeometry: true` reads it back.
 
-<!-- layer: script -->
 ## Computing geometry with scripts
 
-For large or repetitive geometry, compute the recipe in a Node script and pass the
-file to `init`, `adjust`, `blob-field-create` or `combine` ([command line](core/print/USAGE.md#command-line)).
-Run it from the repository root; on Windows, import SAAM modules with `file:///`
-URLs. `circlePoints` in [cylinder.mjs](core/geom/cylinder.mjs) gives a circle's
-points for a mesh prism.
+A script computes only an operation's input, such as a large, repetitive or
+formula-driven recipe, passed by file to `create_bundle`, `adjust_recipe`, `blob_field`
+or `combine_geometry` ([command line](core/print/USAGE.md#command-line)); SAAM makes the
+geometry and program ([working boundaries](MAKERS.md#working-boundaries)). On Windows, import
+SAAM modules with `file:///` URLs; [`circlePoints`](core/geom/cylinder.mjs) gives a mesh prism's circle.

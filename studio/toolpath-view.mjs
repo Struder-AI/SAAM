@@ -1,11 +1,9 @@
+import {DEFAULT_PHASE_COLOURS,phaseColour} from '../core/print/phase-colours.mjs';
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
-// User-verified visible palette; additional colors may be used when needed.
-// Sky blue includes the user's requested slight darkening from #62a9df.
-export const TOOLPATH_COLORS={skyBlue:'#5b9fd3',orange:'#c65b19',teal:'#53b8af',lavender:'#a799dc'};
 export const layerKey=move=>move?(move.sliceFamily?`${move.sliceFamily}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
@@ -36,16 +34,15 @@ export function createLayerFade() {
 function mixColor(from,to,t){
   return '#'+[1,3,5].map(i=>Math.round(parseInt(from.slice(i,i+2),16)*(1-t)+parseInt(to.slice(i,i+2),16)*t).toString(16).padStart(2,'0')).join('');
 }
-export function toolpathStyle(move,current,skinPhase='draped-skin',emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
+// Multi-material moves show their filament colour; others their phase colour.
+export function toolpathStyle(move,current,palette=DEFAULT_PHASE_COLOURS,emphasis,{lineWidthMm=0.4,pixelsPerMm=1,previousLayerOpacity=0.5}={}) {
   lineWidthMm=move.lineWidthMm??lineWidthMm;
   const active=!!current&&layerKey(move)===layerKey(current);
-  const skin=move.phase===skinPhase||move.phase==='skin'||move.phase==='fronts'||move.phase==='vase-wall'||move.phase==='segmented-paths'||move.phase==='surface-circumferential'||move.phase==='surface-reverse'||move.phase==='cladding-hoop'||move.phase==='cladding-helix-reverse';
   const baseline=Math.max(0.5,Math.min(1,previousLayerOpacity));
   const opacity=active?1:baseline+(1-baseline)*(emphasis??0);
   const strength=(opacity-0.5)*2;
-  const axial=move.phase==='surface-axial'||move.phase==='cladding-axial'||move.phase==='cladding-helix-forward';
-  const foreground=move.extruding?(move.filamentColor??(move.modulated?TOOLPATH_COLORS.lavender:axial?TOOLPATH_COLORS.teal:skin?TOOLPATH_COLORS.orange:move.phase==='prime'?'#5b92a3':TOOLPATH_COLORS.skyBlue)):'#657fa3';
-  const pale=move.extruding?(axial?mixColor(foreground,'#f3f1eb',.55):skin?'#d6a17c':move.phase==='prime'?'#5b92a3':'#b9d6ed'):'#aeb8c5';
+  const foreground=move.extruding&&move.filamentColor||phaseColour(palette,move);
+  const pale=mixColor(foreground,'#f3f1eb',.55);
   // Inset only the current layer's display strokes to reveal adjacent tracks.
   // This is a model-space gap, not a fixed-pixel minimum or a print change.
   const widthMm=active?Math.max(lineWidthMm-CURRENT_LAYER_GAP_MM,lineWidthMm/2):lineWidthMm;
@@ -76,7 +73,7 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves[i]);
+  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves.at(i));
   const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
     const first=i,key=keyAt(i);
@@ -108,13 +105,13 @@ export function remainingLayerMs(view,moveIndex,seconds,speed){
   let low=0,high=view.groups.length;
   while(low<high){const mid=(low+high)>>1;if(view.groups[mid].last<moveIndex)low=mid+1;else high=mid;}
   const next=view.groups[low+1];
-  return next?Math.max(0,(view.moves[next.first].startSeconds-seconds)/speed*1000):Infinity;
+  return next?Math.max(0,(view.moves.at(next.first).startSeconds-seconds)/speed*1000):Infinity;
 }
 // A "layer" for inspection is one group: a run of same-phase, same-layer
 // moves, the same unit the axial-color inspect buttons jump between.
 export function layerIndexAt(view,seconds){
   if(!view.groups.length)return 0;
-  const startOf=index=>view.moves[view.groups[index].first].startSeconds;
+  const startOf=index=>view.moves.at(view.groups[index].first).startSeconds;
   let low=0,high=view.groups.length;
   while(low<high){const mid=(low+high)>>1;if(startOf(mid)<=seconds)low=mid+1;else high=mid;}
   return Math.max(0,Math.min(low-1,view.groups.length-1));
@@ -127,9 +124,9 @@ export function layerIndexAt(view,seconds){
 export function layerEndSeconds(view,index){
   if(!view.groups.length)return 0;
   const clamped=Math.max(0,Math.min(index,view.groups.length-1));
-  const group=view.groups[clamped],move=view.moves[group.last],end=move.startSeconds+move.durationSeconds;
+  const group=view.groups[clamped],move=view.moves.at(group.last),end=move.startSeconds+move.durationSeconds;
   const next=view.groups[clamped+1];
-  return next?Math.min(end,view.moves[next.first].startSeconds-1e-6):end;
+  return next?Math.min(end,view.moves.at(next.first).startSeconds-1e-6):end;
 }
 export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
@@ -139,7 +136,7 @@ export function stepLayerIndex(view,seconds,direction){
 // details without guessing from the source mesh or altering playback/export.
 export function representativeLayer(view,{feature='contour'}={}){
   const groups=view.groups.filter(group=>{
-    for(let i=group.first;i<=group.last;i++)if(view.moves[i].extruding)return true;
+    for(let i=group.first;i<=group.last;i++)if(view.moves.at(i).extruding)return true;
     return false;
   });
   if(!groups.length)return null;
@@ -150,7 +147,7 @@ export function representativeLayer(view,{feature='contour'}={}){
       if(progress<.15||progress>.7)continue;
       let first=null,length=0;
       for(let i=group.first;i<=group.last;i++){
-        const move=view.moves[i];if(!move.extruding||!/infill/.test(move.operation??'')||/solid/.test(move.operation))continue;
+        const move=view.moves.at(i);if(!move.extruding||!/infill/.test(move.operation??'')||/solid/.test(move.operation))continue;
         first??=move;length+=Math.hypot(...move.to.map((v,k)=>v-move.from[k]));
       }
       if(first)candidates.push({move:first,length,index});
@@ -166,7 +163,7 @@ export function representativeLayer(view,{feature='contour'}={}){
     if(progress<.15||progress>.85)continue;
     let corners=0,walls=0,previous=null,first=null;
     for(let i=group.first;i<=group.last;i++){
-      const move=view.moves[i];
+      const move=view.moves.at(i);
       if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
       first??=move;walls++;
       if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
@@ -184,13 +181,13 @@ export function representativeLayer(view,{feature='contour'}={}){
   }
   const fallback=groups[Math.min(groups.length-1,Math.max(0,Math.round((groups.length-1)*.55)))];
   const chosen=best?.score>=20?candidates.filter(candidate=>candidate.score>=best.score*.65).at(-1):null;
-  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves[fallback.first+i]).find(m=>m.extruding);
+  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves.at(fallback.first+i)).find(m=>m.extruding);
   return move?{seconds:move.startSeconds,layer:move.layer,index:chosen?.index??view.groups.indexOf(fallback),groups:view.groups.length,feature:'contour'}:null;
 }
 function entries(view,group,reduced) {
   const memo=view.memo.group(group);
   if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
-    const i=group.first+j,m=view.moves[i];return {first:i,last:i,from:m.from,to:m.to,move:m};
+    const i=group.first+j,m=view.moves.at(i);return {first:i,last:i,from:m.from,to:m.to,move:m};
   });
   if(memo.reduced)return memo.reduced;
   const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
@@ -237,8 +234,8 @@ export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) 
   return view.memo.frame(key,()=>selectFrame(view,count,travel,pointCap));
 }
 export function toolpathPresentation(moves,at,detail) {
-  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves[at.completed].from}]:detail.segments;
-  const current=moves[at.active];
+  const displayed=detail.partial?[...detail.segments,{...detail.partial,to:moves.at(at.completed).from}]:detail.segments;
+  const current=at.active<0?undefined:moves.at(at.active);
   const currentLayer=current?.phase==='finish'?moves.findLast(move=>move.extruding):current;
   return {displayed,current,currentLayer};
 }

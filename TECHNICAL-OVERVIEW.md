@@ -147,13 +147,11 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t20 | `apply_text` | Edit outline-font geometry. |
 | t21 | `apply_heat_set` | Apply a manual-listed size/profile and reinforcement. |
 | t22 | `change_machine` | Change machine and check compatibility. |
-| t23 | `remember_setup` | Save setup defaults for later bundles. |
+| t23 | `set_deferred_setup_save` | Defer this bundle’s normal last-export setup save. |
 | t24 | `check_bundle` | Validate geometry, recipe and any stored program. |
 | t25 | `check_path` | Feasibility through the shared generator without saved production output. |
 | t26 | `generate_toolpath` | Generate/check the composed path and machine program. |
 | t27 | `request_review` | Show geometry or generated output in Studio. |
-| t28 | `get_approval_status` | Read exact settings/toolpath confirmation. |
-| t29 | `deliver_toolpath` | Deliver confirmed machine-specific program/package bytes. |
 | t30 | `begin_studio_work` | Claim edit/guidance scope. |
 | t31 | `respond_to_studio_request` | Publish result/progress/wait/completion/failure. |
 | t32 | `wait_for_studio_request` | Listen during an active agent session. |
@@ -164,7 +162,7 @@ Schemas describe routine fields; manuals describe judgment and limitations.
 | t37 | `get_tour` | Read tour progress/guidance. |
 | t38 | `set_tour_start_at` | Select the relevant playback start. |
 
-Web users select local files in Studio. No tool grants final confirmation,
+People select local files in Studio. No tool grants final confirmation,
 arbitrary filesystem/command access or hardware execution. There is no mandatory
 trace, inject or heat-set catalog tool. Specialized conveniences may be added for
 concrete authoring needs; examples remain explicit, never default geometry.

@@ -2,10 +2,28 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "generated-map",
+      "name": "influence-map",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "dev-map/view"],
-      "port": 8765
+      "runtimeArgs": ["-m", "http.server", "8767", "--directory", "dev-map/sets/030-influence/view"],
+      "port": 8767
+    },
+    {
+      "name": "influence-authoring",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["dev-map/cli.mjs", "--set", "030-influence", "serve", "--port", "8768"],
+      "port": 8768
+    },
+    {
+      "name": "architecture-map",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8766",
+        "--directory",
+        "dev-map/sets/030-architecture/view"
+      ],
+      "port": 8766
     }
   ]
 }

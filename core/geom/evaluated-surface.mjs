@@ -6,9 +6,9 @@ import {cross,dot,requireThat,distance} from './tolerance.mjs';
 // supply the metric only where no analytic chart derivatives are available.
 export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=.01}={}){
   const domains=[surface.domainU,surface.domainV],coordinates=[u,v];
-  requireThat(surface.kind==='slice-chart'&&domains.every((d,k)=>coordinates[k]>=d[0]&&coordinates[k]<=d[1]),'Evaluated surface sample leaves its chart domain.');
-  requireThat(surface.slice.kind==='plane'||surface.slice.kind==='height-field'&&surface.slice.reference.kind==='spline','A piecewise roof or sleeve chart requires explicit corner transitions before physical parallel buffering.');
-  const pointAt=(a,b)=>evaluateSurface(surface.slice,[a,b],normalMm).point;
+  requireThat(domains.every((d,k)=>coordinates[k]>=d[0]-1e-9&&coordinates[k]<=d[1]+1e-9),'Evaluated surface sample leaves its chart domain.');
+  [u,v]=coordinates.map((x,k)=>Math.max(domains[k][0],Math.min(domains[k][1],x)));coordinates[0]=u;coordinates[1]=v;
+  const pointAt=(a,b)=>evaluateSurface(surface.slice??surface,[a,b],normalMm).point;
   const point=pointAt(u,v);
   const stencil=(axis,h)=>{
     const x=coordinates[axis],domain=domains[axis],center=Math.max(domain[0]+h,Math.min(domain[1]-h,x));

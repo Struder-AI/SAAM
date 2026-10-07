@@ -19,6 +19,10 @@ import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 
 import {TOLERANCE} from '../geom/tolerance.mjs';
+import {patchOffset,projectedFillStrokes,patchPatternStrokes,sampledChartPatternStrokes} from './patch-strokes.mjs';
+import {offsetSurfaceRegion} from './surface-offset.mjs';
+import {metricFillStrokes} from './metric-fill.mjs';
+import {frontLayerStrokes} from './seeded-fronts.mjs';
 
 // region: owned loops in the chart. material: the part's sliced material on
 // the layer (the region itself by default). Every owner walls all its boundaries.
@@ -34,15 +38,19 @@ import {TOLERANCE} from '../geom/tolerance.mjs';
 // row starts where the last ended.
 export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern, fillAngleDeg, patternAngleDeg,
   solidDensity = 1, fillOverlap, spacingFactor, sampleStepMm, phaseMm = 0, wallToleranceMm = 0, solid = null,
-  material = region, outward = false }) {
+  material = region, outward = false, slice = null, loopBoundary=region, loopInsetMm=null, offsetOptions={}, fillOrder=null,
+  layer=null,direction=null,supportSegments=[],layoutReference=slice,fillState=null,fillDirection=null }) {
   requireThat(Number.isInteger(loops) && loops >= 0 && Number.isFinite(fillDensity) && fillDensity >= 0 && fillDensity <= 1,
     'A slice layer needs a whole loop count and a fill density from 0 to 1.');
   const pitch = lineSpacing(widthMm, { spacingFactor });
-  const boundary = outward ? material : region;
+  const offset=(loops,distance)=>!slice||slice.kind==='plane'||slice.kind==='height-field'?offsetRegion(loops,distance,offsetOptions):
+    slice.kind==='patch'?patchOffset(slice,loops,distance,{sampleStepMm}):offsetSurfaceRegion(slice,loops,distance,{maxStepMm:sampleStepMm}).loopsUv;
+  const boundary = outward ? material : loopBoundary;
   const walls = [];
   for (let ring = 0; ring < loops; ring++) {
-    const distance = widthMm / 2 + ring * pitch;
-    const found = outward ? offsetRegion(boundary, distance) : perimeterLoops(boundary, distance);
+    const distance = (loopInsetMm??widthMm/2) + ring * pitch;
+    const planar=!slice||['plane','height-field'].includes(slice.kind);
+    const found=outward?offset(boundary,distance):planar&&loopInsetMm===null?perimeterLoops(boundary,distance):offset(boundary,-distance);
     if (!found.length) break;
     // Simplify only the finished deposition contour to machine precision; the
     // offset region keeps owning material topology.
@@ -53,15 +61,30 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   // Fill reaches half a bead beyond the last loop, less the overlap welding
   // fill to walls. The region offset retains material topology at collapse.
   const inset = widthMm * (loops + 0.5 - fillOverlap) - widthMm / 2 + Math.max(0, loops - 1) * (pitch - widthMm);
-  const interior = outward ? [] : offsetRegion(boundary, loops > 0 ? -(widthMm / 2 + inset) : -widthMm / 2);
+  const interior = outward ? [] : ['surface-cells','fronts'].includes(fillOrder?.kind)&&loops===0?region:
+    offset(boundary,loops>0?-(loopInsetMm===null?widthMm/2+inset:loopInsetMm+(loops-1)*pitch+widthMm*(1-fillOverlap)):-widthMm/2);
   const dense = fillDensity >= 1;
   const solidRegion = dense ? interior : solid?.length ? intersect(interior, solid) : [];
   const sparseRegion = dense ? [] : solid ? difference(interior, solid) : interior;
-  const infill = fillPatternStrokes(sparseRegion, { pattern: fillPattern, widthMm, density: fillDensity, angleDeg: patternAngleDeg,
-    zMm: phaseMm, sampleStepMm, spacingFactor })
-    .map((stroke,lineIndex) => ({ ...stroke, role: 'infill',fillFamily:{spacingMm:pitch/fillDensity,lineIndex},points: stroke.closed ? [...stroke.points, stroke.points[0]] : stroke.points }));
-  const fill = directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
-  return { walls, infill, fill, interior, sparseRegion, solidRegion };
+  if(fillOrder?.kind==='fronts'){
+    const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm,supportSegments}));
+    return {walls,infill:[],fill:fronts.flatMap(front=>front.curves),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
+  }
+  const options={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
+  let constructionReport, nextFillState;
+  const pattern=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,sparseRegion,options):slice?.kind==='patch'?patchPatternStrokes(slice,sparseRegion,options):fillPatternStrokes(sparseRegion,{pattern:fillPattern,widthMm,density:fillDensity,angleDeg:patternAngleDeg,zMm:phaseMm,sampleStepMm,spacingFactor});
+  const infill=pattern.map((stroke,lineIndex)=>({...stroke,role:'infill',fillFamily:stroke.fillFamily??{spacingMm:pitch/fillDensity,lineIndex},points:stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points}));
+  let fill=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,solidRegion,{...options,fillDensity:solidDensity,fillPattern:'rectilinear',patternAngleDeg:fillAngleDeg}).map(stroke=>({...stroke,role:'fill'})):slice?.kind==='patch'?projectedFillStrokes(slice,solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg,sampleStepMm,direction}):directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
+  if(fillOrder?.kind==='surface-cells'){
+    const construct=(region,density)=>metricFillStrokes(slice,region,{widthMm,density,spacingFactor,sampleStepMm,
+      toleranceMm:fillOrder.toleranceMm,direction:fillDirection??fillOrder.directions[(layer?.index??0)%fillOrder.directions.length],
+      heightMm:layer.heightMm,speedMmS:layer.speedMmS,layoutChart:layoutReference,startU:fillState?.nextU??0,axialStart:fillState?.nextAxial??0});
+    const cells=[...(solidRegion.length?[construct(solidRegion,solidDensity)]:[]),...(sparseRegion.length?[construct(sparseRegion,fillDensity)]:[])];
+    const metric=cells.length?{...cells.at(-1),strokes:cells.flatMap(cell=>cell.strokes)}:{strokes:[],report:{points:0},nextU:fillState?.nextU??0,nextAxial:fillState?.nextAxial??0};
+    fill=metric.strokes;infill.length=0;constructionReport=metric.report;nextFillState={nextU:metric.nextU,nextAxial:metric.nextAxial};
+  }
+  return {walls,infill,fill,interior,sparseRegion,solidRegion,constructionReport,nextFillState};
+
 }
 
 export function directedFillStrokes(region,{spacingMm,angleDeg,reverseRows=false,role='fill'}) {

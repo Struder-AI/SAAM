@@ -1,699 +1,243 @@
 # SAAM Studio
 
-Launch and client access, instance ownership, review interaction and opening saved
-prints. Rendering and playback implementation live in [RENDERING](./RENDERING.md).
-The [shared lifecycle](../core/print/README.md) owns bundle validity and approval state;
-[MAKERS](../MAKERS.md) owns the interaction with the person making a part.
-
-[Machine presentation integration](./KINEMATICS.md) owns the shared provider
-contract. Toolpath preview shows available rails, links, carriages, bed and tool
-as a quiet machine ghost. **Machine view** fits the assembly and raises its
-visibility; switching back restores the part camera. Orbit, pan and zoom work in
-both modes. **Follow build plate** independently chooses the reference frame
-and is enabled for new views. The **Machine model** disclosure gives the model's
-basis and limits; missing installation data does not disable source playback.
-Playback and exported movies use the same source-time poses and rendering.
-
-In Machine view, **Tool position** sliders pause playback and pose the simulated
-machine using its supported position/orientation axes. **Return to playback**,
-Play or the timeline restores the source pose. The controls do not change the
-print or send hardware commands. Rails display fixed working carriage travel
-from the machine definition. Sliders prioritize the dragged coordinate, adjust
-the others to stay reachable, and stop at modeled boundaries. The assembly stays
-visible while solving; slider readouts show the accepted pose.
+The [SAAM application](../core/application/README.md) owns Studio windows, attached
+chats, jobs, prints and the release service. [MAKERS](../MAKERS.md) owns maker
+interaction; the [print lifecycle](../core/print/README.md) owns validity and
+confirmation. [RENDERING](RENDERING.md) owns display and playback;
+[KINEMATICS](KINEMATICS.md) owns machine presentation.
 
 ## Studio agent permissions
 
-The checkout includes [Codex rules](../.codex/rules/studio.rules) and
-[Claude Code settings](../.claude/settings.json) for the same direct launcher:
+Use `saam open`, `saam start-tour` and `saam call OP`; a checkout uses
+`node scripts/saam.mjs` with the same arguments. The [installation guide](../packaging/INSTALL.md)
+owns PATH, client discovery and scoped command allowances. Preserve unrelated
+client settings and use its trust/permission flow when required. Browser site
+permissions are independent; open the returned loopback URL in the client's
+browser and retain that tab while the person reviews.
 
-```sh
-node studio/server.mjs Prints/my-part
-```
+Closing tabs, ending a command, a chat pause and elapsed idle time do not shut down
+SAAM or fail work. Quit or Update ends the application. Keep the print, Studio
+instance and chat identity together; a chat may own several windows, each window
+has at most one attached chat. Mention SAAM in your chat client; name the bundle
+when attaching or using `capture_bundle`. Never borrow another chat's ID.
 
-The same launcher also accepts `--toolkit start-tour`, `--toolkit open-print
-Prints/my-part`, and `--toolkit create-preview Prints/my-part --recipe plan.json`.
-These [bundled commands](../core/agent/README.md) emit a JSON `studio-ready` event
-before their remaining context/result and retain the managed server session.
-Use `--no-open` when the client opens the returned URL through its browser
-integration. The original direct launch syntax remains supported.
+State responses identify their server instance. A restarted page reloads for new
+credentials; old credentials cannot acknowledge a result. Restart source runs
+after changing imported code so servers and workers use the same snapshot. A code
+change alone does not make unchanged checked bytes stale.
 
-Run from the repository root, quote a print path containing spaces, and keep
-`node studio/server.mjs` literal. The bare command starts a new
-[guided tour](../examples/prints/README.md) with one saved fin-block copy.
-The header's **Tour** button starts a fresh tour when none is active and toggles
-guidance during one. Reopening the saved copy after a browser or Studio restart
-resumes its lesson with new request authority. Exit keeps the copy as an ordinary
-print; a new tour creates a new copy.
-Use the client's managed terminal/background session so it can
-retain the process handle. The human-facing `npm run studio` alias still works,
-but the shared permission targets the direct command. Shell wrappers, different
-script spellings, inline Node code and custom development launchers are outside
-this rule. Do not replace it with a blanket Node, PowerShell, process-kill or
-all-command allowance.
-
-First-use setup is part of the agent's work; the user need not ask for it:
-
-1. **Codex:** have the person trust this checkout through Codex's project trust
-   flow. The [project config](../.codex/config.toml) carries no general permission
-   overrides. Trusted project rules load at startup, so restart Codex after
-   adding or updating them. If a running session has not loaded the rule and a
-   launch needs escalation, request the specific launcher permission through
-   the client, offering the `node studio/server.mjs` prefix when supported.
-   Do not silently install a global rule. See
-   [Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules).
-2. **Claude Code:** have the person accept the workspace trust prompt. Shared
-   `permissions.allow` entries cover the direct launcher in Bash and PowerShell;
-   `sandbox.excludedCommands` runs that Bash launcher outside the sandbox so
-   local listening does not need a separate sandbox exception each time.
-   Restart the client after updating this setup. Use `/permissions` to inspect
-   the loaded rules if a prompt persists. Personal overrides belong in ignored
-   `.claude/settings.local.json`. See
-   [Claude Code settings](https://code.claude.com/docs/en/settings),
-   [permission rules](https://code.claude.com/docs/en/permissions), and
-   [sandboxing](https://code.claude.com/docs/en/sandboxing).
-3. **Browser:** open the printed `http://127.0.0.1:<port>` URL using the client's
-   browser integration. Use its site permission flow if needed; keep any request
-   scoped to Studio. Codex manages allowed sites in Settings > Browser; see
-   [browser permissions](https://learn.chatgpt.com/docs/browser). Claude browser
-   integrations have their own setup and permissions. These command rules do
-   not preauthorize browser tools. Persistence across Studio's different ports
-   is client-dependent and has not been verified; do not promise exactly one
-   prompt. Claude Desktop/web MCP connections also retain their separate
-   [connection setup](../adapters/mcp/README.md); Claude Code settings do not configure them.
-
-During work, inspect geometry, source and playback and use camera/view controls
-without another conversational permission question. Keep each instance's print,
-URL and terminal handle together. To finish or restart it, close that instance's
-viewer tabs; after 30 minutes without a viewer its server exits. To stop it
-immediately, stop only its recorded terminal task or send Ctrl+C through that
-session. For a server
-with no viewer connection yet, or a stuck server, stop only its recorded terminal task
-or send Ctrl+C through that session. A client's stop-tool permission can still
-apply. Do not scan for and kill all Node processes. Leave a viewer open while
-the person is expected to review it. Existing manufacturing approvals still
-belong to the person.
-
-For Codex download testing, return browser control to the person before their
-download click. Ordinary clicks during agent control can be canceled by the
-desktop host. Agents should use the browser tool's supported download action;
-if the host reports a policy block, preserve it and let the person try with
-control returned. A completed HTTP response does not establish a saved file.
-Check browser completion or the saved bytes before reporting delivery success;
-see the [observed download behavior](../DEVLOG.md#2026-09-15--browser-control-and-download-completion).
-
-These allowances trust the launcher and its imported repository code; they are
-command matches, not an OS boundary restricting the process to previews or the
-print argument to `Prints/`. They do not pin a code hash or a working directory.
-Keep the rules in the trusted project and use the repository root as instructed.
-More restrictive client or administrator policies can still block or prompt.
-No global approval mode or full-access setting is changed.
-
-State responses carry a server instance identity. When a server is
-restarted, the browser reloads to obtain its new session token and reconnect its
-viewer before posting acknowledgements. Old credentials remain invalid. Update
-errors retain their concrete reason instead of an indefinite generic reconnect
-message. Saved tour progress and print edits survive the reload.
-
-To check Codex matching without launching Studio:
-
-```sh
-codex execpolicy check --rules .codex/rules/studio.rules -- node studio/server.mjs Prints/my-part
-codex execpolicy check --rules .codex/rules/studio.rules -- node --eval 1
-```
-
-The first must report an allow match; the second must have no matching rule.
-The rule file also includes positive and negative examples validated on load.
+For downloads, distinguish an HTTP response from a saved file. Use the browser's
+supported download action, or return browser control for the person's click;
+verify completion or saved bytes before reporting delivery.
 
 ## Studio feature references
 
-Implement the [maker interaction flow](../MAKERS.md#maker-interaction-flow): geometry
-review and its revision loop, then combined settings/toolpath review followed by
-confirm and export. There is no separate settings pane or settings confirmation.
-The toolpath pane shows printer/material choices and the expandable full settings. Keep the interface concise and
-accessible. Use chat for all recipe adjustments; expose camera, playback speed,
-scrubbing and travel visibility as viewer controls. Layer height means deposited
-layer thickness, not a separate height setting.
+Geometry review, settings/toolpath review and confirm/export follow the
+[maker flow](../MAKERS.md#maker-interaction-flow). Recipe adjustments happen in
+chat. Camera, scrubbing, playback speed and travel visibility are viewer controls.
+The toolpath pane presents printer/material choices and expandable settings;
+there is no separate settings confirmation.
 
-The agent applies patches with the `adjust` command of
-`core/print/cli.mjs`. Studio's viewer stream carries ordered state and progress
-updates. State updates coalesce into one conditional `/api/state` read; progress
-updates change the current job controls directly and do not fetch full state.
-Progress is accepted only for the current Studio instance, print and generation.
-The client also conditionally reads state when the stream pushes a print or tour
-change, or a request change during an active tour (request activity gates the
-tour's Next). An unchanged fingerprint and tour view
-returns no state body; a change returns the current checked state in that same
-request. Each state request uses one coherent bundle snapshot for conditional
-identity and, on a miss, its response. The tag also covers request, import-repair,
-tour, generation-failure and cancellation metadata returned with that snapshot.
-Machine-source requests use one source-bearing snapshot for identity validation
-and streaming. Studio keeps the view when nothing changes and returns to the affected
-approval step after edits. While the stream is open there is no state or progress
-poll. A viewer-stream error starts fallback polling; reconnection recovers current
-job progress and state, while the page becoming visible checks for missed state
-changes. The fallback state heartbeat is 15 seconds. Page disposal cancels
-queued refresh work as well as polling and the stream.
-Geometry and settings edits invalidate the single settings/toolpath confirmation.
-A server running old imported
-code must be restarted after runtime changes. Each agent owns its Studio instances;
-do not adopt another agent's viewer or terminate another agent's process. Independent
-CLI launches and separate local MCP adapter processes use separate free loopback
-ports. Identify the current work's print and URL before restarting its viewer.
-Check the loaded geometry and export afterward.
+The viewer stream sends ordered changes and progress. State changes coalesce
+into one conditional `/api/state` read of a coherent bundle snapshot; worker
+progress updates current controls directly. A matching state tag returns no
+body. Tags include request, tour, import-repair, generation failure and
+cancellation metadata. While connected there is no state/progress poll. Stream
+failure enables fallback polling (state every 15 seconds); reconnect and page
+visibility recover missed state. Disposal cancels queued refreshes and listeners.
+Progress must match the current instance, print and generation.
 
-After changing SAAM's own code, restart the owning Studio server so the server
-and its preparation workers run the same code. A confirmation is bound to the
-plan and the exact exported bytes, not to the code that produced them, so a code
-change alone does not ask the person to review an unchanged file again.
-Do not rewrite approval hashes.
-
-Studio tracks open pages through authenticated persistent viewer connections,
-independent of revision polling and background-tab timer throttling. There is no
-deadline to open the first viewer, for either CLI or MCP launches. Once opened,
-Studio closes 30 minutes after its last viewer disconnects, allowing task switches,
-browser suspension and refreshes to reconnect. Each reconnection cancels the
-pending shutdown; the next final disconnect starts a fresh 30-minute grace period.
-Connected viewers have no idle deadline. Accepted writes finish before shutdown; saved bundles reopen in a fresh instance.
-The CLI process exits when its work drains. In MCP, only that Studio listener and
-session are released; the adapter and its other viewers stay available. Repeated
-review requests within the same adapter can use that print's still-open session.
-Independent agents own separate Studio instances. A bundle opens in one instance at a time;
-switching prints or closing Studio releases it. See [Bundle ownership](../core/print/README.md#bundle-ownership).
+Machine view fits the available rails, links, carriages, bed and tool; returning
+to part view restores its camera. Follow build plate selects the reference frame.
+Tool position sliders pause playback and pose supported axes within modeled
+reach. Play, the timeline or Return to playback restores source motion. These
+controls do not change the print or command hardware. Machine model describes
+basis and limits; missing model data does not suppress source playback.
 
 ### Historical toolpath inspection
 
-A local development launcher may explicitly supply a scratch adapter resolver to
-[`server.mjs`](server.mjs); that is the scratch-launcher route for inspecting a
-historical toolpath. It is a development affordance, not a product command.
+A developer may explicitly supply a scratch adapter resolver to
+[server.mjs](server.mjs) for a historical toolpath. It is a source inspection
+affordance, not a separate maker launcher.
 
 ### Remembered printer setup
 
-The [shared print-tool manual](../core/print/USAGE.md#remember-machine-setup) owns
-setup persistence and reuse; [machine contracts](../core/export/README.md) own
-installation requirements. Studio displays the proposed setup with its assumption
-and verification metadata in the toolpath pane. Apply the
-[standard parameter policy](../MAKERS.md#standard-parameter-policy) when proposing
-the printer and material before entering this view. They remain editable through
-chat; changes invalidate the combined confirmation.
+[Shared print tools](../core/print/USAGE.md#remember-machine-setup) own persistence;
+[machine contracts](../core/export/README.md) own installation requirements.
+Studio displays setup assumptions and verification metadata. Use the
+[parameter policy](../MAKERS.md#standard-parameter-policy); changes invalidate the
+combined settings/toolpath confirmation.
 
 ### Geometry and program views
 
-Every displayed toolpath uses the shared [short-travel advisory](../core/export/README.md#short-travel-advisory).
-When a matching toolpath view is acknowledged, findings create one `advisory`
-notification per print/export through the agent request listener. It preserves
-the export identity, recipe skills and diagnostic evidence for later generator
-improvement. Advisories do not show busy dots, time out into UI errors, overlap
-edit work or block review/export. Agents tell the person about the finding in
-their next reply and acknowledge receipt without repairing the path. Reopening the same export does not resend an acknowledged advisory.
+Selection identifies the current geometry revision and native object or mesh
+face. Edge names describe adjacent surfaces/components and connected edges;
+geometry changes clear these display identities. Generic geometry editing is
+deferred.
 
-The viewer provides click-to-select faces and matching feature buttons.
-Features identify the geometry version and native object UUID or mesh face identity. Geometry edits
-recreate those identifiers and invalidate both confirmations.
-Click near a visible crease or boundary to select its edge and see its name.
-Surface interiors still select surfaces. Edge names combine adjacent surface or
-component names with a number for that connected edge; names belong to the current
-geometry revision, and geometry changes clear an edge selection. These are display
-identifiers, not additional CAD topology or editing commands. Generic object
-selection and freeform geometry editing remain deferred.
+A matching toolpath view queues one [short-travel advisory](../core/export/README.md#short-travel-advisory)
+per export. Acknowledge it and describe the findings; it neither blocks review
+nor requests repair. Reopening an acknowledged export does not resend it.
 
-For toolpath review, the interpreter must support the selected export language
-and required machine state. Unsupported commands, missing helper files, or
-incompatible setup must be resolved before production review. The S5 subset
-interpreter checks the actual export and rejects unsupported commands. Griffin
-firmware startup is external and its internal motions are not simulated. The S5
-export does not issue G280 or run a bed-leveling routine. An unknown installed firmware version does not block review;
-the standard profile assumption is shown with the settings. Development preview
-creates no approvals and cannot authorize delivery.
-A path display alone cannot establish arbitrary machine-program behavior.
+The toolpath view draws the completed output's prepared path; the adapter's stored
+report supplies notice, estimates and limitations, and its settings rows follow the
+common settings. Development preview supplies no confirmation or authority to deliver.
 
 ## Opening local prints in Studio
 
-**Open** lists saved bundles below `Prints/` (up to three directory levels).
-It also accepts a local bundle folder, `plan.json`, or an export/delivery file
-inside the bundle. It opens the owning bundle through the same adapter and
-integrity checks; standalone machine-program import is not implemented.
-Selecting another bundle updates this Studio server's active print, including
-other tabs attached to that server. The client sends the current print identity
-with mutations, so an old tab cannot approve, generate or deliver the new print.
+Open lists the SAAM home's saved bundles (three directory levels), or accepts a
+bundle folder, `plan.json` or a file inside it. Standalone machine-program import
+is not implemented. One Studio owns each open bundle. Changing the selected
+bundle changes all tabs of that Studio; mutation requests carry print identity
+so an old tab cannot export a newly selected print.
 
-Opening does not regenerate current stored files. The tour begins with geometry
-only, then generates a checked toolpath when its playback lesson opens. Import
-STL is available after completion or exit.
-An ordinary bundle with a current saved SAAMpath and no checked machine program
-opens that neutral path in the line viewer. It is labeled as a saved SAAMpath;
-Export remains unavailable until a machine file is generated and checked.
-Reopening the same selected print retains its matching preparation candidate.
-The first continuation after a completed preparation diagnostic reports it without
-repeating it; an explicit retry can start preparation again. Crashed workers
-restart on an explicit generation request.
-Preparation workers are currently per Studio server, with no priority coordinator
-across Studio, CLI and MCP processes; starting earlier or preparing alternative
-choices would need that coordination to avoid competing with foreground work.
-During toolpath lessons, saved edits trigger generation after active work
-publishes its saved input target. Ordinary state reads never start speculative
-slicing. A failed generation stays actionable until inputs change or an explicit
-retry succeeds. Geometry review remains available without pausing the lesson or
-creating an approval. **Continue with this part** selects the displayed print for
-the next lesson. While replacement output is prepared, the previous toolpath stays
-visible at reduced opacity and cannot be approved or exported as current. Whenever
-the toolpath pane has no current program and no retained previous one — first
-generation, a reload mid-calculation, a tour lesson that starts its own generation,
-or a failed generation — it draws the part being sliced at that same reduced
-opacity instead of an empty viewport. The toolpath view still shows no part geometry
-once a program is drawn.
-A toolpath lesson shows preparation status while no current program is available. Generation failures remain visible after
-the saved lesson is refreshed. Playback seeking waits until the program loads.
-Outside the tour, a fresh print without a current export still opens in geometry
-review and offers generation directly. The geometry action is a plain **Next** —
-it advances to the toolpath, starting a calculation only when no current program
-exists; the geometry approval gate has been removed, so it neither confirms nor
-blocks. While a toolpath is still calculating, both stage tabs stay live: the
-geometry pane remains reachable (and crisp), the toolpath pane remains reachable
-whenever its faded preview can render, and **Next** returns to that faded pane
-without starting or cancelling the pending calculation. The tour keeps its own
-lesson navigation. A current export opens directly in the toolpath viewer.
-Export confirms the displayed result, including a checked development result.
-Queued edits and stale previews disable the button. Failed opening retains the previous print.
+Opening checks saved artifacts without regenerating current files. A current
+saved SAAMpath with no checked machine program is labeled as neutral source and
+cannot export. A tour starts with geometry and generates when its toolpath
+lesson opens. Outside tours, a fresh bundle starts in geometry view.
 
-An accessible viewport overlay with a spinner covers initial loading, reopening, changed
-bundle validation, toolpath/export generation and delivery. It remains visible
-through checks and playback loading, disables duplicate actions, and clears on
-success or error. Generation prepares and checks the toolpath. The final button confirms
-settings and toolpath together and downloads the checked file. After a successful download, that exact print/export shows "Export again" for the current page session, including after switching away and reopening it. Animation respects reduced-motion preferences. It represents
-stage progress where counts are available (layers, composed operations and
-material instances), and indeterminate work otherwise. Both the overlay and the
-displayed-view acknowledgement give the compositor two frames to show what was
-rendered, then continue on a short deadline: a hidden or unpainted tab runs no
-frame callback, and loading must not depend on one. Percentages describe the
-named stage, not estimated elapsed time or hardware status. The read-only
-`GET /api/preparation` endpoint stays responsive outside the mutation queue and
-binds progress to the current print and plan.
+An obsolete calculation is cancelled when its inputs change. While replacing a
+toolpath, the previous source remains faded; when none exists, faded part
+geometry occupies the pane. Failed generation remains actionable until inputs
+change or an explicit retry succeeds. Ordinary reads never start slicing.
+
+Tour Next unlocks from exact displayed result evidence: changed geometry, Play,
+and the participant-requested printing change at their respective lessons.
+Automatic generation and earlier lesson work cannot satisfy an edit gate.
+Settings/toolpath lessons accept requested geometry edits as well as process
+edits once the current result is rendered. Another unfinished edit can hold Next.
+Exit retains the print; a fresh tour creates a fresh copy. Resuming saved lessons
+uses current request authority. [Tour participation](../examples/prints/README.md#maker-agent-participation)
+owns when the maker offers guidance.
 
 ## Agent request coordination
 
-The live request store belongs to one agent and may serve several explicitly
-identified Studio instances. A Studio instance has exactly one agent owner and
-cannot be adopted by another agent; each bundle opens in one Studio instance
-at a time. Only the owning agent's store
-hears its Studio instances: a listener without an owner ID never receives or
-claims Studio-bound requests live, and reads them only as explicit diagnostic
-history. The [Studio event queue](#studio-event-queue) carries the rest of what
-happens in an owned instance to the same agent. Studio selects its open print;
-the agent's request stream covers its owned instances. Operational waits are an
-event-driven recovery interface and return unfinished work plus the latest edit
-outcome, including completed results awaiting display. Use `list()` / MCP
-`get_studio_requests` with `history: true` for complete diagnostic history. Run
-one handling agent per request: cross-process claims and read/modify/write
-operations are not transactional.
+One app journals chat requests under the SAAM home's `state/`. The first
+result-changing operation establishes work for its bundle and owner. Each saved,
+renderable revision reaches Studio immediately; neither checks nor further edits
+require withholding it. Working dots and the affected view's 28% fade persist
+through the agent's uninterrupted editing sequence, including between commands.
 
-MCP print tools accept `requestIds` for the specific owned requests they handle.
-Actual tool entry/exit renews those working requests' contact leases. The CLI
-equivalent is `record-request-activity ID` through the agent toolkit; use it only
-when performing that request's work, never from a timer or idle listener. Activity
-does not claim, resume, complete or replace a result target. A long tool without
-further observable activity can still lose contact. Studio worker progress is a
-separate signal about calculation, not evidence that the agent is reasoning.
+Hand-back means ready for inspection or discussion. It captures
+the operation already underway and binds its resulting saved revision after it
+settles. Studio undims when that revision is displayed; a failure shows the last
+usable result with the error. Future work has a new identity, so delayed replies
+and display acknowledgements cannot end it. Guidance and other bundles stay quiet.
+No activity lease, timer or chat disconnection invents completion.
 
-Studio exposes **Cancel calculation** while its toolpath worker is calculating.
-Cancellation bypasses the normal mutation queue and stops the worker before
-saving. Once saving has started, the checked file and review writes finish.
-Cancellation creates no repair request and suppresses automatic retries for those
-inputs; explicit Generate retries. Changes to the calculation's inputs observed
-from another writer cancel obsolete calculation. View changes alone do not do so.
-This control covers Studio workers; direct CLI/MCP generation and custom adapters
-do not yet share a cross-process cancellation owner.
-
-Ordinary Studio and the tour use `POST /api/export` to capture the displayed result.
-Delivery writes those bytes without rechecking revisions, the manifest or pending
-work. No approval record, promotion, generation or interpretation runs at Export.
-Download links retain those bytes for retries, even after a later export.
-
-Reopening checks saved artifacts. Metadata updates preserve unchanged geometry
-and motion; input/export changes reload the presentation. The pending-work
-projection drives both waiting indicators and Export availability.
-Studio chooses the tour's first deposited layer. An explicit `set_tour_start_at`
-override needs the current `runId` and `lessonId`; ended lessons reject it.
-
-The three animated dots immediately right of the logo and the dimmed viewport
-are **Updating preview**, throughout ordinary Studio and the tour. They represent
-active edits to the displayed part and loading the requested preview. They are
-not a signal that the model is thinking or that a file is being exported. Chat
-guidance, advisories, queued requests and requests marked `waiting` do not
-animate. Downloads use their own progress overlay. The viewport fades to 28% opacity from the same
-activity state, but only for the pane the active work regenerates: a
-toolpath-only calculation dims the toolpath pane and leaves the geometry pane
-crisp, while a geometry edit or a full reload dims whichever pane is shown. Both clear immediately when the requested result is displayed
-and ready to use; an agent's later acknowledgement does not extend them. There
-is no working-status caption. Expiration instead displays
-italic *(lost contact)*: the lease expired, which does not prove the host stopped
-reasoning. An observed MCP transport closure displays italic
-*(connection closed)*. A new active request restores dots, and a later completion
-clears the prior notice. Other active requests take precedence over notices. Requests persist under the print
-library’s hidden .studio-requests directory as a restart/recovery journal and have
-independent IDs, Studio instance IDs, print IDs, instructions and status. A response resolves only its matching request; a
-ten-minute lease bounds abandoned work. The owning process publishes request
-changes directly to the agent and its Studio instances; filesystem events reconcile
-independent writers and browser state polling remains reconnect fallback. The geometry lesson unlocks
-as soon as the exact edited geometry is displayed, without waiting for a chat
-acknowledgement. The toolpath-edit lesson teaches how the confirmed shape is built
-and suggests only contextual toolpath or process changes with their practical
-effects. It still accepts any participant-requested change, including independently
-requested geometry, once its confirmed current toolpath is rendered;
-another actively unfinished request can still hold Next. Claiming renews that lease. MCP requests
-carry their connection's ownership; that connection's close handler fails only
-its unfinished work. Studio-originated requests inherit ownership when Studio
-is MCP-owned, or when a connected agent claims them. Before shutting down its
-Studio servers the adapter pushes the close event to open viewers. Independently
-launched Studio sees persisted failures by polling. An ended chat turn is not
-always a transport close, and a killed process may provide no callback. Browser
-timeout rendering continues from cached request expiry even if polling fails.
-
-The tour blinks the current control, including with reduced-motion settings. Next unlocks after the
-geometry edit appears, after Play starts, and after the requested printing change
-appears. Active work holds Next. Playback remains free to pause and scrub.
-Generation switches to the rendered replacement only after its checked source is
-loaded; the previous toolpath remains faded while work is active, and the part
-geometry stands in for it at the same opacity when none is retained.
-
-The maker agent calls MCP begin_studio_work as early as practical for an edit; a
-chat acknowledgement may come first. The claim it records is what later mutations
-and result reports check. It may omit printId for the
-active tour or sole open Studio; with several instances it supplies the returned
-`studioInstanceId`. CLI preview/tour agents receive `studio-request` events on the
-managed command stream and send begin/respond/activity control messages back on
-that stream. Separate CLI commands and bounded waits remain recovery options.
-Studio-created guidance requests stay visually quiet, including when claimed. The agent claims
-the request, sends guidance in chat or generates the requested change, then calls
-respond_to_studio_request. While guiding a tour, keep the live managed session
-active; MCP agents may use `wait_for_studio_request` as a bounded event-driven
-wait (at most 25 seconds). Neither path can wake an ended or disconnected host chat.
-
-Local equivalents, from the repository root:
-
-```sh
-node studio/agent-requests.mjs begin Prints tour/handle "Change the infill"
-node studio/agent-requests.mjs wait Prints --claim
-node studio/agent-requests.mjs claim Prints REQUEST_ID
-node studio/agent-requests.mjs target Prints REQUEST_ID toolpath
-node studio/agent-requests.mjs respond Prints REQUEST_ID waiting "Waiting for your choice"
-node studio/agent-requests.mjs respond Prints REQUEST_ID completed "Updated toolpath generated"
-```
-
-`wait --claim` returns requests already marked working, saving a separate claim
-round trip. Use `claim` only for requests received without that flag.
-
-After saving an edit and before generating, bind its request to those inputs with
-`target` (`geometry` or `toolpath`). MCP uses `respond_to_studio_request` with
-`status: "working"` and `resultStage`. Beginning work records the starting inputs;
-every new edit requires an explicit target so an intermediate save cannot clear a
-request. Bind every included request when combining changes into one result.
-An intermediate result remains playable while another request keeps the dots
-and fade active. Pausing that remaining work with `waiting` restores normal
-visibility and preserves its request. Claim it again when work resumes.
-Intermediate presentation is optional: the agent may proceed directly to the
-latest combined result. Failed, interrupted or superseded work can be failed,
-paused or cancelled without displaying its target; only actual dependencies
-require finishing an earlier result before continuing.
-Use `kind: "guidance"` (CLI `begin-guidance`/`begin-active-guidance`) for advice;
-finish it after delivering the answer. Advice never dims the preview or blocks a
-completed lesson. Pausing and claiming the same request preserves its original
-baseline, target and presentation record; publish another target if inputs change.
-
-Tour metadata updates preserve source playback. Only changed bundle content or
-a changed geometry/program data requirement triggers a full preview refresh.
-Live request events and recovery waits coordinate agents; they do not constitute preview work.
-Presentation is recorded separately from request completion, against the exact
-displayed inputs and required stage. This survives viewer reconnects without
-reviving dots for an already delivered result. An early agent completion retains
-activity until its changed result arrives. Failed loading stops activity and
-retains the error; claiming recovery starts work again. Work on another print
-does not fade this viewport. The matching state and result snapshots contain no
-manufacturing approvals.
-
-An explicit generation failure queues an agent request with the exact error and
-print identity. Identical failures for the same plan share one request. The agent
-claims it, fixes the cause within the maker's scope, regenerates and checks the
-visible result before resolving it. Generation errors remain available in the
-current state until inputs change or generation succeeds; speculative preparation
-alone does not alert the maker agent.
-
-GET /api/agent-requests remains responsive during generation. Tour events queue
-contextual printing guidance and one
-completion message. Completion records whether the checked file downloaded or
-the participant finished by viewing. The client updates completion directly
-without reloading the full source and material scene. POST /api/view-ready acknowledges the exact rendered revision
-and export; saving or generating alone does not unlock edit lessons. The settings
-lesson opens on a participant-requested agent edit whose result is the displayed
-current toolpath; automatic Studio work and requests recorded before the lesson
-do not count. It reads the print's whole request history rather than the current
-owner's share, so relaunching Studio mid-lesson cannot lock it.
-
-Request begin/respond/wait calls run independently of MCP’s print-work queue.
-New queued requests publish immediately to the owning toolkit stream, emit MCP logging notifications and appear in subsequent
-ordinary object-valued tool responses as studioRequests. The pending-request
-list and wait endpoint remain durable recovery interfaces; client handling of
-notifications does not guarantee that an ended host turn will wake. For CLI
-previews and tours, the agent keeps reading the original managed session for
-`studio-request` and correlated `agent-response` events. [Maker guidance](../MAKERS.md) specifies acknowledgement-before-wait
-ordering and the active listener loop.
+Inspection and tour receipts are separate: inspecting a previous eligible
+toolpath can finish hand-back without satisfying a lesson requiring new output.
+The viewer reports actual rendering; the agent never manufactures that receipt.
 
 ### Carrying a maker request
 
-For an edit to an existing Studio print, begin work (`begin_studio_work`, or
-`begin-studio-work` in the toolkit) before you change geometry or recipe or
-report a result; you can acknowledge the person first. MCP may omit `printId`
-for the active tour or sole open Studio. Add `--include-geometry` when the edit
-needs the complete recipe. Use the returned print ID, recipe and revision rather
-than another read or an earlier chat reference; its `programChecked: false` is
-not a failed check.
-
-Carry one request through its work, result and response:
+Carry the expected Studio/bundle association and originating `requestIds` on
+the first needed operation ([target validation](../core/application/README.md#client-queue-monitoring)). The operation returns
+`workRequest`; retain its identity for hand-back. `begin_studio_work` remains
+available to explicit callers but is not a prerequisite. Carry current edit
+identity with edits; an unchecked program summary is not a failed check.
 
 | Situation | Action |
 |---|---|
-| Inputs still being edited | Keep it working; combine related changes before publishing a result. |
-| Saved inputs ready to show | Bind it (and every request in a combined result) with `status: working` and `resultStage: geometry` or `toolpath`. This signals readiness, not approval. |
-| Only geometry or proposed settings need review | Target geometry; don't slice just to finish. Complete after acknowledging the displayed change. |
-| The result needs a toolpath | Target toolpath and generate once (in a tour toolpath lesson Studio generates). Verify the current result is displayed. |
-| A choice or confirmation is needed first | Say what is ready and what you need, then mark it `waiting`. Resume the same ID later. |
-| A question without an edit | Answer in chat; claim and complete a Studio-issued guidance request. |
-| Work finishes, fails or is superseded | Give the concrete outcome in chat, then resolve the ID as completed, failed or cancelled. Leave nothing working. |
+| Editing/checking/revising | Save usable revisions and continue; no intermediate completion or permission question. |
+| Finished | `respond_to_studio_request` with `requestId: workRequest.id` and `status: completed`. |
+| Discussion needed or user interjects | Hand back with `status: waiting`; handle the message before further autonomous edits. |
+| Failed or cancelled | Hand back with that status and explain the outcome. |
+| Geometry-only work | No generation solely to finish or undim. |
+| Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
-Send an acknowledgement or guidance before any listener wait. Renew a working
-request with `record-request-activity` during long work; waiting for the person
-is `waiting`, not repeated claims.
+Hand-back needs no `resultStage` unless a particular view is required. Studio
+requests initiate it directly. Client hooks (`saam client-event`) hand the chat's
+active work back as `waiting` when its turn ends, the person writes or interrupts,
+or the chat closes; the agent still hands back on an interjection.
 
-Studio reports what the person does in your instances through the
-[Studio event queue](#studio-event-queue): on MCP tool results,
-listener waits and notifications, or as `studio-events` lines from a live
-toolkit session. Read it any time with `get_studio_events` or
-`read-studio-events`; during a calculation that also reports progress. Act on
-the latest state, not on each event in turn. A failed generation arrives as a
-request with the exact error: claim it, fix the cause from the recipe and skill
-limits (`inspect-generation-failure`), regenerate and check the visible result.
-Don't retry the same inputs; ask when the fix needs the person's choice.
+Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
+after acknowledging completed work; quiet expiry preserves attachment and work.
+A generation failure supplies exact error/input evidence; claim it, fix the cause
+within maker scope and show the corrected result. Do not retry unchanged inputs
+without addressing the failure.
 
 ## Studio event queue
 
-Studio writes what the person does, and what its workers produce, to one
-**Studio event queue** owned by the agent and shared by that agent's Studio
-instances. Each event carries a sequence number, time, kind, delivery class,
-Studio instance, print and directory. **Held** events wait in the queue until
-the agent reads it. **Delivered** events push to the agent at once and carry
-every held event with them. Pushes never drain the queue; reads do, so a push
-the client never surfaced is still received on the next read. Events are
-ordered observations, not simultaneous state: the latest event describes the
-current situation. The queue lives in the owning session's process and is not
-persisted; sequence numbers identify repeats.
+Each chat owns an ordered event queue shared by its Studio windows. Events carry
+sequence, time, kind, delivery class, instance and print. Held events wait for a
+read; delivered events wake waits and include the held remainder. Reading drains
+the queue; notifications alone do not. `get_studio_events`, operation responses
+and `saam wait` carry observations plus live job progress. Act on the latest
+state and use sequence numbers to recognize repeats.
 
-| Delivered (pushes now, with the held remainder) | Held (waits for a read) |
+| Delivered | Held |
 |---|---|
-| `tour-started`, `tour-lesson`, `tour-exited`, `tour-finished`: lesson navigation, with the lesson and its agent instruction | `viewer-opened`, `viewer-closed`: browser viewer count |
-| `request-queued`: Studio asked for agent work (Ask agent, tour guidance, generation failure, advisory) | `view-presented`: a geometry or toolpath view was displayed, with revision and export hash |
-| `request-presented`: the agent's bound result is now displayed | `generation-started`, `generation-finished`: toolpath calculation start and finish, with trigger and duration |
-| `generation-failed`, `generation-cancelled`: the calculation failed (with its recovery request) or was cancelled by the person or by changed inputs | `approved`: the final settings/toolpath confirmation |
-| `import-completed`, `import-failed`, `import-repair-started`, `import-cancelled`: imports | `import-started` |
-| `print-opened`: the person opened another saved print | `tour-playback`: play or pause in the playback lesson |
-| `export-delivered`: the person exported the reviewed file, in the tour or ordinary review | `example-adopted`, `plan-updated` |
+| Tour start/lesson/exit/finish; request queued/presented | Viewer opened/closed; exact view presented |
+| Generation failed/cancelled; import completed/failed/repair-started/cancelled | Generation started/finished; import started |
+| Print opened; export delivered | Confirmation; tour playback; example adoption; plan update |
 
-Not recorded: camera, view settings, scrubbing, layer stepping, movie export,
-manual machine positioning, reconnects and the agent's own request bookkeeping.
-
-Channels. MCP: delivered events arrive as `saam.studio` `studio-events`
-notifications, every tool result carries the queue as `studioEvents`,
-`wait_for_studio_request` returns `events` and ends on a delivered event, and
-`get_studio_events` reads and clears the queue on demand. Toolkit live session:
-delivered events stream as `studio-events` lines, and the stdin commands
-`read-studio-events` and `wait-for-studio-request` read in process. Independent
-processes read the same queue through
-`GET /api/agent-events?owner=AGENT_OWNER_ID[&wait=MS][&instance=ID][&after=ID,ID][&history]`
-on any owned Studio, wrapped by the toolkit as
-`read-studio-events --studio URL --agent-owner ID` and
-`wait-for-studio-request --studio URL --agent-owner ID`. Every read also
-returns `generation`: for each owned instance that is preparing or generating,
-its status, trigger, elapsed time and worker progress with a percentage. The
-passive queue holds only the calculation's start and finish; progress exists
-only in a read made while it runs. No channel wakes an ended or disconnected
-chat.
-
-The same owner shows another print in its live instance with
-`POST /api/agent-open` and a JSON body `{owner, path}`; it runs the serialized,
-validated open used by the picker, pushes a `print` change to the viewers and
-returns the agent session. The toolkit wraps it as
-`open-print|create-preview DIRECTORY --studio URL --agent-owner ID`, so switching
-prints reuses the instance and its browser tab.
+Camera, scrubbing, manual machine positioning, movie export and request
+bookkeeping are not person-action events. Elapsed job time is available during
+reads; no reliable repair ETA is inferred.
 
 ## Importing an STL in Studio
 
-**Import STL** uses the [shared import lifecycle](../core/print/USAGE.md#import-an-stl)
-with the current printer and remembered setup. Its browser upload accepts ASCII
-or binary STL up to 64 MiB as an HTTP input-safety boundary. Local path imports
-stream without that upload cap. During an active tour, finish or exit before
-importing another part. Import never approves settings or output.
+Import uses the [shared lifecycle](../core/print/USAGE.md#import-an-stl) and current
+printer/setup. Browser uploads have a 64 MiB HTTP input boundary; local paths
+stream. Finish or exit the tour before another import. A worker validates,
+repairs recognized defects and creates geometry, retaining repair
+evidence. Cancel interrupts it and cleans only the incomplete new bundle.
 
-Checking, repair and bundle creation run in a worker. Progress includes the real
-stage, available stage counts and elapsed time; remaining time is unknown. Cancel
-interrupts synchronous mesh work or stops the native repair child, then removes
-only the new incomplete print. Existing prints are preserved. The parent supervisor owns native scratch and the child process, stopping and
-cleaning both even if the mesh worker crashes.
-Shutdown cancels import before awaiting the mutation queue.
-
-Both the browser and owning agent can cancel outside that queue. Agents read
-`get_studio_events` and pass the observed import `jobId` (or toolpath
-`generationHash`) to `cancel_studio_calculation`; local clients use the toolkit's
-`cancel-studio-calculation`. No identifier means no cancellation. Repair-start and
-cancellation events wake the listener; ordinary waits return current elapsed
-progress. Let work continue or cancel and explain the decision, without inventing
-an ETA or automatically refusing a mesh for taking too long.
+Read `get_studio_events`, then pass the observed job identity to
+`cancel_studio_calculation`. Cancellation bypasses the mutation queue. Shutdown
+cancels import before draining writes; the supervisor owns native child/scratch
+cleanup even if a worker crashes. Calculation continues until completion, a real
+failure or explicit cancellation.
 
 ## Studio state and worker protocols
 
-[Print lifecycle](../core/print/README.md) owns approval and content identity;
-[kinematics](KINEMATICS.md) owns the provider interface.
-
 ### Source session and stale replies
 
-[`sourceSession`](./machine-session.mjs) owns one browser worker,
-pending RPCs and a model epoch. Each request receives a monotonically increasing
-ID. A reply settles only the pending entry with that ID; abort removes that entry,
-so a late reply has no consumer. A worker error rejects outstanding calls and
-terminates the worker. Disposal rejects pending calls, advances the epoch and
-clears both the current and retained pose.
+[machine-session.mjs](machine-session.mjs) owns its browser worker, pending RPCs
+and epoch. IDs settle only matching pending calls; abort removes their consumer.
+Error/disposal rejects calls and terminates the worker. Source binding identifies
+print/revision/export; pose caching adds time/manual coordinates. A retained
+successful pose does not prove a later solve succeeded. Rebinding clears it.
+Missing model data may stop its worker while source motion remains available.
 
-Source binding uses print ID, revision and export hash. Pose caching additionally
-uses source seconds, manual coordinates and jog intent. A different pending pose
-is aborted; repeated requests for the same key share its promise. A result may
-become current only while the session is open and its captured epoch still matches.
-A successful ready pose may be retained at the same source time while a manual
-solve is pending or fails. Retained geometry does not represent successful
-execution of the new request. Rebinding clears it.
+### Generation and cancellation
 
-The worker retains its decoded program for model rebinding. The browser receives
-compact move columns for playback. A missing model can terminate the model worker
-without making decoded source motion unavailable. Do not equate display availability,
-model availability and approval. Inspect the worker handler as well as the RPC
-factory when adding a message; generated worker arrows do not verify this protocol.
-
-Verification: written on demand from this protocol; no stored tests.
-
-### Preparation, generation and cancellation
-
-[`server.mjs`](./server.mjs) owns the preparation worker and its target directory
-and `generationHash`. The worker invokes the shared lifecycle's
-[`prepareGeneration` and `commitGeneration`](../core/print/README.md#generation-and-review):
-it retains the prepared candidate in memory, and only an explicit `generate`
-message permits its commit. Studio does not implement a second computation or
-persistence path. An obsolete or discarded worker cannot donate checked source
-through an old attachment. Preparation errors remain generation errors for that
-candidate.
-
-[`generationControl`](../core/print/generation-control.mjs) uses a shared atomic
-integer: 0 is working, 1 is cancelled and 2 is committing. Cancellation and
-`beforeCommit` compete to change 0. If cancellation wins, commit throws
-`GENERATION_CANCELLED`. Once commit wins, cancellation returns false and the short
-write sequence finishes: immutable output is written first, then the one mutable
-manifest is atomically replaced. The cancellation API checks the current print
-and requested `generationHash`; UI progress also checks its captured target
-before updating controls.
-
-[`createCheckedProgramHandoff`](../core/print/program-handoff.mjs) accepts only
-the Node Worker created for that prepared job. The handoff owns the worker
-message subscription and forwards each message to the job
-with a successful-result ticket only when its expected `generationHash` and the
-check record's generation/export hashes agree. No capture API accepts a caller's
-payload. Concurrent jobs retain independent, opaque, single-use tickets;
-disposing or cancelling a job removes its subscription. The workflow retains
-metadata and source strings, excludes moves/events, returns defensive copies and
-still rereads and hashes the current output bytes before reuse. Unclaimed source
-entries expire after one minute and the oldest is evicted above 32 entries.
-
-Verification: [program handoff](../core/tests/program-handoff.test.mjs),
-[generation control](../core/tests/studio-generation-control.test.mjs) and
-[workflow](../core/tests/workflow.test.mjs).
+[server.mjs](server.mjs) runs the one generation job for the bundle it shows, for
+the person, a tour step or an agent (`server.generate`, inside the agent's held
+edit). Bundle's `generateBundle` reuses a current checked program or runs the
+[generation worker](../core/print/generation-worker.mjs) under that reservation.
+Cancellation stops the worker until its commit is acknowledged; then immutable
+output and atomic manifest replacement finish. A person's failed generation
+becomes an agent request; an agent's is that agent's error outcome and an event.
 
 ### Request completion and display
 
-Request records and their state transitions are defined by the
-[agent coordination contract](#agent-request-coordination). The shared
-agent-owned store is the live operational channel; JSON records are its durable
-recovery journal and the index reconciles independent processes. Request completion
-does not establish that the requested geometry or toolpath has been displayed.
-`work-state.mjs` classifies activity, receipt matching and confirmation waiting
-from one normalized geometry/toolpath view and request context;
-`agent-ui.mjs` orders snapshots by update time so an older response cannot revive
-completed activity. Library-wide agent listeners and the currently selected
-browser print intentionally have different selection scopes.
+[work-state.mjs](work-state.mjs) derives [work and hand-back](#agent-request-coordination);
+[agent-ui.mjs](agent-ui.mjs) reports rendering and ignores obsolete responses.
+Durable request records and live event queues cannot substitute for rendering.
 
-`studio-events.mjs` owns the agent's Studio event queue: one bounded, in-process
-queue per agent, shared by that agent's Studio instances, holding what the
-person did and what the workers produced. Held kinds wait for a read; delivered
-kinds push at once through every channel and carry everything held with them.
-Pushes never drain the queue; reads do, so a client that never surfaces a push
-still receives the batch on its next tool result, listener wait or explicit
-read. The queue is not persisted: it lives and dies with the owning session.
-[Studio coordination](#studio-event-queue) owns the kinds and their
-delivery class.
-
-Verification: written on demand from this queue contract; no stored tests.
+Export captures the exact displayed checked program. It does not regenerate
+or reinterpret current files; later edits cannot change captured
+download bytes. Reopening separately validates stored artifacts.
 
 ### Playback storage and movie resources
 
-[`moveStore`](./move-store.mjs) stores numeric columns in Float64 chunks
-and interns categorical values. `at()` returns an independent row; `reader(names)`
-reuses one scratch row and its vectors. Copy values that must survive the next
-read. `snapshot()` exposes storage for transport; it is not a manufacturing format.
-Source line offsets apply at read time. Consumers must preserve the difference
-between source precision and display buffer precision.
-
-[`exportMovie`](./playback.mjs) owns its encoder and closes each
-VideoFrame after encoding. It uses a deterministic 30 fps source timeline, a final
-two-second hold, bounded encoder backlog and explicit cancellation. Encoding speed
-does not set video time. The draw callback receives explicit time/canvas state;
-it must not advance live playback. This WebM writer handles one VP8/VP9 track,
-without audio. [Rendering](RENDERING.md) owns bead appearance and line fallbacks.
-
-Verification: written on demand from the storage and encoder contracts above;
-no stored tests.
+[move-store.mjs](move-store.mjs) owns Float64 numeric chunks and interned categories.
+`at()` returns an independent row (rows have no index properties; readers use `at()`,
+which plain move arrays share); `reader()` reuses scratch values which must be
+copied if retained. `push()` passes each row through the store's `annotate` stage,
+which path loading uses to add Slice family, index and modulation identity. Snapshots are transport storage, not manufacturing data.
+[playback.mjs](playback.mjs) closes encoded frames, uses deterministic 30 fps source
+time with a final hold, bounds encoder backlog and supports cancellation. Its
+WebM writer has one VP8/VP9 track without audio.
 
 ### Serving, page assets and lifetime
 
-[index.html](./index.html) owns DOM controls consumed by `app.mjs`, settings and tour UI.
-[style.css](./style.css) owns their layout and visibility; the
-[logo](./struder-logo.png) is a presentation asset.
-These resources belong to this region even though the JavaScript extractor
-does not inspect them. When changing an element ID or its lifecycle, inspect its
-selectors, handlers, accessibility state and associated tests together.
-
-`viewer-session.mjs` owns the page's connection/reconnection; `lifetime.mjs` owns
-one server's viewers and sockets, reporting viewer-count changes and the start of
-closing to the server. The first viewer has no opening deadline. The
-last viewer's departure starts a grace period, and reconnection cancels it.
-Shutdown stops new requests, closes idle sockets, and lets accepted writes finish.
-`changes.mjs` supplies change notifications, not a replacement for reading valid
-current state. `browser.mjs` is the host-specific opener; its failure is distinct
-from server startup failure. `machine-study.mjs` supplies explicitly scoped study
-inputs through the existing source presentation boundary.
-
-Verification: [lifetime](../core/tests/studio-lifetime.test.mjs). Reconnect,
-settings and tour UI are written on demand; no stored tests.
+[index.html](index.html) owns controls; [style.css](style.css) owns layout and
+visibility. Inspect selectors, handlers and accessibility when changing IDs.
+[viewer-session.mjs](viewer-session.mjs) owns reconnects;
+[lifetime.mjs](lifetime.mjs) tracks viewers/sockets and explicit shutdown. Viewer
+counts do not trigger app expiration. Shutdown stops new requests, closes idle
+sockets and finishes accepted writes. [changes.mjs](changes.mjs) supplies
+notifications; current valid state still comes from its owning bundle boundary.

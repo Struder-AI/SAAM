@@ -17,7 +17,7 @@ export function sourceSession(worker){
   }
   worker.onmessage=({data})=>{const call=pending.get(data.id);if(!call)return;pending.delete(data.id);call.clean();data.error?call.reject(Error(data.error)):call.resolve(data);};
   worker.onerror=event=>{error=event.message||'Machine player stopped';closed=true;for(const p of pending.values()){p.clean();p.reject(Error(error));}pending.clear();worker.terminate();};
-  const sourceKey=state=>JSON.stringify([state.printId,String(state.revision),state.exportHash]);
+  const sourceKey=state=>JSON.stringify([state.printId,String(state.revision),state.outputId]);
   const poseKey=(seconds,manual,jog)=>JSON.stringify([seconds,manual??null,jog??null]);
   let identity;
   function install(data,state){

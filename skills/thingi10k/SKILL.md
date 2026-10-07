@@ -56,26 +56,14 @@ program.
 
 On `imported: true`, call `request_review` and follow the
 [STL workflow](../../core/print/USAGE.md#import-an-stl): show dimensions and
-assumptions, choose toolpath skills and review in Studio. Import creates no
-approvals and never silently repairs, simplifies or rescales the model.
+assumptions, choose toolpath skills and review in Studio. Import never
+silently repairs, simplifies or rescales the model.
 
-On `imported: false`, the result has the error, the retained `sourcePath`,
-attribution and chat notice. Open the retained STL through Studio import: it checks
+On `imported: false`, the result has the error, attribution, chat notice and
+`sourcePath`: the downloaded original, kept as diagnostics evidence until another
+download fails to import. Have the person open it through Studio import: it checks
 the mesh and attempts recognized repairs automatically, preserving the source and
 reporting changes. Follow live import progress; cancel through the ordinary Studio
 calculation controls when the person or task calls for it. Makers need no direct
 mesh-repair tools. A replacement retains attribution and records its changes.
-
-<!-- layer: script -->
-## Command line and cache
-
-```sh
-node skills/thingi10k/scripts/cli.mjs search "bunny"
-node skills/thingi10k/scripts/cli.mjs import Prints/bunny 293137 ultimaker-s5
-node scripts/agent-toolkit.mjs open-print Prints/bunny
-```
-
-The CLI caches in ignored `.local/thingi10k/`, MCP in `.thingi10k/` in its Prints
-root: indexes and complete downloads, named by file ID and SHA-256 with an
-attribution JSON beside each. The person may remove the cache when idle; prints
-keep their own source.
+Nothing else is stored: each search reads the index and each import downloads afresh.

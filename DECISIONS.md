@@ -1,49 +1,14 @@
 # Decisions
 
-Contributors: `tkeller`, `remettub`.
+A dated record of decisions and their sources. It is history: the current release
+intent in [plans](plans/) and the component manuals own current direction, and
+where they differ from an entry here, they win. Entries are not revised when
+direction changes, so an entry's status does not mean it is in force.
 
-Each entry states one decision, its status, a recording timestamp, approvals,
-and a brief source. Both contributors' approval makes a decision **accepted**;
-one contributor's approval makes it **provisional**. Never infer approval from
-authorship, silence, agent work, or agreement on a different decision.
-
-SAAM Studio has approval from both contributors as explicitly reported by
-remettub. Other entries record only the approvals stated in their metadata.
-The timestamp identifies instruction recording; the conversation does not
-expose an exact timestamp for the human's message.
-
-Contributor status and current work authorization are distinct. Entries D-021
-onward record explicit user direction without attributed contributor identity; `proposed` does not negate that authorization. Follow their stated
-scope for implementation. Earlier attributed approvals remain historical
-records and are not extended to later wording. In particular, [D-027](#d-027--export-only-print-persistence)
-owns current print persistence; D-015 and D-019 preserve the earlier wording.
-[D-043](#d-043--complete-consolidation-and-role-boundaries) refines the roles
-introduced by D-033; earlier entries preserve their original approval wording.
-Work history belongs in [DEVLOG.md](DEVLOG.md). Decision quotations, approval
-events and approved wording retain their historical tense and dates under the
-[provenance exception](BUILDERS.md#documentation-maintenance).
-
-Use a `## D-NNN — Title` heading and record `Status`, `Decision`, `Recorded`,
-`Approvals` and `Source`. The recording timestamp uses UTC ISO 8601 format.
-Preserve exact source quotations and approval events; surrounding prose describes
-the current decision and status. Do not extend earlier approval to changed wording.
-
-## Statuses
-
-| Status | Meaning |
-|---|---|
-| proposed | No contributor approval recorded. |
-| provisional | One contributor approves. |
-| accepted | Both contributors approve; called active in the initial request. |
-| superseded | Replaced by a named later decision. |
-| rejected | Explicitly declined and closed. |
-| withdrawn | No longer pursued. |
-
-Record objections and substantive approval/status changes with actor, time and
-source. Do not infer the second contributor's approval. An accepted decision
-remains effective until its replacement is accepted. Provisional decisions may
-be replaced by the contributor whose approval they carry. Approval refers to
-the recorded decision wording, not later substantive edits.
+Each entry is a `## D-NNN — Title` heading followed by the decision, its date and
+its source, quoted exactly. remettub owns SAAM and makes its decisions; tkeller
+contributes through remettub (owner, 2026-10-04). The Status and Approvals fields
+in earlier entries record the two-contributor process used until then.
 
 Source R1: remettub's restart request in the SAAM skeptical-assessment/restart
 conversation in Codex, observed 2026-09-08. Identifying excerpt:
@@ -473,3 +438,31 @@ Historical approved wording; current persistence direction is [D-027](#d-027--ex
 ## D-044 — Architecture-led 0.3.0
 
 - Owner decision, 2026-09-30, rescheduled 2026-10-01: [0.3.0](plans/0.3.0.md) deploys the installation/invite/relay-service changes independently; [0.3.1](plans/0.3.1.md) owns actively continuing architecture/engine/extension consolidation. Architecture completion must not block the installation trial. [0.4.0](plans/0.4.0.md) retains feature deferrals, superseding D-042/D-043 scheduling. Map 0 accepted; submaps provisional. Bundle alone owns shared part state; other components own private state. One Studio instance per bundle. Source: owner instruction in this task, 2026-10-01; no contributor consensus inferred.
+
+## D-045 — A dev-map link records influence
+
+- Owner decision, 2026-10-03: a link records influence between two pieces of SAAM: one can change what the other does or receives. Its kind only says how the influence travels. Platform code is not SAAM and is counted, never linked; influence that cannot be ruled out stays visible as a possible link or finding; generated links need source evidence. This principle defines link inclusion; enumerated kinds and rulings in [D-038](#d-038--dev-map-intent-functional-tree-complete-leaf-context-findings-kept-code-shape-rules) are its consequences, and it governs where they conflict. [Developer context](DEVELOPER-CONTEXT.md#working-with-dev-maps) owns the wording. Source: owner, Claude Code session 2026-10-03, confirming the stated intent ("that's the correct intent") and asking that case guidance which obscures it be removed; no contributor consensus inferred.
+
+## D-046 — Rebuilt dev maps: causal arrows and banned unmodelled code
+
+- Owner decision, 2026-10-03: every map arrow is causal influence from influencer to influenced; a query's answer runs B → A, a command's activation A → B, and a callable that both answers and acts is banned. The owner authors top-level structure; leaves are computed and each has one top-level owner; intermediate levels are solved middle-out. Code the analysis cannot model, and influence crossing top-level nodes without an authored arrow, are banned outright. Scope is all SAAM code that runs in use. A whole-program points-to analysis replaces the syntactic scanner; regeneration speed is judged by usability while working. [Dev maps intent](plans/dev-maps.md) owns the details and open decisions. Source: owner, Claude Code session 2026-10-03; no contributor consensus inferred.
+
+## D-047 — Command outcomes and one arrow per pair
+
+- Owner decision, 2026-10-03: a command may return its outcome to its caller (completed or failed, and the identity of anything it created) and nothing else the caller computes with; private caches and a leaf's own working state are not effects. Separation applies to leaves; larger boxes relate in both directions. Each related pair of boxes is drawn as one arrow: one head for one-way influence, a head with a dot at the tail for an activation returning only its outcome, two heads for influence both ways (between leaves, a banned callable that acts and returns data). [Dev maps intent](plans/dev-maps.md#notation) owns the details. Source: owner, Claude Code session 2026-10-03; no contributor consensus inferred.
+
+## D-048 — Compositional influence analysis
+
+- Owner decision, 2026-10-03: the dev-map influence analysis is computed compositionally (per-function summaries composed over the call graph, re-analysing only what an edit reaches) rather than as one whole-program solve, to reach usable regeneration speed. [Dev maps intent](plans/dev-maps.md#analysis) owns the wording. Source: owner, Claude Code session 2026-10-03, approving the recommended option; no contributor consensus inferred.
+
+## D-049 — One owner; plain decision records
+
+- Owner decision, 2026-10-04: remettub owns SAAM and makes its decisions; tkeller contributes through remettub. A record is a dated heading, the decision and its quoted source; the field, status and two-approval checks in `scripts/check-repo.mjs` are removed. Source: owner, Claude Code session 2026-10-04: "The other developer (tkeller) has taken a supporting role and now contributes mainly through direct interaction with me." and "Yeah we need to change the decisions format, now I understand why it has been ignored."
+
+## D-050 — Influence map 0 approved; authored placement
+
+- Owner decision, 2026-10-04: map 0 of the 030-influence set as drawn (authored nodes including Application and Development tooling, their positions, and the outside actors User, Desktop agent, External resources and STL file) is approved, open to adjustment during work. The proposed map-0 wires for Application and Development tooling and the proposed actors Printer and Native mesh helper were not drawn and are not covered. Placing nodes by hand in the viewer, with wires moving live, is a high-level objective. Source: owner, Claude Code session 2026-10-04: "0 map looks pretty good, I approve and we may adjust it as we continue to work." and "I want to author placement myself. Picking through the nodes manually and watching the wires move in real time, like in airsourceChemistry, is now a high level objective for us, ok?"
+
+## D-051 — Code shape: no passthrough wires without good reason
+
+- Owner decision, 2026-10-04: code-shape rule 5 in DEVELOPER-CONTEXT. Source: owner, Claude Code session 2026-10-04: "It seems to me that passthrough wires like in your mergeSettings example increase complexity and reduce visibility and we should avoid coding like that without good reason." Approved wording: "That wording is good." Also this session: load code that only declares stays listed without arrows ("C is fine, code that does nothing should be represented as doing nothing.").

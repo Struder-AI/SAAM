@@ -3,7 +3,7 @@ import {resolve} from 'node:path';
 
 // The short lock serializes manifest commits and Studio reservation transitions.
 // An interrupted writer needs explicit recovery after its PID has exited.
-export async function withBundleWriteLock(directory,action,{wait=false}={}){
+export async function withBundleWriteLock(directory,action,{wait=false,lease}={}){
   await mkdir(directory,{recursive:true});
   const path=resolve(directory,'.bundle-write.lock');
   let handle,unreadable=0;
@@ -23,7 +23,7 @@ export async function withBundleWriteLock(directory,action,{wait=false}={}){
     }
   }
   try{
-    await handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));
+    await handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString(),...(lease?{exportLease:lease.id}:{})}));
     return await action();
-  }finally{await handle.close();await rm(path,{force:true});}
+  }finally{await handle.close();if(!lease?.retain)await rm(path,{force:true});}
 }

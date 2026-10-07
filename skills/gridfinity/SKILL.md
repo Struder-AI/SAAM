@@ -14,7 +14,7 @@ frontmatter is intentional: shared discovery contains only the name.
 
 ## Create and edit
 
-The `gridfinity` tool creates an unapproved print:
+The `gridfinity` tool creates a print:
 
 ```json
 {
@@ -102,13 +102,3 @@ the body for both vase-wall and cladding, slice the blank solid, and
 keep the cladding away from the mating foot. The body still needs supported
 sections and a valid cladding chart, and cladding needs the configured DENSO
 robot with its external rotary.
-
-<!-- layer: script -->
-## Command line
-
-The same parameters object, in a JSON file:
-
-```sh
-node skills/gridfinity/scripts/cli.mjs create Prints/small-bin parameters.json --machine ultimaker-s5
-node skills/gridfinity/scripts/cli.mjs update Prints/small-bin changes.json --revision REVISION [--part ID]
-```

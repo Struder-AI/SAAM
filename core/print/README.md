@@ -9,26 +9,22 @@ The [Thingi10K skill](../../skills/thingi10k/SKILL.md) supplies hash-matched att
 to the importer, retained in `geometry.source.attribution` with source hash/bytes.
 Unit corrections and wrappers preserve it. Delivery writes `source-attribution.json`
 with the source record and current plan revision beside the reviewed program.
-Source metadata does not confer printing approval.
 
 ## Generation and review
 
-Studio's Export click confirms the displayed settings and exact checked toolpath.
-Studio waits for queued edits and rejects stale displayed snapshots; `exportReviewed`
-then writes the captured bytes unchanged. Opening a bundle checks artifacts before display.
+Studio's Export click confirms displayed settings and exact checked bytes once.
+Bundle retains one completed output with its immutable recipe, machine, geometry
+and SAAMpath snapshot. Recipe/machine edits keep it visible and exportable with
+an explicit previous-toolpath notice and its original settings and machine.
+Changed authored geometry clears the old view/export and shows current geometry.
+Only actual regeneration dims matching-geometry output and blocks export;
+failure/cancel restores it when geometry still matches. Agent activity never gates it.
 
-`core/print/workflow.mjs` owns initialization, validation, revisions, preparation,
-reopening and delivery. The shell adapter supplies recipe validation, geometry,
-generation, limitations and release metadata. Studio selects it by plan schema.
-Non-Studio callers retain `approve({actor, revision})` and `deliver`: the former
-records settings/toolpath approval; the latter requires that exact approval.
-`review-state.mjs` projects persisted currency and approval for these callers;
-Studio combines currency with transient work and presentation state.
-
-Bundle stores supplied components; creation, reopening and edits require integrity,
-not completeness. Missing geometry, recipe or machine stays missing. Slice needs
-source geometry; Trace/Inject may use authored curves/points without a solid.
-Operation boundaries report missing prerequisites. No machine is inferred at creation.
+`workflow.mjs` owns snapshots, revisions, regeneration and delivery;
+`review-state.mjs` supplies the shared eligibility/phase selector. The output id
+guards display and export, `editRevision` authored changes, `revision` every commit.
+Geometry includes solids, curves and points; recipe/machine may be incomplete.
+Operations report missing prerequisites; opening/retry never generates ordinary output.
 
 Geometry extensions return proposals through Geometry; only deposition or hybrid
 assignment contributions need Toolpath composition. Bundle accepts one revisioned
@@ -48,28 +44,36 @@ in existing `plan.skills`; absence means unselected. No defaults or execution oc
 Geometry/construction references retain their own dependencies. Reusable changes
 never refresh existing bundles; manuals use saved capabilities.
 
-Geometry, completed SAAMpath and program have separate identities. Toolpath owns
-`pathDependencies`; unknown inputs conservatively invalidate the path. Known
-export-only setup fields, selected machine/output and disabled optional skills reuse it. Authored motion remains a path dependency. `generationHash` binds the complete
-recipe, machine, geometry and generation contract to the checked program.
+Bundle is the only writer, so each commit records its consequences instead of
+hashing content: a new `revision`; a new `editRevision` when plan, machine or
+geometry change; a new `geometryInputId` or `pathInputId` when geometry,
+placement or Toolpath's `pathDependencies` change (unknown inputs count as
+changed). Undo/redo restore them. Geometry, SAAMpath and program get ids when
+written; a path is current while its input id is, a program while its
+`editRevision` is, each with an unchanged contract. Export-only setup fields,
+selected machine/output and disabled optional skills keep the path.
 `state.artifacts` distinguishes current, retained stale and absent results.
-Edits retain artifacts and clear approvals; old bytes never become current by omission.
+Edits retain artifacts; old bytes never become current by omission.
 
-`restoreRevision(directory,{direction,expectedRevision})` implements undo/redo
-for both agents and Studio. Restoration creates a fresh revision, retains the audit
-trail, clears approval and leaves delivered files alone. New edits clear the redo
-branch. Immutable history records reference separately saved components and artifacts;
-large geometry/path/program files are shared. Camera and playback remain Studio-private.
-CLI: `undo|redo <directory> --revision <revision>`; Studio exposes Undo/Redo.
+`restoreRevision(directory,{direction,expectedRevision})` restores history at a fresh
+revision; new edits clear redo. Immutable records share large
+artifacts.
+
+`shareBundle(directory,newZip)` packages current recipe, machine/settings,
+original source/repair provenance and selected extension dependency files.
+`importBundle(zip,newDirectory)` verifies inputs and imports extensions without execution;
+existing bundles/local edits are never overwritten. Open the returned directory in Studio.
+Native geometry is rebuilt; toolpaths, programs, checks, history and caches are excluded;
+recipients edit/regenerate and confirm before export. Print-ready delivery stays separate.
 
 ### Bundle ownership
 
 Studio reserves a bundle on open; a second instance cannot open it. `withBundleInstance` carries that reservation into writes and generation workers. Export uses the existing reservation.
 Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
-The reservation releases on switch or shutdown, never by timeout. `instance-status` and `recover-instance` in `core/print/cli.mjs` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
+The reservation releases on switch or shutdown, never by timeout. `saam` operations `get_bundle_instance` and `recover_bundle_instance` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
 Power-loss durability beyond atomic replacement is not claimed.
 
-`generateToolpath` saves SAAMpath; CLI `toolpath <directory>` exposes it.
+`generateToolpath` saves SAAMpath.
 Active edits/generation compare its source stamp with the installed release
 and selected extensions. Changed or unstamped sources invalidate prior output and
 confirmation; unchanged sources retain output-only reuse. Viewing/delivery use saved
@@ -78,13 +82,12 @@ Preparation leaves the manifest unchanged; commit checks sources and revision.
 Saved paths survive restarts/history; delivery copies the confirmed checked bytes.
 
 `loadBundleSnapshot` supplies Studio one persisted revision, artifact currency,
-history, review and checked program with source/presentation fingerprints.
-`bundleFingerprints` exposes those fingerprints; `bundleFingerprint` exposes source.
-Presentation excludes approval, delivery history and mode; source includes them.
+history, review and checked program, tagged by `revision` and by a presentation
+tag (edit revision, geometry id, output id) that delivery and mode leave unchanged.
 Studio owns polling, pending requests and job progress separately; no subscription
-API or click-time Export gate is implied. Generation accepts `beforeCommit` for
-an owning worker to arbitrate cancellation before any output/check/review writes;
-once commit begins, cancellation must let the sequence finish.
+API or click-time Export gate is implied. `generateBundle` runs the generation
+worker under the caller's reservation; its `signal` cancels before any output,
+check or review write, until `beforeCommit` is acknowledged; then commit finishes.
 
 Generation uses the plan's explicit choices, settings and versions for repeatability.
 There is no mandatory seed field; seeds belong only to skills that randomize results.
@@ -116,10 +119,9 @@ return that result with the exact bytes through `exportAndInterpretProgram`.
 Do not immediately parse it again. An untrusted archive still needs its own
 integrity and source interpretation boundary. Likewise, checking a new offset
 for the topology its algorithm requires is different from repeating validity
-of the original mesh. A browser rebuilding drawing data from checked source
-performs playback work; it is not an extra manufacturing approval stage.
+of the original mesh.
 
-Measure approval persistence, geometry preparation, sectioning/offsets,
+Measure geometry preparation, sectioning/offsets,
 composition, emission, interpretation and viewer loading separately when
 latency is reported. Name the work actually running in the UI. Do not hide
 minutes of slicing or mesh work under a label about saving a confirmation.
@@ -142,29 +144,26 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 [Blob fields](../../GEOMETRY.md#blob-field) use `shape: "blob-field"` records with the points,
 extraction settings and checked manufacturing mesh retained together in the
 native JSON asset. Shared generation sections that mesh; Studio displays it.
-Field edits explicitly rebuild the mesh through the `blob_field` tool
-and invalidate the final confirmation through this same lifecycle.
+Field edits rebuild the mesh through the `blob_field` tool; a generic recipe
+patch cannot edit compiled geometry.
 
 The shared workflow stores one directory per print:
 
 ```text
 Prints/<name>/
   plan.json                         # atomic plan + bundle manifest
-  geometry/<geometry-sha>.3dm       # or .mesh.json
-  paths/<path-sha>.json              # completed SAAMpath
-  history/<record-sha>.json          # immutable component/history records
-  exports/<output>/<export-sha>-<name>
+  geometry/<geometry-id>.3dm        # or .mesh.json
+  paths/<path-id>.json               # completed SAAMpath
+  history/<record-id>.json           # immutable component/history records
+  exports/<output>/<output-id>-<name>
   delivery/part.gcode
 ```
 
-`plan.json` retains the recipe fields at top level and owns one `bundle` envelope
-containing the locked machine, review/check evidence and content-addressed
-geometry/program references. It is the only mutable commit point. Referenced
-artifacts are immutable; `delivery/` exists only after approval and delivery.
+`plan.json` owns the recipe, locked machine, review and immutable artifact references.
+It is the only mutable commit point; `delivery/` holds what the person exported.
 Ordinary reads of the previous parallel-file layout are effect-free and return
-an actionable migration-required error. Run
-`node core/print/cli.mjs migrate Prints/<name>` explicitly to preflight and
-convert one bundle. Migration atomically replaces only `plan.json`, retains the
+an actionable migration-required error. `saam call migrate_bundle` explicitly
+preflights and converts one bundle. Migration atomically replaces only `plan.json`, retains the
 legacy sidecars and unknown files, and reports every created, updated, removed
 and retained path. Bundles with current layout and recipe fields are no-ops. Compatibility
 remains while supported or distributed print roots contain split-file bundles;
@@ -181,24 +180,18 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
   speed in mm/s and deposited volume in mm³. Retraction/recovery uses filament
   millimeters; fan and dwell actions are explicit. Phase/layer labels describe
   the move without determining its geometry.
-- `saam-review/1`: the manifest's exact-version final approval record, history,
-  generation/export hashes and a small generation summary for display (never
+- `saam-review/1`: the manifest's history, path and
+  generation records and a small generation summary for display (never
   playback geometry). Its generation record owns `saam-checks/1` software
   checks and limitations.
 
-`loadBundle` checks native artifact identity and recipe/geometry agreement without
-regenerating or requiring complete settings. Consuming a saved path checks its
-content hash; reopening a saved program checks its exact bytes. Archival STL is
-checked by source-consuming operations, not by every view. These local records
-are integrity evidence, not authentication of files or human statements.
+`loadBundle` reads what SAAM wrote without re-hashing, regenerating or requiring
+complete settings. Content hashes are taken once where bytes arrive from outside
+SAAM: an imported STL and extension packages. Prints saved before these ids
+are read once by `savedBundle`, which drops undo history and old hashes.
 
-The adapter also retains its latest checked interpretation, keyed by the
-plan/machine/geometry identity and actual export hash. Generation seeds
-this cache. Reopening interprets saved commands on a miss and returns copies on
-a hit; it never regenerates the path or export. Delivery reads and hashes the
-reviewed export, then copies those bytes. A changed export cannot inherit its
-previous toolpath approval. Local records detect changes relative to recorded
-content; they are not signatures authenticating the files or human statements.
+The adapter caches interpretations by output id. Reopening interprets saved
+commands on a miss; it never regenerates. Export copies the displayed bytes.
 Use `examples/prints/` only for explicitly curated examples.
 
 ## Shell pipeline (slices and draped-skin)
@@ -216,9 +209,8 @@ is still not accepted as input.
 
 `core/print/geometry.mjs` writes the shell as its named untrimmed NURBS surfaces
 in a 3DM. rhino3dm builds no general solid from a set of patches; the file is accepted only
-once it reopens, rebuilds the same patches, passes the closure check and matches
-the reviewed control nets. Changed geometry repeats that verification;
-unchanged content reuses validity under the [bundle contract](#print-bundle-and-current-formats).
+when written only once it reopens, rebuilds the same patches, passes the
+closure check and matches the built control nets.
 The descriptor also carries a quad proxy mesh, tessellated per patch, for the viewer.
 
 ## Formats
@@ -228,8 +220,8 @@ The descriptor also carries a quad proxy mesh, tessellated per patch, for the vi
   misspelled fields are rejected, and the strict field check is made against the
   selected shape. Its rejection names the offending path and lists the unexpected
   and the missing keys. Generation introduces no further process choices.
-- `saam-shell-geometry/1`: native file hash, shape parameters, geometry version,
-  per-patch control-net hash, named face references and the display proxy.
+- `saam-shell-geometry/1`: shape parameters, per-patch control-net hash, named
+  face references and the display proxy.
 - The bundle layout is the shared one above. `saampath/1`,
   `saam-review/1` and `saam-checks/1` are unchanged.
 - The machine file gains `nonplanar.maxAngleDeg` (15 for the S5): the surface
@@ -249,11 +241,8 @@ The descriptor also carries a quad proxy mesh, tessellated per patch, for the vi
 cover evaluation against rhino3dm, sections against analytic areas, closure
 rejection, degenerate cuts, offsets and booleans against analytic areas, the
 surface height field, travel and lift behaviour, the angle limit excluding steep
-surface, strict interpretation of the export, determinism, and detection of an
-edited export. `core/tests/workflow.test.mjs` adds the review workflow: the 3DM
-round trip and rejection of a substituted file, development generation creating
-no approvals, two synthetic confirmations with stale views and byte-identical
-delivery, invalidation by each kind of edit, remembered setup, and
-Studio serving and delivering a shell print. Synthetic approvals are written
-with an actor name that says so. None of that establishes clearance, surface
-quality, or that any part prints.
+surface, strict interpretation of the export and determinism.
+`core/tests/workflow.test.mjs` adds the review workflow: named native faces,
+development generation, byte-identical delivery, staleness after each kind of
+edit, remembered setup, and Studio serving and delivering a shell print. None
+of that establishes clearance, surface quality, or that any part prints.

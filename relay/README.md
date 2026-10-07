@@ -38,19 +38,21 @@ the first line of `.local/relay-operator-token`.
 ```sh
 node relay/scripts/operator.mjs invite --for "Name" [--days 14]
 node relay/scripts/operator.mjs invites
-node relay/scripts/operator.mjs revoke-invite ID
+node relay/scripts/operator.mjs revoke-invite NAME
 node relay/scripts/operator.mjs devices
-node relay/scripts/operator.mjs remove DEVICE [DEVICE…]
-node relay/scripts/operator.mjs pull --device ID [--since 1d]
-node relay/scripts/operator.mjs pull --since 7d
+node relay/scripts/operator.mjs remove NAME [NAME…]
+node relay/scripts/operator.mjs pull --device NAME | --since 7d
+node relay/scripts/operator.mjs reports [--device NAME] [--since 7d]
 ```
 
-The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the existing deployed
-origin. `pull` writes received JSONL under `.local/relay-records/`. Operator
-routes are `GET/POST /operator/invites`, `DELETE /operator/invites/:id`,
-`GET /operator/devices`, `DELETE /operator/devices/:id`, and paged
-`GET /records?device=&since=&until=&after=`. Removing a device invalidates its
-release and diagnostic credential; it does not delete its retained records.
+Commands name invites and installations by the `--for` name; an ID, shown in
+brackets, is needed only when two share a name or for a removed installation's
+records. The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the deployed origin.
+`pull` writes JSONL under `.local/relay-records/`; `reports` prints Studio and agent
+bug reports, each with its installation's records from the 30 minutes before.
+Removing a device invalidates its credential, not its retained records. Routes:
+`GET/POST /operator/invites`, `DELETE /operator/invites/:id`, `GET /operator/devices`,
+`DELETE /operator/devices/:id`, paged `GET /records?device=&since=&until=&after=`.
 
 ## Local run and deployment
 
@@ -59,7 +61,6 @@ cd relay && npm ci
 npx wrangler dev
 ```
 
-The current deployed origin and `LATEST_RELEASE` value remain in
-[wrangler.jsonc](wrangler.jsonc). No deployment is performed by this change.
-Set `OPERATOR_TOKEN` with `npx wrangler secret put OPERATOR_TOKEN` in a new
-environment. Do not reuse an operator token as an installation credential.
+[wrangler.jsonc](wrangler.jsonc) holds the deployed origin and `LATEST_RELEASE`.
+A new environment sets `OPERATOR_TOKEN` with `npx wrangler secret put
+OPERATOR_TOKEN`; never reuse an operator token as an installation credential.

@@ -1,3 +1,4 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,readFile,writeFile,rm,access} from 'node:fs/promises';
@@ -70,10 +71,10 @@ test('native repair closes only holes within both explicit bounds',native,async(
   await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
   await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
-  assert.equal(report.method,'cgal-patch-repair/1');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
+  assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
-test('native patch repair resolves a penetrating fold and retains remote facets',native,async()=>{
+test('native solid repair resolves a penetrating fold and retains remote facets',native,async()=>{
   const source=subdividedBox();source.vertices.find(p=>p[0]===2&&p[1]===2&&p[2]===4)[2]=-1;
   assert.throws(()=>makeMesh(source.vertices,source.triangles),/Intersecting/);
   const {repairedBytes,report}=await repairSTL(encodeRepairSTL(source),{units:'mm'}),fixed=parseSTL(repairedBytes,{units:'mm'});
@@ -108,7 +109,7 @@ test('streamed files preserve source bytes and accepted geometry chunks reassemb
   for(const c of chunks)assert.ok(c.faces.length<=4096);
   const mesh=await decodeSTLFile(join(root,'repair/repaired.stl'),{units:'mm'});validateRepair(mesh);
   const actual=chunks.flatMap(c=>c.faces.map(t=>t.map(i=>c.vertices[i]))),expected=mesh.triangles.map(t=>t.map(i=>mesh.vertices[i]));assert.deepEqual(actual,expected);
-  for(const machineId of ['ultimaker-s5','bambu-h2d']){const directory=join(root,machineId);await importSTLBundle(directory,join(root,'repair/repaired.stl'),{units:'mm',machineId});const state=await loadBundle(directory,{program:false});assert.deepEqual(state.review.approvals,{});assert.equal(state.plan.geometry.source.sha256,report.repairedSha256);}
+  for(const machineId of ['ultimaker-s5','bambu-h2d']){const directory=join(root,machineId);await importSTLBundle(directory,join(root,'repair/repaired.stl'),{units:'mm',machineId});const state=await loadBundle(directory,{program:false});assert.equal(state.plan.geometry.source.sha256,report.repairedSha256);}
   await assert.rejects(repairSTLFiles(join(root,'repair'),source,{units:'mm'}),/EEXIST/);
 });
 test('streamed ASCII and binary parsing match byte ingestion across chunk boundaries',async t=>{

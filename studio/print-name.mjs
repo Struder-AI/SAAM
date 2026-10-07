@@ -3,7 +3,7 @@ import {resolve,basename} from 'node:path';
 export async function printName(directory,plan){
   if(!plan)try{plan=JSON.parse(await readFile(resolve(directory,'plan.json'),'utf8'));}catch{return basename(directory);}
   function named(g){return g?.shape==='text'?g.features?.map(f=>f.text).filter(Boolean).join(' & '):null;}
-  const g=plan.geometry;
+  const g=plan.geometry?.shape==='spatial'?plan.geometry.solid:plan.geometry;
   const handle=g?.shape==='assembly'&&g.parts?.find(p=>p.id==='fin');
   if(handle)return named(handle.geometry)?'Named handle · '+named(handle.geometry):'Handle';
   return named(g)?'Named part · '+named(g):basename(directory);

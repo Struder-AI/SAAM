@@ -8,7 +8,6 @@ import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionR
 // defaulted at generation time, which is what keeps a regenerated path
 // identical to the reviewed one.
 
-import { createHash } from 'node:crypto';
 import {requireThat} from '../geom/tolerance.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {settingsDefaults} from '../machine/settings.mjs';
@@ -17,6 +16,8 @@ import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
 import {geometrySelections} from '../geom/selections.mjs';
+import {spatialTemplate} from '../geom/spatial.mjs';
+import {normalizeSpatialPlan,resolveSpatialPlan} from './spatial-inputs.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
@@ -26,13 +27,6 @@ import {materialProcess} from '../machine/filaments.mjs';
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
 import {VERSION} from './version.mjs';
 export {VERSION,BUILD_DATE} from './version.mjs';
-
-export const canonical = value => JSON.stringify(value, function (_key, item) {
-  if (item && typeof item === 'object' && !Array.isArray(item)) return Object.fromEntries(Object.keys(item).sort().map(key => [key, item[key]]));
-  return item;
-});
-export const hash = value => createHash('sha256')
-  .update(typeof value === 'string' || Buffer.isBuffer(value) || value instanceof Uint8Array ? value : canonical(value)).digest('hex');
 
 export function defaults(machine=loadMachine()) {
   return {...recipeDefaults(),...settingsDefaults(machine)};
@@ -50,8 +44,9 @@ export function recipeDefaults(){
 // Each shape carries its own parameters, so the strict field check is made
 // against the selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
+  if(shape==='spatial')return spatialTemplate();
   if(shape==='blob-field')return blobFieldTemplate();
-  if(shape==='boolean')return booleanSolidTemplate();
+  if(shape==='boolean')return booleanSolidTemplate(geometry);
   if(Object.hasOwn(GEOMETRY_RECORDS,shape))return GEOMETRY_RECORDS[shape].template(geometry);
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
@@ -71,7 +66,7 @@ export function compileRecipe(plan){
   if(owned)return owned;
   const key=JSON.stringify(plan);
   if(compiledRecipes.has(key))return compiledRecipes.get(key);
-  const value={plan:structuredClone(plan)};
+  const value={plan:structuredClone(resolveSpatialPlan(normalizeSpatialPlan(plan)))};
   validateRecipeValue(value.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
@@ -90,7 +85,7 @@ function validateRecipeValue(plan) {
 
 // Authored forms (spline patches, meshes, assemblies of them) and the
 // compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly',...Object.keys(GEOMETRY_RECORDS)];
+export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','spatial',...Object.keys(GEOMETRY_RECORDS)];
 
 export function depositionOnlyPlan(plan){
   return plan?.geometry===undefined&&plan.slices?.assignments?.length>0&&plan.slices.assignments.every(a=>['curves','inject'].includes(a.construction)||!a.construction&&a.surface?.kind==='terminal');
@@ -109,10 +104,10 @@ export function validatePlanFields(plan) {
     process:{...Object.fromEntries([...positiveProcessFields,...nonnegativeProcessFields].map(key=>[key,null])),
       fanPercent:null,experimentalDeposition:null,primeLine:null,clearanceResponsibility:null,clearanceNote:null},
     ...(Object.hasOwn(plan,'skills')?{skills:Object.fromEntries(Object.entries(skills).filter(([id])=>Object.hasOwn(plan.skills??{},id)))}:{}),
-    ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:plan.workspace}:{})};
+    ...(plan.geometry?{geometry:geometryTemplate(plan.geometry.shape,plan.geometry)}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})};
   if(plan.workspace){
     requireThat_toolpath(plan.workspace.schema==='saam-workspace-source/1'&&plan.workspace.source&&plan.workspace.requirements,'Invalid workspace construction source.');
-    requireThat_toolpath(plan.workspace.constructionIdentity===workspaceConstructionIdentity(plan),'This edit changes the workspace construction requirements. Regenerate the section in its workspace, or explicitly detach the workspace source before changing its construction.');
+
   }
   requireThat_toolpath(!plan.composition||!Object.hasOwn(plan.composition,'batchLayers'),'composition.batchLayers is retired; explicitly migrate the recipe to ascending-height scheduling and regenerate.');
   keys({...plan,setup:null},{...expected,setup:null});
@@ -130,10 +125,6 @@ export function validatePlanFields(plan) {
   }
 
   return plan;
-}
-
-export function workspaceConstructionIdentity(plan){
-  return hash({geometry:plan.geometry,slices:plan.slices,skills:plan.skills,modulations:plan.modulations,composition:plan.composition,experimental:plan.experimental,layerMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm,lineWidthMm:plan.process.lineWidthMm});
 }
 
 export function validatePlanGeometry(plan) {

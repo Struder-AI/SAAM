@@ -3,43 +3,87 @@
 const STATUS_POLL_MS=30_000;
 const UPDATE_POLL_MS=5*60_000;
 
-export function createServicePanel({token}){
+const connection={service:'not connected',chat:'not attached',serviceAttention:false,application:'running'};
+export function updateApplicationConnection(state){connection.application=state;updateConnectControl();}
+export function updateConnectControl({service,chat,serviceAttention}={}){
+  if(service!==undefined)connection.service=service;
+  if(chat!==undefined)connection.chat=chat;
+  if(serviceAttention!==undefined)connection.serviceAttention=serviceAttention;
+  const control=document.getElementById('service-toggle'),serviceLight=document.getElementById('service-light'),chatLight=document.getElementById('chat-light');
+  for(const light of [serviceLight,document.getElementById('service-panel-light')]){
+    light.classList.toggle('paired',connection.application==='running'&&connection.service==='connected'&&!connection.serviceAttention);
+    light.classList.toggle('attention',connection.application==='running'&&connection.serviceAttention);
+  }
+  for(const light of [chatLight,document.getElementById('chat-panel-light')]){
+    light.classList.toggle('paired',connection.application==='running'&&connection.chat.startsWith('attached'));
+  }
+  control.title=connection.application==='running'?'Updates '+connection.service+' · Chat '+connection.chat:connection.application==='stopped'?'SAAM has stopped':'Cannot reach SAAM';
+  control.setAttribute('aria-label','Connect: '+control.title);
+}
+export function createServicePanel({token,available:hasService=true}){
   const $=id=>document.getElementById(id),headers={'X-SAAM-Token':token};
-  const view={status:null,loading:false,updating:false,firstPromptShown:false};
+  const view={status:null,loading:false,updating:false,firstPromptShown:false,statusFailure:null,stopping:null};
   const request=async(action,body={})=>{
     const response=await fetch('/api/service/'+action,{method:'POST',headers:{...headers,'Content-Type':'application/json'},body:JSON.stringify(body)});
     const result=await response.json();
     if(!response.ok)throw Error(result.error??'The release service did not respond.');
-    return result;
+    view.statusFailure=null;return result;
   };
   function message(value){$('service-message').textContent=value??'';}
+  function reportMessage(value,failed=false){$('report-message').textContent=value;$('report-message').classList.toggle('error',failed);}
+  const countReport=()=>{$('report-count').textContent=$('report-text').value.length+' / 1000';};
+  async function sendReport(){
+    const text=$('report-text').value.trim(),button=$('report-send');
+    if(!text){$('report-text').focus();return;}
+    if(button.disabled)return;button.disabled=true;reportMessage('Sending…');
+    try{
+      await request('report',{description:text,stage:document.querySelector('nav button.active')?.dataset.tab});
+      $('report-text').value='';countReport();reportMessage('Report received. Thank you.');
+    }catch(error){reportMessage(error.message,true);await refresh();}
+    finally{button.disabled=false;}
+  }
   function render(){
+    if(view.stopping){
+      updateApplicationConnection('stopped');
+      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':view.stopping==='restart'?'Reloading this runtime with updated code…':view.stopping==='runtime-stop'?'This runtime stopped. Ask your agent to reconnect.':'SAAM has stopped. Start SAAM again from its app icon.';
+      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update','report-section'])$(id).hidden=true;
+      message('');return;
+    }
     const status=view.status,available=status?.available!==false;
-    $('service-toggle').hidden=!available;
+    $('service-toggle').hidden=false;
+    // Reports travel only through an activated connection; otherwise the section says how to report.
+    $('report-section').hidden=false;$('report-form').hidden=!status?.activated;
+    $('report-hint').textContent=status?.activated?'Sends your description with the SAAM version, platform, this window and its print; diagnostics SAAM already sent give the context.'
+      :available?'Bug reports travel through the alpha service: enter an alpha invite above to send one, or describe the problem to your agent.'
+      :'This installation has no alpha service: describe the problem to your agent.';
+    $('service-consent').hidden=!available;
     $('service-quit').hidden=!status?.canQuit;
-    $('service-invite-row').hidden=Boolean(status?.activated);
+    $('service-invite-row').hidden=!available||Boolean(status?.activated);
     $('service-dismiss').hidden=!status?.firstRunPrompt;
     $('service-check').hidden=!status?.activated;
     const offer=status?.update,button=$('service-update');
-    button.hidden=!offer;button.disabled=view.updating;
+    button.hidden=!status?.activated||!offer||Boolean(view.statusFailure);button.disabled=view.updating;
     if(offer&&!view.updating){button.textContent='Update to '+offer.version;button.title='SAAM '+offer.version+' is available.';}
-    const connection=$('service-toggle'),paired=Boolean(status?.activated);
-    connection.classList.toggle('paired',paired);
-    connection.title=`Updates and diagnostics: ${paired?'paired':'not paired'}`;
-    connection.setAttribute('aria-label',connection.title+'. Open connection settings.');
-    $('service-status').textContent=!status?'Checking release service status…'
-      :!available?'This installation has no release service. SAAM works locally.'
-      :status.activated?`Connected for alpha updates and diagnostics · SAAM ${status.version}`
-      :`SAAM ${status.version} works without a code. Connect later whenever you want updates.`;
-    if(status?.problem)$('service-status').textContent+=' '+status.problem;
+    const failure=view.statusFailure??status?.problem??status?.diagnostics?.lastFailure?.error;
+    const serviceState=failure?'needs attention':status?.activated?'connected':available?'not connected':'unavailable';
+    updateConnectControl({service:serviceState,serviceAttention:Boolean(failure)});
+    $('service-status').textContent=(failure?failure+(status?.activated?' Check for updates or ask your agent to inspect diagnostics.':status?' Enter an alpha invite to reconnect.':' Ask your agent to check SAAM.')
+      :!status?'Checking connection…'
+      :!available?'Updates unavailable. SAAM works locally.'
+      :status.activated?`Connected · SAAM ${status.version}`
+      :'Enter an alpha invite for updates and diagnostics.')
+      // A source runtime keeps its code until the developer's agent reloads it.
+      +(status?.runtime?.newerCode?' Newer code is available for '+status.runtime.label+': ask your agent to reload this runtime.':'');
     if(status?.firstRunPrompt&&!view.firstPromptShown){view.firstPromptShown=true;open();$('service-invite').focus();}
   }
   async function refresh(){
+    if(view.stopping)return null;
     try{
       const response=await fetch('/api/service',{headers});
       const result=await response.json();if(!response.ok)throw Error(result.error);
-      view.status=result;render();return result;
-    }catch(error){message('Release service status is unavailable. SAAM still works locally.');render();return null;}
+      if(view.stopping)return null;
+      view.status=result;view.statusFailure=null;updateApplicationConnection('running');render();return result;
+    }catch(error){if(view.stopping)return null;view.statusFailure='Cannot reach SAAM.';updateApplicationConnection('unreachable');render();return null;}
   }
   async function activate(){
     const invite=$('service-invite').value.trim();if(!invite){$('service-invite').focus();return;}
@@ -53,6 +97,7 @@ export function createServicePanel({token}){
     catch(error){message(error.message);}
   }
   async function checkUpdate(manual=true){
+    if(view.stopping)return;
     if(!view.status?.activated)return;
     $('service-check').disabled=true;if(manual)message('Checking for updates…');
     try{
@@ -77,29 +122,47 @@ export function createServicePanel({token}){
     const offer=view.status?.update;if(!offer||view.updating)return;
     if(!confirm(`Update SAAM to ${offer.version}? SAAM closes, updates and opens again. Your prints and local edits stay saved.`))return;
     view.updating=true;const button=$('service-update');button.disabled=true;button.textContent='Installing update…';
-    try{await request('update');closeTab(`SAAM is updating to ${offer.version} and opens again. You can close this tab.`);}
+    try{
+      const result=await request('update');
+      if(result.confirmationRequired){
+        if(!confirm(result.message+' Continue?')){view.updating=false;render();return;}
+        const confirmed=await request('update',{force:true});if(!confirmed.updating)throw Error('SAAM did not start the update.');
+      }
+      closeTab(`SAAM is updating to ${offer.version} and opens again. You can close this tab.`);}
     catch(error){view.updating=false;render();message(error.message);open();}
   }
   async function quit(){
     if(!confirm('Quit SAAM? Your prints stay saved.'))return;
-    try{await request('quit');closeTab('SAAM has stopped. You can close this tab and start SAAM again from its app icon.');}
+    try{
+      const result=await request('quit');
+      if(result.confirmationRequired){
+        if(!confirm(result.message))return;
+        const confirmed=await request('quit',{force:true});if(!confirmed.quitting)throw Error('SAAM did not quit.');
+      }
+      closeTab('SAAM has stopped. You can close this tab and start SAAM again from its app icon.');}
     catch(error){message(error.message);open();}
   }
   function open(){$('service-panel').hidden=false;$('service-toggle').setAttribute('aria-expanded','true');}
   function close(){$('service-panel').hidden=true;$('service-toggle').setAttribute('aria-expanded','false');}
   function toggle(){if($('service-panel').hidden)open();else close();}
   $('service-toggle').onclick=toggle;
+  addEventListener('saam-studio-update',event=>{if(event.detail.kind==='application-stopping'){view.stopping=event.detail.reason;render();}});
+  addEventListener('saam-viewer-connection',event=>{if(event.detail.open&&(view.stopping==='restart'||view.stopping==='runtime-stop')){view.stopping=null;void refresh();}else if(!view.stopping&&!event.detail.open)void refresh();});
   $('service-update').onclick=update;
   $('service-quit').onclick=quit;
   $('service-close').onclick=()=>{if(view.status?.firstRunPrompt)void dismiss();else close();};
   $('service-dismiss').onclick=dismiss;
   $('service-activate').onclick=activate;
   $('service-check').onclick=()=>void checkUpdate();
+  $('report-send').onclick=()=>void sendReport();
+  $('report-text').addEventListener('input',countReport);countReport();
+  $('report-bug').onclick=()=>{open();$('report-section').scrollIntoView({block:'nearest'});if(!$('report-form').hidden)$('report-text').focus();};
   $('service-invite').addEventListener('keydown',event=>{if(event.key==='Enter')void activate();});
   $('service-panel').addEventListener('keydown',event=>{if(event.key==='Escape'){if(view.status?.firstRunPrompt)void dismiss();else close();$('service-toggle').focus();}});
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void refresh();});
-  setInterval(()=>{if(document.visibilityState==='visible')void refresh();},STATUS_POLL_MS);
+  document.addEventListener('visibilitychange',()=>{if(hasService&&document.visibilityState==='visible')void refresh();});
+  setInterval(()=>{if(hasService&&document.visibilityState==='visible')void refresh();},STATUS_POLL_MS);
   setInterval(()=>{if(document.visibilityState==='visible')void checkUpdate(false);},UPDATE_POLL_MS);
-  void refresh().then(status=>{if(status?.activated)void checkUpdate(false);});
+  if(hasService)void refresh().then(status=>{if(status?.activated)void checkUpdate(false);});
+  else{view.status={available:false};render();}
   return {open,close,refresh};
 }

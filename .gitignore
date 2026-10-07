@@ -4,14 +4,9 @@ __pycache__/
 *.py[cod]
 
 # build output
-/dev-map/store/
-/dev-map/view/
-/dev-map/view.next/
 /dev-map/sets/*/store/
 /dev-map/sets/*/view/
 /dev-map/sets/*/view.next/
-/dev-map-OLD/audit/
-/dev-map-OLD/view/
 dist/
 dist-review/
 build/

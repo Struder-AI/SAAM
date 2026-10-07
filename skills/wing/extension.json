@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"wing","kind":"workspace","dependencies":[],"entries":{"workspace-runtime":{"file":"workspace.mjs","export":"createWingWorkspace"}},"workspace":{"ui":"ui"},"license":"Apache-2.0","provenance":"SAAM Wing construction; TK-DEV 217a6e0 renderer; airfoil identity and source records in data/sources.json"}

@@ -17,20 +17,18 @@ Eligible unmodified Slice strokes use their actual scheduled entry for ordering
 and connectors before publication. Trace, Inject and modified paths stay constrained.
 No later composer changes published material or independently reschedules it.
 
-`planOperationEntry` applies context, selection and startup actions once;
-`planPreparedOperation` emits the finalized strokes and operation ending.
-Planning stages return new state and action deltas; `planningPath` assembles them.
-A merged move replaces the preceding action rather than mutating it. Local loops
-own mutable work collections; state does not copy accumulated action history.
-Export preparation adds any profile-owned priming lane and checks its clearance
-against final deposition. Explicit recipe prime lines remain authored SAAMpath.
+`planOperationEntry` applies context, selection and the operation's resolved `process`;
+`planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
+Retraction debt retains its amount and speed across process changes. Zero `liftMm`
+removes extra lift; travel still reaches deposited/target height. Zero `retractMm`
+prevents new withdrawal. `planningPath` assembles deltas; `contextualActions` streams
+labels (reset first, null clears), physical moves, effective speeds and gap samples.
 
 Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
 `{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates
 either baseline. Omitted pose output keeps ordinary three-axis motion. Pose
 samples, tool axes and rotary angles are internal results, not recipe inputs;
 exporters represent these results using their machine's kinematics.
-
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
@@ -63,7 +61,7 @@ operations use ascending maximum actual deposition Z. Rank breaks ties within a 
 height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
 skill's prerequisites. Old batchLayers recipes require explicit migration and regeneration;
-generation executes the locked rules without a new planning or approval stage.
+generation executes the locked rules without a new planning stage.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
 preparation and topological ordering as separate stages. Their returned records
@@ -103,8 +101,7 @@ Dependent surface courses wait for their declared finalized material sources.
 All skills use the same operation/dependency boundary; no skill pair has a
 separate composer. A nominal bead model does not prove physical support.
 
-[Standard vase](../../skills/vase-wall/SKILL.md) lowers to a continuous Slice
-spiral; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
+[Standard vase](../../skills/vase-wall/SKILL.md) generates a sleeve curve for Trace; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
 mapped Trace courses. Both use shared bead construction and composition. Their
 manuals own fitting, sampling, explicit path and placement controls. A continuous operation
 cannot interleave with infill in the same height band; a planar successor needs
@@ -153,8 +150,8 @@ classification and does not become a verified continuous support surface.
 `consumeFinishedSurface` binds a selected native spline or mesh chart to the
 matching component's published boundaries. Chart samples must lie within a
 published extent and boundary, and the consumer inherits source operation
-dependencies. Normal-band Slice cell fill needs a rectangular periodic chart and adds
-outward normal shells; it accepts a finished boundary regardless of which
+dependencies. Slice reference families use normal-depth bands; physical cell fill supports
+open rows or periodic helices and it accepts a finished boundary regardless of which
 producer supplies it. This interface does not add chart unwrapping, arbitrary
 multi-patch routing, physical contact verification or a second scheduler.
 
@@ -219,7 +216,7 @@ Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
 Future strokes and unselected geometry do not raise current travel. The endpoint
 floor avoids descending before traversing from a higher startup/park position or
 toward a higher destination. Cooling and final SAAMpath parking use the same
-height calculation. Exporters check selected tool bounds. Existing recipes
+height calculation. Existing recipes
 retain their explicit locked clearance value.
 Compose all results together so planning state carries chronology across skills.
 Machine firmware service routines (including H2D shutdown) retain their separate

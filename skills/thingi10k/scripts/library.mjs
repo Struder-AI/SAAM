@@ -1,32 +1,13 @@
 // Thingi10K metadata and individual meshes share a pinned upstream snapshot.
 // Network access is confined to the mirror and its download CDN, never input URLs.
-import {mkdir,readFile,rename,rm,stat,writeFile} from 'node:fs/promises';
-import {dirname,resolve} from 'node:path';
-import {homedir} from 'node:os';
-import {createHash,randomUUID} from 'node:crypto';
-
+// Nothing is stored: metadata is read for each request and downloads are returned.
+import {createHash} from 'node:crypto';
 
 export const REVISION = '2d5d3b2f3cd3711028ad75b12788c13b25559ec6';
 const repository = 'https://huggingface.co/datasets/Thingi10K/Thingi10K';
 const base = `${repository}/resolve/${REVISION}/`;
-const defaultCache = resolve(process.env.SAAM_DATA??resolve(homedir(),'.saam'),'.thingi10k');
 const maxMeshBytes = 64 * 1024 * 1024;
 const idPattern = /^[1-9][0-9]{0,11}$/;
-
-async function replaceFile(file,bytes){
-  await mkdir(dirname(file),{recursive:true});
-  const temporary=file+'.'+randomUUID()+'.tmp';
-  try{
-    await writeFile(temporary,bytes);
-    for(let attempt=0;;attempt++){
-      try{await rename(temporary,file);return;}
-      catch(error){
-        if(process.platform!=='win32'||!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=6)throw error;
-        await new Promise(done=>setTimeout(done,5*2**attempt));
-      }
-    }
-  }finally{await rm(temporary,{force:true}).catch(()=>{});}
-}
 
 // CSV quoted commas, escaped quotes and embedded newlines occur in model names.
 export function csvRows(text) {
@@ -137,25 +118,11 @@ function parseQuery(query) {
   return {terms};
 }
 
-export function createThingi10KClient({cacheDirectory = defaultCache, fetchImpl = fetch} = {}) {
-  let pendingIndex;
-  async function index() {
-    if (!pendingIndex) pendingIndex = (async () => {
-      const names = ['contextual_data.csv', 'tag_data.csv', 'input_summary.csv'];
-      const rows = await Promise.all(names.map(async name => {
-        const path = resolve(cacheDirectory, REVISION, name); let bytes;
-        try {
-          if ((await stat(path)).size > 4 * 1024 * 1024) throw Error('Oversized Thingi10K metadata cache.');
-          bytes = await readFile(path);
-          return csvRows(bytes.toString('utf8'));
-        } catch (error) { if (error.code !== 'ENOENT') throw error; }
-        bytes = await readRemote(base + 'metadata/' + name, {fetchImpl, maxBytes: 4 * 1024 * 1024});
-        const parsed = csvRows(bytes.toString('utf8'));
-        await replaceFile(path, bytes); return parsed;
-      }));
-      return indexFrom(...rows);
-    })().catch(error => { pendingIndex = undefined; throw error; });
-    return pendingIndex;
+export function createThingi10KClient({fetchImpl = fetch} = {}) {
+  async function index(signal) {
+    const rows = await Promise.all(['contextual_data.csv', 'tag_data.csv', 'input_summary.csv'].map(async name =>
+      csvRows((await readRemote(base + 'metadata/' + name, {fetchImpl, maxBytes: 4 * 1024 * 1024, signal})).toString('utf8'))));
+    return indexFrom(...rows);
   }
   async function search({query, limit = 10, offset = 0} = {}) {
     const parsed = parseQuery(query);
@@ -183,7 +150,7 @@ export function createThingi10KClient({cacheDirectory = defaultCache, fetchImpl 
   }
   async function download(fileId, {signal} = {}) {
     if (!idPattern.test(String(fileId))) throw Error('Use a numeric Thingi10K file ID from search results.');
-    const model = (await index()).find(item => item.fileId === String(fileId));
+    const model = (await index(signal)).find(item => item.fileId === String(fileId));
     if (!model) throw Error('File ID is not in the Thingi10K mirror snapshot. Search first or ask the user to download from Thingiverse.');
     if (!model.importable) throw Error(`This file is ${model.format}, not STL. Choose an STL from the same thing or ask the user for an STL export.`);
     const downloadUrl = base + `raw_meshes/${model.fileId}.stl`;
@@ -193,17 +160,9 @@ export function createThingi10KClient({cacheDirectory = defaultCache, fetchImpl 
       name: model.name, author: model.author, filename: model.filename, license: model.license,
       licenseUrl: model.licenseUrl, licenseVersion: null, sourceUrl: model.sourceUrl,
       mirrorUrl: model.mirrorUrl, metadataUrl: model.metadataUrl, revision: REVISION, downloadUrl, sha256};
-    const sourcePath = resolve(cacheDirectory, REVISION, `${model.fileId}-${sha256}.stl`);
-    const result = {sourcePath, attribution,
+    return {bytes, attribution,
       chatNotice: `Downloaded ${model.name} (file ${model.fileId})${model.author ? ` by ${model.author}` : ' (creator missing from mirror metadata)'} from Thingi10K, mirrored from ${model.sourceUrl}. License: ${model.license} — ${model.licenseUrl}`,
       chatInstruction: 'Briefly identify the source unless obvious from the request, and always include the file’s license link in chat, even if import fails. The mirror does not specify the license version; the link is the original model’s license section.'};
-    try {
-      await replaceFile(sourcePath, bytes);
-      await replaceFile(sourcePath + '.json', JSON.stringify(attribution, null, 2));
-    } catch (error) {
-      throw Error(`${result.chatNotice}\n${result.chatInstruction}\nCould not retain the download and attribution: ${error.message}`, {cause: error});
-    }
-    return result;
   }
   return {search, download};
 }

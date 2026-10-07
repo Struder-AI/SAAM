@@ -4,7 +4,7 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 
 import { orderStrokes, orderScanlineCells } from './builder.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
-  planExtrusion,planDwell,planLayerCooling,planSelection} from './planning.mjs';
+  planExtrusion,planDwell,planLayerCooling,planSelection,planProcess} from './planning.mjs';
 
 // Schedule once, then advance explicit motion state through operations. Layer and
 // obstacle ledgers are local scheduling work, never shared builder state.
@@ -39,7 +39,8 @@ export function planOperation(initialState,op,options={}) {
 export function planOperationEntry(initialState,op,layerSeconds=0) {
   const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
-  const prepared=planOperationStart(selected.state,op);
+  const configured=planProcess(selected.state,op.process);
+  const prepared=planOperationStart(configured.state,op);
   return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
 }
 
@@ -58,7 +59,7 @@ export function planPreparedOperation(initialState,op,{deposited=[],finishLayer=
   const restored=planOperationEnd(state,op),operationSeconds=restored.state.layerSeconds;
   const cooled=finishLayer?planLayerCooling(restored.state):planningResult(restored.state);
   actions.add(restored.actions);actions.add(cooled.actions);
-  return planningResult(cooled.state,actions.finish(),{operationSeconds});
+  return planningResult(planProcess(cooled.state).state,actions.finish(),{operationSeconds});
 }
 
 export function planOperationStart(state,op) {

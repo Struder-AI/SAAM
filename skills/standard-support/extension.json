@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"standard-support","dependencies":[],"entries":{"geometry-edit":{"file":"scripts/edit.mjs","export":"editStandardSupport"}},"license":"Apache-2.0","provenance":"SAAM release; owner-authored provisional support method"}

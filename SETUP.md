@@ -7,21 +7,19 @@ work; the person need not request it separately:
    not stop and hand the task back: proactively install Node.js 22+ for the
    person's operating system (using their platform's standard installer or
    version manager), confirm `node --version` now reports 22+, then continue
-   setup. Missing Node is a prerequisite to resolve in stride, not a setup
-   failure to report. Once setup completes, return to and carry out the
-   person's original request without waiting to be asked again.
+   setup. Once setup completes, return to and carry out the person's original
+   request without waiting to be asked again.
 2. Run `npm ci` from the repository root unless `node_modules/` is already
    present, as in a packaged download.
 3. Run `npm run setup:check` to verify dependency loading, geometry kernels and
-   an unapproved geometry preview served by Studio. This short check needs no Git
-   metadata and creates no toolpath or manufacturing approval. Do not run the
+   a geometry preview served by Studio. This short check creates no toolpath.
+   Do not run the
    full regression suite as maker onboarding.
 4. Apply [Studio agent permissions](studio/README.md#studio-agent-permissions): project trust,
    the shared launcher permission and browser access.
 
-Report a failure as a setup problem and stop there. Setup does not create a
-manufacturing approval. Git is needed only to clone; generation requires no
-Rhino desktop installation or Compute server. After setup, use the
+Report a failure as a setup problem and stop there. Git is needed only to clone;
+generation requires no Rhino desktop installation or Compute server. After setup, use the
 [Avoid check spirals](BUILDERS.md#avoid-check-spirals) policy for development work.
 
 Manage dependencies through `package.json`, `package-lock.json` and installation

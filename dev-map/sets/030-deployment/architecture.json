@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "date": "2026-09-30",
-  "description": "0.3.0 desktop Codex/Claude Code installation, optional invite updates and live diagnostics: see plans/0.3.0.md. SAAM works without a code; no pre-activation diagnostics, offline backlog or speculative compatibility subsystem. Library/exchange nodes 5/7 remain context for actively continuing 0.3.1 and do not gate 0.3.0. Release & diagnostics service is a working name.",
+  "date": "2026-10-02",
+  "description": "Desktop SAAM application, client commands, one home, optional invite updates and live diagnostics: see plans/0.3.2.md. Application owns Studio/chat/job/release-service lifetime. Authored deployment responsibilities and source evidence are not native-platform acceptance or conformance approval.",
   "actors": {
     "agent": {
       "label": "Desktop agent",
@@ -13,21 +13,21 @@
       "id": "installer",
       "index": "1",
       "label": "Chat installer",
-      "description": "Version-pinned release instructions for a desktop agent.",
+      "description": "Release installation, migration into one home, command PATH and scoped Codex/Claude setup.",
       "type": "component"
     },
     {
       "id": "installation",
       "index": "2",
       "label": "Local SAAM installation",
-      "description": "Release code; transactional update and rollback.",
+      "description": "One app owns chats, Studio windows, jobs and release service; explicit Quit/Update ends it. app is replaceable; Prints/extensions/state persist.",
       "type": "component"
-    },
+    ,"source":{"file":"packaging/application.mjs","declaration":"startApplication"}},
     {
       "id": "studio",
       "index": "3",
       "label": "Studio Connect",
-      "description": "Optional alpha invite; simple update/diagnostics statement.",
+      "description": "Review, chat attachment and optional invite/update/diagnostics UI use the owning application.",
       "type": "component"
     },
     {
@@ -41,14 +41,14 @@
       "id": "library",
       "index": "5",
       "label": "Local extension library",
-      "description": "User versions/overrides survive release updates.",
+      "description": "User extensions in the SAAM home survive app updates; selected overrides share installed engine operations.",
       "type": "component"
     },
     {
       "id": "bundles",
       "index": "6",
       "label": "Local bundles",
-      "description": "Local recipes, assets, extension references and review artifacts.",
+      "description": "Prints in the SAAM home retain recipes, assets, reviews and self-contained workspace exports.",
       "type": "component"
     },
     {
@@ -85,7 +85,7 @@
       ],
       "inputs": "Verified release and existing local installation.",
       "outputs": "Working local installation or restored previous version.",
-      "effects": "Replace release code, preserve user data; supply migration guidance only for actual breaking changes.",
+      "effects": "Stage/activate/rollback app code, migrate prior layout preserving all prints/extensions/state, install saam and scoped client discovery. User data remains outside replaceable app.",
       "excludes": "No overwrite of local bundles or extension edits.",
       "direction": "Caller \u2192 provider; declared response included.",
       "failure": "Return a named failure; retain previous valid local content."
@@ -143,7 +143,7 @@
       "operations": [
         "emit runtime event"
       ],
-      "inputs": "Live SAAM emitter events from activated-alpha tool calls and runtime boundaries; proposed job/stage, extension and install/update fields.",
+      "inputs": "Activated application events from chats, tours, operations and workspace jobs through one retained release service; source runs share the home credential.",
       "outputs": "Immediate service receipt/status; local work never waits on diagnostic success.",
       "effects": "Live emission only while activated and connected; the service may retain received events for the provisional existing 30 days.",
       "excludes": "No emission/diagnostic collection from unactivated users; no backfill, chat transcript/reasoning, credentials or bulk files. Compact large arrays and redact sensitive fields.",
@@ -173,7 +173,7 @@
       "operations": [
         "open / save"
       ],
-      "inputs": "Bundle identity, assets and extension references.",
+      "inputs": "Bundle identity under the single SAAM home, saved assets and extension references; one window per bundle and explicit chat attachment.",
       "outputs": "Bundle snapshot or actionable error with migration guidance when needed.",
       "effects": "Atomic saves; no speculative migration framework.",
       "excludes": "No silent regeneration of confirmed programs.",

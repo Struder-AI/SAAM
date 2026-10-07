@@ -8,7 +8,7 @@ and [numerical precision](../../core/geom/README.md#precision-belongs-to-a-quant
 ## Slicing speed benchmarks
 
 For an existing shell print, [print.mjs](./print.mjs) measures the
-shared prepared generator and checked exporter without changing the bundle or approvals:
+shared prepared generator and checked exporter without changing the bundle:
 
 ```sh
 node scripts/bench/print.mjs Prints/my-print --out .local/print-timing
@@ -68,7 +68,7 @@ uses 20% rectilinear infill with three top/bottom solid layers; `draped` combine
 a solid slice with two 0.2 mm skins at 0.5 mm survey/stroke sampling and the S5's
 15 degree limit. Cooling delay is zero in the benchmark. Draping uses the
 same planar support-height callback as shared generation. All results are
-software-only development data, with no approval or machine execution.
+software-only development data, with no machine execution.
 
 Meshes use conforming UV grids over the same six patches, refined to sampled
 surface-to-triangle correspondence targets of 0.1, 0.025 and 0.005 mm by default.

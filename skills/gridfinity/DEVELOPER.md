@@ -7,7 +7,7 @@ with a common segment count from a 4 mm maximum radius, and output passes the
 closed-mesh validation. [record.mjs](scripts/record.mjs) hashes mesh and
 parameters together, detecting stale pairs (not forged records); reopening and
 slicing use the saved mesh. [edit.mjs](scripts/edit.mjs) returns recipe values;
-[the lifecycle](../../core/print/extension-edits.mjs) applies them for CLI and MCP.
+[the lifecycle](../../core/print/extension-edits.mjs) applies them for `saam`.
 A compiled record from `compileGridfinity` can be a part's geometry in a
 complete plan; assembly transforms act after local construction.
 
@@ -26,9 +26,8 @@ SAAM trims the plate at 4.75 mm to keep a web between cells.
 ## Verification
 
 `node --test skills/gridfinity/tests/*.test.mjs` covers sections, cavities,
-mating intersections, parameter errors, text composition, assemblies, CLI/MCP
-access and the review/export lifecycle, with synthetic approvals in temporary
-bundles. No physical print is validated. Label ramps, screw holes, scoops,
+mating intersections, parameter errors, text composition, assemblies,
+access and the review/export lifecycle in temporary bundles. No physical print is validated. Label ramps, screw holes, scoops,
 half-grid variants and object-shaped insert cutouts are not implemented. The
 only refusal is a subdivision the solid kernel cannot address. Dated checks are
 in the [development record](references/development-record.md).

@@ -1,21 +1,19 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {execFileSync} from 'node:child_process';
-import {createBlobFieldEvaluator,validateBlobField} from '../geom/blob-field.mjs';
+import {prepareBlobField,evaluateBlobField,validateBlobField} from '../geom/blob-field.mjs';
 import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {solidKernel,preciseSolidMesh} from '../geom/solid.mjs';
-import {validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../agent/blob-field.mjs';
-import {loadBundle,generateBundle,approve,deliver} from '../print/bundle.mjs';
-import {createGeometry,verifyGeometry} from '../print/geometry.mjs';
+import {loadBundle,generateBundle} from '../print/bundle.mjs';
 
 const field=(points,threshold=0.25)=>({schema:'saam-blob-field/1',threshold,points});
 const blob=(positionMm,reachMm,strength=1)=>({positionMm,reachMm,strength});
@@ -32,8 +30,8 @@ test('solid export retains coordinates below a Float32 ULP and honors property s
 });
 
 test('falloff sums: a lone point reaches the threshold at half its reach, gradients match differences, invalid points fail',()=>{
-  const f=field([blob([1,2,5],8),blob([4,2,5],6,-0.5)]),evaluate=createBlobFieldEvaluator(f);
-  close(createBlobFieldEvaluator(field([blob([0,0,5],10)]))([5,0,5]).value,0.25);
+  const f=prepareBlobField(field([blob([1,2,5],8),blob([4,2,5],6,-0.5)])),evaluate=(point,options)=>evaluateBlobField(f,point,options);
+  close(evaluateBlobField(prepareBlobField(field([blob([0,0,5],10)])),[5,0,5]).value,0.25);
   close(evaluate([20,20,20]).value,0);
   const point=[2.3,3.1,4.2],at=evaluate(point,{derivatives:true});
   for(let a=0;a<3;a++){const lo=[...point],hi=[...point];lo[a]-=1e-6;hi[a]+=1e-6;close(at.gradient[a],(evaluate(hi).value-evaluate(lo).value)/2e-6,1e-6);}
@@ -46,7 +44,6 @@ test('a lone ball extracts to its radius with a flat bed cut',async()=>{
   close(mesh.bounds.min[2],0,1e-9);close(mesh.bounds.max[2],8,0.05);
   close(regionArea(section(mesh,horizontalSlice(3)).loops),Math.PI*25,0.2);
   await assert.rejects(compileBlobField(field([blob([0,0,3],10,0.01)]),{edgeMm:0.5}),/empty/);
-  const changed=structuredClone(g);changed.field.threshold=0.3;assert.throws(()=>validateBlobFieldRecord(changed),/Rebuild/);
 });
 
 test('neighbouring points blend, distant ones stay separate, and negative points carve holes and voids',async()=>{
@@ -65,29 +62,13 @@ test('requests default the threshold and sampling and store them explicitly',asy
   assert.throws(()=>compileRequest({points:[],isoValue:0}),/request/);
 });
 
-test('CLI creates and rebuilds a blob field from a request file without approving it',async t=>{
-  const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-cli-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const bundle=join(dir,'print'),file=join(dir,'request.json'),request={points:[blob([0,0,2],8)],edgeMm:0.5};
-  await writeFile(file,JSON.stringify(request));
-  execFileSync(process.execPath,['core/print/cli.mjs','blob-field-create',bundle,file,'ultimaker-s5'],{stdio:'pipe'});
-  const state=await loadBundle(bundle);request.threshold=0.3;await writeFile(file,JSON.stringify(request));
-  execFileSync(process.execPath,['core/print/cli.mjs','blob-field-update',bundle,file,'--revision',state.revision],{stdio:'pipe'});
-  const next=await loadBundle(bundle);assert.equal(next.plan.geometry.field.threshold,0.3);assert.deepEqual(next.review.approvals,{});
-});
-
-test('blob field lifecycle slices, reopens, delivers exact bytes and invalidates changed points',async t=>{
+test('blob field lifecycle slices, reopens and updates changed points',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const request={points:[blob([0,0,1],8),blob([5,0,1],6)],edgeMm:0.5};
-  let state=await createBlobFieldBundle(dir,request);
+  let state=await createBlobFieldBundle(dir,request,{machineId:'ultimaker-s5'});
   assert.deepEqual(state.plan.geometry.field.points,request.points);assert.equal(state.geometry.nativeFile,'model.mesh.json');
-  const native=await createGeometry(state.plan.geometry),fake=structuredClone(native.descriptor);fake.vertices[0][0]+=1;
-  await assert.rejects(verifyGeometry(native.bytes,fake),/display\/identity/);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.ok(state.program.moves.length>0);
-  const bytes=await readFile(join(dir,state.review.generation.file));
-  await approve(dir,{actor:'SYNTHETIC BLOB FIELD TEST',revision:state.revision});
-  assert.deepEqual(await readFile(await deliver(dir)),bytes);
   state=await loadBundle(dir);request.points[1].strength=1.5;
-  state=await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});
-  assert.equal(state.toolpathApproved,false);
+  await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});
   await assert.rejects(updateBlobFieldBundle(dir,request,{expectedRevision:'stale'}),/stale/);
 });

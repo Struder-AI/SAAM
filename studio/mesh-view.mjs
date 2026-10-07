@@ -36,7 +36,7 @@ export function buildMeshView({vertices,faces},creaseDeg=3) {
 
 // Angle-weighted corner normals remove triangulation shading without rounding
 // real corners or blending across separately named CAD/component features.
-export function buildGeometryView(geometry,creaseDeg=35,gridFeatures=[]){
+export function buildGeometryView(geometry,creaseDeg=35){
   const {vertices,faces,labels}=geometry,topology=buildMeshView(geometry,creaseDeg);
   const {normals,weld,edges}=topology,incident=new Map(),cosine=Math.cos(creaseDeg*Math.PI/180);
   const features=[...new Set(labels)],featureIds=new Map(features.map((id,i)=>[id,i]));
@@ -63,7 +63,7 @@ export function buildGeometryView(geometry,creaseDeg=35,gridFeatures=[]){
   });
   for(const entries of edges.values()){
     const a=entries[0],b=entries[1];
-    if(entries.length===2&&labels[a.f]===labels[b.f]&&!gridFeatures.includes(labels[a.f])&&!topology.edgeMasks[a.f][a.i])continue;
+    if(entries.length===2&&labels[a.f]===labels[b.f]&&!topology.edgeMasks[a.f][a.i])continue;
     for(const entry of entries.filter((e,i)=>entries.findIndex(o=>labels[o.f]===labels[e.f])===i)){
       const face=faces[entry.f];
       for(const k of [entry.i,(entry.i+1)%face.length])outlines.push(...vertices[face[k]],0,0,1,featureIds.get(labels[entry.f]));
@@ -96,7 +96,8 @@ export function buildGeometryView(geometry,creaseDeg=35,gridFeatures=[]){
     segments.forEach((s,i)=>{if(!visited.has(i))chain(i,s.ends[0]);});
   }
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
-  for(const p of vertices)p.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
+  for(const p of [...vertices,...(geometry.curves??[]).flatMap(c=>c.points),...(geometry.points??[]).map(p=>p.point)])p.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
+  if(!Number.isFinite(bounds.min[0])){bounds.min=[0,0,0];bounds.max=[0,0,0];}
   bounds.min[2]=Math.min(0,bounds.min[2]);
   return {geometry,features,triangles,cornerNormals,bounds,topology,edgeFeatures,edgeLines:new Float32Array(edgeLines),surface:new Float32Array(surface),outlines:new Float32Array(outlines)};
 }
@@ -116,6 +117,15 @@ function faceAt(view,points,x,y){
 }
 export function pickGeometry(view,project,x,y,{edges=false,radius=6}={}){
   const points=view.geometry.vertices.map(project);
+  const face=faceAt(view,points,x,y),spatial={distance:radius*radius,depth:face.depth,id:null};
+  const consider=(p,id,distance)=>{if(distance<=spatial.distance&&p[2]>=face.depth-1e-7){spatial.distance=distance;spatial.depth=p[2];spatial.id=id;}};
+  for(const entry of view.geometry.points??[]){const p=project(entry.point);consider(p,entry.id,(p[0]-x)**2+(p[1]-y)**2);}
+  for(const curve of view.geometry.curves??[])for(let i=1;i<curve.points.length;i++){
+    const a=project(curve.points[i-1]),b=project(curve.points[i]),dx=b[0]-a[0],dy=b[1]-a[1],d=dx*dx+dy*dy;
+    const t=d?Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/d)):0,p=a.map((v,k)=>v+t*(b[k]-v));
+    consider(p,curve.id,(p[0]-x)**2+(p[1]-y)**2);
+  }
+  if(spatial.id)return spatial.id;
   if(edges){
     let nearest=radius*radius,hit=null,front=-Infinity;
     for(const edge of view.edgeFeatures.values())for(const pair of edge.segments){

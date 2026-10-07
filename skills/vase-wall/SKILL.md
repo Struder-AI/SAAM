@@ -1,14 +1,14 @@
 ---
 name: vase-wall
-description: Extension for a continuous Slice spiral wall and optional solid base.
+description: Extension for a continuous Trace spiral wall and optional solid base.
 metadata:
   saam-kind: extension
 ---
 
 # Standard vase mode
 
-[This extension](scripts/runtime.mjs) joins Slice courses into one continuous
-spiral wall with an open top, hollow interior and optional solid base. It needs
+[This extension](scripts/runtime.mjs) generates a continuous spiral curve on
+reference sleeve geometry and deposits it with Trace with an open top, hollow interior and optional solid base. It needs
 no advanced-vase package, including when `meshSleeve` supplies a fit.
 [Advanced vase](../advanced-vase-wall/SKILL.md) adds repeated patterns through Trace.
 
@@ -57,9 +57,8 @@ Choose `zEndMm` if the upper geometry is unsuitable.
 | `boundaryToleranceMm`, `minFeatureMm` | Centerline standoff/section allowance and smallest sampled feature. |
 | `sleeveToleranceMm` | Target deviation for the fitted-sleeve fast path on meshes (default 0.08 mm); `0` forces the exact per-section wall. |
 
-Sampling follows geometry and tolerances without a construction cap. Memory
-scales with emitted points and the Node heap; extreme programs may need
-`--max-old-space-size`.
+Sampling follows geometry and tolerances without a construction cap; memory
+scales with emitted points, within a generation heap sized to the machine.
 
 The process layer height controls rise per turn; line width controls the nominal
 wall bead. Cooling can slow the continuous stroke rather than parking between

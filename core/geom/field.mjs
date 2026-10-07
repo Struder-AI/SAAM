@@ -11,6 +11,7 @@
 import { evaluate, clamp } from './nurbs.mjs';
 import { TOLERANCE } from './tolerance.mjs';
 
+const affineProjections = new WeakMap();
 const SEEDS = 3;
 const NEWTON_STEPS = 40;
 
@@ -39,8 +40,45 @@ function candidateSpansAt(patch, x, y) {
   return spans;
 }
 
+// Constant-weight nets reproduce linear UV coordinates through Greville
+// abscissae. Certify the entire projected net before using its direct inverse;
+// arbitrary/folded projections retain the multi-seed Newton construction.
+function affineProjection(patch){
+  if(!affineProjections.has(patch)){
+    const {nu,nv,orderU,orderV,knotsU,knotsV,cp}=patch;
+    const greville=(knots,n,order)=>Array.from({length:n},(_,i)=>Array.from({length:order-1},(_,k)=>knots[i+k+1]).reduce((a,b)=>a+b,0)/(order-1));
+    const us=greville(knotsU,nu,orderU),vs=greville(knotsV,nv,orderV),weight=cp[3];
+    const xy=(i,j)=>[0,1].map(k=>cp[(i*nv+j)*4+k]/cp[(i*nv+j)*4+3]);
+    const origin=xy(0,0),du=xy(nu-1,0).map((v,k)=>(v-origin[k])/(us.at(-1)-us[0])),dv=xy(0,nv-1).map((v,k)=>(v-origin[k])/(vs.at(-1)-vs[0]));
+    const determinant=du[0]*dv[1]-du[1]*dv[0];
+    let affine=Number.isFinite(determinant)&&Math.abs(determinant)>1e-14;
+    for(let i=0;i<nu&&affine;i++)for(let j=0;j<nv&&affine;j++){
+      affine=cp[(i*nv+j)*4+3]===weight&&xy(i,j).every((v,k)=>Math.abs(v-origin[k]-du[k]*(us[i]-us[0])-dv[k]*(vs[j]-vs[0]))<=TOLERANCE.point*1e-3);
+    }
+    affineProjections.set(patch,affine?{origin,du,dv,determinant,u0:us[0],v0:vs[0]}:null);
+  }
+  return affineProjections.get(patch);
+}
+const affineUv=({origin,du,dv,determinant,u0,v0},x,y)=>{
+  const dx=x-origin[0],dy=y-origin[1];
+  return [u0+(dx*dv[1]-dy*dv[0])/determinant,v0+(du[0]*dy-du[1]*dx)/determinant];
+};
+// True only when the patch's certified affine XY projection holds every point,
+// and so their convex hull: the patch then lies above or below all of it.
+export function patchCoversChart(patch,points){
+  const affine=affineProjection(patch);
+  return !!affine&&points.every(([x,y])=>{const [u,v]=affineUv(affine,x,y);return u>=patch.domainU[0]&&u<=patch.domainU[1]&&v>=patch.domainV[0]&&v<=patch.domainV[1];});
+}
+
 // Every point of the patch directly above or below (x, y).
 export function projectToPatch(patch, x, y) {
+  const affine=affineProjection(patch);
+  if(affine){
+    const [u,v]=affineUv(affine,x,y);
+    if(u<patch.domainU[0]-TOLERANCE.parameter||u>patch.domainU[1]+TOLERANCE.parameter||v<patch.domainV[0]-TOLERANCE.parameter||v>patch.domainV[1]+TOLERANCE.parameter)return [];
+    const cu=clamp(u,patch.domainU),cv=clamp(v,patch.domainV),frame=evaluate(patch,cu,cv);
+    if(Math.hypot(frame.point[0]-x,frame.point[1]-y)<=TOLERANCE.point)return [{u:cu,v:cv,point:frame.point,normal:frame.normal}];
+  }
   const hits = [];
   for (const span of candidateSpansAt(patch, x, y))
     for (let i = 1; i <= SEEDS; i++)

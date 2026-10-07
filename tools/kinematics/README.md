@@ -11,8 +11,7 @@ node studio/server.mjs Prints/development/s5-studio
 Supported IDs are `dobot-mg400`, `denso-vs068a4-rc8a`,
 `ultimaker-s5` and `bambu-h2d`. Use **Machine view** to fit the assembly and
 **Play** or the scrubber to inspect motion. Enable **Show travel** to display
-the default study's non-depositing path. Geometry and process approval are
-unavailable; this source is not a machine program.
+the default study's non-depositing path. This source is not a machine program.
 
 In Machine view, **Tool position** sliders move the simulated tool in XYZ and
 the model's supported orientation axes. Moving a slider pauses playback. Use
@@ -53,6 +52,5 @@ in seconds. Equal endpoints express a dwell. `euler-xyz` uses
 controller command.
 
 [machine-study.mjs](../../studio/machine-study.mjs) is a read-only adapter into
-the shared viewer, source transport and identity handling. It cannot approve,
-generate or deliver a manufacturing job. Study data stays in ignored `Prints/`;
-no study approvals transfer to ordinary print bundles.
+the shared viewer, source transport and identity handling. It cannot generate
+or deliver a manufacturing job. Study data stays in ignored `Prints/`.

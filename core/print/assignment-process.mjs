@@ -2,11 +2,12 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {materialProcess} from '../machine/filaments.mjs';
 
 
-const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent'];
+const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent','liftMm','retractMm'];
 
 export function validateAssignmentProcess(overrides) {
   requireThat(overrides===null||overrides&&typeof overrides==='object'&&!Array.isArray(overrides)&&Object.keys(overrides).every(key=>fields.includes(key)&&Number.isFinite(overrides[key])),
-    'Assignment process must be null or finite firstLayerMm, layerMm, lineWidthMm, planarSpeedMmS, firstLayerSpeedMmS and fanPercent overrides.');
+    'Assignment process must be null or finite firstLayerMm, layerMm, lineWidthMm, planarSpeedMmS, firstLayerSpeedMmS, fanPercent, liftMm and retractMm overrides.');
+  for(const key of ['liftMm','retractMm'])requireThat(overrides?.[key]===undefined||overrides[key]>=0,`Assignment ${key} must be nonnegative.`);
   return overrides;
 }
 

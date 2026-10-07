@@ -63,37 +63,21 @@ evaluations instead of repeatedly flattening and inverse-projecting geometry.
 
 ### Precision belongs to a quantity and an operation
 
-Choose precision by quantity, units, construction stage and consumer. More decimals do not establish
-accuracy; coordinate grids, chord error, parameter increments and volume allowances need separate budgets.
+Tolerance classes and values belong to [Dimensions and tolerances](../README.md#dimensions-and-tolerances).
+Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
+`precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
+curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
+steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
+in U and V; a normal dot product is dimensionless.
 
-| Dimension | Current examples | Developer guidance |
-|---|---|---|
-| Coordinate quantization, mm | Planar offset `precisionMm`; Clipper2 boolean grid `1e-9` mm | This rounds coordinates for kernel arithmetic. Use a local origin and account for repeated conversions. A grid step does not bound all later outline displacement or remove excess contour vertices. Measure the actual kernel cost before keeping extreme precision. |
-| Shape approximation, mm | Native section chord `0.001` mm; offset arcs `0.02` mm; coverage arcs `0.001` mm | Bound perpendicular deviation from the source curve independently of coordinate storage. Sample long, nearly straight spans economically; preserve cumulative curvature and topology. Coverage expansion and its consuming predicates must agree about approximation error. |
-| Sampling distance and feature size, mm | Surface stroke steps `0.2` mm; rim sampling `0.5` mm and error `0.01` mm | A step size is not a certified surface-error bound. Report mesh repair shape changes separately from numerical precision. |
-| Coincidence/predicate slack, mm or derived units | Point `1e-6` mm, plane `1e-7` mm; mesh separation `1e-9` mm | Keep numerical degeneracy handling separate from intentional shape simplification. A determinant from two length vectors has units mm²; compare to an area quantity or normalize it to distance/relative conditioning. Do not use a length tolerance as an area cutoff. |
-| Solver parameters and angles | `TOLERANCE.parameter=1e-9` in native UV parameter units; surface `precisionUv=1e-10`; angles in degrees/radians | UV precision maps to physical displacement through surface derivatives and can differ in U and V. A normal dot product is dimensionless. Neither uses an XYZ millimetre tolerance. Record units at conversions and use scale-aware conditioning for singularity decisions. |
-| Machine command quantization | S5/H2D XYZ and filament E currently five decimals; feed three decimals in mm/min; dwell integer milliseconds; Dobot ten decimals and RC8A eight | XYZ, filament length, volume, feed, time and pose need independent error budgets even when a formatter currently shares digits. Relative-E rounding can accumulate per move; absolute E has different accumulation. Reconcile final endpoints, length, volume and duration when removing or coalescing points. |
-| Display approximation | Studio bead tessellation, float buffers and distance-based detail | Display budgets are visual only. They must not alter the saved program, geometry identity, deposition volume or machine checks. Printed-looking colors and shading do not establish geometric accuracy. |
-
-Short segments can cross rounding boundaries; length alone cannot predict their disappearance.
-When removing points, preserve/recompute subsequent starts, volume integrals, gaps, widths and pose.
-Simplify before dependent data where practical. `cleanPlanarLoop` removes numerical seams using plane
-tolerance; it is not process-resolution simplification. Quantize each output field once and reuse it
-for text, flow and modal state instead of repeated formatting/parsing.
-
-For ordinary FFF experiments, start with micrometre grids and hundredths-of-a-millimetre deviation,
-then measure against feature size, bead dimensions, material interfaces and actual output. These are
-not new defaults or permission to erase narrow regions; predicates may need tighter precision than contours.
-The [external inspection](../../DEVLOG.md#2026-09-11--external-precision-reference-inspection) separates these
-budgets but establishes neither effective user settings nor speed. Deviation limits can retain short segments.
-
-Measure elapsed time, point counts and geometric change on the same recipe. Include affected translated/scaled
-geometry, corners, holes, thin walls, repeated operations and variable extrusion. Compare areas in mm² and
-distances in mm against independent references; fix physical-invariant failures rather than loosening checks.
-This is development guidance, not a runtime sweep or approval gate. The [precision history](../../DEVLOG.md#br-040--dimension-aware-precision-audit-and-developer-guidance)
-records corrections/follow-ups; the [provenance audit](../../DEVLOG.md#2026-09-14--build-request-provenance-audit)
-does not authorize every finding. [Formats](../print/README.md#formats) specifies current XYZ behavior.
+Short segments can cross rounding boundaries. When removing points, preserve or recompute subsequent
+starts, volume integrals, gaps, widths and pose; quantize each output field once and reuse it for text,
+flow and modal state. `cleanPlanarLoop` removes numerical seams; it is not process-resolution
+simplification. Measure elapsed time, point counts and geometric change on the same recipe against
+independent references (translated geometry, corners, holes, thin walls, variable extrusion), and fix
+physical-invariant failures rather than loosening checks.
+[Formats](../print/README.md#formats) specifies current XYZ behavior.
 
 ### Geometry query boundary
 
@@ -107,12 +91,13 @@ does not authorize every finding. [Formats](../print/README.md#formats) specifie
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
+| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; faces need nonzero XY projection and vertices above the plane. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
 | [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
 | [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
 | [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
-| [createBlobFieldEvaluator](blob-field.mjs) | Prepare finite weighted points or periodic bump lattices once for repeated scalar queries. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
+| [prepareBlobField / evaluateBlobField](blob-field.mjs) | Preparation turns finite weighted points or a periodic bump lattice into a plain record once; queries sample that record. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
 | [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
 | [intersectPatches](surface-intersection.mjs) | Section boundaries retain corresponding parameters on both native surfaces. |
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
@@ -153,8 +138,7 @@ facet. Drape requires a continuous accessible roof; discontinuities or sampled
 segments above its angle limit are rejected. Sampling and bead-width limits remain.
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
-regions, machine checks, native-file integrity, approvals and exact-byte S5
-export delivery. Add equivalent backend tests for each general skill.
+regions, machine checks and exact-byte S5 export delivery. Add equivalent backend tests for each general skill.
 
 ### Prepared contour mapping
 
@@ -392,15 +376,14 @@ The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. 
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
-original base, editable features, quality controls, output vertices/triangles and
-a digest binding construction inputs to that output. The actual persisted mesh
-is the reviewed and sliced geometry; reopening validates its bytes and descriptor
-without rerunning font shaping or booleans. Text edits rebuild through
-[the preparation entry](../print/text.mjs), then the normal bundle update invalidates
-affected reviews. Text's original STL source hash remains checked. Assembly edits
-retain the selected component id and other components' representations.
+original base, editable features, quality controls and output vertices/triangles.
+The persisted mesh is the reviewed and sliced geometry; reopening uses it without
+rerunning font shaping or booleans. Text edits rebuild through
+[the preparation entry](../print/text.mjs), then the normal bundle update leaves
+the program stale. Assembly edits retain the selected component id and other
+components' representations.
 
-Text records save digest-bound `materialParts`: `base` and
+Text records save `materialParts`: `base` and
 `text/<feature-id>`. Raised additions exclude existing material; later recessed
 cuts subtract from every partition. Empty partitions are omitted. An uncut base
 uses `geometry: null` to retain the original native geometry and its queries;
@@ -442,33 +425,32 @@ complete Rhino computation engine.
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
 source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Studio, CLI and agent imports
+when cleanup alone does not yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
-[Cleanup](./mesh-repair.mjs) merges identical coordinates and removes duplicate,
-degenerate and unused elements. Collapsed faces can leave a long boundary edge
-opposite a complete collinear chain. Cleanup subdivides the surviving face at
-those existing vertices, preserving positions and winding with a 1e-9 mm
-line-distance tolerance. It does not guess between branches or fill actual holes.
-
-The native backend orients the soup, stitches compatible borders, and applies
-CGAL 6.2.1 local patch repair with smoothing disabled and genus preservation
-requested. It can split vertices to represent manifold patches, but that does
-not guarantee a valid closed solid. Optional hole filling needs both an edge-count
-limit and a physical bounding-box diagonal limit. Failed repair, remaining open
-boundaries or detected intersections produce no accepted output. See the
-[native build and license reference](./native/README.md).
+[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
+faces keep one copy facing their net orientation (an opposed pair cancels).
+`cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
+An explicit positive tolerance snaps each point to its nearest retained vertex
+within that Euclidean distance in mm; input order breaks ties. Representatives
+never move, repeated coordinates share a decision, and neighbours do not chain.
+Spatial buckets only find candidates; they never round accepted coordinates.
+Collapsed-face stitching uses existing collinear boundary vertices (numeric
+conditioning), without guessing branches or filling holes. Ordinary imports remain
+exact-only. Reports include merge counts and maximum displacement; shape-change
+evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
+only within explicit limits, closes opposed sheets within print resolution and
+replaces a self-crossing surface by its solid's boundary; reports give the closing,
+cancelled area and inward/outward shells before and after (fewer inward shells:
+cavities opened).
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
-and reimport of the exact decimal ASCII STL. Contact tolerance is 1e-9 mm;
-this is not an exact-arithmetic validity proof. The report counts unchanged source
-faces and changed/new faces and samples vertices and triangle centroids in both
-directions. Samples are deterministic and bounded to 10,000 per direction. They
-are not a certified maximum surface error. Identical face geometry is recognized
-exactly without distance sampling. An optional sampled-distance limit rejects
-excessive measured changes; it does not certify unsampled regions. Geometry still
-needs review, and successful processing creates no manufacturing approval.
+and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
+numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
+faces and sample at most 10,000 vertices/centroids per direction, without claiming
+a certified surface-error bound. Identical geometry needs no sampling. The optional
+sampled-distance limit rejects measured excess; geometry still needs review.
 
 ### Memory, files and progress
 

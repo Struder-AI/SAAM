@@ -6,10 +6,8 @@ import {offsetSurfaceRegion} from './surface-offset.mjs';
 import {sectionPatch} from '../geom/section.mjs';
 import {patchMeanNormal,sliceChartStep} from '../geom/slice.mjs';
 import {sampledFieldStrokes} from './fill-patterns.mjs';
-import {frontLayerStrokes} from './seeded-fronts.mjs';
-import {clipOpenPaths,intersect,difference} from './intersection.mjs';
+import {clipOpenPaths} from './intersection.mjs';
 
-import {lineSpacing} from '../path/spacing.mjs';
 
 export function patchOffset(slice,region,distanceMm,{sampleStepMm=.2}={}) {
   return !region.length?[]:distanceMm===0?region:offsetSurfaceRegion(slice.patch,region,distanceMm,{maxStepMm:sampleStepMm}).loopsUv;
@@ -32,17 +30,10 @@ export function projectedFillStrokes(slice,region,{spacingMm,angleDeg,role='fill
   return curves;
 }
 
-export function patchLayerStrokes(slice,region,{widthMm,loops,fillDensity,fillPattern,fillAngleDeg,patternAngleDeg,solidDensity=1,fillOverlap,spacingFactor,sampleStepMm,solid=null,direction=null,fillOrder=null,layer=null,supportSegments=[]}) {
-  if(fillOrder){
-    const fronts=frontLayerStrokes({...layer,slice,region,direction},{...fillOrder,sampleStepMm,lineWidthMm:widthMm,supportSegments});
-    return {walls:[],infill:[],fill:fronts.curves,interior:region,sparseRegion:[],solidRegion:region,constructionReport:fronts.report};
-  }
-  const pitch=lineSpacing(widthMm,{spacingFactor}),settings={sampleStepMm},walls=[];
-  for(let ring=0;ring<loops;ring++)for(const points of patchOffset(slice,region,-widthMm/2-ring*pitch,settings))walls.push({role:ring?'perimeter-inner':'perimeter',closed:true,points,beadWidthMm:widthMm});
-  const inset=loops?widthMm+(loops-1)*pitch+widthMm*(.5-fillOverlap):widthMm/2;
-  const interior=patchOffset(slice,region,-inset,settings),solidRegion=fillDensity>=1?interior:solid?.length?intersect(interior,solid):[],sparseRegion=fillDensity>=1?[]:solid?difference(interior,solid):interior;
-  const fill=projectedFillStrokes(slice,solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg,sampleStepMm,direction});
-  const infill=[];
+// Native physical pattern algorithms; region/mask/boundary policy is shared.
+export function patchPatternStrokes(slice,sparseRegion,{pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction}){
+  const settings={sampleStepMm};
+const infill=[];
   if(fillDensity>0&&sparseRegion.length){
     if(fillPattern==='concentric'){
       for(let ring=0;;ring++){
@@ -63,5 +54,24 @@ export function patchLayerStrokes(slice,region,{widthMm,loops,fillDensity,fillPa
       for(let i=0;i<count;i++)infill.push(...projectedFillStrokes(slice,sparseRegion,{spacingMm:pitch*count/fillDensity,angleDeg:patternAngleDeg+i*180/count,sampleStepMm,direction,role:'infill'}));
     }
   }
-  return {walls,infill,fill,interior,sparseRegion,solidRegion};
+  return infill;
+}
+
+// Physical fields on evaluated charts without spline control points. Native
+// patches retain their exact section kernel; this numerical kernel samples XYZ.
+export function sampledChartPatternStrokes(slice,region,{pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction}){
+  if(!region.length||fillDensity===0)return [];
+  if(fillPattern==='concentric'){
+    const strokes=[];for(let ring=0;;ring++){const loops=offsetSurfaceRegion(slice,region,-ring*pitch/fillDensity,{maxStepMm:sampleStepMm}).loopsUv;if(!loops.length)break;strokes.push(...loops.map(points=>({closed:true,points})));}return strokes;
+  }
+  const box=[0,1].map(k=>[Math.min(...region.flat().map(p=>p[k])),Math.max(...region.flat().map(p=>p[k]))]);
+  const center=box.map(([a,b])=>(a+b)/2),frame=evaluateSurface(slice,center),normal=direction??frame.normal;
+  const seed=Math.abs(normal[0])<.9?[1,0,0]:[0,1,0],x=normalize(seed.map((v,k)=>v-dot(seed,normal)*normal[k])),y=cross(normal,x);
+  const axes=box.map(([lo,hi],k)=>{let length=0;for(const f of [0,.5,1]){const uv=center.slice();uv[1-k]=box[1-k][0]+f*(box[1-k][1]-box[1-k][0]);let previous;for(let i=0;i<=16;i++){uv[k]=lo+(hi-lo)*i/16;const p=evaluateSurface(slice,uv).point;if(previous)length+=Math.hypot(...p.map((v,j)=>v-previous[j]))/3;previous=p;}}const n=Math.max(2,Math.ceil(length/sampleStepMm));return Array.from({length:n+1},(_,i)=>lo+(hi-lo)*i/n);});
+  const [xs,ys]=axes,points=xs.map(u=>ys.map(v=>evaluateSurface(slice,[u,v]).point)),curves=[];
+  if(fillPattern==='gyroid'){const k=2*Math.PI/(2.4*pitch/fillDensity),values=points.map(row=>Float64Array.from(row,p=>{const [x,y,z]=p.map(n=>n*k);return Math.sin(x)*Math.cos(y)+Math.sin(y)*Math.cos(z)+Math.sin(z)*Math.cos(x);}));return sampledFieldStrokes({xs,ys,values},region);}
+  const count=fillPattern==='grid'?2:fillPattern==='triangles'?3:1;
+  for(let i=0;i<count;i++){const angle=(patternAngleDeg+i*180/count)*Math.PI/180,across=x.map((v,k)=>-Math.sin(angle)*v+Math.cos(angle)*y[k]),spacing=pitch*count/fillDensity,positions=points.map(row=>row.map(p=>dot(across,p))),min=Math.min(...positions.flat()),max=Math.max(...positions.flat());
+    for(let lineIndex=Math.ceil(min/spacing);lineIndex<=Math.floor(max/spacing);lineIndex++){const values=positions.map(row=>Float64Array.from(row,n=>n-lineIndex*spacing));curves.push(...sampledFieldStrokes({xs,ys,values},region).map(stroke=>({...stroke,points:lineIndex%2?stroke.points.toReversed():stroke.points,fillFamily:{spacingMm:spacing,lineIndex}})));}
+  }return curves;
 }

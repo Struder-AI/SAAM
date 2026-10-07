@@ -7,7 +7,8 @@ export function h2dColourFixture(){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);
   Object.assign(plan.setup,{tool:1,nozzleMm:0.8,core:'Hardened steel 0.8',nozzleC:225,ams:null});
   Object.assign(plan.process,{lineWidthMm:0.8,firstLayerMm:0.3,layerMm:0.3,minimumLayerSeconds:0});
-  Object.assign(plan.setup.bambu,{otherNozzleMm:0.4,fast_start:true,filament:0,amsConnections:[{unit:1,tool:1}],
+  Object.assign(plan.setup.bambu,{otherNozzleMm:0.4,fast_start:true,amsConnections:[{unit:1,tool:1}]});
+  Object.assign(plan.setup,{filament:0,
     filaments:['#0000FF','#FF8000'].map(colour=>({id:'GFA00',colour,tool:1,source:{type:'auto'}}))});
   plan.geometry=splineBox({runMm:24,widthMm:16,heightMm:1.8});
   plan.placement={xMm:163,yMm:152};

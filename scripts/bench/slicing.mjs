@@ -17,7 +17,7 @@ import { generatePath } from '../../core/print/generate.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine } from '../../core/machine/profile.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import { exportProgram, interpretProgram } from '../../core/export/registry.mjs';
+import { exportProgram } from '../../core/export/registry.mjs';
 
 const args = process.argv.slice(2), arg = (name, fallback) => args.includes(name) ? args[args.indexOf(name) + 1] : fallback;
 const sha = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
@@ -29,6 +29,7 @@ const trials = Number(arg('--trials', '3'));
 if (!Number.isSafeInteger(trials) || trials < 1) throw new Error('--trials must be a positive safe integer');
 const machine = loadMachine('ultimaker-s5');
 const measure = fn => { const t = performance.now(), value = fn(); return { ms: performance.now() - t, value }; };
+const measureAsync = async fn => { const t = performance.now(), value = await fn(); return { ms: performance.now() - t, value }; };
 const stats = values => { const a = [...values].sort((x, y) => x - y); return { medianMs: a[Math.floor(a.length / 2)], minMs: a[0], maxMs: a.at(-1), samplesMs: values }; };
 
 function sectionBatch(shell, zs) {
@@ -47,8 +48,7 @@ async function skillTrial(mode, geometry) {
       mode==='planar'?a:{...a,fillDensity:1})}};
   if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
   const start=performance.now(),c={value:await generatePath(plan,machine)},time={sliceMs:performance.now()-start};
-  const e=measure(()=>exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE}));time.exportMs=e.ms;
-  const k=measure(()=>interpretProgram(e.value,plan,machine));time.interpretMs=k.ms;
+  const e=await measureAsync(async()=>(await exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes);time.exportMs=e.ms;
   return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
     operations:c.value.summary.composition.operationOrder.length,exportBytes:Buffer.byteLength(e.value),
     pathHash:sha(c.value),exportHash:sha(e.value),summary:c.value.summary};

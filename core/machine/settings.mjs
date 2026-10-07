@@ -1,29 +1,43 @@
 // Reusable machine/material/installation settings. Consumers keep selected
-// snapshots; reading a bundle never consults this store.
-import {readFile} from 'node:fs/promises';
-import {fileURLToPath} from 'node:url';
-import {resolve} from 'node:path';
+// snapshots; reading a bundle never consults this store. The owner supplies the
+// store folder (`machineSetups`); without one, nothing is remembered or recalled.
+import {readFile,mkdir,open,rm} from 'node:fs/promises';
+import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
 
-const root=fileURLToPath(new URL('../../',import.meta.url));
-const setupFor=machine=>resolve(root,`.local/machine-setups/${machine.id}.json`);
+const setupFor=(machineSetups,machine)=>resolve(machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
 
-function mergeSettings(previous,changes){
-  const result={...previous};
-  for(const [key,value] of Object.entries(changes)){
-    result[key]=value&&typeof value==='object'&&!Array.isArray(value)&&key!=='primeLine'
-      ?mergeSettings(result[key],value):structuredClone(value);
-  }
-  return result;
+const settingsRecord=value=>value&&typeof value==='object'&&!Array.isArray(value);
+
+// Setup records, including any adapter block, merge field by field at every
+// depth; arrays and scalars replace.
+function mergeSetup(previous,changes){
+  if(!settingsRecord(changes))return structuredClone(changes);
+  return Object.fromEntries([...Object.entries(settingsRecord(previous)?previous:{}),
+    ...Object.entries(changes).map(([key,value])=>[key,mergeSetup(previous?.[key],value)])]);
+}
+
+// Logical materials are neutral settings (setup.filaments, setup.filament);
+// setups saved before SAAM 0.3.6 kept them in the Bambu block.
+export function neutralMaterials(setup){
+  if(!settingsRecord(setup?.bambu)||!['filaments','filament'].some(key=>Object.hasOwn(setup.bambu,key)))return setup;
+  const {filaments,filament,...bambu}=setup.bambu;
+  return {...setup,...filaments!==undefined&&{filaments},...filament!==undefined&&{filament},bambu};
 }
 
 export function resolveSettingsPatch(previous,patch){
   requireThat(patch&&typeof patch==='object'&&!Array.isArray(patch)&&Object.keys(patch).every(k=>SETTINGS_FIELDS.includes(k)),'Settings edits accept setup, process, output and placement only.');
-  const selected=Object.fromEntries(Object.keys(patch).map(key=>[key,previous[key]]));
-  const settings=mergeSettings(selected,patch);
+  const settings={};
+  if(Object.hasOwn(patch,'setup'))settings.setup=mergeSetup(previous.setup,patch.setup);
+  // Process values are scalars or an atomic prime-line record; placement is XY.
+  if(Object.hasOwn(patch,'process'))settings.process=settingsRecord(patch.process)
+    ?{...previous.process,...structuredClone(patch.process)}:structuredClone(patch.process);
+  if(Object.hasOwn(patch,'output'))settings.output=structuredClone(patch.output);
+  if(Object.hasOwn(patch,'placement'))settings.placement=settingsRecord(patch.placement)
+    ?{...previous.placement,...structuredClone(patch.placement)}:structuredClone(patch.placement);
   if(patch.setup?.firmwareVersion!==undefined&&patch.setup.firmwareVersion!==previous.setup?.firmwareVersion&&patch.setup.startupVerified===undefined)
     settings.setup={...settings.setup,startupVerified:false};
   return settings;
@@ -51,25 +65,47 @@ export function settingsDefaults(machine){
   };
 }
 
-export async function selectSettings(machineId,{setupFile}={}){
+export async function selectSettings(machineId,{machineSetups}={}){
   const machine=loadMachine(machineId),settings=settingsDefaults(machine);
   let saved;
-  try{saved=JSON.parse(await readFile(setupFile??setupFor(machine),'utf8'));}
+  if(machineSetups)try{saved=JSON.parse(await readFile(setupFor(machineSetups,machine),'utf8'));}
   catch(error){if(error.code!=='ENOENT')throw error;}
   if(saved){
     requireThat(saved.schema==='saam-machine-setup/1'&&saved.machineId===machine.id,'Saved machine setup is incompatible.');
-    const remembered=Object.fromEntries(Object.entries(saved.setup??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
+    const remembered=Object.fromEntries(Object.entries(neutralMaterials(saved.setup)??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
     settings.setup={...settings.setup,...remembered,materialGuid:remembered.materialGuid||settings.setup.materialGuid};
   }
   return {machine,settings};
 }
 
-export async function saveSetup(machine,setup,{setupFile,source='User setup supplied through chat'}={}){
-  requireThat(machine&&setup,'Choose a machine and setup before remembering settings.');
-  const file=setupFile??setupFor(machine);
+export async function saveSetup(machine,setup,{machineSetups,source='Last successful export',exportReceipt}={}){
+  requireThat(machine&&setup&&machineSetups,'Choose a machine, setup and setup store before remembering settings.');
+  const file=setupFor(machineSetups,machine);
   await replaceFile(file,JSON.stringify({schema:'saam-machine-setup/1',machineId:machine.id,
-    setup:structuredClone(setup),source,updatedAt:new Date().toISOString()},null,2)+'\n');
+    setup:structuredClone(setup),source,...(exportReceipt?{exportReceipt}:{}),updatedAt:new Date().toISOString()},null,2)+'\n');
   return file;
+}
+
+// Hold the machine's store lock before copying an export, through remembering
+// its exact setup. Serializing only the final store write would invert exports.
+export async function withMachineSetupExport(machineSetups,machine,action){
+  const lock=setupFor(machineSetups,machine)+'.export.lock',writer={handle:null,unreadable:0};
+  await mkdir(dirname(lock),{recursive:true});
+  for(;;){
+    try{writer.handle=await open(lock,'wx');break;}
+    catch(error){
+      if(error.code!=='EEXIST')throw error;
+      const busy=Error('Machine setup has an interrupted export writer. Inspect '+lock+' before recovery.');
+      const holder=await readFile(lock,'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw error;});
+      if(!(Number.isInteger(holder?.pid)&&holder.pid>0)&&++writer.unreadable>40)throw busy;
+      if(Number.isInteger(holder?.pid)&&holder.pid>0){
+        try{process.kill(holder.pid,0);}catch(error){if(error.code==='ESRCH')throw busy;throw error;}
+      }
+      await new Promise(function waitForExport(done){setTimeout(done,25);});
+    }
+  }
+  try{await writer.handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));return await action();}
+  finally{await writer.handle.close();await rm(lock);}
 }
 
 export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){

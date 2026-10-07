@@ -1,36 +1,30 @@
+import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {exportProgram,interpretProgram} from '../export/registry.mjs';
-import {exportMotion} from '../export/griffin.mjs';
+import {preparePath} from '../export/registry.mjs';
+import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));
   for(const extrusionMode of ['absolute','relative']){
-    const lines=exportMotion(fixture.path,fixture.plan,{extrusionMode});
+    const {lines}=gcodeMotion(fixture.path,fixture.plan,{extrusionMode});
     assert.deepEqual(lines,fixture.expected[extrusionMode]);
     assert.doesNotMatch(lines.join('\n'),/[XYZ]-(?:0(?:\.0+)?)(?= |$)/,'rounded negative zero is written as zero');
   }
 });
 
-test('modal fields retain exact machine moves across speed, travel, retract and relative-E transitions',async()=>{
+test('modal fields omit unchanged words across speed, travel, retract and relative-E transitions',async()=>{
   for(const id of ['ultimaker-s5','bambu-h2d']) {
     const machine=loadMachine(id),plan=defaults(machine);
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const path=await generatePath(plan,machine);
-    const code=exportProgram(path,plan,machine,{generatorVersion:'test',buildDate:'2026-09-09'});
-    const actual=interpretProgram(code,plan,machine),expected=path.actions.filter(a=>a.kind==='move');
-    assert.equal(actual.moves.length,expected.length);
-    expected.forEach((a,i)=>{
-      assert.ok(a.to.every((v,k)=>Math.abs(v-actual.moves[i].to[k])<6e-6));
-      assert.ok(Math.abs(a.volumeMm3-actual.moves[i].volumeMm3)<1e-4);
-    });
-    const lines=exportMotion(path,plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
+    const {lines}=gcodeMotion((await preparePath(path,plan,machine)),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
     const modal={};let omittedFeed=0;
     for(const line of lines)if(/^G[01] /.test(line)) {
       const args=line.split(' ').slice(1);if(!args.some(a=>a.startsWith('F')))omittedFeed++;

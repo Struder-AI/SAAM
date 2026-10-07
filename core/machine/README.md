@@ -11,10 +11,10 @@ nominal mechanisms in the same Studio.
 
 ## Source and installation
 
-[source-time.mjs](../export/source-time.mjs) evaluates one source time for both
-the toolpath and its machine. It preserves Dobot's interpreted acceleration,
-DENSO's nominal Cartesian/rotary interpolation, and study-specific Euler
-interpolation. Reverse seeks do not depend on previous screen frames.
+[path-time.mjs](path-time.mjs) evaluates one path time for both the drawn path
+and its machine: the path's requested timing, DENSO poses' Cartesian/rotary
+interpolation and studies' Euler interpolation. Reverse seeks do not depend on
+previous screen frames.
 Providers solve at the requested pose, not interpolated joint endpoints.
 
 `machine.kinematicModel` owns dimensions and optional installation data in the
@@ -26,8 +26,8 @@ frames and declares the missing arm. Nominal setup in a study is synthetic,
 not installation calibration. Non-unit Dobot design scaling cannot be represented
 by a rigid physical overlay and leaves the arm unavailable.
 
-The provider's `part` transform maps interpreted source points into the room.
-It includes a printer's descending bed or the source's rotary angle exactly once.
+The provider's `part` transform maps drawn path points into the room.
+It includes a printer's descending bed or the path's rotary angle (about its declared centre) exactly once.
 Following the plate applies its inverse to the entire scene. S5/H2D models show
 schematic travel centerlines from the profile bounds, an XY carriage and a Z bed;
 they omit housings, belts and parked tools. Tool shapes are schematic: a short
@@ -96,7 +96,7 @@ the opposite elbow/wrist seed branch; previous rendering order is irrelevant.
 Nonconvergence is visible. This models one nominal solution, not the RC8A's
 trajectory, joint limits, winding policy or commissioning. Matching RC8A arm
 motion requires verified installation transforms and an encoder/FIG mapping;
-the [production output contract](../export/denso.md) remains unchanged.
+the [production output contract](../../machines/denso/SKILL.md) remains unchanged.
 
 ## Verification
 

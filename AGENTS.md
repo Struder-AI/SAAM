@@ -1,52 +1,62 @@
 # SAAM agent entry point
 
-SAAM makes 3D printed parts through conversation. The agent works on a **print
-bundle** (a "print" in command and tool names), the local folder for one part:
-its geometry, **recipe** (`plan.json`: skills, settings, machine and setup),
-review records and checked machine program. **Geometry skills** make or change
-the geometry; **toolpath skills** deposit material; **hybrid skills** do both, and their results are
-composed into one **SAAMpath**, the machine-independent toolpath that each
-machine's exporter translates into its program. The person reviews in SAAM
-Studio and gives one **confirmation** of the current settings and exact
-toolpath together before export.
+SAAM makes 3D printed parts through conversation. A **print bundle** holds one
+part's geometry, **recipe** (`plan.json`), review records and checked machine
+program. Geometry skills shape it; toolpath skills deposit material; hybrid skills
+do both. Their results compose one machine-independent **SAAMpath**. The person
+reviews in Studio and exports from there; that Export is the one confirmation,
+and it writes the current settings' exact toolpath.
 
-If `.local/AGENTS.md` exists, read it at session start (for a tour, just after
-launch): it holds this checkout's user
-preferences and notes about their prints and printers. Record lasting
-preferences and facts there, not in the client's own memory.
+This entry point serves source and installed SAAM. Every role's onboarding reads
+shared `<SAAM home>/local/LOCAL-AGENT-NOTES.md`; [local notes](core/application/README.md#local-agent-notes)
+own reads and updates. Source checkout notes stay in `.local/AGENTS.md`; builders
+and developers also read `.local/DEVELOPMENT.md`. For tours, read notes after launch.
 
 ## Choose your role
 
-Choose from the request. If unclear, you are a **maker**. Web agents are always
-makers: they operate published tools and cannot escalate into source development.
+Choose from the request; default to maker. Developer work, and builder work other
+than extensions in the home's extensions folder, needs a source checkout.
 
 | Request | First action |
 |---|---|
-| A tour | `node studio/server.mjs --toolkit start-tour --no-open`, before any other read ([tours](#tours)) |
-| Edit an existing Studio print | `node scripts/agent-toolkit.mjs begin-studio-work Prints/PART --instruction "…"` (omit the directory for the active tour; `--request ID` for Studio-originated work), then load missing context |
-| Make a part, printing advice, operate Studio (**maker**) | `node scripts/agent-toolkit.mjs maker-onboarding` |
-| Author guidance, recipe helpers, assets or examples using existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
-| Author/change a core skill, core capability, Studio or shared interface (**developer**, maps-native) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
+| A tour | `saam start-tour`, before any other read |
+| Edit an existing Studio print | Use its bundle/request identity on the first needed operation; load missing context as needed |
+| Make a part, printing advice, operate Studio (**maker**) | `saam call maker_onboarding` |
+| Author extensions, guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
+| Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
 
-Onboarding returns the role's whole starting context. Don't read those files
-before or after it, and don't rerun it for each request. Without command access,
-read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or
-[DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md#orientation) directly, once.
+Onboarding supplies the whole starting context, once per session. Without commands,
+read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md).
 
-### Tours
+## Using the saam command
 
-Run the command through the client's managed command session and ask for an
-early yield (about 1 s). Open `studio.url` from the `studio-ready` event in the
-client's browser and keep the session alive. The command returns everything
-else. Studio supplies the first task, so add no chat introduction.
+The installed `saam` command makes parts, opens Studio and starts the tour;
+[application commands](core/application/README.md) own chat attachment, tours,
+Studio, waits, jobs and the SAAM home. `saam help` lists operations and
+`saam help OPERATION` describes one. Pass JSON through stdin or `--input FILE`,
+because Windows PowerShell 5.1 changes quoted JSON arguments.
 
-### Changing role
+The command sends the client's session ID when available. If a response supplies
+a chat ID, retain it for this chat and pass `--chat-id ID` on every later command.
+Naming an existing print attaches to its open Studio when available. Respect
+Bundle reservations and request IDs. Show intermediate edits; use the returned
+`workRequest` to hand work back when finished, needing discussion, or receiving
+a user interjection.
 
-- Command-access makers move to builder for guidance/extensions using existing
-  interfaces. Core skills and shared implementation require developer, even for
-  a small edit. A maker never edits shared implementation first.
-- Developer requires explicit authorization; reuse authorization already given.
-  Otherwise explain the required change and ask before escalating.
-- Announce every escalation. It carries the original request's authorization
-  and no more.
+Follow [client queue monitoring](core/application/README.md#client-queue-monitoring)
+and a tour's returned participation context. Commands ending and browser tabs
+closing do not stop SAAM; Quit does.
+
+If client registration needs repair, run `saam call repair_client_setup` and
+handle its errors; the person may need to restart the client to reload permissions.
+
+## Changing role
+
+“If saam can do it, use saam. If it can't, build an extension that can.” (owner,
+2026-10-05): makers become builders for extensions or guidance using existing
+interfaces ([working boundaries](MAKERS.md#working-boundaries)); work those cannot
+express is a SAAM bug to file with `saam call report_bug`. Changing core or shared
+code requires the developer role and the person's authorization; without it,
+explain the change and ask. Announce a role change; it carries only the original
+request's authorization.

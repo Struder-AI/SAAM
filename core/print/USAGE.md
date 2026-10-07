@@ -9,15 +9,14 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Create from a recipe; import an STL | `get_recipe_defaults`, `create_bundle`; `import_stl_bundle`, `set_stl_units` |
 | Geometry tools ([GEOMETRY](../../GEOMETRY.md)) | `blob_field`, `combine_geometry`, `intersect_geometry` |
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
-| Adjust recipe/assignments; change printer | `adjust_recipe`, `slice`, `modulate`; `change_machine` |
-| Generate for review; deliver the confirmed export | `generate_toolpath`; `deliver_toolpath` |
-| Path feasibility, when needed; save setup as the machine's default | `check_path`; `remember_setup` |
+| Adjust recipe/assignments; undo/redo; change printer | `adjust_recipe`, `slice`, `modulate`; `restore_revision`; `change_machine` |
+| Generate for review; the person exports from Studio | `generate_toolpath` |
+| Path feasibility; defer this bundle's last-export setup save; phase colours | `check_path`; `set_deferred_setup_save`; `set_phase_colours` |
 
 ## Recipes
 
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
-assignment, with no geometry or automatic skin. Before `create_bundle`, author
-`geometry` or standalone [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) assignments.
+assignment, without automatic skin. Bundles always retain [geometry](../../GEOMETRY.md), including empty drafts; inline [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) inputs become curve/point geometry with recipe references.
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
 Objects merge, arrays replace, unknown fields reject; omit `bundle`.
@@ -28,8 +27,7 @@ and gap rejection. Existing recipes need explicit migration for missing fields;
 loading never rewrites them. Dependencies and bridge-anchor checks apply in both
 modes.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
-(`includeGeometry: true`). Any geometry, process or setup change invalidates the
-final confirmation. Changing printer applies its process defaults and keeps other
+(`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
 
 ### Nozzle selection
@@ -41,7 +39,7 @@ tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targe
 Priority: print assignment route, assignment's explicit filament, exact part route,
 parent component route, print setup. `part:null` names the single geometry part.
 Trace/Inject `part` associates material ownership; XYZ still uses print placement.
-Filament entries own nozzle/process mapping ([Bambu](../export/bambu.md)); every
+Filament entries own nozzle/process mapping ([Bambu](../../machines/bambu/SKILL.md)); every
 route uses the same generation/export/review. Existing recipes need explicit
 migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
 
@@ -51,7 +49,7 @@ Units default to `auto`: SAAM assumes mm unless the raw size only fits the
 printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
 and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
-Studio, CLI and agent imports first validate the source, then attempt repair only
+Studio and agent imports first validate the source, then attempt repair only
 for recognized geometric defects, without hole filling. A repair retains both
 STLs and its change report in `repair/`; review changed geometry. Malformed input
 and failed repair keep their diagnostic. Failed or cancelled imports remove only
@@ -73,7 +71,7 @@ Single-wall sleeve spirals use their course pitch instead.
 When a toolpath's [short-travel advisory](../export/README.md#short-travel-advisory)
 (`shortTravel`) count is nonzero, tell the person how many travels, which
 operations, and whether they were lifted over a blocked line or moved directly;
-it asks for no repair or approval. Acknowledge a Studio advisory as completed.
+it asks for no repair. Acknowledge a Studio advisory as completed.
 
 The final confirmation happens in Studio, which can also generate and export.
 Delivery copies the exact checked export into `delivery/` and sends nothing to
@@ -84,53 +82,39 @@ lessons Studio generates, so don't start another. A check reports
 
 ## Remember machine setup
 
-`remember_setup`, and any setup change through `adjust_recipe`, saves this print's
-setup as the default for new prints on that machine; existing prints don't
-change. Only setup is remembered. Bambu output needs its [maker setup](../export/bambu.md#maker-setup)
-first; each [machine contract](../export/README.md) owns its own setup questions.
+A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
+`set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
+Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../../machines/bambu/SKILL.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
 
-<!-- layer: script -->
+## Phase colours
+
+Studio colours each move by its SAAMpath phase, the label the generator or exporter
+gives it (`planar`, `curves`, `supports`, `prime`, ...); `travel` is every
+non-depositing move. `set_phase_colours` takes `bundleId`, current `expectedRevision`
+and `phaseColours` (`{phase:"#rrggbb"}`, null clears); it is display only. The
+person's `<SAAM home>/local/phase-colours.json`, same shape, is the local preference.
+Print choice overrides local preference, which overrides the [defaults](phase-colours.mjs);
+unknown phases are rejected. Multi-material moves show their filament colour.
+
 ## Command line
 
-Run from the repository root with a directory under `Prints/`; quote paths with
-spaces. Each command is the tool of the same name through `node core/print/cli.mjs`:
+Use the installed [application command](../application/README.md) from any chat.
+A bundle ID is relative to the SAAM home's `Prints/`. Read operation schemas with
+`saam help OP`; pass structured input with `--input FILE` or `--stdin`, or use
+named flags (PowerShell 5.1 does not reliably pass quoted JSON arguments).
 
-```sh
-init Prints/my-part plan.json --machine ultimaker-s5   # geometry or standalone Trace/Inject
-import-stl Prints/my-part source.stl auto ultimaker-s5
-blob-field-create Prints/my-part request.json ultimaker-s5   # blob-field-update … --revision REV
-combine|intersect|adjust Prints/my-part request.json --revision REV   # intersect takes no revision
-change-machine Prints/my-part MACHINE --revision REV
-stl-units Prints/my-part mm|inch
-check|check-path|generate|deliver|remember-setup Prints/my-part
+```powershell
+saam call get_recipe_defaults --machine-id ultimaker-s5
+saam call create_bundle --input recipe-request.json
+saam call import_stl_bundle --input import-request.json
+saam call begin_studio_work --bundle-id my-part --instruction "Change the infill"
+saam call adjust_recipe --input edit-request.json
+saam call request_review --bundle-id my-part
+saam wait
 ```
 
-`node studio/server.mjs --toolkit open-print Prints/my-part` shows a print, and
-`create-preview Prints/my-part --recipe plan.json` (or `--stl source.stl`) creates
-one and opens Studio on it ([agent toolkit](../agent/README.md)). In a script,
-`await proposedPlan(machineId)` from [bundle.mjs](bundle.mjs) returns geometry-free recipe defaults.
-
-### Calling an extension
-
-Makers call installed extensions to change prints; builders change extension
-code. A script at the repository root can use the existing print operation below.
-Supply `directory`, `extensionId`, `request`, the fresh `expectedRevision`, and
-`work` from `begin-studio-work` in your current agent session. For an open print,
-that request must carry your `studio-ready` owner and instance; never adopt
-another agent's identity from the reservation. An unopened print needs no claim.
-
-```js
-import {bundleInstance, withBundleInstance} from './core/print/bundle.mjs';
-import {applyExtensionEdit} from './core/print/extension-edits.mjs';
-const reservation = await bundleInstance(directory);
-if (reservation && (reservation.ownerId !== work.request.ownerId ||
-    reservation.instanceId !== work.request.studioInstanceId))
-  throw Error('Use your current Studio instance and agent work request.');
-const call = () => applyExtensionEdit(directory, extensionId, request, {expectedRevision});
-const result = reservation ? await withBundleInstance(directory, reservation, call) : await call();
-console.log(JSON.stringify({revision: result.revision, report: result.extensionReport}));
-```
-
-The selected local copy takes precedence. Read the returned report, then follow
-normal generation and Studio review. Discovery-only calls leave the revision
-unchanged. `Edit` here means changing the print, never the extension's source.
+Carry the fresh revision and request identity returned by `begin_studio_work`.
+For installed extensions use their named operation from `saam help`, carrying the
+request and current expected revision; its discovery-only actions leave the
+revision unchanged. Read the report and follow normal generation and review.
+Builders change extension source; makers change the print through this operation.

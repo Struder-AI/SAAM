@@ -1,7 +1,7 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes,
-approve it, and get a file your machine can run.
+SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes
+and export a file your machine can run.
 
 SAAM lowers the barrier to 3D printing. You should be able to point your agent
 at this repository, describe what you want to make, and receive guidance suited
@@ -15,7 +15,7 @@ for review. You confirm the geometry, then settings and toolpath together. SAAM
 then delivers the same machine-program bytes you reviewed.
 
 Your agent handles the tools and settings; you guide the result. See the
-[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and approvals
+[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and export
 work.
 
 ## Project direction
@@ -46,8 +46,8 @@ describe what each machine's export and playback cover, including the scope of
 reported physical observations. Software checks do not establish physical print
 success.
 
-The [MCP adapter](adapters/mcp/README.md) connects compatible chat clients to the
-same local workflow. Its manual covers available tools and local stdio connections.
+The [SAAM application](core/application/README.md) owns Studio and jobs. Desktop
+chats use its installed `saam` command.
 
 ## Get started
 
@@ -55,34 +55,32 @@ Give your agent this repository and describe what you want to make. Agents start
 at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
 
 For a manual development trial, follow [setup and checks](SETUP.md) and create a
-preview from a skill recipe. It produces a development preview; human job approval
-remains separate.
+preview from a skill recipe. It produces a development preview, not an exportable
+program.
 
 Ask your agent to **open the SAAM tour**, or launch Studio after setup:
 
 ```sh
-node studio/server.mjs
+node scripts/saam.mjs start-tour
 ```
 
-The [guided tour](examples/prints/README.md) takes you through a wavy roof,
-Nudge Cup, and DENSO cladding in the same viewer used for your parts.
-Their geometry, settings and toolpath previews are ready to explore. Studio saves
-your copies automatically in ignored `Prints/tour/`, remembers your place, and
-keeps chat edits inside the guide. Finish the tour to choose an example for your
-own print or explore freely. Exploring a demo grants no printing approvals.
+The [guided tour](examples/prints/README.md) uses one editable fin block in the
+same Studio used for your parts. Your copy and lesson survive restarts in the
+SAAM home. Explore geometry, playback, chat edits, setup and export; software
+examples grant no physical qualification.
 
 ## Reading and contributing
 
 Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
 work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
-The [dev map](dev-map/README.md) is generated from the source and describes core
-and Studio. Draw it with `node dev-map/cli.mjs build`; agents walk it from
-page `0` with `read-map INDEX|DECLARATION` through the agent toolkit.
+The [dev maps](dev-map/README.md) show what SAAM code influences, generated from
+the source; agents walk them from map `0` with `read-map ADDRESS` through the
+agent toolkit.
 Use the [technical overview](TECHNICAL-OVERVIEW.md) and [0.2.0 plan](plans/0.2.0.md)
-for architecture and build scope, [GLOSSARY.md](GLOSSARY.md) for terms, [DECISIONS.md](DECISIONS.md) for
-contributor choices, the [build requests](build_request.md#outstanding-work)
-for outstanding or incomplete work, and [DEVLOG.md](DEVLOG.md) for dated work
-and evidence.
+for architecture and build scope, [GLOSSARY.md](GLOSSARY.md) for terms, the
+versioned intent docs in [plans](plans/) for direction and outstanding work,
+[DECISIONS.md](DECISIONS.md) for decision history, and [DEVLOG.md](DEVLOG.md)
+for dated work and evidence.
 
 The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
 Licensing remains in [LICENSE](LICENSE).

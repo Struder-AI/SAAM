@@ -1,4 +1,4 @@
-import {hash} from '../private/geometry/hash.mjs';
+import {canonicalHash} from '../canonical-json.mjs';
 // Explicit mesh preparation. Accepted output returns to normal import and review.
 import {mkdir,writeFile,access,mkdtemp,rm,copyFile,rename} from 'node:fs/promises';
 import {createWriteStream,createReadStream} from 'node:fs';
@@ -10,6 +10,8 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
 import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
+import {NUMERIC_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {cross,dot} from '../geom/tolerance.mjs';
 
 import {isMainThread} from 'node:worker_threads';
 import {runRepairJob} from './mesh-repair-job.mjs';
@@ -26,22 +28,35 @@ function shapeChanges(source,result,progress,signal){
   return {inputBoundsMm:sourceIndex.bounds,outputBoundsMm:resultIndex.bounds,unchangedSourceFaces:unchanged,changedSourceFaces:source.triangles.length-unchanged,newOutputFaces:result.triangles.length-unchanged,
     sampledDistanceMm:{sourceToResult:forward.maxMm,resultToSource:reverse.maxMm,sourceSamples:forward.samples,resultSamples:reverse.samples,coverage:'Deterministic vertex and face-centroid samples (at most 10,000 per direction); not a certified surface bound.'}};
 }
+// Closed shells by orientation: an inward shell is a cavity. Fewer cavities after
+// repair means cavities were opened (or united); the report states both counts.
+function shells({vertices,triangles}){
+  const parent=vertices.map((_,i)=>i),root=x=>{while(parent[x]!==x)x=parent[x]=parent[parent[x]];return x;};
+  for(const [a,b,c] of triangles){parent[root(a)]=root(b);parent[root(b)]=root(c);}
+  const volume=new Map();
+  for(const [a,b,c] of triangles){const r=root(a);volume.set(r,(volume.get(r)??0)+dot(vertices[a],cross(vertices[b],vertices[c]))/6);}
+  const values=[...volume.values()];return {outward:values.filter(v=>v>0).length,inward:values.filter(v=>v<0).length};
+}
 async function prepare(source,options){
   const {units,signal,progress=()=>{}}=options;signal?.throwIfAborted();const start=performance.now();
   if(options.maxSampledDistanceMm!==undefined&&(!Number.isFinite(options.maxSampledDistanceMm)||options.maxSampledDistanceMm<0))throw Error('maxSampledDistanceMm must be nonnegative.');
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
-  const sourceHash=input.sha256??hash(source),clean=cleanTriangleSoup(input);let result,sourceError;
   progress({stage:'cleanup'});
-  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
+  const sourceHash=input.sha256??canonicalHash(source),clean=cleanTriangleSoup(input,{mergeToleranceMm:options.mergeToleranceMm});
+  // Shape-change evidence must include requested vertex motion, not compare
+  // the snapped surface only with itself. Exact-only callers keep one value.
+  const comparison=clean.merge?cleanTriangleSoup(input):clean;
+  let result,sourceError;
+  try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.merge?.movedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
   if(!result){
     const nativeDirectory=await options.nativeReady?.();
     signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
   }
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
-  const changes=shapeChanges(clean,result,progress,signal);
+  const changes=shapeChanges(comparison,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});
-  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,...changes,
-    validation:'Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Numerical contact tolerance is 1e-9 mm; sampled distances do not certify shape fidelity.'};
+  const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:sourceError??null,...result.report,...(clean.merge?{merge:clean.merge}:{}),removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length,outputTriangles:result.triangles.length,shells:{input:shells(comparison),output:shells(result)},...changes,
+    validation:`Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport. Non-intersection is certified at the numeric margin (${NUMERIC_MM} mm); reconstruction closes opposed sheets within print resolution (${PRINT_RESOLUTION_MM} mm); sampled distances do not certify shape fidelity.`};
   return {result,report,start};
 }
 async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){
@@ -53,7 +68,7 @@ async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){
 }
 export async function repairSTL(sourceBytes,options={}){
   if(isMainThread)return runRepairJob('bytes',null,sourceBytes,options);
-  const {result,report,start}=await prepare(sourceBytes,options),repairedBytes=validateRepair(result);report.repairedSha256=hash(repairedBytes);
+  const {result,report,start}=await prepare(sourceBytes,options),repairedBytes=validateRepair(result);report.repairedSha256=canonicalHash(repairedBytes);
   await emitGeometry(result,options);report.elapsedSeconds=(performance.now()-start)/1000;options.progress?.({stage:'complete',percent:100});return {repairedBytes,report};
 }
 export async function repairSTLFiles(directory,source,options={}){

@@ -1,28 +1,28 @@
 # Native mesh repair
 
-The shared adapter runs unmodified **CGAL 6.2.1** polygon-mesh repair in a child
-process. It orients triangle soup, stitches compatible borders and calls
-`experimental::remove_self_intersections` with smoothing disabled and genus
-preservation enabled. Optional hole filling uses both an edge-count limit and
-the boundary bounding-box diagonal in millimeters. These algorithms can fail;
-partial output is never accepted. This is not a universal solid Boolean kernel.
+The shared adapter runs unmodified **CGAL 6.2.1** in a child process. It orients
+triangle soup, stitches compatible borders and fills holes only within both an
+edge-count limit and a boundary bounding-box diagonal in millimeters. A closed
+surface that crosses itself is replaced by the boundary of its solid. Opposed sheets
+closer than [print resolution](../../README.md#dimensions-and-tolerances) (passed by
+the adapter), such as a cut cap over a cavity floor, first move onto one plane per
+group, whose moved points are exact doubles, so they cancel instead of leaving a film. Exact
+autorefinement then splits faces along every crossing; a refined face is kept, facing
+outward, where the winding number is positive on exactly one side. Overlapping shells
+unite, inward shells stay cavities, inside-out files are reversed. Constructed points
+are snap-rounded to doubles; triangles below SAAM's minimum height lose an edge with a
+constructed end. Other faces keep their source coordinates. A non-manifold, open or
+still intersecting result is refused; partial output is never accepted.
 
 ## Stage reporting and how long a repair may take
 
-The helper writes one JSON line to stderr as it enters each of its four stages —
-`orient`, `patch`, `boundaries` and `native-validation` — and one JSON line of
-counts to stdout at the end. Nothing is written while a stage runs. Self-intersection
-removal inside `patch`, and hole triangulation inside `boundaries`, grow much faster
-than the triangle count, so a single stage can be silent for a very long time on a
-large or badly tangled mesh and still be making progress.
-
-The caller therefore has no liveness signal to judge the child by, and no elapsed
-time refuses a repair: the child ends when it finishes, when it fails, or when the
-caller cancels. A repair that appears stuck cannot be distinguished from a slow one
-from outside the process. Making that distinction possible is a change to this
-helper — emit a line periodically from within the long stages — and it requires
-rebuilding the pinned executable, because the adapter checks the wrapper source
-hash against the build manifest.
+The helper writes one JSON line to stderr as it enters each stage (`orient`,
+`boundaries`, `intersections`, `close`, `refine`, `classify`, `round`,
+`native-validation`) and one JSON line of counts to stdout at the end. Nothing is
+written while a stage runs, so no elapsed time refuses a repair: the child ends when
+it finishes, fails or the caller cancels. Periodic output from inside a stage would
+need a helper change and rebuild, because the adapter checks the wrapper source hash
+against the build manifest.
 
 ## Build
 
@@ -64,7 +64,7 @@ a repair requiring it reports the setup command when it is unavailable.
 identified component; the root Apache-2.0 notice must not be used to describe the
 CGAL-linked helper. The rest of the repository's existing license notices remain.
 CGAL's relevant packages are GPL-3.0-or-later or commercially licensed, including
-[the patch-repair implementation](https://github.com/CGAL/cgal/blob/v6.2.1/PMP_Mesh_repair/include/CGAL/Polygon_mesh_processing/repair_self_intersections.h).
+[the autorefinement implementation](https://github.com/CGAL/cgal/blob/v6.2.1/PMP_Boolean_operations/include/CGAL/Polygon_mesh_processing/autorefinement.h).
 Selecting a few functions does not remove those terms. Distribution must include
 the applicable licenses and meet their source/distribution requirements, or use
 the appropriate commercial CGAL license. This build does not claim commercial
