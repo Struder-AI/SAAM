@@ -65,7 +65,7 @@ test('contact checks distinguish valid adjacency from folded overlapping faces',
   assert.equal(trianglesContact(left,right,[[0,0,0]]),false);
 });
 
-const native={skip:existsSync(nativeMeshExecutable)?false:'Build the CGAL helper with npm run setup:mesh to run native repair tests.'};
+const native={skip:existsSync(nativeMeshExecutable)?false:'Build the CGAL helper with npm run setup:mesh to run hole-filling tests.'};
 test('native repair closes only holes within both explicit bounds',native,async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);const bytes=encodeRepairSTL(source);
   await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
@@ -74,7 +74,7 @@ test('native repair closes only holes within both explicit bounds',native,async(
   assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
-test('native solid repair resolves a penetrating fold and retains remote facets',native,async()=>{
+test('solid repair resolves a penetrating fold and retains remote facets',async()=>{
   const source=subdividedBox();source.vertices.find(p=>p[0]===2&&p[1]===2&&p[2]===4)[2]=-1;
   assert.throws(()=>makeMesh(source.vertices,source.triangles),/Intersecting/);
   const {repairedBytes,report}=await repairSTL(encodeRepairSTL(source),{units:'mm'}),fixed=parseSTL(repairedBytes,{units:'mm'});
@@ -82,11 +82,11 @@ test('native solid repair resolves a penetrating fold and retains remote facets'
   const faceKey=points=>points.map(p=>p.join(',')).sort().join(';'),resultFaces=new Set(fixed.triangles.map(t=>faceKey(t.map(v=>fixed.vertices[v]))));
   for(const t of source.triangles){const points=t.map(v=>source.vertices[v]);if(points.every(p=>p[0]===0))assert.ok(resultFaces.has(faceKey(points)),'unaffected side faces must retain exact geometry');}
 });
-test('native repair fixes orientation without changing the face geometry',native,async()=>{
+test('repair fixes orientation without changing the face geometry',async()=>{
   const source=boxMesh();source.triangles[0].reverse();const result=await repairSTL(encodeRepairSTL(source),{units:'mm'});
   assert.equal(result.report.unchangedSourceFaces,12);assert.equal(result.report.changedSourceFaces,0);validateRepair(parseSTL(result.repairedBytes,{units:'mm'}));
 });
-test('repair stops on cancellation or native failure, never on elapsed time',native,async t=>{
+test('repair stops on cancellation or failure, never on elapsed time',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-repair-test-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const source=boxMesh();source.triangles[0].reverse();const bytes=encodeRepairSTL(source);
   await assert.rejects(repairSTL(bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});
