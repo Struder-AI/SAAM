@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-06 — Worker heaps sized from the machine
+
+- Owner: "memory limits must be adaptive and appropriately sized for the system." Workers W9/W9b: every SAAM worker thread starts through `computationWorker` (core/print/computation-job.mjs) with a heap ceiling of 3/4 of `process.constrainedMemory()` or `os.totalmem()` (about 12.1 GB on 15.85 GiB; V8's default was about 4.2 GB); an exhausted worker names its job and heap. Mesh repair and workspace construction use it instead of their own Worker options. Caches that refuse nothing stay fixed. Agent-determined: the 3/4 fraction. Not changed (orchestrator code, owner rule): the runtime host's main heap.
+- Verified (worker): brain 44375 import and generation on a dev instance (checked production program; runtime peak 6.15 GB); starter G-code and path byte-identical; mesh-large 2/2 (also after merge). Not run: whole suite, workspace construction end to end.
+
 ## 2026-10-06 — Agents see an image after geometry and toolpath changes; background sessions held
 
 - Owner: "Visual check should be IN". Worker W5: `runtime.invoke()` (the one place results are produced) compares the bundle before and after result-changing work; a new geometry identity or generation adds `visualCheck` PNG paths to the result. `core/application/result-images.mjs` rasterizes in process (no browser or window): one 1024×512 image, isometric and top views, 10 mm bed grid, shaded geometry, saved-SAAMpath extrusion coloured by Studio's phase palette. Images live in the runtime's `tmp/jobs` workspace and go when it closes. `Export.encodePng` is the one PNG encoder (Bambu thumbnail byte-identical). MAKERS.md tells agents to open the image. Agent-determined (owner to review): views, size, saved SAAMpath rather than prepared path, storage in tmp, images only when identity changed.
