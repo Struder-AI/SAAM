@@ -87,6 +87,10 @@
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
+    "core/geom/mesh-autorefine.mjs": {
+      "owner": "geometry",
+      "reason": "0.3.7 spike: JavaScript solid reconstruction replacing the CGAL helper; not wired in."
+    },
     "core/geom/mesh-spatial.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
