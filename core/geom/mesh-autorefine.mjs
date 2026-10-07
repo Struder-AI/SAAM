@@ -347,16 +347,31 @@ function trianglesWithin(A,B,r){
   for(const [P,Q] of [[A,B],[B,A]])for(const p of P){const q=closestTrianglePoint(p,...Q);if((p[0]-q[0])**2+(p[1]-q[1])**2+(p[2]-q[2])**2<=r2)return true;}
   for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(segSeg2(A[i],A[(i+1)%3],B[j],B[(j+1)%3])<=r2)return true;return false;
 }
+// A closing plane x[k] = (si*x[i] + sj*x[j] + t) / 2^q: with x[i], x[j] on a 2^-grid
+// lattice its points are exact doubles. latticePlane rounds a plane (unit normal
+// through at) to one; latticePlanePoint gives its point over (ui, uj), a coordinate
+// whose slope is zero rounding to step (0 keeps it).
+function latticePlane({unit,at},q,grid){
+  const k=Math.abs(unit[0])>=Math.abs(unit[1])&&Math.abs(unit[0])>=Math.abs(unit[2])?0:Math.abs(unit[1])>=Math.abs(unit[2])?1:2,i=(k+1)%3,j=(k+2)%3;
+  const si=llround(-unit[i]/unit[k]*2**q),sj=llround(-unit[j]/unit[k]*2**q),t=llround((at[k]-si*2**-q*at[i]-sj*2**-q*at[j])*2**(grid+q));
+  return {k,i,j,si,sj,t};
+}
+function latticePlanePoint(plane,{q,grid},ui,uj,step){
+  const x=[0,0,0],lattice=(c,s,y)=>{if(s===0){x[c]=step?Math.round(y/step)*step:y;return 0;}const m=llround(y*2**grid);x[c]=m*2**-grid;return m;};
+  const mi=lattice(plane.i,plane.si,ui),mj=lattice(plane.j,plane.sj,uj);x[plane.k]=(plane.si*mi+plane.sj*mj+plane.t)*2**(-grid-q);return x;
+}
 // Opposed sheets of the source closer than closeMm (print resolution), in any
 // orientation, would reconstruct as a film below print resolution that thins to
 // knife edges. Faces that face each other or away, lie within closeMm of each
-// other's planes and come within closeMm form groups, joined through shared
-// vertices of seeded faces coplanar within closeMm. Each group's vertices move onto
-// one plane near the one fitted to its seeds, x[k] = (si*x[i] + sj*x[j] + t) / 2^q,
-// with x[i], x[j] on a 2^-grid lattice, so moved points are exactly coplanar doubles
-// and opposed copies cancel. A vertex moves at most closeMm, only for its largest group.
+// other's planes and come within closeMm are seeded pairs; seeds form groups, joined
+// through shared vertices of seeded faces coplanar within closeMm. Each group claims,
+// from its seeds across shared vertices, the faces within closeMm of the plane fitted
+// to its seeds. Claims that share a vertex or a seeded pair are one sheet with one
+// closing plane fitted to all its faces, and every vertex of a sheet moves onto it
+// (at most closeMm): a sheet's faces are exactly coplanar and its opposed copies
+// cancel. onSheet[v] names the sheet vertex v lies on (-1: none).
 function closeOpposedSheets({xyz,tri},closeMm){
-  const out={method:'opposed-sheet-plane/1',toleranceMm:closeMm,groups:0,faces:0,movedVertices:0,unmovedVertices:0,maxDisplacementMm:0},points=xyz.slice(),moved=new Uint8Array(xyz.length/3);
+  const out={method:'opposed-sheet-plane/2',toleranceMm:closeMm,groups:0,faces:0,movedVertices:0,unmovedVertices:0,maxDisplacementMm:0},points=xyz.slice(),moved=new Uint8Array(xyz.length/3);
   if(!(closeMm>0))return {points,moved,closing:out};
   const n=tri.length/3,nv=xyz.length/3,normal=new Float64Array(3*n),area=new Float64Array(n),boxes=packedBoxes(xyz,tri,closeMm),{start,faces}=incidence(nv,tri);
   const P=v=>[xyz[3*v],xyz[3*v+1],xyz[3*v+2]],corners=f=>[P(tri[3*f]),P(tri[3*f+1]),P(tri[3*f+2])];
@@ -365,63 +380,71 @@ function closeOpposedSheets({xyz,tri},closeMm){
   const offset=(f,v)=>{const o=3*tri[3*f];return normal[3*f]*(xyz[3*v]-xyz[o])+normal[3*f+1]*(xyz[3*v+1]-xyz[o+1])+normal[3*f+2]*(xyz[3*v+2]-xyz[o+2]);};
   const withinPlane=(f,g)=>{for(const [p,q] of [[f,g],[g,f]])for(let k=0;k<3;k++)if(Math.abs(offset(p,tri[3*q+k]))>closeMm)return false;return true;};
   const shareVertex=(f,g)=>{for(let a=0;a<3;a++)for(let b=0;b<3;b++)if(tri[3*f+a]===tri[3*g+b])return true;return false;};
-  const parent=Int32Array.from({length:n},(_,i)=>i),root=x=>{while(parent[x]!==x)x=parent[x]=parent[parent[x]];return x;},seeded=new Uint8Array(n);
+  const parent=Int32Array.from({length:n},(_,i)=>i),root=x=>{while(parent[x]!==x)x=parent[x]=parent[parent[x]];return x;},seeded=new Uint8Array(n),seedPairs=[];
   overlappingBoxPairs(boxes,(f,g)=>{
     if(normal[3*f]*normal[3*g]+normal[3*f+1]*normal[3*g+1]+normal[3*f+2]*normal[3*g+2]>=0||shareVertex(f,g))return;
     if(!withinPlane(f,g)||!trianglesWithin(corners(f),corners(g),closeMm))return;
-    parent[root(f)]=root(g);seeded[f]=seeded[g]=1;});
+    parent[root(f)]=root(g);seeded[f]=seeded[g]=1;seedPairs.push(f,g);});
   for(let v=0;v<nv;v++)for(let a=start[v];a<start[v+1];a++)for(let b=a+1;b<start[v+1];b++){const f=faces[a],g=faces[b];
     if(seeded[f]&&seeded[g]&&withinPlane(f,g))parent[root(f)]=root(g);}
   const groups=new Map(),groupArea=new Map();
   for(let f=0;f<n;f++)if(seeded[f]){const r=root(f);if(!groups.has(r)){groups.set(r,[]);groupArea.set(r,0);}groups.get(r).push(f);groupArea.set(r,groupArea.get(r)+area[f]);}
   const order=[...groups.keys()].sort((a,b)=>groupArea.get(a)!==groupArea.get(b)?groupArea.get(b)-groupArea.get(a):a-b);
-  const owner=new Int32Array(n).fill(-1),planes=[];
-  let reach=0;for(const v of xyz)reach=Math.max(reach,Math.abs(v));
-  // |x| < 2^e over the part; slopes resolve 2^-q, so a plane strays at most closeMm/16
-  // across the part; |si*mi|, |sj*mj|, |t| < 2^(e+grid+q) = 2^50 keep x[k] exact.
-  const e=reach>0?Math.floor(Math.log2(reach))+1:0,q=e+5+Math.ceil(Math.log2(1/closeMm)),grid=50-e-q;
-  for(const r of order){const members=groups.get(r);let best=members[0];for(const f of members)if(area[f]>area[best])best=f;
+  // Area-weighted plane of faces, normals oriented as the largest face's.
+  const fit=members=>{let best=members[0];for(const f of members)if(area[f]>area[best])best=f;
     const sum=[0,0,0],centre=[0,0,0];let weight=0;
     for(const f of members){const dot=normal[3*f]*normal[3*best]+normal[3*f+1]*normal[3*best+1]+normal[3*f+2]*normal[3*best+2],w=dot>=0?area[f]:-area[f];
       for(let k=0;k<3;k++){sum[k]+=w*normal[3*f+k];centre[k]+=area[f]*(xyz[3*tri[3*f]+k]+xyz[3*tri[3*f+1]+k]+xyz[3*tri[3*f+2]+k])/3;}weight+=area[f];}
-    const len=Math.hypot(...sum),unit=sum.map(v=>v/len),at=centre.map(v=>v/weight);
-    const a=Math.abs(unit[0])>=Math.abs(unit[1])&&Math.abs(unit[0])>=Math.abs(unit[2])?0:Math.abs(unit[1])>=Math.abs(unit[2])?1:2,i=(a+1)%3,j=(a+2)%3;
-    const si=llround(-unit[i]/unit[a]*2**q),sj=llround(-unit[j]/unit[a]*2**q),t=llround((at[a]-si*2**-q*at[i]-sj*2**-q*at[j])*2**(grid+q));
-    const kIndex=planes.length;planes.push({k:a,i,j,si,sj,t});
+    const len=Math.hypot(...sum);return {unit:sum.map(v=>v/len),at:centre.map(v=>v/weight)};};
+  const owner=new Int32Array(n).fill(-1);let claims=0;
+  for(const r of order){const members=groups.get(r),{unit,at}=fit(members),claim=claims;
     const near=g=>{for(let c=0;c<3;c++){const v=3*tri[3*g+c];if(Math.abs(unit[0]*(xyz[v]-at[0])+unit[1]*(xyz[v+1]-at[1])+unit[2]*(xyz[v+2]-at[2]))>closeMm)return false;}return true;};
-    const queue=[];for(const f of members)if(owner[f]<0&&near(f)){owner[f]=kIndex;queue.push(f);}
-    if(!queue.length)continue;out.groups++;
-    while(queue.length){const f=queue.pop();out.faces++;for(let c=0;c<3;c++){const v=tri[3*f+c];for(let x=start[v];x<start[v+1];x++){const g=faces[x];if(owner[g]<0&&near(g)){owner[g]=kIndex;queue.push(g);}}}}
+    const queue=[];for(const f of members)if(owner[f]<0&&near(f)){owner[f]=claim;queue.push(f);}
+    if(!queue.length)continue;claims++;
+    while(queue.length){const f=queue.pop();for(let c=0;c<3;c++){const v=tri[3*f+c];for(let x=start[v];x<start[v+1];x++){const g=faces[x];if(owner[g]<0&&near(g)){owner[g]=claim;queue.push(g);}}}}
   }
-  const vertexGroup=new Int32Array(nv).fill(-1);
-  for(let f=0;f<n;f++)if(owner[f]>=0)for(let c=0;c<3;c++){const v=tri[3*f+c];if(vertexGroup[v]<0||owner[f]<vertexGroup[v])vertexGroup[v]=owner[f];}
-  for(let v=0;v<nv;v++){if(vertexGroup[v]<0)continue;const pl=planes[vertexGroup[v]],p=P(v);
-    const si=pl.si*2**-q,sj=pl.sj*2**-q,off=(p[pl.k]-si*p[pl.i]-sj*p[pl.j]-pl.t*2**(-grid-q))/(1+si*si+sj*sj),x=[0,0,0];
-    const onGrid=(c,s,y)=>{if(s===0){x[c]=p[c];return 0;}const m=llround(y*2**grid);x[c]=m*2**-grid;return m;};
-    const mi=onGrid(pl.i,pl.si,p[pl.i]+off*si),mj=onGrid(pl.j,pl.sj,p[pl.j]+off*sj);x[pl.k]=(pl.si*mi+pl.sj*mj+pl.t)*2**(-grid-q);
-    const move=Math.hypot(x[0]-p[0],x[1]-p[1],x[2]-p[2]);
-    if(move>closeMm){out.unmovedVertices++;continue;}if(move>0){points.set(x,3*v);moved[v]=1;out.movedVertices++;out.maxDisplacementMm=Math.max(out.maxDisplacementMm,move);}
+  // Claims that share a vertex or a seeded pair are one sheet.
+  const claimParent=Int32Array.from({length:claims},(_,i)=>i),top=x=>{while(claimParent[x]!==x)x=claimParent[x]=claimParent[claimParent[x]];return x;};
+  const join=(x,y)=>{const a=top(x),b=top(y);if(a!==b)claimParent[Math.max(a,b)]=Math.min(a,b);};
+  for(let v=0;v<nv;v++){let first=-1;for(let a=start[v];a<start[v+1];a++){const o=owner[faces[a]];if(o<0)continue;if(first<0)first=o;else join(first,o);}}
+  for(let s=0;s<seedPairs.length;s+=2)if(owner[seedPairs[s]]>=0&&owner[seedPairs[s+1]]>=0)join(owner[seedPairs[s]],owner[seedPairs[s+1]]);
+  const sheetOfClaim=new Int32Array(claims).fill(-1),sheetFaces=[];
+  for(let f=0;f<n;f++)if(owner[f]>=0){const r=top(owner[f]);if(sheetOfClaim[r]<0){sheetOfClaim[r]=sheetFaces.length;sheetFaces.push([]);}sheetFaces[sheetOfClaim[r]].push(f);}
+  // |x| < 2^e over the part; slopes resolve 2^-q, so a plane strays at most closeMm/16
+  // across the part; |si*mi|, |sj*mj|, |t| < 2^(e+grid+q) = 2^50 keep x[k] exact.
+  let reach=0;for(const v of xyz)reach=Math.max(reach,Math.abs(v));
+  const e=reach>0?Math.floor(Math.log2(reach))+1:0,q=e+5+Math.ceil(Math.log2(1/closeMm)),grid=50-e-q,sheets={planes:sheetFaces.map(m=>latticePlane(fit(m),q,grid)),q,grid};
+  const onSheet=new Int32Array(nv).fill(-1);out.groups=sheetFaces.length;
+  sheetFaces.forEach((members,s)=>{out.faces+=members.length;for(const f of members)for(let c=0;c<3;c++)onSheet[tri[3*f+c]]=s;});
+  for(let v=0;v<nv;v++){if(onSheet[v]<0)continue;const pl=sheets.planes[onSheet[v]],p=P(v);
+    const si=pl.si*2**-q,sj=pl.sj*2**-q,off=(p[pl.k]-si*p[pl.i]-sj*p[pl.j]-pl.t*2**(-grid-q))/(1+si*si+sj*sj);
+    const x=latticePlanePoint(pl,sheets,p[pl.i]+off*si,p[pl.j]+off*sj,0),move=Math.hypot(x[0]-p[0],x[1]-p[1],x[2]-p[2]);
+    if(move>closeMm){onSheet[v]=-1;out.unmovedVertices++;continue;}if(move>0){points.set(x,3*v);moved[v]=1;out.movedVertices++;out.maxDisplacementMm=Math.max(out.maxDisplacementMm,move);}
   }
-  return {points,moved,closing:out};
+  return {points,moved,closing:out,sheets,onSheet};
 }
 
 // ---------------- refinement: exact arrangement of the triangle soup ----------------
 export function anyIntersection(mesh,dirty=null){
   const store=new PointStore(mesh.xyz);return intersectAll(store,mesh.tri,createConstructions(store,mesh.tri),{stopAtFirst:true,dirty}).any;
 }
-function autorefine(xyz,tri,dirty){
+// onSheet (per input vertex, or null) names closing sheets; a group whose plane is a
+// sheet's (a member with all corners on it) puts its points on that sheet, and
+// pointSheet records it for each constructed point (the first sheet that claims it).
+function autorefine(xyz,tri,dirty,onSheet){
   const store=new PointStore(xyz),build=createConstructions(store,tri),found=intersectAll(store,tri,build,{dirty});
+  const faceSheet=t=>{const s=onSheet?onSheet[tri[3*t]]:-1;return s>=0&&onSheet[tri[3*t+1]]===s&&onSheet[tri[3*t+2]]===s?s:-1;},pointSheet=new Map();
   const {segs,points,parent,root,axis}=found,groups=new Map();
   for(const t of new Set([...segs.keys(),...points.keys(),...parent.keys()])){const r=parent.has(t)?root(t):t;if(!groups.has(r))groups.set(r,[]);groups.get(r).push(t);}
   for(const m of groups.values())m.sort((a,b)=>a-b);
   const M=2**30,superPoints=[0,1,2].map(k=>[[-M,-M],[3*M,-M],[-M,3*M]].map(([u,v])=>{const p=[0,0,0];p[(k+1)%3]=u;p[(k+2)%3]=v;return store.doublePoint(...p);}));
   const stats={...found.stats,refinedSourceTriangles:0,groups:groups.size,largestGroup:0,crossings:0};
   const replaced=new Uint8Array(tri.length/3),soup=[];
-  for(const members of groups.values()){stats.largestGroup=Math.max(stats.largestGroup,members.length);
-    for(const v of triangulateGroup(store,tri,build,axis[members[0]],members,segs,points,superPoints,stats))soup.push(v);
+  for(const members of groups.values()){stats.largestGroup=Math.max(stats.largestGroup,members.length);const sheet=members.map(faceSheet).find(s=>s>=0)??-1;
+    for(const v of triangulateGroup(store,tri,build,axis[members[0]],members,segs,points,superPoints,stats)){soup.push(v);if(sheet>=0&&v>=store.n0&&!pointSheet.has(v))pointSheet.set(v,sheet);}
     for(const m of members)replaced[m]=1;stats.refinedSourceTriangles+=members.length;}
   for(let t=0;t<replaced.length;t++)if(!replaced[t])soup.push(tri[3*t],tri[3*t+1],tri[3*t+2]);
-  return {store,soup:Int32Array.from(soup),stats:{...stats,predicates:store.stats}};
+  return {store,soup:Int32Array.from(soup),pointSheet,stats:{...stats,predicates:store.stats}};
 }
 
 // ---------------- classification (port of reconstruct's winding logic) ----------------
@@ -492,11 +515,10 @@ function classify(store,soup){
 
 // ---------------- tiny-triangle collapse ----------------
 // SAAM's mesh contract needs every triangle's height above numeric conditioning.
-// A flatter triangle loses its shortest collapsible edge, and any triangle loses an
-// edge below print resolution (owner: spacing under functional tolerance merges),
-// when that edge has a constructed end, which moves onto the other end; source
-// vertices stay. tri marks removed triangles -1.
-function collapseTinyTriangles(xyz,tri,isSource,onCollapse,mergeMm=PRINT_RESOLUTION_MM){
+// A flatter triangle loses its shortest collapsible edge with a constructed end,
+// which moves onto the other end; source vertices stay. tri marks removed
+// triangles -1.
+function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
   const n=tri.length/3,P=v=>3*v,dist=(s,d)=>Math.hypot(xyz[P(s)]-xyz[P(d)],xyz[P(s)+1]-xyz[P(d)+1],xyz[P(s)+2]-xyz[P(d)+2]);
   const tiny=f=>{const a=P(tri[3*f]),b=P(tri[3*f+1]),c=P(tri[3*f+2]),u=[xyz[b]-xyz[a],xyz[b+1]-xyz[a+1],xyz[b+2]-xyz[a+2]],v=[xyz[c]-xyz[a],xyz[c+1]-xyz[a+1],xyz[c+2]-xyz[a+2]],w=[xyz[c]-xyz[b],xyz[c+1]-xyz[b+1],xyz[c+2]-xyz[b+2]];
     const longest=Math.sqrt(Math.max(u[0]**2+u[1]**2+u[2]**2,v[0]**2+v[1]**2+v[2]**2,w[0]**2+w[1]**2+w[2]**2));
@@ -508,7 +530,7 @@ function collapseTinyTriangles(xyz,tri,isSource,onCollapse,mergeMm=PRINT_RESOLUT
   const neighbours=v=>{const s=new Set();for(const f of incident.get(v))for(let c=0;c<3;c++){const x=tri[3*f+c];if(x!==v)s.add(x);}return s;};
   const out={collapsedEdges:0,remaining:0,maxCollapseMm:0};
   for(let changed=true;changed;){changed=false;
-    for(const f of candidates){if(tri[3*f]<0)continue;let best=null,length=tiny(f)?Infinity:mergeMm;
+    for(const f of candidates){if(tri[3*f]<0||!tiny(f))continue;let best=null,length=Infinity;
       for(let k=0;k<3;k++)for(const [s,d] of [[tri[3*f+k],tri[3*f+(k+1)%3]],[tri[3*f+(k+1)%3],tri[3*f+k]]]){if(isSource[s])continue;const l=dist(s,d);if(l>=length)continue;
         const shared=incident.get(s).filter(g=>incident.get(d).includes(g)),apex=new Set(shared.flatMap(g=>[0,1,2].map(c=>tri[3*g+c]).filter(x=>x!==s&&x!==d)));
         const ns=neighbours(s),nd=neighbours(d),common=[...ns].filter(x=>nd.has(x));
@@ -525,11 +547,14 @@ function collapseTinyTriangles(xyz,tri,isSource,onCollapse,mergeMm=PRINT_RESOLUT
 // Replaces a closed outward surface that crosses itself by the boundary of its
 // solid (w > 0), as the native helper's reconstruct(); null when nothing intersects.
 // Snap rounding: constructed points round to the rounding-guard lattice (a power of
-// two at most print resolution / 1000); source points stay. When rounding creates
-// crossings, the triangles it touched are reconstructed again.
+// two at most print resolution / 1000), except that a point on a closing sheet rounds
+// on that sheet's plane lattice, as closing places the vertices it moves, so sheets
+// stay exact planes; source points stay. When rounding creates crossings, the
+// triangles it touched are reconstructed again; sheets and the vertices on them carry
+// over to later passes.
 export const SNAP_GRID_MM=2**Math.floor(Math.log2(PRINT_RESOLUTION_MM/1000));
 export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,snapGridMm=SNAP_GRID_MM,maxPasses=6,progress=()=>{}}={}){
-  const passes=[],timings=[];let current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null};
+  const passes=[],timings=[];let current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null,onSheet:null,sheets:null};
   for(let pass=0;pass<maxPasses;pass++){
     const t0=performance.now(),r=reconstructOnce(current,{closeMm:pass===0?closeMm:0,snapGridMm,pass,progress});
     if(!r){timings.push({finalProbe:performance.now()-t0});break;}passes.push(r.report);timings.push(r.timings);current=r;
@@ -537,19 +562,22 @@ export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,snapGrid
   }
   return passes.length?{xyz:current.xyz,tri:current.tri,passes,timings}:null;
 }
-function reconstructOnce({xyz,tri,source,dirty},{closeMm,snapGridMm,pass,progress}){
+function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGridMm,pass,progress}){
   const clock=()=>performance.now(),timings={};let t0=clock();
   progress({stage:'intersections',pass});const any=anyIntersection({xyz,tri},dirty);timings.probe=clock()-t0;if(!any)return null;t0=clock();
-  progress({stage:'close',pass});const {points,moved,closing}=closeOpposedSheets({xyz,tri},closeMm);timings.close=clock()-t0;t0=clock();
-  progress({stage:'refine',pass});const refined=autorefine(points,tri,closing.movedVertices?null:dirty);timings.refine=clock()-t0;t0=clock();
+  progress({stage:'close',pass});const closed=closeOpposedSheets({xyz,tri},closeMm),{points,moved,closing}=closed,closedSheets=closed.sheets??sheets,inputSheet=closed.onSheet??onSheet;timings.close=clock()-t0;t0=clock();
+  progress({stage:'refine',pass});const refined=autorefine(points,tri,closing.movedVertices?null:dirty,inputSheet);timings.refine=clock()-t0;t0=clock();
   progress({stage:'classify',pass});const {kept,report}=classify(refined.store,refined.soup);timings.classify=clock()-t0;t0=clock();
   progress({stage:'round',pass});
-  const store=refined.store,{px,py,pz}=store,inputs=points.length/3,index=new Int32Array(store.count).fill(-1),byPoint=new PointMap(inputs);
-  const rounded=new Float64Array(3*store.count),roundedSource=new Uint8Array(store.count),fromConstruction=new Uint8Array(store.count),snap=x=>Math.round(x/snapGridMm)*snapGridMm;
+  const store=refined.store,{px,py,pz}=store,{pointSheet}=refined,inputs=points.length/3,index=new Int32Array(store.count).fill(-1),byPoint=new PointMap(inputs);
+  const rounded=new Float64Array(3*store.count),roundedSource=new Uint8Array(store.count),fromConstruction=new Uint8Array(store.count),roundedSheet=new Int32Array(store.count).fill(-1),snap=x=>Math.round(x/snapGridMm)*snapGridMm;
+  const place=(v,sheet)=>{if(v<inputs)return [px[v],py[v],pz[v]];if(sheet<0)return [snap(px[v]),snap(py[v]),snap(pz[v])];
+    const plane=closedSheets.planes[sheet],p=[px[v],py[v],pz[v]];return latticePlanePoint(plane,closedSheets,p[plane.i],p[plane.j],snapGridMm);};
   let vertices=0,merged=0,dropped=0,maxSnapMm=0;
-  const vertex=v=>{if(index[v]>=0)return index[v];const x=v<inputs?px[v]:snap(px[v]),y=v<inputs?py[v]:snap(py[v]),z=v<inputs?pz[v]:snap(pz[v]);
+  const vertex=v=>{if(index[v]>=0)return index[v];const sheet=v<inputs?(inputSheet?inputSheet[v]:-1):(pointSheet.get(v)??-1),[x,y,z]=place(v,sheet);
     if(v>=inputs)maxSnapMm=Math.max(maxSnapMm,Math.hypot(x-px[v],y-py[v],z-pz[v]));
     let i=byPoint.get(x,y,z);if(i<0){i=vertices++;rounded[3*i]=x;rounded[3*i+1]=y;rounded[3*i+2]=z;byPoint.set(x,y,z,i);}else merged++;
+    if(sheet>=0&&roundedSheet[i]<0)roundedSheet[i]=sheet;
     if(v<inputs&&source[v]&&!moved[v])roundedSource[i]=1;if(v>=inputs)fromConstruction[i]=1;return index[v]=i;};
   // Rounding can make opposed copies coincide; they cancel as in classification.
   const faces=new PointMap(kept.length/3),fr=[],fsign=[],fnet=[];
@@ -565,9 +593,9 @@ function reconstructOnce({xyz,tri,source,dirty},{closeMm,snapGridMm,pass,progres
   const used=new Int32Array(vertices).fill(-1),finalTri=[],finalDirty=[];let nv=0;
   for(let t=0;t<outTri.length;t+=3){if(outTri[t]<0)continue;for(let c=0;c<3;c++){const v=outTri[t+c];if(used[v]<0)used[v]=nv++;finalTri.push(used[v]);}
     finalDirty.push(touched[outTri[t]]|touched[outTri[t+1]]|touched[outTri[t+2]]);}
-  const finalXyz=new Float64Array(3*nv),finalSource=new Uint8Array(nv);
-  for(let v=0;v<vertices;v++)if(used[v]>=0){finalXyz.set(rounded.subarray(3*v,3*v+3),3*used[v]);finalSource[used[v]]=roundedSource[v];}
+  const finalXyz=new Float64Array(3*nv),finalSource=new Uint8Array(nv),finalSheet=new Int32Array(nv);
+  for(let v=0;v<vertices;v++)if(used[v]>=0){finalXyz.set(rounded.subarray(3*v,3*v+3),3*used[v]);finalSource[used[v]]=roundedSource[v];finalSheet[used[v]]=roundedSheet[v];}
   timings.round=clock()-t0;
-  return {xyz:finalXyz,tri:Int32Array.from(finalTri),source:finalSource,dirty:Uint8Array.from(finalDirty),timings,
+  return {xyz:finalXyz,tri:Int32Array.from(finalTri),source:finalSource,dirty:Uint8Array.from(finalDirty),onSheet:finalSheet,sheets:closedSheets,timings,
     report:{closing,refinedTriangles:refined.soup.length/3,...report,snapGridMm,maxSnapMm,roundingMergedPoints:merged,roundingDroppedTriangles:dropped,roundingCancelledPairs:roundingCancelled,...collapse,refine:refined.stats}};
 }

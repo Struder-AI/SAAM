@@ -445,12 +445,18 @@ evidence includes the merge. [Solid repair](./mesh-repair.mjs) orients faces acr
 two-face edges (each component keeps the orientation of most of its area), refuses
 unorientable edges, fills holes within both explicit bounds and refuses any other open
 edge, reverses an inside-out solid and replaces a self-crossing
-surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)): opposed
-sheets within print resolution close onto one plane, exact arrangement splits faces
-along every crossing, a face stays where the winding number is positive on one side
-only, new points round to the rounding guard and new vertices closer than print
-resolution merge. Reports give the closing, cancelled area and inward/outward shells
-before and after (fewer inward shells: cavities opened).
+surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)). Opposed
+sheets within print resolution close: faces near each seeded opposed pair's fitted
+plane join it, regions that share a vertex or a seeded pair become one sheet, and
+every vertex of a sheet moves onto that sheet's one plane, whose points on its lattice
+are exact doubles, so each seeded pair ends exactly coplanar and cancels. Exact
+arrangement splits faces along every crossing; a face stays where the winding number
+is positive on one side only. New points round to the rounding guard, except that a
+point constructed in a sheet's plane rounds on that plane's lattice, as closing places
+the vertices it moves, so sheets stay exact planes through every rounding pass; source
+points stay, and only triangles below numeric conditioning collapse. Reports give the
+closing, cancelled area and inward/outward shells before and after (fewer inward
+shells: cavities opened).
 
 Hole filling follows each hole's boundary from face to face around each vertex, as a
 halfedge mesh links borders, and splits a boundary that meets a vertex twice, so
