@@ -1502,6 +1502,14 @@
     "machines/bambu/filaments.mjs": {
       "owner": "export",
       "reason": "Bambu adapter: logical filament selection and feed checks."
+    },
+    "core/export/png.mjs": {
+      "owner": "export",
+      "reason": "PNG encoding offered to machine adapters (Export.encodePng) and used by the Application visual check."
+    },
+    "core/application/result-images.mjs": {
+      "owner": "application",
+      "reason": "Visual check: software-rasterized geometry and drawn-path images an operation result names, kept in the runtime temporary workspace."
     }
   },
   "leaves": {
@@ -13228,6 +13236,108 @@
     },
     "machines/bambu/filaments.mjs::checkedFilamentPlan": {
       "owner": "export"
+    },
+    "core/export/png.mjs::@module": {
+      "owner": "export"
+    },
+    "core/export/png.mjs::encodePng": {
+      "owner": "export"
+    },
+    "core/application/result-images.mjs::@module": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::PANEL": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::SAMPLES": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::MARGIN": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::GRID_MM": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::EDGE_PX": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::BEAD": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::BACKGROUND": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::GRID": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::GRID_MAJOR": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::PART": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::OUTLINE": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::CURVE": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::SQRT2": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::SQRT6": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::SQRT3": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::VIEWS": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::dot": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::rgb": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::createCanvas": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::frames": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::project": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::fillTriangle": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::drawSegment": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::drawGrid": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::outline": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::encode": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::extend": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::emptyBounds": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::geometryImage": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::pathImage": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::createResultImages": {
+      "owner": "application"
     }
   },
   "retiredAssignments": [

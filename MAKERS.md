@@ -41,12 +41,12 @@ For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool)
 The person asks for changes; save usable intermediate revisions so Studio shows
 the work as it develops. Continue until the intent is achieved without asking at
 each step. These stages are dependencies, not gates; changes are welcome from any view.
+Open the `visualCheck` image each geometry change and generation returns; correct what looks wrong.
 
 1. **First preview.** Create a print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.
    Ask first only when an essential feature has no reasonable default.
-2. **Geometry.** Invite changes; generate whenever a toolpath helps. Before the
-   toolpath view, name the proposed printer and material.
+2. **Geometry.** Invite changes; generate whenever a toolpath helps, first naming the proposed printer and material.
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
 4. **Export.** The person exports from Studio; that Export is the one

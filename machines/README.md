@@ -53,7 +53,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
      Bundle stores the report, and reopen and delivery run no adapter code.
    - `Export` is everything an adapter uses besides its own files: `number` (program
      resolution), `slackMm`, `gcodeMotion(prepared, settings, options)` (G-code lines and the
-     totals written), `packZip`, `unpackZip`, `crc32`, `temperatureC` (ceiling check) and
+     totals written), `packZip`, `unpackZip`, `crc32`, `encodePng`, `temperatureC` (ceiling check) and
      `frame` (stateless rotation math). Adapters import no core module.
 3. **Verification, debug only.** `machine-verify` exports `verify(bytes, plan, machine, Export)`,
    which executes a checked program; `node scripts/machine-verify.mjs BUNDLE_DIR` compares it

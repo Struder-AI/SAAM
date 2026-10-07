@@ -1,5 +1,6 @@
 import {readLocalAgentNotes,updateLocalAgentNotes,readLocalPhaseColours} from './local-agent-notes.mjs';
 import {retainFailedImport} from './diagnostics.mjs';
+import {createResultImages} from './result-images.mjs';
 import {watchStudioChanges} from '../../studio/changes.mjs';
 import {requireBundleInstance,bundleInstance,recoverBundleInstance} from '../print/studio-ownership.mjs';
 import {bundleRuntime,recordBundleRuntime} from '../print/bundle-runtime.mjs';
@@ -138,6 +139,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     search:async args=>(await getResourceClient()).search(args),
     download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
   };
+  const resultImages=createResultImages(paths);
   const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),calculations=new Map();
   const work={tails:new Map(),pending:new Set()},operationObservers=new Set(),eventObservers=new Set(),activeOperations=new Map(),transferringStudios=new Set();
   // A request belongs to the chat attached to its Studio, else to the chat that wrote it.
@@ -457,7 +459,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           const matches=[...studioSessions.values()].filter(s=>s.server.currentPrint()===dir);
           episode=await agentRequests.beginOperation({directory:dir,requestIds,studioInstanceId:input.studioInstanceId??view?.server.agentSession().instanceId??(matches.length===1?matches[0].server.agentSession().instanceId:undefined),instruction:'Working on '+name+'.'});
         }
-        const workRecords=episode?.records??[];
+        // The bundle's work evidence before this operation: the episode's last save, else its baseline.
+        const before=episode?episode.saved??episode.records[0]?.baseline??null:null,workRecords=episode?.records??[];
         if(!definition.readOnly&&name!=='capture_bundle')activeOperations.set(callId,{ownerId,name,bundleId:input.bundleId??null,studioInstanceId:input.studioInstanceId??null});
         const call={result:null,saved:episode?.saved??null,bookkeepingError:null};
         async function performAndCapture(fields,instance){
@@ -495,6 +498,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         if(bookkeepingError&&!originalError)throw bookkeepingError;
       }
         if(workRecords.length&&call.result&&typeof call.result==='object')call.result={...call.result,workRequest:{id:workRecords[0].episodeId??workRecords[0].id,requestIds:workRecords.map(r=>r.id),reminder:'Keep working across intermediate saves. When intent is achieved, a decision is needed, or a new user message interrupts you, call respond_to_studio_request once with this id and completed or waiting status.'}};
+        if(episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
+          const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved);
+          if(visualCheck)call.result={...call.result,visualCheck};
+        }
         if(view&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,studio:{studioInstanceId:view.server.agentSession().instanceId,bundleId:view.server.agentSession().printId,url:view.url,browserOpenRequested:view.browserOpenRequested}};
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:definition.readOnly,
@@ -1219,6 +1226,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     await Promise.all([...workspaceSessions.values()].map(session=>session.shutdown()));
     for(const chat of chats.values())chat.close();
     chats.clear();connectedChats.clear();allStudios.clear();workspaceSessions.clear();operationObservers.clear();eventObservers.clear();
+    await resultImages.close();
   })();}
   async function restoreStudios(windows){
     for(const window of windows){

@@ -1,7 +1,6 @@
 // Bounded Bambu output (H2D, X1 Carbon). Firmware service commands come from
 // the pinned envelope in the machine file, which also owns every model-specific fact.
 import {createHash} from 'node:crypto';
-import {deflateSync} from 'node:zlib';
 import {exportBambuBody} from './bambu-body.mjs';
 import {requireThat,startupPosition,feederSelector,validateBambuConnections} from './filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
@@ -148,7 +147,7 @@ function exportBambu(path,plan,machine,release,Export){
     strokes:segments.flatMap(segment=>segment.tally.strokes)};
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output,Export.number);
   const code=header(c,written,job,Export.number)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
-  return {bytes:Export.packZip(packageEntries(code,c,written,plan,output,job,s,Export.crc32)),report:report(written,c,s,job)};
+  return {bytes:Export.packZip(packageEntries(code,c,written,plan,output,job,s,Export.encodePng)),report:report(written,c,s,job)};
 }
 // What the person confirms beyond the drawn path: firmware service, feed mapping, estimates.
 function report(written,c,s,job){
@@ -170,7 +169,7 @@ function report(written,c,s,job){
     limitations:['Deposited-height travel checked; physical head clearance is not modeled.'],envelope};
 }
 
-function packageEntries(code,c,program,plan,output,job,s,crc32){
+function packageEntries(code,c,program,plan,output,job,s,encodePng){
   const {tool,map,nozzle,nozzles,color,used,count:declared,declaredMaps,limitMaps:usedFlags,settings,toolZeros}=job;
   const volume=program.volumeMm3,weight=volume/1000*job.density;
   const usage=program.filamentUsage.slice().sort((a,b)=>a.filament-b.filament),area=Math.PI*(job.filamentMm/2)**2;
@@ -196,7 +195,7 @@ function packageEntries(code,c,program,plan,output,job,s,crc32){
   ]);
   const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
-    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.strokes,c.bounds,size,crc32));
+    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.strokes,c.bounds,size,encodePng));
     entries.set(`Metadata/${name}.png`,thumbnails.get(size));
   }
   return entries;
@@ -204,7 +203,7 @@ function packageEntries(code,c,program,plan,output,job,s,crc32){
 
 // Fresh toolpath thumbnail from the written depositions, never the user's
 // reference object's thumbnail. This is a schematic top view, not geometry.
-function thumbnail(strokes,bounds,size,crc32){
+function thumbnail(strokes,bounds,size,encodePng){
   const pixels=Buffer.alloc(size*size*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=24;pixels[i+1]=30;pixels[i+2]=35;pixels[i+3]=255;}
   const span=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1]),scale=(size-20)/span;
   const project=p=>[Math.round(10+(p[0]-bounds.min[0])*scale),Math.round(size-11-(p[1]-bounds.min[1])*scale)];
@@ -212,8 +211,5 @@ function thumbnail(strokes,bounds,size,crc32){
     const x=Math.round(a[0]+(b[0]-a[0])*j/n),y=Math.round(a[1]+(b[1]-a[1])*j/n);if(x<0||y<0||x>=size||y>=size)continue;
     const k=(y*size+x)*4;pixels[k]=40;pixels[k+1]=160;pixels[k+2]=144;
   }}
-  const raw=Buffer.alloc(size*(1+size*4));for(let y=0;y<size;y++)pixels.copy(raw,y*(1+size*4)+1,y*size*4,(y+1)*size*4);
-  const chunk=(name,data)=>{const type=Buffer.from(name),length=Buffer.alloc(4),crc=Buffer.alloc(4);length.writeUInt32BE(data.length);crc.writeUInt32BE(crc32(Buffer.concat([type,data])));return Buffer.concat([length,type,data,crc]);};
-  const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(size);ihdr.writeUInt32BE(size,4);ihdr[8]=8;ihdr[9]=6;
-  return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(raw,{level:9})),chunk('IEND',Buffer.alloc(0))]);
+  return encodePng(pixels,size,size);
 }

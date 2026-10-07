@@ -5,6 +5,7 @@ import {validateTemperatureC} from '../private/export/temperature.mjs';
 import {loadExtensionEntry,machineCatalog} from '../extensions/library.mjs';
 import {gcodeMotion} from './gcode-motion.mjs';
 import {packZip,unpackZip,crc32} from './zip.mjs';
+import {encodePng} from './png.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 import {preparedTravelAdvisory} from './travel-advisory.mjs';
 
@@ -12,7 +13,7 @@ import {preparedTravelAdvisory} from './travel-advisory.mjs';
 // adapter receives. Frame math is Geometry's stateless library (no part data).
 export const Export=Object.freeze({
   number:value=>Number(value.toFixed(PROGRAM_DECIMALS)),slackMm:PROGRAM_SLACK_MM,
-  gcodeMotion,packZip,unpackZip,crc32,temperatureC:validateTemperatureC,
+  gcodeMotion,packZip,unpackZip,crc32,encodePng,temperatureC:validateTemperatureC,
   frame:Object.freeze({rotateZ,rotatePointZ,interpolateDirectionPair,validateDirectionPair})
 });
 
