@@ -86,7 +86,7 @@ coordination timers and display budgets. These limits are kept:
 | 64 MiB STL upload | [import-stl.mjs](../studio/import-stl.mjs) | The Studio HTTP boundary | Input safety on a network boundary; about 1,342,000 binary triangles, and not a geometry budget |
 | 64,000 byte request body (64 MiB on the import route) | [server.mjs](../studio/server.mjs) | The Studio HTTP boundary | The same input-safety rule for request bodies |
 | 64 KiB native repair report | [mesh-native.mjs](./geom/mesh-native.mjs) | The helper's single JSON line of counts | The report's size does not grow with the mesh, so 64 KiB means malformed output |
-| One-turn angular conditioning, `prefix[samples] < TAU` | [directional-contour.mjs](./geom/directional-contour.mjs) | Regularized contour sampling | Geometry: the angular room the source needs must fit in one revolution |
+| One-turn angular conditioning, `prefix[samples] < TAU` | [directional-contour.mjs](./geom/sleeve/directional-contour.mjs) | Regularized contour sampling | Geometry: the angular room the source needs must fit in one revolution |
 | ZIP32 entry and member sizes | [zip.mjs](./export/zip.mjs) | The container format | The format cannot represent more; the message says ZIP64 is unsupported |
 | Malformed-file guards: STL header and token length, non-finite values, OFF header shape | [stl-file.mjs](./geom/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs), [mesh-native.mjs](./geom/mesh-native.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
 | Download size, timeout and redirect count | [library.mjs](../skills/thingi10k/scripts/library.mjs) | An external HTTP boundary | Input safety on somebody else's server, the same class as the upload limit |
