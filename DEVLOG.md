@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-06 — Publish SAAM 0.3.6
+
+- Owner: "let's package 0.3.6, update locally". Published v0.3.6 at source 9b77fdbbc4998cd5b4d7684246b223462ac3b150 (8b1044cd plus the builder change). Windows 43,472,948 bytes, 016d40b280cb169e34e0a52da6badcd2a64d6ec99abe02cd5f99d657a94f73a9; arm64 Mac 47,410,304 bytes, fa6056173d5a47d2b0c4659697747e4f2fbbd7b53614f42f396a6e75937baf5c; Intel Mac 48,763,953 bytes, 7e85af04ba3747901a974a24c1c8f7328adcce869b83ae879cd39156a824220f. Windows mesh helper rebuilt for the current source (95134816…); Mac packages without native repair. Node v24.19.0, checksum-verified.
+- Builder (owner: "Three npm ci runs and a fresh Node download per platform? Why on earth are you downloading the ENTIRE manifold every time."): one run builds all three platforms; dependencies are copied from the checkout's installed node_modules checked against package-lock.json, manifold-3d reduced to the four files SAAM loads; Node runtimes come from a verified local cache. Cached three-platform build 73 s with no downloads.
+- Checks: each package's setup check, sidecars, manifests, runtime architectures, archived bytes against the commit (worker R1); public assets re-downloaded and checksums match, tag at 9b77fdbb, latest INSTALL.md matches; relay deployed (eb8385ae-157c-4a63-b64a-ffab98d1bb98) and the authenticated offer for the owner's device returns 0.3.6 with these hashes. Skipped by the owner: the isolated Windows install, generation, Studio, Wing and repair trials. Not run: whole suite, Mac native launch and Update.
+
 ## 2026-10-06 — Worker heaps sized from the machine
 
 - Owner: "memory limits must be adaptive and appropriately sized for the system." Workers W9/W9b: every SAAM worker thread starts through `computationWorker` (core/print/computation-job.mjs) with a heap ceiling of 3/4 of `process.constrainedMemory()` or `os.totalmem()` (about 12.1 GB on 15.85 GiB; V8's default was about 4.2 GB); an exhausted worker names its job and heap. Mesh repair and workspace construction use it instead of their own Worker options. Caches that refuse nothing stay fixed. Agent-determined: the 3/4 fraction. Not changed (orchestrator code, owner rule): the runtime host's main heap.
