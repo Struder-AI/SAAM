@@ -6,7 +6,7 @@ import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {checkMeshTopology} from './mesh-topology.mjs';
-import {triangleBVH} from './triangle-bvh.mjs';
+import {overlappingBoxPairs,triangleBoxes} from './triangle-bvh.mjs';
 import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
@@ -91,28 +91,44 @@ function retainValidatedMesh(identity,derived){
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
   return derived;
 }
+// Nonadjacent triangles whose boxes come within numeric conditioning must be separated.
 function rejectIntersections(vertices,triangles,normals){
-  const tree=triangleBVH(vertices,triangles);
-  for(let i=0;i<triangles.length;i++){const ta=triangles[i],pa=ta.map(v=>vertices[v]),min=[0,1,2].map(k=>Math.min(pa[0][k],pa[1][k],pa[2][k])),max=[0,1,2].map(k=>Math.max(pa[0][k],pa[1][k],pa[2][k]));
-    const inspectCandidate=j=>{if(j<=i)return;const tb=triangles[j];if(ta.some(v=>tb.includes(v)))return;
-      const pb=tb.map(v=>vertices[v]);if([0,1,2].some(k=>Math.max(pb[0][k],pb[1][k],pb[2][k])<min[k]-NUMERIC_MM||Math.min(pb[0][k],pb[1][k],pb[2][k])>max[k]+NUMERIC_MM))return;
-      if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
-    };
-    tree.query(min,max,inspectCandidate);
-  }
+  const boxes=triangleBoxes(vertices,triangles);
+  overlappingBoxPairs(triangleBoxes(vertices,triangles,NUMERIC_MM),(i,j)=>{
+    const ta=triangles[i],tb=triangles[j];if(ta[0]===tb[0]||ta[0]===tb[1]||ta[0]===tb[2]||ta[1]===tb[0]||ta[1]===tb[1]||ta[1]===tb[2]||ta[2]===tb[0]||ta[2]===tb[1]||ta[2]===tb[2])return;
+    for(let k=0;k<3;k++)if(boxes[6*j+3+k]<boxes[6*i+k]-NUMERIC_MM||boxes[6*j+k]>boxes[6*i+3+k]+NUMERIC_MM)return;
+    const pa=ta.map(v=>vertices[v]),pb=tb.map(v=>vertices[v]);
+    if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
+  });
 }
 
-// Shared closed-triangle separation predicate.
+// Shared closed-triangle separation predicate: the projections onto one of the
+// triangles' separating axes (normals, edge cross products, in-plane edge normals)
+// are more than numeric conditioning apart. Allocation-free; validation runs it
+// for every nearby pair. In-plane edge normals come before edge cross products,
+// which for coplanar triangles all repeat the normal.
+const separation=new Float64Array(24);
+function separatedAlong(x,y,z,pa,pb){
+  const length=Math.hypot(x,y,z);if(length<1e-12)return false;
+  const ux=x/length,uy=y/length,uz=z/length;let amin=Infinity,amax=-Infinity,bmin=Infinity,bmax=-Infinity;
+  for(let k=0;k<3;k++){const a=pa[k][0]*ux+pa[k][1]*uy+pa[k][2]*uz,b=pb[k][0]*ux+pb[k][1]*uy+pb[k][2]*uz;amin=Math.min(amin,a);amax=Math.max(amax,a);bmin=Math.min(bmin,b);bmax=Math.max(bmax,b);}
+  return amax<bmin-NUMERIC_MM||bmax<amin-NUMERIC_MM;
+}
+// Scratch layout: edges of A at 0..8, of B at 9..17, unit normals at 18 and 21.
+function setNormal(o,given,edges){
+  const e=separation;if(given){e[o]=given[0];e[o+1]=given[1];e[o+2]=given[2];return;}
+  const x=e[edges+1]*e[edges+5]-e[edges+2]*e[edges+4],y=e[edges+2]*e[edges+3]-e[edges]*e[edges+5],z=e[edges]*e[edges+4]-e[edges+1]*e[edges+3],length=Math.hypot(x,y,z);
+  e[o]=x/length;e[o+1]=y/length;e[o+2]=z/length;
+}
+function crossSeparates(p,q,pa,pb){const e=separation;return separatedAlong(e[p+1]*e[q+2]-e[p+2]*e[q+1],e[p+2]*e[q]-e[p]*e[q+2],e[p]*e[q+1]-e[p+1]*e[q],pa,pb);}
 export function separatedTriangles(pa,pb,normalA,normalB) {
-  const ea=pa.map((p,k)=>sub(pa[(k+1)%3],p)),eb=pb.map((p,k)=>sub(pb[(k+1)%3],p));
-  const normal=edges=>{const n=cross(edges[0],edges[1]),length=Math.hypot(...n);return n.map(v=>v/length);};
-  const na=normalA??normal(ea),nb=normalB??normal(eb);
-  const axes=[na,nb,...ea.flatMap(e=>eb.map(f=>cross(e,f))),...ea.map(e=>cross(na,e)),...eb.map(e=>cross(nb,e))];
-  return axes.some(axis=>{
-    const length=Math.hypot(...axis);if(length<1e-12)return false;
-    const unit=axis.map(v=>v/length),aa=pa.map(p=>dot(p,unit)),bb=pb.map(p=>dot(p,unit));
-    return Math.max(...aa)<Math.min(...bb)-NUMERIC_MM||Math.max(...bb)<Math.min(...aa)-NUMERIC_MM;
-  });
+  const e=separation;
+  for(let k=0;k<3;k++)for(let c=0;c<3;c++){e[3*k+c]=pa[(k+1)%3][c]-pa[k][c];e[9+3*k+c]=pb[(k+1)%3][c]-pb[k][c];}
+  setNormal(18,normalA,0);setNormal(21,normalB,9);
+  if(separatedAlong(e[18],e[19],e[20],pa,pb)||separatedAlong(e[21],e[22],e[23],pa,pb))return true;
+  for(let i=0;i<3;i++)if(crossSeparates(18,3*i,pa,pb)||crossSeparates(21,9+3*i,pa,pb))return true;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(crossSeparates(3*i,9+3*j,pa,pb))return true;
+  return false;
 }
 
 export function translateMesh(mesh,dx,dy,dz=0) {

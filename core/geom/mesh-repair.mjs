@@ -1,9 +1,11 @@
-// Exact triangle cleanup and output validation shared by import and native repair.
+// Exact triangle cleanup, solid repair and output validation for explicit repair.
 import {decodeSTL,makeMesh,parseSTL,triangleNormal} from './mesh.mjs';
+import {reconstructSolid} from './mesh-autorefine.mjs';
+import {checkMeshTopology} from './mesh-topology.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {NUMERIC_MM,NUMERIC_RELATIVE} from '../dimensions.mjs';
 
 export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   requireThat(Array.isArray(input.vertices)&&Array.isArray(input.triangles),'Repair needs vertices and triangles.');
@@ -117,6 +119,170 @@ function stitchCollapsedEdges(vertices,triangles) {
     return pieces;
   });
   return {triangles:output,stitchedEdges,addedTriangles};
+}
+
+// Makes a cleaned soup (vertex indices are exact coordinates) a closed outward
+// solid. Faces are oriented consistently across edges with exactly two faces, each
+// connected component keeping the orientation of most of its area; every edge must
+// then balance (as many faces along it as against it), and the whole is reversed
+// when it encloses negative volume. A surface that crosses itself is replaced by
+// the boundary of its solid (mesh-autorefine.mjs), which must be a manifold.
+// Open edges are refused unless every hole they bound is within both maxHoleEdges
+// and maxHoleDiameterMm; then each hole is filled first (holeLoops, triangulateHole).
+export function repairSolid(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,progress=()=>{}}={}){
+  progress({stage:'orient'});
+  const xyz=Float64Array.from(mesh.vertices.flat()),tri=Int32Array.from(mesh.triangles.flat()),n=tri.length/3;
+  const lo=new Int32Array(3*n),hi=new Int32Array(3*n),edges=new Uint32Array(3*n),next=e=>3*((e/3)|0)+(e%3+1)%3;
+  for(let e=0;e<3*n;e++){lo[e]=Math.min(tri[e],tri[next(e)]);hi[e]=Math.max(tri[e],tri[next(e)]);edges[e]=e;}
+  edges.sort((x,y)=>lo[x]-lo[y]||hi[x]-hi[y]||x-y);
+  // Edge e's twin across a two-face edge, else -1.
+  const twin=new Int32Array(3*n).fill(-1);
+  for(let i=0;i<3*n;){let j=i+1;while(j<3*n&&lo[edges[j]]===lo[edges[i]]&&hi[edges[j]]===hi[edges[i]])j++;if(j-i===2){twin[edges[i]]=edges[i+1];twin[edges[i+1]]=edges[i];}i=j;}
+  const flip=new Int8Array(n).fill(-1),area=f=>{const p=k=>3*tri[3*f+k],a=p(0),b=p(1),c=p(2),u=[0,1,2].map(k=>xyz[b+k]-xyz[a+k]),v=[0,1,2].map(k=>xyz[c+k]-xyz[a+k]);return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]);};
+  const orientation={components:0,flippedFaces:0,reversedOrientation:false};
+  for(let seed=0;seed<n;seed++){if(flip[seed]>=0)continue;orientation.components++;flip[seed]=0;const component=[seed],kept=[0,0];
+    for(let c=0;c<component.length;c++){const f=component[c];kept[flip[f]]+=area(f);
+      for(let k=0;k<3;k++){const t=twin[3*f+k];if(t<0)continue;const g=(t/3)|0;
+        // Twins run opposite ways once oriented: g keeps its winding when they already do.
+        if(flip[g]<0){flip[g]=flip[f]^(tri[3*f+k]===tri[t]?1:0);component.push(g);}}}
+    const reverse=kept[1]>kept[0]?1:0;for(const f of component)flip[f]^=reverse;}
+  progress({stage:'boundaries'});
+  // An open edge has one face; every other edge must balance.
+  const open=[],isOpen=new Uint8Array(3*n);let unbalanced=0;
+  for(let i=0;i<3*n;){let j=i,balance=0;while(j<3*n&&lo[edges[j]]===lo[edges[i]]&&hi[edges[j]]===hi[edges[i]]){const e=edges[j++];balance+=(tri[e]<tri[next(e)]?1:-1)*(flip[(e/3)|0]?-1:1);}
+    if(j-i===1){open.push(edges[i]);isOpen[edges[i]]=1;}else if(balance)unbalanced++;i=j;}
+  if(open.length&&!maxHoleEdges)throw Object.assign(Error(`Open boundaries remain (${open.length} edges); hole filling requires explicit maxHoleEdges and maxHoleDiameterMm.`),{code:'MESH_REPAIR_FAILED'});
+  if(unbalanced)throw Object.assign(Error(`${unbalanced} mesh edges cannot be oriented consistently; no result accepted.`),{code:'MESH_REPAIR_FAILED'});
+  const holes={holesFilled:0,holeTrianglesAdded:0},patch=[];
+  if(open.length){
+    progress({stage:'fill-holes',edges:open.length});
+    const orientedEdges={tri,flip,twin,isOpen,next};
+    const {loops,unpaired}=holeLoops(open,orientedEdges);
+    const outside=loops.filter(loop=>loop.length>maxHoleEdges||holeDiameter(xyz,loop,orientedEdges)>maxHoleDiameterMm).length;
+    if(unpaired||outside)throw Object.assign(Error(`Open boundaries remain (${open.length} edges in ${loops.length} holes`+(outside?`; ${outside} exceed maxHoleEdges ${maxHoleEdges} or maxHoleDiameterMm ${maxHoleDiameterMm}`:'')+(unpaired?`; ${unpaired} edges do not form a hole boundary`:'')+'); no result accepted.'),{code:'MESH_REPAIR_FAILED'});
+    // A chord may not repeat an edge of the mesh or of an earlier patch.
+    const added=new Set(),edgeKey=(a,b)=>Math.min(a,b)*(xyz.length/3)+Math.max(a,b);
+    const meshHasEdge=(a,b)=>{const l=Math.min(a,b),h=Math.max(a,b);let x=0,y=3*n;while(x<y){const m=(x+y)>>1,e=edges[m];if(lo[e]<l||lo[e]===l&&hi[e]<h)x=m+1;else y=m;}return x<3*n&&lo[edges[x]]===l&&hi[edges[x]]===h||added.has(edgeKey(a,b));};
+    for(const loop of loops){
+      const hole=holeGeometry(xyz,loop,orientedEdges),fill=triangulateHole(hole.points,hole.sideNormals,(i,k)=>meshHasEdge(hole.ids[i],hole.ids[k]));
+      if(!fill)throw Object.assign(Error(`Open boundaries remain: a hole of ${loop.length} edges has no triangulation without degenerate triangles or repeated edges; no result accepted.`),{code:'MESH_REPAIR_FAILED'});
+      for(let t=0;t<fill.length;t+=3){const a=hole.ids[fill[t]],b=hole.ids[fill[t+1]],c=hole.ids[fill[t+2]];patch.push(a,b,c);added.add(edgeKey(a,b));added.add(edgeKey(b,c));added.add(edgeKey(c,a));}
+      holes.holesFilled++;holes.holeTrianglesAdded+=fill.length/3;
+    }
+  }
+  for(let f=0;f<n;f++)if(flip[f]){const b=tri[3*f+1];tri[3*f+1]=tri[3*f+2];tri[3*f+2]=b;orientation.flippedFaces++;}
+  const closed=patch.length?Int32Array.from([...tri,...patch]):tri,faces=closed.length/3;
+  let volume=0;for(let f=0;f<faces;f++){const [a,b,c]=[0,1,2].map(k=>3*closed[3*f+k]);volume+=xyz[a]*(xyz[b+1]*xyz[c+2]-xyz[b+2]*xyz[c+1])+xyz[a+1]*(xyz[b+2]*xyz[c]-xyz[b]*xyz[c+2])+xyz[a+2]*(xyz[b]*xyz[c+1]-xyz[b+1]*xyz[c]);}
+  if(volume<0){orientation.reversedOrientation=true;for(let f=0;f<faces;f++){const b=closed[3*f+1];closed[3*f+1]=closed[3*f+2];closed[3*f+2]=b;}}
+  const solid=reconstructSolid({xyz,tri:closed},{progress}),out=solid??{xyz,tri:closed},vertices=[],triangles=[];
+  for(let i=0;i<out.xyz.length;i+=3)vertices.push([out.xyz[i],out.xyz[i+1],out.xyz[i+2]]);
+  for(let i=0;i<out.tri.length;i+=3)triangles.push([out.tri[i],out.tri[i+1],out.tri[i+2]]);
+  checkMeshTopology(vertices,triangles,ok=>{if(!ok)throw Object.assign(Error('The repaired solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted.'),{code:'MESH_REPAIR_FAILED'});});
+  const summary=pass=>{const {refine,snapGridMm,maxSnapMm,roundingMergedPoints,roundingDroppedTriangles,roundingCancelledPairs,remaining,...counts}=pass;return counts;};
+  const reconstruction=solid&&{...summary(solid.passes[0]),snapGridMm:solid.passes[0].snapGridMm,maxSnapMm:Math.max(...solid.passes.map(p=>p.maxSnapMm)),
+    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),merge:solid.merge};
+  return {vertices,triangles,report:{method:'saam-solid-repair/2',orientation,...holes,selfIntersectionsRepaired:!!solid,reconstruction}};
+}
+
+// Hole boundaries as loops of open face edges e (face (e/3)|0, oriented by flip).
+// The hole runs against its faces: edge e, oriented u->v, is the hole step v->u.
+// The step after it leaves u across the fan of faces around u, as a halfedge
+// mesh links border halfedges. A walk that meets a vertex again splits off the
+// closed part, so every loop is simple: holes touching at a vertex fill apart.
+// Edges whose fan crosses a nonmanifold or inconsistent edge stay unpaired.
+function holeLoops(open,{tri,flip,twin,isOpen,next}){
+  const from=e=>flip[(e/3)|0]?tri[next(e)]:tri[e],to=e=>flip[(e/3)|0]?tri[e]:tri[next(e)];
+  const into=(f,u)=>{for(let k=0;k<3;k++)if(to(3*f+k)===u)return 3*f+k;return -1;};
+  const step=new Map();
+  for(const e of open){
+    const u=from(e);let c=into((e/3)|0,u),following=-1;
+    for(let turns=0;turns<=tri.length/3&&c>=0;turns++){
+      if(isOpen[c]){following=c;break;}
+      const t=twin[c];if(t<0||from(t)!==u)break;c=into((t/3)|0,u);
+    }
+    step.set(e,following);
+  }
+  const loops=[],seen=new Set();let unpaired=0;
+  for(const start of open){
+    if(seen.has(start))continue;
+    const path=[],at=new Map();let e=start;
+    // A step from a vertex already on the path closes the steps since it; a
+    // walk that returns to a seen step closes through its first vertex or stays open.
+    for(;;){
+      const v=e<0?-1:to(e),repeat=at.get(v);
+      if(repeat!==undefined){const piece=path.splice(repeat);for(const p of piece)at.delete(to(p));piece.length>=3?loops.push(piece):unpaired+=piece.length;}
+      if(e<0||seen.has(e)){unpaired+=path.length;break;}
+      seen.add(e);at.set(v,path.length);path.push(e);e=step.get(e);
+    }
+  }
+  return {loops,unpaired};
+}
+
+// Loop vertices p_i (the hole step i runs p_i -> p_i+1), their coordinates, and the
+// unit normal of the face across each step.
+function holeGeometry(xyz,loop,{tri,flip,next}){
+  const n=loop.length,ids=new Int32Array(n),points=new Float64Array(3*n),sideNormals=new Float64Array(3*n);
+  loop.forEach((e,i)=>{
+    const f=(e/3)|0,u=flip[f]?tri[next(e)]:tri[e],v=flip[f]?tri[e]:tri[next(e)],w=tri[3*f]+tri[3*f+1]+tri[3*f+2]-u-v;
+    ids[i]=v;for(let k=0;k<3;k++)points[3*i+k]=xyz[3*v+k];
+    const a=[0,1,2].map(k=>xyz[3*v+k]-xyz[3*u+k]),b=[0,1,2].map(k=>xyz[3*w+k]-xyz[3*u+k]),c=cross(a,b),l=Math.hypot(...c);
+    for(let k=0;k<3;k++)sideNormals[3*i+k]=c[k]/l;
+  });
+  return {ids,points,sideNormals};
+}
+
+// The size limit: the diagonal of the loop's axis-aligned bounding box, in mm.
+function holeDiameter(xyz,loop,{tri,flip,next}){
+  const low=[Infinity,Infinity,Infinity],high=[-Infinity,-Infinity,-Infinity];
+  for(const e of loop){const v=flip[(e/3)|0]?tri[e]:tri[next(e)];for(let k=0;k<3;k++){low[k]=Math.min(low[k],xyz[3*v+k]);high[k]=Math.max(high[k],xyz[3*v+k]);}}
+  return Math.hypot(high[0]-low[0],high[1]-low[1],high[2]-low[2]);
+}
+
+// Liepa's minimum-weight triangulation of a hole (P. Liepa, "Filling Holes in
+// Meshes", SGP 2003), the weight CGAL's triangulate_hole uses: the largest
+// dihedral angle between adjacent faces (patch faces and the faces across the
+// loop), then total area. Dihedral angles compare as |n1 - n2|^2 of unit normals,
+// which grows with the angle and stays exact near zero. No vertices are added;
+// a triangle must meet the mesh height contract (triangleNormal), and a chord
+// (i,k) that repeats an existing edge is not used. Returns loop-index triples
+// (each oriented with the loop) or null when no such triangulation exists.
+// Time grows as n^3 and memory as n^2 in the loop's edge count n.
+export function triangulateHole(points,sideNormals,hasEdge){
+  const n=points.length/3,cells=n*(n-1)/2,row=new Int32Array(n);
+  for(let i=1;i<n;i++)row[i]=row[i-1]+n-i;
+  // Cell (i,k), i<k, at row[i]+k-i-1: [largest angle, area, unit normal of the
+  // triangle on chord i-k] in stride 5, and that triangle's apex m in best. The
+  // copy by column (at k(k-1)/2+i, NaN angle until solved) keeps the inner loop's
+  // reads contiguous.
+  const cell=new Float64Array(5*cells).fill(NaN),column=new Float64Array(5*cells).fill(NaN),best=new Int32Array(cells).fill(-1),P=points;
+  const store=(i,k,angle,area,x,y,z)=>{const c=5*(row[i]+k-i-1),d=5*(k*(k-1)/2+i);cell[c]=column[d]=angle;cell[c+1]=column[d+1]=area;cell[c+2]=column[d+2]=x;cell[c+3]=column[d+3]=y;cell[c+4]=column[d+4]=z;};
+  for(let i=0;i+1<n;i++){best[row[i]]=i;store(i,i+1,0,0,sideNormals[3*i],sideNormals[3*i+1],sideNormals[3*i+2]);}
+  for(let span=2;span<n;span++)for(let i=0;i+span<n;i++){
+    const k=i+span,c=row[i]+span-1,top=span===n-1;if(!top&&hasEdge(i,k))continue;
+    let bestAngle=Infinity,bestArea=Infinity,bestM=-1,bx=0,by=0,bz=0;
+    const ix=P[3*i],iy=P[3*i+1],iz=P[3*i+2],kx=P[3*k]-ix,ky=P[3*k+1]-iy,kz=P[3*k+2]-iz,ik=kx*kx+ky*ky+kz*kz;
+    const first=row[i]-i-1,last=k*(k-1)/2;
+    for(let m=i+1;m<k;m++){
+      const p=5*(first+m),q=5*(last+m);if(!(cell[p]>=0&&column[q]>=0))continue;
+      const mx=P[3*m]-ix,my=P[3*m+1]-iy,mz=P[3*m+2]-iz,ex=kx-mx,ey=ky-my,ez=kz-mz;
+      const nx=my*kz-mz*ky,ny=mz*kx-mx*kz,nz=mx*ky-my*kx,squared=nx*nx+ny*ny+nz*nz;
+      const longest=Math.max(mx*mx+my*my+mz*mz,ex*ex+ey*ey+ez*ez,ik),limit=NUMERIC_MM*NUMERIC_MM*longest;
+      // The height contract in triangleNormal's own arithmetic when it is close.
+      if(squared<=limit*(1+NUMERIC_RELATIVE)&&!triangleNormal([ix,iy,iz],P.slice(3*m,3*m+3),P.slice(3*k,3*k+3)))continue;
+      const length=Math.sqrt(squared),ux=nx/length,uy=ny/length,uz=nz/length;
+      const ax=ux-cell[p+2],ay=uy-cell[p+3],az=uz-cell[p+4],bx2=ux-column[q+2],by2=uy-column[q+3],bz2=uz-column[q+4];
+      let a=Math.max(cell[p],column[q],ax*ax+ay*ay+az*az,bx2*bx2+by2*by2+bz2*bz2);
+      if(top){const tx=ux-sideNormals[3*k],ty=uy-sideNormals[3*k+1],tz=uz-sideNormals[3*k+2];a=Math.max(a,tx*tx+ty*ty+tz*tz);}
+      const s=cell[p+1]+column[q+1]+length/2;
+      if(a<bestAngle||a===bestAngle&&s<bestArea){bestAngle=a;bestArea=s;bestM=m;bx=ux;by=uy;bz=uz;}
+    }
+    if(bestM<0)continue;
+    best[c]=bestM;store(i,k,bestAngle,bestArea,bx,by,bz);
+  }
+  if(n<3||best[n-2]<0)return null;
+  const faces=[],pending=[[0,n-1]];
+  while(pending.length){const [i,k]=pending.pop(),m=best[row[i]+k-i-1];faces.push(i,m,k);if(m-i>1)pending.push([i,m]);if(k-m>1)pending.push([m,k]);}
+  return faces;
 }
 
 export function compactMesh(vertices,triangles) {

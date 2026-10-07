@@ -72,7 +72,7 @@ export async function contextBudget(root, { machineIds = catalogIds() } = {}) {
   const home = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
   let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
   try {
-    const runtime = createLocalRuntime({ paths: homePaths(home), autoOpen: false });
+    const paths = homePaths(home), runtime = createLocalRuntime({ paths, stateRoot: paths.state, autoOpen: false });
     for (const operation of runtime.beginSession().operations){
       // Measure the complete application operation catalog, including its schemas.
       const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});

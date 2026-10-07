@@ -5,10 +5,9 @@ import {createWriteStream,createReadStream} from 'node:fs';
 import {pipeline} from 'node:stream/promises';
 import {join,dirname,basename,resolve} from 'node:path';
 import {createHash} from 'node:crypto';
-import {decodeSTL,cleanTriangleSoup,encodeRepairSTLChunks,validateRepair} from '../geom/mesh-repair.mjs';
+import {decodeSTL,cleanTriangleSoup,repairSolid,encodeRepairSTLChunks,validateRepair} from '../geom/mesh-repair.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
-import {repairMeshNative} from '../geom/mesh-native.mjs';
 import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
 import {NUMERIC_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {cross,dot} from '../geom/tolerance.mjs';
@@ -40,6 +39,8 @@ function shells({vertices,triangles}){
 async function prepare(source,options){
   const {units,signal,progress=()=>{}}=options;signal?.throwIfAborted();const start=performance.now();
   if(options.maxSampledDistanceMm!==undefined&&(!Number.isFinite(options.maxSampledDistanceMm)||options.maxSampledDistanceMm<0))throw Error('maxSampledDistanceMm must be nonnegative.');
+  const {maxHoleEdges=0,maxHoleDiameterMm=0}=options;
+  if(!Number.isSafeInteger(maxHoleEdges)||maxHoleEdges<0||!Number.isFinite(maxHoleDiameterMm)||maxHoleDiameterMm<0||((maxHoleEdges===0)!==(maxHoleDiameterMm===0)))throw Error('Hole filling requires both positive maxHoleEdges and maxHoleDiameterMm, or both zero.');
   progress({stage:'read-source'});const input=typeof source==='string'?await decodeSTLFile(source,{units,signal,progress}):decodeSTL(source,{units});
   progress({stage:'cleanup'});
   const sourceHash=input.sha256??canonicalHash(source),clean=cleanTriangleSoup(input,{mergeToleranceMm:options.mergeToleranceMm});
@@ -48,10 +49,7 @@ async function prepare(source,options){
   const comparison=clean.merge?cleanTriangleSoup(input):clean;
   let result,sourceError;
   try{makeMesh(clean.vertices,clean.triangles);checkAdjacentContacts(clean);result={...clean,report:{method:clean.merge?.movedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1'}};}catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED')throw error;sourceError=error.message;}
-  if(!result){
-    const nativeDirectory=await options.nativeReady?.();
-    signal?.throwIfAborted();result=await repairMeshNative(clean,{...options,nativeDirectory});
-  }
+  if(!result)result=repairSolid(clean,{maxHoleEdges,maxHoleDiameterMm,progress});
   signal?.throwIfAborted();progress({stage:'validate',triangles:result.triangles.length});makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);
   const changes=shapeChanges(comparison,result,progress,signal);
   if(options.maxSampledDistanceMm!==undefined&&Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm)throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; no result accepted.'),{code:'MESH_SHAPE_CHANGE',changes});

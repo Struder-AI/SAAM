@@ -1,15 +1,14 @@
 # Geometry and numerical contracts
 
-## Repair worker and native process boundary
+## Repair worker boundary
 
 `core/print/mesh-repair-job.mjs` owns a worker per repair/import, running inline when already in that worker.
 It settles after worker termination, allowing scratch cleanup. Progress callback errors abort;
 geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
 acknowledgements; missing results and results arriving after cancellation cannot become success.
 `mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
-The native executable uses files, stderr progress and stdout reports. [Native repair](./native/README.md)
-owns build instructions, limits and provenance, including geometry-owned C++, CMake, dependency hashes
-and licenses outside the JavaScript scanner. Keep those resources consistent with the wrapper protocol.
+Repair uses SAAM's JavaScript implementation. The [native reference](./native/README.md)
+retains build inputs, protocol and provenance for comparison before retirement.
 [Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
 ## Planar line/region clipping
@@ -424,10 +423,12 @@ complete Rhino computation engine.
 
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
-source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Studio and agent imports
+source, runs exact cleanup, and repairs the solid when cleanup alone does not
+yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
-formats retain their diagnostics; repair never fills holes without explicit bounds.
+formats retain their diagnostics; repair never fills holes without explicit bounds,
+and imports pass their own (`IMPORT_HOLE_DIAMETER_MM`, `IMPORT_HOLE_EDGES` in
+[import-stl.mjs](./import-stl.mjs)).
 
 [Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
 faces keep one copy facing their net orientation (an opposed pair cancels).
@@ -438,12 +439,42 @@ never move, repeated coordinates share a decision, and neighbours do not chain.
 Spatial buckets only find candidates; they never round accepted coordinates.
 Collapsed-face stitching uses existing collinear boundary vertices (numeric
 conditioning), without guessing branches or filling holes. Ordinary imports remain
-exact-only. Reports include merge counts and maximum displacement; shape-change
-evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
-only within explicit limits, closes opposed sheets within print resolution and
-replaces a self-crossing surface by its solid's boundary; reports give the closing,
-cancelled area and inward/outward shells before and after (fewer inward shells:
-cavities opened).
+exact-only in cleanup. Reports include merge counts and maximum displacement; shape-change
+evidence includes the merge. [Solid repair](./mesh-repair.mjs) orients faces across
+two-face edges (each component keeps the orientation of most of its area), refuses
+unorientable edges, fills holes within both explicit bounds and refuses any other open
+edge, reverses an inside-out solid and replaces a self-crossing
+surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)). Opposed
+sheets within print resolution close: faces near each seeded opposed pair's fitted
+plane join it, regions that share a vertex or a seeded pair become one sheet, and
+every vertex of a sheet moves onto that sheet's one plane, whose points on its lattice
+are exact doubles, so each seeded pair ends exactly coplanar and cancels. Exact
+arrangement splits faces along every crossing; a face stays where the winding number
+is positive on one side only. New points round to the rounding guard, except that a
+point constructed in a sheet's plane rounds on that plane's lattice, as closing places
+the vertices it moves, so sheets stay exact planes through every rounding pass (and
+pairs of faces on one sheet are coplanar without orientation tests); source points stay,
+and only triangles below numeric conditioning collapse. Once no crossing remains,
+vertices closer than print resolution merge, closest pairs first: their edge collapses
+into the end that stays (a source vertex, else a sheet vertex), so every merged vertex
+ends within print resolution of where it was; a collapse that would break the manifold,
+the height contract or cross another face (exact test) is undone, and pairs that stay
+are reported by cause. Reports give the closing, cancelled area, the merge and
+inward/outward shells before and after (fewer inward shells: cavities opened).
+
+Hole filling follows each hole's boundary from face to face around each vertex, as a
+halfedge mesh links borders, and splits a boundary that meets a vertex twice, so
+holes touching at a vertex fill apart. A hole fills only when its edge count is at
+most `maxHoleEdges` and its boundary's bounding-box diagonal at most
+`maxHoleDiameterMm`; if any hole exceeds either, nothing is filled and the repair is
+refused. Each hole is triangulated without new vertices by Liepa's dynamic programme
+(P. Liepa, "Filling Holes in Meshes", SGP 2003) with the weight CGAL's
+`triangulate_hole` uses: the largest dihedral angle between adjacent faces, then
+area. Patch triangles meet the mesh height contract and never repeat an existing
+edge; a patch that crosses the surface is resolved by reconstruction. Time grows as
+the cube of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at
+2,000 on the development machine) and memory as its square (about 170 MB at 2,000).
+Reports give `holesFilled` and `holeTrianglesAdded`.
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
@@ -476,20 +507,14 @@ triangles). A real allocation failure is reported as it happens, naming the stag
 and the mesh size, and never changes geometry. When the Node heap itself is
 exhausted inside the repair worker the supervisor reports that the mesh exceeded
 available memory rather than an anonymous worker failure. The source indexed mesh,
-CGAL mesh and final result still require memory. Neither native repair nor
+the arrangement and the final result still require memory. Neither repair nor
 downstream bundle serialization is out-of-core; a mesh larger than the machine can
 hold fails on the allocation that actually failed, not on a prediction.
 
-Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `progress` and `onGeometry`.
-Countable stages report completed/total and percentage within that stage. CGAL
-patch work is indeterminate; no fabricated global percentage is reported.
-Elapsed time never refuses a repair. The child process ends when it finishes,
-when it fails, or when the caller cancels through `signal`; nothing kills it for
-running long, because the pinned helper reports only when it enters a stage and
-its self-intersection and hole-triangulation work can run for a long time in one
-stage. Silence is therefore not evidence of a stalled child, and no interval of
-silence is treated as one. The helper's stdout report is a single line of counts;
-anything larger is rejected as output that did not come from this helper.
+Repair runs in a worker thread, including hole filling. Async repair accepts `signal`,
+`progress` and `onGeometry`. Countable stages report completed/total and percentage
+within that stage; reconstruction stages report entry only. Elapsed time never
+refuses a repair; cancellation terminates the worker. No global percentage is inferred.
 After final validation, `onGeometry` receives at most 4,096 full-quality triangles
 per chunk, with local vertices/indices, first-triangle offset and completion
 percentage. Each callback is awaited, allowing the consumer to release a chunk

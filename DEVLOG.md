@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-10-07 — Integrate mesh replacement M1–M3 and small defects
+
+- Owner: "We need m1, m2, m3, merge those in and clean them up." Integrated `codex/m3-closing-fix` through dce5886a, including all M1/M2 history. Studio and agent import and explicit repair now use SAAM's JavaScript reconstruction, exact predicates, shared hierarchy and bounded Liepa hole filling. M3 joins touching closing sheets on one plane and merges vertices below print resolution while retaining topology, displacement and crossing constraints. Current glossary declarations and terminology survive integration; corrected stale native-process descriptions.
+- Owner: "Small defects - bring those in, make sure our new glossary here remains the one that carries the day". Incorporated the missing context-budget stateRoot import and stale tour reference from `codex/fix-037-defects`; the current glossary already supplies the remaining link corrections.
+- Verified on the integrated checkout: existing mesh-repair file 13/13, including penetrating-fold repair, bounded holes, import bundle, exact reimport, worker cancellation and source-byte preservation; context-budget --machine ultimaker-s5 returns ok:true (formerly failed); repository check 116 documents/1,453 links; diff whitespace. No whole suite, new tests or physical print trial. Full map regeneration follows the combined tolerance integration.
+- Remaining retirement scope: native adapter, helper, build inputs and packaging remain for comparison; no production repair route calls them. Historical Windows brain speed/parity evidence remains in the M1/M2 handoffs; macOS acceptance and full native retirement are outstanding. Import edge limit 500 remains agent-determined pending owner review. Nothing pushed or released.
+
+
 ## 2026-10-07 — Approved glossary throughout the project
 
 - Owner approved Slice, slice surface and slice stack; Course explicitly allows subjective boundaries; Turn denotes a sleeve revolution; Supports includes removal judgment. Removed Confirmation, Machine program and Substrate adaptation glossary entries. Propagated current guidance, Studio labels, schemas, diagnostics, helpers and internal stack/batch names. Current documentation: 28 files, 3,754 → 3,749 lines (excluding this log and the pre-existing 0.3.7 plan edits).
