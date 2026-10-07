@@ -59,7 +59,7 @@ export function findBedCounterbores(shell,createSectionQuery,{layerMm,lineWidthM
       if(previous.radiusMm-current.radiusMm>=Math.max(lineWidthMm*.75,toleranceMm*3)
         &&current.radiusMm>=lineWidthMm*1.5){
         // Resolve the shoulder well inside the section tolerance; deposition
-        // separately selects complete courses in the open lower cavity.
+        // separately selects complete repetitions in the open lower cavity.
         let low=last,high=z;
         while(high-low>toleranceMm/16){
           const mid=(low+high)/2,at=sectionAt(mid).loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
@@ -109,13 +109,13 @@ function cavityAt(sectionAt,z,candidate,toleranceMm){
   const cut=sectionAt(z),hole=cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
     .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
   check(hole&&hole.radiusMm+1e-4>=candidate.lowerRadiusMm-toleranceMm,
-    `The counterbore cavity narrows near Z ${z.toFixed(3)} mm; this support course would collide with the model.`);
+    `The counterbore cavity narrows near Z ${z.toFixed(3)} mm; this support repetition would collide with the model.`);
   check(!cut.loops.some(loop=>area(loop)>0&&loop.every(point=>distance(point,hole.centerMm)<hole.radiusMm-toleranceMm)),
     `Material lies inside the counterbore cavity near Z ${z.toFixed(3)} mm.`);
   return {hole,loops:cut.loops};
 }
 
-function lastOpenCourse(candidate,process,sectionAt,toleranceMm){
+function lastOpenSlice(candidate,process,sectionAt,toleranceMm){
   const {firstLayerMm,layerMm}=process;
   check([firstLayerMm,layerMm].every(v=>finite(v)&&v>0),'Hole supports need planar firstLayerMm and layerMm.');
   for(let n=Math.floor((candidate.shoulderZMm-firstLayerMm+1e-8)/layerMm);n>=0;n--){
@@ -123,10 +123,10 @@ function lastOpenCourse(candidate,process,sectionAt,toleranceMm){
       .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
     if(hole&&hole.radiusMm+1e-4>=candidate.lowerRadiusMm-toleranceMm)return z;
   }
-  throw Error('No complete planar course lies inside the lower counterbore cavity.');
+  throw Error('No complete planar repetition lies inside the lower counterbore cavity.');
 }
 
-function anchoredSpan(role,a,b,anchor,loops,process,course){
+function anchoredSpan(role,a,b,anchor,loops,process,repetition){
   const d=distance(a,b),u=[(b[0]-a[0])/d,(b[1]-a[1])/d],before=[a[0]-anchor*u[0],a[1]-anchor*u[1],a[2]],after=[b[0]+anchor*u[0],b[1]+anchor*u[1],b[2]];
   check(materialAt(loops,before)&&materialAt(loops,after),
     `A ${role} attachment leaves the counterbore rim; shorten anchorMm or choose another hole.`);
@@ -136,7 +136,7 @@ function anchoredSpan(role,a,b,anchor,loops,process,course){
     check(!materialAt(loops,p),`A ${role} free span crosses model material; choose another hole.`);
   }
   return [path(`${role}-attach`,[before,a],process),path(role,[a,b],process),path(`${role}-attach`,[b,after],process)]
-    .map(curve=>course===undefined?curve:{...curve,courses:[course]});
+    .map(curve=>repetition===undefined?curve:{...curve,repetitions:[repetition]});
 }
 
 function membrane(candidate,request,process,id,shell,createSectionQuery,toleranceMm){
@@ -144,7 +144,7 @@ function membrane(candidate,request,process,id,shell,createSectionQuery,toleranc
   const pitch=request.pitchMm??w,overlap=request.anchorMm??w*1.5;
   check(finite(pitch)&&pitch>=w*.75&&pitch<=w*1.5,'Membrane pitchMm must be 0.75–1.5 bead widths.');
   check(finite(overlap)&&overlap>=w,'Membrane anchorMm must cover at least one bead width of the cavity rim.');
-  const z=lastOpenCourse(candidate,process,sectionAt,toleranceMm),{hole,loops}=cavityAt(sectionAt,z,candidate,toleranceMm),r=hole.radiusMm-w/2;
+  const z=lastOpenSlice(candidate,process,sectionAt,toleranceMm),{hole,loops}=cavityAt(sectionAt,z,candidate,toleranceMm),r=hole.radiusMm-w/2;
   const count=Math.max(1,Math.ceil(2*r/pitch)),curves=[];
   for(let i=0;i<count;i++){
     const dy=(i+.5-count/2)*pitch;
@@ -162,7 +162,7 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
   const anchor=request.anchorMm??w*1.5,offset=request.tangentOffsetMm??small+w/2;
   check(finite(anchor)&&anchor>=w,'Tangent anchorMm must cover at least one bead width of the cavity rim.');
   check(finite(offset)&&offset>=small-w/2&&offset<large-w,'Tangent offset must skirt the smaller bore and fit inside the outer bore.');
-  const sectionAt=createSectionQuery(shell),top=lastOpenCourse(candidate,process,sectionAt,toleranceMm);
+  const sectionAt=createSectionQuery(shell),top=lastOpenSlice(candidate,process,sectionAt,toleranceMm);
   const topIndex=Math.round((top-process.firstLayerMm)/process.layerMm);
   const atStage=stage=>process.firstLayerMm+(topIndex-2+stage)*process.layerMm;
   const z=atStage(0);
@@ -179,7 +179,7 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
       curves.push(...anchoredSpan(`hole-tangent-stage-${stage+1}`,a,b,anchorLength,loops,process,stage));
     }
   }
-  // Third course marks the intended bore perimeter in four separate arcs.
+  // Third repetition marks the intended bore perimeter in four separate arcs.
   const radius=small+w/2,segments=Math.max(2,Math.ceil(Math.PI*radius/(2*.25)));
   const thirdZ=atStage(2),{hole:thirdHole}=cavityAt(sectionAt,thirdZ,candidate,toleranceMm);
   check(radius+w/2< thirdHole.radiusMm-toleranceMm,'The third-stage bore rim does not fit inside the counterbore void.');
@@ -187,9 +187,9 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
     const points=Array.from({length:segments+1},(_,i)=>{
       const a=(quadrant+i/segments)*Math.PI/2;return [x+radius*Math.cos(a),y+radius*Math.sin(a),thirdZ];
     });
-    curves.push({...path('hole-tangent-stage-three',points,process),courses:[2]});
+    curves.push({...path('hole-tangent-stage-three',points,process),repetitions:[2]});
   }
-  return {...trace(id,curves,request.after??[]),repeat:{count:3,translation:[0,0,0]},courseIds:['tangents-a','tangents-b','bore-rim']};
+  return {...trace(id,curves,request.after??[]),repeat:{count:3,translation:[0,0,0]},repetitionIds:['tangents-a','tangents-b','bore-rim']};
 }
 
 function sleeve(candidate,request,process,id,shell,createSectionQuery,toleranceMm){

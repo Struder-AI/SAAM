@@ -13,7 +13,7 @@ export async function diagnoseDepositionPlan(plan){
       sampledMoves:path.actions.filter(action=>action.kind==='move').length,
       slices:summary.slices??null,ownership:summary.slices?.ownership??null,
       constructions:Object.fromEntries(['vaseWall','curves'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
-      modulationGeometry:summary.modulationGeometry??[],referenceFamilies:summary.referenceFamilies??{},surfaceDomain:summary.surfaceDomain??null};
+      modulationGeometry:summary.modulationGeometry??[],referenceStacks:summary.referenceStacks??{},surfaceDomain:summary.surfaceDomain??null};
   }catch(error){
     return {status:'blocked',scope:'deposition generation',message:error.message,
       implication:'Recipe is structurally valid and saved for further authoring; this finding must be resolved before generation can succeed.'};

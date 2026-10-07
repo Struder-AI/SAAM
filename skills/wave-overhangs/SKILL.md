@@ -1,6 +1,6 @@
 ---
 name: wave-overhangs
-description: Extension for experimental seeded-front fill on ordinary Slice families.
+description: Extension for experimental seeded-front fill on ordinary Slice stacks.
 metadata:
   saam-kind: extension
 ---
@@ -42,7 +42,7 @@ and lateral attachment; a valid mask does not guarantee one continuous pass.
 
 | Preset option | Default | Meaning |
 |---|---:|---|
-| `layers` | 1 | Number of translated reference courses. |
+| `layers` | 1 | Number of translated slice surfaces. |
 | `beadHeightMm` | 0.2 | Target whole-reference mean normal gap. |
 | `lineSpacingMm` | 0.3 | Physical distance between fronts. |
 | `speedMmS` | 5 | Shared deposition speed. |

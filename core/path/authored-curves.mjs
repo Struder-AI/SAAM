@@ -28,11 +28,11 @@ export function curveProfile(values,t,fallback){
   return Array.isArray(x)?x.map((v,k)=>v+(y[k]-v)*s):x+(y-x)*s;
 }
 
-function referenceEntry(reference,references,course){
+function referenceEntry(reference,references,repetition){
   const key=reference.kind==='patch'?`patch:${reference.part??''}:${reference.name}`:`${reference.kind}:${reference.assignment}`;
   const found=references?.[key];requireThat(found,`Curve reference ${key} is unavailable.`);
   if(reference.kind==='slice'){
-    const index=reference.index??course,layer=found.layers?.find(l=>l.index===index);
+    const index=reference.index??repetition,layer=found.layers?.find(l=>l.index===index);
     requireThat(layer,`Curve reference ${key} has no layer ${index}.`);return layer.slice;
   }
   return found.patch??{kind:'sleeve-chart',layers:found.layers,domainU:[0,1],domainV:[0,found.layers.length-1]};
@@ -44,9 +44,9 @@ function authoredSegment(lengths,distanceMm){
   while(lo<hi){const mid=Math.floor((lo+hi)/2);if(lengths[mid]<distanceMm)lo=mid+1;else hi=mid;}
   return lo;
 }
-export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
+export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,0,0],toleranceMm=.02,sampleStepMm=1}={}){
   const input=curve.uv??curve,dimension=curve.uv?2:3,native=input.nurbs?authoredNurbs(input.nurbs,dimension):null;
-  const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,course):null;
+  const points=input.points,entry=curve.uv?referenceEntry(input.reference,references,repetition):null;
   if(native&&curve.closed)requireThat(distance(curvePoint(native,0),curvePoint(native,1))<1e-7,'Closed NURBS must meet at their domain endpoints.');
   const source=native?null:(curve.closed?[...points,points[0]]:points),lengths=[0];
   if(source)for(let i=1;i<source.length;i++)lengths.push(lengths.at(-1)+Math.hypot(...source[i].map((x,k)=>x-source[i-1][k])));
@@ -55,7 +55,7 @@ export function sampleAuthoredCurve(curve,{references={},course=0,offset=[0,0,0]
   const breaks=[0,1,...(native?[...native.knots].filter(k=>k>native.domain[0]&&k<native.domain[1]).map(k=>(k-native.domain[0])/(native.domain[1]-native.domain[0])):lengths.map(l=>l/lengths.at(-1))),...Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0]))];
   const samples=sampleCurveIntervals({at,cuts:breaks,stepMm:curve.sampleStepMm??sampleStepMm,toleranceMm:curve.toleranceMm??toleranceMm,
     chartSteps:curve.uv?.reference.kind==='sleeve'?[.125,.25]:[]});
-  const {nurbs,uv,vary,courses,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
+  const {nurbs,uv,vary,repetitions,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
   const result={...properties,role:curve.role??'curve',closed:false,points:samples.map(s=>s.point),curveParameters:samples.map(s=>s.t)};
   if(curve.segmentMetadata)result.segmentMetadata=samples.slice(1).map((sample,i)=>{
     const d=(sample.t+samples[i].t)/2*lengths.at(-1),segment=authoredSegment(lengths,d);
@@ -135,7 +135,7 @@ function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=.02,
 export function constructAuthoredCurves(curve,options={}){
   let offsetChart=null,offsetDescriptor=null;
   if(curve.uv?.normalMm){
-    const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);
+    const entry=referenceEntry(curve.uv.reference,options.references,options.repetition??0);
     if(entry.layers||entry.reference?.kind==='roof'){
       const bounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
       offsetDescriptor=entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:{kind:'slice-chart',slice:entry,domainU:[bounds.min[0],bounds.max[0]],domainV:[bounds.min[1],bounds.max[1]]};
@@ -149,7 +149,7 @@ export function constructAuthoredCurves(curve,options={}){
   if(construction.parallelCount===1)return [applyCurveProfiles({...source,beadWidthMm:construction.beadWidthMm},curve)];
   let paths=[];
   if(curve.uv){
-    const entry=referenceEntry(curve.uv.reference,options.references,options.course??0);
+    const entry=referenceEntry(curve.uv.reference,options.references,options.repetition??0);
     const heightBounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
     const patch=offsetDescriptor??(entry.cp?entry:entry.patch)??(heightBounds?{kind:'slice-chart',slice:entry,domainU:[heightBounds.min[0],heightBounds.max[0]],domainV:[heightBounds.min[1],heightBounds.max[1]]}:entry.layers?entry:null);
     if(entry.kind==='plane'){

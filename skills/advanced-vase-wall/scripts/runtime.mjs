@@ -21,15 +21,15 @@ function patternStack(pattern,perimeterAt){
   const {tileWidthMm:width,riseMm:rise}=pattern,byCount=new Map();
   const turns=Array.from({length:pattern.turns},(_,turn)=>{
     const {zMm,perimeterMm}=perimeterAt(turn,rise);
-    return {turn,zMm,perimeterMm,courses:Math.max(1,Math.round(perimeterMm/width))};
+    return {turn,zMm,perimeterMm,tileCount:Math.max(1,Math.round(perimeterMm/width))};
   });
-  for(const {courses:n} of turns)if(!byCount.has(n))byCount.set(n,Array.from({length:n},(_,j)=>paths.map(path=>({heights:path.heights,
+  for(const {tileCount:n} of turns)if(!byCount.has(n))byCount.set(n,Array.from({length:n},(_,j)=>paths.map(path=>({heights:path.heights,
     vertices:path.vertices.map(([x,h,d])=>{const u=(j+x/width)/n;return [u,h+rise*u,d];})}))).flat());
-  return {repeats:pattern.turns,advance:[1,rise],tiles:turns.map(turn=>byCount.get(turn.courses)),turns};
+  return {repeats:pattern.turns,advance:[1,rise],tiles:turns.map(turn=>byCount.get(turn.tileCount)),turns};
 }
-// Start/end courses are built in the regular reference strip, before flow
+// Start/end tileCount are built in the regular reference strip, before flow
 // mapping. The caps retain the selected pattern's advance and transverse shape.
-function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,firstHeightMm,referenceLengthMm}){
+function* patternRepetitions({repeats:count,advance,tiles},{level=false,spanMm,firstHeightMm,referenceLengthMm}){
   const rise=advance[1];
   if(!level){
     for(let repeat=0;repeat<count;repeat++)yield {repeat,paths:tiles[repeat].map(p=>({heights:p.heights,
@@ -37,7 +37,7 @@ function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,first
     return;
   }
   requireThat([spanMm,firstHeightMm,referenceLengthMm].every(v=>Number.isFinite(v)&&v>0),
-    'Level pattern courses require a positive sleeve span, first bead height and reference perimeter.');
+    'Level pattern repetitions require a positive sleeve span, first bead height and reference perimeter.');
   const progressed=new Map();
   const progressOf=paths=>{
     if(progressed.has(paths))return progressed.get(paths);
@@ -50,7 +50,7 @@ function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,first
       }
       progress.push(at);
       for(const [,z] of path.vertices)requireThat(z>=-1e-9&&z+(count-1)*rise<=spanMm+1e-9,
-        'Level pattern courses exceed the selected sleeve height interval; adjust explicit path coordinates, advance or repetition count. No course was trimmed.');
+        'Level pattern repetitions exceed the selected sleeve height interval; adjust explicit path coordinates, advance or repetition count. No repetition was trimmed.');
     }
     progressed.set(paths,{progress,length});return progressed.get(paths);
   };
@@ -70,7 +70,7 @@ function* patternCourses({repeats:count,advance,tiles},{level=false,spanMm,first
       const vertices=path.vertices.map(([u,z,d],i)=>{
         const t=progress[p][i]/length,current=height(repeat,z,t);
         const gap=repeat<0?firstHeightMm:current-height(repeat-1,z,t);
-        requireThat(gap>=-1e-9,'Level pattern transition reverses the nominal course stack; revise the tile heights.');
+        requireThat(gap>=-1e-9,'Level pattern transition reverses the nominal repetition stack; revise the tile heights.');
         heights.push(path.heights[i]*Math.max(0,gap)/rise);
         return [u+repeat*advance[0],current,d];
       });
@@ -91,7 +91,7 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
   };
   const stack=patternStack(pattern,perimeterAt);
   const continuous=settings.pathMode==='continuous',role=continuous?'vase-wall':'segmented-path';
-  // Every course is authored and finite, and each mapped interval subdivides
+  // Every repetition is authored and finite, and each mapped interval subdivides
   // until its tolerance is met or its midpoint stops being distinct from its
   // ends, so the pattern takes the points its tolerances need.
   const level=settings.endTransition==='level',paths=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
@@ -126,26 +126,26 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
     return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
   };
   const total=stack.repeats+(level?2:0);let completed=0;
-  onProgress?.({stage:'Mapping vase pattern courses',completed:0,total});
-  for(const course of patternCourses(stack,{level,spanMm:end-start,firstHeightMm:firstHeight,referenceLengthMm})){
+  onProgress?.({stage:'Mapping vase pattern repetitions',completed:0,total});
+  for(const repetition of patternRepetitions(stack,{level,spanMm:end-start,firstHeightMm:firstHeight,referenceLengthMm})){
     const first=paths.length;let length=0;
-    for(const {vertices,heights} of course.paths)length+=emitPath(vertices,heights,course.repeat+(level?2:1),course.repeat===(level?-1:0));
+    for(const {vertices,heights} of repetition.paths)length+=emitPath(vertices,heights,repetition.repeat+(level?2:1),repetition.repeat===(level?-1:0));
     // The minimum layer time applies to each repeat: a whole turn of a sized pattern.
     const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
     for(let i=first;i<paths.length;i++)paths[i].speedMmS=speed;
-    onProgress?.({stage:'Mapping vase pattern courses',completed:++completed,total});
+    onProgress?.({stage:'Mapping vase pattern repetitions',completed:++completed,total});
   }
   // Reported to the program resolution, 1e-3 mm.
   const micro=v=>Math.round(v*1e3)/1e3;
-  const runs=stack.turns?.filter((turn,i,all)=>!i||turn.courses!==all[i-1].courses).map(({turn,zMm,perimeterMm,courses})=>({turn,zMm:micro(zMm),perimeterMm:micro(perimeterMm),courses}));
-  const widths=stack.turns?.reduce(([low,high],turn)=>[Math.min(low,turn.perimeterMm/turn.courses),Math.max(high,turn.perimeterMm/turn.courses)],[Infinity,-Infinity]);
-  return {courses:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],
+  const runs=stack.turns?.filter((turn,i,all)=>!i||turn.tileCount!==all[i-1].tileCount).map(({turn,zMm,perimeterMm,tileCount})=>({turn,zMm:micro(zMm),perimeterMm:micro(perimeterMm),tileCount}));
+  const widths=stack.turns?.reduce(([low,high],turn)=>[Math.min(low,turn.perimeterMm/turn.tileCount),Math.max(high,turn.perimeterMm/turn.tileCount)],[Infinity,-Infinity]);
+  return {batches:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],
     levelBoundary:level?{zMm:end,widthMm:process.lineWidthMm,tailCount:stack.tiles.at(-1).length}:null,
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:stack.repeats,
-      ...(stack.turns?{sizedCourses:{tileWidthMm:pattern.tileWidthMm,courses:stack.turns.reduce((sum,turn)=>sum+turn.courses,0),
-        courseWidthRangeMm:widths.map(micro),countChanges:runs,
+      ...(stack.turns?{sizedTiles:{tileWidthMm:pattern.tileWidthMm,tileCount:stack.turns.reduce((sum,turn)=>sum+turn.tileCount,0),
+        tileWidthRangeMm:widths.map(micro),countChanges:runs,
         transition:'Each listed turn holds that many evenly spaced tiles from the seam until the next; a changed turn shifts its tiles against the turn below by up to half a tile, most opposite the seam.'}}:{}),
-      points:count,endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryCourses:2}:{}),maximumAngleDeg,maximumBeadHeightMm,
+      points:count,endTransition:settings.endTransition,levelRimMm:level?end:null,...(level?{flatStartMm:start,boundaryRepetitions:2}:{}),maximumAngleDeg,maximumBeadHeightMm,
       scope:'Repeated tiles mapped to actual inset sleeve sections. Only supplied pattern strokes deposit, with nominal bead heights; arbitrary crossing contact and strength are not inferred.'}};
 }
 // The extension owns pattern repetition and boundary transitions.
@@ -158,14 +158,14 @@ function advancedVaseResult({shell,assignment,process,geometry,after=assignment.
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const parts=[];
-  for(const {layerIdSuffix,...source} of mapped.courses){
+  for(const {layerIdSuffix,...source} of mapped.batches){
     const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments}):source.curves;
-    const course={...source,curves,layerId:assignment.id+layerIdSuffix};
-    parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{courses:[course],process}));
+    const batch={...source,curves,layerId:assignment.id+layerIdSuffix};
+    parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{batches:[batch],process}));
   }
   const operations=parts.flatMap(part=>part.operations),strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary;
   const measures=Object.fromEntries(['strokes','lengthMm','volumeMm3'].map(key=>[key,parts.reduce((sum,part)=>sum+part.report[key],0)]));
-  return {id:assignment.id,operations,family:{...reference.family(),name:`${assignment.id} sleeve`},
+  return {id:assignment.id,operations,referenceStack:{...reference.referenceStack(),name:`${assignment.id} sleeve`},
     report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part,depositionFamily:'trace',extension:'advanced-vase-wall',...measures},
     ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
 }

@@ -12,7 +12,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 
 | Skill | Use |
 |---|---|
-| [slice](slice/SKILL.md) | Deposit loops and fill in owned regions over reference surface families. |
+| [slice](slice/SKILL.md) | Deposit loops and fill in owned regions over slice stacks. |
 | [trace](trace/SKILL.md) | Deposit along explicit XYZ, NURBS or surface UV curves with varying bead and process. |
 | [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
 
@@ -31,8 +31,8 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Extension that fits a sleeve, repeats authored patterns and calls Trace. |
 | [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Trace spiral wall and optional solid base. |
 | [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, including attachment motions. |
-| [draped-skin](draped-skin/SKILL.md) | Extension for roof-following Slice courses and their contact with prior material. |
-| [wave-overhangs](wave-overhangs/SKILL.md) | Extension for experimental seeded-front fill on ordinary Slice families. |
+| [draped-skin](draped-skin/SKILL.md) | Extension for roof-following Slice stacks and their contact with prior material. |
+| [wave-overhangs](wave-overhangs/SKILL.md) | Extension for experimental seeded-front fill on ordinary Slice stacks. |
 | [thick-lip](thick-lip/SKILL.md) | Extension for making a thickened or rolled edge with Slice or Trace. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Extension for experimental axial or helical Slice coatings on periodic surface references. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |

@@ -20,6 +20,32 @@ import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs
 import {commitManifest,retainContent,restoreContent,recordDelivery,saveDescriptor} from './revisions.mjs';
 import {geometryTree} from '../../skills/records.mjs';
 
+// Present old generation reports with current terminology without rewriting artifacts.
+function currentPathSummary(summary){
+  const current=structuredClone(summary??{});
+  if(current.referenceFamilies&&!current.referenceStacks)current.referenceStacks=current.referenceFamilies;
+  delete current.referenceFamilies;
+  for(const stacks of Object.values(current.referenceStacks??{}))for(const stack of stacks){
+    stack.referenceStackKind??=stack.referenceFamily;delete stack.referenceFamily;
+    stack.layers??=stack.normalOwnership?.courseCount??stack.courses;
+    delete stack.courses;
+    if(stack.normalOwnership){stack.normalOwnership.sliceCount??=stack.normalOwnership.courseCount;delete stack.normalOwnership.courseCount;}
+  }
+  for(const slice of current.slices?.instances??[]){
+    if(slice.referenceFamily){slice.referenceStackKind??=slice.referenceFamily;delete slice.referenceFamily;}
+    if(slice.fillOrder&&Object.hasOwn(slice.fillOrder,'courses')){slice.fillOrder.slices??=slice.fillOrder.courses;delete slice.fillOrder.courses;}
+  }
+  for(const trace of current.curves??[]){trace.repetitions??=trace.courses;delete trace.courses;}
+  for(const vase of current.vaseWall?[current.vaseWall,...(current.vaseWall.instances??[])]:[]){
+    if(Object.hasOwn(vase,'boundaryCourses')){vase.boundaryRepetitions??=vase.boundaryCourses;delete vase.boundaryCourses;}
+    if(vase.sizedCourses&&!vase.sizedTiles)vase.sizedTiles=vase.sizedCourses;
+    delete vase.sizedCourses;
+    if(vase.sizedTiles){vase.sizedTiles.tileCount??=vase.sizedTiles.courses;delete vase.sizedTiles.courses;vase.sizedTiles.tileWidthRangeMm??=vase.sizedTiles.courseWidthRangeMm;delete vase.sizedTiles.courseWidthRangeMm;}
+    for(const change of vase.sizedTiles?.countChanges??[]){change.tileCount??=change.courses;delete change.courses;}
+  }
+  return current;
+}
+
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const BUNDLE_SCHEMA='saam-print-bundle/2';
 const nativeSuffix=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return name==='model.3dm'?'.3dm':'.mesh.json';};
@@ -303,7 +329,7 @@ async function restoreBundleProgram(input,program) {
     state.programChecked=true;
     state.program=storedReport(output.generation);
     state.limitations=[...new Set([...state.limitations,...state.program.limitations])];
-    state.pathSummary = structuredClone(review.generation.summary??{});
+    state.pathSummary = currentPathSummary(review.generation.summary);
     state.outputId = output.id;
     state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(review.path)===canonicalJson(output.path),
       plan:output.plan,machine:output.machine,geometry:output.geometry,geometryId:output.geometryId,geometryInputId:output.geometryInputId,editRevision:output.generation.editRevision,

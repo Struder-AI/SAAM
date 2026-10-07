@@ -30,7 +30,7 @@ export function editLineText(source,request,{Geometry}={}){
   requireThat(request.onInfeasible===undefined||['reduce','error'].includes(request.onInfeasible),'Text infeasibility mode must be reduce or error.');
   const font=loadFont(request.fontId);
   const compiled=lineText({...request,font,firstLayerMm:origin[2],strokeTopology:Geometry?.strokeTopology});
-  const assignment={...compiled.assignment,part:null,sequence:false,courseIds:null,maxExcursionMm:null,
+  const assignment={...compiled.assignment,part:null,sequence:false,repetitionIds:null,maxExcursionMm:null,
     curves:compiled.assignment.curves.map(curve=>({...curve,
       points:curve.points.map(([x,y,z])=>[x+origin[0],y+origin[1],z])}))};
   if(at<0)assignments.push(assignment);else assignments[at]=assignment;

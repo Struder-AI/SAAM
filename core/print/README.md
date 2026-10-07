@@ -32,7 +32,7 @@ edit. Saved geometry remains viewable without rerunning the extension.
 Saved records receive structural checks when opened; the selected extension copy
 validates technique semantics at edit and regeneration, after prerequisite resolution.
 
-`prepareSliceRegionContext` accepts a supplied Geometry layer family, preset,
+`prepareSliceRegionContext` accepts a supplied Geometry slice stack, preset,
 recipe, process resolver and report. Toolpath resolves the assignment's filament
 and process and returns an ordinary Slice context; it does not infer regions.
 

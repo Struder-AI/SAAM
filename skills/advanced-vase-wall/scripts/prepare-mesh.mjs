@@ -11,7 +11,7 @@ const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!A
 const same=isDeepStrictEqual;
 
 export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
-  const {makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily}=Geometry;
+  const {makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceStack}=Geometry;
   const {defaultSlices,depositionAssignment}=Toolpath;
   keys(options,['meshSleeve','pattern','baseHeightMm','endTransition','detect'],'mesh vase');
   if(Object.hasOwn(options,'detect'))keys(options.detect,['marginMm','toleranceMm','sampleCount','maxSecondaryAreaFraction','zMinMm','zMaxMm'],'sleeve detection');
@@ -36,7 +36,7 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   const detected=detectMeshSleeveInterval(mesh,{marginMm:Math.min(Math.max(plan.process.lineWidthMm,plan.process.layerMm),(mesh.bounds.max[2]-low)/4),toleranceMm:wall.boundaryToleranceMm,...options.detect});
   const minimumBase=Math.max(plan.process.firstLayerMm+2*plan.process.layerMm,detected.rangeMm[0]-low);
   const baseHeight=options.baseHeightMm??(existing.length?wall.zStartMm:
-    sliceFamily({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},{min:[0,0,0],max:[0,0,minimumBase+plan.process.layerMm]}).layers.map(l=>l.slice.origin[2]).find(z=>z>=minimumBase-1e-9));
+    sliceStack({base:horizontalSlice(0),pitchMm:plan.process.layerMm,firstLayerMm:plan.process.firstLayerMm},{min:[0,0,0],max:[0,0,minimumBase+plan.process.layerMm]}).layers.map(l=>l.slice.origin[2]).find(z=>z>=minimumBase-1e-9));
   requireThat(Number.isFinite(baseHeight)&&baseHeight>=0,'baseHeightMm must be nonnegative.');
   const base=low+baseHeight,end=detected.rangeMm[1];
   requireThat(base>=detected.rangeMm[0]-1e-9,'baseHeightMm must reach the detected sleeve start; choose a taller base explicitly.');
@@ -50,14 +50,14 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   let authoredPoints=0;
   const endTransition=options.endTransition??(existing.length?wall.endTransition:'level');
   requireThat(['level','spiral'].includes(endTransition),'endTransition must be level or spiral.');
-  // A sized pattern's turn rises riseMm across its tiles; its course count follows the sleeve.
+  // A sized pattern's turn rises riseMm across its tiles; its tile count follows the sleeve.
   const sized=Boolean(pattern&&Object.hasOwn(pattern,'tileWidthMm')),repeats=sized?pattern.turns:pattern?.repeats;
   if(pattern){
     let minimum=Infinity,maximum=-Infinity;
     for(const path of pattern.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
     requireThat(minimum>=-1e-9,'The authored pattern descends below its first bead; revise the explicit path heights.');
     requireThat(maximum+(sized?repeats*pattern.riseMm:(repeats-1)*pattern.advance[1])<=span+1e-9,
-      'The requested complete pattern courses exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
+      'The requested complete pattern repetitions exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
     authoredPoints=sized?null:pattern.paths.reduce((n,p)=>n+p.points.length,0)*(repeats+(endTransition==='level'?2:0));
     requireThat(sized||Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
   }
@@ -66,7 +66,7 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   const slices={version:plan.slices.version,assignments:[...(baseHeight>0?(body.length?body:initial.slices.assignments):[]),settings]};
   return {assignments:slices.assignments,
     report:{detectedSleeve:detected,baseHeightMm:baseHeight,wallRangeMm:[start,end],
-      bodyCourses:repeats??null,boundaryCourses:pattern&&endTransition==='level'?2:0,authoredPoints,
+      bodyRepetitions:repeats??null,boundaryRepetitions:pattern&&endTransition==='level'?2:0,authoredPoints,
       baseEnabled:baseHeight>0,sourceGeometryChanged:false,
       nextStep:'Review the recipe and use the normal check-path/Studio generation workflow; preparation creates no machine program or approval.'}};
 }

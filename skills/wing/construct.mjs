@@ -94,8 +94,8 @@ export function continuousWingCurve(d,piece,{clipLineToRegion}){
   }
   const mirrored=points.map(([x,y,z])=>[x,piece.hand*sense*y,z]),skin=mirrored.slice(baseCount-1);
   const common={closed:false,role:'wing-continuous',beadWidthMm:d.beadWidthMm,heightMm:pitch,speedMmS:d.speedMmS};
-  return {curves:[{...common,points:mirrored.slice(0,baseCount),courses:[0],speedMmS:Math.min(12,d.speedMmS)},
-    {...common,points:skin,courses:[1],speedMmS:skinSpeed}],
+  return {curves:[{...common,points:mirrored.slice(0,baseCount),repetitions:[0],speedMmS:Math.min(12,d.speedMmS)},
+    {...common,points:skin,repetitions:[1],speedMmS:skinSpeed}],
     report:{points:points.length,lengthMm,maxRiseDeg:maxRise,maxStepMm:maxStep,continuous:true,minimumTurnSeconds:6,bedFace:piece.integratedTip?'flat outer winglet face':'section joint',wingletThicknessMm:piece.integratedTip?wingletThickness(d):null}};
 }
 
@@ -105,7 +105,7 @@ export async function wingHandoff(input,pieceId,Geometry){
   const geometry=await pieceGeometry(d,piece,Geometry),{curves,report}=continuousWingCurve(d,piece,Geometry);
   const process={firstLayerMm:d.layerMm,layerMm:d.layerMm,lineWidthMm:d.beadWidthMm,planarSpeedMmS:d.speedMmS};
   const {id,url,sha256}=airfoilProfile(d.airfoil);
-  return {id:piece.id,geometry,curves,trace:{repeat:{count:2,translation:[0,0,0]},sequence:true,courseIds:['base','skin']},process,source:{kind:'wing',version:3,design:d,piece,rods:layout.rods,rodEndMm:d.spanMm/2-wingletThickness(d)-4,airfoil:{id,url,sha256}},
+  return {id:piece.id,geometry,curves,trace:{repeat:{count:2,translation:[0,0,0]},sequence:true,repetitionIds:['base','skin']},process,source:{kind:'wing',version:3,design:d,piece,rods:layout.rods,rodEndMm:d.spanMm/2-wingletThickness(d)-4,airfoil:{id,url,sha256}},
     requirements:{orientation:piece.integratedTip?'flat-winglet-face-down':'span-up',continuousExtrusion:true,axes:3,assembly:d.sweepDeg?'glue; separate straight rods for each swept half-wing; root joint strength unqualified':'glue',geometryRole:'reference envelope; Trace curves define the hollow skin, rod webs and filled winglet'},report};
 }
 

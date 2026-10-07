@@ -67,10 +67,10 @@ export function prepareSupportContexts({plan,processForAssignment,shells},{Geome
   const top=Math.max(...settings.assignments.map(a=>a.contactZMm-settings.topGapMm));
   // Only authored branches are sectioned; Geometry checks the explicit
   // clearance at these levels without discovering or rerouting supports.
-  const family=Geometry.planarRegionLayers({topZ:top,process,shells,clearanceMm:settings.xyGapMm,
+  const referenceStack=Geometry.planarRegionLayers({topZ:top,process,shells,clearanceMm:settings.xyGapMm,
     regionsAt:z=>settings.assignments.flatMap(a=>treeSection(a,z,settings,plan.placement))});
   const lastLayer=a=>Math.floor((a.contactZMm-settings.topGapMm-process.firstLayerMm+1e-8)/process.layerMm);
-  return [Toolpath.prepareSliceRegionContext({plan,id:'supports',preset:'support',processForAssignment,family,endMm:top,
+  return [Toolpath.prepareSliceRegionContext({plan,id:'supports',preset:'support',processForAssignment,referenceStack,endMm:top,
     validateResult:result=>requireThat(result.operations.length>0,'Assigned tree support produced no strokes; enlarge its branches.'),
     report:{assignments:settings.assignments.map(a=>({id:a.id,reason:a.reason,
       contactZMm:a.contactZMm,actualTopGapMm:a.contactZMm-(process.firstLayerMm+lastLayer(a)*process.layerMm)})),

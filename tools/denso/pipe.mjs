@@ -8,9 +8,9 @@ import {circlePoints} from '../../core/geom/cylinder.mjs';
 import {createSectionQuery} from '../../core/geom/query.mjs';
 import {intersect} from '../../core/region/intersection.mjs';
 import {lineSpacing,spacingFactor} from '../../core/path/spacing.mjs';
-// Preserve the saved analytic study's course schedule locally. Current recipes
+// Preserve the saved analytic study's slice schedule locally. Current recipes
 // author explicit directions through ordinary Slice surface-cells instead.
-function studyCourse(settings,layer){
+function studySlice(settings,layer){
   const crossed=settings.pattern==='crossed-helices',axial=!crossed&&layer%2===0;
   const direction=crossed&&layer%2===1?-1:1;
   return {axial,direction,phase:axial?'cladding-axial':crossed?
@@ -61,7 +61,7 @@ export function pipeCladdingResult({plan,shell,after=[],id='pipe-cladding',finis
   for(let shell=0;shell<s.shells;shell++){
     const radius=base+(shell+.5)*s.normalMm,circumference=2*Math.PI*radius;
     const angularStep=Math.min(s.sampleStepMm/radius,2*Math.acos(Math.max(-1,1-Math.min(s.toleranceMm,radius)/radius)))*180/Math.PI;
-    const strokes=[],{axial,direction,phase}=studyCourse(s,shell);
+    const strokes=[],{axial,direction,phase}=studySlice(s,shell);
     if(axial){
       // Each end index continues deposition into the neighboring track. Each
       // axial bead has a unique circumferential cell; closing the seam does not

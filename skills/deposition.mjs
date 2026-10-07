@@ -18,11 +18,11 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   }:null;
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
-      const prepared=engines.Toolpath.prepareSliceBoundaryFamily({plan,assignment:context.assignment,shells,volumes});
-      const family=prepared.family,first=family.layers[0];
+      const prepared=engines.Toolpath.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});
+      const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
       return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
-        startMm:prepared.startMm,endMm:prepared.endMm,geometry:{family:()=>family,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
-          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',course:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
+        startMm:prepared.startMm,endMm:prepared.endMm,geometry:{referenceStack:()=>referenceStack,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
+          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
         construct:vaseWork,providesSurface:true,kind:'trace'};
     }
     const {assignment,shell}=context;

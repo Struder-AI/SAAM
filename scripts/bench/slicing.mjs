@@ -10,7 +10,7 @@ import {rhino} from '../../core/geom/runtime.mjs';
 import { fixtures, fixtureGeometry, fixtureShell, disposeShell, meshAtTolerance, binarySTL, rhino6Bytes } from './fixtures.mjs';
 import { makeMesh, parseSTL } from '../../core/geom/mesh.mjs';
 import { topAt } from '../../core/geom/query.mjs';
-import {horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {horizontalSlice, sliceStack } from '../../core/geom/slice.mjs';
 import {section} from '../../core/region/section.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
 import { generatePath } from '../../core/print/generate.mjs';
@@ -64,7 +64,7 @@ async function worker() {
   for (let i = 0; i < trials; i++) { const m = measure(build); prepare.push(m.ms); disposeShell(m.value); }
   result.phases.prepare = stats(prepare);
   const stack = defaults(machine).process, top = fixtures[config.name].height + fixtures[config.name].roofControlRise * 0.5625;
-  const zs = sliceFamily({ base: horizontalSlice(0), pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm }, { min: [0, 0, 0], max: [0, 0, top] })
+  const zs = sliceStack({ base: horizontalSlice(0), pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm }, { min: [0, 0, 0], max: [0, 0, top] })
     .layers.map(layer => layer.slice.origin[2]);
   const points = roofPoints(config.name);
   for (const [name, fn] of [['sections', () => sectionBatch(shell, zs)], ['roof256', () => points.map(p => topAt(shell, ...p))]]) {

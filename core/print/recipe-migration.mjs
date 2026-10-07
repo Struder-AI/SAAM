@@ -12,7 +12,7 @@ const {validateSleevePattern}=advancedVaseRecordRuntime();
 function explicitSleevePaths(pattern){
   const {tile,cellsPerTurn,courseRiseMm,repeats,tiltDeg}=pattern;
   requireThat(Number.isSafeInteger(cellsPerTurn)&&cellsPerTurn>0&&Number.isFinite(courseRiseMm)&&courseRiseMm>0&&Number.isFinite(tiltDeg),'Invalid legacy sleeve tile layout.');
-  requireThat(tile?.points?.length>=2&&Number.isSafeInteger(cellsPerTurn*(tile.points.length-1)+1),'Legacy sleeve course exceeds the representable point count.');
+  requireThat(tile?.points?.length>=2&&Number.isSafeInteger(cellsPerTurn*(tile.points.length-1)+1),'Legacy sleeve pattern exceeds the representable point count.');
   const at=(value,i)=>Array.isArray(value)?value[i]:value;
   const first=tile.points[0],last=tile.points.at(-1),height=tile.beadHeightMm;
   requireThat(first[0]===0&&last[0]===1&&first[1]===last[1]&&at(tile.offsetMm??0,0)===at(tile.offsetMm??0,tile.points.length-1)&&(!Array.isArray(height)||height[0]===height.at(-1)),'Legacy tile endpoints must agree before migration.');
@@ -24,6 +24,22 @@ function explicitSleevePaths(pattern){
   }
   const expanded={paths:[{points,offsetMm,beadHeightMm}],advance:[1,courseRiseMm],repeats};
   validateSleevePattern(expanded);return expanded;
+}
+
+// Rename authored terminology only through explicit migration, preserving values.
+function migrateAssignmentTerms(assignment){
+  const current=structuredClone(assignment);
+  const rename=(record,oldName,newName)=>{
+    if(!Object.hasOwn(record,oldName))return;
+    requireThat(!Object.hasOwn(record,newName),`Both ${oldName} and ${newName} are present; resolve the conflicting fields before migration.`);
+    record[newName]=record[oldName];delete record[oldName];
+  };
+  if(current.construction==='curves'){
+    rename(current,'courseIds','repetitionIds');
+    for(const curve of current.curves??[])rename(curve,'courses','repetitions');
+    if(current.repeat)rename(current.repeat,'family','stack');
+  }else if(!current.construction)rename(current,'courses','sliceOverrides');
+  return current;
 }
 
 // Explicit migration only. Loading never changes a recipe or its meaning.
@@ -54,9 +70,9 @@ export function migrateRecipeFields(plan,machine){
       changes.push({path:`slices.assignments.${index}`,assignment:assignment.id,from:'normalMm',to:'pitchMm',value:normalMm,
         meaning:'Numeric value retained as target mean normal gap; translation is derived over the full reference, local normal gaps vary.'});
     }
-    const {construction,...legacy}=source;
+    const renamed=migrateAssignmentTerms(source),{construction,...legacy}=renamed;
     requireThat(construction!=='cladding','Legacy cladding pose cannot be migrated automatically: author normal-band Slice with optional derived pose and field tilt, then review.');
-    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):depositionAssignment(source);
+    const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??plan.process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:plan.process.skinSpeedMmS,firstLayerSpeedMmS:plan.process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):depositionAssignment(renamed);
     for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Explicit shared-construction migration.':'Explicitly added current shared default.'});
     return canonical;
   });

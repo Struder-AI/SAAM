@@ -29,9 +29,9 @@ latency gate or a substitute for the existing human review workflow.
 Generation progress is printed about every five seconds and retained with elapsed
 times in the report. `--max-seconds` stops generation at its next progress callback
 after the requested time, so this is a cooperative limit, not a hard wall-clock
-timeout. Interrupted or rejected runs retain stage timings, last course progress,
+timeout. Interrupted or rejected runs retain stage timings, last pattern-mapping progress,
 the error and any CPU profile, but produce no complete program or export hash.
-Course throughput is only a provisional time estimate: mesh ledges, local folds,
+Pattern-mapping throughput is only a provisional time estimate: mesh ledges, local folds,
 composition and checked export can change the remaining cost or reject the job.
 
 `scripts/bench/slicing.mjs` measures geometry queries and the shared generator,

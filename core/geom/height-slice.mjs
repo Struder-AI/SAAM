@@ -71,7 +71,7 @@ export function heightSlice(reference,{offsetMm=0,normalDepthMm=0,sampleStepMm=.
   return {kind:'height-field',reference,offsetMm,normalDepthMm,sampleStepMm};
 }
 
-// Exact XY queries recur across translated courses. Identity belongs to the
+// Exact XY queries recur across translated slices. Identity belongs to the
 // immutable source geometry/patch, so offsets never require another projection.
 // Eviction only changes recomputation cost, never accepted geometry.
 const referenceSamples=new WeakMap();

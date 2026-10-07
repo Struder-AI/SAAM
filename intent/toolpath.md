@@ -104,7 +104,7 @@ Sources: [D-042](../DECISIONS.md#d-042--020-authoring-and-shared-deposition-inte
 ## Vase modes
 > "I've made the decision to have two "vase mode" skills (if we don't already). One is our a standard vase mode, similar to what all the other slicers would implement. The "advanced" vase mode uses our motif and pattern etc." — owner, 2026-09-16 ([D-032](../DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode-manuals))
 
-Summary: standard vase is the conventional continuous spiral wall and advanced vase adds motifs and patterns; in advanced vase a tile can keep its size, so a wider part of the vase carries more courses per turn (0.3.6; the owner's request is recorded only in agent wording).
+Summary: standard vase is the conventional continuous spiral wall and advanced vase adds motifs and patterns; in advanced vase a tile can keep its size, so a wider part of the vase carries more tile repetitions per turn (0.3.6; the owner's request is recorded only in agent wording).
 
 Sources: [D-032](../DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode-manuals); [0.3.6 "Advanced vase tiles keep their size"](../plans/0.3.6.md); [D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface) (vase wall centerline from each slice outline).
 

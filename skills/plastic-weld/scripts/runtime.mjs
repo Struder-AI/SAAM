@@ -45,7 +45,7 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
 }
 
 export function plasticWeldRuntime({Geometry,Toolpath}) {
-  const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface,intersect}=Geometry;
+  const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface,intersect}=Geometry;
   const {pointInjectionOperation,assignmentFilament}=Toolpath;
   const circle=(x,y,r)=>[Array.from({length:96},(_,i)=>[x+r*Math.cos(i*2*Math.PI/96),y+r*Math.sin(i*2*Math.PI/96)])];
   const area=r=>Math.abs(regionArea(r));
@@ -88,7 +88,7 @@ function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
 // dependency preparation and the authoritative finalized-material check.
 function rivetEnclosureLayers(site,process){
   const {settings:s,shell,x,y,bottom,top}=site;
-  return sliceFamily({base:horizontalSlice(shell.bounds.min[2]),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},
+  return sliceStack({base:horizontalSlice(shell.bounds.min[2]),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},
     {min:shell.bounds.min,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(layer=>layer.slice.origin[2]).filter(z=>z>bottom-s.floorMm+1e-8).map(z=>{
       const cavity=site.regionAt(z),outer=circle(x,y,(z<=bottom+1e-8?s.basinDiameterMm/2:site.radiusAt(z-process.layerMm))+s.wallMm);
       return {z,cavity,required:cavity.length?difference(outer,cavity):outer};

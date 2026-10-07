@@ -14,23 +14,23 @@ export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zE
 
 export function vaseWallRuntime({Geometry,Toolpath}) {
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const {spiralFamilyCurve,traceResult,contactCurveGaps,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
+  const {spiralStackCurve,traceResult,contactCurveGaps,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
 
 function standardVaseResult({assignment:settings,process,shell,geometry,after=settings.after},{foundationSegments=[],substrateAdaptation=false}={}){
-  const family=geometry.family();
-  const curve=spiralFamilyCurve({family,firstHeightMm:geometry.firstHeight,widthMm:process.lineWidthMm,
+  const referenceStack=geometry.referenceStack();
+  const curve=spiralStackCurve({referenceStack,firstHeightMm:geometry.firstHeight,widthMm:process.lineWidthMm,
     levelEnd:settings.endTransition==='level',sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,
     speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),minimumTurnSeconds:geometry.minimumTurnSeconds??process.minimumLayerSeconds,role:geometry.role??'vase-wall'});
   const {profile,...centerline}=curve;
   const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments}):[centerline];
-  const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,courses:[{
+  const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,batches:[{
     key:'wall',curves,join:{mode:'ordered'},layerId:settings.id+':continuous',phase:'vase-wall',layer:0,rank:geometry.start,
-    ...(geometry.course??{}),fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:geometry.end+process.liftMm}}]});
-  const operations=traced.operations.map(operation=>({...operation,layerIndex:0,layerCount:family.layers.length,stackDirection:family.direction??[0,0,1]}));
+    ...(geometry.batch??{}),fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:geometry.end+process.liftMm}}]});
+  const operations=traced.operations.map(operation=>({...operation,layerIndex:0,layerCount:referenceStack.layers.length,stackDirection:referenceStack.direction??[0,0,1]}));
   const strokes=operations.flatMap(operation=>operation.strokes);
   const terminal=strokes.flatMap(stroke=>stroke.segmentMetadata.flatMap((metadata,index)=>metadata.boundaryRole==='rim'?[index]:[]))[0];
   const levelBoundary=settings.endTransition==='level'&&geometry.terminalBoundary!==false?{zMm:geometry.end,widthMm:process.lineWidthMm,strokes:[strokeRange(strokes[0],terminal)]}:null;
-  const result={...traced,operations,family,familyId:settings.id,...(levelBoundary?{levelBoundary}:{}),report:{...traced.report,
+  const result={...traced,operations,referenceStack,stackId:settings.id,...(levelBoundary?{levelBoundary}:{}),report:{...traced.report,
     owner:settings.id,part:settings.part,construction:'sleeve',depositionFamily:'trace',extension:'vase-wall',startMm:geometry.start,endMm:geometry.end,baseTopMm:geometry.base,
     turns:profile.turns,spiralTurns:profile.risingTurns,endTransition:settings.endTransition,levelRimMm:levelBoundary?geometry.end:null,
     points:curve.points.length,speedMmS:curve.speedMmS,maximumAngleDeg:maximumPathAngle(curve.points),...geometry.report()}};

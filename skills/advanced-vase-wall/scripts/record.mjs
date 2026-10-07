@@ -29,7 +29,7 @@ function validateSleevePattern(pattern,mode='continuous') {
   for(const path of paths) {
     requireThat(path&&['beadHeightMm,points','beadHeightMm,offsetMm,points'].includes(Object.keys(path).sort().join()),'Each pattern path needs points and beadHeightMm, with optional offsetMm.');
     requireThat(Array.isArray(path.points)&&path.points.length>=2&&path.points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),
-      sized?'Sized pattern points must be [arc mm from the course start, height mm above the rising turn], not XYZ.':'Pattern points must be [unwrapped perimeter turns, height in mm], not XYZ.');
+      sized?'Sized pattern points must be [arc mm from the tile start, height mm above the rising turn], not XYZ.':'Pattern points must be [unwrapped perimeter turns, height in mm], not XYZ.');
     const heights=Array.isArray(path.beadHeightMm)?path.beadHeightMm:path.points.map(()=>path.beadHeightMm);
     requireThat(heights.length===path.points.length&&heights.every(h=>Number.isFinite(h)&&h>=0),'Pattern beadHeightMm must be nonnegative or one height per point.');
     const offsets=Array.isArray(path.offsetMm)?path.offsetMm:path.points.map(()=>path.offsetMm??0);
@@ -40,9 +40,9 @@ function validateSleevePattern(pattern,mode='continuous') {
     }
   }
   requireThat(paths[0].points[0][1]>=0,'The first pattern point cannot start below the selected print height.');
-  // Every turn of a sized pattern starts its first course at the seam, so a
-  // changed course count still joins the turn below.
-  if(sized)requireThat(paths[0].points[0][0]===0,'Sized pattern arc starts at 0, the course start.');
+  // Every turn of a sized pattern starts its first tile at the seam, so a
+  // changed tile count still joins the turn below.
+  if(sized)requireThat(paths[0].points[0][0]===0,'Sized pattern arc starts at 0, the tile start.');
   if(mode==='continuous') {
     const period=sized?0:1,advance=sized?[pattern.tileWidthMm,0]:pattern.advance;
     for(let i=1;i<pattern.paths.length;i++)requireThat(joined(pattern.paths[i-1],pattern.paths[i],period),'Continuous pattern paths must meet on the sleeve, including offset; select segmented mode for gaps.');

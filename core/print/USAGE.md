@@ -23,9 +23,7 @@ Objects merge, arrays replace, unknown fields reject; omit `bundle`.
 `experimental.substrateAdaptation` defaults false. OFF uses nominal references
 without final-material contact/remapping; ON uses finalized deposition for
 gap/volume adjustment or surface-following placement and retains required-contact
-and gap rejection. Existing recipes need explicit migration for missing fields;
-loading never rewrites them. Dependencies and bridge-anchor checks apply in both
-modes.
+and gap rejection. Use `migrate_bundle` for old fields, then regenerate: Slice `courses` → `sliceOverrides`; Trace `courses` → `repetitions`, `courseIds` → `repetitionIds`, `repeat.family` → `repeat.stack`. Loading never rewrites recipes; conflicting old/new fields reject. Dependencies and bridge-anchor checks apply in both modes.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
@@ -64,7 +62,7 @@ then explain the decision. Direct repair commands belong to
 A `slice` edit with `assignment:{spacingFactor:3}` triples spacing without
 widening the bead (default 1). Loop/fill, skin and cladding constructions support
 it; per-assignment `process.lineWidthMm` controls bead width separately.
-Single-wall sleeve spirals use their course pitch instead.
+Single-wall sleeve spirals use their rise per turn instead.
 
 ## Check, generate and deliver
 

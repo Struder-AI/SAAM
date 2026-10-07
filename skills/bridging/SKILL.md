@@ -8,8 +8,8 @@ metadata:
 # Bridging
 
 Author the span and attachment centerlines as ordinary [Trace](../trace/SKILL.md)
-curves. Set `sequence:true` for ordered courses, use `courses:[index]` to choose
-curves per repeat, and optionally name each course in `courseIds`. A curve's
+curves. Set `sequence:true` for ordered repetitions, use `repetitions:[index]` to choose
+curves per repeat, and optionally name each repetition in `repetitionIds`. A curve's
 `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` requires
 support one resolved bead height below; a source assignment or operation ID
 selects particular prior material. A press is an explicit down-and-up curve

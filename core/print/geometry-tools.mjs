@@ -20,17 +20,17 @@ import {solidGeometry,replaceSolid} from '../geom/spatial.mjs';
 
 
 const round=v=>Math.round(v*1e4)/1e4;
-const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','families','includeLoops'];
+const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','stacks','includeLoops'];
 
 // Horizontal planes give section loops (outer loops counterclockwise, holes
 // clockwise); vertical lines give the highest surface crossing. Coordinates are
 // the geometry's own, before the recipe's placement.
-export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],surfaces=[],families=[],includeLoops=false}={}){
+export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],surfaces=[],stacks=[],includeLoops=false}={}){
   requireThat(Array.isArray(sectionsAtZ)&&sectionsAtZ.every(Number.isFinite),'sectionsAtZ lists heights in millimetres.');
   requireThat(Array.isArray(topsAtXY)&&topsAtXY.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),'topsAtXY lists [x, y] points in millimetres.');
   requireThat(Array.isArray(surfaces),'surfaces lists spline surfaces to intersect.');
-  requireThat(Array.isArray(families),'families lists draft ordinary slice assignment patches.');
-  requireThat(sectionsAtZ.length+topsAtXY.length+surfaces.length+families.length>0,'Ask for at least one section height, top point, surface or draft family.');
+  requireThat(Array.isArray(stacks),'stacks lists draft ordinary slice assignment patches.');
+  requireThat(sectionsAtZ.length+topsAtXY.length+surfaces.length+stacks.length>0,'Ask for at least one section height, top point, surface or draft stack.');
   const [shell]=await resolveMaterialGeometry([geometry]);
   const sections=sectionsAtZ.map(z=>{
     const {loops,nudgedByMm}=section(shell,horizontalSlice(z)),areas=loops.map(loopArea);
@@ -45,26 +45,26 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
     return top?{xyMm:[x,y],zMm:round(top.zMm),normal:top.normal.map(round),slopeDeg:round(top.slopeDeg),surface:top.patch}:{xyMm:[x,y],zMm:null};
   });
   const surfaceRegions=surfaces.map(spec=>surfaceSection(shell,spec,includeLoops));
-  const familyFindings=await intersectDraftFamilies(shell,families,{includeLoops});
-  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions,families:familyFindings};
+  const stackFindings=await intersectDraftStacks(shell,stacks,{includeLoops});
+  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions,stacks:stackFindings};
 }
 
-export async function intersectDraftFamilies(shell,drafts,{includeLoops=false}={}){
+export async function intersectDraftStacks(shell,drafts,{includeLoops=false}={}){
   if(!drafts.length)return [];
   const assignments=drafts.map((draft,i)=>sliceAssignment({id:`draft-${i}`,...draft}));
-  requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft families use ordinary slices of the queried geometry; select a part in the outer request.');
+  requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft stacks use ordinary slices of the queried geometry; select a part in the outer request.');
   validateSlices({version:1,assignments},{parts:[],lineWidthMm:.4,firstLayerMm:.2});
   const shells=[[null,shell,true]],processes=assignments.map(a=>({firstLayerMm:.2,layerMm:.2,lineWidthMm:.4,...a.process}));
   const geometries=assignments.flatMap(a=>a.within.filter(v=>v.kind==='geometry').map(v=>v.geometry));
   const materials=await resolveMaterialGeometry(geometries),byGeometry=new Map(geometries.map((geometry,i)=>[geometry,materials[i]]));
   const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?byGeometry.get(v.geometry):null)]));
   const owners=sliceOwners(assignments,{shells,processes,volumes});
-  return ownedLayers(owners,{shells}).map(({owner,family,layers,leader})=>({
-    id:owner.assignment.id,owner:owner.id,principal:leader??owner.id,direction:family.direction,layerCount:layers.length,targetGapMm:family.pitchMm,translationStepMm:family.translationStepMm,gapMetric:family.gapMetric,
+  return ownedLayers(owners,{shells}).map(({owner,referenceStack,layers,leader})=>({
+    id:owner.assignment.id,owner:owner.id,principal:leader??owner.id,direction:referenceStack.direction,layerCount:layers.length,targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,gapMetric:referenceStack.gapMetric,
     fullCrossing:'checked at computed section boundaries',layers:layers.map(layer=>{
       const samples=layer.region.flat(),normals=samples.map(p=>evaluateSurface(layer.slice,p).normal);
-      const step=layer.translationMm??(layer.referenceIndex===0||layer.index===0?family.firstTranslationMm??family.firstLayerMm:family.translationStepMm??family.pitchMm);
-      const gaps=normals.map(n=>step*n.reduce((sum,v,i)=>sum+v*family.direction[i],0));
+      const step=layer.translationMm??(layer.referenceIndex===0||layer.index===0?referenceStack.firstTranslationMm??referenceStack.firstLayerMm:referenceStack.translationStepMm??referenceStack.pitchMm);
+      const gaps=normals.map(n=>step*n.reduce((sum,v,i)=>sum+v*referenceStack.direction[i],0));
       return {index:layer.index,shared:layer.shared,loops:layer.region.length,sampleCount:samples.length,
         sampledThicknessMm:gaps.length?[Math.min(...gaps),Math.max(...gaps)]:null,nonpositiveGapSamples:gaps.filter(v=>v<=0).length,
         thicknessSampling:'section-boundary normals; first contact may taper further',

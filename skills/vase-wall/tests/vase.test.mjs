@@ -15,11 +15,11 @@ import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 import {prepareContourSleeve} from '../../../core/geom/sleeve/contour-sleeve.mjs';
 import {prepareSleeveGeometry} from '../scripts/runtime.mjs';
 import {vaseWallRuntime} from '../scripts/runtime.mjs';
-import {spiralFamilyCurve} from '../../../core/path/family-curves.mjs';
+import {spiralStackCurve} from '../../../core/path/stack-curves.mjs';
 import {traceResult} from '../../../core/print/curves.mjs';
 import {maximumPathAngle,strokeRange} from '../../../core/path/deposition.mjs';
 import {publishFinishedBoundary} from '../../../core/path/finished-surface.mjs';
-const {standardVaseResult}=vaseWallRuntime({Toolpath:{spiralFamilyCurve,traceResult,maximumPathAngle,strokeRange,publishFinishedBoundary}});
+const {standardVaseResult}=vaseWallRuntime({Toolpath:{spiralStackCurve,traceResult,maximumPathAngle,strokeRange,publishFinishedBoundary}});
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;

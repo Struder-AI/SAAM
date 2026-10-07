@@ -16,7 +16,7 @@ Each assignment has `id`, `construction`, `filament: null`, `after: []`,
 `repeat: null` and `curves`. Each curve has `closed` and finite XYZ `points`;
 XY is relative to plan placement. Use separate assignments for independent
 grids. `repeat: {count, translation: [x,y,z]}` repeats one grid; optional curve
-`courses` selects its zero-based repetitions. Author the initial Z explicitly.
+`repetitions` selects its zero-based repetitions. Author the initial Z explicitly.
 Curves may override `beadWidthMm`, `heightMm`, `speedMmS`, `flowMultiplier` and
 `role`; defaults come from process. Bounds include half the bead width in XY.
 

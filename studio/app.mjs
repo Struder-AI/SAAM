@@ -241,13 +241,13 @@ const views={
       const limit=state.pathSummary?.surfaceDomain;
       const rows=[...depositionFamilyRows(state.pathSummary?.inspection),
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round((state.program.seconds??duration())/60)+' min'],materialFact(state.program)];
-      for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.courses+' courses']);
+      for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.repetitions+' repetitions']);
       if(state.program.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasConstruction(state.plan,'sleeve')){
         const selections=state.plan.slices.assignments.filter(a=>a.construction==='sleeve');
         rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
       }
-      for(const family of state.pathSummary?.referenceFamilies?.normal??[])rows.push([family.owner+' · Normal surface courses',String(family.normalOwnership?.courseCount??family.courses??'')]);
+      for(const stack of state.pathSummary?.referenceStacks?.normal??[])rows.push([stack.owner+' · Normal-offset slices',String(stack.layers??'')]);
       for(const instance of state.pathSummary?.slices?.instances??[])if(instance.fillOrder){const f=instance.fillOrder;rows.push(['Surface fronts · '+instance.id,(f.waves??0)+' fronts · '+(f.continuity?.passes??'unverified')+' pass(es) · '+(f.residualsUv?.length??0)+' residual region(s)']);}
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.maxSlopeDeg+'°']);

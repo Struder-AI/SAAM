@@ -117,8 +117,8 @@ Studio displays material estimates in grams using a fixed 1.2 g/cm³ density
 for all materials. Robot relay estimates and commanded material intent remain
 separate and labeled; internal volumes and machine flow rates retain their units.
 Inspection reads `report.depositionFamily`; operation plus exported `layer` selects
-the course ordinal. Continuous Slice keeps its geometric turn identity without
-splitting deposition. Trace keeps authored courses and its reference sleeve name;
+the slice or Trace repetition index. Spiral paths retain turn identity without
+splitting deposition. Trace retains repetition groups and its reference sleeve name;
 Inject numbers points independently of height. Reference geometry is not drawn.
 Substrate adaptation is agent-controlled through the recipe/API; settings only
 report its current value.

@@ -1137,7 +1137,7 @@
         "call"
       ],
       "callers": [
-        "core/print/geometry-tools.mjs::intersectDraftFamilies"
+        "core/print/geometry-tools.mjs::intersectDraftStacks"
       ],
       "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
     },
@@ -1531,7 +1531,7 @@
     },
     {
       "contract": "extension-toolpath",
-      "target": "core/print/slices.mjs::prepareSliceBoundaryFamily",
+      "target": "core/print/slices.mjs::prepareSliceBoundaryStack",
       "kinds": [
         "call"
       ],
@@ -1547,7 +1547,7 @@
     },
     {
       "contract": "extension-toolpath",
-      "target": "core/path/family-curves.mjs::spiralFamilyCurve",
+      "target": "core/path/stack-curves.mjs::spiralStackCurve",
       "kinds": [
         "call"
       ],
@@ -1560,7 +1560,7 @@
         "call"
       ],
       "callers": [
-        "core/print/slice-families.mjs::resolveSliceFamily"
+        "core/print/slice-stacks.mjs::resolveSliceStack"
       ],
       "evidence": "Geometry resolves an ambient offset reference independently of Slice fill and stack lifecycle."
     },

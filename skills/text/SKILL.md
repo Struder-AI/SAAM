@@ -124,7 +124,7 @@ not pattern compatibility; a sleeve can fail at glyph contour transitions.
 Apply raised text to the original roof with `reference:{"kind":"top"}`.
 Ordinary assignments own `part:'base'`; add a roof surface-domain Slice assignment
 for its finish, then another selecting `part:'text/label'` with `supportFrom`
-naming that finished roof assignment. Four 0.2 mm courses fill 0.8 mm lettering.
+naming that finished roof assignment. Four slices at 0.2 mm spacing fill 0.8 mm lettering.
 
 The lettering consumes finalized roof deposition. Missing support rejects;
 sparse gaps are not filled by a surrogate surface. Inspect counters and thin

@@ -2,11 +2,11 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize} from '../private/toolpath/numeric.mjs';
 // General slicing: exclusive spatial claims -> chart regions/strokes -> world
 // curves -> deposition. Default owners retain material outside explicit claims.
-// Competing positive claims fail before deposition; no course alternation.
+// Competing positive claims fail before deposition; no slice alternation.
 import {validateCurveAssignment} from './curves.mjs';
 import {validateInjectionAssignment} from './injection.mjs';
 import {resolveSurfaceDomain} from './surface-domains.mjs';
-import {referenceSliceContext,resolveSliceFamily} from './slice-families.mjs';
+import {referenceSliceContext,resolveSliceStack} from './slice-stacks.mjs';
 import {surveySurfaceDomain} from './surface-domains.mjs';
 import {validateSurfaceSelection} from '../geom/surface-region.mjs';
 import {assignmentPlan,assignmentFilament,validateAssignmentProcess,depositionAssignments} from './assignment-process.mjs';
@@ -16,7 +16,7 @@ import { heightSlice, heightSliceNormal, referenceHeight, heightReferencePatch, 
 import { validateSplineSolid } from '../geom/spline-solid.mjs';
 import { geometrySelections } from '../geom/selections.mjs';
 import {TOLERANCE} from '../geom/tolerance.mjs';
-import {horizontalSlice,planeSlice,patchSlice,translateSlice,sliceFamily,sliceBoundaryEdges,sliceChartStep,patchMeanNormal} from '../geom/slice.mjs';
+import {horizontalSlice,planeSlice,patchSlice,translateSlice,sliceStack,sliceBoundaryEdges,sliceChartStep,patchMeanNormal} from '../geom/slice.mjs';
 import {prepareSection,section} from '../region/section.mjs';
 import {surfaceGapCurves} from '../region/surface-curves.mjs';
 import {contactCurveGaps} from '../path/contact-curves.mjs';
@@ -31,7 +31,7 @@ import { regionArea } from '../region/region2d.mjs';
 import { difference, intersect, union } from '../region/intersection.mjs';
 import {allocateChartClaims,positiveClaimRegion,requireExclusiveClaims} from '../region/ownership.mjs';
 import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
-import {depositCurveCourses} from '../path/curve-courses.mjs';
+import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {contactCurveCourses} from '../path/contact-curves.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { planarPolicy, surfacePolicy } from '../path/builder.mjs';
@@ -46,7 +46,7 @@ export const SLICE_VERSION = 1;
 // its top layers an interface of rows at SUPPORT_INTERFACE_DENSITY.
 export const SUPPORT_INTERFACE_DENSITY = 0.8;
 export const SUPPORT_GAPS = Object.freeze({ topGapMm: 0.2, xyGapMm: 0.3 });
-const OPTIONAL_FIELDS=['courses','loopInsetMm','roles','connectNearby'];
+const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby'];
 const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack','join','fillOrder','dependencies','description','contact','toolPose'];
 
 export {ordinarySliceAssignment as sliceAssignment} from './slice-settings.mjs';
@@ -54,7 +54,7 @@ export const defaultSlices = () => ({ version: SLICE_VERSION, assignments: [ordi
 
 const between = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
 const loopsList = loops => Array.isArray(loops) && loops.length > 0 && loops.every(loop => Array.isArray(loop) && loop.length >= 3 && loop.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)));
-function validateFamilyContact(a){
+function validateStackContact(a){
   requireThat(a.contact===null||a.contact&&Object.keys(a.contact).join()==='source'&&(a.contact.source===null||typeof a.contact.source==='string'&&a.contact.source!==a.id),'Slice contact needs a distinct source assignment or null.');
   const p=a.toolPose;
   requireThat(p===null||p&&Object.keys(p).join()==='alignToSliceNormal'&&typeof p.alignToSliceNormal==='boolean','Slice toolPose is null or {alignToSliceNormal:boolean}; poses are derived from the slice, not authored samples.');
@@ -76,6 +76,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     if(a.construction==='inject'){validateInjectionAssignment(a,{parts});continue;}
     if(validateConstruction(a,{parts}))continue;
     if(a.construction){validateCurveAssignment(a,{parts});continue;}
+    requireThat(!Object.hasOwn(a,'courses'),'Legacy per-slice courses; run migrate_bundle to rename them to sliceOverrides.');
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)&&!OPTIONAL_FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
     requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id), 'Invalid slice assignment id.');
@@ -91,7 +92,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     for (const key of ['solidTop', 'solidBottom']) requireThat(Number.isSafeInteger(a[key]) && a[key] >= 0, `Slice ${a.id} ${key} must be a nonnegative safe integer.`);
     requireThat(Number.isFinite(a.fillOverlap) && a.fillOverlap>=0 && Number.isFinite(a.sampleStepMm) && a.sampleStepMm>0, `Slice ${a.id} fillOverlap must be nonnegative and sampleStepMm positive.`);
     lineSpacing(lineWidthMm, a);
-    validateFamilyContact(a);
+    validateStackContact(a);
     validateSliceSurface(a.surface, a.id);
     requireThat(typeof a.description==='string'&&a.dependencies&&Object.keys(a.dependencies).sort().join()==='after,afterParts,beforeParts','Slice description/dependencies have invalid fields.');
     for(const key of ['afterParts','beforeParts'])requireThat(Array.isArray(a.dependencies[key])&&a.dependencies[key].every(part=>parts?.length?parts.includes(part):part===null),'Slice dependency part is not selected geometry.');
@@ -108,9 +109,9 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     }
     requireThat(a.loopInsetMm===undefined||Number.isFinite(a.loopInsetMm),'Loop inset must be finite.');
     requireThat(a.roles===undefined||a.roles&&typeof a.roles==='object'&&!Array.isArray(a.roles)&&Object.keys(a.roles).every(key=>['perimeter','perimeter-inner','infill','fill'].includes(key)&&typeof a.roles[key]==='string'&&a.roles[key].length),'Slice roles map stroke groups to named roles.');
-    if(a.courses!==undefined){
-      requireThat(Array.isArray(a.courses)&&a.courses.length>0&&a.courses.every(course=>course&&Object.keys(course).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby'].includes(key))),'Course variations contain Slice settings.');
-      for(const course of a.courses){const {courses,...settings}=a;validateSlices({version:SLICE_VERSION,assignments:[{...settings,...course}]},{parts,lineWidthMm,firstLayerMm});}
+    if(a.sliceOverrides!==undefined){
+      requireThat(Array.isArray(a.sliceOverrides)&&a.sliceOverrides.length>0&&a.sliceOverrides.every(batch=>batch&&Object.keys(batch).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby'].includes(key))),'sliceOverrides contains per-slice settings.');
+      for(const batch of a.sliceOverrides){const {sliceOverrides,...settings}=a;validateSlices({version:SLICE_VERSION,assignments:[{...settings,...batch}]},{parts,lineWidthMm,firstLayerMm});}
     }
     requireThat(a.join===null||Object.keys(a.join).sort().join()==='levelEnd,mode'&&a.join.mode==='spiral'&&typeof a.join.levelEnd==='boolean'&&a.loops===1&&a.fillDensity===0&&a.solidTop===0&&a.solidBottom===0,`Slice ${a.id}: spiral join requires {mode:'spiral',levelEnd:boolean}, one loop and no fill/solid caps.`);
     requireThat(!a.preset || a.surface.kind === 'horizontal', `Slice ${a.id}: brim and support presets need horizontal references.`);
@@ -128,7 +129,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
           && Number.isFinite(v.contactZMm) && v.contactZMm>=firstLayerMm+v.topGapMm,
       `Slice ${a.id} volumes are { kind: 'slab', fromMm, toMm } above the part bottom, { kind: 'geometry', geometry }, { kind: 'outline' } or { kind: 'support', footprint, contactZMm, topGapMm, xyGapMm } (contact above a first layer and the top gap).`);
     }
-    requireThat(a.stack?.direction!=='normal'||a.within.length===1&&a.within[0].kind==='normal-band','A normal family needs a finite normal-depth volume.');
+    requireThat(a.stack?.direction!=='normal'||a.within.length===1&&a.within[0].kind==='normal-band','A normal stack needs a finite normal-depth volume.');
     for (const kind of ['outline', 'support']) requireThat(!a.within.some(v => v.kind === kind) || a.within.length === 1, `Slice ${a.id}: an ${kind} volume stands alone.`);
     requireThat(!a.within.some(v=>v.kind==='surface-domain')||a.within.length===1,'A surface-domain prism is a complete owned volume.');
     requireThat((a.preset === 'support') === a.within.some(v => v.kind === 'support'), `Slice ${a.id}: a support volume goes with the support preset, and the preset needs one.`);
@@ -184,7 +185,7 @@ const regionBox = loops => {
 // filament's, when it names one); volumes: built geometry volumes by
 // assignment id and index; placement moves support footprints. Each owner:
 // {id, kind (part, outline or support), assignment, part, shell, within,
-// family, widthMm, startMm, endMm}; a part owner's family spans its whole
+// stack, widthMm, startMm, endMm}; a part owner's stack spans its whole
 // part, so solid masks see where the part ends.
 export function sliceOwners(assignments, { shells, processes, materials=[], volumes = new Map(), placement = { xMm: 0, yMm: 0 }, selections = new Map() }) {
   const owners = [];
@@ -194,9 +195,9 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
     if (assignment.preset === 'support') {
       const volume = assignment.within[0], footprint = placedFootprint(volume, placement), box = regionBox(footprint);
       const top = volume.contactZMm - volume.topGapMm;
-      const family = sliceFamily({ base: horizontalSlice(0), pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm }, { min: [box.min[0], box.min[1], 0], max: [box.max[0], box.max[1], top] });
+      const referenceStack = sliceStack({ base: horizontalSlice(0), pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm }, { min: [box.min[0], box.min[1], 0], max: [box.max[0], box.max[1], top] });
       owners.push({ id: assignment.id, kind: 'support', assignment, part: `support:${assignment.id}`, shell: { bounds: { min: [box.min[0], box.min[1], 0], max: [box.max[0], box.max[1], top] } },
-        within: [], widthMm, footprint, gaps: { topGapMm: volume.topGapMm, xyGapMm: volume.xyGapMm }, contactZMm: volume.contactZMm, family, startMm: 0, endMm: top });
+        within: [], widthMm, footprint, gaps: { topGapMm: volume.topGapMm, xyGapMm: volume.xyGapMm }, contactZMm: volume.contactZMm, referenceStack, startMm: 0, endMm: top });
       continue;
     }
     const selected = shells.filter(([part, , whole]) => assignment.part === null ? whole : part === assignment.part);
@@ -212,10 +213,10 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
         requireThat(roof||patch,`Slice ${assignment.id} names an absent native patch.`);
         let base=roof?heightSlice({kind:'roof',geometry:shell},{sampleStepMm:assignment.sampleStepMm}):patchSlice(patch),direction=stack.direction??(roof?[0,0,1]:patchMeanNormal(patch).normal);
         base=translateSlice(base,normalize(direction).map(v=>v*assignment.surface.offsetMm));
-        const fitted=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},shell.bounds);
+        const fitted=sliceStack({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},shell.bounds);
         const prism=chartPrism(base,{loopsUv:domain.loopsUv,direction,fromMm:domain.fromLayer*fitted.translationStepMm,toMm:domain.toLayer*fitted.translationStepMm});
-        const family=sliceFamily({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},prism.bounds),id=part===null?assignment.id:`${part}:${assignment.id}`;
-        owners.push({id,sectionKey:id,kind:'part',assignment:settings,process,part,shell:prism,publicationShell:shell,within:[{kind:'geometry',geometry:prism}],family,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
+        const referenceStack=sliceStack({base,direction,pitchMm:stack.layerMm,firstLayerMm:stack.firstLayerMm},prism.bounds),id=part===null?assignment.id:`${part}:${assignment.id}`;
+        owners.push({id,sectionKey:id,kind:'part',assignment:settings,process,part,shell:prism,publicationShell:shell,within:[{kind:'geometry',geometry:prism}],referenceStack,widthMm,startMm:prism.bounds.min[2],endMm:prism.bounds.max[2]});
         continue;
       }
       const bottom = shell.bounds.min[2], top = shell.bounds.max[2];
@@ -236,9 +237,9 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
         base=translateSlice(base,normalize(direction).map(v=>v*assignment.surface.offsetMm));
       }
       const [startMm, endMm] = outline ? [bottom, bottom + stack.firstLayerMm] : [from, to];
-      const family = sliceFamily({ base, direction, pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm },
+      const referenceStack = sliceStack({ base, direction, pitchMm: stack.layerMm, firstLayerMm: stack.firstLayerMm },
         { min: [shell.bounds.min[0], shell.bounds.min[1], assignment.surface.kind === 'horizontal' ? base.origin[2] : bottom], max: [shell.bounds.max[0], shell.bounds.max[1], outline ? endMm : top] });
-      const owner = { id: part !== null ? `${part}:${assignment.id}` : assignment.id, kind: outline ? 'outline' : 'part', assignment:settings, process, part, shell, within, family, widthMm, startMm, endMm };
+      const owner = { id: part !== null ? `${part}:${assignment.id}` : assignment.id, kind: outline ? 'outline' : 'part', assignment:settings, process, part, shell, within, referenceStack, widthMm, startMm, endMm };
       owners.push(owner);
     }
   }
@@ -286,7 +287,7 @@ function hullsSeparate(a,b){
     return Math.min(ahi,bhi)-Math.max(alo,blo)<=TOLERANCE.point;
   });
 }
-// Check effective claims, including default remainders, on both families and
+// Check effective claims, including default remainders, on both stacks and
 // between volume boundary heights. Unknown separation remains unsupported;
 // sampled sections are evidence of overlap, not a general nonintersection proof.
 export function resolveSliceOwnership(owners,{claim=null}={}) {
@@ -318,7 +319,7 @@ export function resolveSliceOwnership(owners,{claim=null}={}) {
     const low=Math.max(ab.min[2],bb.min[2]),high=Math.min(ab.max[2],bb.max[2]);
     const heights=[low,high,...av.flatMap(s=>[s.bounds.min[2],s.bounds.max[2]]),...bv.flatMap(s=>[s.bounds.min[2],s.bounds.max[2]])].filter(z=>z>=low&&z<=high).sort((a,b)=>a-b);
     const probes=heights.slice(1).flatMap((z,i)=>z-heights[i]>TOLERANCE.point?[{slice:horizontalSlice((z+heights[i])/2)}]:[]);
-    for(const layer of [...probes,...a.family.layers,...b.family.layers]){
+    for(const layer of [...probes,...a.referenceStack.layers,...b.referenceStack.layers]){
       if(layer.slice.kind!=='plane')continue; // UV distances are not millimetres.
       const overlap=intersect(claimAt(a,layer),claimAt(b,layer));
       const exact=s=>s.kind==='triangle-mesh'||s.kind==='boolean'&&s.operands.every(exact);
@@ -365,10 +366,10 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
   };
   const ownership=resolveSliceOwnership(owners,{claim});
   let done = 0;
-  const total = owners.reduce((n, o) => n + o.family.layers.length, 0);
+  const total = owners.reduce((n, o) => n + o.referenceStack.layers.length, 0);
   for (const principal of owners) {
-    const family = principal.family, byOwner = new Map(), materialMasks = new Map();
-    for (const layer of family.layers) {
+    const referenceStack = principal.referenceStack, byOwner = new Map(), materialMasks = new Map();
+    for (const layer of referenceStack.layers) {
       onProgress?.({ stage: 'Slicing layers', completed: done++, total });
       const own = material(principal, layer.slice);
       materialMasks.set(layer.index, own);
@@ -404,7 +405,7 @@ export function ownedLayers(inputOwners, { shells = [], bands = [], reserves = [
       }
     }
     for (const [owner, layers] of byOwner) results.push({ owner, leader: owner === principal ? null : principal.id,
-      family, familyId: principal.id, layers, material: materialMasks, ownership });
+      referenceStack, stackId: principal.id, layers, material: materialMasks, ownership });
   }
   return results;
 }
@@ -463,11 +464,11 @@ function sliceTravelPolicy(slice, region, worldRegion, maxZ, process) {
 // solid, filament}; context: {process, shell, startMm, endMm, report}.
 // A support preset's operations are sacrificial: support roles, the supports
 // phase and no finished boundary.
-// One evaluated region-course boundary for cut regions and reference families.
+// One evaluated region-batch boundary for cut regions and reference stacks.
 // Geometry strokes retain their chart/metric; gap adaptation precedes the same
 // joining and bead construction for every Slice producer.
-export function evaluateRegionCourse({id,course,process,filament=null,contact=null,contactPlacement=null,contactGaps=null,baseZMm=null,sampleStepMm=.2}){
-  const {reference,strokes,...construction}=course;
+export function evaluateRegionBatch({id,batch,process,filament=null,contact=null,contactPlacement=null,contactGaps=null,baseZMm=null,sampleStepMm=.2}){
+  const {reference,strokes,...construction}=batch;
   let curves=mapSliceStrokes(strokes,reference,{frames:!contactPlacement,sampleStepMm}),measured=null;
   if(contactPlacement)curves=contactCurveCourses(curves,contactPlacement);
   if(contactGaps)curves=contactCurveGaps(curves,{...contactGaps,contactRole:null});
@@ -476,22 +477,22 @@ export function evaluateRegionCourse({id,course,process,filament=null,contact=nu
       ...Object.fromEntries(['points','chartPoints','normals','frameSamples'].map(key=>[key,[...curve[key],curve[key][0]]]))});
     measured=materialContact(curves,contact);
     curves=surfaceGapCurves(curves,{slice:reference,direction:measured.direction,distancesMm:measured.distancesMm,allowZero:true}).curves;
-  }else if(baseZMm!==null)curves=planeContactGaps(curves,{slice:reference,heightMm:course.heightMm},baseZMm);
-  const [operation]=depositCurveCourses({id,courses:[{...construction,curves,after:[...(construction.after??[]),...(measured?.after??[])]}],process,filament,sequential:false});
+  }else if(baseZMm!==null)curves=planeContactGaps(curves,{slice:reference,heightMm:batch.heightMm},baseZMm);
+  const [operation]=depositCurveBatches({id,batches:[{...construction,curves,after:[...(construction.after??[]),...(measured?.after??[])]}],process,filament,sequential:false});
   return {operation,contactReport:measured?.report};
 }
 
-export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, shell, startMm, endMm,report: extra = {} }) {
+export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherStackContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, shell, startMm, endMm,report: extra = {} }) {
   const width = process.lineWidthMm, wallToleranceMm = process.planarWallToleranceMm;
   const support = settings.preset === 'support', solidDensity = support ? SUPPORT_INTERFACE_DENSITY : 1;
   const maskLayers = material ? [...material].map(([index, region]) => ({ index, region })) : layers;
   const roles = support ? { perimeter: 'support-wall', 'perimeter-inner': 'support-wall', infill: 'support', fill: 'support-interface' } : null;
-  let operations = [],nextFillState;const familyLayers=[], report = { depositionFamily:'slice',layers: 0, skippedLayers: 0, areaMm2: 0, loops: 0, fillRows: 0, solidAreaMm2: 0, ...extra };
+  let operations = [],nextFillState;const stackLayers=[], report = { depositionFamily:'slice',layers: 0, skippedLayers: 0, areaMm2: 0, loops: 0, fillRows: 0, solidAreaMm2: 0, ...extra };
   let previous = [];
   for (const layer of layers) {
     const {index,slice,region}=layer,z=slice.origin?.[2]??slice.offsetMm??0;
-    const layerSettings={...settings,...layer.settings,...settings.courses?.[layer.index],
-      loops:settings.courses?.[layer.index]?.loops??layer.settings?.loops??(Array.isArray(settings.loops)?settings.loops[layer.index%settings.loops.length]:settings.loops)};
+    const layerSettings={...settings,...layer.settings,...settings.sliceOverrides?.[layer.index],
+      loops:settings.sliceOverrides?.[layer.index]?.loops??layer.settings?.loops??(Array.isArray(settings.loops)?settings.loops[layer.index%settings.loops.length]:settings.loops)};
     const pitch=lineSpacing(width,layerSettings),angles=layerSettings.fillAnglesDeg,angleAt=index=>layerSettings.rotateFill?angles[index%angles.length]:angles[0];
     const masked=layerSettings.fillDensity<1&&(layerSettings.solidTop>0||layerSettings.solidBottom>0||solidRegions.size>0);
     const area=loops=>!loops.length?0:slice.kind==='patch'?patchMeanNormal(slice.patch,loops,{sampleStepMm:layerSettings.sampleStepMm}).areaMm2:regionArea(loops);
@@ -509,7 +510,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       const duplicate=curve.points.length>2&&Math.hypot(...curve.points[0].map((v,k)=>v-curve.points.at(-1)[k]))<1e-8;
       return !duplicate?curve:{...curve,closed:true,points:curve.points.slice(0,-1),chartPoints:curve.chartPoints.slice(0,-1),normals:curve.normals.slice(0,-1),frameSamples:curve.frameSamples.slice(0,-1)};
     });
-    familyLayers.push({...layer,curves:boundaries});
+    stackLayers.push({...layer,curves:boundaries});
     const wallMaterial = () => loopMaterial(region, { widthMm: width, loops: layerSettings.loops, spacingFactor: layerSettings.spacingFactor }, { outward });
     report.solidAreaMm2 += area(strokes.solidRegion);
     report.loops += strokes.walls.length; report.fillRows += strokes.infill.length + strokes.fill.length;
@@ -524,14 +525,14 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       const spacing = group === 'infill' ? pitch / layerSettings.fillDensity : pitch / solidDensity;
       const opId = `${id}:${index}:${group}`;
       let covered;
-      const framed=!layer.nominalThickness&&(slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherFamilyContactSegments.length>0);
-      const evaluated=evaluateRegionCourse({id,course:{key:`${index}:${group}`,reference:slice,strokes:found.map(stroke=>({...stroke,role:roles?.[stroke.role]??layerSettings.roles?.[stroke.role]??stroke.role})),heightMm:layer.heightMm,speedMmS},
+      const framed=!layer.nominalThickness&&(slice.kind==='patch'||slice.kind==='height-field'||predecessorReference!==null||contactFragments.length>0||contactSegments.length>0||otherStackContactSegments.length>0);
+      const evaluated=evaluateRegionBatch({id,batch:{key:`${index}:${group}`,reference:slice,strokes:found.map(stroke=>({...stroke,role:roles?.[stroke.role]??layerSettings.roles?.[stroke.role]??stroke.role})),heightMm:layer.heightMm,speedMmS},
         process,filament,sampleStepMm:layerSettings.sampleStepMm,baseZMm:framed||layer.nominalThickness||layer.contactPlacement?null:shell?.bounds.min[2]??null,contactPlacement:layer.contactPlacement,contactGaps:layer.nominalThickness&&!layer.contactPlacement&&contactSegments.length?{segments:contactSegments}:null,contact:framed?
-          {id,layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherFamilyContactSegments},
+          {id,layer,bounds:shell.bounds,support:{previousRegion:predecessorRegions.get(index)??[],previousSegments:contactSegments,surroundingSegments:otherStackContactSegments},
             contactFragments,predecessorReference,substrateAdaptation,required:requiredContact}:null});
       const deposited=evaluated.operation,lifted=deposited.strokes;
-      const heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planarCourse=top-Math.min(...heights)<1e-8;
-      const courseTravel=layer.contactPlacement?(planarCourse?planarPolicy(worldRegion,{layerZ:top,liftMm:process.liftMm,maxCombMm:process.maxCombMm,lineWidthMm:width}):{maxCombMm:0,clearanceFor:()=>top+process.liftMm}):travelPolicy;
+      const heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planarBatch=top-Math.min(...heights)<1e-8;
+      const batchTravel=layer.contactPlacement?(planarBatch?planarPolicy(worldRegion,{layerZ:top,liftMm:process.liftMm,maxCombMm:process.maxCombMm,lineWidthMm:width}):{maxCombMm:0,clearanceFor:()=>top+process.liftMm}):travelPolicy;
       const contactAfter=deposited.after;
       const measured=evaluated.contactReport;
       if(measured){
@@ -539,8 +540,8 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
         report.uncoveredContactSamples=(report.uncoveredContactSamples??0)+measured.uncoveredSamples;
         if(measured.samples){report.contactSamples=(report.contactSamples??0)+measured.samples;report.minContactGapMm=Math.min(report.minContactGapMm??Infinity,measured.minGapMm);report.maxContactGapMm=Math.max(report.maxContactGapMm??0,measured.maxGapMm);}
       }
-      operations.push({ ...deposited,id: opId, layerId: horizontal(slice) ? 'planar:' + top : 'slice:' + sliceKey(slice), phase: support ? 'supports' : planarCourse?'planar':'curves', layer: index, rank: top, after: [...new Set([...previous,...current,...contactAfter])],
-        strokes: roles||layerSettings.roles ? lifted.map(stroke => ({ ...stroke, role: roles?.[stroke.role]??layerSettings.roles?.[stroke.role]??stroke.role })) : lifted, connectNearby:(layerSettings.connectNearby??!framed)&&(!layer.contactPlacement||planarCourse),layerIndex:ordinal,layerCount:totalLayerCount,stackDirection:layer.direction??slice.normal??[0,0,1],...(layerSettings.continuous?{continuous:true,regionId:id+':'+index}:{}),
+      operations.push({ ...deposited,id: opId, layerId: horizontal(slice) ? 'planar:' + top : 'slice:' + sliceKey(slice), phase: support ? 'supports' : planarBatch?'planar':'curves', layer: index, rank: top, after: [...new Set([...previous,...current,...contactAfter])],
+        strokes: roles||layerSettings.roles ? lifted.map(stroke => ({ ...stroke, role: roles?.[stroke.role]??layerSettings.roles?.[stroke.role]??stroke.role })) : lifted, connectNearby:(layerSettings.connectNearby??!framed)&&(!layer.contactPlacement||planarBatch),layerIndex:ordinal,layerCount:totalLayerCount,stackDirection:layer.direction??slice.normal??[0,0,1],...(layerSettings.continuous?{continuous:true,regionId:id+':'+index}:{}),
         // Loops a boundary between owners cuts open are laid in the order found.
         order:layerSettings.order??(group === 'walls' ? (lifted.every(s => s.closed && !s.volumesMm3) ? 'nearest' : 'given') : lifted.every(s => s.scanlineCell !== undefined) ? 'nearest-cells' : 'given'), region: worldRegion, slice, ownershipIndex: index,
         // Coverage is consumed by material-region publication; built on first use.
@@ -549,7 +550,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
             : fillMaterial(group === 'infill' ? strokes.sparseRegion : strokes.solidRegion, width)).map(loop => loop.map(point => evaluateSurface(slice,point).point.slice(0, 2)));
         },
         materialCoverage: group !== 'walls' && spacing > width + 1e-8 ? 'sparse' : 'area',
-        travelPolicy:courseTravel, ...((Object.hasOwn(layerSettings.process??{},'fanPercent')||(horizontal(slice) ? index === 1 : ordinal === 1)) ? { fanPercent: process.fanPercent } : {}), ...(filament === null ? {} : { filament }) });
+        travelPolicy:batchTravel, ...((Object.hasOwn(layerSettings.process??{},'fanPercent')||(horizontal(slice) ? index === 1 : ordinal === 1)) ? { fanPercent: process.fanPercent } : {}), ...(filament === null ? {} : { filament }) });
       current.push(opId);
     }
     previous = current;
@@ -558,11 +559,11 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
   if(layers.some(layer=>layer.slice.kind==='surface-chart')){report.areaChart2=report.areaMm2;report.solidAreaChart2=report.solidAreaMm2;delete report.areaMm2;delete report.solidAreaMm2;}
   const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));
   if(widths.length){report.minBeadWidthMm=Math.min(...widths);report.maxBeadWidthMm=Math.max(...widths);}
-  if (support) return {id,operations,report,familyLayers,nextFillState};
-  const coverage = layers.every(layer=>{const s={...settings,...layer.settings,...settings.courses?.[layer.index]};return s.fillDensity>=1&&lineSpacing(width,s)<=width+1e-8;}) ? 'nominal' : 'sparse';
+  if (support) return {id,operations,report,stackLayers,nextFillState};
+  const coverage = layers.every(layer=>{const s={...settings,...layer.settings,...settings.sliceOverrides?.[layer.index]};return s.fillDensity>=1&&lineSpacing(width,s)<=width+1e-8;}) ? 'nominal' : 'sparse';
   const segments=depositedBeadSegments(operations,{widthMm:width});
-  if(!shell)return {id,operations,report,familyLayers,nextFillState};
-  return publishFinishedBoundary({id,operations,report,familyLayers,nextFillState}, { shell, startMm, endMm, coverage,contains:({point})=>depositedBeadsContain(segments,point) });
+  if(!shell)return {id,operations,report,stackLayers,nextFillState};
+  return publishFinishedBoundary({id,operations,report,stackLayers,nextFillState}, { shell, startMm, endMm, coverage,contains:({point})=>depositedBeadsContain(segments,point) });
 }
 
 // Every slice assignment of a plan: owners, owned layers, results. Support
@@ -598,7 +599,7 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
   const assignments=all.filter(a=>a.surface.kind!=='terminal'&&a.stack?.direction!=='normal').map(a=>lowered.get(a.id)?.assignment??a);
   const referenceAssignments=all.filter(a=>a.surface.kind==='terminal'||a.stack?.direction==='normal').map(assignment=>{
     const shell=shells.find(([part])=>part===assignment.part)?.[1],process=assignmentPlan(plan,assignment).process;
-    requireThat(shell||assignment.surface.kind==='terminal','A reference family needs selected geometry.');
+    requireThat(shell||assignment.surface.kind==='terminal','A reference stack needs selected geometry.');
     return {assignment,shell,process,volumes};
   });
   if(!all.length)return {contexts:[]};
@@ -608,7 +609,7 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
     return {id:a.id,part,filament:selected.filament,process:assignmentPlan(plan,selected).process};
   }));
   const owners = sliceOwners(assignments, { shells, processes, materials, volumes, placement: plan.placement, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
-  // Outward normal families meet their source solid at its surface. Inward
+  // Outward normal stacks meet their source solid at its surface. Inward
   // bands and other components have no certified common claim chart here.
   for(const context of referenceAssignments.filter(context=>context.assignment.within[0]?.kind==='normal-band')){
     const a=context.assignment,band=a.within[0],pad=Math.max(Math.abs(band.fromMm),Math.abs(band.toMm)),box=context.shell.bounds;
@@ -620,20 +621,20 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
   }
   const owned = ownedLayers(owners, { shells, bands, reserves, onProgress });
   const contexts=[];
-  for (const { owner, leader, family, familyId, layers, material } of owned) {
+  for (const { owner, leader, referenceStack, stackId, layers, material } of owned) {
     const { assignment } = owner;
     if(assignment.join)continue;
     const process = owner.process??processes[assignments.indexOf(assignment)];
     const held = envelopes.filter(e => e.part === owner.part);
     const solidRegions = new Map(held.length ? layers.map(l => [l.index, held.flatMap(e => horizontal(l.slice)?e.solidRegionAt(l.slice.origin[2]):
       difference(l.region,clipReservedSlice(l.region,l.slice,{footprint:[[owner.shell.bounds.min.slice(0,2),[owner.shell.bounds.max[0],owner.shell.bounds.min[1]],owner.shell.bounds.max.slice(0,2),[owner.shell.bounds.min[0],owner.shell.bounds.max[1]]]],regionAt:e.solidRegionAt},{sampleStepMm:assignment.sampleStepMm})))]) : []);
-    const report = { owner: assignment.id, part: owner.kind === 'support' ? null : owner.part, leader, layerMm: family.pitchMm,
-      ...(lowered.has(assignment.id)?{referenceFamily:'roof',excludedFraction:lowered.get(assignment.id).survey.steepFraction,maxSlopeDeg:lowered.get(assignment.id).survey.maxSlopeDeg,limitDeg:lowered.get(assignment.id).survey.limitDeg}:{}),
-      targetGapMm:family.pitchMm,translationStepMm:family.translationStepMm,firstTranslationMm:family.firstTranslationMm,meanProjectedGapMm:family.pitchMm,minProjectedGapMm:family.minProjectedGapMm,maxProjectedGapMm:family.maxProjectedGapMm,stackMetric:'area-mean-normal-projection',
-      ...(family.base.kind==='height-field'?{beadHeightMetric:'local-normal-projection',chartMetric:'world-xy',topologySampleStepMm:family.base.sampleStepMm}:{}),
+    const report = { owner: assignment.id, part: owner.kind === 'support' ? null : owner.part, leader, layerMm: referenceStack.pitchMm,
+      ...(lowered.has(assignment.id)?{referenceStackKind:'roof',excludedFraction:lowered.get(assignment.id).survey.steepFraction,maxSlopeDeg:lowered.get(assignment.id).survey.maxSlopeDeg,limitDeg:lowered.get(assignment.id).survey.limitDeg}:{}),
+      targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,firstTranslationMm:referenceStack.firstTranslationMm,meanProjectedGapMm:referenceStack.pitchMm,minProjectedGapMm:referenceStack.minProjectedGapMm,maxProjectedGapMm:referenceStack.maxProjectedGapMm,stackMetric:'area-mean-normal-projection',
+      ...(referenceStack.base.kind==='height-field'?{beadHeightMetric:'local-normal-projection',chartMetric:'world-xy',topologySampleStepMm:referenceStack.base.sampleStepMm}:{}),
       ...(owner.kind === 'support' ? { contactZMm: owner.contactZMm, actualTopGapMm: owner.contactZMm - Math.max(...layers.filter(l => l.region.length).map(l => l.slice.origin[2])) } : {}) };
-    const resultId = familyId === owner.id ? owner.id : `${owner.id}:shared:${familyId}`;
-    contexts.push({contact:assignment.contact?{...assignment.contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,report},family,owner,familyId,
+    const resultId = stackId === owner.id ? owner.id : `${owner.id}:shared:${stackId}`;
+    contexts.push({contact:assignment.contact?{...assignment.contact,predecessorReference:translateSlice(layers[0].slice,layers[0].direction.map(v=>-v*layers[0].translationMm))}:null,spec:{id:resultId,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length,predecessorRegions:new Map(layers.map(layer=>[layer.index,layers.find(previous=>previous.index===layer.index-1)?.region??[]]))},context:{process,shell:owner.publicationShell??owner.shell,startMm:owner.startMm,endMm:owner.endMm,report},referenceStack,owner,stackId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }
   requireExclusiveNormalBands(referenceAssignments.filter(context=>context.assignment.within[0]?.kind==='normal-band'));
@@ -641,23 +642,23 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
   return {contexts};
 }
 
-// Boundary geometry for extensions that trace curves across a reference family.
+// Boundary geometry for extensions that trace curves across a reference stack.
 // It uses the same ownership, region and physical loop operation as Slice.
-export function prepareSliceBoundaryFamily({plan,assignment,shells,volumes}){
+export function prepareSliceBoundaryStack({plan,assignment,shells,volumes}){
   const request={...assignment,join:null},local={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.map(a=>a.id===assignment.id?request:a)}};
   const contexts=prepareSliceContexts({plan:local,shells,volumes}).contexts.filter(record=>record.owner.assignment.id===assignment.id);
-  requireThat(contexts.length===1&&!contexts[0].reference,'A spiral boundary needs one resolved region family.');
+  requireThat(contexts.length===1&&!contexts[0].reference,'A spiral boundary needs one resolved region stack.');
   const record=contexts[0],process=record.context.process;
   const layers=record.spec.layers.map(layer=>{
     const strokes=layerStrokes(layer.region,{...request,widthMm:process.lineWidthMm,fillAngleDeg:0,patternAngleDeg:0,wallToleranceMm:process.planarWallToleranceMm,slice:layer.slice});
     return {...layer,curves:mapSliceStrokes(strokes.walls,layer.slice)};
   });
-  requireThat(layers.length,'The spiral reference has no boundary courses.');
-  return {family:{...record.family,layers},process,shell:record.context.shell,startMm:record.context.startMm,endMm:record.context.endMm};
+  requireThat(layers.length,'The spiral reference has no boundary slices.');
+  return {referenceStack:{...record.referenceStack,layers},process,shell:record.context.shell,startMm:record.context.startMm,endMm:record.context.endMm};
 }
 
-export function sliceContextResult(record,{layerIndex=null,priorResults=[],substrateAdaptation=false,contactSegments=[],otherFamilyContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,requiredContact=false}={}){
-  record=resolveSliceFamily(record,priorResults,{substrateAdaptation});
+export function sliceContextResult(record,{layerIndex=null,priorResults=[],substrateAdaptation=false,contactSegments=[],otherStackContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,requiredContact=false}={}){
+  record=resolveSliceStack(record,priorResults,{substrateAdaptation});
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
   const own=priorResults.filter(result=>result.report?.owner===record.owner.assignment.id||result.id===record.spec.id);
@@ -665,8 +666,8 @@ export function sliceContextResult(record,{layerIndex=null,priorResults=[],subst
   const selected=layers.map(layer=>({...layer,fillState:previous?.nextFillState,
     contactPlacement:layer.contactPlacement?{...layer.contactPlacement,segments,ceilingMm:depositedBeadBounds(segments).max[2]}:null}));
   const context=layerIndex===null?record.context:{...record.context,report:{...record.context.report,layerStartOrdinal:record.spec.layers.findIndex(layer=>layer.index===layerIndex)}};
-  const result=sliceResult({...record.spec,layers:selected,contactSegments,otherFamilyContactSegments,seedSegments,contactFragments,predecessorReference,substrateAdaptation,requiredContact},context);
-  return {...result,family:{...record.family,layers:result.familyLayers},ownershipGroup:record.owner.ownershipGroup,familyId:record.familyId};
+  const result=sliceResult({...record.spec,layers:selected,contactSegments,otherStackContactSegments,seedSegments,contactFragments,predecessorReference,substrateAdaptation,requiredContact},context);
+  return {...result,referenceStack:{...record.referenceStack,layers:result.stackLayers},ownershipGroup:record.owner.ownershipGroup,stackId:record.stackId};
 }
 
 export function sliceResults(args) {
@@ -679,7 +680,7 @@ export function sliceResults(args) {
 }
 
 // Shared ownership establishes this precedence, before the composer chooses
-// travel/order among unrelated operations. Merge all families in a connected
+// travel/order among unrelated operations. Merge all stacks in a connected
 // overlap by their ascending physical upper height; same-height walls precede
 // their fills through the producer's existing after links.
 export function ownershipDependencies(results) {

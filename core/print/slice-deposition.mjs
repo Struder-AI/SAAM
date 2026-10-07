@@ -14,23 +14,23 @@ import {matchingModulations} from '../path/modulation.mjs';
 import {planOperationEntry,planPreparedOperation} from '../path/compose.mjs';
 import {ActionAccumulator,planLayerCooling} from '../path/planning.mjs';
 
-function combineCourses(record,courses){
-  if(!courses.length)return {id:record.spec.id,report:record.context.report,operations:[],family:{...record.family,layers:[]}};
-  if(courses.length===1)return courses[0];
-  const report={...courses[0].report,...record.context.report};
-  report.topMm=courses.reduce((top,result)=>result.operations.reduce((top,operation)=>operation.strokes.reduce((top,stroke)=>stroke.points.reduce((top,p)=>Math.max(top,p[2]),top),top),top),-Infinity);
-  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','areaChart2','solidAreaChart2','uncoveredContactSamples','substrateContactQueries'])report[key]=courses.reduce((sum,r)=>sum+(r.report[key]??0),0);
-  const contacts=courses.filter(r=>r.report.contactSamples);
+function combineSliceResults(record,sliceResults){
+  if(!sliceResults.length)return {id:record.spec.id,report:record.context.report,operations:[],referenceStack:{...record.referenceStack,layers:[]}};
+  if(sliceResults.length===1)return sliceResults[0];
+  const report={...sliceResults[0].report,...record.context.report};
+  report.topMm=sliceResults.reduce((top,result)=>result.operations.reduce((top,operation)=>operation.strokes.reduce((top,stroke)=>stroke.points.reduce((top,p)=>Math.max(top,p[2]),top),top),top),-Infinity);
+  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','areaChart2','solidAreaChart2','uncoveredContactSamples','substrateContactQueries'])report[key]=sliceResults.reduce((sum,r)=>sum+(r.report[key]??0),0);
+  const contacts=sliceResults.filter(r=>r.report.contactSamples);
   if(contacts.length){report.contactSamples=contacts.reduce((n,r)=>n+r.report.contactSamples,0);report.minContactGapMm=Math.min(...contacts.map(r=>r.report.minContactGapMm));report.maxContactGapMm=Math.max(...contacts.map(r=>r.report.maxContactGapMm));}
-  const layers=courses.flatMap(r=>r.family.layers);
-  return combineFinalizedResults({...courses[0],report,familyLayers:layers,
-    family:{...record.family,layers},finishedSurfaces:courses.flatMap(r=>r.finishedSurfaces??[])},courses);
+  const layers=sliceResults.flatMap(r=>r.referenceStack.layers);
+  return combineFinalizedResults({...sliceResults[0],report,stackLayers:layers,
+    referenceStack:{...record.referenceStack,layers},finishedSurfaces:sliceResults.flatMap(r=>r.finishedSurfaces??[])},sliceResults);
 }
 
 // Expand construction and recipe constraints once to exact work-node keys.
 export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>[]){
   const nodes=contexts.flatMap(record=>{
-    const units=record.family.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
+    const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
       construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,ownershipRank:unit.ownershipRank??unit.rank,index:unit.index,record,first:i===0,requires:i?[`slice:${record.spec.id}:${units[i-1].index}`]:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
@@ -38,7 +38,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const declared=nodes.map(node=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
     const needs=new Set(node.requires),defaults=new Set();
-    const references=node.construction==='curves'?[assignment.repeat?.family,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
+    const references=node.construction==='curves'?[assignment.repeat?.stack,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
     for(const other of nodes){
       if(other===node)continue;
       const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
@@ -87,13 +87,13 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   if(node.construct)result=node.construct({node,predecessors,samePart,after,plan,onProgress,substrateAdaptation});
   else if(node.kind==='slice'){
     const record=node.record,layer=record.spec.layers.find(layer=>layer.index===node.index)??record.spec.layers[0];
-    const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.familyId===record.familyId&&item.node.index===node.index-1);
+    const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.stackId===record.stackId&&item.node.index===node.index-1);
     const contacts=substrateAdaptation?own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm})):[];
     const source=node.first?record.contact?.source:null;
     // Point injection has no deposited surface chart. Its prerequisite is real,
     // but an empty reference must not change a following Slice's contact frame.
     const candidates=substrateAdaptation?samePart.filter(item=>item.node.kind!=='inject'&&item.node.sourceId!==node.sourceId&&(!source||item.node.sourceId===source)):[];
-    const contactFragments=candidates.map(item=>({layers:(item.result.family?.layers??[]).map(layer=>({...layer,
+    const contactFragments=candidates.map(item=>({layers:(item.result.referenceStack?.layers??[]).map(layer=>({...layer,
       region:layer.region??(layer.slice?.kind==='plane'?layer.curves?.filter(curve=>curve.closed).map(curve=>curve.points.map(point=>{
         const relative=point.map((v,k)=>v-layer.slice.origin[k]);return [layer.slice.xAxis,layer.slice.yAxis].map(axis=>axis.reduce((sum,v,k)=>sum+v*relative[k],0));
       })):undefined)})),operations:item.result.operations,
@@ -172,8 +172,8 @@ export function finalizedSliceResults(args){
   const execution={state:{...state,operationId:undefined},actions:actions.finish(),summary:{operationOrder,layers:layerIds.size}};
   const results=[],supports=[];
   for(const record of contexts){
-    const courses=nodes.filter(node=>node.kind==='slice'&&node.record===record).map(node=>completed.get(node.key).result);
-    const result=combineCourses(record,courses);
+    const sliceResults=nodes.filter(node=>node.kind==='slice'&&node.record===record).map(node=>completed.get(node.key).result);
+    const result=combineSliceResults(record,sliceResults);
     record.validateResult?.(result);
     (record.owner.kind==='support'?supports:results).push(result);
   }

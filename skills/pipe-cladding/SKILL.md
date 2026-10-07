@@ -28,7 +28,7 @@ Use the normal assignment editor; it supplies the remaining Slice defaults:
 }
 ```
 
-The four 0.2 mm courses alternate axial tracks and circumferential helices.
+The four slices at 0.2 mm spacing alternate axial tracks and circumferential helices.
 `directions:["forward","reverse"]` alternates helical winding. A longer list
 repeats in order. `spacingFactor` changes track pitch without changing bead
 width. `fromMm` and `toMm` select the owned normal-depth interval; overlapping
@@ -51,7 +51,7 @@ require explicit migration to these ordinary Slice fields.
 
 Physical cells use a rectangular chart. Open charts support axial and
 circumferential rows; helices require periodic U. This does not unwrap arbitrary
-meshes or certify global geodesic coverage. Fill and course variation are shared
+meshes or certify global geodesic coverage. Fill and per-slice variation are shared
 Slice settings, independent of the normal stack.
 
 The source must actually deposit the selected boundary. A vase's unfinished
@@ -61,7 +61,7 @@ strokes, never an implicit filled guide wall. Sparse gaps remain gaps.
 ## Contact and pose
 
 `experimental.substrateAdaptation` defaults off: the nominal chart and source
-prerequisites determine the family. When enabled, the chart follows finalized
+prerequisites determine the stack. When enabled, the chart follows finalized
 beads, including modulation, and missing required contact rejects. It adds no
 support or gap-fill material.
 

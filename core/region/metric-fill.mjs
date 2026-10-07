@@ -1,5 +1,5 @@
 // Physical parallel cells on an evaluated chart. This operation has no stack,
-// source-result, ownership or deposition lifecycle; any Slice course can use it.
+// source-result, ownership or deposition lifecycle; any slice surface can use it.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {sampleSurfaceCurve} from './normal-surface.mjs';
 import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
@@ -21,10 +21,10 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
   const trackPitch=lineSpacing(w,s)/density,factor=spacingFactor(s);
 
   // Chord tolerance and step target decide how many samples every curve needs;
-  // survey and course counts follow the measured surface, not a fixed budget.
+  // survey and cell counts follow the measured surface, not a fixed budget.
   const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
   let points=0,helixStartU=startU;const emitted=[];
-  const report={backend:chart.backend,courses:1,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
+  const report={backend:chart.backend,slices:1,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
     
     minBeadWidthMm:Infinity,maxBeadWidthMm:0,
     coverage:'Arc-length cells in each U sector; partial axial courses start/end where a cell appears/disappears. Sampled coverage, not a global geodesic guarantee.',

@@ -63,7 +63,7 @@ export function finalizeDepositionResult(result,plan,{entryPosition}={}){
   return {...finalized,report:{...result.report,modulation:answer.report}};
 }
 
-// Finalization may split a construction into operations or courses. Recombining
+// Finalization may split a construction into operations or batches. Recombining
 // them must retain the evidence for every deposited connection and modifier.
 export function combineFinalizedResults(result,parts){
   const report={...result.report},connections=parts.map(part=>part.report?.depositionConnections).filter(Boolean),

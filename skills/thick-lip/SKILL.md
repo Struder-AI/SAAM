@@ -38,9 +38,9 @@ Ordinary Slice can follow a source's closed, level terminal curve:
 ```
 
 Use the normal assignment tool to fill remaining defaults. Each loop count
-selects one course. Spacing and height use the assignment's process settings.
+selects one slice. Spacing and height use the assignment's process settings.
 The source can be Slice or a closed Trace, including a level-ended vase.
-With substrate adaptation enabled, finalized source beads and preceding courses
+With substrate adaptation enabled, finalized source beads and preceding slices
 supply contact; missing contact rejects. The old `construction:'rim'` record
 requires explicit migration to these fields.
 

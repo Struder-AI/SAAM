@@ -287,7 +287,7 @@
       "owner": "toolpath",
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
-    "core/path/curve-courses.mjs": {
+    "core/path/curve-batches.mjs": {
       "owner": "toolpath",
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
@@ -299,7 +299,7 @@
       "owner": "toolpath",
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
-    "core/path/family-curves.mjs": {
+    "core/path/stack-curves.mjs": {
       "owner": "toolpath",
       "reason": "Curve construction and deposition belong to Trace; cross-engine geometry calls remain visible."
     },
@@ -397,7 +397,7 @@
     },
     "core/print/geometry-tools.mjs": {
       "owner": "application",
-      "reason": "Mixed command module: Agent request/bundle orchestration; Geometry query/intersection calculations; Toolpath ordinary slice-family construction. Anonymous geometric callbacks inside intersectGeometry remain folded into their lexical Agent orchestrator, an attribution limit rather than a new API."
+      "reason": "Mixed command module: Agent request/bundle orchestration; Geometry query/intersection calculations; Toolpath ordinary slice-stack construction. Anonymous geometric callbacks inside intersectGeometry remain folded into their lexical Agent orchestrator, an attribution limit rather than a new API."
     },
     "core/print/import-stl.mjs": {
       "owner": "bundle",
@@ -1259,13 +1259,13 @@
       "owner": "application",
       "reason": "Blob authoring commands compose Geometry construction, Settings selection and Bundle acceptance."
     },
-    "core/print/slice-families.mjs": {
+    "core/print/slice-stacks.mjs": {
       "owner": "toolpath",
-      "reason": "Shared Slice reference/physical course construction; no technique producer."
+      "reason": "Shared Slice reference and deposition construction; no technique producer."
     },
     "core/region/metric-fill.mjs": {
       "owner": "toolpath",
-      "reason": "Shared Slice reference/physical course construction; no technique producer."
+      "reason": "Shared Slice reference and deposition construction; no technique producer."
     },
     "core/geom/offset-chart.mjs": {
       "owner": "geometry",
@@ -3157,7 +3157,7 @@
     "core/geom/slice.mjs::sliceChartStep": {
       "owner": "geometry-leaf-f7d4732fa85b"
     },
-    "core/geom/slice.mjs::sliceFamily": {
+    "core/geom/slice.mjs::sliceStack": {
       "owner": "geometry-leaf-ce3466a010d4"
     },
     "core/geom/slice.mjs::sliceRayIntersections": {
@@ -4036,16 +4036,16 @@
     "core/path/curve-construction.mjs::spiralProfile": {
       "owner": "toolpath"
     },
-    "core/path/curve-courses.mjs::@module": {
+    "core/path/curve-batches.mjs::@module": {
       "owner": "toolpath"
     },
-    "core/path/curve-courses.mjs::depositCurveCourses": {
+    "core/path/curve-batches.mjs::depositCurveBatches": {
       "owner": "toolpath"
     },
-    "core/path/curve-courses.mjs::depositCurveCourses::travelPolicy.canTravelDirect": {
+    "core/path/curve-batches.mjs::depositCurveBatches::travelPolicy.canTravelDirect": {
       "owner": "toolpath"
     },
-    "core/path/curve-courses.mjs::depositCurveCourses::travelPolicy.clearanceFor": {
+    "core/path/curve-batches.mjs::depositCurveBatches::travelPolicy.clearanceFor": {
       "owner": "toolpath"
     },
     "core/path/curve-frame.mjs::@module": {
@@ -4126,25 +4126,25 @@
     "core/path/deposition.mjs::trimVanishingEnd": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::@module": {
+    "core/path/stack-curves.mjs::@module": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::boundarySleeve": {
+    "core/path/stack-curves.mjs::boundarySleeve": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::familyNormal": {
+    "core/path/stack-curves.mjs::stackNormal": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::familyNormal::at": {
+    "core/path/stack-curves.mjs::stackNormal::at": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::joinCurveSequence": {
+    "core/path/stack-curves.mjs::joinCurveSequence": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::spiralFamilyCurve": {
+    "core/path/stack-curves.mjs::spiralStackCurve": {
       "owner": "toolpath"
     },
-    "core/path/family-curves.mjs::spiralFamilyCurve::samples.at": {
+    "core/path/stack-curves.mjs::spiralStackCurve::samples.at": {
       "owner": "toolpath"
     },
     "core/path/finished-surface.mjs::@module": {
@@ -4587,13 +4587,13 @@
       "owner": "application",
       "reason": "Composes an explicit boolean edit, reads Bundle state and submits it through the existing revision-checked update operation."
     },
-    "core/print/geometry-tools.mjs::intersectDraftFamilies": {
+    "core/print/geometry-tools.mjs::intersectDraftStacks": {
       "owner": "toolpath",
       "reason": "Constructs and validates ordinary draft Slice assignments, resolves ownership and reports sampled layers; consumes existing Geometry evaluation operations."
     },
     "core/print/geometry-tools.mjs::intersectGeometry": {
       "owner": "application",
-      "reason": "Validates the agent query request and composes Geometry queries with Toolpath draft-family results. Anonymous section/top callbacks are geometric work folded here by inventory, not permission for arbitrary private calls."
+      "reason": "Validates the agent query request and composes Geometry queries with Toolpath draft-stack results. Anonymous section/top callbacks are geometric work folded here by inventory, not permission for arbitrary private calls."
     },
     "core/print/geometry-tools.mjs::intersectRequest": {
       "owner": "application",
@@ -4839,7 +4839,7 @@
     "core/print/slice-deposition.mjs::@module": {
       "owner": "toolpath"
     },
-    "core/print/slice-deposition.mjs::combineCourses": {
+    "core/print/slice-deposition.mjs::combineSliceResults": {
       "owner": "toolpath"
     },
     "core/print/slice-deposition.mjs::constructDepositionWork": {
@@ -4899,7 +4899,7 @@
     "core/print/slices.mjs::defaultSlices": {
       "owner": "toolpath"
     },
-    "core/print/slices.mjs::evaluateRegionCourse": {
+    "core/print/slices.mjs::evaluateRegionBatch": {
       "owner": "toolpath"
     },
     "core/print/slices.mjs::horizontal": {
@@ -5001,7 +5001,7 @@
     "core/print/slices.mjs::sliceTravelPolicy::clearanceFor": {
       "owner": "toolpath"
     },
-    "core/print/slices.mjs::validateFamilyContact": {
+    "core/print/slices.mjs::validateStackContact": {
       "owner": "toolpath"
     },
     "core/print/slices.mjs::validateSlices": {
@@ -8571,7 +8571,7 @@
       "owner": "slice",
       "reason": "Typed preset Slice request, authored process and material assignment into construction context."
     },
-    "skills/supports/scripts/supports.mjs::prepareSupportContexts::family.regionsAt": {
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts::referenceStack.regionsAt": {
       "owner": "extensions",
       "reason": "Selected support composition, authored branches and synchronous query callbacks."
     },
@@ -8741,7 +8741,7 @@
     "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::boundary.at": {
       "owner": "geometry-charts"
     },
-    "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::boundaryFamily": {
+    "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::boundaryStack": {
       "owner": "geometry-charts"
     },
     "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::cacheSection": {
@@ -8750,7 +8750,7 @@
     "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::curveAt": {
       "owner": "geometry-charts"
     },
-    "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::family": {
+    "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::referenceStack": {
       "owner": "geometry-charts"
     },
     "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve::mappedPoint": {
@@ -9156,13 +9156,13 @@
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::mappedSleevePatternCurves::perimeterAt::at": {
       "owner": "extensions"
     },
-    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses": {
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternRepetitions": {
       "owner": "extensions"
     },
-    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses::height": {
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternRepetitions::height": {
       "owner": "extensions"
     },
-    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternCourses::progressOf": {
+    "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternRepetitions::progressOf": {
       "owner": "extensions"
     },
     "skills/advanced-vase-wall/scripts/runtime.mjs::advancedVaseRuntime::patternStack": {
@@ -9243,7 +9243,7 @@
     "skills/hole-supports/scripts/edit.mjs::finite": {
       "owner": "extensions"
     },
-    "skills/hole-supports/scripts/edit.mjs::lastOpenCourse": {
+    "skills/hole-supports/scripts/edit.mjs::lastOpenSlice": {
       "owner": "extensions"
     },
     "skills/hole-supports/scripts/edit.mjs::materialAt": {
@@ -9922,16 +9922,16 @@
     "core/geom/offset-chart.mjs::offsetSurfaceChart::offsetPoint": {
       "owner": "geometry-offset-chart-5"
     },
-    "core/print/slice-families.mjs::@module": {
+    "core/print/slice-stacks.mjs::@module": {
       "owner": "toolpath"
     },
-    "core/print/slice-families.mjs::referenceSliceContext": {
+    "core/print/slice-stacks.mjs::referenceSliceContext": {
       "owner": "toolpath"
     },
-    "core/print/slice-families.mjs::resolveSliceFamily": {
+    "core/print/slice-stacks.mjs::resolveSliceStack": {
       "owner": "toolpath"
     },
-    "core/print/slices.mjs::prepareSliceBoundaryFamily": {
+    "core/print/slices.mjs::prepareSliceBoundaryStack": {
       "owner": "toolpath"
     },
     "core/print/slices.mjs::requireExclusiveNormalBands": {
@@ -10459,7 +10459,7 @@
     "core/application/deposition-schemas.mjs::curve": {
       "owner": "application"
     },
-    "core/application/deposition-schemas.mjs::draftFamilySchema": {
+    "core/application/deposition-schemas.mjs::draftStackSchema": {
       "owner": "application"
     },
     "core/application/deposition-schemas.mjs::editSchemas": {
@@ -13338,6 +13338,15 @@
     },
     "core/application/result-images.mjs::createResultImages": {
       "owner": "application"
+    },
+    "core/print/recipe-migration.mjs::migrateAssignmentTerms": {
+      "owner": "toolpath"
+    },
+    "core/print/recipe-migration.mjs::migrateAssignmentTerms::rename": {
+      "owner": "toolpath"
+    },
+    "core/print/workflow.mjs::currentPathSummary": {
+      "owner": "bundle"
     }
   },
   "retiredAssignments": [

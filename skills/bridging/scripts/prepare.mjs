@@ -35,8 +35,8 @@ export function bridgeAssignment({id,part=null,filament=null,process=null,after=
   const curves=bridges.flatMap((b,index)=>{
     const {curves}=attachmentCurves(b),zs=curves.flatMap(c=>c.points.map(p=>p[2]));
     requireThat(maxExcursionMm===null||Math.max(...zs)-Math.min(...zs)<=maxExcursionMm,'Authored attachment paths exceed the requested Z excursion.');
-    return curves.map(curve=>({...curve,courses:[index],
+    return curves.map(curve=>({...curve,repetitions:[index],
       ...(curve.role==='bridge-span'?{}:{contact:{source:b.supportBridge?`${id}:${b.supportBridge}`:null,gapMm:null,sampleStepMm:.1,referenceZMm:curve.depositionAction?Math.max(...curve.points.map(p=>p[2])):null}})}));
   });
-  return curveAssignment({id,part,filament,process,after,curves,maxExcursionMm,repeat:{count:bridges.length,translation:[0,0,0]},sequence:true,courseIds:bridges.map(b=>b.id)});
+  return curveAssignment({id,part,filament,process,after,curves,maxExcursionMm,repeat:{count:bridges.length,translation:[0,0,0]},sequence:true,repetitionIds:bridges.map(b=>b.id)});
 }

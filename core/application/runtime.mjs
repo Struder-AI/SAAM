@@ -34,7 +34,7 @@ import { readGuidance, readManual } from '../agent/manuals.mjs';
 import { onboardingSources, machineHint } from '../agent/layers.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../skills/catalog.mjs';
 import {geometryTree,COMPILED_GEOMETRY_TOOLS} from '../../skills/records.mjs';
-import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
+import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftStackSchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const installedExtension=await loadLocalExtension(root);
@@ -639,7 +639,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
     }
 
-  operation('migrate_bundle','Explicitly migrate a legacy split-file bundle into the current saved manifest, retaining original sidecars. Shows the migrated bundle in Studio; no implicit read-time migration.',{bundleId:bundleIdSchema},false);
+  operation('migrate_bundle','Explicitly migrate legacy bundle and recipe fields, retaining original artifacts. Regenerate after recipe migration. Shows the migrated bundle in Studio; no implicit read-time migration.',{bundleId:bundleIdSchema},false);
   async function migrateBundleOperation({bundleId}){
     const dir=await directory(bundleId),bundle=await bundleModule();return {bundleId,...await bundle.migrateBundle(dir)};
   }
@@ -746,7 +746,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function applyHeatSet({bundleId,expectedRevision,expectedEditRevision,request}){
       return applyExtension(bundleId,'heat-set-inserts',request,{expectedRevision,expectedEditRevision},'Heat-set inserts modify shared shell/mesh prints.');
     }
-  operation('intersect_geometry','Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points.',{bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()});
+  operation('intersect_geometry','Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice stacks. Stacks report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points.',{bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),stacks:z.array(draftStackSchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()});
   async function intersectGeometry({bundleId,request}){return intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request);}
   operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
   async function combineGeometryOperation({bundleId,expectedRevision,expectedEditRevision,request}){

@@ -1,5 +1,5 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-// Native roof survey for reserved material and supported surface courses.
+// Native roof survey for reserved material and supported surface slices.
 import {topAt} from '../geom/query.mjs';
 import {regionArea} from './region2d.mjs';
 import {extractLevelSet,SENTINEL} from '../geom/level-set.mjs';

@@ -7,12 +7,12 @@ import {defaultSlices} from './slices.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
 import {makeMesh} from '../geom/mesh.mjs';
 import {detectMeshSleeveInterval} from '../geom/sleeve/mesh-sleeve.mjs';
-import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
+import {horizontalSlice,sliceStack} from '../geom/slice.mjs';
 import {strokeTopology} from '../geom/stroke-topology.mjs';
 import {resolveSpatialPlan} from './spatial-inputs.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';
 
-const editEngines={Geometry:{makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily,strokeTopology},
+const editEngines={Geometry:{makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceStack,strokeTopology},
   Toolpath:{defaultSlices,curveAssignment,depositionAssignment}};
 
 export async function prepareExtensionRecipe(source,extension,request,{geometryContribution,...options}={}){

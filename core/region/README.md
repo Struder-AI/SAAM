@@ -156,7 +156,7 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 `plan.slices.assignments` owns surface, stack and material selection.
 [allocateChartClaims](ownership.mjs) rejects competing positive material claims;
 a default owner retains the remainder after explicit regions and reservations.
-Shared ownership and connected mixed-family overlap are deferred to [0.3.0](../../plans/0.3.0.md).
+Shared ownership and overlap between different slice stacks are deferred to [0.3.0](../../plans/0.3.0.md).
 Diagnostics identify assignments/components. Planar polygon contact uses the
 shared `TOLERANCE.point` (`1e-6` mm), not bead dimensions; spline section evidence
 also accounts for `TOLERANCE.chord` (`1e-3` mm). Bounds and control-hull separating
@@ -170,7 +170,7 @@ component ID in an assembly. [Geometry selections](../geom/selections.mjs)
 resolves these with their component placement without changing saved geometry.
 
 [assignmentPlan](../print/assignment-process.mjs) resolves filament defaults then
-assignment process overrides. Explicit stack gaps govern slice-family geometry;
+assignment process overrides. Explicit stack gaps govern slice-stack geometry;
 process values supply deposition defaults.
 
 [reservation.mjs](./reservation.mjs) removes temporary process cavities from
@@ -190,7 +190,7 @@ error. Only actual exporters enforce machine orientation compatibility.
 
 A skin's `supportFrom` selects a finalized source and prerequisites.
 Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
-reference gaps without final-bead queries. ON selects nominal predecessor courses
+reference gaps without final-bead queries. ON selects nominal predecessor slices
 per chart column and measures actual bead gaps; missing required substrate and
 invalid contact rejects; exporters enforce machine limits. This changes volume, not authored slice XYZ.
 3D-printing support assignment is a separate judgment. Absent named sources and

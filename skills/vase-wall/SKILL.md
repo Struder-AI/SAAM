@@ -25,8 +25,8 @@ and set a positive `zStartMm` on the process layer grid; the wall claims the par
 above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
 
 A [rim](../thick-lip/SKILL.md) can follow a level end.
-Experimental [substrate adaptation](../../GLOSSARY.md) defaults off. When enabled,
-a raised first wall course retains XYZ but recalculates local bead gaps from
+Experimental [substrate adaptation](../../core/region/README.md#material-ownership-and-surface-contact) defaults off. When enabled,
+a raised first wall turn retains XYZ but recalculates local bead gaps from
 final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
 
 ## Input geometry: normally a solid

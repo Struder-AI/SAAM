@@ -4,7 +4,7 @@ export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
-export const layerKey=move=>move?(move.sliceFamily?`${move.sliceFamily}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
+export const layerKey=move=>move?(move.sliceStack?`${move.sliceStack}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
   let previous=null;
@@ -73,7 +73,7 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves.at(i));
+  const read=moves.reader?.(['sliceStack','sliceIndex','phase','layer'])??(i=>moves.at(i));
   const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
     const first=i,key=keyAt(i);

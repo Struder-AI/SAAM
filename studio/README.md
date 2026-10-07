@@ -227,7 +227,7 @@ download bytes. Reopening separately validates stored artifacts.
 `at()` returns an independent row (rows have no index properties; readers use `at()`,
 which plain move arrays share); `reader()` reuses scratch values which must be
 copied if retained. `push()` passes each row through the store's `annotate` stage,
-which path loading uses to add Slice family, index and modulation identity. Snapshots are transport storage, not manufacturing data.
+which path loading uses to add Slice stack, index and modulation identity. Snapshots are transport storage, not manufacturing data.
 [playback.mjs](playback.mjs) closes encoded frames, uses deterministic 30 fps source
 time with a final hold, bounds encoder backlog and supports cancellation. Its
 WebM writer has one VP8/VP9 track without audio.

@@ -86,7 +86,7 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
     }
     const [label,unit]=fields[key]??[key,''];
     const rendered=key==='zEndMm'&&v===null?'Geometry top'
-      :key==='endTransition'?(settings.pattern?({'level':'Flat pattern courses at both ends','spiral':'Authored pattern ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
+      :key==='endTransition'?(settings.pattern?({'level':'Flat pattern repetitions at both ends','spiral':'Authored pattern ending'}[v]??value(v)):({'level':'Level rim','spiral':'Spiral rim'}[v]??value(v)))
       :value(v)+unit;
     rows.push([prefix+' · '+label,rendered]);
   }
@@ -94,14 +94,14 @@ export function skillSettingsRows(name,settings,prefix=skillName(name)){
 }
 // Slice assignments in definition order: where each owner slices and how.
 const volumeName=v=>v.kind==='slab'?(v.toMm===null?v.fromMm+' mm to top':v.fromMm+'–'+v.toMm+' mm'):v.kind==='geometry'?'assigned volume'
-  :v.kind==='outline'?'first-layer outline':v.kind==='normal-band'?v.fromMm+'–'+v.toMm+' mm normal depth':v.kind==='surface-domain'?'surface courses '+v.fromLayer+' to '+v.toLayer:'footprint to '+v.contactZMm+' mm';
+  :v.kind==='outline'?'first-layer outline':v.kind==='normal-band'?v.fromMm+'–'+v.toMm+' mm normal depth':v.kind==='surface-domain'?'surface slices '+v.fromLayer+' to '+v.toLayer:'footprint to '+v.contactZMm+' mm';
 export function sliceSummary(a){
   if(a.construction==='inject')return a.points.length+' injection point(s) · '+a.points.reduce((sum,p)=>sum+p.volumeMm3,0)+' mm³ authored volume';
   if(a.construction==='sleeve')return pathModeName(a)+' · '+a.zStartMm+'–'+(a.zEndMm??'geometry top')+' mm';
-  if(a.construction==='curves')return a.curves.length+' centerline(s) · '+(a.repeat?.count??1)+' course(s)';
-  if(a.surface?.kind==='terminal')return a.loops.join(', ')+' rings per course · source '+a.surface.assignment;
+  if(a.construction==='curves')return a.curves.length+' centerline(s) · '+((a.repeat?.stack??a.repeat?.family)&&a.repeat.indices===null?'all referenced slices':(a.repeat?.indices?.length??a.repeat?.count??1)+' repetition(s)');
+  if(a.surface?.kind==='terminal')return a.loops.join(', ')+' rings per slice · source '+a.surface.assignment;
   if(a.stack?.direction==='normal')return a.stack.layerMm+' mm normal pitch · '+a.fillOrder.directions.join(' / ');
-  if(a.surface?.kind==='roof')return 'Roof courses · '+a.stack.layerMm+' mm mean normal gap';
+  if(a.surface?.kind==='roof')return 'Roof slices · '+a.stack.layerMm+' mm mean normal gap';
   if(a.fillOrder?.kind==='fronts')return 'Seeded surface fronts · '+a.fillOrder.lineSpacingMm+' mm spacing';
   if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
   const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
@@ -127,14 +127,14 @@ export function injectionPoints(plan){
   return (plan.slices?.assignments??[]).filter(a=>a.construction==='inject').flatMap(a=>a.points.map((p,index)=>({...spatialRecord(plan,'points',p),id:`${a.id}:${index}`})));
 }
 const spatialRecord=(plan,kind,record)=>record.geometry?{...plan.geometry?.[kind]?.find(p=>p.id===record.geometry),...record}:record;
-export const depositionUnit=kind=>({slice:'slice',trace:'trace course',inject:'injection point'}[kind]??'deposition course');
+export const depositionUnit=kind=>({slice:'slice',trace:'trace repetition',inject:'injection point'}[kind]??'deposition operation');
 export function depositionFamilyRows(inspection){
   const families=new Map();
   for(const operation of Object.values(inspection?.operations??{})){
     if(!families.has(operation.family))families.set(operation.family,{kind:operation.kind,indices:new Set()});
     for(const layer of Object.values(operation.layers))families.get(operation.family).indices.add(layer.index);
   }
-  return [...families].map(([id,{kind,indices}])=>[id+' · Family',indices.size+' '+depositionUnit(kind)+'(s)']);
+  return [...families].map(([id,{kind,indices}])=>[id+' · Construction',indices.size+' '+depositionUnit(kind)+'(s)']);
 }
 function injectionRows(a,plan){
   return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
@@ -152,13 +152,14 @@ function curveAssignmentRows(a,plan){
   const rows=[[a.id,sliceSummary(a)],[a.id+' · Print after',(a.after??a.dependencies?.after??[]).join(', ')||'Shared dependency order']];
   if(a.construction==='sleeve')return [...rows,[a.id+' · Part',a.part??'Part'],...skillSettingsRows('vase-wall',a,a.id)];
   if(a.construction==='curves'){
-    if(a.repeat)rows.push([a.id+' · Repetition',a.repeat.family?'Family '+a.repeat.family+' · '+(a.repeat.indices?.join(', ')??'all layers'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);
+    if(a.repeat){const stack=a.repeat.stack??a.repeat.family;rows.push([a.id+' · Repetition',stack?'Slice stack '+stack+' · '+(a.repeat.indices?.join(', ')??'all slices'):a.repeat.translation.join(', ')+' mm × '+a.repeat.count]);}
     for(const [i,record] of a.curves.entries()){
       const c=spatialRecord(plan,'curves',record);
       const label=a.id+' · Curve '+(i+1);
       const source=c.uv?'UV '+c.uv.reference.kind+' reference':c.nurbs?'NURBS degree '+c.nurbs.degree:c.points.length+' points';
       rows.push([label,(c.closed?'Closed':'Open')+' · '+source+' · '+(c.role??'trace')]);
-      if(c.courses)rows.push([label+' courses',c.courses.map(n=>n+1).join(', ')]);
+      const repetitions=c.repetitions??c.courses; // Read older saved recipes without rewriting them.
+      if(repetitions)rows.push([label+' repetitions',repetitions.map(n=>n+1).join(', ')]);
       for(const [key,title,unit] of [['beadWidthMm','Bead width',' mm'],['heightMm','Bead height',' mm'],['speedMmS','Speed',' mm/s'],['flowMultiplier','Flow multiplier','×']])
         if(c[key]!==undefined)rows.push([label+' · '+title,c[key]+unit]);
     }

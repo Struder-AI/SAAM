@@ -15,7 +15,7 @@ import {evaluateSurface} from './surface-evaluation.mjs';
 //  height-field {reference, offsetMm, normalDepthMm}: native roof/spline
 //         evaluation in world XY; sampled topology with refined boundaries.
 //
-// A family stacks one base slice: layer k is the base translated along a
+// A stack repeats one base surface: layer k is the base translated along a
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
@@ -44,7 +44,7 @@ export function sliceRayIntersections(prepared,point){
     return projectToPatch(prepared.patch,p[0],p[1]).map(hit=>({distanceMm:p[2]-hit.point[2],chartPoint:[hit.u,hit.v]}));
   }
   if(slice.kind==='height-field'){
-    requireThat(Math.hypot(d[0],d[1])<1e-8,'A height-field nominal-course query requires its vertical stack direction.');
+    requireThat(Math.hypot(d[0],d[1])<1e-8,'A height-field nominal-slice query requires its vertical stack direction.');
     const chartPoint=point.slice(0,2),surface=heightSlicePoint(slice,chartPoint);
     return [{distanceMm:(point[2]-surface[2])/d[2],chartPoint}];
   }
@@ -79,7 +79,7 @@ export function translateSlice(slice, v) {
   requireThat(vector(v), 'A slice translation is a 3D vector.');
   if (slice.kind === 'plane') return { ...slice, origin: add(slice.origin, v) };
   if (slice.kind === 'height-field') {
-    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference families currently translate along Z only.');
+    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference stacks currently translate along Z only.');
     return { ...slice, offsetMm: slice.offsetMm + v[2] };
   }
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
@@ -146,23 +146,23 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
 // last and the first one first-layer height above the base. Direction defaults
 // to a plane's normal and must advance a plane (d·n > 0). Only layers that
 // reach into bounds (the owned volume's box) past its low side are listed,
-// numbered from the base, so a family confined to a band keeps the layer
+// numbered from the base, so a stack confined to a band keeps the layer
 // numbers of the whole stack. heightMm is the layer's thickness: along the
 // normal for a plane, along the direction for a patch.
 //
 // {base, direction?, pitchMm, firstLayerMm}, {min, max} ->
 // {base, direction, pitchMm, firstLayerMm, layers: [{index, offsetMm, heightMm, slice}]}
-export function sliceFamily({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
-  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice family needs a plane, patch or height reference.');
+export function sliceStack({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
+  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice stack needs a plane, patch or height reference.');
   requireThat(Number.isFinite(pitchMm) && pitchMm > 0 && Number.isFinite(firstLayerMm) && firstLayerMm > 0,
-    'A slice family needs a positive pitch and first-layer height; it would never advance.');
-  requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice family needs the owned volume bounds.');
+    'A slice stack needs a positive pitch and first-layer height; it would never advance.');
+  requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice stack needs the owned volume bounds.');
   if(base.kind==='height-field') {
-    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference families translate along positive Z.');
-    requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
+    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference stacks translate along positive Z.');
+    requireThat(!base.normalDepthMm,'Translated height stacks do not imply normal-offset stacks.');
     const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
     const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+1e-9)+1);
-    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-family indices exceed exact integer representation.');
+    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-stack indices exceed exact integer representation.');
     for(let referenceIndex=firstIndex;;referenceIndex++) {
       const index=referenceIndex-firstIndex,offsetMm=firstTranslationMm+referenceIndex*translationStepMm;
       if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
@@ -186,11 +186,11 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
   // A patch's own extent along the direction, before translation.
   const [low, high] = base.kind === 'patch' ? patchExtent(base.patch, d) : [0, 0];
   // Translating by the first layer, then by whole pitches, keeps a horizontal
-  // family's heights bit-identical to base + first + k·pitch.
+  // stack's heights bit-identical to base + first + k·pitch.
   const start = translateSlice(base, scale(d, firstTranslationMm)), layers = [];
   const baseHigh=base.kind==='plane'?dot(base.normal,base.origin):high;
   const firstIndex=Math.min(0,Math.floor(((lo-baseHigh)/advance-firstTranslationMm)/translationStepMm+1e-9)+1);
-  requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil(((hi-baseHigh)/advance-firstTranslationMm)/translationStepMm)),'Slice-family indices exceed exact integer representation.');
+  requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil(((hi-baseHigh)/advance-firstTranslationMm)/translationStepMm)),'Slice-stack indices exceed exact integer representation.');
   for (let referenceIndex = firstIndex; ; referenceIndex++) {
     const slice = referenceIndex ? translateSlice(start, scale(d, referenceIndex * translationStepMm)) : start;
     const t = firstTranslationMm + referenceIndex * translationStepMm;

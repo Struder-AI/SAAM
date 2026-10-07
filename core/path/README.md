@@ -97,12 +97,12 @@ one owner per component. A roof surface-domain assignment selects its assembly c
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
-Dependent surface courses wait for their declared finalized material sources.
+Dependent surface deposition waits for its declared finalized material sources.
 All skills use the same operation/dependency boundary; no skill pair has a
 separate composer. A nominal bead model does not prove physical support.
 
 [Standard vase](../../skills/vase-wall/SKILL.md) generates a sleeve curve for Trace; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
-mapped Trace courses. Both use shared bead construction and composition. Their
+mapped Trace batches. Both use shared bead construction and composition. Their
 manuals own fitting, sampling, explicit path and placement controls. A continuous operation
 cannot interleave with infill in the same height band; a planar successor needs
 a level terminal boundary. The sleeve is reference geometry, never an implicit
@@ -150,7 +150,7 @@ classification and does not become a verified continuous support surface.
 `consumeFinishedSurface` binds a selected native spline or mesh chart to the
 matching component's published boundaries. Chart samples must lie within a
 published extent and boundary, and the consumer inherits source operation
-dependencies. Slice reference families use normal-depth bands; physical cell fill supports
+dependencies. Slice stacks use normal-depth bands; physical cell fill supports
 open rows or periodic helices and it accepts a finished boundary regardless of which
 producer supplies it. This interface does not add chart unwrapping, arbitrary
 multi-patch routing, physical contact verification or a second scheduler.
@@ -165,14 +165,14 @@ for cross section and segment volume. Agents never need to match independent
 pitch and extrusion settings. Plan validation checks regional overrides through
 the same contract.
 
-Ordinary and surface-family Slice assignments implement it. Fill density divides the
+Ordinary and surface-stack Slice assignments implement it. Fill density divides the
 derived pitch. Slice loops retain the exterior contacting bead
 and space successive loops inward. Cladding uses its own factor for axial cells and helix pitch,
 while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
 unchanged. Vase-wall's vertical spiral progression is outside this interface.
 
 Circular track counts and native surface metrics still fit local bead widths;
-course-cell width is divided by the factor before computing extrusion. Edge
+cell width is divided by the factor before computing extrusion. Edge
 tapers use bead width, not widened pitch. Surface spacing remains sampled, with
 the periodic-cell field's sampled metric. Exporters own fixed-relay flow representation.
 The setting does not add a material profile or establish physical printability.

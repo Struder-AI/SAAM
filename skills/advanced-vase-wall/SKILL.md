@@ -16,7 +16,7 @@ generates through standard vase without this package.
 The envelope supplies no material; only pattern strokes deposit. A looping
 pattern can resemble a gyroid while remaining a self-crossing toolpath with gaps.
 
-A **tile** is the explicit authored paths; a **course** is one repetition.
+A **tile** is the explicit authored paths. Count tile repetitions separately from [courses and turns](../../GLOSSARY.md).
 
 ## Workflow
 
@@ -64,7 +64,7 @@ apply. For outside contact, every outward contour must also remain one closed lo
 | Setting | Meaning |
 |---|---|
 | `zStartMm`, `zEndMm` | Wall interval above the selected component base; `zEndMm: null` uses the geometry top. |
-| `endTransition` | `level` adds complete flat pattern courses at both ends; `spiral` retains the authored rising ending. Plain spirals use a level rim by default. |
+| `endTransition` | `level` adds complete flat pattern repetitions at both ends; `spiral` retains the authored rising ending. Plain spirals use a level rim by default. |
 | `pattern` | `null` for a plain spiral, otherwise a [turns or sized pattern](#sleeve-patterns). |
 | `pathMode` | `continuous` requires connected deposition; `segmented` permits explicit travel between authored gaps. |
 | `sampleStepMm`, `toleranceMm` | Emitted segment and contour subdivision limits. |
@@ -95,12 +95,12 @@ cell layout, tilt and loops into the points; there is no other tile input.
   stretch with the perimeter. The [irregular loop sleeve](examples/irregular-loop-sleeve.json)
   bakes 20 loops per turn into one path around a waisted, offset mesh host.
 - **Sized** `{paths, tileWidthMm, riseMm, turns}`: points are [arc mm from the
-  course start, which is 0; height mm above the turn, which rises `riseMm`].
-  Each turn holds the whole number of courses nearest its centerline perimeter
+  tile start, which is 0; height mm above the turn, which rises `riseMm`].
+  Each turn holds the whole number of tile repetitions nearest its centerline perimeter
   at mid-turn, evenly spaced from the seam, so tiles keep their width within
-  half a tile. A turn whose count changes shifts its courses against the turn
+  half a tile. A turn whose count changes shifts its tiles against the turn
   below by up to half a tile, most opposite the seam; heights and joins are
-  unchanged. The report's `sizedCourses` lists each change. The
+  unchanged. The report's `sizedTiles` records tile counts, including each change. The
   [flared loops](examples/flared-sized-loops.json) grow from 15 to 30 per turn.
 
 The mapper maps normalized perimeter phase onto actual sleeve sections at
@@ -112,7 +112,7 @@ segmented mode allows explicit travel between gaps. No connector or guide wall i
 A legacy `tile` field needs explicit bundle migration, which expands it into
 equivalent turns paths and invalidates generation; loading never converts silently.
 
-With the default `endTransition: level`, a complete flat pattern course (turn,
+With the default `endTransition: level`, a complete flat pattern repetition (one turn
 for a sized pattern) sits at the starting and ending heights around the body.
 Boundary transitions taper nominal bead height to fill the remaining gap without
 doubling the boundary bead. Level patterns publish only their actual final
@@ -158,6 +158,6 @@ review and export validate no hardware.
 ### Script interface
 
 `advancedVaseResult({shell, assignment, process, ...})` returns operations,
-the reference family, optional terminal boundary and a report without file writes.
+the reference stack, optional terminal boundary and a report without file writes.
 The caller supplies finalized foundation strands; Trace resolves whole-pattern
 crossings, joins and taper before ordinary composition and export.

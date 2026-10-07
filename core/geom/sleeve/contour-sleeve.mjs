@@ -10,7 +10,7 @@ import {contourPath} from '../../geom/contour-path.mjs';
 import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
 const OFFSET_PRECISION_MM=.00001;
-// The family uses horizontal cutting slices. Their chart is
+// The stack uses horizontal cutting slices. Their chart is
 // world XY even when a fitted sleeve supplies the section boundary.
 const sliceFrame=p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]});
 function patternContour(outer,toleranceMm){
@@ -42,8 +42,8 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   const settings={sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm,sleeveToleranceMm,meshSleeve,phaseStableContours};
   requireThat([base,start,end,pitch,firstHeight,centerlineOffset,standoffMm,sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm].every(Number.isFinite)
     &&pitch>0&&firstHeight>0&&standoffMm>0&&sampleStepMm>0&&toleranceMm>0&&boundaryToleranceMm>0&&minFeatureMm>0,
-    'Contour family needs finite positive spacing and tolerances.');
-  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Contour family needs its base, first section and end inside the geometry.');
+    'Contour stack needs finite positive spacing and tolerances.');
+  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Contour stack needs its base, first section and end inside the geometry.');
   requireThat(settings.boundaryToleranceMm<standoffMm/2,'Contour boundary tolerance must be smaller than half the selected standoff.');
   // The wall takes as many points and section queries as its geometry, pitch
   // and tolerances require: turns are finite and each interval subdivides until
@@ -126,7 +126,7 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
     }
     return [...xy,z];
   }
-  const boundaryFamily=()=>{
+  const boundaryStack=()=>{
     const levels=[start];for(let z=start+pitch;z<end-1e-9;z+=pitch)levels.push(z);levels.push(end);
     const layers=levels.map((z,index)=>{
       let points;
@@ -150,13 +150,13 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   };
   const contours=!reference&&settings.phaseStableContours?prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm}):null;
   const mapping=reference?{reference}:contours?{contours}:null;
-  // Exact section evaluation remains available between the displayed family
+  // Exact section evaluation remains available between the displayed stack
   // layers; interpolation must not flatten native/curved wall geometry.
   const boundary={at(u,z){
     const point=reference?reference.map(reference.pointAt(u,z,0)):mappedPoint(u,z);
     return {point,normal:[0,0,1],frame:sliceFrame(point)};
   }};
   return {base,start,end,firstHeight,referenceLengthMm:reference?.referenceLengthMm??section(start).curve.length,mapping,mappingErrorMm,
-    family(){return {...boundaryFamily(),boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
+    referenceStack(){return {...boundaryStack(),boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
     report(){return {sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...reference?.report(),...contours?.report()};}};
 }

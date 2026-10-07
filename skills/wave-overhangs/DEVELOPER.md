@@ -44,7 +44,7 @@ own machine output. Exact runtime
 identity includes the producer, shared numerical functions and dependencies.
 
 `frontLayerStrokes` returns curves, seed and diagnostics to shared Slice
-construction. Family dependencies are ordinary recipe data; no wave-specific
+construction. Construction dependencies are ordinary recipe data; no wave-specific
 composer or mutation of previous operations is involved.
 
 ## Research and license findings

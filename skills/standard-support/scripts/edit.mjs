@@ -39,6 +39,6 @@ export async function editStandardSupport(source,request,{buildGeometry,construc
   const replacement={shape:'boolean',operation:'union',operands:[original,support],displayOperand:0};
   if(component)component.geometry=replacement;
   return {geometry:component?geometry:replacement,assignmentRequests,report:{id,part,roofTriangles:selection.length,gapMm,fillDensity,angleDeg,baseLayers,
-    adhesion:baseLayers?'Dense bottom courses provide the support base.':'No adhesion base requested; review bed adhesion.',
+    adhesion:baseLayers?'Dense bottom slices provide the support base.':'No adhesion base requested; review bed adhesion.',
     separation:'Geometric roof gap; actual Slice gap also depends on layer sampling.',physicalValidation:'provisional'}};
 }

@@ -1,4 +1,4 @@
-// Measure a translated course against finalized material. Existing chart
+// Measure a translated slice against finalized material. Existing chart
 // columns use their immediate predecessor; entering columns use surrounding
 // owners. Sparse missing strands never become a filled support sheet.
 import {beadContactAlong,depositedBeadSegments} from '../path/deposited-curves.mjs';
