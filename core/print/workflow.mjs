@@ -510,7 +510,7 @@ async function generateBundle(directory, { development = false, signal, onProgre
   }
   return runComputationJob(new URL('./generation-worker.mjs',import.meta.url),
     {directory:state.dir,editRevision:state.editRevision,development,instance:heldBundleInstance(state.dir)},
-    {signal,progress:onProgress,beforeCommit:beforeCommit??(()=>{})});
+    {signal,progress:onProgress,beforeCommit:beforeCommit??(()=>{}),subject:'Generation'});
 }
 
 async function commitGeneration(directory,prepared,{development=false,onProgress,beforeCommit}={}){

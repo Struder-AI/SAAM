@@ -38,7 +38,7 @@ export function compileRequest(request,options={}){
 function prepareRequest(request,{signal,prepareGeometry=false,geometry,part}={}){
   if(!(request&&typeof request==='object'&&Object.keys(request).every(k=>REQUEST_FIELDS.includes(k))))throw Error(`A blob field request has ${REQUEST_FIELDS.join(', ')}.`);
   const {points,threshold=BLOB_FIELD_THRESHOLD,edgeMm=defaultEdgeMm(points)}=request;
-  return runComputationJob(new URL('./blob-field-worker.mjs',import.meta.url),{field:{schema:BLOB_FIELD_SCHEMA,threshold,points},options:{edgeMm},prepareGeometry,geometry,part},{signal});
+  return runComputationJob(new URL('./blob-field-worker.mjs',import.meta.url),{field:{schema:BLOB_FIELD_SCHEMA,threshold,points},options:{edgeMm},prepareGeometry,geometry,part},{signal,subject:'Blob field construction'});
 }
 // A lone strength-1 point is a ball of radius reach/2; sample it with at least
 // four cells across that radius, and never coarser than half a millimetre.

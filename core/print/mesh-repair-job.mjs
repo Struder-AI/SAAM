@@ -2,22 +2,20 @@ import {Worker} from 'node:worker_threads';
 import {join} from 'node:path';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {runNativeMeshRepair} from '../geom/mesh-native.mjs';
+import {workerResourceLimits,workerMemoryError} from './computation-job.mjs';
 // Runs repairSTL ('bytes'), repairSTLFiles ('files') or prepareSTLImportInWorker
 // ('import') in a worker. It settles only after the worker has stopped, so a
 // caller may then remove the directory the job was writing.
-// A worker whose heap is exhausted reaches the supervisor as
-// ERR_WORKER_OUT_OF_MEMORY. Say what ran out and on what, rather than reporting
-// an anonymous worker failure; nothing refuses a mesh before trying it.
+// Nothing refuses a mesh before trying it; an exhausted heap names the source.
 export function repairMemoryError(error,source){
-  if(error?.code!=='ERR_WORKER_OUT_OF_MEMORY')return error;
   const bytes=typeof source==='string'?undefined:source?.byteLength??source?.length;
-  const subject=typeof source==='string'?` reading ${source}`:Number.isFinite(bytes)?` on a ${Math.ceil(bytes/1048576)} MiB STL source`:'';
-  return Object.assign(Error(`Mesh repair ran out of memory${subject}: Node's heap was exhausted (${error.message}). Run with a larger --max-old-space-size or on a machine with more RAM; geometry is never simplified automatically.`),{code:'MESH_MEMORY_EXHAUSTED',cause:error});
+  const detail=typeof source==='string'?` reading ${source}`:Number.isFinite(bytes)?` on a ${Math.ceil(bytes/1048576)} MiB STL source`:'';
+  return workerMemoryError(error,'Mesh repair',{detail,code:'MESH_MEMORY_EXHAUSTED'});
 }
 export function runRepairJob(mode,directory,source,options){
   const {signal,progress,onGeometry,...settings}=options;signal?.throwIfAborted();
   return new Promise((resolve,reject)=>{
-    const worker=new Worker(new URL('./mesh-repair-worker.mjs',import.meta.url),{execArgv:[],workerData:{mode,directory,source,options:settings,geometry:!!onGeometry}});let settled=false,callbackError;
+    const worker=new Worker(new URL('./mesh-repair-worker.mjs',import.meta.url),{execArgv:[],resourceLimits:workerResourceLimits(),workerData:{mode,directory,source,options:settings,geometry:!!onGeometry}});let settled=false,callbackError;
     const nativeController=new AbortController();let nativeDirectory,nativeRun;
     // The supervisor owns native scratch and the child process. It can stop
     // synchronous import work without losing either resource, including on OOM.

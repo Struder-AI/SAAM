@@ -12,7 +12,7 @@ export async function runPortableBundleJob(operation,directory,packageFile,{sign
   try{
     result=await runComputationJob(new URL('./portable-bundle-worker.mjs',import.meta.url),
       {operation,directory:resolve(directory),packageFile:resolve(packageFile),options:{...options,workspace}},
-      {signal,progress,beforeCommit});
+      {signal,progress,beforeCommit,subject:`Portable bundle ${operation}`});
   }catch(error){failure=error;}
   try{
     await owned.release();
