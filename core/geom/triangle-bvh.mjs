@@ -20,6 +20,7 @@ export function boxHierarchy(boxes,count=boxes.length/6){
     left[id]=build(from,h);right[id]=build(from+h,n-h);size[id]=0;return id;
   }
   if(count)build(0,count);
+  const boxDistance2=(n,p)=>{let d2=0;for(let k=0;k<3;k++){const d=Math.max(nb[6*n+k]-p[k],0,p[k]-nb[6*n+3+k]);d2+=d*d;}return d2;};
   const extent=n=>nb[6*n+3]-nb[6*n]+nb[6*n+4]-nb[6*n+1]+nb[6*n+5]-nb[6*n+2];
   const overlap=(n,m)=>{const p=6*n,q=6*m;return !(nb[p]>nb[q+3]||nb[q]>nb[p+3]||nb[p+1]>nb[q+4]||nb[q+1]>nb[p+4]||nb[p+2]>nb[q+5]||nb[q+2]>nb[p+5]);};
   return {
@@ -31,6 +32,14 @@ export function boxHierarchy(boxes,count=boxes.length/6){
     querySegment(a,c,margin,visit){const stack=count?[0]:[];while(stack.length){const n=stack.pop();
       if(!segmentMeetsBox(a,c,nb,n*6,margin))continue;
       if(left[n]<0){for(let j=first[n],e=j+size[n];j<e;j++)visit(order[j]);}else stack.push(left[n],right[n]);}},
+    // The item nearest to p, nearer subtrees first; measure(i, best) gives item i's
+    // squared distance (it may stop early once beyond best).
+    nearest(p,measure,best={item:-1,distance2:Infinity}){
+      const visit=n=>{if(boxDistance2(n,p)>best.distance2)return;
+        if(left[n]<0){for(let j=first[n],e=j+size[n];j<e;j++){const i=order[j];let b2=0;for(let k=0;k<3;k++){const d=Math.max(boxes[6*i+k]-p[k],0,p[k]-boxes[6*i+3+k]);b2+=d*d;}
+          if(b2>best.distance2)continue;const d=measure(i,best.distance2);if(d<best.distance2){best.item=i;best.distance2=d;}}return;}
+        const l=left[n],r=right[n];if(boxDistance2(l,p)<=boxDistance2(r,p)){visit(l);visit(r);}else{visit(r);visit(l);}};
+      if(count)visit(0);return best;},
     // Every pair of items in leaves whose boxes meet, once each; callers test items.
     selfPairs(visit){const stack=count?[0,0]:[];
       while(stack.length){const m=stack.pop(),n=stack.pop();
@@ -42,18 +51,28 @@ export function boxHierarchy(boxes,count=boxes.length/6){
         else stack.push(n,left[m],n,right[m]);}},
   };
 }
-// Every pair i<j of overlapping (closed) boxes, once. Boxes far larger than typical
-// (cut caps) would inflate every node above them, so they get their own hierarchy
-// and query the others'.
+// Boxes far larger than typical (cut caps) would inflate every node above them, so
+// they get their own hierarchy: [typical, large], each {items, tree}.
+function hierarchiesBySize(boxes){
+  const n=boxes.length/6,diag=new Float64Array(n);for(let t=0;t<n;t++){const o=6*t;diag[t]=boxes[o+3]-boxes[o]+boxes[o+4]-boxes[o+1]+boxes[o+5]-boxes[o+2];}
+  const limit=16*diag.slice().sort()[n>>1],groups=[[],[]];for(let t=0;t<n;t++)groups[diag[t]>limit?1:0].push(t);
+  return groups.map(items=>{const b=new Float64Array(6*items.length);items.forEach((t,k)=>b.set(boxes.subarray(6*t,6*t+6),6*k));return {items,tree:boxHierarchy(b)};});
+}
+// Every pair i<j of overlapping (closed) boxes, once.
 export function overlappingBoxPairs(boxes,visit){
-  const n=boxes.length/6;if(!n)return;
-  const diag=new Float64Array(n);for(let t=0;t<n;t++){const o=6*t;diag[t]=boxes[o+3]-boxes[o]+boxes[o+4]-boxes[o+1]+boxes[o+5]-boxes[o+2];}
-  const limit=16*diag.slice().sort()[n>>1],small=[],big=[];for(let t=0;t<n;t++)(diag[t]>limit?big:small).push(t);
-  const gather=items=>{const b=new Float64Array(6*items.length);items.forEach((t,k)=>b.set(boxes.subarray(6*t,6*t+6),6*k));return b;};
+  if(!boxes.length)return;const [small,big]=hierarchiesBySize(boxes);
   const test=(i,j)=>{const bi=6*i,bj=6*j;if(boxes[bi]>boxes[bj+3]||boxes[bj]>boxes[bi+3]||boxes[bi+1]>boxes[bj+4]||boxes[bj+1]>boxes[bi+4]||boxes[bi+2]>boxes[bj+5]||boxes[bj+2]>boxes[bi+5])return;if(i<j)visit(i,j);else visit(j,i);};
-  const smallTree=boxHierarchy(gather(small));smallTree.selfPairs((x,y)=>test(small[x],small[y]));
-  boxHierarchy(gather(big)).selfPairs((x,y)=>test(big[x],big[y]));
-  for(const b of big)smallTree.queryBox(boxes,6*b,k=>test(b,small[k]));
+  small.tree.selfPairs((x,y)=>test(small.items[x],small.items[y]));
+  big.tree.selfPairs((x,y)=>test(big.items[x],big.items[y]));
+  for(const b of big.items)small.tree.queryBox(boxes,6*b,k=>test(b,small.items[k]));
+}
+// Nearest-item queries over boxes: nearest(p, measure) as boxHierarchy's, item
+// indices into boxes.
+export function nearestBoxQuery(boxes){
+  const parts=boxes.length?hierarchiesBySize(boxes):[];
+  return (p,measure)=>{const best={item:-1,distance2:Infinity};
+    for(const {items,tree} of parts){const found=tree.nearest(p,(k,limit)=>measure(items[k],limit),{item:-1,distance2:best.distance2});if(found.item>=0){best.item=items[found.item];best.distance2=found.distance2;}}
+    return best;};
 }
 export function segmentMeetsBox(a,b,box,o,margin){
   let lo=0,hi=1;

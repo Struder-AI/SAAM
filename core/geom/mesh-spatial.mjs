@@ -1,6 +1,7 @@
 // Geometry-only triangle index shared by explicit mesh repair and its checks.
 import {subtract as sub,dot,cross} from './tolerance.mjs';
 import {separatedTriangles} from './mesh.mjs';
+import {nearestBoxQuery,triangleBoxes} from './triangle-bvh.mjs';
 import {NUMERIC_MM} from '../dimensions.mjs';
 
 export function closestTrianglePoint(p,a,b,c) {
@@ -80,26 +81,14 @@ export function checkAdjacentContacts({vertices,triangles}) {
   }
 }
 
+// Nearest surface point queries over triangles given as index triples.
 export function triangleIndex(vertices,triangles) {
-  const boxes=triangles.map((t,i)=>({i,min:[0,1,2].map(k=>Math.min(...t.map(v=>vertices[v][k]))),max:[0,1,2].map(k=>Math.max(...t.map(v=>vertices[v][k])))}));
-  function build(items) {
-    const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
-    for(const b of items)for(let k=0;k<3;k++){min[k]=Math.min(min[k],b.min[k]);max[k]=Math.max(max[k],b.max[k]);}
-    if(items.length<=12)return {min,max,items};
-    const spans=max.map((v,k)=>v-min[k]),axis=spans.indexOf(Math.max(...spans));
-    items.sort((a,b)=>a.min[axis]+a.max[axis]-b.min[axis]-b.max[axis]);
-    const middle=items.length>>1;return {min,max,left:build(items.slice(0,middle)),right:build(items.slice(middle))};
-  }
-  const root=build(boxes);
-  const boxDistance=(p,b)=>p.reduce((s,v,k)=>s+Math.max(b.min[k]-v,0,v-b.max[k])**2,0);
+  const boxes=triangleBoxes(vertices,triangles),query=nearestBoxQuery(boxes),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  for(let i=0;i<triangles.length;i++)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],boxes[6*i+k]);bounds.max[k]=Math.max(bounds.max[k],boxes[6*i+3+k]);}
   function nearest(p) {
-    let distance2=Infinity,point=null;
-    function visit(b){
-      if(boxDistance(p,b)>distance2)return;
-      if(b.items){for(const item of b.items){if(boxDistance(p,item)>distance2)continue;const q=closestTrianglePoint(p,...triangles[item.i].map(i=>vertices[i]));const d=dot(sub(p,q),sub(p,q));if(d<distance2){distance2=d;point=q;}}}
-      else {const first=boxDistance(p,b.left)<boxDistance(p,b.right)?b.left:b.right;visit(first);visit(first===b.left?b.right:b.left);}
-    }
-    visit(root);return {point,distance:Math.sqrt(distance2)};
+    let point=null,best=Infinity;
+    query(p,i=>{const q=closestTrianglePoint(p,...triangles[i].map(v=>vertices[v])),d=dot(sub(p,q),sub(p,q));if(d<best){best=d;point=q;}return d;});
+    return {point,distance:Math.sqrt(best)};
   }
-  return {nearest,bounds:{min:root.min,max:root.max}};
+  return {nearest,bounds};
 }

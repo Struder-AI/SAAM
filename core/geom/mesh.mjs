@@ -102,17 +102,32 @@ function rejectIntersections(vertices,triangles,normals){
   });
 }
 
-// Shared closed-triangle separation predicate.
+// Shared closed-triangle separation predicate: the projections onto one of the
+// triangles' separating axes (normals, edge cross products, in-plane edge normals)
+// are more than numeric conditioning apart. Allocation-free; validation runs it
+// for every nearby pair.
+const separation=new Float64Array(24);
+function separatedAlong(x,y,z,pa,pb){
+  const length=Math.hypot(x,y,z);if(length<1e-12)return false;
+  const ux=x/length,uy=y/length,uz=z/length;let amin=Infinity,amax=-Infinity,bmin=Infinity,bmax=-Infinity;
+  for(let k=0;k<3;k++){const a=pa[k][0]*ux+pa[k][1]*uy+pa[k][2]*uz,b=pb[k][0]*ux+pb[k][1]*uy+pb[k][2]*uz;amin=Math.min(amin,a);amax=Math.max(amax,a);bmin=Math.min(bmin,b);bmax=Math.max(bmax,b);}
+  return amax<bmin-NUMERIC_MM||bmax<amin-NUMERIC_MM;
+}
+// Scratch layout: edges of A at 0..8, of B at 9..17, unit normals at 18 and 21.
+function setNormal(o,given,edges){
+  const e=separation;if(given){e[o]=given[0];e[o+1]=given[1];e[o+2]=given[2];return;}
+  const x=e[edges+1]*e[edges+5]-e[edges+2]*e[edges+4],y=e[edges+2]*e[edges+3]-e[edges]*e[edges+5],z=e[edges]*e[edges+4]-e[edges+1]*e[edges+3],length=Math.hypot(x,y,z);
+  e[o]=x/length;e[o+1]=y/length;e[o+2]=z/length;
+}
+function crossSeparates(p,q,pa,pb){const e=separation;return separatedAlong(e[p+1]*e[q+2]-e[p+2]*e[q+1],e[p+2]*e[q]-e[p]*e[q+2],e[p]*e[q+1]-e[p+1]*e[q],pa,pb);}
 export function separatedTriangles(pa,pb,normalA,normalB) {
-  const ea=pa.map((p,k)=>sub(pa[(k+1)%3],p)),eb=pb.map((p,k)=>sub(pb[(k+1)%3],p));
-  const normal=edges=>{const n=cross(edges[0],edges[1]),length=Math.hypot(...n);return n.map(v=>v/length);};
-  const na=normalA??normal(ea),nb=normalB??normal(eb);
-  const axes=[na,nb,...ea.flatMap(e=>eb.map(f=>cross(e,f))),...ea.map(e=>cross(na,e)),...eb.map(e=>cross(nb,e))];
-  return axes.some(axis=>{
-    const length=Math.hypot(...axis);if(length<1e-12)return false;
-    const unit=axis.map(v=>v/length),aa=pa.map(p=>dot(p,unit)),bb=pb.map(p=>dot(p,unit));
-    return Math.max(...aa)<Math.min(...bb)-NUMERIC_MM||Math.max(...bb)<Math.min(...aa)-NUMERIC_MM;
-  });
+  const e=separation;
+  for(let k=0;k<3;k++)for(let c=0;c<3;c++){e[3*k+c]=pa[(k+1)%3][c]-pa[k][c];e[9+3*k+c]=pb[(k+1)%3][c]-pb[k][c];}
+  setNormal(18,normalA,0);setNormal(21,normalB,9);
+  if(separatedAlong(e[18],e[19],e[20],pa,pb)||separatedAlong(e[21],e[22],e[23],pa,pb))return true;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(crossSeparates(3*i,9+3*j,pa,pb))return true;
+  for(let i=0;i<3;i++)if(crossSeparates(18,3*i,pa,pb)||crossSeparates(21,9+3*i,pa,pb))return true;
+  return false;
 }
 
 export function translateMesh(mesh,dx,dy,dz=0) {
