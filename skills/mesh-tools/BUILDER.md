@@ -27,9 +27,9 @@ accept a partial result.
 `outputDirectory` whose parent exists, `units` (`mm` or `inch`) and the limits
 below. Success writes
 `original.stl` (the source bytes), `repaired.stl` (validated, in millimetres) and
-`repair.json` (hashes, bounds, cleanup and native results, unchanged and changed
+`repair.json` (hashes, bounds, cleanup and repair results, unchanged and changed
 face counts, merge displacement and sampled shape evidence). Failure publishes
-nothing; source bytes stay unchanged. Only native fallback needs [CGAL setup](../../core/geom/native/README.md).
+nothing; source bytes stay unchanged. Only hole filling needs [CGAL setup](../../core/geom/native/README.md).
 
 | Option | Meaning |
 |---|---|
@@ -47,7 +47,7 @@ units **mm** and review it.
 
 [The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
 [the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
-cleanup, stitching, CGAL 6.2.1 solid reconstruction and sheet closing
+cleanup, stitching, solid reconstruction and sheet closing
 and the [memory contract](../../core/geom/README.md#memory-files-and-progress).
 
 `repairSTLFiles(directory, source, options)` takes an STL path or bytes; prefer

@@ -424,8 +424,8 @@ complete Rhino computation engine.
 
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
-source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Studio and agent imports
+source, runs exact cleanup, and repairs the solid when cleanup alone does not
+yield a valid mesh; only hole filling uses the [native CGAL adapter](./mesh-native.mjs). Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
 formats retain their diagnostics; repair never fills holes without explicit bounds.
 
@@ -439,11 +439,15 @@ Spatial buckets only find candidates; they never round accepted coordinates.
 Collapsed-face stitching uses existing collinear boundary vertices (numeric
 conditioning), without guessing branches or filling holes. Ordinary imports remain
 exact-only. Reports include merge counts and maximum displacement; shape-change
-evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
-only within explicit limits, closes opposed sheets within print resolution and
-replaces a self-crossing surface by its solid's boundary; reports give the closing,
-cancelled area and inward/outward shells before and after (fewer inward shells:
-cavities opened).
+evidence includes the merge. [Solid repair](./mesh-repair.mjs) orients faces across
+two-face edges (each component keeps the orientation of most of its area), refuses
+open or unorientable edges, reverses an inside-out solid and replaces a self-crossing
+surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)): opposed
+sheets within print resolution close onto one plane, exact arrangement splits faces
+along every crossing, a face stays where the winding number is positive on one side
+only, new points round to the rounding guard and new vertices closer than print
+resolution merge. Reports give the closing, cancelled area and inward/outward shells
+before and after (fewer inward shells: cavities opened).
 
 Final checks use shared mesh topology/intersection checks, adjacent-contact checks
 and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
@@ -476,13 +480,13 @@ triangles). A real allocation failure is reported as it happens, naming the stag
 and the mesh size, and never changes geometry. When the Node heap itself is
 exhausted inside the repair worker the supervisor reports that the mesh exceeded
 available memory rather than an anonymous worker failure. The source indexed mesh,
-CGAL mesh and final result still require memory. Neither native repair nor
+the arrangement and the final result still require memory. Neither repair nor
 downstream bundle serialization is out-of-core; a mesh larger than the machine can
 hold fails on the allocation that actually failed, not on a prediction.
 
-Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `progress` and `onGeometry`.
-Countable stages report completed/total and percentage within that stage. CGAL
-patch work is indeterminate; no fabricated global percentage is reported.
+Repair runs in a worker thread; hole filling runs CGAL in a child process. Async repair accepts `signal`, `progress` and `onGeometry`.
+Countable stages report completed/total and percentage within that stage; repair
+stages report entry only, and no fabricated global percentage is reported.
 Elapsed time never refuses a repair. The child process ends when it finishes,
 when it fails, or when the caller cancels through `signal`; nothing kills it for
 running long, because the pinned helper reports only when it enters a stage and

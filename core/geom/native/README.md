@@ -1,18 +1,12 @@
 # Native mesh repair
 
-The shared adapter runs unmodified **CGAL 6.2.1** in a child process. It orients
-triangle soup, stitches compatible borders and fills holes only within both an
-edge-count limit and a boundary bounding-box diagonal in millimeters. A closed
-surface that crosses itself is replaced by the boundary of its solid. Opposed sheets
-closer than [print resolution](../../README.md#dimensions-and-tolerances) (passed by
-the adapter), such as a cut cap over a cavity floor, first move onto one plane per
-group, whose moved points are exact doubles, so they cancel instead of leaving a film. Exact
-autorefinement then splits faces along every crossing; a refined face is kept, facing
-outward, where the winding number is positive on exactly one side. Overlapping shells
-unite, inward shells stay cavities, inside-out files are reversed. Constructed points
-are snap-rounded to doubles; triangles below SAAM's minimum height lose an edge with a
-constructed end. Other faces keep their source coordinates. A non-manifold, open or
-still intersecting result is refused; partial output is never accepted.
+The shared adapter runs unmodified **CGAL 6.2.1** in a child process, only for
+repair with hole filling (`maxHoleEdges` > 0); other repair is SAAM's own
+([explicit mesh repair](../README.md#explicit-mesh-repair)). It orients triangle soup,
+stitches compatible borders, fills holes only within both an edge-count limit and a
+boundary bounding-box diagonal in millimeters, then replaces a surface that crosses
+itself by the boundary of its solid as SAAM's reconstruction does. A non-manifold,
+open or still intersecting result is refused; partial output is never accepted.
 
 ## Stage reporting and how long a repair may take
 
@@ -55,8 +49,8 @@ Runtime files are `build/mesh-repair/saam-mesh-repair[.exe]` and `build.json`.
 Generated binaries stay ignored. The adapter checks the manifest against the
 current wrapper source; rebuild after source changes. There is no runtime
 dependency on `.local`, a global executable search or automatic download.
-Ordinary valid STL import and exact cleanup work without this optional backend;
-a repair requiring it reports the setup command when it is unavailable.
+Import, cleanup and repair without hole filling work without this optional backend;
+hole filling reports the setup command when it is unavailable.
 
 ## Licenses and provenance
 
