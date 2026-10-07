@@ -26,7 +26,8 @@ const FILTER=2**-50,PLANE_FILTER=2**-48;
 // ---------------- packed containers ----------------
 // Open-addressing map from three doubles (a point, or a sorted index triple) to an index.
 const hashF64=new Float64Array(1),hashU32=new Uint32Array(hashF64.buffer);
-function hashWord(h,v){hashF64[0]=v+0;h=Math.imul(h^hashU32[0],0xcc9e2d51);h=Math.imul(h^(h>>>15)^hashU32[1],0x1b873593);return h^(h>>>13);}
+const mix32=h=>{h^=h>>>16;h=Math.imul(h,0x85ebca6b);h^=h>>>13;h=Math.imul(h,0xc2b2ae35);return h^(h>>>16);};
+function hashWord(h,v){hashF64[0]=v+0;return mix32(mix32(h+hashU32[0])+hashU32[1]);}
 class PointMap{
   constructor(expected){let size=16;while(size<2*expected)size*=2;this.keys=new Float64Array(3*size);this.values=new Int32Array(size).fill(-1);this.count=0;}
   slot(x,y,z){const mask=this.values.length-1;let s=hashWord(hashWord(hashWord(0x9e3779b9,x),y),z)&mask;
@@ -252,14 +253,15 @@ function intersectAll(store,tri,build,{stopAtFirst=false,dirty=null}={}){
 // 3D triangles (point ids, flat), each oriented as the member that contains it.
 // Crossings, points on constraints and containment are found through box hierarchies.
 function triangulateGroup(store,tri,build,k,members,segs,points,superPoints,stats){
-  const G=members[0],o=(a,b,c)=>store.orient2d(k,a,b,c),{pd}=store,U=k===0?store.py:k===1?store.pz:store.px,V=k===0?store.pz:k===1?store.px:store.py;
+  // Coordinate arrays are read after the constructions below, which may grow the store.
+  const G=members[0],o=(a,b,c)=>store.orient2d(k,a,b,c),axes=()=>[k===0?store.py:k===1?store.pz:store.px,k===0?store.pz:k===1?store.px:store.py,store.pd];
   const cons=[],seen=new Set(),pset=new Set();
   const addCons=(a,b,line)=>{if(a===b)return;const key=a<b?`${a},${b}`:`${b},${a}`;if(seen.has(key))return;seen.add(key);cons.push({a,b,line});pset.add(a);pset.add(b);};
   for(const m of members){for(let e=0;e<3;e++){const u=tri[3*m+e],v=tri[3*m+(e+1)%3];addCons(u,v,{edge:[u,v]});}
     for(const s of segs.get(m)??[])addCons(s.a,s.b,s.line);for(const p of points.get(m)??[])pset.add(p);}
   // Constraint boxes (2D, with each end's approximation error).
-  const consBoxes=new Float64Array(6*cons.length);
-  cons.forEach((c,x)=>{const m=Math.max(pd[c.a],pd[c.b]),q=6*x;consBoxes[q]=Math.min(U[c.a],U[c.b])-m;consBoxes[q+1]=Math.min(V[c.a],V[c.b])-m;consBoxes[q+3]=Math.max(U[c.a],U[c.b])+m;consBoxes[q+4]=Math.max(V[c.a],V[c.b])+m;});
+  const consBoxes=new Float64Array(6*cons.length),[U0,V0,pd0]=axes();
+  cons.forEach((c,x)=>{const m=Math.max(pd0[c.a],pd0[c.b]),q=6*x;consBoxes[q]=Math.min(U0[c.a],U0[c.b])-m;consBoxes[q+1]=Math.min(V0[c.a],V0[c.b])-m;consBoxes[q+3]=Math.max(U0[c.a],U0[c.b])+m;consBoxes[q+4]=Math.max(V0[c.a],V0[c.b])+m;});
   const consTree=boxHierarchy(consBoxes,cons.length);
   // Proper crossings become points defined by the two lines.
   const crossings=[];
@@ -273,7 +275,7 @@ function triangulateGroup(store,tri,build,k,members,segs,points,superPoints,stat
     else if(l2.plane!==undefined)p=build.edgeFace(l1.edge[0],l1.edge[1],l2.plane);
     else p=build.twoEdges(l1.edge[0],l1.edge[1],l2.edge[0],l2.edge[1],k);
     pset.add(p);stats.crossings++;}
-  const pts=[...pset];
+  const pts=[...pset],[U,V,pd]=axes();
   // Split constraints at the points on them (collinear overlaps, T-junctions).
   const pointBoxes=new Float64Array(6*pts.length);
   pts.forEach((p,i)=>{const q=6*i;pointBoxes[q]=U[p]-pd[p];pointBoxes[q+3]=U[p]+pd[p];pointBoxes[q+1]=V[p]-pd[p];pointBoxes[q+4]=V[p]+pd[p];});
@@ -428,6 +430,7 @@ function autorefine(xyz,tri,dirty){
 // and weight; a patch is kept, facing w <= 0, exactly when the winding number w is
 // positive on one side only.
 function classify(store,soup){
+  // Rays add points, which may grow the store's arrays: these serve existing points only.
   const {px,py,pz,pd}=store,count=soup.length/3,report={coincidentGroups:0,cancelledTriangles:0,cancelledAreaMm2:0,patches:0,rays:0,rayRetries:0,boundaryTriangles:0,interiorTriangles:0};
   const sorted=new Int32Array(soup.length),sign=new Int8Array(count);
   for(let t=0;t<count;t++){let a=soup[3*t],b=soup[3*t+1],c=soup[3*t+2],s=1;if(a>b){[a,b]=[b,a];s=-s;}if(b>c){[b,c]=[c,b];s=-s;}if(a>b){[a,b]=[b,a];s=-s;}sorted[3*t]=a;sorted[3*t+1]=b;sorted[3*t+2]=c;sign[t]=s;}
@@ -464,7 +467,7 @@ function classify(store,soup){
   const windingToward=(f,q)=>{const t=[fv[3*f],fv[3*f+1],fv[3*f+2]],[A,B,C]=t.map(i=>store.exactPoint(i)),w0=A[3],w1=B[3],w2=C[3];
     const s=store.raw(A[0]*w1*w2+B[0]*w0*w2+C[0]*w0*w1,A[1]*w1*w2+B[1]*w0*w2+C[1]*w0*w1,A[2]*w1*w2+B[2]*w0*w2+C[2]*w0*w1,3n*w0*w1*w2);
     if(store.orient3d(t[0],t[1],t[2],q)===0)return null;
-    const a=[px[s],py[s],pz[s]],b=[px[q],py[q],pz[q]];let total=0,degenerate=false;
+    const a=[store.px[s],store.py[s],store.pz[s]],b=[store.px[q],store.py[q],store.pz[q]];let total=0,degenerate=false;
     tree.querySegment(a,b,margin,g=>{if(degenerate||g===f||!segmentMeetsBox(a,b,boxes,6*g,margin))return;const p=fv[3*g],r=fv[3*g+1],u=fv[3*g+2];
       const os=store.orient3d(p,r,u,s),oq=store.orient3d(p,r,u,q);if(oq===0){degenerate=true;return;}if(os===oq||os===0)return;
       const e1=store.orient3d(s,q,p,r),e2=store.orient3d(s,q,r,u),e3=store.orient3d(s,q,u,p);
