@@ -453,10 +453,15 @@ are exact doubles, so each seeded pair ends exactly coplanar and cancels. Exact
 arrangement splits faces along every crossing; a face stays where the winding number
 is positive on one side only. New points round to the rounding guard, except that a
 point constructed in a sheet's plane rounds on that plane's lattice, as closing places
-the vertices it moves, so sheets stay exact planes through every rounding pass; source
-points stay, and only triangles below numeric conditioning collapse. Reports give the
-closing, cancelled area and inward/outward shells before and after (fewer inward
-shells: cavities opened).
+the vertices it moves, so sheets stay exact planes through every rounding pass (and
+pairs of faces on one sheet are coplanar without orientation tests); source points stay,
+and only triangles below numeric conditioning collapse. Once no crossing remains,
+vertices closer than print resolution merge, closest pairs first: their edge collapses
+into the end that stays (a source vertex, else a sheet vertex), so every merged vertex
+ends within print resolution of where it was; a collapse that would break the manifold,
+the height contract or cross another face (exact test) is undone, and pairs that stay
+are reported by cause. Reports give the closing, cancelled area, the merge and
+inward/outward shells before and after (fewer inward shells: cavities opened).
 
 Hole filling follows each hole's boundary from face to face around each vertex, as a
 halfedge mesh links borders, and splits a boundary that meets a vertex twice, so

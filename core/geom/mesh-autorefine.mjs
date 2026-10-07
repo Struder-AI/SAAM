@@ -188,8 +188,10 @@ function meetOnlyAtShared(store,A,B){
 // Per triangle: segments {a,b,line} with line {plane:t} or {edge:[u,v]}, isolated
 // points, and coplanar overlap groups (union-find). With stopAtFirst, only whether
 // any pair meets beyond shared vertices and edges (pairs with a dirty triangle only,
-// when given).
-function intersectAll(store,tri,build,{stopAtFirst=false,dirty=null}={}){
+// when given). onSheet (per point, or null) names the closing sheet a point lies on
+// exactly: a triangle with every corner on one sheet lies in its plane (sheet[t]), so
+// two on one sheet are coplanar without orientation tests.
+function intersectAll(store,tri,build,{stopAtFirst=false,dirty=null,onSheet=null}={}){
   const n=tri.length/3,{px,py,pz}=store;
   const boxes=new Float64Array(n*6);
   for(let t=0;t<n;t++){const a=tri[3*t],b=tri[3*t+1],c=tri[3*t+2],o=6*t;
@@ -203,7 +205,9 @@ function intersectAll(store,tri,build,{stopAtFirst=false,dirty=null}={}){
     axis[t]=Math.abs(nx)>=Math.abs(ny)&&Math.abs(nx)>=Math.abs(nz)?0:Math.abs(ny)>=Math.abs(nz)?1:2;}
   const side=(t,p)=>{const a=tri[3*t];if(p===a||p===tri[3*t+1]||p===tri[3*t+2])return 0;const wx=px[p]-px[a],wy=py[p]-py[a],wz=pz[p]-pz[a],o=4*t,det=plane[o]*wx+plane[o+1]*wy+plane[o+2]*wz,bound=plane[o+3]*(Math.abs(wx)+Math.abs(wy)+Math.abs(wz));
     return det>bound?1:det<-bound?-1:store.orient3d(a,tri[3*t+1],tri[3*t+2],p);};
-  const out={segs:new Map(),points:new Map(),parent:new Map(),axis,any:false,stats:{candidatePairs:0,segmentPairs:0,pointPairs:0,coplanarOverlaps:0,coplanarTouches:0}};
+  const sheet=new Int32Array(n).fill(-1);
+  if(onSheet)for(let t=0;t<n;t++){const s=onSheet[tri[3*t]];if(s>=0&&onSheet[tri[3*t+1]]===s&&onSheet[tri[3*t+2]]===s)sheet[t]=s;}
+  const out={segs:new Map(),points:new Map(),parent:new Map(),axis,sheet,any:false,stats:{candidatePairs:0,segmentPairs:0,pointPairs:0,coplanarOverlaps:0,coplanarTouches:0}};
   const root=x=>{let r=x;while(out.parent.has(r)&&out.parent.get(r)!==r)r=out.parent.get(r);return r;};out.root=root;
   const addSeg=(t,s)=>{const l=out.segs.get(t);if(l)l.push(s);else out.segs.set(t,[s]);};
   const addPoint=(t,p)=>{if(tri[3*t]===p||tri[3*t+1]===p||tri[3*t+2]===p)return;const l=out.points.get(t);if(l)l.push(p);else out.points.set(t,[p]);};
@@ -211,10 +215,10 @@ function intersectAll(store,tri,build,{stopAtFirst=false,dirty=null}={}){
   overlappingBoxPairs(boxes,(i,j)=>{
     if(stopAtFirst&&out.any||dirty&&!dirty[i]&&!dirty[j])return;
     const a0=tri[3*i],a1=tri[3*i+1],a2=tri[3*i+2],b0=tri[3*j],b1=tri[3*j+1],b2=tri[3*j+2];
-    const s0=side(i,b0),s1=side(i,b1),s2=side(i,b2);
-    if((s0>0&&s1>0&&s2>0)||(s0<0&&s1<0&&s2<0))return;
-    const r0=side(j,a0),r1=side(j,a1),r2=side(j,a2);
-    if((r0>0&&r1>0&&r2>0)||(r0<0&&r1<0&&r2<0))return;
+    let s0=0,s1=0,s2=0,r0=0,r1=0,r2=0;
+    if(sheet[i]<0||sheet[i]!==sheet[j]){
+      s0=side(i,b0);s1=side(i,b1);s2=side(i,b2);if((s0>0&&s1>0&&s2>0)||(s0<0&&s1<0&&s2<0))return;
+      r0=side(j,a0);r1=side(j,a1);r2=side(j,a2);if((r0>0&&r1>0&&r2>0)||(r0<0&&r1<0&&r2<0))return;}
     const inA=v=>v===a0||v===a1||v===a2,inB=v=>v===b0||v===b1||v===b2,A=[a0,a1,a2],B=[b0,b1,b2];
     if(!(s0===0&&s1===0&&s2===0)){
       // Non-shared vertices strictly on one side of the other plane: the pair meets only in shared vertices.
@@ -425,22 +429,21 @@ function closeOpposedSheets({xyz,tri},closeMm){
 }
 
 // ---------------- refinement: exact arrangement of the triangle soup ----------------
-export function anyIntersection(mesh,dirty=null){
-  const store=new PointStore(mesh.xyz);return intersectAll(store,mesh.tri,createConstructions(store,mesh.tri),{stopAtFirst:true,dirty}).any;
+export function anyIntersection(mesh,dirty=null,onSheet=null){
+  const store=new PointStore(mesh.xyz);return intersectAll(store,mesh.tri,createConstructions(store,mesh.tri),{stopAtFirst:true,dirty,onSheet}).any;
 }
 // onSheet (per input vertex, or null) names closing sheets; a group whose plane is a
 // sheet's (a member with all corners on it) puts its points on that sheet, and
 // pointSheet records it for each constructed point (the first sheet that claims it).
 function autorefine(xyz,tri,dirty,onSheet){
-  const store=new PointStore(xyz),build=createConstructions(store,tri),found=intersectAll(store,tri,build,{dirty});
-  const faceSheet=t=>{const s=onSheet?onSheet[tri[3*t]]:-1;return s>=0&&onSheet[tri[3*t+1]]===s&&onSheet[tri[3*t+2]]===s?s:-1;},pointSheet=new Map();
-  const {segs,points,parent,root,axis}=found,groups=new Map();
+  const store=new PointStore(xyz),build=createConstructions(store,tri),found=intersectAll(store,tri,build,{dirty,onSheet}),pointSheet=new Map();
+  const {segs,points,parent,root,axis,sheet:faceSheet}=found,groups=new Map();
   for(const t of new Set([...segs.keys(),...points.keys(),...parent.keys()])){const r=parent.has(t)?root(t):t;if(!groups.has(r))groups.set(r,[]);groups.get(r).push(t);}
   for(const m of groups.values())m.sort((a,b)=>a-b);
   const M=2**30,superPoints=[0,1,2].map(k=>[[-M,-M],[3*M,-M],[-M,3*M]].map(([u,v])=>{const p=[0,0,0];p[(k+1)%3]=u;p[(k+2)%3]=v;return store.doublePoint(...p);}));
   const stats={...found.stats,refinedSourceTriangles:0,groups:groups.size,largestGroup:0,crossings:0};
   const replaced=new Uint8Array(tri.length/3),soup=[];
-  for(const members of groups.values()){stats.largestGroup=Math.max(stats.largestGroup,members.length);const sheet=members.map(faceSheet).find(s=>s>=0)??-1;
+  for(const members of groups.values()){stats.largestGroup=Math.max(stats.largestGroup,members.length);const sheet=members.map(t=>faceSheet[t]).find(s=>s>=0)??-1;
     for(const v of triangulateGroup(store,tri,build,axis[members[0]],members,segs,points,superPoints,stats)){soup.push(v);if(sheet>=0&&v>=store.n0&&!pointSheet.has(v))pointSheet.set(v,sheet);}
     for(const m of members)replaced[m]=1;stats.refinedSourceTriangles+=members.length;}
   for(let t=0;t<replaced.length;t++)if(!replaced[t])soup.push(tri[3*t],tri[3*t+1],tri[3*t+2]);
@@ -513,34 +516,115 @@ function classify(store,soup){
   return {kept:Int32Array.from(kept),report};
 }
 
-// ---------------- tiny-triangle collapse ----------------
+// ---------------- edge collapse ----------------
 // SAAM's mesh contract needs every triangle's height above numeric conditioning.
-// A flatter triangle loses its shortest collapsible edge with a constructed end,
-// which moves onto the other end; source vertices stay. tri marks removed
-// triangles -1.
+function belowHeightContract(xyz,a,b,c){
+  const A=3*a,B=3*b,C=3*c,u=[xyz[B]-xyz[A],xyz[B+1]-xyz[A+1],xyz[B+2]-xyz[A+2]],v=[xyz[C]-xyz[A],xyz[C+1]-xyz[A+1],xyz[C+2]-xyz[A+2]],w=[xyz[C]-xyz[B],xyz[C+1]-xyz[B+1],xyz[C+2]-xyz[B+2]];
+  const longest=Math.sqrt(Math.max(u[0]**2+u[1]**2+u[2]**2,v[0]**2+v[1]**2+v[2]**2,w[0]**2+w[1]**2+w[2]**2));
+  return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=NUMERIC_MM*longest;
+}
+// Edge collapses on a flat triangle list (removed triangles -1) with its vertex
+// incidence. Collapsing s into d keeps d where it is; the surface stays a manifold when
+// the edge has two faces and s and d no other common neighbour. collapse returns the
+// record restore undoes.
+function edgeCollapses(tri,vertexCount){
+  const incident=Array.from({length:vertexCount},()=>[]);for(let f=0;f<tri.length/3;f++)for(let c=0;c<3;c++)incident[tri[3*f+c]].push(f);
+  const has=(f,v)=>tri[3*f]===v||tri[3*f+1]===v||tri[3*f+2]===v;
+  const ring=v=>{const s=new Set();for(const f of incident[v])for(let c=0;c<3;c++)s.add(tri[3*f+c]);return s;};
+  const joined=(s,d)=>incident[s].some(f=>has(f,d));
+  const manifold=(s,d)=>{const shared=incident[s].filter(f=>has(f,d));if(shared.length!==2)return false;
+    const apex=new Set(shared.flatMap(f=>[0,1,2].map(c=>tri[3*f+c]).filter(x=>x!==s&&x!==d))),rd=ring(d),common=[...ring(s)].filter(x=>x!==s&&x!==d&&rd.has(x));
+    return common.length===apex.size&&common.every(x=>apex.has(x));};
+  // The triangles of s off the edge sd, as collapsing s into d leaves them.
+  const moved=(s,d)=>incident[s].filter(f=>!has(f,d)).map(f=>[0,1,2].map(c=>tri[3*f+c]===s?d:tri[3*f+c]));
+  const collapse=(s,d)=>{const undo={lists:new Map(),faces:[]};
+    for(const v of [...ring(s),...ring(d)])if(!undo.lists.has(v))undo.lists.set(v,incident[v].slice());
+    for(const f of incident[s]){undo.faces.push(f,tri[3*f],tri[3*f+1],tri[3*f+2]);
+      if(has(f,d)){for(let c=0;c<3;c++){const x=tri[3*f+c];if(x!==s){const l=incident[x];l.splice(l.indexOf(f),1);}tri[3*f+c]=-1;}}
+      else{for(let c=0;c<3;c++)if(tri[3*f+c]===s)tri[3*f+c]=d;incident[d].push(f);}}
+    incident[s]=[];return undo;};
+  const restore=({lists,faces})=>{for(const [v,l] of lists)incident[v]=l;for(let i=0;i<faces.length;i+=4)for(let c=0;c<3;c++)tri[3*faces[i]+c]=faces[i+1+c];};
+  return {incident,ring,joined,manifold,moved,collapse,restore};
+}
+
+// ---------------- tiny-triangle collapse ----------------
+// A triangle below the height contract loses its shortest collapsible edge with a
+// constructed end, which moves onto the other end; source vertices stay. tri marks
+// removed triangles -1.
 function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
-  const n=tri.length/3,P=v=>3*v,dist=(s,d)=>Math.hypot(xyz[P(s)]-xyz[P(d)],xyz[P(s)+1]-xyz[P(d)+1],xyz[P(s)+2]-xyz[P(d)+2]);
-  const tiny=f=>{const a=P(tri[3*f]),b=P(tri[3*f+1]),c=P(tri[3*f+2]),u=[xyz[b]-xyz[a],xyz[b+1]-xyz[a+1],xyz[b+2]-xyz[a+2]],v=[xyz[c]-xyz[a],xyz[c+1]-xyz[a+1],xyz[c+2]-xyz[a+2]],w=[xyz[c]-xyz[b],xyz[c+1]-xyz[b+1],xyz[c+2]-xyz[b+2]];
-    const longest=Math.sqrt(Math.max(u[0]**2+u[1]**2+u[2]**2,v[0]**2+v[1]**2+v[2]**2,w[0]**2+w[1]**2+w[2]**2));
-    return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=NUMERIC_MM*longest;};
-  // Only triangles with a constructed vertex can change; incidence covers their vertices.
-  const candidates=[],incident=new Map();
-  for(let f=0;f<n;f++)if(!isSource[tri[3*f]]||!isSource[tri[3*f+1]]||!isSource[tri[3*f+2]]){candidates.push(f);for(let c=0;c<3;c++)incident.set(tri[3*f+c],[]);}
-  for(let f=0;f<n;f++)for(let c=0;c<3;c++)incident.get(tri[3*f+c])?.push(f);
-  const neighbours=v=>{const s=new Set();for(const f of incident.get(v))for(let c=0;c<3;c++){const x=tri[3*f+c];if(x!==v)s.add(x);}return s;};
+  const n=tri.length/3,edges=edgeCollapses(tri,xyz.length/3),P=v=>3*v,dist=(s,d)=>Math.hypot(xyz[P(s)]-xyz[P(d)],xyz[P(s)+1]-xyz[P(d)+1],xyz[P(s)+2]-xyz[P(d)+2]);
+  const tiny=f=>belowHeightContract(xyz,tri[3*f],tri[3*f+1],tri[3*f+2]);
+  // Only triangles with a constructed vertex can change.
+  const candidates=[];for(let f=0;f<n;f++)if(!isSource[tri[3*f]]||!isSource[tri[3*f+1]]||!isSource[tri[3*f+2]])candidates.push(f);
   const out={collapsedEdges:0,remaining:0,maxCollapseMm:0};
   for(let changed=true;changed;){changed=false;
     for(const f of candidates){if(tri[3*f]<0||!tiny(f))continue;let best=null,length=Infinity;
       for(let k=0;k<3;k++)for(const [s,d] of [[tri[3*f+k],tri[3*f+(k+1)%3]],[tri[3*f+(k+1)%3],tri[3*f+k]]]){if(isSource[s])continue;const l=dist(s,d);if(l>=length)continue;
-        const shared=incident.get(s).filter(g=>incident.get(d).includes(g)),apex=new Set(shared.flatMap(g=>[0,1,2].map(c=>tri[3*g+c]).filter(x=>x!==s&&x!==d)));
-        const ns=neighbours(s),nd=neighbours(d),common=[...ns].filter(x=>nd.has(x));
-        if(shared.length===2&&common.length===apex.size&&common.every(x=>apex.has(x))){best=[s,d];length=l;}}
-      if(!best)continue;const [s,d]=best,into=incident.get(d);
-      for(const g of incident.get(s)){if(tri[3*g]===d||tri[3*g+1]===d||tri[3*g+2]===d){for(let c=0;c<3;c++){const x=tri[3*g+c];if(x!==s){const l=incident.get(x);l.splice(l.indexOf(g),1);}tri[3*g+c]=-1;}}
-        else{for(let c=0;c<3;c++)if(tri[3*g+c]===s)tri[3*g+c]=d;into.push(g);}}
-      incident.set(s,[]);onCollapse(d);out.collapsedEdges++;out.maxCollapseMm=Math.max(out.maxCollapseMm,length);changed=true;}}
+        if(edges.manifold(s,d)){best=[s,d];length=l;}}
+      if(!best)continue;const [s,d]=best;edges.collapse(s,d);onCollapse(d);out.collapsedEdges++;out.maxCollapseMm=Math.max(out.maxCollapseMm,length);changed=true;}}
   for(let f=0;f<n;f++)if(tri[3*f]>=0&&tiny(f))out.remaining++;
   return out;
+}
+
+// ---------------- merging vertices closer than print resolution ----------------
+// Vertices of the converged surface closer than mergeMm (print resolution) are one
+// point of the print (owner, 2026-10-06: vertex spacing under functional tolerances
+// merges). The closest pairs merge first: their edge collapses into the end that
+// stays (an unmoved source vertex, else one on a closing sheet, when only one end is;
+// either otherwise), so no point is constructed. Every vertex a merged one stands for
+// must lie within mergeMm of it, so the surface moves less than print resolution. A
+// round collapses pairs whose neighbourhoods are disjoint, each keeping the surface a
+// manifold with every triangle above the height contract; the exact crossing test of
+// the triangles the round changed then undoes every collapse among them that crosses,
+// and that direction is not tried again. Rounds repeat while one collapses. Pairs that
+// stay are counted by cause.
+function mergeCloseVertices({xyz,tri,source,onSheet},mergeMm){
+  const nv=xyz.length/3,n=tri.length/3,T=tri.slice(),edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v;
+  const dist=(a,b)=>Math.hypot(xyz[P(a)]-xyz[P(b)],xyz[P(a)+1]-xyz[P(b)+1],xyz[P(a)+2]-xyz[P(b)+2]),rank=v=>source[v]?2:onSheet[v]>=0?1:0;
+  // Vertex pairs closer than mergeMm, closest first (a sweep along x); vertices keep
+  // their positions, so a pair stays one while both ends are live.
+  const pairs=[];{const order=Int32Array.from({length:nv},(_,v)=>v).sort((a,b)=>xyz[P(a)]-xyz[P(b)]);
+    for(let i=0;i<nv;i++)for(let j=i+1;j<nv&&xyz[P(order[j])]-xyz[P(order[i])]<mergeMm;j++){const a=Math.min(order[i],order[j]),b=Math.max(order[i],order[j]),d=dist(a,b);if(d<mergeMm)pairs.push({a,b,d});}
+    pairs.sort((p,q)=>p.d-q.d||p.a-q.a||p.b-q.b);}
+  const livePairs=()=>pairs.filter(({a,b})=>incident[a].length&&incident[b].length);
+  // The vertices a live vertex stands for, when more than itself.
+  const members=new Map(),group=v=>members.get(v)??[v];
+  // Why collapsing s into d is refused, or null.
+  const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':group(s).some(m=>dist(m,d)>=mergeMm)?'displacement':
+    edges.moved(s,d).some(t=>belowHeightContract(xyz,...t))?'height':null;
+  const merge=(s,d)=>{const before=[members.get(s),members.get(d)];members.set(d,[...group(d),...group(s)]);members.delete(s);return {s,d,before,...edges.collapse(s,d)};};
+  const unmerge=u=>{edges.restore(u);if(u.s<0)return;const [ms,md]=u.before;members.delete(u.d);if(md)members.set(u.d,md);if(ms)members.set(u.s,ms);};
+  // Triangles among changed (ids) that meet another beyond shared vertices and edges:
+  // the exact test of changed triangles against the live triangles near them.
+  const store=new PointStore(xyz),crossing=changed=>{const ids=[...new Set(changed)].filter(f=>T[3*f]>=0);if(!ids.length)return new Set();
+    const near=boxHierarchy(packedBoxes(xyz,Int32Array.from(ids.flatMap(f=>[T[3*f],T[3*f+1],T[3*f+2]])))),isChanged=new Uint8Array(n),box=new Float64Array(6),live=[...ids];
+    for(const f of ids)isChanged[f]=1;
+    for(let f=0;f<n;f++){if(T[3*f]<0||isChanged[f])continue;let meets=false;
+      for(let k=0;k<3;k++){const a=xyz[3*T[3*f]+k],b=xyz[3*T[3*f+1]+k],c=xyz[3*T[3*f+2]+k];box[k]=Math.min(a,b,c);box[3+k]=Math.max(a,b,c);}
+      near.queryBox(box,0,()=>{meets=true;});if(meets)live.push(f);}
+    const packed=new Int32Array(3*live.length),dirty=new Uint8Array(live.length);live.forEach((f,i)=>packed.set(T.subarray(3*f,3*f+3),3*i));dirty.fill(1,0,ids.length);
+    const found=intersectAll(store,packed,createConstructions(store,packed),{dirty,onSheet}),hit=new Set();
+    for(const i of [...found.segs.keys(),...found.points.keys(),...found.parent.keys()])if(dirty[i])hit.add(live[i]);return hit;};
+  const crossed=new Set(),report={toleranceMm:mergeMm,method:'close-pair-collapse/1',closePairs:pairs.length,rounds:0,mergedVertices:0,maxMoveMm:0,crossingUndone:0,remainingPairs:0,remaining:{}};
+  for(;;){const locked=new Uint8Array(nv),batch=[];
+    for(const {a,b} of livePairs()){if(locked[a]||locked[b])continue;
+      const near=new Set([...ring(a),...ring(b)]);if([...near].some(v=>locked[v]))continue;
+      for(const [s,d] of rank(a)<=rank(b)?[[a,b],[b,a]]:[[b,a],[a,b]]){
+        if(crossed.has(s*nv+d)||refusal(s,d))continue;batch.push(merge(s,d));for(const v of near)locked[v]=1;break;}}
+    if(!batch.length)break;report.rounds++;
+    // Restored triangles were apart from the surface before the round, not from the kept collapses.
+    const open=new Set(batch);
+    for(;;){const owner=new Map();for(const u of open)for(let i=0;i<u.faces.length;i+=4)owner.set(u.faces[i],u);
+      const hit=crossing([...owner.keys()]);if(!hit.size)break;
+      for(const u of new Set([...hit].map(f=>owner.get(f)))){unmerge(u);open.delete(u);if(u.s>=0){crossed.add(u.s*nv+u.d);report.crossingUndone++;open.add({s:-1,d:-1,lists:new Map(),faces:u.faces});}}}
+    for(const u of batch)if(!crossed.has(u.s*nv+u.d))report.mergedVertices++;
+  }
+  for(const [d,m] of members)for(const v of m)report.maxMoveMm=Math.max(report.maxMoveMm,dist(v,d));
+  for(const {a,b} of livePairs()){report.remainingPairs++;const why=[[a,b],[b,a]].map(([s,d])=>crossed.has(s*nv+d)?'crossing':refusal(s,d)).find(Boolean);report.remaining[why]=(report.remaining[why]??0)+1;}
+  const used=new Int32Array(nv).fill(-1),outTri=[];let count=0;
+  for(let f=0;f<n;f++){if(T[3*f]<0)continue;for(let c=0;c<3;c++){const v=T[3*f+c];if(used[v]<0)used[v]=count++;outTri.push(used[v]);}}
+  const outXyz=new Float64Array(3*count);for(let v=0;v<nv;v++)if(used[v]>=0)outXyz.set(xyz.subarray(3*v,3*v+3),3*used[v]);
+  return {xyz:outXyz,tri:Int32Array.from(outTri),merge:report};
 }
 
 // ---------------- reconstruction passes ----------------
@@ -551,20 +635,23 @@ function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
 // on that sheet's plane lattice, as closing places the vertices it moves, so sheets
 // stay exact planes; source points stay. When rounding creates crossings, the
 // triangles it touched are reconstructed again; sheets and the vertices on them carry
-// over to later passes.
+// over to later passes. Once no crossing remains, vertices closer than mergeMm (print
+// resolution) merge (mergeCloseVertices).
 export const SNAP_GRID_MM=2**Math.floor(Math.log2(PRINT_RESOLUTION_MM/1000));
-export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,snapGridMm=SNAP_GRID_MM,maxPasses=6,progress=()=>{}}={}){
+export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,mergeMm=PRINT_RESOLUTION_MM,snapGridMm=SNAP_GRID_MM,maxPasses=6,progress=()=>{}}={}){
   const passes=[],timings=[];let current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null,onSheet:null,sheets:null};
   for(let pass=0;pass<maxPasses;pass++){
     const t0=performance.now(),r=reconstructOnce(current,{closeMm:pass===0?closeMm:0,snapGridMm,pass,progress});
     if(!r){timings.push({finalProbe:performance.now()-t0});break;}passes.push(r.report);timings.push(r.timings);current=r;
     if(pass===maxPasses-1)throw Error('Rounding the reconstructed surface still creates crossings after '+maxPasses+' passes; no result accepted');
   }
-  return passes.length?{xyz:current.xyz,tri:current.tri,passes,timings}:null;
+  if(!passes.length)return null;
+  progress({stage:'merge'});const t0=performance.now(),merged=mergeCloseVertices(current,mergeMm);timings.push({merge:performance.now()-t0});
+  return {xyz:merged.xyz,tri:merged.tri,passes,merge:merged.merge,timings};
 }
 function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGridMm,pass,progress}){
   const clock=()=>performance.now(),timings={};let t0=clock();
-  progress({stage:'intersections',pass});const any=anyIntersection({xyz,tri},dirty);timings.probe=clock()-t0;if(!any)return null;t0=clock();
+  progress({stage:'intersections',pass});const any=anyIntersection({xyz,tri},dirty,onSheet);timings.probe=clock()-t0;if(!any)return null;t0=clock();
   progress({stage:'close',pass});const closed=closeOpposedSheets({xyz,tri},closeMm),{points,moved,closing}=closed,closedSheets=closed.sheets??sheets,inputSheet=closed.onSheet??onSheet;timings.close=clock()-t0;t0=clock();
   progress({stage:'refine',pass});const refined=autorefine(points,tri,closing.movedVertices?null:dirty,inputSheet);timings.refine=clock()-t0;t0=clock();
   progress({stage:'classify',pass});const {kept,report}=classify(refined.store,refined.soup);timings.classify=clock()-t0;t0=clock();

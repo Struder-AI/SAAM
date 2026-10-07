@@ -180,7 +180,7 @@ export function repairSolid(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,progress=()
   checkMeshTopology(vertices,triangles,ok=>{if(!ok)throw Object.assign(Error('The repaired solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted.'),{code:'MESH_REPAIR_FAILED'});});
   const summary=pass=>{const {refine,snapGridMm,maxSnapMm,roundingMergedPoints,roundingDroppedTriangles,roundingCancelledPairs,remaining,...counts}=pass;return counts;};
   const reconstruction=solid&&{...summary(solid.passes[0]),snapGridMm:solid.passes[0].snapGridMm,maxSnapMm:Math.max(...solid.passes.map(p=>p.maxSnapMm)),
-    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{})};
+    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),merge:solid.merge};
   return {vertices,triangles,report:{method:'saam-solid-repair/2',orientation,...holes,selfIntersectionsRepaired:!!solid,reconstruction}};
 }
 

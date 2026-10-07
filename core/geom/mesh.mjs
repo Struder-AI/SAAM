@@ -105,7 +105,8 @@ function rejectIntersections(vertices,triangles,normals){
 // Shared closed-triangle separation predicate: the projections onto one of the
 // triangles' separating axes (normals, edge cross products, in-plane edge normals)
 // are more than numeric conditioning apart. Allocation-free; validation runs it
-// for every nearby pair.
+// for every nearby pair. In-plane edge normals come before edge cross products,
+// which for coplanar triangles all repeat the normal.
 const separation=new Float64Array(24);
 function separatedAlong(x,y,z,pa,pb){
   const length=Math.hypot(x,y,z);if(length<1e-12)return false;
@@ -125,8 +126,8 @@ export function separatedTriangles(pa,pb,normalA,normalB) {
   for(let k=0;k<3;k++)for(let c=0;c<3;c++){e[3*k+c]=pa[(k+1)%3][c]-pa[k][c];e[9+3*k+c]=pb[(k+1)%3][c]-pb[k][c];}
   setNormal(18,normalA,0);setNormal(21,normalB,9);
   if(separatedAlong(e[18],e[19],e[20],pa,pb)||separatedAlong(e[21],e[22],e[23],pa,pb))return true;
-  for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(crossSeparates(3*i,9+3*j,pa,pb))return true;
   for(let i=0;i<3;i++)if(crossSeparates(18,3*i,pa,pb)||crossSeparates(21,9+3*i,pa,pb))return true;
+  for(let i=0;i<3;i++)for(let j=0;j<3;j++)if(crossSeparates(3*i,9+3*j,pa,pb))return true;
   return false;
 }
 
