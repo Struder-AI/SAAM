@@ -18,7 +18,7 @@ Sources: [0.3.3 "One SAAM orchestrator per OS"](../plans/0.3.3.md); [0.3.2 SAAM 
 >
 > "I want background instances to still show up on the tray, even though no studio window is visible." — owner, 2026-10-06 (Claude 3594b461)
 
-Summary: the home's one orchestrator runs visible and background (windowless, listed in the tray) Studio sessions for the installed code and for source checkouts; every session reports to the relay. No second orchestrator is started for development.
+Summary: the home's one orchestrator runs visible and background (windowless, listed in the tray) Studio sessions for the installed code and for source checkouts; every session reports to the relay. No second orchestrator is started for development. Held by the owner, 2026-10-06, after hearing that orchestrator code itself cannot run under an older installed orchestrator: "Then don't be working on it, we don't have a solution."
 
 Sources: Claude 3594b461 (2026-10-06); replaces the runtime-model line "dev-instance runs the checkout's own orchestrator in the background on a temporary home" (agent wording in a summary answered "Great, I think that all works, right?", 2026-10-05; no specific owner agreement).
 
