@@ -68,7 +68,7 @@ async function guidance(home){
 async function registerSkill(directory,home){
   const target=join(directory,'saam','SKILL.md'),previous=await optionalRead(target);
   if(previous&&!previous.includes(marker))throw Error(`Kept existing custom skill at ${target}; rename it before retrying.`);
-  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
+  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, update SAAM, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
   await atomicWrite(target,skill);return target;
 }
 async function registerCodex(clientHome,home){

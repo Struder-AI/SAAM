@@ -25,6 +25,7 @@ than extensions in the home's extensions folder, needs a source checkout.
 | Author extensions, guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
+| Update SAAM | Tell the person that **Update** in Studio or the tray menu is the supported way; reinstall only if they still ask |
 
 Onboarding supplies the whole starting context, once per session. Without commands,
 read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md).
