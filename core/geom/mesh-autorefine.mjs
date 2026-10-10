@@ -785,7 +785,7 @@ export function cleanSurfaceSlivers({xyz,tri},{mergeMm=PRINT_RESOLUTION_MM,progr
 
 // ---------------- reconstruction passes ----------------
 // Replaces a closed outward surface that crosses itself by the boundary of its
-// solid (w > 0), as the native helper's reconstruct(); null when nothing intersects.
+// solid (w > 0); null when nothing intersects.
 // Snap rounding: constructed points round to the rounding-guard lattice (a power of
 // two at most print resolution / 1000), except that a point on a closing sheet rounds
 // on that sheet's plane lattice, as closing places the vertices it moves, so sheets

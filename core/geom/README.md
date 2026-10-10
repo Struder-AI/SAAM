@@ -7,8 +7,7 @@ It settles after worker termination, allowing scratch cleanup. Progress callback
 geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
 acknowledgements; missing results and results arriving after cancellation cannot become success.
 `mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
-Repair uses SAAM's JavaScript implementation. The [native reference](./native/README.md)
-retains build inputs, protocol and provenance for comparison before retirement.
+Repair uses SAAM's JavaScript implementation.
 [Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
 ## Planar line/region clipping

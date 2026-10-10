@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-09 — CGAL removed
+
+- Owner: "Okay you can remove cgal". Deleted `core/geom/native/` (CGAL wrapper, CMake, pinned dependencies, GPL notice, README), `core/geom/mesh-native.mjs`, `scripts/build-mesh-repair.mjs`, `npm run setup:mesh` and the release-build exclusion for them; untracked `build/mesh-repair/` and `.local/native-build-deps/` removed. SETUP, BUILDERS, core and geometry READMEs, region README and the skills page no longer name a native helper; no SAAM code imported it.
+- Verified: repository check (115 documents, 1,444 links) and `core/tests/mesh-repair.test.mjs` 13/13. Authored map entries for the deleted files stay, as for earlier deletions. Maps: every node solved warm and cold (geometry kept cold; 28 new clusters to label); reads and drawings check; 938 code findings. The `core/application/runtime.mjs` and `packaging/runtime-host.mjs` closures now exceed the 4096 MB analysis heap and are not analysed (they were on 2026-10-07; neither imported the helper).
+
 ## 2026-10-09 — Final JS vs CGAL mesh repair comparison
 
 - Windows, source `b8116e1c`, CGAL 6.2.1 rebuilt from current source; the 16-case corpus of 2026-10-07; both methods repair the same prepared input; every output gets the same exact-crossing, topology, contact, fold, sliver, volume and sampled-distance checks. Harness and results: `.local/mesh-cgal-2026-10-09/`.

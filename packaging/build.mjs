@@ -55,8 +55,7 @@ function executablePlatform(bytes){
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
   /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
-  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/,
-  /^core\/geom\/(native\/|mesh-native\.mjs$)/,/^scripts\/build-mesh-repair\.mjs$/];
+  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
 // SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.
 // Its other files and all its dependencies serve the manifoldCAD tooling (glTF and 3MF export,

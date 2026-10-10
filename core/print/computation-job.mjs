@@ -6,7 +6,7 @@ import {totalmem} from 'node:os';
 // physical memory. Node's default, about a quarter of RAM capped near 4 GiB,
 // fails large jobs on machines with room to spare. One job dominates memory while
 // it runs; the other quarter is for the OS, the runtime's main thread, Studio's
-// browser and the native helper. The ceiling reserves nothing; it is where V8
+// browser. The ceiling reserves nothing; it is where V8
 // gives up, so a job fails with a named error before it pages the machine to a
 // standstill. A --max-old-space-size given to the process overrides it.
 function heapCeilingMb(){
