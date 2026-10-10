@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-09 — Final JS vs CGAL mesh repair comparison
+
+- Windows, source `b8116e1c`, CGAL 6.2.1 rebuilt from current source; the 16-case corpus of 2026-10-07; both methods repair the same prepared input; every output gets the same exact-crossing, topology, contact, fold, sliver, volume and sampled-distance checks. Harness and results: `.local/mesh-cgal-2026-10-09/`.
+- JS returns all 16; CGAL refuses 86160 (twice), 74780 and 60253 and returns 131438 inside out. Where both return, JS is equal or cleaner (CGAL leaves contacts or folds on 44375, 109090 and the union) and volumes agree to 0.1 mm³. JS is about 2× faster on the brains and the union.
+- The brain differences (up to 2.8 mm sampled) are zero-thickness double sheets CGAL keeps on the base closing plane; JS cancels them, and every JS face lies on CGAL's surface.
+- Remaining JS defects, reported: 86160 keeps 3 crossings, folds and 4 nonmanifold edges; 60253 stays open at its 14 mm opening and is not reconstructed; 74780 keeps 9 shared vertices. No tests or suite run; the native reference is not yet deleted.
+
 ## 2026-10-09 — Sliver removal with flip, split and collapse; mesh defects reported, not refused
 
 - Owner: "There's a fundamental misunderstanding about checks and failure. Our job is to show things in saam, not limit what we can do with saam." "We are committing to sliver removal support." "Agree, we need split. That should complete our mesh capability set".
