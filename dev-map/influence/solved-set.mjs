@@ -750,8 +750,10 @@ export async function influenceCommand(command,args) {
       const {analyse}=await import('./analyse.mjs');
       analysed=await analyse({repo,out:paths.analysis,...mapSet.analyse,log});
     }
+    if(analysed?.notAnalysed?.length)log(`not analysed: ${analysed.failed.map(f=>`${f.root} (${f.files} files, ${f.reason})`).join('; ')||analysed.notAnalysed.join(', ')}`);
     const prep=await prepare(paths);log(`model and owners ready at ${seconds()} s`);
     const solve=await solveAll(prep,{jobs:mapSet.jobs??2,mode:values.solve??mapSet.solve??'changed',cold,log});log(`solves ready at ${seconds()} s`);
+    if(solve.reused.length)log(`reused unchanged: ${solve.reused.join(', ')}`);
     const model=await writeModel({log,prep,entries:solve.entries});held=labelled(model);
     const fresh=[...model.summary.clusterIdentity.new,...model.summary.clusterIdentity.split.flatMap(s=>s.parts)];
     const coldKept=Object.keys(solve.solved).filter(id=>solve.solved[id].kept==='cold'&&solve.solved[id].warm!==null);

@@ -71,7 +71,7 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
 1. **Analyse** ([analyse.mjs](influence/analyse.mjs)): the scope ([scope.mjs](influence/scope.mjs))
    is split into import closures, each analysed soundly by `run.mjs --closure` in its own process,
    smallest first. A closure that fails at the heap cap gives way to the closures of the files it
-   imports; files no closure holds are listed as not analysed.
+   imports; files no closure holds are listed as not analysed, and `regenerate` names them and why.
 2. **Merge** the closures into `store/analysis/analysis.json`, each callable taking its leaf and
    role from the largest closure holding it.
 3. **Solve nesting** for each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
@@ -93,8 +93,8 @@ Warm starts from the kept solve, new leaves placed in their file's cluster, and 
 that lower the objective; cold anneals from flat and reshuffles clusters, so it is kept only when
 its energy is 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable or a comma
 list; solves it even unchanged). `regenerate` prints each node's `warm` and `cold` energy and which
-it `kept`, and under `relabel` the new clusters to label where cold won. With `"solve": "place"` in
-`map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
+it `kept`, the nodes it reused unchanged, and under `relabel` the new clusters to label where cold
+won. With `"solve": "place"` in `map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
 as `placement not solved` until a `"changed"` regenerate (the default) solves it. Timings
 (2026-10-04, 2 jobs): every node warm and cold 128 s (studio's cold solve); unchanged 8 s.
 

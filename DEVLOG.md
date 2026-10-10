@@ -1,5 +1,14 @@
 # Development log
 
+## 2026-10-09 — Map analysis memory, ownership and labels
+
+- Cause of the two unanalysed runtime closures: `currentAssignmentTerms`' `rename(record,from,to)` reads `record[from]` and writes `{...rest,[to]:value}`. Keys from parameters read as any field, so every recipe field received every other's values once `currentRecipeTerms` reached bundle, workflow and revisions (fe3d67a5). The `slice-edit` closure grew from 89 K to 820 K field nodes and 0.5 s to 66 s solving; the 197- and 200-file runtime closures exceeded 4096 MB (893 MB on 2026-10-07).
+- `keys.mjs`: a parameter of a function bound once and only called by name in its module (not exported, passed on or reassigned, `arguments` unused) is the set of strings its calls pass, when each passes one. Sound because no other value reaches it. `slice-edit` closure 2.3 s, 526 MB; `core/application/runtime.mjs` 3.2 s, 686 MB; `packaging/runtime-host.mjs` 5 s, 1,051 MB. Same closure before/after: identical leaves, 5,737 arrows; two `record` arrows (slice-edit.mjs:9, a pure predicate) correct from `both` to `answer`; state objects 141 → 128.
+- `regenerate` now names unanalysed closures and why, and the nodes it reused unchanged (both were only in its JSON). Removed the deleted `native-repair.mjs` from the analysis scope.
+- Ownership: all 67 unowned leaves assigned by exact declaration (Bundle: bundle-runtime, computation-job, generation-worker; Studio: phase-colours; Dev tools: machine-verify; Geometry declarations to their file's module node; the rest to their file's existing owner).
+- Labels: every cluster labelled; 87 generated labels authored and 30 authored labels replaced where merges changed their members.
+- Maps: `--solve changed` twice (after the analyser fix, after ownership); every changed node warm and cold, bundle kept cold. 191 maps, reads and drawings check (27,358 leaf arrows), 0 unowned, nothing unanalysed. Code findings 1,276 (contract 715, unmodelled 264, command-returns-data 251, unlinked 46), up from 938 because Application's runtime and the newly owned leaves are now analysed. Not run: whole suite (no analyser tests exist).
+
 ## 2026-10-09 — CGAL removed
 
 - Owner: "Okay you can remove cgal". Deleted `core/geom/native/` (CGAL wrapper, CMake, pinned dependencies, GPL notice, README), `core/geom/mesh-native.mjs`, `scripts/build-mesh-repair.mjs`, `npm run setup:mesh` and the release-build exclusion for them; untracked `build/mesh-repair/` and `.local/native-build-deps/` removed. SETUP, BUILDERS, core and geometry READMEs, region README and the skills page no longer name a native helper; no SAAM code imported it.

@@ -1526,6 +1526,14 @@
     "core/geom/mesh-vertices.mjs": {
       "owner": "geometry",
       "reason": "Bounded coordinate normalization shared by source admission and repair; decoder and generated meshes remain exact."
+    },
+    "core/print/bundle-runtime.mjs": {
+      "owner": "bundle",
+      "reason": "The SAAM runtime that last wrote each print, recorded beside it under the bundle write lock."
+    },
+    "scripts/machine-verify.mjs": {
+      "owner": "development",
+      "reason": "Builder-only debug verification of a print's checked program in an adapter's verifier; outside the installed product."
     }
   },
   "leaves": {
@@ -13640,6 +13648,162 @@
     },
     "core/geom/piecewise-chart.mjs::crossSlack": {
       "owner": "geometry-leaf-01b3ff67de1a"
+    },
+    "core/application/local-agent-notes.mjs::readLocalPhaseColours": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::contractProblem": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::gitHead": {
+      "owner": "application"
+    },
+    "core/application/runtime-selection.mjs::codeStamp": {
+      "owner": "application"
+    },
+    "packaging/runtime-registry.mjs::describeJobs": {
+      "owner": "application"
+    },
+    "core/print/bundle-runtime.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/bundle-runtime.mjs::recordFile": {
+      "owner": "bundle"
+    },
+    "core/print/bundle-runtime.mjs::processRuntime": {
+      "owner": "bundle"
+    },
+    "core/print/bundle-runtime.mjs::bundleRuntime": {
+      "owner": "bundle"
+    },
+    "core/print/bundle-runtime.mjs::recordBundleRuntime": {
+      "owner": "bundle"
+    },
+    "core/print/computation-job.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/computation-job.mjs::heapCeilingMb": {
+      "owner": "bundle"
+    },
+    "core/print/computation-job.mjs::computationWorker": {
+      "owner": "bundle"
+    },
+    "core/print/computation-job.mjs::workerMemoryError": {
+      "owner": "bundle"
+    },
+    "core/print/computation-job.mjs::runComputationJob": {
+      "owner": "bundle"
+    },
+    "core/print/generation-worker.mjs::@module": {
+      "owner": "bundle"
+    },
+    "core/print/generation-worker.mjs::beforeCommit": {
+      "owner": "bundle"
+    },
+    "core/print/generation-worker.mjs::reportProgress": {
+      "owner": "bundle"
+    },
+    "core/print/generation-worker.mjs::commit": {
+      "owner": "bundle"
+    },
+    "core/print/studio-ownership.mjs::heldBundleInstance": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::currentBundleSchema": {
+      "owner": "bundle"
+    },
+    "core/print/phase-colours.mjs::@module": {
+      "owner": "studio"
+    },
+    "core/print/phase-colours.mjs::checkedPhaseColours": {
+      "owner": "studio"
+    },
+    "core/print/phase-colours.mjs::resolvePhaseColours": {
+      "owner": "studio"
+    },
+    "core/print/phase-colours.mjs::phaseColour": {
+      "owner": "studio"
+    },
+    "studio/app.mjs::phasePalette": {
+      "owner": "studio"
+    },
+    "studio/mesh-view.mjs::geometryAnnotationView": {
+      "owner": "studio"
+    },
+    "packaging/build.mjs::dependencySet": {
+      "owner": "development"
+    },
+    "scripts/machine-verify.mjs::@module": {
+      "owner": "development"
+    },
+    "core/geom/field.mjs::affineProjection": {
+      "owner": "geometry-module-59d51f196831"
+    },
+    "core/geom/field.mjs::affineUv": {
+      "owner": "geometry-module-59d51f196831"
+    },
+    "core/geom/field.mjs::patchCoversChart": {
+      "owner": "geometry-module-59d51f196831"
+    },
+    "core/geom/height-slice.mjs::heightReferenceRange": {
+      "owner": "geometry-module-999b4e259f94"
+    },
+    "core/geom/mesh-autorefine.mjs::boxesMeet": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::contactIndex": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::changedContactFaces": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::improveSliverTriangulation": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::splitSliverCaps": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::cleanupReconstructedSurface": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-autorefine.mjs::cleanSurfaceSlivers": {
+      "owner": "geometry-module-d4506ac1c706"
+    },
+    "core/geom/mesh-repair.mjs::prepareMesh": {
+      "owner": "geometry-module-7edb0f6e952a"
+    },
+    "core/geom/mesh-source.mjs::indexedGeometry": {
+      "owner": "geometry-module-06db94e027fa"
+    },
+    "core/geom/mesh-spatial.mjs::adjacentContacts": {
+      "owner": "geometry-module-47e98a04bbf8"
+    },
+    "core/geom/mesh-spatial.mjs::diagonalPatchBound": {
+      "owner": "geometry-module-47e98a04bbf8"
+    },
+    "core/geom/mesh.mjs::nonadjacentContacts": {
+      "owner": "geometry-module-a3e519b4e8c8"
+    },
+    "core/print/geometry.mjs::directMesh": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::geometryDescriptor": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::storedGeometryDescriptor": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::storedGeometryArtifact": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::transferGeometry": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::receiveGeometry": {
+      "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/geometry.mjs::createGeometryArtifact": {
+      "owner": "geometry-module-e0f7e6b8074c"
     }
   },
   "retiredAssignments": [
