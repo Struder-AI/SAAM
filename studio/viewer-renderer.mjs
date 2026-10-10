@@ -4,7 +4,7 @@ import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
 import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
 const GEOMETRY_COLOR='#5b9fd3';
-import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
+import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments,geometryAnnotationView} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 
@@ -88,10 +88,12 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       annotations.selectionText=selected?selectionLabel:geometryError||'Click a surface or edge to see its name';
     }
     if(snapshot.showGeometry&&geometryScene){
-      for(const curve of geometryScene.geometry.curves??[])for(let i=1;i<curve.points.length;i++)segment(project(curve.points[i-1]),project(curve.points[i]),curve.id===selected?'#eb591f':'#397da8',2);
-      for(const record of geometryScene.geometry.points??[]){
-        const p=project(record.point);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#397da8';ctx.fill();
+      const authored=geometryAnnotationView(geometryScene,project,width,height);
+      for(const curve of authored.curves){ctx.globalAlpha=curve.opacity;segment(curve.from,curve.to,curve.id===selected?'#eb591f':'#263f53',1.25);}
+      for(const record of authored.points){
+        const p=record.point;ctx.globalAlpha=record.opacity;ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#c3deef';ctx.fill();
       }
+      ctx.globalAlpha=1;
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;

@@ -97,3 +97,20 @@ export function triangleIndex(vertices,triangles) {
   }
   return {nearest,bounds};
 }
+
+// A convex quadrilateral is split by its old/new diagonal. Their projected
+// intersection induces four paired affine triangles. Only the two lifted centre
+// points differ, so their distance bounds the entire old/new patch. Comparing its
+// square to the remaining reference allowance is exact; the displayed value rounds
+// upward before subsequent edits consume it, so it cannot reset the budget.
+export function diagonalPatchBound(xyz,exact,h,t,v,w,allowanceMm){
+  if(!(allowanceMm>0))return null;
+  const subtractExact=(a,b)=>a.map((x,k)=>x-b[k]),normSquaredExact=v=>v.reduce((s,x)=>s+x*x,0n),exactRatio=(a,b)=>{if(a===0n)return 0;const sa=Math.max(0,a.toString(2).length-53),sb=Math.max(0,b.toString(2).length-53);return Number(a>>BigInt(sa))/Number(b>>BigInt(sb))*2**(sa-sb);};
+  const [H,T,V,W]=[h,t,v,w].map(exact.vertex),u=subtractExact(T,H),z=subtractExact(W,V),r=subtractExact(V,H),A=3*h,B=3*t,C=3*v,ux=xyz[B]-xyz[A],uy=xyz[B+1]-xyz[A+1],uz=xyz[B+2]-xyz[A+2],vx=xyz[C]-xyz[A],vy=xyz[C+1]-xyz[A+1],vz=xyz[C+2]-xyz[A+2],normal=[uy*vz-uz*vy,uz*vx-ux*vz,ux*vy-uy*vx],drop=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),i=(drop+1)%3,j=(drop+2)%3;
+  const cross=(a,b)=>a[i]*b[j]-a[j]*b[i];let d=cross(u,z),a=cross(r,z),b=cross(r,u);
+  if(d<0n){d=-d;a=-a;b=-b;}if(d===0n||a<=0n||a>=d||b<=0n||b>=d)return null;
+  const delta=H.map((x,k)=>(x-V[k])*d+u[k]*a-z[k]*b),square=normSquaredExact(delta),allowance=exact.number(allowanceMm),bound=allowance*allowance*d*d;
+  if(square>=bound)return null;
+  const distance=allowanceMm*Math.sqrt(exactRatio(square,bound));
+  return square===0n?0:distance+Math.max(Number.MIN_VALUE,Math.abs(distance)*2**-48);
+}

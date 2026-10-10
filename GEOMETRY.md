@@ -51,6 +51,9 @@ rejected with the unmatched `patch:edge`.
   sharing the circle's knots.
 - *Tube.* The same with a bore: outer and bore sides, and two flat annular ends
   ruled between the circles.
+- *A surface to show.* Geometry holds closed solids, so give an open surface, such as one
+  patch, an arbitrarily small thickness (about 0.02 mm): the patch, a copy offset along its
+  normal, and degree-1 strips ruling their edges. Showing control points or curves is one optional use.
 
 **Named patches.** Slicing uses the patches themselves, not a tessellation, and
 skills address surfaces by patch name: the roof a draped skin follows (a patch
@@ -140,10 +143,8 @@ the region of that surface inside the part as loops in the surface's own (u,v).
 
 ## Writing geometry
 
-Geometry is recipe data: `create_print` and `adjust_print` take it like any
-setting. Arrays replace, so send the whole `patches` array, mesh or operand list.
-Validation names what failed; `request_review` shows the result in Studio, and
-`get_print` with `includeGeometry: true` reads it back.
+Geometry is recipe data that `create_bundle` and `adjust_recipe` take whole: send the entire
+`patches` array, mesh or operand list. `request_review` shows it in Studio; `get_bundle` with `includeGeometry: true` reads it back.
 
 ## Computing geometry with scripts
 

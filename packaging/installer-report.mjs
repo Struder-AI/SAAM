@@ -24,7 +24,6 @@ function installerLog(text){
 }
 const [home,action,value,...rest]=process.argv.slice(2);
 if(!home)throw Error('Installer reporting requires the SAAM home.');
-process.env.SAAM_DATA=resolve(home);
 if(action==='claim')await claimTemporaryHandoff(value,rest[0],Number(rest[1]));
 else if(action==='complete')await completeTemporaryHandoff(value,rest[0]);
 else if(action==='stage'){
@@ -34,7 +33,7 @@ else if(action==='stage'){
   const instance=await readInstance().catch(()=>null);
   try{if(!instance)throw Error('No running SAAM.');await controlRequest(instance,{command:'record-diagnostic',event,options},{waitMs:3000});}
   catch{
-    const reports=createDiagnosticReports({home});
+    const reports=createDiagnosticReports({home:resolve(home)});
     if(options.firstRun)await reports.firstRun(event,{complete:options.complete}).catch(()=>{});
     const service=await createInstalledReleaseService({reports});
     if(service){try{await service.recordDiagnostic(event);await service.flushDiagnostics();}finally{service.close();}}

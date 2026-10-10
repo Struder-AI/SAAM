@@ -72,7 +72,12 @@ async function readInput(directory,name){
 }
 
 function checkSources(document,files){
-  const sources=sourceRecords(document.geometry);
+  const provenance=files.get('geometry/source.json'),sources=sourceRecords(document.geometry);
+  if(provenance){
+    const source=JSON.parse(provenance);
+    if(source?.format!=='stl'||source.sha256!==hash(files.get('geometry/source.stl')??Buffer.alloc(0)))throw Error('Source provenance differs from the retained STL.');
+    sources.push(source);
+  }
   if(new Set(sources.map(source=>source.sha256)).size>1)
     throw Error('This bundle records multiple distinct STL sources, but retains only geometry/source.stl. Supply a self-contained source recipe before sharing.');
 }
@@ -83,6 +88,10 @@ export async function shareBundle(directory,packageFile,options={}){
   const document={...state.plan,bundle:{schema:'saam-print-bundle/2',machine:state.machine}};
   const files=new Map([['plan.json',json(document)]]);
   for(const name of inputNames(document).slice(1))files.set(name,await readInput(state.dir,name));
+  try{
+    const provenance=await readInput(state.dir,'geometry/source.json');files.set('geometry/source.json',provenance);
+    if(!files.has('geometry/source.stl'))files.set('geometry/source.stl',await readInput(state.dir,'geometry/source.stl'));
+  }catch(error){if(error.code!=='ENOENT')throw error;}
   checkSources(document,files);
   // Repair provenance keeps the original input and report, but a repaired copy
   // already stored as geometry/source.stl need not be shipped twice.
@@ -104,7 +113,7 @@ export async function shareBundle(directory,packageFile,options={}){
     }
     if((await loadBundle(directory,{program:false})).revision!==before)throw Error('The bundle changed during sharing. Retry with the current revision.');
     const inventory=[...files].map(([path,bytes])=>({path,sha256:hash(bytes),bytes:bytes.length}));
-    const metadata={schema:SCHEMA,extensions:extensions.map(({id,digest,manifest})=>({id,digest,
+    const metadata={schema:files.has('geometry/source.json')?'saam-print-package/2':SCHEMA,extensions:extensions.map(({id,digest,manifest})=>({id,digest,
       version:manifest.version??null,file:`extensions/${id}.json`})),files:inventory};
     files.set('package.json',json(metadata));
     options.progress?.({stage:'Building portable ZIP'});
@@ -142,7 +151,7 @@ function checkRepairProvenance(files){
 
 function validatePackage(files){
   const metadata=JSON.parse(files.get('package.json')??'null');
-  if(metadata?.schema!==SCHEMA||!Array.isArray(metadata.files)||!Array.isArray(metadata.extensions))throw Error('Unsupported bundle package.');
+  if(![SCHEMA,'saam-print-package/2'].includes(metadata?.schema)||!Array.isArray(metadata.files)||!Array.isArray(metadata.extensions))throw Error('Unsupported bundle package.');
   const names=new Set(['package.json']);
   for(const item of metadata.files){
     distinctName(names,item.path);
@@ -155,6 +164,10 @@ function validatePackage(files){
     throw Error('Portable bundles contain inputs only, without review results.');
   if(Object.keys(document.bundle).sort().join()!=='machine,schema')throw Error('Portable bundle metadata contains generated or unrelated state.');
   const expected=new Set(inputNames(document));
+  if(metadata.schema==='saam-print-package/2'){
+    if(!files.has('geometry/source.json'))throw Error('Source-provenance package is incomplete.');
+    expected.add('geometry/source.json');expected.add('geometry/source.stl');
+  }
   for(const name of ['repair/original.stl','repair/repair.json'])if(files.has(name))expected.add(name);
   const ids=new Set();
   for(const extension of metadata.extensions){
@@ -204,7 +217,7 @@ export async function importBundle(packageFile,directory,options={}){
       if(existing?.origin==='local'&&existing.digest!==extension.digest)throw Error(`Local extension ${extension.id} has changes. Keep it, or move it aside before importing another copy.`);
     }
     await mkdir(staging);
-    for(const name of inputNames(document).slice(1).concat(['repair/original.stl','repair/repair.json'].filter(name=>files.has(name)))){
+    for(const name of [...new Set(inputNames(document).slice(1).concat(['geometry/source.stl','geometry/source.json','repair/original.stl','repair/repair.json'].filter(name=>files.has(name))))]){
       const file=resolve(staging,...name.split('/'));await mkdir(dirname(file),{recursive:true});await writeFile(file,files.get(name),{flag:'wx'});
     }
     // Geometry owns reconstruction from saved ordinary recipes, including inline

@@ -1,6 +1,7 @@
 import {parentPort,workerData} from 'node:worker_threads';
 import {repairSTL,repairSTLFiles} from './repair-stl.mjs';
 import {prepareSTLImportInWorker} from '../geom/import-stl.mjs';
+import {transferGeometry} from './geometry.mjs';
 await runMeshRepairWorker();
 
 async function runMeshRepairWorker(){
@@ -8,7 +9,7 @@ async function runMeshRepairWorker(){
   const options={...workerData.options,...channel};
   try{
     const result=await executeRepairWorkerJob(workerData,options);
-    const response=prepareRepairWorkerResponse(result);
+    const response=await prepareRepairWorkerResponse(result,workerData.mode);
     parentPort.postMessage(response.message,response.transfer);
   }catch(error){
     parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic}});
@@ -55,7 +56,8 @@ async function executeRepairWorkerJob(job,options){
   }
 }
 
-function prepareRepairWorkerResponse(result){
+async function prepareRepairWorkerResponse(result,mode){
+  if(mode==='import')return {message:{type:'result',result:{...result,geometry:await transferGeometry(result.geometry)}},transfer:[]};
   if(result.repairedBytes){
     const bytes=new Uint8Array(result.repairedBytes.length);
     bytes.set(result.repairedBytes);

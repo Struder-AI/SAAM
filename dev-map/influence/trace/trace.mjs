@@ -13,7 +13,7 @@ import {spawnSync} from 'node:child_process';
 import {readFileSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {dirname,resolve,join} from 'node:path';
 import {fileURLToPath,pathToFileURL} from 'node:url';
-import {tmpdir} from 'node:os';
+import {homePaths,canonicalHome} from '../../../core/application/home.mjs';
 import {mkdtempSync} from 'node:fs';
 import {instrument,parse,inScope} from './instrument.mjs';
 import {scopeFiles} from '../scope.mjs';
@@ -47,10 +47,12 @@ if(command==='check') {
   for(const name of chosen) {
     if(!workflows[name])throw Error(`Unknown workflow ${name}. Choose from ${Object.keys(workflows).join(', ')}.`);
     const out=join(dir,name);rmSync(out,{recursive:true,force:true});mkdirSync(out,{recursive:true});
-    const home=mkdtempSync(join(tmpdir(),'saam-trace-'));
+    // Disposable work belongs in the installed home's tmp; workflows pass HOME explicitly.
+    const temporary=homePaths(canonicalHome()).tmp;mkdirSync(temporary,{recursive:true});
+    const home=mkdtempSync(join(temporary,'trace-'));
     const started=Date.now();
     const run=spawnSync(process.execPath,[join(here,'workflows.mjs'),name,home],{cwd:repo,encoding:'utf8',maxBuffer:256*1024*1024,
-      env:{...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${preload}`.trim(),SAAM_TRACE_DIR:out,SAAM_DATA:join(home,'saam-home')}});
+      env:{...process.env,NODE_OPTIONS:`${process.env.NODE_OPTIONS??''} --import ${preload}`.trim(),SAAM_TRACE_DIR:out}});
     rmSync(home,{recursive:true,force:true,maxRetries:3});
     const status={workflow:name,exit:run.status,seconds:Math.round((Date.now()-started)/100)/10,stdout:run.stdout.trim().split('\n').slice(-5),stderr:run.stderr.trim().split('\n').slice(-8)};
     writeFileSync(join(out,'status.json'),JSON.stringify(status,null,1));

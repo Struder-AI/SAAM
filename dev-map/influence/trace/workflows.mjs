@@ -1,7 +1,7 @@
 // Representative SAAM runs for influence traces, driven without manual steps:
 //   node dev-map/influence/trace/workflows.mjs NAME HOME
-// HOME is a disposable directory (trace.mjs makes one and sets SAAM_DATA inside it); nothing
-// touches the user's prints or SAAM home.
+// HOME is a disposable directory in the installed home's tmp (trace.mjs makes and removes
+// it); workflows pass it explicitly, so nothing touches the user's prints or setups.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';

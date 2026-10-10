@@ -9,8 +9,6 @@ import {prepareExtensionGeometry} from '../geom/extension-edit.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 import {resolveSpatialPlan,normalizeSpatialPlan} from './spatial-inputs.mjs';
-import {createGeometry} from './geometry.mjs';
-import {canonicalJson} from '../canonical-json.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';
 
 async function prepareExtensionEdit(source,extension,request,options){
@@ -26,8 +24,7 @@ export async function applyExtensionEdit(directory,extension,request,{expectedRe
   const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,options);
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const normalized=normalizeSpatialPlan(plan);
-  const preparedGeometry=normalized.geometry&&canonicalJson(normalized.geometry)!==canonicalJson(state.plan.geometry)?await createGeometry(normalized.geometry):null;
-  const updated=await updatePlan(directory,normalized,state.revision,{expectedEditRevision,preparedGeometry});
+  const updated=await updatePlan(directory,normalized,state.revision,{expectedEditRevision});
   return report?{...updated,extensionReport:report}:updated;
 }
 
@@ -38,7 +35,6 @@ export async function createExtensionBundle(directory,extension,request,options=
   const {plan}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const normalized=normalizeSpatialPlan(plan);
-  const preparedGeometry=normalized.geometry?await createGeometry(normalized.geometry):null;
-  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,preparedGeometry});
+  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
   return loadBundle(directory,{program:false});
 }

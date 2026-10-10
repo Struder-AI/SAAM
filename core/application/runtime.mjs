@@ -332,7 +332,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   // The registry holds each operation's definition (help, validation, scope);
   // perform() below names the entry that runs it.
-  function operation(name, description, shape, readOnly = true, openWorld = false) {
+  function operation(name, description, shape, readOnly = true, openWorld = false, resultStage = null) {
     extensionActions.delete(name);
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours'].includes(name);
@@ -340,13 +340,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
     const schema=z.object({...shape,expectedStudio:expectedStudioSchema.optional(),...(tracked?{requestIds:z.array(z.string()).optional(),studioInstanceId:z.string().optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,immediate:immediateTools.has(name)});
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,resultStage,immediate:immediateTools.has(name)});
   }
   // A local extension registers operations with its own entries; they run at
   // the extension boundary, and a later registration of a name replaces it.
   const extensionActions=new Map();
-  function tool(name, description, shape, action, readOnly, openWorld) {
-    operation(name,description,shape,readOnly,openWorld);
+  function tool(name, description, shape, action, readOnly, openWorld, resultStage) {
+    operation(name,description,shape,readOnly,openWorld,resultStage);
     extensionActions.set(name,action);
   }
   // Validate the caller's remembered association before claims, activity or edits.
@@ -500,7 +500,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       }
         if(workRecords.length&&call.result&&typeof call.result==='object')call.result={...call.result,workRequest:{id:workRecords[0].episodeId??workRecords[0].id,requestIds:workRecords.map(r=>r.id),reminder:'Keep working across intermediate saves. When intent is achieved, a decision is needed, or a new user message interrupts you, call respond_to_studio_request once with this id and completed or waiting status.'}};
         if(episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
-          const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved);
+          const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage);
           if(visualCheck)call.result={...call.result,visualCheck};
         }
         if(view&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,studio:{studioInstanceId:view.server.agentSession().instanceId,bundleId:view.server.agentSession().printId,url:view.url,browserOpenRequested:view.browserOpenRequested}};
@@ -630,7 +630,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   }
-  operation('create_bundle','Create a bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false);
+  operation('create_bundle','Create a bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false,false,'geometry');
   async function createBundle({ bundleId, kind, machineId, plan }){
       noApprovalFields(plan);
       const machine = loadMachine(machineId), recipe = await recipeModule();
@@ -678,12 +678,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path for a new .zip package.');
       return exchangeBundle('share',bundleId,await directory(bundleId),packageFile);
     }
-  operation('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',{bundleId:bundleIdSchema,packageFile:z.string()},false,true);
+  operation('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',{bundleId:bundleIdSchema,packageFile:z.string()},false,true,'geometry');
   async function importBundle({bundleId,packageFile},instance){
       if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path to a .zip package.');
       return exchangeBundle('import',bundleId,await directory(bundleId,{create:true}),packageFile,instance);
     }
-  operation('import_stl_bundle','Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',{ bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },false);
+  operation('import_stl_bundle','Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',{ bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },false,false,'geometry');
   async function importStlBundle({ bundleId, sourcePath, units, machineId }){
       loadMachine(machineId);
       if (!isAbsolute(sourcePath) || !/\.stl$/i.test(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
@@ -696,7 +696,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('search_thingi10k','Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',{query:z.string().min(1),limit:z.number().int().min(1).default(10),offset:z.number().int().min(0).default(0)},true,true);
   async function searchThingi10k(args){return meshLibrary.search(args);}
-  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import it as a print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
+  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import it as a print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true,'geometry');
   async function importThingi10kBundle({bundleId,fileId,machineId,units}){
       const dir=await directory(bundleId,{create:true});
       loadMachine(machineId);const machineSetups=await machineSetupStore();
@@ -704,12 +704,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       return {...result,...(result.imported?summary(bundleId,await (await bundleModule()).loadBundle(dir)):{bundleId})};
     }
   localExtension.registerOperations?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
-  operation('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',{bundleId:bundleIdSchema,units:z.enum(['mm','inch']),...editIdentitySchema},false);
+  operation('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',{bundleId:bundleIdSchema,units:z.enum(['mm','inch']),...editIdentitySchema},false,false,'geometry');
   async function setStlUnits({bundleId,units,expectedRevision,expectedEditRevision}){
       const {setSTLUnits}=await import('../print/import-stl.mjs');
       const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision,expectedEditRevision}));
     }
-  operation('blob_field','Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',{bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false);
+  operation('blob_field','Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',{bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function blobField({bundleId,action,request,machineId,expectedRevision,expectedEditRevision,part}){
       noApprovalFields(request);
       if(action==='create'){
@@ -724,7 +724,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
       return summary(bundleId,await calculateGeometry(bundleId,options=>updateBlobFieldBundle(dir,request,{expectedRevision,expectedEditRevision,part,...options})));
     }
-  operation('gridfinity','gridfinity',{bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false);
+  operation('gridfinity','gridfinity',{bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function gridfinity({bundleId,action,parameters,machineId,expectedRevision,expectedEditRevision,part}){
       noApprovalFields(parameters);
       if(action==='create'){
@@ -737,19 +737,19 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(!expectedRevision&&!expectedEditRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
       return applyExtension(bundleId,'gridfinity',parameters,{expectedRevision,expectedEditRevision,part},'Select a shared shell/mesh print.');
     }
-  operation('apply_extension','Apply an installed extension to the current recipe. Read its manual for request fields. Geometry and deposition assignments commit together; return the saved revision and construction report.',{bundleId:bundleIdSchema,extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/),...editIdentitySchema,request:objectSchema,part:idSchema.optional()},false);
+  operation('apply_extension','Apply an installed extension to the current recipe. Read its manual for request fields. Geometry and deposition assignments commit together; return the saved revision and construction report.',{bundleId:bundleIdSchema,extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/),...editIdentitySchema,request:objectSchema,part:idSchema.optional()},false,false,'geometry');
   async function applyExtensionOperation({bundleId,extensionId,expectedRevision,expectedEditRevision,request,part}){return applyExtension(bundleId,extensionId,request,{expectedRevision,expectedEditRevision,part});}
-  operation('apply_text','Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('apply_text','Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function applyText({bundleId,expectedRevision,expectedEditRevision,request},session){
       return applyExtension(bundleId,'text',request,{expectedRevision,expectedEditRevision},'Text modifies shared shell/mesh prints.');
     }
-  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function applyHeatSet({bundleId,expectedRevision,expectedEditRevision,request}){
       return applyExtension(bundleId,'heat-set-inserts',request,{expectedRevision,expectedEditRevision},'Heat-set inserts modify shared shell/mesh prints.');
     }
   operation('intersect_geometry','Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice stacks. Stacks report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points.',{bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),stacks:z.array(draftStackSchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()});
   async function intersectGeometry({bundleId,request}){return intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request);}
-  operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function combineGeometryOperation({bundleId,expectedRevision,expectedEditRevision,request}){
       noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
@@ -934,7 +934,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...agentStudioSession(result),connected:false};
   }
-  operation('generate_toolpath','Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false);
+  operation('generate_toolpath','Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
   // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
   async function generateToolpath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);

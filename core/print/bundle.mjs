@@ -7,17 +7,11 @@ import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {normalizeSpatialPlan,placementInput} from './spatial-inputs.mjs';
-import {normalizeAuthoredGeometry} from '../geom/mesh-source.mjs';
+import {currentRecipeTerms} from './assignment-records.mjs';
 
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
-const createGeometry=async parameters=>(await import('./geometry.mjs')).createGeometry(parameters);
-// Bundle admission normalizes authored meshes once; compile/load remain check-only.
-function normalizePlan(plan,{previousGeometry,preparedGeometry}={}){
-  const spatial=normalizeSpatialPlan(plan);
-  if(preparedGeometry)return {plan:spatial,meshNormalization:[]};
-  const normalized=normalizeAuthoredGeometry(spatial.geometry,previousGeometry);
-  return {plan:{...spatial,...(spatial.geometry?{geometry:normalized.geometry}:{})},meshNormalization:normalized.reports};
-}
+const createGeometry=async (parameters,options)=>(await import('./geometry.mjs')).createGeometry(parameters,options);
+const normalizePlan=plan=>({plan:normalizeSpatialPlan(currentRecipeTerms(plan))});
 async function presentGeometry(plan,descriptor){
   if(plan.geometry?.shape==='spatial'||plan.geometry&&!(plan.slices?.assignments??[]).some(a=>['curves','inject'].includes(a.construction)))return descriptor;
   const normalized=normalizeSpatialPlan(plan);

@@ -112,10 +112,10 @@ Native geometry and explicit manufacturing meshes remain authoritative; display
 approximations never replace them. Saved/native/display artifacts retain their
 existing geometry identity. Deposited-material contact remains in Toolpath.
 
-Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
-millimeter indexed triangles, original source provenance and shape parameters.
-Mixed assemblies retain spline recipes for spline components. Existing spline
-bundles continue using `geometry/model.3dm`.
+Indexed meshes live once in recipe geometry; display uses those manufacturing arrays.
+Geometry owns derived views and worker preparation reuse. Mixed assemblies retain
+spline recipes; spline native 3DM data remains stored. Older native mesh assets
+remain readable through Bundle's geometry descriptor hydration.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
@@ -430,16 +430,17 @@ formats retain their diagnostics; repair never fills holes without explicit boun
 and imports pass their own (`IMPORT_HOLE_DIAMETER_MM`, `IMPORT_HOLE_EDGES` in
 [import-stl.mjs](./import-stl.mjs)).
 
-[Source admission](./mesh-source.mjs) normalizes authored, STL and explicit-repair sources
-in physical millimetres. Valid solids use the reconstruction's constrained vertex merge,
-reporting retained close pairs by cause; raw seams use [bounded coordinate indexing](./mesh-vertices.mjs).
-Units resolve first. Parsing, prepared geometry and repaired-output validation stay exact.
-[Cleanup](./mesh-repair.mjs) repeats source normalization, removes degenerate faces
+[Source admission](./mesh-source.mjs) and explicit repair share `prepareMesh` in
+[mesh-repair.mjs](./mesh-repair.mjs): units resolve to millimetres first, then one
+[bounded coordinate weld](./mesh-vertices.mjs) precedes solid repair and publication checks.
+Unchanged admitted geometry retains its exact source arrays. Cleanup removes degenerate faces
 and unused vertices, keeps coincident faces in their net orientation (an opposed
 pair cancels), and stitches complete boundary chains within print resolution.
-An explicit positive `mergeToleranceMm` adds its requested nearest-retained snap.
-Reports include merge counts and maximum displacement; change measurements retain
-original source coordinates. [Solid repair](./mesh-repair.mjs) orients faces across
+`mergeToleranceMm` sets the effective weld to the greater of it and print resolution,
+measured against original coordinates. Reports retain requested/effective distances,
+displacement and removed-source provenance. An empty result becomes spatial geometry
+without a solid; exact zero-facet STL carries explicit repair's empty output.
+[Solid repair](./mesh-repair.mjs) orients faces across
 two-face edges (each component keeps the orientation of most of its area), refuses
 unorientable edges, fills holes within both explicit bounds and refuses any other open
 edge, reverses an inside-out solid and replaces a self-crossing
@@ -452,14 +453,14 @@ arrangement splits faces along every crossing; a face stays where the winding nu
 is positive on one side only. New points round to the rounding guard, except that a
 point constructed in a sheet's plane rounds on that plane's lattice, as closing places
 the vertices it moves, so sheets stay exact planes through every rounding pass (and
-pairs of faces on one sheet are coplanar without orientation tests); source points stay,
-and only triangles below the rounding guard collapse. Once no crossing remains,
-vertices closer than print resolution merge, closest pairs first: their edge collapses
-into the end that stays (a source vertex, else a sheet vertex), so every merged vertex
-ends within print resolution of where it was; a collapse that would break the manifold,
-the height contract or cross another face (exact test) is undone, and pairs that stay
-are reported by cause. Reports give the closing, cancelled area, the merge and
-inward/outward shells before and after (fewer inward shells: cavities opened).
+pairs of faces on one sheet are coplanar without orientation tests); source points stay.
+Once nothing crosses, one cleanup moves the surface less than print resolution in total:
+bounded edge flips, then edge collapses of triangles below the rounding guard and of vertex pairs closer
+than print resolution, closest first, into the end that stays (a source vertex, else a sheet
+vertex). A collapse keeps the manifold (a pair, the height contract) and leaves its triangles
+touching fewer others (crossing or rounding-guard contact). Pairs that stay are reported by
+cause; a thin triangle left refuses the result. Reports give the closing, cancelled area, the
+merge and inward/outward shells before and after (fewer inward shells: cavities opened).
 
 Hole filling follows each hole's boundary from face to face around each vertex, as a
 halfedge mesh links borders, and splits a boundary that meets a vertex twice, so

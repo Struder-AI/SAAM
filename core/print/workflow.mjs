@@ -19,6 +19,8 @@ import {selectSettings,saveSetup,withMachineSetupExport,neutralMaterials} from '
 import {assignmentFamily as ordinaryAssignmentFamily} from './slice-settings.mjs';
 import {commitManifest,retainContent,restoreContent,recordDelivery,saveDescriptor} from './revisions.mjs';
 import {geometryTree} from '../../skills/records.mjs';
+import {currentRecipeTerms} from './assignment-records.mjs';
+import {geometryDescriptor,storedGeometryArtifact} from './geometry.mjs';
 
 // Present old generation reports with current terminology without rewriting artifacts.
 function currentPathSummary(summary){
@@ -47,7 +49,8 @@ function currentPathSummary(summary){
 }
 
 export const root=resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const BUNDLE_SCHEMA='saam-print-bundle/2';
+const BUNDLE_SCHEMA='saam-print-bundle/3';
+const currentBundleSchema=schema=>schema===BUNDLE_SCHEMA||schema==='saam-print-bundle/2';
 const nativeSuffix=geometry=>{const name=geometry.nativeFile??'model.3dm';requireThat(['model.3dm','model.mesh.json'].includes(name),'Unsupported native geometry file.');return name==='model.3dm'?'.3dm':'.mesh.json';};
 const json=async file=>JSON.parse(await readFile(file,'utf8'));
 // Events after a program that leave its inputs unchanged.
@@ -134,7 +137,7 @@ async function proposedPlan(machineId, options={}) {
   const {machine,settings}=await selectSettings(machineId,options);
   return {...await defaults(machine),...settings};
 }
-async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { machineId, sourceBytes,sourcePath,preparedGeometry,attachments=[] } = {}) {
+async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { machineId, sourceBytes,sourcePath,attachments=[] } = {}) {
   const dir = resolve(directory);
   try {
     await access(resolve(dir, 'plan.json'));
@@ -148,39 +151,38 @@ async function initBundle(directory, plan = {schema:'saam-shell-plan/1'}, { mach
     plan=recipe;
     machineSnapshot=bundle.machine;
   }
-  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan,{preparedGeometry}):{plan};
+  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan):{plan};
   plan=normalized.plan;
   const machine = machineId?loadMachine(machineId):machineSnapshot??null;
   requireThat(plan&&typeof plan==='object'&&!Array.isArray(plan),'Bundle contents must be a record.');
-  const geometry = preparedGeometry??(plan.geometry?await createGeometry(plan.geometry):null);
+  const geometry = plan.geometry?await createGeometry(plan.geometry):null;
+  if(geometry)plan={...plan,geometry:geometry.descriptor.parameters};
   for(const attachment of attachments){
     requireThat(['repair/original.stl','repair/repaired.stl','repair/repair.json'].includes(attachment.file),'Unsupported import attachment.');
     const target=resolve(dir,attachment.file);await mkdir(dirname(target),{recursive:true});await copyFile(attachment.sourcePath,target);
   }
-  if(originalSource(plan.geometry)){
+  if(originalSource(plan.geometry)||sourcePath||sourceBytes){
     const target=resolve(dir,'geometry/source.stl');
     if(sourcePath){await mkdir(dirname(target),{recursive:true});await copyFile(sourcePath,target);}
     else{requireThat(sourceBytes,'STL source bytes are required; use import-stl.');await save(target,sourceBytes);}
+    const emptiedSource=geometry?.descriptor.meshNormalization?.find(report=>report.empty&&report.source)?.source;
+    if(emptiedSource)await save(resolve(dir,'geometry/source.json'),JSON.stringify(emptiedSource));
   }
-  const geometryArtifact=await saveGeometry(dir,geometryNormalizationReport(geometry,normalized.meshNormalization)),id=randomUUID();
+  const geometryArtifact=await saveGeometry(dir,geometry),id=randomUUID();
   const review={schema:'saam-review/1',history:[],generation:null};
   await saveManifest(dir,{plan,machine,review,geometry:geometryArtifact,ids:{editRevision:id,geometryInputId:id,pathInputId:id},deferRememberSetup,phaseColours},null);
   return dir;
 }
 
-// Admission reports describe the stored artifact, without extending recipe fields.
-function geometryNormalizationReport(geometry,reports){
-  if(!geometry||!reports?.length)return geometry;
-  return {...geometry,descriptor:{...geometry.descriptor,meshNormalization:reports}};
-}
 async function saveGeometry(dir, geometry) {
   if(!geometry)return null;
-  const id=randomUUID(),file=`geometry/${id}${nativeSuffix(geometry.descriptor)}`;
-  await save(resolve(dir,file),geometry.bytes);
-  return {id,file,descriptor:geometry.descriptor};
+  const id=randomUUID();
+  if(!geometry.bytes)return {id,descriptor:geometry.descriptor};
+  const file=`geometry/${id}${nativeSuffix(geometry.descriptor)}`;
+  await save(resolve(dir,file),geometry.bytes);return {id,file,descriptor:geometry.descriptor};
 }
 
-const manifestDocument=({plan,machine,review,geometry,ids,deferRememberSetup,phaseColours})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry,...ids,
+const manifestDocument=({plan,machine,review,geometry,ids,deferRememberSetup,phaseColours})=>({...plan,bundle:{schema:BUNDLE_SCHEMA,machine,review,geometry:storedGeometryArtifact(geometry),...ids,
   ...(deferRememberSetup?{deferRememberSetup:true}:{}),...(phaseColours?{phaseColours}:{})}});
 const saveManifest=(dir,state,expected)=>commitManifest(dir,manifestDocument(state),expected);
 const stateIds=state=>({editRevision:state.editRevision,geometryInputId:state.geometryInputId,pathInputId:state.pathInputId});
@@ -256,7 +258,7 @@ async function requireLegacyCurrent(dir,inputs){
 async function migrateBundle(directory,{beforeCommit}={}){
   const dir=resolve(directory),planFile=resolve(dir,'plan.json'),planText=await readFile(planFile,'utf8'),document=JSON.parse(planText);
   const before=await bundleFiles(dir);
-  if(document.bundle?.schema===BUNDLE_SCHEMA)return migrateCurrentRecipe(dir,before,{beforeCommit});
+  if(currentBundleSchema(document.bundle?.schema))return migrateCurrentRecipe(dir,before,{beforeCommit});
   const prepared=await prepareLegacyMigration(dir,document,planText),created=[],retained=new Set(before);
   await requireLegacyCurrent(dir,prepared.inputs);
   for(const [name,bytes] of prepared.artifacts){await save(resolve(dir,name),bytes);created.push(name);}
@@ -284,14 +286,15 @@ async function migrateCurrentRecipe(dir,before,{beforeCommit}){
 async function readBundleInput(directory) {
   const dir = resolve(directory);
   const document=JSON.parse(await readFile(resolve(dir,'plan.json'),'utf8'));
-  if(document.bundle?.schema!==BUNDLE_SCHEMA)
+  if(!currentBundleSchema(document.bundle?.schema))
     throw Error(`Legacy split-file bundle requires explicit migration. Use saam call migrate_bundle with the bundleId, or offline source maintenance; see core/application/README.md#offline-maintenance.`);
-  const {bundle:saved,...plan}=document,bundle=savedBundle(saved);
+  const {bundle:saved,...stored}=document,bundle=savedBundle(saved),plan=currentRecipeTerms(stored);
   // Compiled records of older prints carried a digest of their own mesh.
   if(!saved.editRevision)for(const geometry of geometryTree(plan.geometry))delete geometry.compiledHash;
   if(plan.setup)plan.setup=neutralMaterials(plan.setup);
   requireThat(bundle.deferRememberSetup===undefined||typeof bundle.deferRememberSetup==='boolean','Invalid bundle setup remembering preference.');
-  return {dir,plan,machine:bundle.machine,review:bundle.review,geometryArtifact:bundle.geometry,revision:bundle.revision,
+  const geometryArtifact=bundle.geometry?{...bundle.geometry,descriptor:await geometryDescriptor(plan.geometry,bundle.geometry.descriptor)}:null;
+  return {dir,plan,machine:bundle.machine,review:bundle.review,geometryArtifact,revision:bundle.revision,
     editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,
     phaseColours:checkedPhaseColours(bundle.phaseColours,'Bundle phaseColours')};
 }
@@ -490,10 +493,10 @@ async function adjustBundle(directory, patch, { expectedRevision, expectedEditRe
 }
 
 
-async function updatePlan(directory, plan, revision, {preparedGeometry,expectedEditRevision} = {}) {
+async function updatePlan(directory, plan, revision, {expectedEditRevision} = {}) {
   const state = await loadBundle(directory, { program: false });
   requireEditRevision(state,{expectedRevision:revision,expectedEditRevision});
-  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan,{previousGeometry:state.plan.geometry,preparedGeometry}):{plan};
+  const normalized=adapter.normalizePlan?await adapter.normalizePlan(plan):{plan};
   plan=normalized.plan;
   if(!Object.hasOwn(plan,'workspace')&&Object.hasOwn(state.plan,'workspace'))plan={...plan,workspace:state.plan.workspace};
   const change = validatePlanUpdate(state, plan);
@@ -501,9 +504,10 @@ async function updatePlan(directory, plan, revision, {preparedGeometry,expectedE
   if (!change.changed&&!sourceChanged) return state;
 
   // Build before committing anything; plan.json remains the edit commit point.
-  const geometry = change.geometryChanged&&change.plan.geometry ? preparedGeometry??await createGeometry(change.plan.geometry) : null;
+  const geometry = change.geometryChanged&&change.plan.geometry ? await createGeometry(change.plan.geometry,{previousGeometry:state.plan.geometry}) : null;
+  if(geometry)change.plan={...change.plan,geometry:geometry.descriptor.parameters};
   const review = editedPlanReview(sourceChanged?sourceInvalidatedReview(state.review):state.review, change.geometryChanged, planChanges(state.plan, change.plan));
-  await persistPlanUpdate(state,change.plan,geometryNormalizationReport(geometry,normalized.meshNormalization),review);
+  await persistPlanUpdate(state,change.plan,geometry,review);
   return loadBundle(directory);
 }
 

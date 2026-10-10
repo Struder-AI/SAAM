@@ -9,7 +9,7 @@ import {createRuntimeRegistry,describeJobs} from './runtime-registry.mjs';
 import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths,canonicalHome,pathIdentity} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
-import {applicationPort,readInstance,controlRequest,leaseHolder} from '../core/application/control.mjs';
+import {applicationPort,readInstance,controlRequest,leaseHolder,controlWaitMs} from '../core/application/control.mjs';
 import {orchestratorContract,orchestratorRoot,contractProblem} from '../core/application/runtime-selection.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
@@ -30,7 +30,6 @@ function respond(response,value,status=200){response.writeHead(status,{'Content-
 export async function startApplication({autoOpen=true,openOnStart=true,tray=true}={}){
   const paths=homePaths(canonicalHome()),codeRoot=resolve(fileURLToPath(new URL('..',import.meta.url)));
   if(pathIdentity(codeRoot)!==pathIdentity(await orchestratorRoot()))throw Object.assign(Error('Only the installed SAAM application starts the orchestrator. Run this checkout through scripts/saam.mjs.'),{code:'ORCHESTRATOR_REQUIRED'});
-  if(process.env.SAAM_DATA&&pathIdentity(process.env.SAAM_DATA)!==pathIdentity(paths.home))throw Error('SAAM_DATA selects runtime data, never an orchestrator home. Use saam --code-root CHECKOUT --data-home DIRECTORY.');
   const reports=createDiagnosticReports({home:paths.home});
   const previous=await readInstance();
   if(previous?.user&&previous.user!==userInfo().username)throw Error('SAAM is running for '+previous.user+'.');
@@ -58,18 +57,18 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   function end(failure=null){return state.stopping??=(async()=>{
     if(failure)await openService().catch(()=>{});
     state.services?.observeRuntime(null);
-    let cleanupError=null;
-    try{
-      state.tray?.stop();await state.runtime?.close();
-      if(state.runtimeMigration){await restoreRuntimeState(state.runtimeMigration);state.runtimeMigration=null;}
-      if(state.migration){
-        try{await restoreLocalData(state.migration);state.migration=null;}
-        catch(error){cleanupError=error;await report({kind:'startup-data-restore-failed',error:error.message},{firstRun:true}).catch(()=>{});}
-      }
-      if(state.control?.listening){const closed=new Promise(done=>state.control.close(done));state.control.closeAllConnections();await closed;}
-      const current=JSON.parse(await readFile(instanceFile,'utf8').catch(()=>'{}'));
-      if(current.token===token)await unlink(instanceFile).catch(()=>{});
-    }catch(error){cleanupError=error;}
+    const cleanup={error:null};
+    // The control request allows 35 seconds. Its owner must release the process even
+    // if a child, pending filesystem write or diagnostic delivery never settles.
+    const deadline=setTimeout(()=>process.exit(failure||cleanup.error?1:0),controlWaitMs);deadline.unref();
+    const attempt=async action=>{try{await action();}catch(error){cleanup.error??=error;}};
+    await attempt(()=>state.tray?.stop());
+    await attempt(()=>state.runtime?.close());
+    await attempt(async()=>{if(state.runtimeMigration){await restoreRuntimeState(state.runtimeMigration);state.runtimeMigration=null;}});
+    await attempt(async()=>{if(state.migration){await restoreLocalData(state.migration);state.migration=null;}});
+    await attempt(async()=>{if(state.control?.listening){const closed=new Promise(done=>state.control.close(done));state.control.closeAllConnections();await closed;}});
+    await attempt(async()=>{const current=JSON.parse(await readFile(instanceFile,'utf8').catch(()=>'{}'));if(current.token===token)await unlink(instanceFile);});
+    const cleanupError=cleanup.error;
     const outcome=failure?{kind:'application-startup-failed',error:failure.message,...(cleanupError?{cleanupError:cleanupError.message}:{})}
       :cleanupError?{kind:'application-stop-failed',error:cleanupError.message}:{kind:'application-stopped'};
     await report(outcome,failure?{firstRun:true,complete:true,error:failure}:{}).catch(()=>{});
@@ -79,7 +78,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   const stop=()=>end();
   const later=()=>{setTimeout(()=>void stop().catch(()=>{}),250);};
   async function quit(force=false){
-    const jobs=await state.runtime.runningJobs();
+    const jobs=force?[]:await state.runtime.runningJobs();
     if(jobs.length&&!force)return {confirmationRequired:true,jobs,message:'Quitting SAAM cancels these running jobs:\n'+describeJobs(jobs)+'\nQuit anyway?'};
     await state.runtime.notifyStopping('quit');later();return {quitting:true};
   }
@@ -130,6 +129,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
         await report(message.event,message.options);return {ok:true};
       }
       if(message.command==='diagnostics')return {ok:true,receipt:await state.services.flushDiagnostics(),service:state.services.status()};
+      if(message.command==='ping')return {ok:true,pid:process.pid,instanceId,version:config.version};
       if(message.command==='status')return {ok:true,pid:process.pid,instanceId,version:config.version,home:paths.home,...await state.runtime.status(),service:state.services.status()};
       if(message.command==='reload-runtime')return {ok:true,...await state.runtime.reloadRuntime(message)};
       if(message.command==='stop-runtime')return {ok:true,...await state.runtime.stopRuntime(message)};

@@ -64,7 +64,7 @@ change both together.
 2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
 3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
 4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
-5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+5. Adding or restoring a third-party package or dependency (such as CGAL or Manifold) needs explicit human approval. This requirement does not apply to methods or to using, adapting or copying algorithms.
 6. Record approvals as given, without widening their scope. Report software and physical results separately.
 7. Work enters a release intent only on the owner's request or approval.
 8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.

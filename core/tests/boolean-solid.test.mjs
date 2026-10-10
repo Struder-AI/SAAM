@@ -65,7 +65,7 @@ test('combine drills a print, which reopens, generates, and answers intersect',a
   await initBundle(bundle,plan,{machineId:'ultimaker-s5'});let state=await loadBundle(bundle,{program:false});
   await combineGeometry(bundle,{operation:'difference',operand:cylinder(10,10,4,-1,6)},{expectedRevision:state.revision});
   state=await loadBundle(bundle,{program:false});
-  assert.equal(state.plan.geometry.shape,'boolean');assert.equal(state.geometry.nativeFile,'model.mesh.json');assert.ok(state.geometry.faces.length>0);
+  assert.equal(state.plan.geometry.shape,'boolean');assert.equal(state.geometryArtifact.file,undefined);assert.ok(state.geometry.faces.length>0);
   const answer=await intersectRequest(bundle,{sectionsAtZ:[2.5]});
   assert.equal(answer.sections[0].holes,1);
   await generateBundle(bundle,{development:true});state=await loadBundle(bundle);

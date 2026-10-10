@@ -11,12 +11,12 @@ import {rhino} from './runtime.mjs';
 export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 
 export function buildShell(rhino, geometry) {
-  return buildShapes(rhino,[geometry])[0];
+  return buildShells(rhino,[geometry])[0];
 }
 
 // One construction batch shares immutable source shapes, including components
 // encountered first while building an assembly. No caller owns this cache.
-function buildShapes(rhino,geometries,{material=false}={}){
+export function buildShells(rhino,geometries,{material=false}={}){
   const cache=new Map();
   const build=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);
@@ -52,7 +52,7 @@ function buildShapes(rhino,geometries,{material=false}={}){
 // Material queries combine placed components, including nested assemblies.
 // Ordinary construction retains its component/surface representation.
 export async function resolveMaterialGeometry(geometries){
-  return buildShapes(await rhino(),geometries,{material:true});
+  return buildShells(await rhino(),geometries,{material:true});
 }
 
 // Each request returns ordinary geometry in the requested frame. A replacement
@@ -65,7 +65,7 @@ export async function resolveGeometrySelections(geometry,requests,{offset=[0,0,0
     requireThat(source,`Unknown geometry selection ${selection}.`);
     return {geometry:replacement??source.geometry,offset:[source.xMm+offset[0],source.yMm+offset[1],source.zMm+offset[2]]};
   });
-  const shells=buildShapes(await rhino(),selected.map(s=>s.geometry)),placed=new Map();
+  const shells=buildShells(await rhino(),selected.map(s=>s.geometry)),placed=new Map();
   return selected.map((selection,i)=>{
     const shell=shells[i],key=selection.offset.join(',');
     let frames=placed.get(shell);if(!frames){frames=new Map();placed.set(shell,frames);}

@@ -1,7 +1,6 @@
 // Geometry converts acquired STL bytes and provenance into an authored geometry record.
 import {canonicalHash} from '../canonical-json.mjs';
-import {decodeSTL,makeMesh} from './mesh.mjs';
-import {normalizeSourceMesh} from './mesh-source.mjs';
+import {decodeSTL} from './mesh.mjs';
 import {decodeSTLFile} from './stl-file.mjs';
 import {createGeometry} from '../print/geometry.mjs';
 import {repairSTLFiles} from '../print/repair-stl.mjs';
@@ -59,12 +58,9 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
     const decodedSource=await decode();
     const result=await prepareImportedGeometry(undefined,{units,bounds,decodedSource,attribution,repairReport});
     if(!importDiagnostic.repaired)importDiagnostic.merge=result.merge??null;
-    const artifact=await createGeometry(result.geometry);
     const normalization=result.merge;
-    const reported=normalization&&(normalization.mergedVertices||normalization.collapsedTriangles||normalization.remainingPairs)
-      ?{...artifact,descriptor:{...artifact.descriptor,meshNormalization:[{path:'geometry',...normalization}]}}:artifact;
     if(normalization)importDiagnostic.meshNormalization=normalization;
-    return {...result,artifact:reported};
+    return result;
   };
   progress?.({stage:'import'});
   let result,repaired=false,attachments=[];
@@ -106,7 +102,7 @@ export function inferSTLUnits(mesh,bounds){
 }
 function geometryFromSTL(sourceHash,units,mesh,inferred=false){
   const factor=units==='inch'?25.4:1;
-  const translationMm=[0,1,2].map(k=>-mesh.vertices.reduce((minimum,p)=>Math.min(minimum,p[k]*factor),Infinity));
+  const translationMm=mesh.vertices.length?[0,1,2].map(k=>-mesh.vertices.reduce((minimum,p)=>Math.min(minimum,p[k]*factor),Infinity)):[0,0,0];
   return {shape:'mesh',vertices:mesh.vertices.map(p=>p.map((v,k)=>v*factor+translationMm[k])),triangles:mesh.triangles,source:{format:'stl',sha256:sourceHash,units,scale:1,unitsInferred:inferred,translationMm}};
 }
 
@@ -115,18 +111,16 @@ export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,d
   const file=Boolean(decodedSource),mesh=decodedSource??decodeSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
   if(inferred)units=inferSTLUnits(mesh,bounds);
   geometry=geometryFromSTL(file?mesh.sha256:canonicalHash(sourceBytes),units,mesh,inferred);
-  // Source vertices normalize in physical millimetres after units are resolved.
-  // Verified repair output already owns its topology and is parsed exactly.
-  const normalized=repairReport?null:normalizeSourceMesh(geometry);
-  if(normalized)geometry=normalized.geometry;
-  makeMesh(geometry.vertices,geometry.triangles);
   if(attribution){
     if(attribution.sha256!==(repairReport?.sourceSha256??geometry.source.sha256)||repairReport&&repairReport.repairedSha256!==geometry.source.sha256)throw Error('Mesh attribution does not match the downloaded source hash or verified repair.');
     geometry.source.attribution=structuredClone(attribution);
     if(repairReport)geometry.source.repair={sourceSha256:repairReport.sourceSha256,repairedSha256:repairReport.repairedSha256};
   }
+  // Geometry owns admission and preparation, in physical millimetres; Bundle reuses it.
+  const artifact=await createGeometry(geometry);
+  geometry=artifact.descriptor.parameters;
   // Centre the imported mesh on the plate. Its vertices were translated to put
   // the minimum XY at the origin, so the footprint size is the vertex span.
-  const footprint=[0,1].map(k=>{let mn=Infinity,mx=-Infinity;for(const p of geometry.vertices){mn=Math.min(mn,p[k]);mx=Math.max(mx,p[k]);}return mx-mn;});
-  return {geometry,footprint,...(normalized?{merge:normalized.report}:{})};
+  const footprint=[0,1].map(k=>artifact.descriptor.boundsMm.max[k]-artifact.descriptor.boundsMm.min[k]);
+  return {geometry,footprint,...(artifact.descriptor.meshNormalization?.length?{merge:artifact.descriptor.meshNormalization[0]}:{})};
 }

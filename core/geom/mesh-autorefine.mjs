@@ -11,7 +11,7 @@
 // triangulation, so their common pieces are identical triangles and opposed copies
 // cancel.
 import {ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {closestTrianglePoint} from './mesh-spatial.mjs';
+import {closestTrianglePoint,trianglesContact,diagonalPatchBound} from './mesh-spatial.mjs';
 import {separatedTriangles} from './mesh.mjs';
 import {orient2dExact,orient3dExact} from './exact-predicates.mjs';
 import {boxHierarchy,overlappingBoxPairs,segmentMeetsBox} from './triangle-bvh.mjs';
@@ -76,11 +76,15 @@ class PointStore{
     const grow=old=>{const a=new Float64Array(capacity);if(old)a.set(old.subarray(0,this.count));return a;};
     this.px=grow(this.px);this.py=grow(this.py);this.pz=grow(this.pz);this.pd=grow(this.pd);
   }
-  push(x,y,z,d){if(this.count===this.px.length)this.allocate(2*this.count);const i=this.count++;this.px[i]=x;this.py[i]=y;this.pz[i]=z;this.pd[i]=d;return i;}
+  push(x,y,z,d){if(this.count===this.px.length)this.allocate(2*this.count);const i=this.count++;this.lattice.delete(i);this.px[i]=x;this.py[i]=y;this.pz[i]=z;this.pd[i]=d;return i;}
   // Exact homogeneous lattice coordinates [X,Y,Z,W].
   exactPoint(i){
     if(this.pd[i]>0)return this.exact[i-this.n0];
-    let p=this.lattice.get(i);if(!p){const S=this.S;p=[latticeInteger(this.px[i],S),latticeInteger(this.py[i],S),latticeInteger(this.pz[i],S),1n];this.lattice.set(i,p);}return p;
+    let p=this.lattice.get(i);if(!p){let S=this.S;const coordinates=[this.px[i],this.py[i],this.pz[i]];
+      // Ray ends and query points can have finer dyadic coordinates than the
+      // original input lattice. Keep their denominator instead of truncating it.
+      if(i>=this.n0)for(let x of coordinates){let s=0;while(!Number.isInteger(x)){x*=2;s++;}S=Math.max(S,s);}
+      p=[...coordinates.map(x=>latticeInteger(x,S)),1n<<BigInt(S-this.S)];this.lattice.set(i,p);}return p;
   }
   approx(v,w){return Number((v<<64n)/w)*2**-64*2**-this.S;}
   pushExact(X,Y,Z,W){const a=this.approx(X,W),b=this.approx(Y,W),c=this.approx(Z,W);
@@ -525,16 +529,18 @@ function belowHeightContract(xyz,a,b,c){
 }
 // Edge collapses on a flat triangle list (removed triangles -1) with its vertex
 // incidence. Collapsing s into d keeps d where it is; the surface stays a manifold when
-// the edge has two faces and s and d no other common neighbour. collapse returns the
+// the edge has two faces and the full vertex links meet only in its two apex
+// vertices (no common link edge, including a tetrahedral component). collapse returns the
 // record restore undoes.
 function edgeCollapses(tri,vertexCount){
-  const incident=Array.from({length:vertexCount},()=>[]);for(let f=0;f<tri.length/3;f++)for(let c=0;c<3;c++)incident[tri[3*f+c]].push(f);
+  const incident=Array.from({length:vertexCount},()=>[]);for(let f=0;f<tri.length/3;f++)if(tri[3*f]>=0)for(let c=0;c<3;c++)incident[tri[3*f+c]].push(f);
   const has=(f,v)=>tri[3*f]===v||tri[3*f+1]===v||tri[3*f+2]===v;
   const ring=v=>{const s=new Set();for(const f of incident[v])for(let c=0;c<3;c++)s.add(tri[3*f+c]);return s;};
+  const linkEdges=v=>new Set(incident[v].map(f=>{const other=[tri[3*f],tri[3*f+1],tri[3*f+2]].filter(x=>x!==v);return other[0]<other[1]?other[0]+':'+other[1]:other[1]+':'+other[0];}));
   const joined=(s,d)=>incident[s].some(f=>has(f,d));
   const manifold=(s,d)=>{const shared=incident[s].filter(f=>has(f,d));if(shared.length!==2)return false;
     const apex=new Set(shared.flatMap(f=>[0,1,2].map(c=>tri[3*f+c]).filter(x=>x!==s&&x!==d))),rd=ring(d),common=[...ring(s)].filter(x=>x!==s&&x!==d&&rd.has(x));
-    return common.length===apex.size&&common.every(x=>apex.has(x));};
+    const ld=linkEdges(d);return common.length===apex.size&&common.every(x=>apex.has(x))&&![...linkEdges(s)].some(e=>ld.has(e));};
   // The triangles of s off the edge sd, as collapsing s into d leaves them.
   const moved=(s,d)=>incident[s].filter(f=>!has(f,d)).map(f=>[0,1,2].map(c=>tri[3*f+c]===s?d:tri[3*f+c]));
   const collapse=(s,d)=>{const undo={lists:new Map(),faces:[]};
@@ -547,23 +553,36 @@ function edgeCollapses(tri,vertexCount){
   return {incident,ring,joined,manifold,moved,collapse,restore};
 }
 
-// ---------------- tiny-triangle collapse ----------------
-// A triangle below the height contract loses its shortest collapsible edge with a
-// constructed end, which moves onto the other end; source vertices stay. tri marks
-// removed triangles -1.
-function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
-  const n=tri.length/3,edges=edgeCollapses(tri,xyz.length/3),P=v=>3*v,dist=(s,d)=>Math.hypot(xyz[P(s)]-xyz[P(d)],xyz[P(s)+1]-xyz[P(d)+1],xyz[P(s)+2]-xyz[P(d)+2]);
-  const tiny=f=>belowHeightContract(xyz,tri[3*f],tri[3*f+1],tri[3*f+2]);
-  // Only triangles with a constructed vertex can change.
-  const candidates=[];for(let f=0;f<n;f++)if(!isSource[tri[3*f]]||!isSource[tri[3*f+1]]||!isSource[tri[3*f+2]])candidates.push(f);
-  const out={collapsedEdges:0,remaining:0,maxCollapseMm:0};
-  for(let changed=true;changed;){changed=false;
-    for(const f of candidates){if(tri[3*f]<0||!tiny(f))continue;let best=null,length=Infinity;
-      for(let k=0;k<3;k++)for(const [s,d] of [[tri[3*f+k],tri[3*f+(k+1)%3]],[tri[3*f+(k+1)%3],tri[3*f+k]]]){if(isSource[s])continue;const l=dist(s,d);if(l>=length)continue;
-        if(edges.manifold(s,d)){best=[s,d];length=l;}}
-      if(!best)continue;const [s,d]=best;edges.collapse(s,d);onCollapse(d);out.collapsedEdges++;out.maxCollapseMm=Math.max(out.maxCollapseMm,length);changed=true;}}
-  for(let f=0;f<n;f++)if(tri[3*f]>=0&&tiny(f))out.remaining++;
-  return out;
+// Exact crossings and the same rounding-guard contacts publication rejects.
+// Only affected faces query the whole live mesh; unchanged regions are not rescanned.
+function changedContactFaces(xyz,T,changed,onSheet,store=new PointStore(xyz)){
+ const n=T.length/3,ids=[...new Set(changed)].filter(f=>T[3*f]>=0);if(!ids.length)return new Set();
+ const near=boxHierarchy(packedBoxes(xyz,Int32Array.from(ids.flatMap(f=>Array.from(T.subarray(3*f,3*f+3)))),ROUNDING_MM)),selected=new Uint8Array(n),box=new Float64Array(6),live=[...ids];for(const f of ids)selected[f]=1;
+ for(let f=0;f<n;f++){if(T[3*f]<0||selected[f])continue;for(let k=0;k<3;k++){const p=[T[3*f],T[3*f+1],T[3*f+2]].map(v=>xyz[3*v+k]);box[k]=Math.min(...p)-ROUNDING_MM;box[k+3]=Math.max(...p)+ROUNDING_MM;}let meets=false;near.queryBox(box,0,()=>{meets=true;});if(meets)live.push(f);}
+ const packed=Int32Array.from(live.flatMap(f=>Array.from(T.subarray(3*f,3*f+3)))),dirty=new Uint8Array(live.length);dirty.fill(1,0,ids.length);const found=intersectAll(store,packed,createConstructions(store,packed),{dirty,onSheet}),hit=new Set();for(const i of [...found.segs.keys(),...found.points.keys(),...found.parent.keys()])if(dirty[i])hit.add(live[i]);
+ const boxes=packedBoxes(xyz,packed,ROUNDING_MM),tree=boxHierarchy(boxes),point=v=>Array.from(xyz.subarray(3*v,3*v+3));for(let f=0;f<ids.length;f++)tree.queryBox(boxes,6*f,g=>{if(f===g)return;for(let k=0;k<3;k++)if(boxes[6*f+k]>boxes[6*g+k+3]||boxes[6*g+k]>boxes[6*f+k+3])return;const[i,j]=live[f]<live[g]?[f,g]:[g,f],a=Array.from(packed.subarray(3*i,3*i+3)),b=Array.from(packed.subarray(3*j,3*j+3));if(trianglesContact(a.map(point),b.map(point),a.filter(v=>b.includes(v)).map(point))){if(dirty[f])hit.add(live[f]);if(dirty[g])hit.add(live[g]);}});return hit;
+}
+
+// Height selects quality candidates; it never permits a long vertex move. Adapt
+// Milenkovic/Sacks' local skinny-triangle flips, with SAAM's independent surface
+// error bound taking precedence over quality (Hu et al., arXiv:1611.02147).
+// Disjoint patches form one batch: their maximum paired surface change bounds
+// the whole mesh. No coordinate moves occur and coplanar flips change no surface.
+function improveSliverTriangulation({xyz,tri,onSheet},toleranceMm=PRINT_RESOLUTION_MM){
+ const T=tri.slice(),n=T.length/3,nv=xyz.length/3,store=new PointStore(xyz);let S=store.S;
+ for(let value of[toleranceMm,ROUNDING_MM]){let bits=0;while(!Number.isInteger(value)){value*=2;bits++;}S=Math.max(S,bits);}
+ const scale=1n<<BigInt(S-store.S),points=new Array(nv),exact={vertex:v=>points[v]??=store.exactPoint(v).slice(0,3).map(x=>x*scale),number:x=>latticeInteger(x,S)};
+ const sub=(a,b)=>a.map((x,k)=>x-b[k]),square=v=>v.reduce((s,x)=>s+x*x,0n),height=t=>{const[a,b,c]=t.map(exact.vertex),u=sub(b,a),v=sub(c,a),w=sub(c,b),normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];return[square(normal),[square(u),square(v),square(w)].reduce((a,b)=>a>b?a:b)];},compare=(a,b)=>bsign(a[0]*b[1]-b[0]*a[1]),limit=exact.number(toleranceMm)**2n,rounding=exact.number(ROUNDING_MM)**2n,key=(a,b)=>a<b?a+':'+b:b+':'+a,edges=new Map();
+ for(let f=0;f<n;f++)for(let k=0;k<3;k++){const id=key(T[3*f+k],T[3*f+(k+1)%3]),list=edges.get(id)??[];list.push(f);edges.set(id,list);}
+ const locked=new Uint8Array(nv),proposals=[],report={method:'bounded-sliver-triangulation/1',candidateFaces:0,flippedEdges:0,contactsUndone:0,maxSurfaceChangeMm:0};
+ for(let f=0;f<n;f++){const face=Array.from(T.subarray(3*f,3*f+3)),oldHeight=height(face);if(oldHeight[0]>=limit*oldHeight[1])continue;report.candidateFaces++;if(face.some(v=>locked[v]))continue;
+  for(let k=0;k<3;k++){const h=face[k],t=face[(k+1)%3],v=face[(k+2)%3],support=edges.get(key(h,t));if(support?.length!==2)continue;const g=support.find(id=>id!==f),other=Array.from(T.subarray(3*g,3*g+3)),w=other.find(id=>id!==h&&id!==t);if(w===undefined||locked[w]||edges.has(key(v,w)))continue;
+   const fresh=[[v,h,w],[v,w,t]],before=[oldHeight,height(other)].sort(compare),after=fresh.map(height).sort(compare);if(after.some(a=>a[0]<=rounding*a[1]))continue;const oldBad=before.filter(a=>a[0]<limit*a[1]).length,newBad=after.filter(a=>a[0]<limit*a[1]).length;if(newBad>oldBad||newBad===oldBad&&!(compare(after[0],before[0])>0||compare(after[0],before[0])===0&&compare(after[1],before[1])>0))continue;
+   const bound=diagonalPatchBound(xyz,exact,h,t,v,w,toleranceMm);if(bound===null||bound>=toleranceMm)continue;T.set(fresh[0],3*f);T.set(fresh[1],3*g);for(const id of[h,t,v,w])locked[id]=1;proposals.push({faces:[f,g],before:[face,other],bound});break;
+  }
+ }
+ const active=new Set(proposals);for(;;){const hit=changedContactFaces(xyz,T,[...active].flatMap(p=>p.faces),onSheet,store);if(!hit.size)break;for(const p of active)if(p.faces.some(f=>hit.has(f))){p.faces.forEach((f,k)=>T.set(p.before[k],3*f));active.delete(p);report.contactsUndone++;}}
+ for(const p of active){report.flippedEdges++;report.maxSurfaceChangeMm=Math.max(report.maxSurfaceChangeMm,p.bound);}return{tri:T,report};
 }
 
 // ---------------- merging vertices closer than print resolution ----------------
@@ -573,13 +592,11 @@ function collapseTinyTriangles(xyz,tri,isSource,onCollapse){
 // stays (an unmoved source vertex, else one on a closing sheet, when only one end is;
 // either otherwise), so no point is constructed. Every vertex a merged one stands for
 // must lie within mergeMm of it, so the surface moves less than print resolution. A
-// round collapses pairs whose neighbourhoods are disjoint, each keeping the surface a
-// manifold with every triangle above the height contract; the exact crossing test of
-// the triangles the round changed then undoes every collapse among them that crosses,
-// and that direction is not tried again. Rounds repeat while one collapses. Pairs that
-// stay are counted by cause.
+// pair collapse keeps the surface a manifold with every triangle above the height
+// contract. Rounds repeat while one collapses. Pairs that stay are counted by cause.
 export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUTION_MM){
-  const nv=xyz.length/3,n=tri.length/3,T=tri.slice(),edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v;
+  if(!Number.isFinite(mergeMm)||mergeMm<0)throw Error('Surface cleanup needs a nonnegative finite displacement limit.');
+  const nv=xyz.length/3,n=tri.length/3,T=tri.slice(),edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v,store=new PointStore(xyz),limit=store.exactPoint(store.doublePoint(mergeMm,0,0)),within=(a,b)=>{const A=store.exactPoint(a),B=store.exactPoint(b),delta=A.slice(0,3).map((x,k)=>x*B[3]-B[k]*A[3]);return delta.reduce((s,x)=>s+x*x,0n)*limit[3]**2n<limit[0]**2n*(A[3]*B[3])**2n;};
   const dist=(a,b)=>Math.hypot(xyz[P(a)]-xyz[P(b)],xyz[P(a)+1]-xyz[P(b)+1],xyz[P(a)+2]-xyz[P(b)+2]),rank=v=>source[v]?2:onSheet[v]>=0?1:0;
   // Vertex pairs closer than mergeMm, closest first (a sweep along x); vertices keep
   // their positions, so a pair stays one while both ends are live.
@@ -590,41 +607,64 @@ export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUT
   // The vertices a live vertex stands for, when more than itself.
   const members=new Map(),group=v=>members.get(v)??[v];
   // Why collapsing s into d is refused, or null.
-  const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':group(s).some(m=>dist(m,d)>=mergeMm)?'displacement':
+  const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':group(s).some(m=>!within(m,d))?'displacement':
     edges.moved(s,d).some(t=>belowHeightContract(xyz,...t))?'height':null;
   const merge=(s,d)=>{const before=[members.get(s),members.get(d)];members.set(d,[...group(d),...group(s)]);members.delete(s);return {s,d,before,...edges.collapse(s,d)};};
   const unmerge=u=>{edges.restore(u);if(u.s<0)return;const [ms,md]=u.before;members.delete(u.d);if(md)members.set(u.d,md);if(ms)members.set(u.s,ms);};
-  // Triangles among changed (ids) that meet another beyond shared vertices and edges:
-  // the exact test of changed triangles against the live triangles near them.
-  const store=new PointStore(xyz),crossing=changed=>{const ids=[...new Set(changed)].filter(f=>T[3*f]>=0);if(!ids.length)return new Set();
-    const near=boxHierarchy(packedBoxes(xyz,Int32Array.from(ids.flatMap(f=>[T[3*f],T[3*f+1],T[3*f+2]])))),isChanged=new Uint8Array(n),box=new Float64Array(6),live=[...ids];
-    for(const f of ids)isChanged[f]=1;
-    for(let f=0;f<n;f++){if(T[3*f]<0||isChanged[f])continue;let meets=false;
-      for(let k=0;k<3;k++){const a=xyz[3*T[3*f]+k],b=xyz[3*T[3*f+1]+k],c=xyz[3*T[3*f+2]+k];box[k]=Math.min(a,b,c);box[3+k]=Math.max(a,b,c);}
-      near.queryBox(box,0,()=>{meets=true;});if(meets)live.push(f);}
-    const packed=new Int32Array(3*live.length),dirty=new Uint8Array(live.length);live.forEach((f,i)=>packed.set(T.subarray(3*f,3*f+3),3*i));dirty.fill(1,0,ids.length);
-    const found=intersectAll(store,packed,createConstructions(store,packed),{dirty,onSheet}),hit=new Set();
-    for(const i of [...found.segs.keys(),...found.points.keys(),...found.parent.keys()])if(dirty[i])hit.add(live[i]);return hit;};
-  const crossed=new Set(),report={toleranceMm:mergeMm,method:'close-pair-collapse/1',closePairs:pairs.length,rounds:0,mergedVertices:0,maxMoveMm:0,crossingUndone:0,remainingPairs:0,remaining:{}};
-  for(;;){const locked=new Uint8Array(nv),batch=[];
+  const crossing=changed=>changedContactFaces(xyz,T,changed,onSheet,store);
+  const crossed=new Set(),report={toleranceMm:mergeMm,method:'close-pair-collapse/1',closePairs:pairs.length,rounds:0,mergedVertices:0,sliverCollapses:0,maxMoveMm:0,crossingUndone:0,remainingPairs:0,remaining:{}};
+  // A round collapses edges whose neighbourhoods are disjoint, then undoes each whose
+  // changed triangles touch (exact crossing or rounding-guard contact) as many
+  // triangles as before, and that direction is not tried again. The converged
+  // surface can carry contacts, so a collapse that reduces them stays. Returns the
+  // number kept.
+  const settle=proposals=>{const before=crossing(proposals.flatMap(([s])=>incident[s])),count=(u,hit)=>{let c=0;for(let i=0;i<u.faces.length;i+=4)if(hit.has(u.faces[i]))c++;return c;};
+    const open=new Set(proposals.map(([s,d])=>{const u=merge(s,d);u.contacts=count(u,before);return u;}));
+    for(let undone=true;undone;){undone=false;const hit=crossing([...open].flatMap(u=>u.faces.filter((_,i)=>i%4===0)));
+      for(const u of open){const c=count(u,hit);if(c&&c>=u.contacts){unmerge(u);open.delete(u);crossed.add(u.s*nv+u.d);report.crossingUndone++;undone=true;}}}
+    return open.size;};
+  // Slivers first. Narrowness only selects a triangle: it loses its shortest edge
+  // whose collapse passes the manifold and member displacement tests of a pair, so
+  // it shares the pair bound; a triangle the collapse leaves thin is a later candidate.
+  const sliverEdge=f=>{const v=[T[3*f],T[3*f+1],T[3*f+2]],order=[0,1,2].sort((i,j)=>dist(v[i],v[(i+1)%3])-dist(v[j],v[(j+1)%3]));
+    for(const k of order){const a=v[k],b=v[(k+1)%3];for(const [s,d] of rank(a)<=rank(b)?[[a,b],[b,a]]:[[b,a],[a,b]])
+      if(!crossed.has(s*nv+d)&&edges.manifold(s,d)&&group(s).every(m=>within(m,d)))return [s,d];}
+    return null;};
+  for(;;){const locked=new Uint8Array(nv),proposals=[];
+    for(let f=0;f<n;f++){if(T[3*f]<0||!belowHeightContract(xyz,T[3*f],T[3*f+1],T[3*f+2]))continue;const e=sliverEdge(f);if(!e)continue;
+      const near=new Set([...ring(e[0]),...ring(e[1])]);if([...near].some(v=>locked[v]))continue;proposals.push(e);for(const v of near)locked[v]=1;}
+    if(!proposals.length)break;const kept=settle(proposals);if(!kept)break;report.sliverCollapses+=kept;
+  }
+  for(;;){const locked=new Uint8Array(nv),proposals=[];
     for(const {a,b} of livePairs()){if(locked[a]||locked[b])continue;
       const near=new Set([...ring(a),...ring(b)]);if([...near].some(v=>locked[v]))continue;
       for(const [s,d] of rank(a)<=rank(b)?[[a,b],[b,a]]:[[b,a],[a,b]]){
-        if(crossed.has(s*nv+d)||refusal(s,d))continue;batch.push(merge(s,d));for(const v of near)locked[v]=1;break;}}
-    if(!batch.length)break;report.rounds++;
-    // Restored triangles were apart from the surface before the round, not from the kept collapses.
-    const open=new Set(batch);
-    for(;;){const owner=new Map();for(const u of open)for(let i=0;i<u.faces.length;i+=4)owner.set(u.faces[i],u);
-      const hit=crossing([...owner.keys()]);if(!hit.size)break;
-      for(const u of new Set([...hit].map(f=>owner.get(f)))){unmerge(u);open.delete(u);if(u.s>=0){crossed.add(u.s*nv+u.d);report.crossingUndone++;open.add({s:-1,d:-1,lists:new Map(),faces:u.faces});}}}
-    for(const u of batch)if(!crossed.has(u.s*nv+u.d))report.mergedVertices++;
+        if(crossed.has(s*nv+d)||refusal(s,d))continue;proposals.push([s,d]);for(const v of near)locked[v]=1;break;}}
+    if(!proposals.length)break;report.rounds++;report.mergedVertices+=settle(proposals);
   }
   for(const [d,m] of members)for(const v of m)report.maxMoveMm=Math.max(report.maxMoveMm,dist(v,d));
+  // Full link contractions retain every removed face's image on a surviving
+  // edge. The original-member bound therefore applies to the complete surface,
+  // in both directions, rather than just the vertices that remain in the output.
+  report.surfaceChangeBoundMm=report.maxMoveMm?report.maxMoveMm*(1+2**-48):0;
   for(const {a,b} of livePairs()){report.remainingPairs++;const why=[[a,b],[b,a]].map(([s,d])=>crossed.has(s*nv+d)?'crossing':refusal(s,d)).find(Boolean);report.remaining[why]=(report.remaining[why]??0)+1;}
   const used=new Int32Array(nv).fill(-1),outTri=[];let count=0;
   for(let f=0;f<n;f++){if(T[3*f]<0)continue;for(let c=0;c<3;c++){const v=T[3*f+c];if(used[v]<0)used[v]=count++;outTri.push(used[v]);}}
   const outXyz=new Float64Array(3*count);for(let v=0;v<nv;v++)if(used[v]>=0)outXyz.set(xyz.subarray(3*v,3*v+3),3*used[v]);
   return {xyz:outXyz,tri:Int32Array.from(outTri),merge:report};
+}
+
+// One cleanup of the converged surface. Its fixed reference is unchanged through
+// the independent flip batch and every contraction; removed faces are included.
+function cleanupReconstructedSurface(current,mergeMm,progress=()=>{}){
+  progress({stage:'sliver-correction'});let t0=performance.now();const improved=improveSliverTriangulation(current),timings=[{sliverCorrection:performance.now()-t0}];
+  const allowance=Math.max(0,PRINT_RESOLUTION_MM-improved.report.maxSurfaceChangeMm-PRINT_RESOLUTION_MM*2**-46);
+  progress({stage:'merge'});t0=performance.now();const merged=mergeMeshVertices({...current,tri:improved.tri},Math.min(mergeMm,allowance));timings.push({merge:performance.now()-t0});
+  const sliverCorrection={...improved.report,reference:'converged reconstructed surface before cleanup',vertexSurfaceBoundMm:merged.merge.surfaceChangeBoundMm,totalSurfaceChangeBoundMm:improved.report.maxSurfaceChangeMm+merged.merge.surfaceChangeBoundMm};
+  if(sliverCorrection.totalSurfaceChangeBoundMm>=PRINT_RESOLUTION_MM)throw Error('Surface cleanup exceeded its fixed-reference displacement bound.');
+  let thin=0;for(let f=0;f<merged.tri.length/3;f++)if(belowHeightContract(merged.xyz,merged.tri[3*f],merged.tri[3*f+1],merged.tri[3*f+2]))thin++;
+  if(thin)throw Error(`${thin} reconstructed triangles stay below SAAM's minimum height and cannot be collapsed within print resolution; no result accepted`);
+  return{xyz:merged.xyz,tri:merged.tri,merge:merged.merge,sliverCorrection,timings};
 }
 
 // ---------------- reconstruction passes ----------------
@@ -646,8 +686,10 @@ export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,mergeMm=
     if(pass===maxPasses-1)throw Error('Rounding the reconstructed surface still creates crossings after '+maxPasses+' passes; no result accepted');
   }
   if(!passes.length)return null;
-  progress({stage:'merge'});const t0=performance.now(),merged=mergeMeshVertices(current,mergeMm);timings.push({merge:performance.now()-t0});
-  return {xyz:merged.xyz,tri:merged.tri,passes,merge:merged.merge,timings};
+  // Cleanup runs ONCE after all reconstruction/rounding passes. Its reference is
+  // this complete surface, never the start of another reconstruction retry.
+  const cleaned=cleanupReconstructedSurface(current,mergeMm,progress);timings.push(...cleaned.timings);
+  return {...cleaned,passes,timings};
 }
 function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGridMm,pass,progress}){
   const clock=()=>performance.now(),timings={};let t0=clock();
@@ -675,8 +717,6 @@ function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGrid
   const out=[];let roundingCancelled=0;
   for(let g=0;g<fsign.length;g++){if(fnet[g]===0){roundingCancelled++;continue;}if(Math.sign(fnet[g])===fsign[g])out.push(fr[3*g],fr[3*g+1],fr[3*g+2]);else out.push(fr[3*g],fr[3*g+2],fr[3*g+1]);}
   const outTri=Int32Array.from(out),touched=fromConstruction.slice(0,vertices);
-  const collapse=collapseTinyTriangles(rounded,outTri,roundedSource,d=>{touched[d]=1;});
-  if(collapse.remaining)throw Error(`${collapse.remaining} reconstructed triangles stay below SAAM's minimum height and cannot be collapsed; no result accepted`);
   const used=new Int32Array(vertices).fill(-1),finalTri=[],finalDirty=[];let nv=0;
   for(let t=0;t<outTri.length;t+=3){if(outTri[t]<0)continue;for(let c=0;c<3;c++){const v=outTri[t+c];if(used[v]<0)used[v]=nv++;finalTri.push(used[v]);}
     finalDirty.push(touched[outTri[t]]|touched[outTri[t+1]]|touched[outTri[t+2]]);}
@@ -684,5 +724,5 @@ function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGrid
   for(let v=0;v<vertices;v++)if(used[v]>=0){finalXyz.set(rounded.subarray(3*v,3*v+3),3*used[v]);finalSource[used[v]]=roundedSource[v];finalSheet[used[v]]=roundedSheet[v];}
   timings.round=clock()-t0;
   return {xyz:finalXyz,tri:Int32Array.from(finalTri),source:finalSource,dirty:Uint8Array.from(finalDirty),onSheet:finalSheet,sheets:closedSheets,timings,
-    report:{closing,refinedTriangles:refined.soup.length/3,...report,snapGridMm,maxSnapMm,roundingMergedPoints:merged,roundingDroppedTriangles:dropped,roundingCancelledPairs:roundingCancelled,...collapse,refine:refined.stats}};
+    report:{closing,refinedTriangles:refined.soup.length/3,...report,snapGridMm,maxSnapMm,roundingMergedPoints:merged,roundingDroppedTriangles:dropped,roundingCancelledPairs:roundingCancelled,refine:refined.stats}};
 }

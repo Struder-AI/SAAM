@@ -1,30 +1,25 @@
 // Admission of source-authored meshes; generated and validated geometry stays exact.
-import {mergeCloseVertices} from './mesh-vertices.mjs';
-import {mergeMeshVertices} from './mesh-autorefine.mjs';
-import {makeMesh} from './mesh.mjs';
-import {checkAdjacentContacts} from './mesh-spatial.mjs';
+import {prepareMesh} from './mesh-repair.mjs';
+import {spatialTemplate} from './spatial.mjs';
+import {validateBooleanSolid} from './boolean-solid.mjs';
 
-// Valid source solids use the same constrained collapse as reconstructed solids.
-// Raw seams use coordinate normalization before ordinary artifact validation.
-function sourceMeshStatus(value){
-  try{makeMesh(value.vertices,value.triangles);checkAdjacentContacts(value);return {valid:true};}
-  catch(error){if(error.code==='MESH_MEMORY_EXHAUSTED'||error instanceof RangeError)throw error;return {valid:false,error:error.message};}
-}
+// Reduce source coordinates and faces once, before any expensive geometric
+// validation. Changed connectivity uses the same demand-driven solid repair as
+// explicit repair. Null is an internal empty solid, mapped to spatial at the root.
 export function normalizeSourceMesh(value){
-  const proposal=mergeCloseVertices(value.vertices,value.triangles);
-  if(!proposal.merge.mergedVertices&&!proposal.merge.collapsedTriangles)return {geometry:value,report:proposal.merge};
-  const status=sourceMeshStatus(value);
-  if(!status.valid)return {geometry:{...value,vertices:proposal.vertices,triangles:proposal.triangles},report:{...proposal.merge,sourceValidationError:status.error}};
-  const vertices=value.vertices.length,packed={xyz:Float64Array.from(value.vertices.flat()),tri:Int32Array.from(value.triangles.flat()),source:new Uint8Array(vertices).fill(1),onSheet:new Int32Array(vertices).fill(-1)};
-  const merged=mergeMeshVertices(packed),points=[],faces=[];
-  for(let i=0;i<merged.xyz.length;i+=3)points.push([merged.xyz[i],merged.xyz[i+1],merged.xyz[i+2]]);
-  for(let i=0;i<merged.tri.length;i+=3)faces.push([merged.tri[i],merged.tri[i+1],merged.tri[i+2]]);
-  makeMesh(points,faces);checkAdjacentContacts({vertices:points,triangles:faces});
-  return {geometry:{...value,vertices:points,triangles:faces},report:{...merged.merge,maxDisplacementMm:merged.merge.maxMoveMm}};
+  const {clean,result:repaired}=prepareMesh(value,{maxHoleEdges:500,maxHoleDiameterMm:2}),report={...clean.resolutionMerge,removed:clean.removed,stitching:clean.stitching};
+  if(clean.empty)return {geometry:null,report:{...report,empty:true,...(value.source?{source:structuredClone(value.source)}:{})}};
+  const solid= repaired.report;
+  if(!report.mergedVertices&&!report.collapsedTriangles&&!clean.removed.degenerate&&!clean.removed.duplicates&&!clean.removed.unusedOrDuplicateVertices&&!clean.stitching.edges
+    &&!solid.selfIntersectionsRepaired&&!solid.orientation.flippedFaces&&!solid.orientation.reversedOrientation&&!solid.holesFilled)return {geometry:value,report};
+  if(sameMesh(repaired,value))return {geometry:value,report};
+  return {geometry:repaired.triangles.length?{...value,vertices:repaired.vertices,triangles:repaired.triangles}:null,
+    report:{...report,solidRepair:repaired.report,...(!repaired.triangles.length?{empty:true,...(value.source?{source:structuredClone(value.source)}:{})}:{})}};
 }
+const indexedGeometry=geometry=>Array.isArray(geometry?.vertices)&&Array.isArray(geometry?.triangles);
 function retainedMeshes(geometry,meshes){
   if(!geometry)return;
-  if(geometry.shape==='mesh')meshes.push(geometry);
+  if(indexedGeometry(geometry))meshes.push(geometry);
   else if(geometry.shape==='spatial')retainedMeshes(geometry.solid,meshes);
   else if(geometry.shape==='assembly')for(const part of geometry.parts)retainedMeshes(part.geometry,meshes);
   else if(geometry.shape==='boolean')for(const operand of geometry.operands)retainedMeshes(operand,meshes);
@@ -40,14 +35,27 @@ export function normalizeAuthoredGeometry(geometry,previous){
   const admitted=[],reports=[];retainedMeshes(previous,admitted);
   function normalize(value,path){
     if(!value)return value;
-    if(value.shape==='spatial')return {...value,solid:normalize(value.solid,path+'/solid')};
-    if(value.shape==='assembly')return {...value,parts:value.parts.map(part=>({...part,geometry:normalize(part.geometry,path+'/parts/'+part.id)}))};
-    if(value.shape==='boolean')return {...value,operands:value.operands.map((operand,i)=>normalize(operand,path+'/operands/'+i))};
-    if(value.shape!=='mesh'||admitted.some(mesh=>sameMesh(value,mesh)))return value;
+    if(value.shape==='spatial'){const solid=normalize(value.solid,path+'/solid');return solid===value.solid?value:{...value,solid};}
+    if(value.shape==='assembly'){
+      const parts=value.parts.map(part=>{const geometry=normalize(part.geometry,path+'/parts/'+part.id);return geometry===part.geometry?part:geometry?{...part,geometry}:null;}).filter(Boolean);
+      return !parts.length?null:parts.every((part,i)=>part===value.parts[i])&&parts.length===value.parts.length?value:{...value,parts};
+    }
+    if(value.shape==='boolean'){
+      validateBooleanSolid(value);
+      const normalized=value.operands.map((operand,i)=>normalize(operand,path+'/operands/'+i));
+      if(normalized.every((operand,i)=>operand===value.operands[i]))return value;
+      if(value.operation==='intersection'&&normalized.some(operand=>!operand)||value.operation==='difference'&&!normalized[0])return null;
+      const operands=normalized.filter(Boolean);
+      if(!operands.length)return null;
+      if(operands.length===1)return operands[0];
+      const selected=normalized[value.displayOperand];
+      return {...value,operands,...(Object.hasOwn(value,'displayOperand')?{displayOperand:selected?operands.indexOf(selected):0}:{})};
+    }
+    if(!indexedGeometry(value)||admitted.some(mesh=>sameMesh(value,mesh)))return value;
     const normalized=normalizeSourceMesh(value);
-    if(!normalized.report.mergedVertices&&!normalized.report.collapsedTriangles&&!normalized.report.remainingPairs)return value;
+    if(normalized.geometry===value)return value;
     reports.push({path,...normalized.report});
     return normalized.geometry;
   }
-  return {geometry:normalize(geometry,'geometry'),reports};
+  return {geometry:normalize(geometry,'geometry')??spatialTemplate(),reports};
 }

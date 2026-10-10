@@ -77,7 +77,7 @@ export function validateSlices(slices, { parts, lineWidthMm, firstLayerMm, valid
     if(a.construction==='inject'){validateInjectionAssignment(a,{parts});continue;}
     if(validateConstruction(a,{parts}))continue;
     if(a.construction){validateCurveAssignment(a,{parts});continue;}
-    requireThat(!Object.hasOwn(a,'courses'),'Legacy per-slice courses; run migrate_bundle to rename them to sliceOverrides.');
+    requireThat(!Object.hasOwn(a,'courses'),'Slice field name courses is retired; keep only sliceOverrides.');
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)&&!OPTIONAL_FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
     requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id), 'Invalid slice assignment id.');

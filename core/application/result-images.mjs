@@ -18,7 +18,7 @@ import {createTemporaryWorkspace} from './temporary-workspace.mjs';
 const PANEL=512,SAMPLES=2,MARGIN=0.06,GRID_MM=10,EDGE_PX=4;
 // Beads draw at this share of their width, so gaps show neighbouring tracks.
 const BEAD=0.6;
-const BACKGROUND=[246,247,249],GRID=[214,219,226],GRID_MAJOR=[188,195,205],PART=[132,170,208],OUTLINE=[46,58,72],CURVE=[52,84,120];
+const BACKGROUND=[246,247,249],GRID=[214,219,226],GRID_MAJOR=[188,195,205],PART=[132,170,208],OUTLINE=[46,58,72],CURVE=[38,63,83],POINT=[195,222,239];
 const SQRT2=Math.SQRT2,SQRT6=Math.sqrt(6),SQRT3=Math.sqrt(3);
 // right, up and toward-eye unit vectors of each panel.
 const VIEWS=Object.freeze([
@@ -141,8 +141,8 @@ export function geometryImage(geometry){
     }
     outline(canvas,frame);
     const a=new Float64Array(3),b=new Float64Array(3);
-    for(const curve of curves)for(let k=1;k<curve.points.length;k++){project(frame,curve.points[k-1],a,0);project(frame,curve.points[k],b,0);drawSegment(canvas,frame,a,b,SAMPLES*2,...CURVE);}
-    for(const {point} of points){project(frame,point,a,0);drawSegment(canvas,frame,a,a,SAMPLES*5,...CURVE);}
+    for(const curve of curves)for(let k=1;k<curve.points.length;k++){project(frame,curve.points[k-1],a,0);project(frame,curve.points[k],b,0);drawSegment(canvas,frame,a,b,SAMPLES*1.25,...CURVE);}
+    for(const {point} of points){project(frame,point,a,0);drawSegment(canvas,frame,a,a,SAMPLES*3,...POINT);}
   }
   return encode(canvas);
 }
@@ -192,10 +192,10 @@ export function createResultImages(paths){
   }
   return {
     // The images an operation's result carries: geometry when its geometry
-    // identity changed, toolpath when its generation did; null when neither.
-    async capture(directory,bundleId,before,after){
-      const geometry=Boolean(after?.geometryKey)&&after.geometryKey!==before?.geometryKey;
-      const toolpath=Boolean(after?.generationKey)&&after.generationKey!==before?.generationKey;
+    // identity changed, and after explicit generation even when its result is reused.
+    async capture(directory,bundleId,before,after,resultStage){
+      const geometry=Boolean(after?.geometryKey)&&(resultStage==='geometry'||after.geometryKey!==before?.geometryKey);
+      const toolpath=Boolean(after?.generationKey)&&(resultStage==='toolpath'||after.generationKey!==before?.generationKey);
       if(!geometry&&!toolpath)return null;
       const result={};
       try{

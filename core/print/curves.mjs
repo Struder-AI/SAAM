@@ -17,7 +17,7 @@ export function curveAssignment({id,construction='curves',...options}) {
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
-  requireThat(!Object.hasOwn(a,'courseIds')&&!a.curves?.some(c=>Object.hasOwn(c,'courses'))&&!Object.hasOwn(a.repeat??{},'family'),'Legacy Trace terminology; run migrate_bundle before generation.');
+  requireThat(!Object.hasOwn(a,'courseIds')&&!a.curves?.some(c=>Object.hasOwn(c,'courses'))&&!Object.hasOwn(a.repeat??{},'family'),'Trace field names courseIds, courses and repeat.family are retired; keep only repetitionIds, repetitions and repeat.stack.');
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
   requireThat(a.construction==='curves'&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');

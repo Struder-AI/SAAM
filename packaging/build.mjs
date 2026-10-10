@@ -33,7 +33,6 @@ import {resolve,dirname,join,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
-import {executablePlatform} from './native-repair.mjs';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -42,11 +41,21 @@ const PLATFORMS={
   'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']},
   'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']}
 };
+function executablePlatform(bytes){
+  if(bytes.length>=64&&bytes.toString('ascii',0,2)==='MZ'){
+    const offset=bytes.readUInt32LE(60);
+    if(offset+6<=bytes.length&&bytes.readUInt32LE(offset)===0x4550&&bytes.readUInt16LE(offset+4)===0x8664)return 'win-x64';
+  }
+  if(bytes.length>=8&&bytes.readUInt32LE(0)===0xfeedfacf){
+    const cpu=bytes.readUInt32LE(4);return cpu===0x100000c?'darwin-arm64':cpu===0x1000007?'darwin-x64':null;
+  }
+  return null;
+}
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
   /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
-  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|native-repair\.mjs|windows\/|macos\/)/,
+  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/,
   /^core\/geom\/(native\/|mesh-native\.mjs$)/,/^scripts\/build-mesh-repair\.mjs$/];
 
 // SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.
@@ -267,12 +276,11 @@ async function main(){
     const releaseJson=JSON.stringify(release,null,2)+'\n';
     await writeFile(resolve(app,'release.json'),releaseJson);
     console.log(`Application: ${describe(await measure(app))}.`);
-    // The package is accepted only when its own modules pass the setup check in a disposable home,
+    // The package is accepted only when its own modules pass the setup check in an owned tmp workspace,
     // on its own Node when this host can run it.
-    const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch,home=resolve(base,'stage','home');
+    const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch;
     if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
-    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app,env:{...process.env,SAAM_DATA:home}});
-    await rm(home,{recursive:true,force:true});
+    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app});
     run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
 
     // What installation needs before app.tar is unpacked. macOS has no double-click

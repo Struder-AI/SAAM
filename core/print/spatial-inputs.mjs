@@ -27,7 +27,8 @@ export function normalizeSpatialPlan(plan){
     return a;
   });
   if(original&&original.shape!=='spatial'&&!curves.size&&!points.size)return plan;
-  const geometry={...spatial,curves:[...curves.values()],points:[...points.values()]};validateSpatial(geometry);
+  const unchanged=(entries,previous)=>entries.size===previous.length&&[...entries.values()].every((entry,index)=>entry===previous[index]);
+  const geometry=unchanged(curves,spatial.curves)&&unchanged(points,spatial.points)?spatial:{...spatial,curves:[...curves.values()],points:[...points.values()]};validateSpatial(geometry);
   return {...plan,geometry,...(assignments?{slices:{...plan.slices,assignments}}:{})};
 }
 

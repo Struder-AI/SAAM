@@ -3,7 +3,7 @@ import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {frontAssignment} from '../../skills/wave-overhangs/scripts/prepare.mjs';
 import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
-import {depositionAssignment} from './assignment-records.mjs';
+import {depositionAssignment,currentAssignmentTerms} from './assignment-records.mjs';
 
 import {advancedVaseRecordRuntime} from '../../skills/advanced-vase-wall/scripts/record.mjs';
 const {validateSleevePattern}=advancedVaseRecordRuntime();
@@ -26,23 +26,14 @@ function explicitSleevePaths(pattern){
   validateSleevePattern(expanded);return expanded;
 }
 
-// Rename authored terminology only through explicit migration, preserving values.
+// Loading already reads renamed fields by their current names; migration refuses both spellings.
 function migrateAssignmentTerms(assignment){
-  const current=structuredClone(assignment);
-  const rename=(record,oldName,newName)=>{
-    if(!Object.hasOwn(record,oldName))return;
-    requireThat(!Object.hasOwn(record,newName),`Both ${oldName} and ${newName} are present; resolve the conflicting fields before migration.`);
-    record[newName]=record[oldName];delete record[oldName];
-  };
-  if(current.construction==='curves'){
-    rename(current,'courseIds','repetitionIds');
-    for(const curve of current.curves??[])rename(curve,'courses','repetitions');
-    if(current.repeat)rename(current.repeat,'family','stack');
-  }else if(!current.construction)rename(current,'courses','sliceOverrides');
-  return current;
+  const {assignment:current,conflicts:[conflict]}=currentAssignmentTerms(assignment);
+  requireThat(!conflict,`Both ${conflict?.[0]} and ${conflict?.[1]} are present; resolve the conflicting fields before migration.`);
+  return structuredClone(current);
 }
 
-// Explicit migration only. Loading never changes a recipe or its meaning.
+// Explicit migration only. Loading changes no recipe meaning; it only reads renamed fields.
 export function migrateRecipeFields(plan,machine){
   const changes=[];
   const process=Object.hasOwn(plan.process,'planarWallToleranceMm')?plan.process:

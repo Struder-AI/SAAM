@@ -6,7 +6,6 @@
 $ErrorActionPreference = 'Stop'
 
 $SaamHome = 'C:\SAAM'
-if ($env:SAAM_DATA -and [IO.Path]::GetFullPath($env:SAAM_DATA).TrimEnd('\') -ine (Join-Path $env:LOCALAPPDATA 'SAAM')) { $SaamHome = [IO.Path]::GetFullPath($env:SAAM_DATA) }
 if ($env:SAAM_INSTALL_TEST_ROOT) { $SaamHome = [IO.Path]::GetFullPath($env:SAAM_INSTALL_TEST_ROOT) }
 $SaamRoot = Join-Path $SaamHome 'app'
 $LegacyData = Join-Path $env:LOCALAPPDATA 'SAAM'

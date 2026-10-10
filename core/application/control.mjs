@@ -9,6 +9,9 @@ import {homePaths,canonicalHome} from './home.mjs';
 import {orchestratorRoot,orchestratorContract} from './runtime-selection.mjs';
 import {userInfo} from 'node:os';
 
+// Control probes and shutdown acknowledgements share the existing three-second liveness window.
+export const controlProbeMs=3000,controlWaitMs=35000;
+
 export function applicationPort(home=canonicalHome()){
   const identity=process.platform==='win32'?resolve(home).toLowerCase():resolve(home);
   return 49152+createHash('sha256').update(identity).digest().readUInt16BE(0)%16384;
@@ -50,7 +53,7 @@ export async function runningInstance(){
   const existing=await readInstance();
   if(!existing)return null;
   if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
-  try{await controlRequest(existing,{command:'status'},{waitMs:3000});return existing;}
+  try{await controlRequest(existing,{command:'ping'},{waitMs:controlProbeMs});return existing;}
   catch(error){if(error.result?.code==='RUNTIME_CONTRACT')throw error;return null;}
 }
 export async function readyInstance(){
@@ -73,7 +76,7 @@ export async function readyInstance(){
     for(;;){
       const ended=launched.exitCode!==undefined,instance=await readInstance();
       if(instance){
-        try{await controlRequest(instance,{command:'status'},{waitMs:2000});return instance;}catch{/* Startup publishes only ready records. */}
+        try{await controlRequest(instance,{command:'ping'},{waitMs:controlProbeMs});return instance;}catch{/* Startup publishes only ready records. */}
       }
       if(launched.failure)throw Error('SAAM could not start: '+launched.failure);
       if(ended)throw Error('SAAM stopped before it was ready (exit code '+launched.exitCode+').');

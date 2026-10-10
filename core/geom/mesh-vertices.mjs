@@ -9,14 +9,14 @@ import {checkMeshCapacity} from './mesh-capacity.mjs';
 // Collapsed faces and unused vertices are reported. Parsing itself remains exact,
 // including the decimal reimport that certifies repaired output.
 export const VERTEX_MERGE_METHOD='print-resolution-retained/1';
-export function mergeCloseVertices(vertices,triangles,toleranceMm=PRINT_RESOLUTION_MM){
-  if(!Number.isFinite(toleranceMm)||toleranceMm<=0)throw Error('Vertex merge needs a positive tolerance in millimetres.');
+export function clusterCloseVertices(vertices,toleranceMm=PRINT_RESOLUTION_MM){
+  if(!Number.isFinite(toleranceMm)||toleranceMm<0)throw Error('Vertex merge needs a nonnegative tolerance in millimetres.');
   requireThat(Array.isArray(vertices)&&vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Source mesh vertices must be finite XYZ millimetres.');
-  requireThat(Array.isArray(triangles)&&triangles.every(t=>Array.isArray(t)&&t.length===3&&t.every(i=>Number.isInteger(i)&&i>=0&&i<vertices.length)),'Invalid source mesh triangle indices.');
-  checkMeshCapacity(vertices.length,triangles.length);
-  const n=vertices.length,report={method:VERTEX_MERGE_METHOD,toleranceMm,mergedVertices:0,collapsedTriangles:0,unusedVertices:0,maxDisplacementMm:0};
+  checkMeshCapacity(vertices.length,0);
+  const n=vertices.length,report={method:VERTEX_MERGE_METHOD,toleranceMm,mergedVertices:0,movedVertices:0,collapsedTriangles:0,unusedVertices:0,maxDisplacementMm:0};
+  if(toleranceMm===0){const representative=new Int32Array(n),coordinates=new Map();for(let i=0;i<n;i++){const key=vertices[i].join(','),known=coordinates.get(key);if(known===undefined){coordinates.set(key,i);representative[i]=i;}else{representative[i]=known;report.mergedVertices++;}}return{representative,merge:report};}
   const magnitude=[0,0,0];for(const p of vertices)for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
-  const width=magnitude.map(m=>2**Math.max(Math.ceil(Math.log2(toleranceMm)),Math.ceil(Math.log2(m||Number.MIN_VALUE))-48));
+  const width=magnitude.map(m=>Math.min(Number.MAX_VALUE,2**Math.max(Math.ceil(Math.log2(toleranceMm)),Math.ceil(Math.log2(m||Number.MIN_VALUE))-48)));
   const compareCoordinates=(a,b)=>vertices[a][0]-vertices[b][0]||vertices[a][1]-vertices[b][1]||vertices[a][2]-vertices[b][2]||a-b;
   const order=Int32Array.from({length:n},(_,i)=>i).sort(compareCoordinates);
   const representative=new Int32Array(n),cells=new Map(),key=(x,y,z)=>(Math.imul(x|0,73856093)^Math.imul(y|0,19349663)^Math.imul(z|0,83492791));
@@ -27,8 +27,13 @@ export function mergeCloseVertices(vertices,triangles,toleranceMm=PRINT_RESOLUTI
       if(d<nearest.distance){nearest.index=j;nearest.distance=d;}
     }
     if(nearest.index<0){representative[i]=i;const name=key(...c),bucket=cells.get(name);if(bucket)bucket.push(i);else cells.set(name,[i]);}
-    else{representative[i]=nearest.index;report.mergedVertices++;report.maxDisplacementMm=Math.max(report.maxDisplacementMm,nearest.distance);}
+    else{representative[i]=nearest.index;report.mergedVertices++;if(nearest.distance>0)report.movedVertices++;report.maxDisplacementMm=Math.max(report.maxDisplacementMm,nearest.distance);}
   }
+  return{representative,merge:report};
+}
+export function mergeCloseVertices(vertices,triangles,toleranceMm=PRINT_RESOLUTION_MM){
+  requireThat(Array.isArray(triangles)&&triangles.every(t=>Array.isArray(t)&&t.length===3&&t.every(i=>Number.isInteger(i)&&i>=0&&i<vertices.length)),'Invalid source mesh triangle indices.');
+  checkMeshCapacity(vertices.length,triangles.length);const{representative,merge:report}=clusterCloseVertices(vertices,toleranceMm),n=vertices.length;
   const mapped=triangles.map(t=>t.map(v=>representative[v]));
   const kept=mapped.filter(t=>t[0]!==t[1]&&t[1]!==t[2]&&t[0]!==t[2]);report.collapsedTriangles=mapped.length-kept.length;
   if(!report.mergedVertices&&!report.collapsedTriangles)return {vertices,triangles,merge:report};

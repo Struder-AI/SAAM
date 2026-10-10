@@ -66,7 +66,7 @@ test('blob field lifecycle slices, reopens and updates changed points',async t=>
   const dir=await mkdtemp(join(tmpdir(),'saam-blob-field-'));t.after(()=>rm(dir,{recursive:true,force:true}));
   const request={points:[blob([0,0,1],8),blob([5,0,1],6)],edgeMm:0.5};
   let state=await createBlobFieldBundle(dir,request,{machineId:'ultimaker-s5'});
-  assert.deepEqual(state.plan.geometry.field.points,request.points);assert.equal(state.geometry.nativeFile,'model.mesh.json');
+  assert.deepEqual(state.plan.geometry.field.points,request.points);assert.equal(state.geometry.vertices,state.plan.geometry.vertices);assert.equal(state.geometryArtifact.file,undefined);
   await generateBundle(dir);state=await loadBundle(dir);assert.equal(state.programError,undefined);assert.ok(state.program.moves>0);
   state=await loadBundle(dir);request.points[1].strength=1.5;
   await updateBlobFieldBundle(dir,request,{expectedRevision:state.revision});

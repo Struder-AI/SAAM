@@ -5,7 +5,7 @@ import {checkMeshTopology} from './mesh-topology.mjs';
 import {checkAdjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
-import {normalizeSourceMesh} from './mesh-source.mjs';
+import {mergeCloseVertices} from './mesh-vertices.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // Source vertices closer than print resolution merge first; faces that collapse
@@ -17,13 +17,15 @@ export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   checkMeshCapacity(input.vertices.length,input.triangles.length);
   for(const p of input.vertices)requireThat(Array.isArray(p)&&p.length===3&&p.every(Number.isFinite),'Repair coordinates must be finite XYZ.');
   for(const face of input.triangles)requireThat(Array.isArray(face)&&face.length===3&&face.every(i=>Number.isInteger(i)&&i>=0&&i<input.vertices.length),'Invalid repair triangle indices.');
-  const normalized=normalizeSourceMesh(input),resolution={...normalized.geometry,merge:normalized.report};
-  const {vertices,mapping,merge}=indexRepairVertices(resolution.vertices,mergeToleranceMm);
+  // A requested coarser weld replaces the physical-resolution pass; every
+  // displacement is measured directly from the original source coordinates.
+  const effectiveToleranceMm=Math.max(PRINT_RESOLUTION_MM,mergeToleranceMm);
+  const resolution=mergeCloseVertices(input.vertices,input.triangles,effectiveToleranceMm),vertices=resolution.vertices;
   // Coincident triangles keep one copy facing their net orientation; an
   // opposed pair is a zero-thickness wall and cancels, so the surface stays closed.
   const kept=[],groups=new Map();let degenerate=0;
   for(const face of resolution.triangles){
-    const t=face.map(i=>mapping[i]);
+    const t=face;
     if(new Set(t).size!==3||!triangleNormal(...t.map(i=>vertices[i]))){degenerate++;continue;}
     const s=[...t].sort((a,b)=>a-b),key=s.join(','),sign=(s.indexOf(t[1])-s.indexOf(t[0])+3)%3===1?1:-1;
     const group=groups.get(key);if(group)group.net+=sign;else{groups.set(key,{triangle:t,sign,net:sign});kept.push(key);}
@@ -31,53 +33,28 @@ export function cleanTriangleSoup(input,{mergeToleranceMm=0}={}) {
   const triangles=[];
   for(const key of kept){const {triangle:t,sign,net}=groups.get(key);if(net)triangles.push(Math.sign(net)===sign?t:[t[0],t[2],t[1]]);}
   const duplicates=resolution.triangles.length-degenerate-triangles.length;
-  requireThat(triangles.length>=4,'Repair has no usable solid surface.');
+  requireThat(triangles.length===0||triangles.length>=4,'Repair has no usable solid surface.');
   // A removed or merged face can leave a vertex on the opposite edge (a T-junction);
   // stitching closes it wherever the boundary allows, and finds nothing on a closed mesh.
   const stitching=stitchCollapsedEdges(vertices,triangles);
   const compact=compactMesh(vertices,stitching.triangles);
-  return {...compact,resolutionMerge:resolution.merge,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
+  const merge={...resolution.merge,requestedToleranceMm:mergeToleranceMm,effectiveToleranceMm};
+  return {...compact,empty:compact.triangles.length===0,resolutionMerge:merge,...(mergeToleranceMm>0?{merge}:{}),removed:{degenerate:degenerate+resolution.merge.collapsedTriangles,duplicates,unusedOrDuplicateVertices:input.vertices.length-compact.vertices.length},
     stitching:{edges:stitching.stitchedEdges,addedTriangles:stitching.addedTriangles,toleranceMm:PRINT_RESOLUTION_MM}};
 }
 
-// Retained representatives never move: every snap is measured directly, not
-// through a chain of neighbours. Repeated coordinates reuse the same decision.
-function indexRepairVertices(points,toleranceMm){
-  const magnitude=[0,0,0];
-  for(const p of points)for(let k=0;k<3;k++)magnitude[k]=Math.max(magnitude[k],Math.abs(p[k]));
-  // Power-of-two cells avoid rounding the tolerance into a coarser snap rule.
-  // Widen only the search cells for extreme coordinate/tolerance ratios, keeping
-  // integer neighbours representable; actual Euclidean distance still decides.
-  const width=magnitude.map(m=>Math.min(Number.MAX_VALUE,2**Math.max(Math.ceil(Math.log2(toleranceMm)),Math.ceil(Math.log2(m||Number.MIN_VALUE))-48)));
-  const vertices=[],mapping=[],exact=new Map(),cells=new Map();
-  const merge={toleranceMm,method:'nearest-retained-vertex/1',mergedVertices:0,movedVertices:0,maxDisplacementMm:0};
-  for(const point of points){
-    const key=point.join(','),known=exact.get(key);
-    const nearest={index:known??-1,distance:toleranceMm};
-    const cell=toleranceMm>0?point.map((v,k)=>Math.floor(v/width[k])):null;
-    if(known===undefined&&cell){
-      for(let x=-1;x<=1;x++)for(let y=-1;y<=1;y++)for(let z=-1;z<=1;z++){
-        const candidates=cells.get([cell[0]+x,cell[1]+y,cell[2]+z].join(','));
-        for(const index of candidates??[]){
-          const p=vertices[index],distance=Math.hypot(point[0]-p[0],point[1]-p[1],point[2]-p[2]);
-          if(distance<=toleranceMm&&(nearest.index<0||distance<nearest.distance||distance===nearest.distance&&index<nearest.index)){
-            nearest.index=index;nearest.distance=distance;
-          }
-        }
-      }
-    }
-    if(nearest.index<0){
-      nearest.index=vertices.length;vertices.push([...point]);
-      if(cell){const name=cell.join(','),bucket=cells.get(name)??[];bucket.push(nearest.index);cells.set(name,bucket);}
-    }else{
-      merge.mergedVertices++;
-      const p=vertices[nearest.index],distance=Math.hypot(point[0]-p[0],point[1]-p[1],point[2]-p[2]);
-      if(distance>0)merge.movedVertices++;
-      merge.maxDisplacementMm=Math.max(merge.maxDisplacementMm,distance);
-    }
-    exact.set(key,nearest.index);mapping.push(nearest.index);
-  }
-  return {vertices,mapping,merge};
+// All newly admitted and explicitly repaired sources use one preparation owner.
+// Useful coordinate/face reduction precedes the intersection probe. The solid
+// repair operation reconstructs only when that probe finds an intersection.
+export function prepareMesh(input,options={}){
+  const clean=cleanTriangleSoup(input,options);
+  if(clean.empty)return {clean,result:{vertices:[],triangles:[],report:{method:'vertex-merge-cleanup/1',empty:true}}};
+  const result=repairSolid(clean,options),r=result.report;
+  if(result.triangles.length){makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);}
+  else{requireThat(result.vertices.length===0,'Empty repaired geometry must have no unused vertices.');r.empty=true;}
+  if(!r.selfIntersectionsRepaired&&!r.orientation.flippedFaces&&!r.orientation.reversedOrientation&&!r.holesFilled)
+    r.method=clean.merge?.movedVertices||clean.resolutionMerge.mergedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1';
+  return {clean,result};
 }
 
 // Removing a collinear face can expose A--C opposite C--B--A. Split the
@@ -186,7 +163,7 @@ export function repairSolid(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,progress=()
   checkMeshTopology(vertices,triangles,ok=>{if(!ok)throw Object.assign(Error('The repaired solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted.'),{code:'MESH_REPAIR_FAILED'});});
   const summary=pass=>{const {refine,snapGridMm,maxSnapMm,roundingMergedPoints,roundingDroppedTriangles,roundingCancelledPairs,remaining,...counts}=pass;return counts;};
   const reconstruction=solid&&{...summary(solid.passes[0]),snapGridMm:solid.passes[0].snapGridMm,maxSnapMm:Math.max(...solid.passes.map(p=>p.maxSnapMm)),
-    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),merge:solid.merge};
+    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),sliverCorrection:solid.sliverCorrection,merge:solid.merge};
   return {vertices,triangles,report:{method:'saam-solid-repair/2',orientation,...holes,selfIntersectionsRepaired:!!solid,reconstruction}};
 }
 
@@ -309,9 +286,12 @@ export function* encodeRepairSTLChunks(mesh){
 }
 
 export function validateRepair(mesh) {
-  makeMesh(mesh.vertices,mesh.triangles);
-  checkAdjacentContacts(mesh);
-  const bytes=encodeRepairSTL(mesh);parseSTL(bytes,{units:'mm'});return bytes;
+  if(mesh.triangles.length){makeMesh(mesh.vertices,mesh.triangles);checkAdjacentContacts(mesh);}
+  else requireThat(mesh.vertices.length===0,'Empty repaired geometry must have no unused vertices.');
+  const bytes=encodeRepairSTL(mesh);
+  if(mesh.triangles.length)parseSTL(bytes,{units:'mm'});
+  else{const exact=decodeSTL(bytes,{units:'mm'});requireThat(exact.vertices.length===0&&exact.triangles.length===0,'Empty repaired STL changed on exact reimport.');}
+  return bytes;
 }
 
 export {decodeSTL};

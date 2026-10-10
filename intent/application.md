@@ -99,8 +99,10 @@ Sources: [0.3.3 tray rows](../plans/0.3.3.md); [0.3.6 "Tray instances on the fir
 > "If I double click saam but it's already running, no duplicate, but also doesn't bring the existing window to the fore, make sure it does for 0.3.4" — owner, 2026-10-05 (Claude 764ea5bb 21:03)
 >
 > "second double click goes to whatever studio window, whatever runtime is most recent, and starts those if none is active" — owner, 2026-10-05 (Claude 764ea5bb 21:19)
+>
+> "I don't care enough about going to the most recent window when you click open to have a stupid problem or any wasted compute about it. You can cut that feature if you want. Restarting a runtime is a serious and very stupid bug, not worth the feature." — owner, 2026-10-08 (Codex 01a117f8, "0.3.7 build")
 
-Summary: launching SAAM while it runs brings the most recent Studio window forward, or starts one, without duplicates; focus changes only in answer to the person's own launch.
+Summary: launching SAAM while it runs opens a Studio of the installed runtime without duplicates; an explicitly selected session opens that session. Most-recent-window selection was removed (2026-10-08); a stopped runtime is never restarted by a plain Open. Focus changes only in answer to the person's own launch.
 
 Sources: [0.3.4 "Second launch brings Studio forward"](../plans/0.3.4.md); Claude 764ea5bb 21:18 ("Second launch isn't allowed, wtf"), 22:01 ("fine").
 

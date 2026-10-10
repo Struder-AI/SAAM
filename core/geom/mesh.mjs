@@ -63,7 +63,7 @@ function meshResult(vertices,triangles,name,derived){
 // a long sliver and a micro triangle are judged by the same height.
 export function triangleNormal(a,b,c){
   const n=cross(sub(b,a),sub(c,a)),length=Math.hypot(...n);
-  return length>=DEGENERATE_HEIGHT_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
+  return length>0&&length>=DEGENERATE_HEIGHT_MM*Math.sqrt(Math.max(dot(sub(b,a),sub(b,a)),dot(sub(c,b),sub(c,b)),dot(sub(a,c),sub(a,c))))?n.map(v=>v/length):null;
 }
 
 // Unit normal of triangle i as validated at ingestion (packed xyz per triangle).
@@ -282,19 +282,12 @@ export function meshCrossingsAt(mesh,x,y) {
 }
 
 export function meshTopAt(mesh,x,y) {
-  let best=null;
-  for(const [i,t] of mesh.triangles.entries()) {
-    const [a,b,c]=t.map(k=>mesh.vertices[k]);
-    const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-    if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;
-    const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
-    const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
-    if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
-    const zMm=u*a[2]+v*b[2]+w*c[2],n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
-    const slopeDeg=Math.acos(Math.min(1,normal[2]))*180/Math.PI;
-    // Tops closer than print resolution coincide; the steeper triangle wins the tie.
-    if(!best||zMm>best.zMm+PRINT_RESOLUTION_MM||(Math.abs(zMm-best.zMm)<=PRINT_RESOLUTION_MM&&slopeDeg>best.slopeDeg))best={zMm,normal,slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`};
-  }
+  const crossings=meshCrossingsAt(mesh,x,y);let highest=-Infinity,best=null;
+  for(const crossing of crossings)highest=Math.max(highest,crossing.zMm);
+  // All ties refer to the actual top, never a previously selected lower face.
+  // Prefer the steeper face within print resolution, then the higher equal slope.
+  for(const crossing of crossings)if(highest-crossing.zMm<=PRINT_RESOLUTION_MM&&
+    (!best||crossing.slopeDeg>best.slopeDeg||crossing.slopeDeg===best.slopeDeg&&crossing.zMm>best.zMm))best=crossing;
   return best;
 }
 

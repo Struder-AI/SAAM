@@ -26,10 +26,10 @@ guards display and export, `editRevision` authored changes, `revision` every com
 Geometry includes solids, curves and points; recipe/machine may be incomplete.
 Operations report missing prerequisites; opening/retry never generates ordinary output.
 
-Geometry extensions supply prepared artifacts; Bundle admits new authored meshes once.
-Its adapter returns `{plan,meshNormalization}` from `normalizePlan`, given prior geometry
-and any prepared artifact. Reports persist in the geometry descriptor; unchanged,
-prepared and loaded geometry stay exact. Technique semantics are checked at edit
+Geometry owns admission and reusable preparation from the recipe's single geometry.
+Workers transfer that shape with its owned derived data; Bundle never accepts an
+independently paired artifact. Reports persist in the geometry descriptor; unchanged
+and loaded geometry stay exact. Technique semantics are checked at edit
 and regeneration after prerequisites exist; saved geometry needs no extension rerun.
 
 `prepareSliceRegionContext` accepts a supplied Geometry slice stack, preset,
@@ -143,7 +143,7 @@ exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-
 
 [Blob fields](../../GEOMETRY.md#blob-field) use `shape: "blob-field"` records with the points,
 extraction settings and checked manufacturing mesh retained together in the
-native JSON asset. Shared generation sections that mesh; Studio displays it.
+recipe geometry. Shared generation sections that mesh; Studio displays the same arrays.
 Field edits rebuild the mesh through the `blob_field` tool; a generic recipe
 patch cannot edit compiled geometry.
 
@@ -152,7 +152,8 @@ The shared workflow stores one directory per print:
 ```text
 Prints/<name>/
   plan.json                         # atomic plan + bundle manifest
-  geometry/<geometry-id>.3dm        # or .mesh.json
+  geometry/<geometry-id>.3dm        # spline native data only
+  geometry/<geometry-id>.descriptor.json # source snapshot shared by history
   paths/<path-id>.json               # completed SAAMpath
   history/<record-id>.json           # immutable component/history records
   exports/<output>/<output-id>-<name>
@@ -171,8 +172,10 @@ it can be removed after a bounded inventory reaches zero and the migration
 window is closed in a documented release. The lifecycle and SAAMpath formats
 are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 
-- `saam-print-bundle/2`: the reserved `bundle` envelope in `plan.json`; it owns
-  the locked machine, review lifecycle and immutable geometry/program references.
+- `saam-print-bundle/3`: the reserved `bundle` envelope owns machine, review and
+  artifact references. Derived views omit duplicated plain mesh arrays; `/2` remains readable.
+  Older `/2` readers refuse `/3`. Portable input-only ZIPs retain `/2` recipes;
+  an emptied STL keeps its source bytes/provenance in a `saam-print-package/2` ZIP.
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.

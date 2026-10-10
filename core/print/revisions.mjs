@@ -7,14 +7,16 @@ import {requireBundleInstance} from './studio-ownership.mjs';
 import {withBundleWriteLock} from './bundle-lock.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
 import {neutralMaterials} from '../machine/settings.mjs';
+import {currentRecipeTerms} from './assignment-records.mjs';
+import {geometryDescriptor,storedGeometryDescriptor} from './geometry.mjs';
 
 const exists=file=>access(file).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
 // A geometry artifact's descriptor, written once beside it, so history refers to
 // the artifact instead of copying its mesh.
-export const descriptorFile=geometry=>geometry.file.replace(/\.(?:3dm|mesh\.json)$/,'.descriptor.json');
+export const descriptorFile=geometry=>geometry.file?geometry.file.replace(/\.(?:3dm|mesh\.json)$/,'.descriptor.json'):`geometry/${geometry.id}.descriptor.json`;
 export async function saveDescriptor(dir,geometry){
   const file=resolve(dir,descriptorFile(geometry));
-  if(!await exists(file))await replaceFile(file,JSON.stringify(geometry.descriptor));
+  if(!await exists(file))await replaceFile(file,JSON.stringify(storedGeometryDescriptor(geometry.descriptor,{snapshot:true})));
 }
 
 // One history record per snapshot: the recipe without its shape, the machine,
@@ -29,9 +31,11 @@ export async function retainContent(dir,{plan,machine,geometry,review,ids}){
 // current: the bundle's geometry artifact, reused when the snapshot refers to it.
 export async function restoreContent(dir,id,current){
   const saved=JSON.parse(await readFile(resolve(dir,`history/${id}.json`),'utf8'));
+  saved.recipe=currentRecipeTerms(saved.recipe);
   if(saved.recipe?.setup)saved.recipe.setup=neutralMaterials(saved.recipe.setup);
+  const descriptor=saved.geometry&&saved.geometry.id!==current?.id?JSON.parse(await readFile(resolve(dir,descriptorFile(saved.geometry)),'utf8')):null;
   const geometry=!saved.geometry?null:saved.geometry.id===current?.id?current
-    :{...saved.geometry,descriptor:JSON.parse(await readFile(resolve(dir,descriptorFile(saved.geometry)),'utf8'))};
+    :{...saved.geometry,descriptor:await geometryDescriptor(descriptor.parameters,descriptor)};
   return {...saved,plan:geometry?{...saved.recipe,geometry:geometry.descriptor.parameters}:saved.recipe,geometry};
 }
 // Fail closed on a competing/crashed writer. The lock records its process for

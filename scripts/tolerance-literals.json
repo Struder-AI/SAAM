@@ -32,6 +32,6 @@
  "studio/app.mjs": 3,
  "studio/machine-view.mjs": 4,
  "studio/material-view.mjs": 5,
- "studio/mesh-view.mjs": 11,
+ "studio/mesh-view.mjs": 9,
  "studio/toolpath-view.mjs": 2
 }

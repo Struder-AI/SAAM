@@ -1,4 +1,5 @@
 import {computationWorker,workerMemoryError} from './computation-job.mjs';
+import {receiveGeometry} from './geometry.mjs';
 // Runs repairSTL ('bytes'), repairSTLFiles ('files') or prepareSTLImportInWorker
 // ('import') in a worker. It settles only after the worker has stopped, so a
 // caller may then remove the directory the job was writing.
@@ -28,7 +29,12 @@ export function runRepairJob(mode,directory,source,options){
       if(message.type==='progress'){try{progress?.(message.event);}catch(error){callbackError=error;abort();}}
       else if(message.type==='geometry'){try{signal?.throwIfAborted();await onGeometry(message.event);worker.postMessage({type:'geometry-ack',id:message.id});}catch(error){callbackError=error;worker.postMessage({type:'geometry-ack',id:message.id,error:error.message});abort();}}
       else if(message.type==='error'){const e=Object.assign(Error(message.error.message),message.error);finish(callbackError??e);}
-      else if(message.type==='result'){const result=message.result;if(result.repairedBytes)result.repairedBytes=Buffer.from(result.repairedBytes.buffer,result.repairedBytes.byteOffset,result.repairedBytes.byteLength);finish(callbackError??(signal?.aborted?signal.reason:null),result);}
+      else if(message.type==='result'){
+        try{const result=message.result;if(mode==='import')result.geometry=await receiveGeometry(result.geometry);
+          if(result.repairedBytes)result.repairedBytes=Buffer.from(result.repairedBytes.buffer,result.repairedBytes.byteOffset,result.repairedBytes.byteLength);
+          finish(callbackError??(signal?.aborted?signal.reason:null),result);
+        }catch(error){finish(error);}
+      }
     });
     worker.on('error',error=>finish(repairMemoryError(error,source)));worker.on('exit',code=>{if(!settled)finish(Error(`Mesh repair worker exited without a result (${code}).`));});
   });

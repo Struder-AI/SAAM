@@ -1337,7 +1337,7 @@
     },
     "core/application/home.mjs": {
       "owner": "application",
-      "reason": "Application home: app, Prints, extensions and state; disposable SAAM_DATA override is for isolated trials."
+      "reason": "Application home: app, Prints, extensions and state; only node --test may inject a disposable home."
     },
     "core/application/control.mjs": {
       "owner": "application",
@@ -7958,6 +7958,14 @@
     "core/print/assignment-records.mjs::depositionAssignment": {
       "owner": "toolpath"
     },
+    "core/print/assignment-records.mjs::currentAssignmentTerms": {
+      "owner": "toolpath",
+      "reason": "Reads assignment fields renamed after 0.3.6 by their current names."
+    },
+    "core/print/assignment-records.mjs::currentRecipeTerms": {
+      "owner": "toolpath",
+      "reason": "Applies current assignment field names wherever Bundle reads or normalizes a recipe."
+    },
     "core/print/slices.mjs::validateSlices::@default/validateConstruction": {
       "owner": "toolpath"
     },
@@ -8505,13 +8513,13 @@
     "core/region/section.mjs::combine": {
       "owner": "geometry-leaf-731ad8aad6da"
     },
-    "core/geom/build.mjs::buildShapes": {
+    "core/geom/build.mjs::buildShells": {
       "owner": "geometry-leaf-51aa23771b6b"
     },
-    "core/geom/build.mjs::buildShapes::build": {
+    "core/geom/build.mjs::buildShells::build": {
       "owner": "geometry-leaf-fd7bea969ae2"
     },
-    "core/geom/build.mjs::buildShapes::construct": {
+    "core/geom/build.mjs::buildShells::construct": {
       "owner": "geometry-leaf-207eb6ad5c11"
     },
     "core/geom/build.mjs::resolveGeometrySelections": {
@@ -12359,9 +12367,6 @@
       "owner": "studio"
     },
     "studio/viewer-session.mjs::connect::<callback@10:43>::detail": {
-      "owner": "studio"
-    },
-    "studio/viewer-session.mjs::focused": {
       "owner": "studio"
     },
     "workspaces/export-worker.mjs::createWorkspaceBundles::@scope/forof-1/block-1::prior": {
