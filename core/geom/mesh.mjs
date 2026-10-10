@@ -55,7 +55,7 @@ export function meshInputError(message){return Object.assign(new Error(`${messag
 function meshResult(vertices,triangles,name,derived){
   // Each record owns its copy of the cached normals.
   return {kind:'triangle-mesh',name,vertices,triangles,
-    bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice()};
+    bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice(),contacts:{count:derived.contacts.count,pairs:derived.contacts.pairs.map(p=>[...p])},topology:{...derived.topology}};
 }
 
 // Unit normal of triangle abc, or null when the triangle is degenerate: its smallest
@@ -99,15 +99,19 @@ function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
-  for(let i=0;i<triangles.length;i++){const t=triangles[i],n=triangleNormal(vertices[t[0]],vertices[t[1]],vertices[t[2]]);requireMeshInput(n,'Degenerate mesh triangle.');normals.set(n,i*3);}
-  return {normals,bounds};
+  // A sliver (below the height contract) that cleanup could not remove is counted, not
+  // refused; it keeps its raw unit normal, or none when exactly flat.
+  let slivers=0;
+  for(let i=0;i<triangles.length;i++){const [a,b,c]=triangles[i].map(v=>vertices[v]),n=triangleNormal(a,b,c);
+    if(n)normals.set(n,i*3);else{slivers++;const raw=cross(sub(b,a),sub(c,a)),length=Math.hypot(...raw);if(length>0)normals.set(raw.map(x=>x/length),i*3);}}
+  return {normals,bounds,slivers};
 }
 
-function validateMeshGeometry({vertices,triangles},{normals,bounds}){
+function validateMeshGeometry({vertices,triangles},{normals,bounds,slivers}){
   const counts=[vertices.length,triangles.length];
-  meshAllocation('Mesh edge topology',...counts,()=>checkMeshTopology(vertices,triangles,requireMeshInput));
-  meshAllocation('Mesh intersection index',...counts,()=>rejectIntersections(vertices,triangles,normals));
-  return {normals,bounds};
+  const topology=meshAllocation('Mesh edge topology',...counts,()=>checkMeshTopology(vertices,triangles,requireMeshInput));
+  const contacts=meshAllocation('Mesh intersection index',...counts,()=>nonadjacentContacts(vertices,triangles,normals));
+  return {normals,bounds,contacts,topology:{...topology,slivers}};
 }
 
 function retainValidatedMesh(identity,derived){
@@ -116,15 +120,19 @@ function retainValidatedMesh(identity,derived){
   if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
   return derived;
 }
-// Nonadjacent triangles whose boxes come within the rounding guard must be separated.
-function rejectIntersections(vertices,triangles,normals){
-  const boxes=triangleBoxes(vertices,triangles);
+// Nonadjacent triangles that cross or come within the rounding guard are reported,
+// not refused (owner, 2026-10-09: "Our job is to show things in saam, not limit what
+// we can do with saam"). Sections still close there; an overlap of two shells reads
+// as one region. The count is exact; the first pairs are kept as evidence.
+function nonadjacentContacts(vertices,triangles,normals){
+  const boxes=triangleBoxes(vertices,triangles),contacts={count:0,pairs:[]};
   overlappingBoxPairs(triangleBoxes(vertices,triangles,ROUNDING_MM),(i,j)=>{
     const ta=triangles[i],tb=triangles[j];if(ta[0]===tb[0]||ta[0]===tb[1]||ta[0]===tb[2]||ta[1]===tb[0]||ta[1]===tb[1]||ta[1]===tb[2]||ta[2]===tb[0]||ta[2]===tb[1]||ta[2]===tb[2])return;
     for(let k=0;k<3;k++)if(boxes[6*j+3+k]<boxes[6*i+k]-ROUNDING_MM||boxes[6*j+k]>boxes[6*i+3+k]+ROUNDING_MM)return;
     const pa=ta.map(v=>vertices[v]),pb=tb.map(v=>vertices[v]);
-    if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){try{requireMeshInput(false,'Intersecting or touching nonadjacent mesh triangles; repair the source before importing.');}catch(error){error.meshDiagnostic={kind:'triangle-intersection',indices:[i,j],points:[pa,pb]};throw error;}}
+    if(!separatedTriangles(pa,pb,normals.subarray(i*3,i*3+3),normals.subarray(j*3,j*3+3))){contacts.count++;if(contacts.pairs.length<20)contacts.pairs.push([i,j]);}
   });
+  return contacts;
 }
 
 // Shared closed-triangle separation predicate: the projections onto one of the

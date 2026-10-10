@@ -522,10 +522,11 @@ function classify(store,soup){
 
 // ---------------- edge collapse ----------------
 // SAAM's mesh contract needs every triangle's height above the rounding guard.
-function belowHeightContract(xyz,a,b,c){
+function belowHeightContract(xyz,a,b,c){return belowHeight(xyz,a,b,c,ROUNDING_MM);}
+function belowHeight(xyz,a,b,c,heightMm){
   const A=3*a,B=3*b,C=3*c,u=[xyz[B]-xyz[A],xyz[B+1]-xyz[A+1],xyz[B+2]-xyz[A+2]],v=[xyz[C]-xyz[A],xyz[C+1]-xyz[A+1],xyz[C+2]-xyz[A+2]],w=[xyz[C]-xyz[B],xyz[C+1]-xyz[B+1],xyz[C+2]-xyz[B+2]];
   const longest=Math.sqrt(Math.max(u[0]**2+u[1]**2+u[2]**2,v[0]**2+v[1]**2+v[2]**2,w[0]**2+w[1]**2+w[2]**2));
-  return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=ROUNDING_MM*longest;
+  return Math.hypot(u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0])<=heightMm*longest;
 }
 // Edge collapses on a flat triangle list (removed triangles -1) with its vertex
 // incidence. Collapsing s into d keeps d where it is; the surface stays a manifold when
@@ -553,36 +554,73 @@ function edgeCollapses(tri,vertexCount){
   return {incident,ring,joined,manifold,moved,collapse,restore};
 }
 
-// Exact crossings and the same rounding-guard contacts publication rejects.
-// Only affected faces query the whole live mesh; unchanged regions are not rescanned.
-function changedContactFaces(xyz,T,changed,onSheet,store=new PointStore(xyz)){
+// Rounding-guard box of live face f of T, written at out[o..o+5].
+function guardBox(xyz,T,f,out,o){
+ for(let k=0;k<3;k++){const a=xyz[3*T[3*f]+k],b=xyz[3*T[3*f+1]+k],c=xyz[3*T[3*f+2]+k];out[o+k]=Math.min(a,b,c)-ROUNDING_MM;out[o+3+k]=Math.max(a,b,c)+ROUNDING_MM;}
+}
+function boxesMeet(A,a,B,b){return !(A[a]>B[b+3]||B[b]>A[a+3]||A[a+1]>B[b+4]||B[b+1]>A[a+4]||A[a+2]>B[b+5]||B[b+2]>A[a+5]);}
+// Rounding-guard boxes of T's live faces when built, for changedContactFaces. Faces
+// whose corners change afterwards are marked in edited and listed once in editedList
+// by the owner of T; they are tested at their current corners instead.
+function contactIndex(xyz,T,edited,editedList){
+ const items=[];for(let f=0;f<T.length/3;f++)if(T[3*f]>=0)items.push(f);
+ const boxes=new Float64Array(6*items.length);items.forEach((f,i)=>guardBox(xyz,T,f,boxes,6*i));
+ return {tree:boxHierarchy(boxes),items,boxes,edited,editedList};
+}
+// Exact crossings and the same rounding-guard contacts publication rejects, of the
+// changed faces. Only faces whose rounding-guard boxes meet a changed face's take
+// part: through index (contactIndex) when given, else by one pass over T.
+function changedContactFaces(xyz,T,changed,onSheet,store=new PointStore(xyz),index=null){
  const n=T.length/3,ids=[...new Set(changed)].filter(f=>T[3*f]>=0);if(!ids.length)return new Set();
- const near=boxHierarchy(packedBoxes(xyz,Int32Array.from(ids.flatMap(f=>Array.from(T.subarray(3*f,3*f+3)))),ROUNDING_MM)),selected=new Uint8Array(n),box=new Float64Array(6),live=[...ids];for(const f of ids)selected[f]=1;
- for(let f=0;f<n;f++){if(T[3*f]<0||selected[f])continue;for(let k=0;k<3;k++){const p=[T[3*f],T[3*f+1],T[3*f+2]].map(v=>xyz[3*v+k]);box[k]=Math.min(...p)-ROUNDING_MM;box[k+3]=Math.max(...p)+ROUNDING_MM;}let meets=false;near.queryBox(box,0,()=>{meets=true;});if(meets)live.push(f);}
- const packed=Int32Array.from(live.flatMap(f=>Array.from(T.subarray(3*f,3*f+3)))),dirty=new Uint8Array(live.length);dirty.fill(1,0,ids.length);const found=intersectAll(store,packed,createConstructions(store,packed),{dirty,onSheet}),hit=new Set();for(const i of [...found.segs.keys(),...found.points.keys(),...found.parent.keys()])if(dirty[i])hit.add(live[i]);
- const boxes=packedBoxes(xyz,packed,ROUNDING_MM),tree=boxHierarchy(boxes),point=v=>Array.from(xyz.subarray(3*v,3*v+3));for(let f=0;f<ids.length;f++)tree.queryBox(boxes,6*f,g=>{if(f===g)return;for(let k=0;k<3;k++)if(boxes[6*f+k]>boxes[6*g+k+3]||boxes[6*g+k]>boxes[6*f+k+3])return;const[i,j]=live[f]<live[g]?[f,g]:[g,f],a=Array.from(packed.subarray(3*i,3*i+3)),b=Array.from(packed.subarray(3*j,3*j+3));if(trianglesContact(a.map(point),b.map(point),a.filter(v=>b.includes(v)).map(point))){if(dirty[f])hit.add(live[f]);if(dirty[g])hit.add(live[g]);}});return hit;
+ const near=new Float64Array(6*ids.length),selected=new Set(ids),others=[],box=new Float64Array(6);ids.forEach((f,i)=>guardBox(xyz,T,f,near,6*i));
+ const meetsNear=(B,b)=>{for(let i=0;i<ids.length;i++)if(boxesMeet(B,b,near,6*i))return true;return false;};
+ if(index){
+  for(let i=0;i<ids.length;i++)index.tree.queryBox(near,6*i,k=>{const g=index.items[k];if(index.edited[g]||T[3*g]<0||selected.has(g)||!boxesMeet(index.boxes,6*k,near,6*i))return;selected.add(g);others.push(g);});
+  for(const g of index.editedList){if(T[3*g]<0||selected.has(g))continue;guardBox(xyz,T,g,box,0);if(meetsNear(box,0)){selected.add(g);others.push(g);}}
+ }else{const tree=boxHierarchy(near);
+  for(let f=0;f<n;f++){if(T[3*f]<0||selected.has(f))continue;guardBox(xyz,T,f,box,0);let meets=false;tree.queryBox(box,0,i=>{if(!meets&&boxesMeet(box,0,near,6*i))meets=true;});if(meets)others.push(f);}}
+ // Changed faces first, then the rest in face order.
+ others.sort((a,b)=>a-b);const live=[...ids,...others];
+ const packed=new Int32Array(3*live.length),dirty=new Uint8Array(live.length);live.forEach((f,i)=>{packed[3*i]=T[3*f];packed[3*i+1]=T[3*f+1];packed[3*i+2]=T[3*f+2];});dirty.fill(1,0,ids.length);const found=intersectAll(store,packed,createConstructions(store,packed),{dirty,onSheet}),hit=new Set();for(const i of [...found.segs.keys(),...found.points.keys(),...found.parent.keys()])if(dirty[i])hit.add(live[i]);
+ // Each pair is measured once, and only while it can still add a changed face.
+ const boxes=packedBoxes(xyz,packed,ROUNDING_MM),tree=boxHierarchy(boxes),point=v=>[xyz[3*v],xyz[3*v+1],xyz[3*v+2]],corners=i=>[packed[3*i],packed[3*i+1],packed[3*i+2]];for(let f=0;f<ids.length;f++)tree.queryBox(boxes,6*f,g=>{if(f===g||dirty[g]&&g<f||hit.has(live[f])&&(!dirty[g]||hit.has(live[g])))return;for(let k=0;k<3;k++)if(boxes[6*f+k]>boxes[6*g+k+3]||boxes[6*g+k]>boxes[6*f+k+3])return;const[i,j]=live[f]<live[g]?[f,g]:[g,f],a=corners(i),b=corners(j);if(trianglesContact(a.map(point),b.map(point),a.filter(v=>b.includes(v)).map(point))){if(dirty[f])hit.add(live[f]);if(dirty[g])hit.add(live[g]);}});return hit;
 }
 
-// Height selects quality candidates; it never permits a long vertex move. Adapt
-// Milenkovic/Sacks' local skinny-triangle flips, with SAAM's independent surface
+// Candidates are slivers below the height contract that touch a vertex in scan;
+// height never permits a long vertex move. Adapt Milenkovic/Sacks' local
+// skinny-triangle flips, with SAAM's independent surface
 // error bound taking precedence over quality (Hu et al., arXiv:1611.02147).
-// Disjoint patches form one batch: their maximum paired surface change bounds
-// the whole mesh. No coordinate moves occur and coplanar flips change no surface.
-function improveSliverTriangulation({xyz,tri,onSheet},toleranceMm=PRINT_RESOLUTION_MM){
- const T=tri.slice(),n=T.length/3,nv=xyz.length/3,store=new PointStore(xyz);let S=store.S;
+// One call flips disjoint quadrilaterals once, in place. No coordinate moves; a
+// flip's paired patch distance (zero when coplanar) adds to its faces' spent value.
+function improveSliverTriangulation({xyz,tri:T,onSheet,spent,refusedFlips=new Set(),scan,touched},toleranceMm=PRINT_RESOLUTION_MM){
+ const n=T.length/3,nv=xyz.length/3,report={candidateFaces:0,flippedEdges:0,contactsUndone:0,deferred:0},candidates=[];
+ for(let f=0;f<n;f++)if(T[3*f]>=0&&(scan[T[3*f]]||scan[T[3*f+1]]||scan[T[3*f+2]])&&belowHeight(xyz,T[3*f],T[3*f+1],T[3*f+2],2*ROUNDING_MM))candidates.push(f);
+ if(!candidates.length)return report;
+ const store=new PointStore(xyz);let S=store.S;
  for(let value of[toleranceMm,ROUNDING_MM]){let bits=0;while(!Number.isInteger(value)){value*=2;bits++;}S=Math.max(S,bits);}
  const scale=1n<<BigInt(S-store.S),points=new Array(nv),exact={vertex:v=>points[v]??=store.exactPoint(v).slice(0,3).map(x=>x*scale),number:x=>latticeInteger(x,S)};
- const sub=(a,b)=>a.map((x,k)=>x-b[k]),square=v=>v.reduce((s,x)=>s+x*x,0n),height=t=>{const[a,b,c]=t.map(exact.vertex),u=sub(b,a),v=sub(c,a),w=sub(c,b),normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];return[square(normal),[square(u),square(v),square(w)].reduce((a,b)=>a>b?a:b)];},compare=(a,b)=>bsign(a[0]*b[1]-b[0]*a[1]),limit=exact.number(toleranceMm)**2n,rounding=exact.number(ROUNDING_MM)**2n,key=(a,b)=>a<b?a+':'+b:b+':'+a,edges=new Map();
- for(let f=0;f<n;f++)for(let k=0;k<3;k++){const id=key(T[3*f+k],T[3*f+(k+1)%3]),list=edges.get(id)??[];list.push(f);edges.set(id,list);}
- const locked=new Uint8Array(nv),proposals=[],report={method:'bounded-sliver-triangulation/1',candidateFaces:0,flippedEdges:0,contactsUndone:0,maxSurfaceChangeMm:0};
- for(let f=0;f<n;f++){const face=Array.from(T.subarray(3*f,3*f+3)),oldHeight=height(face);if(oldHeight[0]>=limit*oldHeight[1])continue;report.candidateFaces++;if(face.some(v=>locked[v]))continue;
-  for(let k=0;k<3;k++){const h=face[k],t=face[(k+1)%3],v=face[(k+2)%3],support=edges.get(key(h,t));if(support?.length!==2)continue;const g=support.find(id=>id!==f),other=Array.from(T.subarray(3*g,3*g+3)),w=other.find(id=>id!==h&&id!==t);if(w===undefined||locked[w]||edges.has(key(v,w)))continue;
+ const sub=(a,b)=>a.map((x,k)=>x-b[k]),square=v=>v.reduce((s,x)=>s+x*x,0n),height=t=>{const[a,b,c]=t.map(exact.vertex),u=sub(b,a),v=sub(c,a),w=sub(c,b),normal=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];return[square(normal),[square(u),square(v),square(w)].reduce((a,b)=>a>b?a:b)];},compare=(a,b)=>bsign(a[0]*b[1]-b[0]*a[1]),limit=exact.number(ROUNDING_MM)**2n,rounding=exact.number(ROUNDING_MM)**2n,key=(a,b)=>a<b?a+':'+b:b+':'+a,edges=new Map();
+ for(let f=0;f<n;f++)if(T[3*f]>=0)for(let k=0;k<3;k++){const id=key(T[3*f+k],T[3*f+(k+1)%3]),list=edges.get(id)??[];list.push(f);edges.set(id,list);}
+ const locked=new Uint8Array(nv),proposals=[];
+ for(const f of candidates){const face=Array.from(T.subarray(3*f,3*f+3)),oldHeight=height(face);if(oldHeight[0]>=limit*oldHeight[1])continue;report.candidateFaces++;
+  // A flip blocked by a neighbour's reservation is retried next round.
+  const defer=()=>{for(const id of face)touched[id]=1;report.deferred++;};if(face.some(v=>locked[v])){defer();continue;}let blocked=false,proposed=false;
+  for(let k=0;k<3;k++){const h=face[k],t=face[(k+1)%3],v=face[(k+2)%3],support=edges.get(key(h,t));if(support?.length!==2)continue;const g=support.find(id=>id!==f),other=Array.from(T.subarray(3*g,3*g+3)),w=other.find(id=>id!==h&&id!==t);const flipKey=key(h,t)+'>'+key(v,w);if(w!==undefined&&locked[w]){blocked=true;continue;}if(w===undefined||edges.has(key(v,w))||refusedFlips.has(flipKey))continue;
    const fresh=[[v,h,w],[v,w,t]],before=[oldHeight,height(other)].sort(compare),after=fresh.map(height).sort(compare);if(after.some(a=>a[0]<=rounding*a[1]))continue;const oldBad=before.filter(a=>a[0]<limit*a[1]).length,newBad=after.filter(a=>a[0]<limit*a[1]).length;if(newBad>oldBad||newBad===oldBad&&!(compare(after[0],before[0])>0||compare(after[0],before[0])===0&&compare(after[1],before[1])>0))continue;
-   const bound=diagonalPatchBound(xyz,exact,h,t,v,w,toleranceMm);if(bound===null||bound>=toleranceMm)continue;T.set(fresh[0],3*f);T.set(fresh[1],3*g);for(const id of[h,t,v,w])locked[id]=1;proposals.push({faces:[f,g],before:[face,other],bound});break;
+   const base=Math.max(spent[f],spent[g]),remaining=(toleranceMm-base)*(1-2**-46);if(!(remaining>0))continue;
+   const bound=diagonalPatchBound(xyz,exact,h,t,v,w,remaining);if(bound===null||base+bound>=toleranceMm)continue;
+   proposed=true;for(const id of[h,t,v,w])locked[id]=1;proposals.push({faces:[f,g],before:[face,other],after:fresh,spent:[spent[f],spent[g]],value:base+bound,flipKey,quad:[h,t,v,w]});break;
   }
+  if(blocked&&!proposed)defer();
  }
- const active=new Set(proposals);for(;;){const hit=changedContactFaces(xyz,T,[...active].flatMap(p=>p.faces),onSheet,store);if(!hit.size)break;for(const p of active)if(p.faces.some(f=>hit.has(f))){p.faces.forEach((f,k)=>T.set(p.before[k],3*f));active.delete(p);report.contactsUndone++;}}
- for(const p of active){report.flippedEdges++;report.maxSurfaceChangeMm=Math.max(report.maxSurfaceChangeMm,p.bound);}return{tri:T,report};
+ // Like collapses, a flip stays unless it adds rounding-guard contacts; an undone
+ // flip is not proposed again, so it cannot keep reserving its neighbours.
+ const contacts=changedContactFaces(xyz,T,proposals.flatMap(p=>p.faces),onSheet,store);
+ for(const p of proposals){p.contacts=p.faces.filter(f=>contacts.has(f)).length;p.faces.forEach((f,k)=>{T.set(p.after[k],3*f);spent[f]=p.value;});}
+ const active=new Set(proposals);for(let undone=true;undone;){undone=false;const hit=changedContactFaces(xyz,T,[...active].flatMap(p=>p.faces),onSheet,store);
+  for(const p of active){const c=p.faces.filter(f=>hit.has(f)).length;if(c>p.contacts){p.faces.forEach((f,k)=>{T.set(p.before[k],3*f);spent[f]=p.spent[k];});active.delete(p);refusedFlips.add(p.flipKey);for(const id of p.quad)touched[id]=1;report.contactsUndone++;undone=true;}}}
+ for(const p of active)for(const id of p.quad)touched[id]=1;
+ report.flippedEdges=active.size;return report;
 }
 
 // ---------------- merging vertices closer than print resolution ----------------
@@ -590,13 +628,14 @@ function improveSliverTriangulation({xyz,tri,onSheet},toleranceMm=PRINT_RESOLUTI
 // point of the print (owner, 2026-10-06: vertex spacing under functional tolerances
 // merges). The closest pairs merge first: their edge collapses into the end that
 // stays (an unmoved source vertex, else one on a closing sheet, when only one end is;
-// either otherwise), so no point is constructed. Every vertex a merged one stands for
-// must lie within mergeMm of it, so the surface moves less than print resolution. A
-// pair collapse keeps the surface a manifold with every triangle above the height
-// contract. Rounds repeat while one collapses. Pairs that stay are counted by cause.
-export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUTION_MM){
+// either otherwise), so no point is constructed. Collapsing s into d moves the faces
+// of s by at most |sd| (removed faces map onto the kept edge); they take the largest
+// spent value among them plus that distance, which must stay below mergeMm. A pair
+// collapse keeps the surface a manifold with every triangle above the height
+// contract. Edits apply to tri in place; rounds repeat while one collapses.
+function mergeMeshVertices({xyz,tri:T,source,onSheet,spent,scan,touched},mergeMm=PRINT_RESOLUTION_MM){
   if(!Number.isFinite(mergeMm)||mergeMm<0)throw Error('Surface cleanup needs a nonnegative finite displacement limit.');
-  const nv=xyz.length/3,n=tri.length/3,T=tri.slice(),edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v,store=new PointStore(xyz),limit=store.exactPoint(store.doublePoint(mergeMm,0,0)),within=(a,b)=>{const A=store.exactPoint(a),B=store.exactPoint(b),delta=A.slice(0,3).map((x,k)=>x*B[3]-B[k]*A[3]);return delta.reduce((s,x)=>s+x*x,0n)*limit[3]**2n<limit[0]**2n*(A[3]*B[3])**2n;};
+  const nv=xyz.length/3,n=T.length/3,edges=edgeCollapses(T,nv),{incident,ring}=edges,P=v=>3*v,store=new PointStore(xyz);
   const dist=(a,b)=>Math.hypot(xyz[P(a)]-xyz[P(b)],xyz[P(a)+1]-xyz[P(b)+1],xyz[P(a)+2]-xyz[P(b)+2]),rank=v=>source[v]?2:onSheet[v]>=0?1:0;
   // Vertex pairs closer than mergeMm, closest first (a sweep along x); vertices keep
   // their positions, so a pair stays one while both ends are live.
@@ -604,34 +643,53 @@ export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUT
     for(let i=0;i<nv;i++)for(let j=i+1;j<nv&&xyz[P(order[j])]-xyz[P(order[i])]<mergeMm;j++){const a=Math.min(order[i],order[j]),b=Math.max(order[i],order[j]),d=dist(a,b);if(d<mergeMm)pairs.push({a,b,d});}
     pairs.sort((p,q)=>p.d-q.d||p.a-q.a||p.b-q.b);}
   const livePairs=()=>pairs.filter(({a,b})=>incident[a].length&&incident[b].length);
-  // The vertices a live vertex stands for, when more than itself.
-  const members=new Map(),group=v=>members.get(v)??[v];
+  // A collapse moves the faces of s by at most |sd|. A nearly flat star bounds it tighter:
+  // with the plane through s along the star's area-weighted normal, if every kept old face
+  // and every new face projects without folding and the old fan turns once around s,
+  // both stars are graphs over the same outline within eps of the plane, so they differ
+  // by at most 2 eps.
+  const point=v=>[xyz[P(v)],xyz[P(v)+1],xyz[P(v)+2]],minus=(p,q)=>[p[0]-q[0],p[1]-q[1],p[2]-q[2]],times=(p,q)=>[p[1]*q[2]-p[2]*q[1],p[2]*q[0]-p[0]*q[2],p[0]*q[1]-p[1]*q[0]],along=(p,q)=>p[0]*q[0]+p[1]*q[1]+p[2]*q[2];
+  const flatBound=(s,d)=>{
+    const S=point(s),old=incident[s].map(f=>[T[3*f],T[3*f+1],T[3*f+2]]),normal=[0,0,0];
+    for(const t of old){const n=times(minus(point(t[1]),point(t[0])),minus(point(t[2]),point(t[0])));for(let k=0;k<3;k++)normal[k]+=n[k];}
+    const length=Math.hypot(...normal);if(!(length>0))return Infinity;const unit=normal.map(x=>x/length);
+    const up=t=>along(times(minus(point(t[1]),point(t[0])),minus(point(t[2]),point(t[0]))),unit)>0;
+    if(!old.filter(t=>!t.includes(d)).every(up)||!edges.moved(s,d).every(up))return Infinity;
+    let turn=0,eps=0;for(const t of old){const k=t.indexOf(s),a=minus(point(t[(k+1)%3]),S),b=minus(point(t[(k+2)%3]),S),pa=a.map((x,i)=>x-along(a,unit)*unit[i]),pb=b.map((x,i)=>x-along(b,unit)*unit[i]);
+      turn+=Math.atan2(along(times(pa,pb),unit),along(pa,pb));for(const v of t)eps=Math.max(eps,Math.abs(along(minus(point(v),S),unit)));}
+    return Math.abs(turn-2*Math.PI)<Math.PI?2*eps:Infinity;};
+  const cost=(s,d)=>{let m=0;for(const f of incident[s])m=Math.max(m,spent[f]);return m+Math.min(dist(s,d),flatBound(s,d))*(1+2**-48);},fits=(s,d)=>cost(s,d)<mergeMm*(1-2**-46);
   // Why collapsing s into d is refused, or null.
-  const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':group(s).some(m=>!within(m,d))?'displacement':
+  const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':!fits(s,d)?'displacement':
     edges.moved(s,d).some(t=>belowHeightContract(xyz,...t))?'height':null;
-  const merge=(s,d)=>{const before=[members.get(s),members.get(d)];members.set(d,[...group(d),...group(s)]);members.delete(s);return {s,d,before,...edges.collapse(s,d)};};
-  const unmerge=u=>{edges.restore(u);if(u.s<0)return;const [ms,md]=u.before;members.delete(u.d);if(md)members.set(u.d,md);if(ms)members.set(u.s,ms);};
-  const crossing=changed=>changedContactFaces(xyz,T,changed,onSheet,store);
-  const crossed=new Set(),report={toleranceMm:mergeMm,method:'close-pair-collapse/1',closePairs:pairs.length,rounds:0,mergedVertices:0,sliverCollapses:0,maxMoveMm:0,crossingUndone:0,remainingPairs:0,remaining:{}};
+  // Faces a collapse edits, for the contact index built at the first contact query.
+  const edited=new Uint8Array(n),editedList=[],contacts={index:null};
+  const merge=(s,d)=>{const value=cost(s,d),moved=incident[s].slice(),previous=moved.map(f=>spent[f]),u={s,d,moved,previous,...edges.collapse(s,d)};
+    for(const f of moved){spent[f]=value;if(!edited[f]){edited[f]=1;editedList.push(f);}}return u;};
+  const unmerge=u=>{edges.restore(u);u.moved.forEach((f,i)=>{spent[f]=u.previous[i];});};
+  const crossing=changed=>changedContactFaces(xyz,T,changed,onSheet,store,contacts.index??=contactIndex(xyz,T,edited,editedList));
+  const crossed=new Set(),report={rounds:0,mergedVertices:0,sliverCollapses:0,crossingUndone:0,closePairs:pairs.length,remainingPairs:0,remaining:{}};
   // A round collapses edges whose neighbourhoods are disjoint, then undoes each whose
-  // changed triangles touch (exact crossing or rounding-guard contact) as many
-  // triangles as before, and that direction is not tried again. The converged
-  // surface can carry contacts, so a collapse that reduces them stays. Returns the
+  // changed triangles touch (exact crossing or rounding-guard contact) more
+  // triangles than before, and that direction is not tried again. The converged
+  // surface can carry contacts; an edit that does not add one stays. Returns the
   // number kept.
   const settle=proposals=>{const before=crossing(proposals.flatMap(([s])=>incident[s])),count=(u,hit)=>{let c=0;for(let i=0;i<u.faces.length;i+=4)if(hit.has(u.faces[i]))c++;return c;};
     const open=new Set(proposals.map(([s,d])=>{const u=merge(s,d);u.contacts=count(u,before);return u;}));
     for(let undone=true;undone;){undone=false;const hit=crossing([...open].flatMap(u=>u.faces.filter((_,i)=>i%4===0)));
-      for(const u of open){const c=count(u,hit);if(c&&c>=u.contacts){unmerge(u);open.delete(u);crossed.add(u.s*nv+u.d);report.crossingUndone++;undone=true;}}}
-    return open.size;};
+      for(const u of open){const c=count(u,hit);if(c>u.contacts){unmerge(u);open.delete(u);crossed.add(u.s*nv+u.d);report.crossingUndone++;undone=true;}}}
+    // Every corner of a changed face, so a neighbour across one of its edges is seen again.
+    for(const u of open)for(const f of incident[u.d])for(let c=0;c<3;c++){touched[T[3*f+c]]=1;watch[T[3*f+c]]=1;}return open.size;};
   // Slivers first. Narrowness only selects a triangle: it loses its shortest edge
-  // whose collapse passes the manifold and member displacement tests of a pair, so
-  // it shares the pair bound; a triangle the collapse leaves thin is a later candidate.
+  // whose collapse passes the manifold and spent-allowance tests of a pair; a
+  // triangle the collapse leaves thin is a later candidate.
   const sliverEdge=f=>{const v=[T[3*f],T[3*f+1],T[3*f+2]],order=[0,1,2].sort((i,j)=>dist(v[i],v[(i+1)%3])-dist(v[j],v[(j+1)%3]));
     for(const k of order){const a=v[k],b=v[(k+1)%3];for(const [s,d] of rank(a)<=rank(b)?[[a,b],[b,a]]:[[b,a],[a,b]])
-      if(!crossed.has(s*nv+d)&&edges.manifold(s,d)&&group(s).every(m=>within(m,d)))return [s,d];}
+      if(!crossed.has(s*nv+d)&&edges.manifold(s,d)&&fits(s,d))return [s,d];}
     return null;};
+  const watch=scan.slice();
   for(;;){const locked=new Uint8Array(nv),proposals=[];
-    for(let f=0;f<n;f++){if(T[3*f]<0||!belowHeightContract(xyz,T[3*f],T[3*f+1],T[3*f+2]))continue;const e=sliverEdge(f);if(!e)continue;
+    for(let f=0;f<n;f++){if(T[3*f]<0||!(watch[T[3*f]]||watch[T[3*f+1]]||watch[T[3*f+2]])||!belowHeightContract(xyz,T[3*f],T[3*f+1],T[3*f+2]))continue;const e=sliverEdge(f);if(!e)continue;
       const near=new Set([...ring(e[0]),...ring(e[1])]);if([...near].some(v=>locked[v]))continue;proposals.push(e);for(const v of near)locked[v]=1;}
     if(!proposals.length)break;const kept=settle(proposals);if(!kept)break;report.sliverCollapses+=kept;
   }
@@ -642,29 +700,87 @@ export function mergeMeshVertices({xyz,tri,source,onSheet},mergeMm=PRINT_RESOLUT
         if(crossed.has(s*nv+d)||refusal(s,d))continue;proposals.push([s,d]);for(const v of near)locked[v]=1;break;}}
     if(!proposals.length)break;report.rounds++;report.mergedVertices+=settle(proposals);
   }
-  for(const [d,m] of members)for(const v of m)report.maxMoveMm=Math.max(report.maxMoveMm,dist(v,d));
-  // Full link contractions retain every removed face's image on a surviving
-  // edge. The original-member bound therefore applies to the complete surface,
-  // in both directions, rather than just the vertices that remain in the output.
-  report.surfaceChangeBoundMm=report.maxMoveMm?report.maxMoveMm*(1+2**-48):0;
   for(const {a,b} of livePairs()){report.remainingPairs++;const why=[[a,b],[b,a]].map(([s,d])=>crossed.has(s*nv+d)?'crossing':refusal(s,d)).find(Boolean);report.remaining[why]=(report.remaining[why]??0)+1;}
-  const used=new Int32Array(nv).fill(-1),outTri=[];let count=0;
-  for(let f=0;f<n;f++){if(T[3*f]<0)continue;for(let c=0;c<3;c++){const v=T[3*f+c];if(used[v]<0)used[v]=count++;outTri.push(used[v]);}}
-  const outXyz=new Float64Array(3*count);for(let v=0;v<nv;v++)if(used[v]>=0)outXyz.set(xyz.subarray(3*v,3*v+3),3*used[v]);
-  return {xyz:outXyz,tri:Int32Array.from(outTri),merge:report};
+  return report;
 }
 
-// One cleanup of the converged surface. Its fixed reference is unchanged through
-// the independent flip batch and every contraction; removed faces are included.
+// Split: a sliver whose apex v projects inside its long edge h-t gets a new point p
+// there, on the existing surface; the face g across h-t splits at p and v collapses
+// into p. The sliver goes, g keeps its shape, and v's other faces move by |vp|, the
+// sliver's height. This removes slivers a flip cannot, where the neighbour is thin too.
+// The new point keeps no coordinate of v; existing coordinates never move.
+function splitSliverCaps(state,toleranceMm=PRINT_RESOLUTION_MM){
+  const {tri:T,spent,scan,onSheet}=state,xyz=state.xyz,n=T.length/3,nv=xyz.length/3,report={splits:0,contactsUndone:0,deferred:0};
+  const candidates=[];for(let f=0;f<n;f++)if(T[3*f]>=0&&(scan[T[3*f]]||scan[T[3*f+1]]||scan[T[3*f+2]])&&belowHeightContract(xyz,T[3*f],T[3*f+1],T[3*f+2]))candidates.push(f);
+  if(!candidates.length)return report;
+  const incident=Array.from({length:nv},()=>[]);for(let f=0;f<n;f++)if(T[3*f]>=0)for(let c=0;c<3;c++)incident[T[3*f+c]].push(f);
+  const P=v=>[xyz[3*v],xyz[3*v+1],xyz[3*v+2]],face=f=>[T[3*f],T[3*f+1],T[3*f+2]];
+  const locked=new Uint8Array(nv),proposals=[];
+  for(const f of candidates){
+    const t3=face(f),lengths=[0,1,2].map(k=>{const a=P(t3[k]),b=P(t3[(k+1)%3]);return Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);}),k=lengths.indexOf(Math.max(...lengths));
+    const h=t3[k],t=t3[(k+1)%3],v=t3[(k+2)%3],H=P(h),D=P(t).map((x,i)=>x-H[i]),R=P(v).map((x,i)=>x-H[i]),s=(R[0]*D[0]+R[1]*D[1]+R[2]*D[2])/(D[0]*D[0]+D[1]*D[1]+D[2]*D[2]);
+    if(!(s>0&&s<1))continue;
+    const across=incident[h].filter(g=>g!==f&&incident[t].includes(g));if(across.length!==1)continue;
+    const g=across[0],w=face(g).find(x=>x!==h&&x!==t),ring=new Set(incident[v].flatMap(face));
+    if(ring.has(w))continue;
+    // A split blocked by a neighbour's reservation is retried next round.
+    if([h,t,w,...ring].some(x=>locked[x])){for(const x of t3)state.touched[x]=1;report.deferred++;continue;}
+    const p=H.map((x,i)=>x+s*D[i]),height=Math.hypot(...p.map((x,i)=>x-xyz[3*v+i]));
+    let base=spent[g];for(const e of incident[v])base=Math.max(base,spent[e]);
+    const value=base+height*(1+2**-48);if(!(value<toleranceMm*(1-2**-46)))continue;
+    for(const x of [h,t,w,...ring])locked[x]=1;proposals.push({f,g,h,t,v,w,p,value,moved:incident[v].filter(e=>e!==f)});
+  }
+  if(!proposals.length)return report;
+  // New points extend the coordinate and per-vertex arrays.
+  const grow=(array,size,fill)=>{const out=new array.constructor(size);out.set(array);if(fill!==undefined)out.fill(fill,array.length);return out;};
+  const added=proposals.length;state.xyz=grow(xyz,3*(nv+added));state.source=grow(state.source,nv+added,1);state.onSheet=grow(onSheet,nv+added,-1);
+  state.scan=grow(scan,nv+added,1);state.touched=grow(state.touched,nv+added,1);
+  proposals.forEach((q,i)=>{q.index=nv+i;state.xyz.set(q.p,3*q.index);q.faces=[q.f,q.g,...q.moved];q.before=q.faces.map(face);q.spent=q.faces.map(e=>spent[e]);});
+  const contacts=changedContactFaces(state.xyz,T,proposals.flatMap(q=>q.faces),state.onSheet);
+  const apply=q=>{T.set([q.index,q.h,q.w],3*q.f);T.set([q.t,q.index,q.w],3*q.g);for(const e of q.moved)for(let c=0;c<3;c++)if(T[3*e+c]===q.v)T[3*e+c]=q.index;for(const e of q.faces)spent[e]=q.value;};
+  const undo=q=>q.faces.forEach((e,i)=>{T.set(q.before[i],3*e);spent[e]=q.spent[i];});
+  for(const q of proposals){q.contacts=q.faces.filter(e=>contacts.has(e)).length;apply(q);}
+  // Like the other edits, a split stays unless it adds rounding-guard contacts.
+  const active=new Set(proposals);for(let undone=true;undone;){undone=false;const hit=changedContactFaces(state.xyz,T,[...active].flatMap(q=>q.faces),state.onSheet);
+    for(const q of active)if(q.faces.filter(e=>hit.has(e)).length>q.contacts){undo(q);active.delete(q);report.contactsUndone++;undone=true;}}
+  for(const q of active)for(const e of q.faces)for(let c=0;c<3;c++)state.touched[T[3*e+c]]=1;
+  report.splits=active.size;return report;
+}
+
+// Cleanup of the converged surface. Edits never move a coordinate: flips, splits
+// and collapses change which points triangles join, and a split adds a point on an edge. spent[f] bounds how far face f lies
+// from the converged surface before cleanup, in both directions; an edit gives its new
+// faces the largest value among the faces it replaces plus its own paired distance and
+// is kept only below print resolution. Each place therefore carries its own allowance,
+// and flip and collapse rounds chain until a round changes nothing. Each round looks
+// only at triangles around the points the previous round edited.
+const CLEANUP_ROUNDS=64;
 function cleanupReconstructedSurface(current,mergeMm,progress=()=>{}){
-  progress({stage:'sliver-correction'});let t0=performance.now();const improved=improveSliverTriangulation(current),timings=[{sliverCorrection:performance.now()-t0}];
-  const allowance=Math.max(0,PRINT_RESOLUTION_MM-improved.report.maxSurfaceChangeMm-PRINT_RESOLUTION_MM*2**-46);
-  progress({stage:'merge'});t0=performance.now();const merged=mergeMeshVertices({...current,tri:improved.tri},Math.min(mergeMm,allowance));timings.push({merge:performance.now()-t0});
-  const sliverCorrection={...improved.report,reference:'converged reconstructed surface before cleanup',vertexSurfaceBoundMm:merged.merge.surfaceChangeBoundMm,totalSurfaceChangeBoundMm:improved.report.maxSurfaceChangeMm+merged.merge.surfaceChangeBoundMm};
-  if(sliverCorrection.totalSurfaceChangeBoundMm>=PRINT_RESOLUTION_MM)throw Error('Surface cleanup exceeded its fixed-reference displacement bound.');
-  let thin=0;for(let f=0;f<merged.tri.length/3;f++)if(belowHeightContract(merged.xyz,merged.tri[3*f],merged.tri[3*f+1],merged.tri[3*f+2]))thin++;
-  if(thin)throw Error(`${thin} reconstructed triangles stay below SAAM's minimum height and cannot be collapsed within print resolution; no result accepted`);
-  return{xyz:merged.xyz,tri:merged.tri,merge:merged.merge,sliverCorrection,timings};
+  const T=current.tri.slice(),spent=new Float64Array(T.length/3),state={...current,tri:T,spent,refusedFlips:new Set()},timings={sliverCorrection:0,merge:0};
+  const flips={candidateFaces:0,flippedEdges:0,splits:0,contactsUndone:0},merge={toleranceMm:mergeMm,method:'close-pair-collapse/2',rounds:0,mergedVertices:0,sliverCollapses:0,crossingUndone:0};
+  let rounds=0,last=null,scan=new Uint8Array(current.xyz.length/3).fill(1);
+  while(rounds<CLEANUP_ROUNDS){rounds++;state.scan=scan;state.touched=new Uint8Array(scan.length);
+    progress({stage:'sliver-correction',round:rounds});let t0=performance.now();const flip=improveSliverTriangulation(state,mergeMm);
+    state.scan=scan.map((x,v)=>x|state.touched[v]);const split=splitSliverCaps(state,mergeMm);timings.sliverCorrection+=performance.now()-t0;
+    flips.splits+=split.splits;flips.contactsUndone+=split.contactsUndone;
+    progress({stage:'merge',round:rounds});t0=performance.now();last=mergeMeshVertices(state,mergeMm);timings.merge+=performance.now()-t0;
+    flips.candidateFaces+=flip.candidateFaces;flips.flippedEdges+=flip.flippedEdges;flips.contactsUndone+=flip.contactsUndone;
+    for(const k of ['rounds','mergedVertices','sliverCollapses','crossingUndone'])merge[k]+=last[k];
+    if(!flip.flippedEdges&&!flip.deferred&&!flip.contactsUndone&&!split.splits&&!split.contactsUndone&&!split.deferred&&!last.sliverCollapses&&!last.mergedVertices)break;scan=state.touched;}
+  merge.closePairs=last.closePairs;merge.remainingPairs=last.remainingPairs;merge.remaining=last.remaining;
+  let bound=0,thin=0;for(let f=0;f<T.length/3;f++){if(T[3*f]<0)continue;bound=Math.max(bound,spent[f]);if(belowHeightContract(state.xyz,T[3*f],T[3*f+1],T[3*f+2]))thin++;}
+  // A sliver no edit can remove within the allowance stays and is reported.
+  const sliverCorrection={method:'chained-sliver-cleanup/1',cleanupRounds:rounds,...flips,reference:'converged reconstructed surface before cleanup, per face',totalSurfaceChangeBoundMm:bound,remainingSlivers:thin};
+  const used=new Int32Array(state.xyz.length/3).fill(-1),outTri=[];let count=0;
+  for(let f=0;f<T.length/3;f++){if(T[3*f]<0)continue;for(let c=0;c<3;c++){const v=T[3*f+c];if(used[v]<0)used[v]=count++;outTri.push(used[v]);}}
+  const outXyz=new Float64Array(3*count);for(let v=0;v<used.length;v++)if(used[v]>=0)outXyz.set(state.xyz.subarray(3*v,3*v+3),3*used[v]);
+  return{xyz:outXyz,tri:Int32Array.from(outTri),merge,sliverCorrection,timings:[timings]};
+}
+
+// Sliver cleanup of a closed surface without reconstruction (a hole fill that could
+// only use slivers). Every vertex is a source vertex.
+export function cleanSurfaceSlivers({xyz,tri},{mergeMm=PRINT_RESOLUTION_MM,progress=()=>{}}={}){
+  const nv=xyz.length/3;return cleanupReconstructedSurface({xyz,tri,source:new Uint8Array(nv).fill(1),onSheet:new Int32Array(nv).fill(-1)},mergeMm,progress);
 }
 
 // ---------------- reconstruction passes ----------------
@@ -679,17 +795,18 @@ function cleanupReconstructedSurface(current,mergeMm,progress=()=>{}){
 // resolution) merge (mergeMeshVertices).
 export const SNAP_GRID_MM=2**Math.floor(Math.log2(ROUNDING_MM));
 export function reconstructSolid({xyz,tri},{closeMm=PRINT_RESOLUTION_MM,mergeMm=PRINT_RESOLUTION_MM,snapGridMm=SNAP_GRID_MM,maxPasses=6,progress=()=>{}}={}){
-  const passes=[],timings=[];let current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null,onSheet:null,sheets:null};
+  const passes=[],timings=[];let unresolvedCrossings=false,current={xyz,tri,source:new Uint8Array(xyz.length/3).fill(1),dirty:null,onSheet:null,sheets:null};
   for(let pass=0;pass<maxPasses;pass++){
     const t0=performance.now(),r=reconstructOnce(current,{closeMm:pass===0?closeMm:0,snapGridMm,pass,progress});
     if(!r){timings.push({finalProbe:performance.now()-t0});break;}passes.push(r.report);timings.push(r.timings);current=r;
-    if(pass===maxPasses-1)throw Error('Rounding the reconstructed surface still creates crossings after '+maxPasses+' passes; no result accepted');
+    // Rounding that still crosses after the last pass keeps that surface and reports it.
+    if(pass===maxPasses-1)unresolvedCrossings=true;
   }
   if(!passes.length)return null;
   // Cleanup runs ONCE after all reconstruction/rounding passes. Its reference is
   // this complete surface, never the start of another reconstruction retry.
   const cleaned=cleanupReconstructedSurface(current,mergeMm,progress);timings.push(...cleaned.timings);
-  return {...cleaned,passes,timings};
+  return {...cleaned,passes,timings,unresolvedCrossings};
 }
 function reconstructOnce({xyz,tri,source,dirty,onSheet,sheets},{closeMm,snapGridMm,pass,progress}){
   const clock=()=>performance.now(),timings={};let t0=clock();

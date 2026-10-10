@@ -8,7 +8,7 @@ import {createHash} from 'node:crypto';
 import {decodeSTL,prepareMesh,compactMesh,encodeRepairSTLChunks,validateRepair} from '../geom/mesh-repair.mjs';
 import {makeMesh,triangleNormal} from '../geom/mesh.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
-import {triangleIndex,checkAdjacentContacts} from '../geom/mesh-spatial.mjs';
+import {triangleIndex} from '../geom/mesh-spatial.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {cross,dot} from '../geom/tolerance.mjs';
 
@@ -58,7 +58,7 @@ async function prepare(source,options){
   if(options.maxSampledDistanceMm!==undefined&&(comparison.triangles.length&&!result.triangles.length||Math.max(changes.sampledDistanceMm.sourceToResult,changes.sampledDistanceMm.resultToSource)>options.maxSampledDistanceMm))throw Object.assign(Error('Repair exceeds maxSampledDistanceMm; an empty result has no finite source-to-result surface distance.'),{code:'MESH_SHAPE_CHANGE',changes});
   const report={schema:'saam-mesh-repair/2',sourceSha256:sourceHash,sourceUnits:units,outputUnits:'mm',sourceValidationError:null,...result.report,resolutionMerge:input.merge??clean.resolutionMerge,...(clean.merge?{merge:clean.merge}:{}),removed:clean.removed,stitching:clean.stitching,inputTriangles:input.triangles.length+(input.merge?.collapsedTriangles??0),outputTriangles:result.triangles.length,shells:{input:shells(comparison),output:shells(result)},...changes,
     validation:result.report.empty?'Empty material is represented by an exact zero-facet STL; there is no remaining boundary for a surface-distance comparison. Source displacement and removed faces are reported.':
-      `Shared mesh topology/intersection checks, adjacent-contact checks and exact-output STL reimport certify the result at the rounding guard (${ROUNDING_MM} mm). The source coordinate weld uses ${clean.resolutionMerge.effectiveToleranceMm} mm; reconstructed-surface cleanup uses print resolution (${PRINT_RESOLUTION_MM} mm). Sampled distances do not certify shape fidelity.`};
+      `Shared mesh topology checks and exact-output STL reimport check the result at the rounding guard (${ROUNDING_MM} mm); remaining contacts are reported, not refused. The source coordinate weld uses ${clean.resolutionMerge.effectiveToleranceMm} mm; reconstructed-surface cleanup uses print resolution (${PRINT_RESOLUTION_MM} mm). Sampled distances do not certify shape fidelity.`};
   return {result,report,start};
 }
 async function emitGeometry(result,{onGeometry,progress=()=>{},signal}){
@@ -82,7 +82,7 @@ export async function repairSTLFiles(directory,source,options={}){
     async function* chunks(){for(const chunk of encodeRepairSTLChunks(result)){options.signal?.throwIfAborted();digest.update(chunk);yield chunk;}}
     await pipeline(chunks(),createWriteStream(output),{signal:options.signal});report.repairedSha256=digest.digest('hex');
     const reimport=await decodeSTLFile(output,{units:'mm',signal:options.signal});
-    if(result.triangles.length){makeMesh(reimport.vertices,reimport.triangles);checkAdjacentContacts(reimport);}
+    if(result.triangles.length)makeMesh(reimport.vertices,reimport.triangles);
     else if(reimport.vertices.length||reimport.triangles.length)throw Error('Empty repaired STL changed on exact reimport.');
     if(typeof source==='string'){await copyFile(source,join(temporary,'original.stl'));const copiedHash=createHash('sha256');for await(const chunk of createReadStream(join(temporary,'original.stl'),{signal:options.signal}))copiedHash.update(chunk);if(copiedHash.digest('hex')!==report.sourceSha256)throw Error('Source changed during repair; no result accepted.');}
     else await writeFile(join(temporary,'original.stl'),source,{flag:'wx'});

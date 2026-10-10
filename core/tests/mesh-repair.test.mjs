@@ -44,7 +44,7 @@ test('collapsed-face cleanup stitches a long edge to its subdivided opposite wit
   // An actual missing surface is not a collinear seam to stitch closed.
   const open={...source,triangles:source.triangles.filter((_,i)=>i!==2)};
   const cleanedOpen=cleanTriangleSoup(open);assert.equal(cleanedOpen.stitching.edges,0);
-  assert.throws(()=>validateRepair(cleanedOpen),/closed/);
+  assert.ok(makeMesh(cleanedOpen.vertices,cleanedOpen.triangles).topology.openEdges>0,'the missing surface stays open and is reported');
 });
 
 test('nearest surface queries agree with an analytical box',()=>{
@@ -66,15 +66,15 @@ test('contact checks distinguish valid adjacency from folded overlapping faces',
 
 test('repair closes only holes within both explicit bounds',async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);const bytes=encodeRepairSTL(source);
-  await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
-  await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
+  // A hole outside the bounds stays open and is reported, not refused.
+  for(const bounds of [{},{maxHoleEdges:3,maxHoleDiameterMm:1}]){const {report}=await repairSTL(bytes,{units:'mm',...bounds});assert.equal(report.holesLeftOpen,1);assert.equal(report.holesFilled,0);assert.equal(report.remaining.topology.openEdges,3);}
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
   assert.equal(report.method,'saam-solid-repair/2');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
 test('solid repair resolves a penetrating fold and retains remote facets',async()=>{
   const source=subdividedBox();source.vertices.find(p=>p[0]===2&&p[1]===2&&p[2]===4)[2]=-1;
-  assert.throws(()=>makeMesh(source.vertices,source.triangles),/Intersecting/);
+  assert.ok(makeMesh(source.vertices,source.triangles).contacts.count>0,'the fold is reported, not refused');
   const {repairedBytes,report}=await repairSTL(encodeRepairSTL(source),{units:'mm'}),fixed=parseSTL(repairedBytes,{units:'mm'});
   validateRepair(fixed);assert.equal(report.selfIntersectionsRepaired,true);assert.ok(report.unchangedSourceFaces>700);assert.ok(report.outputTriangles<1000);
   const faceKey=points=>points.map(p=>p.join(',')).sort().join(';'),resultFaces=new Set(fixed.triangles.map(t=>faceKey(t.map(v=>fixed.vertices[v]))));
@@ -89,8 +89,7 @@ test('repair stops on cancellation or failure, never on elapsed time',async t=>{
   const source=boxMesh();source.triangles[0].reverse();const bytes=encodeRepairSTL(source);
   await assert.rejects(repairSTL(bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});
   await assert.rejects(repairSTLFiles(join(root,'cancelled'),bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});await assert.rejects(access(join(root,'cancelled')));
-  const open=boxMesh(2,2,2);open.triangles=open.triangles.slice(1);
-  await assert.rejects(repairSTLFiles(join(root,'failed'),encodeRepairSTL(open),{units:'mm'}),/Open boundaries/);await assert.rejects(access(join(root,'failed')));
+  await assert.rejects(repairSTLFiles(join(root,'failed'),Buffer.from('not an STL'),{units:'mm'}));await assert.rejects(access(join(root,'failed')));
   // The retired timeoutMs is inert; a repair is never refused for taking long.
   assert.equal((await repairSTLFiles(join(root,'kept'),bytes,{units:'mm',timeoutMs:1})).outputTriangles,12);
 });

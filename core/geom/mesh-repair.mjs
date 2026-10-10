@@ -1,8 +1,8 @@
 // Exact triangle cleanup, solid repair and output validation for explicit repair.
 import {decodeSTL,makeMesh,parseSTL,triangleNormal} from './mesh.mjs';
-import {reconstructSolid} from './mesh-autorefine.mjs';
+import {reconstructSolid,cleanSurfaceSlivers,anyIntersection} from './mesh-autorefine.mjs';
 import {checkMeshTopology} from './mesh-topology.mjs';
-import {checkAdjacentContacts} from './mesh-spatial.mjs';
+import {adjacentContacts} from './mesh-spatial.mjs';
 import {subtract as sub,cross,dot,requireThat} from './tolerance.mjs';
 import {checkMeshCapacity} from './mesh-capacity.mjs';
 import {mergeCloseVertices} from './mesh-vertices.mjs';
@@ -50,7 +50,10 @@ export function prepareMesh(input,options={}){
   const clean=cleanTriangleSoup(input,options);
   if(clean.empty)return {clean,result:{vertices:[],triangles:[],report:{method:'vertex-merge-cleanup/1',empty:true}}};
   const result=repairSolid(clean,options),r=result.report;
-  if(result.triangles.length){makeMesh(result.vertices,result.triangles);checkAdjacentContacts(result);}
+  // Contacts and topology defects that remain are reported with the result, never a
+  // reason to refuse it.
+  if(result.triangles.length){const mesh=makeMesh(result.vertices,result.triangles),folds=adjacentContacts(result);
+    r.remaining={contacts:{nonadjacent:mesh.contacts.count,adjacentFolds:folds.count,pairs:{nonadjacent:mesh.contacts.pairs,adjacentFolds:folds.pairs}},topology:mesh.topology};}
   else{requireThat(result.vertices.length===0,'Empty repaired geometry must have no unused vertices.');r.empty=true;}
   if(!r.selfIntersectionsRepaired&&!r.orientation.flippedFaces&&!r.orientation.reversedOrientation&&!r.holesFilled)
     r.method=clean.merge?.movedVertices||clean.resolutionMerge.mergedVertices?'vertex-merge-cleanup/1':clean.stitching.edges?'edge-stitch-cleanup/1':'exact-cleanup/1';
@@ -134,22 +137,24 @@ export function repairSolid(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,progress=()
   const open=[],isOpen=new Uint8Array(3*n);let unbalanced=0;
   for(let i=0;i<3*n;){let j=i,balance=0;while(j<3*n&&lo[edges[j]]===lo[edges[i]]&&hi[edges[j]]===hi[edges[i]]){const e=edges[j++];balance+=(tri[e]<tri[next(e)]?1:-1)*(flip[(e/3)|0]?-1:1);}
     if(j-i===1){open.push(edges[i]);isOpen[edges[i]]=1;}else if(balance)unbalanced++;i=j;}
-  if(open.length&&!maxHoleEdges)throw Object.assign(Error(`Open boundaries remain (${open.length} edges); hole filling requires explicit maxHoleEdges and maxHoleDiameterMm.`),{code:'MESH_REPAIR_FAILED'});
-  if(unbalanced)throw Object.assign(Error(`${unbalanced} mesh edges cannot be oriented consistently; no result accepted.`),{code:'MESH_REPAIR_FAILED'});
-  const holes={holesFilled:0,holeTrianglesAdded:0},patch=[];
+  // What repair cannot close stays open and is reported, never a reason to refuse: an
+  // edge whose faces cannot be oriented alike (a twisted seam), and holes beyond the
+  // fill bounds or without a fill that repeats no edge.
+  orientation.unorientedEdges=unbalanced;
+  const holes={holesFilled:0,holeTrianglesAdded:0,holeSlivers:0,holesLeftOpen:0,unpairedOpenEdges:0},patch=[];
   if(open.length){
     progress({stage:'fill-holes',edges:open.length});
     const orientedEdges={tri,flip,twin,isOpen,next};
     const {loops,unpaired}=holeLoops(open,orientedEdges);
-    const outside=loops.filter(loop=>loop.length>maxHoleEdges||holeDiameter(xyz,loop,orientedEdges)>maxHoleDiameterMm).length;
-    if(unpaired||outside)throw Object.assign(Error(`Open boundaries remain (${open.length} edges in ${loops.length} holes`+(outside?`; ${outside} exceed maxHoleEdges ${maxHoleEdges} or maxHoleDiameterMm ${maxHoleDiameterMm}`:'')+(unpaired?`; ${unpaired} edges do not form a hole boundary`:'')+'); no result accepted.'),{code:'MESH_REPAIR_FAILED'});
+    holes.unpairedOpenEdges=unpaired;
     // A chord may not repeat an edge of the mesh or of an earlier patch.
     const added=new Set(),edgeKey=(a,b)=>Math.min(a,b)*(xyz.length/3)+Math.max(a,b);
     const meshHasEdge=(a,b)=>{const l=Math.min(a,b),h=Math.max(a,b);let x=0,y=3*n;while(x<y){const m=(x+y)>>1,e=edges[m];if(lo[e]<l||lo[e]===l&&hi[e]<h)x=m+1;else y=m;}return x<3*n&&lo[edges[x]]===l&&hi[edges[x]]===h||added.has(edgeKey(a,b));};
     for(const loop of loops){
+      if(!maxHoleEdges||loop.length>maxHoleEdges||holeDiameter(xyz,loop,orientedEdges)>maxHoleDiameterMm){holes.holesLeftOpen++;continue;}
       const hole=holeGeometry(xyz,loop,orientedEdges),fill=triangulateHole(hole.points,hole.sideNormals,(i,k)=>meshHasEdge(hole.ids[i],hole.ids[k]));
-      if(!fill)throw Object.assign(Error(`Open boundaries remain: a hole of ${loop.length} edges has no triangulation without degenerate triangles or repeated edges; no result accepted.`),{code:'MESH_REPAIR_FAILED'});
-      for(let t=0;t<fill.length;t+=3){const a=hole.ids[fill[t]],b=hole.ids[fill[t+1]],c=hole.ids[fill[t+2]];patch.push(a,b,c);added.add(edgeKey(a,b));added.add(edgeKey(b,c));added.add(edgeKey(c,a));}
+      if(!fill){holes.holesLeftOpen++;continue;}
+      for(let t=0;t<fill.length;t+=3){const a=hole.ids[fill[t]],b=hole.ids[fill[t+1]],c=hole.ids[fill[t+2]];patch.push(a,b,c);if(!triangleNormal(...[a,b,c].map(v=>Array.from(xyz.subarray(3*v,3*v+3)))))holes.holeSlivers++;added.add(edgeKey(a,b));added.add(edgeKey(b,c));added.add(edgeKey(c,a));}
       holes.holesFilled++;holes.holeTrianglesAdded+=fill.length/3;
     }
   }
@@ -157,14 +162,20 @@ export function repairSolid(mesh,{maxHoleEdges=0,maxHoleDiameterMm=0,progress=()
   const closed=patch.length?Int32Array.from([...tri,...patch]):tri,faces=closed.length/3;
   let volume=0;for(let f=0;f<faces;f++){const [a,b,c]=[0,1,2].map(k=>3*closed[3*f+k]);volume+=xyz[a]*(xyz[b+1]*xyz[c+2]-xyz[b+2]*xyz[c+1])+xyz[a+1]*(xyz[b+2]*xyz[c]-xyz[b]*xyz[c+2])+xyz[a+2]*(xyz[b]*xyz[c+1]-xyz[b+1]*xyz[c]);}
   if(volume<0){orientation.reversedOrientation=true;for(let f=0;f<faces;f++){const b=closed[3*f+1];closed[3*f+1]=closed[3*f+2];closed[3*f+2]=b;}}
-  const solid=reconstructSolid({xyz,tri:closed},{progress}),out=solid??{xyz,tri:closed},vertices=[],triangles=[];
+  // A fill that could only use slivers is cleaned before reconstruction.
+  let surface={xyz,tri:closed};
+  if(holes.holeSlivers){const cleaned=cleanSurfaceSlivers(surface,{progress});surface={xyz:cleaned.xyz,tri:cleaned.tri};holes.holeSliverCleanup=cleaned.sliverCorrection;}
+  // Reconstruction classifies material by winding, which needs a closed, oriented surface.
+  const closedSurface=!unbalanced&&!holes.holesLeftOpen&&!holes.unpairedOpenEdges;
+  const solid=closedSurface?reconstructSolid(surface,{progress}):null,out=solid??surface,vertices=[],triangles=[];
+  if(!closedSurface)holes.selfIntersectionsUnrepaired=anyIntersection(surface);
   for(let i=0;i<out.xyz.length;i+=3)vertices.push([out.xyz[i],out.xyz[i+1],out.xyz[i+2]]);
   for(let i=0;i<out.tri.length;i+=3)triangles.push([out.tri[i],out.tri[i+1],out.tri[i+2]]);
-  checkMeshTopology(vertices,triangles,ok=>{if(!ok)throw Object.assign(Error('The repaired solid touches itself along an edge or at a vertex, so its boundary is not a manifold; no result accepted.'),{code:'MESH_REPAIR_FAILED'});});
+  const topology=checkMeshTopology(vertices,triangles,ok=>requireThat(ok,'Repair produced a repeated triangle.'));
   const summary=pass=>{const {refine,snapGridMm,maxSnapMm,roundingMergedPoints,roundingDroppedTriangles,roundingCancelledPairs,remaining,...counts}=pass;return counts;};
   const reconstruction=solid&&{...summary(solid.passes[0]),snapGridMm:solid.passes[0].snapGridMm,maxSnapMm:Math.max(...solid.passes.map(p=>p.maxSnapMm)),
-    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),sliverCorrection:solid.sliverCorrection,merge:solid.merge};
-  return {vertices,triangles,report:{method:'saam-solid-repair/2',orientation,...holes,selfIntersectionsRepaired:!!solid,reconstruction}};
+    ...(solid.passes.length>1?{roundingPasses:solid.passes.slice(1).map(summary)}:{}),sliverCorrection:solid.sliverCorrection,merge:solid.merge,unresolvedCrossings:solid.unresolvedCrossings};
+  return {vertices,triangles,report:{method:'saam-solid-repair/2',orientation,...holes,topology,selfIntersectionsRepaired:!!solid,reconstruction}};
 }
 
 // Hole boundaries as loops of open face edges e (face (e/3)|0, oriented by flip).
@@ -225,11 +236,14 @@ function holeDiameter(xyz,loop,{tri,flip,next}){
 // Meshes", SGP 2003), the weight CGAL's triangulate_hole uses: the largest
 // dihedral angle between adjacent faces (patch faces and the faces across the
 // loop), then total area. Dihedral angles compare as |n1 - n2|^2 of unit normals,
-// which grows with the angle and stays exact near zero. No vertices are added;
-// a triangle must meet the mesh height contract (triangleNormal), and a chord
-// (i,k) that repeats an existing edge is not used. Returns loop-index triples
-// (each oriented with the loop) or null when no such triangulation exists.
+// which grows with the angle and stays exact near zero. No vertices are added and
+// a chord (i,k) that repeats an existing edge is not used. A sliver (below the
+// mesh height contract) weighs more than any dihedral angle, so a fill uses slivers
+// only when none avoids them, then the shortest; sliver cleanup removes them.
+// Returns loop-index triples (each oriented with the loop) or null when no
+// triangulation exists.
 // Time grows as n^3 and memory as n^2 in the loop's edge count n.
+const SLIVER_WEIGHT=5;
 export function triangulateHole(points,sideNormals,hasEdge){
   const n=points.length/3,cells=n*(n-1)/2,row=new Int32Array(n);
   for(let i=1;i<n;i++)row[i]=row[i-1]+n-i;
@@ -251,12 +265,12 @@ export function triangulateHole(points,sideNormals,hasEdge){
       const nx=my*kz-mz*ky,ny=mz*kx-mx*kz,nz=mx*ky-my*kx,squared=nx*nx+ny*ny+nz*nz;
       const longest=Math.max(mx*mx+my*my+mz*mz,ex*ex+ey*ey+ez*ez,ik),limit=ROUNDING_MM*ROUNDING_MM*longest;
       // The height contract in triangleNormal's own arithmetic when it is close.
-      if(squared<=limit*(1+ROUNDING_RELATIVE)&&!triangleNormal([ix,iy,iz],P.slice(3*m,3*m+3),P.slice(3*k,3*k+3)))continue;
-      const length=Math.sqrt(squared),ux=nx/length,uy=ny/length,uz=nz/length;
+      const sliver=squared<=limit*(1+ROUNDING_RELATIVE)&&!triangleNormal([ix,iy,iz],P.slice(3*m,3*m+3),P.slice(3*k,3*k+3));
+      const length=Math.sqrt(squared),ux=sliver?0:nx/length,uy=sliver?0:ny/length,uz=sliver?0:nz/length;
       const ax=ux-cell[p+2],ay=uy-cell[p+3],az=uz-cell[p+4],bx2=ux-column[q+2],by2=uy-column[q+3],bz2=uz-column[q+4];
-      let a=Math.max(cell[p],column[q],ax*ax+ay*ay+az*az,bx2*bx2+by2*by2+bz2*bz2);
-      if(top){const tx=ux-sideNormals[3*k],ty=uy-sideNormals[3*k+1],tz=uz-sideNormals[3*k+2];a=Math.max(a,tx*tx+ty*ty+tz*tz);}
-      const s=cell[p+1]+column[q+1]+length/2;
+      let a=Math.max(cell[p],column[q],sliver?SLIVER_WEIGHT:Math.max(ax*ax+ay*ay+az*az,bx2*bx2+by2*by2+bz2*bz2));
+      if(top&&!sliver){const tx=ux-sideNormals[3*k],ty=uy-sideNormals[3*k+1],tz=uz-sideNormals[3*k+2];a=Math.max(a,tx*tx+ty*ty+tz*tz);}
+      const s=cell[p+1]+column[q+1]+(sliver?Math.sqrt(longest):length/2);
       if(a<bestAngle||a===bestAngle&&s<bestArea){bestAngle=a;bestArea=s;bestM=m;bx=ux;by=uy;bz=uz;}
     }
     if(bestM<0)continue;
@@ -281,12 +295,12 @@ export function encodeRepairSTL(mesh) {
 
 export function* encodeRepairSTLChunks(mesh){
   let chunk='solid saam_repaired\n';
-  for(const t of mesh.triangles){const n=triangleNormal(...t.map(i=>mesh.vertices[i]));requireThat(n,'Repair produced a degenerate triangle.');chunk+=`facet normal ${n.join(' ')}\nouter loop\n`+t.map(i=>`vertex ${mesh.vertices[i].join(' ')}\n`).join('')+'endloop\nendfacet\n';if(chunk.length>=65536){yield chunk;chunk='';}}
+  for(const t of mesh.triangles){const n=triangleNormal(...t.map(i=>mesh.vertices[i]))??[0,0,0];chunk+=`facet normal ${n.join(' ')}\nouter loop\n`+t.map(i=>`vertex ${mesh.vertices[i].join(' ')}\n`).join('')+'endloop\nendfacet\n';if(chunk.length>=65536){yield chunk;chunk='';}}
   yield chunk+'endsolid saam_repaired\n';
 }
 
 export function validateRepair(mesh) {
-  if(mesh.triangles.length){makeMesh(mesh.vertices,mesh.triangles);checkAdjacentContacts(mesh);}
+  if(mesh.triangles.length)makeMesh(mesh.vertices,mesh.triangles);
   else requireThat(mesh.vertices.length===0,'Empty repaired geometry must have no unused vertices.');
   const bytes=encodeRepairSTL(mesh);
   if(mesh.triangles.length)parseSTL(bytes,{units:'mm'});

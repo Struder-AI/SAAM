@@ -21,8 +21,7 @@ export const IMPORT_HOLE_DIAMETER_MM=2;
 // of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at 2,000);
 // 500 edges around a 2 mm opening are already about 13 um long.
 export const IMPORT_HOLE_EDGES=500;
-const repairable=error=>error.meshDiagnostic?.kind==='triangle-intersection'
-  ||/^(?:Degenerate mesh triangle\.|Duplicate mesh triangle\.|Invalid mesh triangle indices\.|Mesh must be closed, manifold and consistently wound;|Unused or nonmanifold mesh vertex\.|Nonmanifold mesh vertex\.)/.test(error.message);
+const repairable=error=>/^(?:Duplicate mesh triangle.|Invalid mesh triangle indices.)/.test(error.message);
 
 // Import owns scratch, decoding, explicit repair and completed native geometry.
 // No bundle directory or persistence callback crosses this boundary.

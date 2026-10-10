@@ -123,15 +123,17 @@ faces, so Studio selects the imported component as a whole. ASCII STL uses the
 line-oriented format: the `solid` header ends before facet records, and `endsolid`
 closes the file. Leading whitespace, CRLF and a closing solid name are accepted.
 
-`core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
-duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
-intersecting nonadjacent triangles. It does not repair geometry. Checks are
+`core/geom/mesh.mjs` rejects invalid indices, nonfinite coordinates and repeated
+triangles. It counts, without refusing, nonadjacent triangles that cross or touch within
+the rounding guard (`contacts`) and, in `topology`, open, nonmanifold and inconsistently
+wound edges, sheets meeting at a vertex, unused vertices and slivers (a sliver keeps its
+raw normal). Sections stop only where they meet such a defect. It does not repair geometry. Checks are
 controlled by a configurable memory estimate and a spatial hierarchy. The number
 of candidate pairs tested is whatever the mesh's own overlapping bounds and
 shared vertices produce; there is no work allowance on it. Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
-a complete solid-kernel validity proof. Explicit [mesh repair](#explicit-mesh-repair)
-adds an adjacent-contact check to its own output validation. Mesh sections preserve holes/islands and
+a complete solid-kernel validity proof. [Mesh repair](#explicit-mesh-repair) also
+reports adjacent faces folded onto each other. Mesh sections preserve holes/islands and
 report nudged boundary cuts. Normals at equal-height creases use the steeper
 facet. Drape requires a continuous accessible roof; discontinuities or sampled
 segments above its angle limit are rejected. Sampling and bead-width limits remain.
@@ -454,31 +456,35 @@ is positive on one side only. New points round to the rounding guard, except tha
 point constructed in a sheet's plane rounds on that plane's lattice, as closing places
 the vertices it moves, so sheets stay exact planes through every rounding pass (and
 pairs of faces on one sheet are coplanar without orientation tests); source points stay.
-Once nothing crosses, one cleanup moves the surface less than print resolution in total:
-bounded edge flips, then edge collapses of triangles below the rounding guard and of vertex pairs closer
-than print resolution, closest first, into the end that stays (a source vertex, else a sheet
-vertex). A collapse keeps the manifold (a pair, the height contract) and leaves its triangles
-touching fewer others (crossing or rounding-guard contact). Pairs that stay are reported by
-cause; a thin triangle left refuses the result. Reports give the closing, cancelled area, the
+Rounding that still crosses after six passes keeps its surface and reports it. Cleanup then
+removes slivers (triangles below the rounding guard) with three local edits: a flip of a flat
+corner's long edge, a split that puts a point on that edge beneath the corner and collapses the
+corner into it, and a collapse of a short edge or of vertex pairs closer than print resolution,
+closest first, into the end that stays (a source vertex, else a sheet vertex). Each face carries
+how far it may lie from the surface before cleanup; an edit adds its own distance (a collapse
+the smaller of the edge length and twice a flat star's distance from its plane) and stays below
+print resolution at that place. An edit keeps the manifold and adds no contact (crossing or
+rounding-guard). Rounds repeat around the last round's edits until nothing changes. Pairs and
+slivers that stay are reported. Reports give the closing, cancelled area, the
 merge and inward/outward shells before and after (fewer inward shells: cavities opened).
 
 Hole filling follows each hole's boundary from face to face around each vertex, as a
 halfedge mesh links borders, and splits a boundary that meets a vertex twice, so
 holes touching at a vertex fill apart. A hole fills only when its edge count is at
 most `maxHoleEdges` and its boundary's bounding-box diagonal at most
-`maxHoleDiameterMm`; if any hole exceeds either, nothing is filled and the repair is
-refused. Each hole is triangulated without new vertices by Liepa's dynamic programme
+`maxHoleDiameterMm`; other holes, and edges that cannot be oriented alike, stay open and are
+reported, and reconstruction then does not run. Each hole is triangulated without new vertices by Liepa's dynamic programme
 (P. Liepa, "Filling Holes in Meshes", SGP 2003) with the weight CGAL's
 `triangulate_hole` uses: the largest dihedral angle between adjacent faces, then
-area. Patch triangles meet the mesh height contract and never repeat an existing
-edge; a patch that crosses the surface is resolved by reconstruction. Time grows as
+area. A patch never repeats an existing edge and uses slivers only when no fill avoids them,
+then the shortest; sliver cleanup removes them (a flat crack zips this way) and a patch
+that crosses the surface is resolved by reconstruction. Time grows as
 the cube of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at
 2,000 on the development machine) and memory as its square (about 170 MB at 2,000).
 Reports give `holesFilled` and `holeTrianglesAdded`.
 
-Final checks use shared mesh topology/intersection checks, adjacent-contact checks
-and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
-rounding guard, not proved exactly. Reports count unchanged/changed/new
+Final checks use shared mesh topology checks and reimport of the exact decimal ASCII
+STL; remaining contacts and topology are reported in `remaining`. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review.
