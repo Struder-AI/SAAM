@@ -60,8 +60,10 @@ controller-created project is a scoped candidate, not an implemented SAAM
 export; see the [USB/project assessment](denso-usb-assessment.md).
 RC8A solves Cartesian IK using its installed tool/work definitions and figure.
 
-All installation selectors start unresolved; generation still builds and shows
-the SAAMpath, and only the program waits for them. The implemented rotary interface
+Required installation selectors start unresolved; generation still builds and shows
+the SAAMpath, and only the program waits for them. Provenance and relay-rate estimates
+are optional: no positive rate means an unavailable relay-material estimate.
+The implemented rotary interface
 is explicitly `rc8a-relative-ex`, requiring a configured RC8A extended joint.
 Axis 7 is a provisional slot, not evidence the user's bed is installed there.
 An independent rotary controller needs an execution adapter with synchronization.
@@ -69,8 +71,11 @@ Start position/pose and rotary zero must already match the manifest/setup; the
 program does not home or position the system before printing. Heating is external.
 The relay model matches Dobot's distinction between commanded material intent
 and duration-times-rate estimates. No metered E axis or temperature control is
-invented; the SAAMpath's retraction and fan settings are omitted and named in the
-program's limitations. Constant relay flow cannot guarantee the intended varying
+invented; requested temperature changes are named for external arrangement at
+their requested points, while fan and retraction actions are separately named as
+omitted controls. Stationary extrusion actions have no implemented command and
+produce a named export error. Temperatures keep the shared 350 °C ceiling.
+Constant relay flow cannot guarantee the intended varying
 bead volume, particularly near tapered ends, speed changes and endpoint stops.
 
 Studio draws the SAAMpath, not the program; the debug verifier
@@ -84,30 +89,16 @@ report that bounded source contract and do not claim axis-feed, reach or
 collision validation. Vendor compilation, coordinated execution and physical
 printing remain open commissioning work.
 
-Interoperability is shared at geometry storage, ordinary section/offset/boolean
-tools, substrate generation, operations, motion, output registry, exact-source
-Studio, cold reopening and delivery. Cladding accepts a periodic native
-spline patch or mapped native triangle strip through
-[surface-region](../../core/geom/surface-region.mjs); inward radial material-region
-interfaces are not implemented. Shared
-[normal-surface](../../core/region/normal-surface.mjs) operations evaluate outward normal
-offsets and refine curves; they do not use the intrinsic boundary-offset tool.
-The selected surface describes the substrate, and cladding adds outside it.
-Scope, mesh normal
-interpolation, sampled coverage, unsupported topology and normal-field limits are
-owned by the [cladding manual](../../skills/pipe-cladding/SKILL.md#contact-and-pose).
-The producer uses the same composer, oriented travel, RC8A export and review
-workflow. General inward reservations, arbitrary chart unwrapping and multi-patch
-cladding remain unimplemented.
-Tests include the existing mesh/spline base-vase-cap-infill-drape stack at fixed
-orientation on RC8A and ordinary pipe geometry on S5.
+The [cladding manual](../../skills/pipe-cladding/SKILL.md#contact-and-pose) owns
+substrate selection, mesh/spline scope, normal-field limits and deposition.
+Its producer uses shared geometry, composition, oriented travel and bundle review.
 
-Large RC8A programs can exceed 64 helper files. Shared ZIP output uses the
-ZIP32 non-sentinel entry limit of 65,534 while retaining CRC, path, size, overlap
-and inventory checks. Studio streams the exact checked source inventory in one
-NDJSON response instead of reloading the archive per helper. The browser still
-checks every file hash and the server binds the stream to print, revision and
-output id. This changes transport, not interpretation.
+Written XYZ use 0.001 mm; orientation, external-axis angles and TIME retain
+eight-decimal representation. Timing uses written XYZ and TIME. Collapsed moves
+carry commanded material to the next written deposition; terminal material with
+no representable deposition is reported as omitted. Explicit timed stationary
+motion and orientation changes remain commands. Unrepresentable TIME is omitted;
+controller-owned duration is excluded from reported time and material estimates.
 
 ## Kinematics
 

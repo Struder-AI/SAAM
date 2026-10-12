@@ -10,6 +10,7 @@ const KERNEL_OPERATION={union:'add',difference:'subtract',intersection:'intersec
 
 // -> {vertices, triangles, notes}: no material is an empty mesh with a note.
 export async function booleanDisplayMesh(shell,{toleranceMm=0.05}={}){
+  if(shell.empty)return {vertices:[],triangles:[],notes:[`The ${shell.operation} leaves no material; check the operands overlap as intended.`]};
   const kernel=await solidKernel(),owned=[],notes=[];
   const solidOf=node=>{
     if(node.kind!=='boolean'){const mesh=tessellateShell(node,{toleranceMm});notes.push(...mesh.notes??[]);const solid=solidFromMesh(kernel,mesh);owned.push(solid);return solid;}

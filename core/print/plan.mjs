@@ -1,5 +1,5 @@
 import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
-import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds,validateExtensionAssignment} from '../../skills/records.mjs';
+import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
@@ -15,7 +15,7 @@ import {makeMesh,hasMesh} from '../geom/mesh.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
 import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/boolean-solid.mjs';
-import {geometrySelections,assemblyComponents} from '../geom/selections.mjs';
+import {assemblyComponents} from '../geom/selections.mjs';
 import {spatialTemplate} from '../geom/spatial.mjs';
 import {normalizeSpatialPlan,resolveSpatialPlan} from './spatial-inputs.mjs';
 import {defaultSlices,validateSlices} from './slices.mjs';
@@ -189,9 +189,20 @@ function generationRecipe(plan,unread=[]){
 // outer/inner at their summed offsets. The first component keeps a repeated
 // id; later ones stay in the displayed geometry and receive no deposition.
 function componentGeometry(geometry,notes){
+  if(!geometry)return undefined;
+  if(Array.isArray(geometry.triangles)&&!geometry.triangles.length||geometry.shape==='spline'&&!geometry.patches?.length)return undefined;
+  if(geometry.shape==='boolean'&&Array.isArray(geometry.operands)){
+    const sources=geometry.operands.map(operand=>componentGeometry(operand,notes));
+    if(geometry.operation==='intersection'&&sources.some(source=>!source)||geometry.operation==='difference'&&!sources[0])return undefined;
+    const operands=sources.filter(Boolean);
+    if(!operands.length)return undefined;
+    if(operands.length===1)return operands[0];
+    return {...geometry,operands,...(Object.hasOwn(geometry,'displayOperand')?{displayOperand:Math.max(0,operands.indexOf(sources[geometry.displayOperand]))}:{})};
+  }
   if(geometry?.shape!=='assembly'||!Array.isArray(geometry.parts))return geometry;
   const parts=[],seen=new Set(),repeated=new Set();
   for(const part of assemblyComponents(geometry.parts)){
+    if(!componentGeometry(part.geometry,notes))continue;
     if(!seen.has(part.id)){seen.add(part.id);parts.push(part);}
     else repeated.add(part.id);
   }
@@ -247,9 +258,8 @@ function producingAssignment(plan,solid,assignment,notes){
 function validateRecipeValue(plan,current) {
   requireThat_toolpath(plan.geometry===undefined||plan.geometry===null||GEOMETRY_SHAPES.includes(plan.geometry.shape),`Author geometry as one of ${GEOMETRY_SHAPES.join(', ')}.`);
   if(plan.geometry)validateGeometry(plan.geometry);
-  validateExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
-  const selections=plan.geometry?geometrySelections(plan.geometry):new Map();
-  validateSlices(plan.slices,{validateConstruction:validateExtensionAssignment,parts:[...selections.keys()].filter(key=>key!==null),firstLayerMm:plan.process.firstLayerMm});
+  validateExtensionRecipe(plan);
+  validateSlices(plan.slices);
   for(const assignment of depositionAssignments(plan))assignmentPlan(plan,assignment);
   validateModulations(plan.modulations,{assignmentIds:Array.isArray(current.slices?.assignments)?current.slices.assignments.map(a=>a?.id):[]});
   for(const {geometry:source} of modulationGeometrySources(plan.modulations)){

@@ -2,7 +2,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 // Declarative defaults shared by recipe presets and the stack producer.
 
 export const SLICE_DEFAULTS=Object.freeze({loops:2,fillDensity:.2,fillPattern:'rectilinear',fillAnglesDeg:[45,135],rotateFill:true,solidTop:3,solidBottom:3,fillOverlap:.15,spacingFactor:1,sampleStepMm:.2});
-export const SLICE_PRESETS=Object.freeze({brim:{loops:5,fillDensity:0,solidTop:0,solidBottom:0,within:[{kind:'outline'}]},support:{loops:1,fillDensity:.15,fillAnglesDeg:[0,90],solidTop:2,solidBottom:0}});
+export const SLICE_PRESETS=Object.freeze({brim:{loops:5,fillDensity:0,solidTop:0,solidBottom:0,within:[{kind:'outline'}]}});
 export function ordinarySliceAssignment({id,part=null,preset=null,...overrides}){
   requireThat(preset===null||Object.hasOwn(SLICE_PRESETS,preset),`Unknown slice preset ${preset}.`);
   return structuredClone({id,part,preset,filament:null,process:null,...SLICE_DEFAULTS,within:[],surface:{kind:'horizontal'},stack:null,join:null,fillOrder:null,contact:null,toolPose:null,

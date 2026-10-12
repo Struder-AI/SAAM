@@ -5,15 +5,15 @@ import {validateBooleanSolid} from './boolean-solid.mjs';
 
 // Reduce source coordinates and faces once, before any expensive geometric
 // validation. Changed connectivity uses the same demand-driven solid repair as
-// explicit repair. Null is an internal empty solid, mapped to spatial at the root.
+// explicit repair. Empty results keep their authoring record with no faces.
 export function normalizeSourceMesh(value){
   const {clean,result:repaired}=prepareMesh(value,{maxHoleEdges:500,maxHoleDiameterMm:2}),report={...clean.resolutionMerge,removed:clean.removed,stitching:clean.stitching};
-  if(clean.empty)return {geometry:null,report:{...report,empty:true,...(value.source?{source:structuredClone(value.source)}:{})}};
+  if(clean.empty)return {geometry:{...value,vertices:[],triangles:[]},report:{...report,empty:true,...(value.source?{source:structuredClone(value.source)}:{})}};
   const solid= repaired.report;
   if(!report.mergedVertices&&!report.collapsedTriangles&&!clean.removed.degenerate&&!clean.removed.duplicates&&!clean.removed.unusedOrDuplicateVertices&&!clean.stitching.edges
     &&!solid.selfIntersectionsRepaired&&!solid.orientation.flippedFaces&&!solid.orientation.reversedOrientation&&!solid.holesFilled)return {geometry:value,report};
   if(sameMesh(repaired,value))return {geometry:value,report};
-  return {geometry:repaired.triangles.length?{...value,vertices:repaired.vertices,triangles:repaired.triangles}:null,
+  return {geometry:{...value,vertices:repaired.vertices,triangles:repaired.triangles},
     report:{...report,solidRepair:repaired.report,...(!repaired.triangles.length?{empty:true,...(value.source?{source:structuredClone(value.source)}:{})}:{})}};
 }
 const indexedGeometry=geometry=>Array.isArray(geometry?.vertices)&&Array.isArray(geometry?.triangles);
@@ -38,7 +38,7 @@ export function normalizeAuthoredGeometry(geometry,previous){
     if(value.shape==='spatial'){const solid=normalize(value.solid,path+'/solid');return solid===value.solid?value:{...value,solid};}
     if(value.shape==='assembly'){
       const parts=value.parts.map(part=>{const geometry=normalize(part.geometry,path+'/parts/'+part.id);return geometry===part.geometry?part:geometry?{...part,geometry}:null;}).filter(Boolean);
-      return !parts.length?null:parts.every((part,i)=>part===value.parts[i])&&parts.length===value.parts.length?value:{...value,parts};
+      return parts.every((part,i)=>part===value.parts[i])&&parts.length===value.parts.length?value:{...value,parts};
     }
     if(value.shape==='boolean'){
       validateBooleanSolid(value);

@@ -34,7 +34,7 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
   if(s.filamentColor!=null&&stated===null)notes.push(`setup.filamentColor ${JSON.stringify(s.filamentColor)} is not a six-digit hex colour; it is not used.`);
   const color=stated??output.defaultFilamentColor;
   const declared=s.filaments??[{id:'GFA00',colour:color}];
-  requireThat(Array.isArray(declared)&&declared.length>0&&declared.length<=16&&declared.every(f=>
+  requireThat(Array.isArray(declared)&&declared.length>0&&declared.every(f=>
     f&&Object.keys(f).every(k=>['id','colour','tool','source','nozzleC','process'].includes(k))&&typeof f.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(f.id)),
     'Bambu logical filaments need a material preset id; they are not an AMS inventory.');
   const miscoloured=declared.flatMap((f,i)=>HEX_COLOUR.test(f.colour)?[]:[i+1]);
@@ -117,7 +117,11 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
     flushFeed:round(k.startupPurgeFlowMm3S/2.4053*60,3),
     reducedFlushFeed:round(k.startupPurgeFlowMm3S/2.4053*60*0.8,3),
     calibrationFeed:round(k.startupPurgeFlowMm3S/2.4,4),bodyAcceleration:k.bodyAcceleration};
-  return {tool,map,physicalTool,fastStart,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
+  // TK-DEV f4c84235 (2026-10-03): an AMS-fed H2D start followed by a nozzle
+  // change stalled with the startup prime/wipe and completed without them.
+  // The external-spool DUAL-20 pass retained both; each physical trial ran once.
+  const amsNozzleChange=filamentSequence.some(i=>filamentTools[i]!==tool)&&(filaments[used].source?.type??'auto')!=='external';
+  return {tool,map,physicalTool,fastStart,amsNozzleChange,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
     materialChange:k.materialChangeMode==='single-nozzle-ams'?{mode:k.materialChangeMode,flushMm3:k.materialChangeFlushMm3}:null,
     filaments:filaments.map(f=>({...f})),selections,used,count,color:filaments[used].colour,material:s.material,
     filamentMm:s.filamentMm,density,volumeType,nozzleType,requestedTray,amsConnections:connections===null?null:connections.map(c=>({...c})),settings,

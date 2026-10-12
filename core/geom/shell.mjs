@@ -23,14 +23,14 @@ const JOIN_TOLERANCE = PRINT_RESOLUTION_MM;
 export function makeShell(patches, { name = 'shell' } = {}) {
   // Closure, not a patch count, decides whether a shell is solid: one
   // revolved patch closing on its own seam and poles is a whole sphere.
-  requireThat(patches.length >= 1, `${name} needs at least one patch.`);
-  const shell = { name, patches, bounds: shellBounds(patches) };
+  const shell = { name, patches, empty:patches.length===0, bounds: shellBounds(patches) };
   shell.closure = verifyClosure(patches);
   return shell;
 }
 
 // Conservative bounds from the control net: the surface lies inside its hull.
 function shellBounds(patches) {
+  if(!patches.length)return {min:[0,0,0],max:[0,0,0]};
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
   for (const patch of patches)
     for (let i = 0; i < patch.nu * patch.nv; i++) {

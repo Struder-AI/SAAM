@@ -26,7 +26,6 @@ export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationSt
     if(!pointInRegion(uv,domain))return false;
     return beadContactAlong(supportSegments,evaluateSurface(layer.slice,uv).point,layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
   });
-  requireThat(seed.length,`Front layer ${layer.index} has no supporting seed; supply an authored seed or preceding deposited material.`);
   const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);
   const connected=connectSurfacePasses(patch,generated.waves,domain,settings,lineWidthMm);
   return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:seedUv?'authored':'deposited'},seed};
@@ -144,7 +143,7 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
   requireThat(domainUv.flat().every(p=>p.every((x,k)=>x>=[patch.domainU,patch.domainV][k][0]&&x<=[patch.domainU,patch.domainV][k][1])),
     'Wave slice domain exceeds its native spline chart.');
   const domain=union(domainUv,[],options),seed=intersect(seedUv,domain,options);
-  requireThat(regionArea(seed)>0,'Wave seed has no material area inside the assigned slice.');
+  if(!regionArea(seed))return {waves:[],report:{notes:['Front fill has no seed inside the assigned slice; fill was omitted.'],residualsUv:domain}};
   const budget={evaluations:0,points:0},waves=[],sliverContours=[];
   let covered=seed,steps=0,boundaryStops=0,residualsUv=[],residualMaxSampleDiameterMm=0,residualRoundingBandUv=0;
   const stepCount=Math.max(1,Math.ceil(settings.lineSpacingMm/settings.propagationStepMm));
@@ -204,7 +203,9 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
       covered=grown.loopsUv;
       if(!difference(domain,covered,options).length)break;
     }
-    requireThat(regionArea(covered)>startArea+precisionUv*precisionUv,'Wave propagation cannot reach remaining material from the supplied seed; assign a seed on each disconnected island or revise the region.');
+    if(regionArea(covered)<=startArea+precisionUv*precisionUv){
+      residualsUv=difference(domain,covered,options);break;
+    }
     // A completed advance has only the stationary rim left. Resolve numerical
     // residue before extracting fronts, so its strips never become toolpaths.
     if(roundingResiduals(difference(domain,covered,options)))break;
@@ -217,6 +218,6 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
     if(sampled.length)waves.push({index:n,paths:sampled});
   }
   return {waves,report:{status:'experimental',waves:waves.length,propagationSteps:steps,...budget,boundaryStops,
-    residualsUv,residualMaxSampleDiameterMm,residualRoundingBandUv,sliverContours,lineSpacingMm:settings.lineSpacingMm,method:'constrained-geodesic-wavefronts',physicalValidation:'not performed'}};
+    residualsUv,...(residualsUv.length?{notes:['Front fill stopped before reaching remaining material; reached fronts were retained.']}:{}),residualMaxSampleDiameterMm,residualRoundingBandUv,sliverContours,lineSpacingMm:settings.lineSpacingMm,method:'constrained-geodesic-wavefronts',physicalValidation:'not performed'}};
 }
 

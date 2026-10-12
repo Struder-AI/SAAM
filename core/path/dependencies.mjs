@@ -15,6 +15,6 @@ export function pathDependencies(plan){
   const materialIntent={nozzleC:setup?.nozzleC,
     defaultFilament:assigned.length?setup?.filament??assigned[0]:null,
     filaments:setup?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
-  const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['supports','plastic-weld'].includes(id)||config?.enabled));
+  const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['plastic-weld'].includes(id)||config?.enabled));
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};
 }

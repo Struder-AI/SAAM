@@ -1,6 +1,5 @@
 // Human-readable review of the same locked recipe used by every adapter.
-const supportSkills=['supports'];
-export const skillName=name=>({'pipe-cladding':'Surface cladding','vase-wall':'Vase wall',supports:'Tree supports'}[name]??name);
+export const skillName=name=>({'pipe-cladding':'Surface cladding','vase-wall':'Vase wall'}[name]??name);
 export const hasConstruction=(plan,kind)=>(plan.slices?.assignments??[]).some(a=>a.construction===kind);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>Boolean(plan.skills?.[name]?.enabled);
@@ -105,12 +104,12 @@ export function sliceSummary(a){
   if(a.fillOrder?.kind==='fronts')return 'Seeded surface fronts · '+a.fillOrder.lineSpacingMm+' mm spacing';
   if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
   const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
-  const solid=a.fillDensity<1&&(a.solidBottom||a.solidTop)?[a.preset==='support'?a.solidTop+' interface layers':a.solidBottom+' bottom / '+a.solidTop+' top solid layers']:[];
+  const solid=a.fillDensity<1&&(a.solidBottom||a.solidTop)?[a.solidBottom+' bottom / '+a.solidTop+' top solid layers']:[];
   return [a.loops+(a.loops===1?' loop':' loops'),fill,...solid].join(' · ');
 }
 export function sliceRows(plan){
   return (plan.slices?.assignments??[]).flatMap(a=>[...(a.construction?(a.construction==='inject'?injectionRows(a,plan):curveAssignmentRows(a,plan)):[
-    [a.id,(a.preset==='support'?'Support':(a.part??'Part'))+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
+    [a.id,(a.part??'Part')+' · '+(a.within.length?a.within.map(volumeName).join(' within '):'the rest of the part')+' · '+sliceSummary(a)],
     [a.id+' · Fill directions',a.fillAnglesDeg.join(', ')+'°'+(a.rotateFill&&a.fillAnglesDeg.length>1?', alternating by layer':'')],
     ...(a.stack?[[a.id+' · Layers',a.stack.firstLayerMm+' mm first, then '+a.stack.layerMm+' mm']]:[]),
     [a.id+' · Reference',sliceReferenceName(a.surface)],
@@ -182,7 +181,7 @@ export function recipeRows(plan){
   }
   if(plan.skills){
     for(const [name,settings] of Object.entries(plan.skills))if(settings.enabled){
-      rows.push([(name==='vase-wall'?pathModeName(settings):skillName(name))+' · Component',supportSkills.includes(name)?'Explicitly assigned supports':settings.parts?.join(', ')||settings.part||'All selected geometry']);
+      rows.push([(name==='vase-wall'?pathModeName(settings):skillName(name))+' · Component',settings.parts?.join(', ')||settings.part||'All selected geometry']);
       rows.push(...skillSettingsRows(name,settings));
     }
   }

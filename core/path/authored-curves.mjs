@@ -22,7 +22,7 @@ export {authoredNurbs} from '../geom/spatial.mjs';
 // depositing). Any other key, such as pose (Slice output and field modulation
 // supply it), or an unusable profile is left out and named in ignored.
 const PROFILE_KEYS=['beadWidthMm','heightMm','flowMultiplier','speedMmS'];
-const usableProfile=(key,values)=>Array.isArray(values)&&values.length>=2&&values.every((p,i)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&(!i||p[0]>values[i-1][0])&&Number.isFinite(p[1])&&(key==='speedMmS'||(key==='flowMultiplier'?p[1]>=0:p[1]>0)))
+const usableProfile=(key,values)=>Array.isArray(values)&&values.length>=2&&values.every((p,i)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&(!i||p[0]>values[i-1][0])&&Number.isFinite(p[1])&&(['speedMmS','flowMultiplier'].includes(key)||p[1]>0))
   &&values[0][0]===0&&values.at(-1)[0]===1;
 export function readCurveProfiles(vary){
   if(vary===undefined)return {vary:undefined,ignored:[]};

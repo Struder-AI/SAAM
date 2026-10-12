@@ -38,8 +38,9 @@ export async function editText(source,request,geometryOperations){
     const next={...(index>=0?features[index]:{}),...feature};
     if(index>=0)features[index]=next;else features.push(next);
   }
-  const compiled=features.length?await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1}):null;
-  if(!compiled)requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');
+  const compiled=features.length?await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1})
+    :standalone?{geometry:{...old,features:[],vertices:[],triangles:[],materialParts:[]},notes:['The text leaves no material.']}:null;
+  if(!compiled)requireThat(base,'Removing the last text feature needs its saved base.');
   owner.geometry=compiled?compiled.geometry:base;
   // A removed/changed feature may invalidate a material selector. Let the caller
   // replace those assignments in the same validated edit, without an invalid

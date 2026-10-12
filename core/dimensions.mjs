@@ -22,10 +22,13 @@ export const ROUNDING_MM = PRINT_RESOLUTION_MM / 1000;
 // a span): a rounding guard across the build scale.
 export const ROUNDING_RELATIVE = ROUNDING_MM / BUILD_SCALE_MM;
 
-// Program resolution: G-code exporters write coordinates and filament length with
-// this many decimals (1e-5 mm), 100x below print resolution, so rounding the
-// program never changes the print.
+// Fine program/geometry resolution: filament length and internal construction
+// keep five decimals (1e-5 mm). Written XYZ commands use their approved coarser
+// precision below; rates, time and orientation use their own units/effect.
 export const PROGRAM_DECIMALS = 5;
+// Written XYZ command positions, approved 2026-10-12; filament amounts keep
+// five decimals with their rounding remainder. Geometry/admission stay finer.
+export const XYZ_PROGRAM_DECIMALS = 3;
 // One step of program resolution, and the slack for a value that passed through a
 // few rounded program numbers (a retraction and its recovery, a written bound).
 export const PROGRAM_STEP_MM = 10 ** -PROGRAM_DECIMALS;

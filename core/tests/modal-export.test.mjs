@@ -9,7 +9,7 @@ import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
-test('modal writer retains captured bytes across coordinate/E rounding and command transitions',()=>{
+test('modal writer preserves captured command transitions with approved XYZ precision',()=>{
   const fixture=JSON.parse(readFileSync(new URL('./fixtures/modal-motion-bytes.json',import.meta.url),'utf8'));
   for(const extrusionMode of ['absolute','relative']){
     const {lines}=gcodeMotion(fixture.path,fixture.plan,{extrusionMode});

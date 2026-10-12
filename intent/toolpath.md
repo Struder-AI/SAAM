@@ -29,7 +29,9 @@ Sources: [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) (agent wording
 
 Summary: Trace deposits along curves (which may carry a surface reference for their coordinates) and has no surface machinery of its own; surface-generated curves come from their producers.
 
-Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension).
+Agent wording, approved by the owner 2026-10-12: Geometry stores the curves used by Trace and the points used by Inject. Their recipes reference that geometry and describe deposition. Trace-only and Inject-only bundles do not require a solid. Curves and points can be shown before toolpath generation; auxiliary geometry may remain hidden where appropriate.
+
+Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension); owner, 2026-10-03 (Codex 01a102ba, 18:25/18:32 UTC), on curve/point geometry and visibility; owner, 2026-10-12: "That statement seems fine."
 
 ## Slice is one general operation
 > "We've received word that the intended slice consolidation/generalization didn't actually get done, complexity got bundled into slice instead of the actual complexity reduction/generalization that was intended." — owner, 2026-10-02 (Codex 01a0fad5 04:21)

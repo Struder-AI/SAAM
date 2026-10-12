@@ -13,7 +13,7 @@ export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
     // Speed passes through; zero flow moves along the curve without depositing.
-    // Negative flow is read as zero, with a note, where it is authored.
+    // Negative material cannot enter SAAMpath; its assignment reports the failure.
     requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>=0&&Number.isFinite(speed),
       'Curve deposition needs a positive bead width, a nonnegative flow and a speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),

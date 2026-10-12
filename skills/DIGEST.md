@@ -42,7 +42,6 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [standard-support](standard-support/SKILL.md) | Experimental authored supports from a selected underside, flat footprint or tree skeleton, closed to the bed and sliced infill-only. |
-| [supports](supports/SKILL.md) | Experimental tree branches at authored contacts; selected curved underside support uses standard-support. |
 | [hole-supports](hole-supports/SKILL.md) | Experimental support options for a detected bed-facing circular counterbore under a smaller through bore. |
 
 ## Workspace extensions

@@ -15,7 +15,7 @@ export const clampedKnots=(count,degree)=>Array.from({length:count+degree+1},(_,
 
 export function validateSplineSolid(geometry){
   requireThat(Object.keys(geometry).every(k=>['shape','patches'].includes(k)),'A spline solid has only shape and patches.');
-  requireThat(Array.isArray(geometry.patches)&&geometry.patches.length>=1,'A spline solid needs at least one patch.');
+  requireThat(Array.isArray(geometry.patches),'A spline solid needs a patches array.');
   const names=new Set();
   for(const patch of geometry.patches){
     requireThat(patch&&typeof patch==='object'&&Object.keys(patch).every(k=>PATCH_FIELDS.includes(k)),`Spline patch fields are ${PATCH_FIELDS.join(', ')}.`);
@@ -38,6 +38,7 @@ export function validateSplineSolid(geometry){
 
 // Control-net bounds: the surface lies inside its hull, so these contain it.
 export function splineSolidBounds(geometry){
+  if(!geometry.patches.length)return {min:[0,0,0],max:[0,0,0]};
   const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
   for(const patch of geometry.patches)for(const row of patch.controlPoints)for(const p of row)
     for(let k=0;k<3;k++){min[k]=Math.min(min[k],p[k]);max[k]=Math.max(max[k],p[k]);}

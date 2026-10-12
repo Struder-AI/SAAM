@@ -13,7 +13,7 @@ Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../
 edit this same list. Ordinary `body` uses two loops, 20% fill and three solid
 slices at the top and bottom. Source dependencies wait for finalized material.
 Experimental `substrateAdaptation` defaults off: nominal references retain their
-specified gaps. When on, declared contact uses final beads and missing support rejects.
+specified gaps. When on, declared contact uses final beads; unavailable contact is noted locally.
 
 ## Settings
 
@@ -23,7 +23,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 |---|---|---|
 | `id`, `part` | Required name, `null` part | Unique lowercase name; selected component/material part, or every component. |
 | `filament`, `process` | `null` | Logical filament; overrides for height, width, speed, fan, `liftMm` and `retractMm` (zero disables extra hop/retraction for this assignment). |
-| `preset` | `null` | `brim` or `support` settings and auxiliary region. |
+| `preset` | `null` | `brim` settings and auxiliary region. |
 | `loops` | `2` | Nonnegative loop count; an array varies the count by slice. |
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |
 | `fillAnglesDeg`, `rotateFill` | `[45,135]`, `true` | Alternate row directions, or retain the first. |
@@ -49,7 +49,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
   On a roof, `loopsUv:null` surveys it dynamically; optional slope and sample limits
   control that survey. See [skin](../draped-skin/SKILL.md).
 - `normal-band:{fromMm,toMm}` bounds normal depth on a selected surface.
-- `outline` and `support` supply the auxiliary regions described below.
+- `outline` supplies the brim's auxiliary region.
 
 Volumes include their `kind` as shown by the tool schemas. An unbounded owner
 retains explicit owners' remainder; each explicit owner prints its claimed region.
@@ -77,7 +77,7 @@ These choices do not select different deposition producers or schedulers.
 
 Brim supplies the region outside the first-layer outline and five outward loops.
 Define it before the body; `loops` sets its width. It is sacrificial bed adhesion.
-Flat footprint support uses the [tree/footprint settings](../supports/SKILL.md); curved selected roofs use [standard support](../standard-support/SKILL.md), with zero loops and fixed-direction infill.
+Supports use ordinary geometry claims and Slice settings; [standard support](../standard-support/SKILL.md) authors roofs, footprints or tree solids with zero loops and fixed-direction infill.
 
 | Pattern | Shape / tradeoff |
 |---|---|
@@ -106,7 +106,7 @@ finalizes affected deposition before dependent contact queries.
 sleeve geometry and calls Trace, as does advanced vase. Saved `join:{mode:"spiral",levelEnd:true}` requests
 use that extension too. Slice has no spiral producer. A raised sleeve needs a
 printed base; a successor needs an appropriate finished boundary. Rivet reservations
-and explicit tree support remain extension inputs to shared engine operations.
+remain extension inputs to shared engine operations.
 
 ## Script interfaces
 

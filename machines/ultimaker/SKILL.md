@@ -33,7 +33,7 @@ physically verify the result.
 interpreter. `machines/bambu/bambu.mjs` adds the H2D envelope and sliced-3MF package.
 The selected machine output's `program.header`, `program.start` and
 `program.end` arrays contain literal lines with named value substitutions.
-Values come from the locked setup, release metadata and path totals/bounds;
+Values come from the locked setup, release metadata and written-command totals;
 templates execute no JavaScript. Unknown values and invalid/nonfinite path data
 are rejected. A snapshot locked without templates uses the installed profile's, noted.
 The emitter writes shared SAAMpath actions between these sections.
@@ -77,17 +77,14 @@ recover the configured retraction once at the first deposition location without
 another initial withdrawal. H2D uses an unretracted handoff; zero retraction and
 relay output add no recovery. Physical confirmation of this correction is open.
 
-S5 profile revision 7 also supplies `startup.primingStrokes` to shell generation:
-two connected 100 mm sacrificial passes, with 4 mm clearance outside the complete
-geometry and generated stroke footprint (including supports). The generator
-chooses a fitting side within selected-tool bounds, including bead width; a lane
-longer than those bounds is shortened, and with no room the program starts without
-it, each noted. It uses the
-locked first-layer height, line width and speed.
-The first unretract occurs at the prime; the nozzle retracts and lifts before
-approaching the part. These are ordinary `prime`-phase SAAMpath moves, included
-in exported material, time, bounds and Studio playback. Priming does not establish the firmware's hidden
-retraction state or guarantee physical extrusion recovery.
+S5 profile revision 7 supplies two connected 100 mm `startup.primingStrokes`
+for export preparation, 4 mm outside the geometry and generated stroke footprint.
+Preparation chooses a fitting side within the selected tool's bounds, shortens
+a lane that exceeds them or omits it when none fits, with a note. It uses the
+locked first-layer height, line width and speed. The first unretract occurs at
+the prime, followed by retract/lift and approach to the part. Written-command
+material and time include these strokes; Studio draws the neutral SAAMpath.
+Priming does not establish hidden firmware retraction state or physical recovery.
 
 Saved machine snapshots without this setting retain their existing paths.
 Recreate the print against the current machine profile and regenerate/review to

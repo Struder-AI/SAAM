@@ -60,14 +60,14 @@ export function settingsDefaults(machine){
     placement:defaultPlacement(machine,machine?.defaultSetup.tool),
     setup:structuredClone(machine?.defaultSetup??GENERIC_SETUP),
     process:{
-      firstLayerMm:0.2,layerMm:0.2,lineWidthMm:0.4,
+      lineWidthMm:0.4,
       planarWallToleranceMm:machine?.planarWallToleranceMm??0.01,
       planarSpeedMmS:20,skinSpeedMmS:10,firstLayerSpeedMmS:12,travelSpeedMmS:60,zSpeedMmS:5,
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
       fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,
       experimentalDeposition:false,primeLine:null,clearanceResponsibility:'operator',
       clearanceNote:'No collision model is implemented; the operator owns physical clearance.',
-      ...structuredClone(machine?.defaultProcess??{})
+      ...structuredClone(machine?.defaultProcess??{}),firstLayerMm:0.2,layerMm:0.2
     },
     output:machine?.outputs[0].id??null
   };
@@ -139,7 +139,7 @@ export function resolveMachineSettings(previous,previousMachine,{machine,setting
   const same=(a,b)=>a?.xMm===b.xMm&&a?.yMm===b.yMm,tool=previous.setup?.tool??previousMachine?.defaultSetup.tool;
   const defaulted=!previous.placement||same(previous.placement,defaultPlacement(previousMachine,tool,boundsMm))
     ||same(previous.placement,defaultPlacement(previousMachine,tool));
-  return {setup,output:previousMachine?settings.output:previous.output??settings.output,
+  return {setup,output:!previousMachine&&machine.outputs.some(output=>output.id===previous.output)?previous.output:settings.output,
     process:{...settings.process,...previous.process},
     placement:defaulted?defaultPlacement(machine,setup.tool,boundsMm):previous.placement};
 }

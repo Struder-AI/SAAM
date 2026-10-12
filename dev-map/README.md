@@ -20,13 +20,12 @@ An influence set is a folder holding `map.json`, solved by
 ```json
 {"mode": "influence", "title": "…", "authored": "dev-map/sets/030-architecture",
  "analysis": "dev-map/sets/030-influence/store/analysis/analysis.json",
- "analyse": {"maxHeapMB": 4096}, "sourceRoots": ["."], "preview": true, "jobs": 2}
+ "analyse": {}, "sourceRoots": ["."], "preview": true, "jobs": 2}
 ```
 
-`authored` names the design set whose map 0 and ownership are fixed. With `analyse`, `regenerate`
-makes `analysis` from the current source; without it, `analysis` is a
-[run.mjs](influence/run.mjs) `--out` result made elsewhere, and optional `missing` lists the files
-it did not cover. `sourceRoots` are checkouts holding the text the analysis read.
+`authored` fixes map 0 and ownership. `analyse` builds current source analysis with three quarters of
+available memory; solver jobs share that allowance. An explicit smaller `maxHeapMB` wins. Without
+`analyse`, supply [run.mjs](influence/run.mjs) `--out` and optionally `missing` files; `sourceRoots` names the checkouts read.
 
 Map 0 draws the authored nodes at their authored positions. Each node opens into clusters the
 middle-out solver groups its leaves into, nested down to leaves, which open as source. A cluster

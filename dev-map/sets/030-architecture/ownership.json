@@ -1546,6 +1546,10 @@
     "scripts/machine-verify.mjs": {
       "owner": "development",
       "reason": "Builder-only debug verification of a print's checked program in an adapter's verifier; outside the installed product."
+    },
+    "core/memory.mjs": {
+      "owner": "application",
+      "reason": "Shared application/system available-memory policy for computation and developer workers."
     }
   },
   "leaves": {
@@ -13276,9 +13280,6 @@
     "machines/ultimaker/griffin.mjs::requireThat": {
       "owner": "export"
     },
-    "machines/ultimaker/griffin.mjs::distance": {
-      "owner": "export"
-    },
     "machines/ultimaker/griffin.mjs::createAdapter": {
       "owner": "export"
     },
@@ -13973,6 +13974,130 @@
     },
     "machines/dobot/dobot.mjs::defaultedNote": {
       "owner": "export"
+    },
+    "core/print/slices.mjs::validateSliceAssignment": {
+      "owner": "toolpath"
+    },
+    "core/print/slices.mjs::failedSlicePreparation": {
+      "owner": "toolpath"
+    },
+    "core/print/slice-deposition.mjs::finalizeAssignments": {
+      "owner": "toolpath"
+    },
+    "core/print/slice-deposition.mjs::executeDepositionWork": {
+      "owner": "toolpath"
+    },
+    "core/path/extension-dependencies.mjs::generationExtensionSources": {
+      "owner": "toolpath"
+    },
+    "core/extensions/library.mjs::extensionRuntimeSourceError": {
+      "owner": "extensions"
+    },
+    "core/application/deposition-schemas.mjs::scalarProfile": {
+      "owner": "application"
+    },
+    "skills/deposition.mjs::depositionRuntime": {
+      "owner": "extensions"
+    },
+    "core/print/recipe-migration.mjs::currentSupportForms": {
+      "owner": "toolpath"
+    },
+    "core/print/recipe-migration.mjs::joinSupports": {
+      "owner": "toolpath"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::retiredTreeSolids": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::retiredFootprintSolids": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::retiredFootprintSolids::close": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::solidInFrame": {
+      "owner": "extensions"
+    },
+    "core/path/extension-dependencies.mjs::generationExtensionIds": {
+      "owner": "toolpath"
+    },
+    "core/application/runtime.mjs::unknownArgumentPaths": {
+      "owner": "application"
+    },
+    "core/path/authored-curves.mjs::readCurveProfiles": {
+      "owner": "toolpath"
+    },
+    "core/path/authored-curves.mjs::distinctPolyline": {
+      "owner": "toolpath"
+    },
+    "core/path/parallel-curves.mjs::readWidthRule": {
+      "owner": "toolpath"
+    },
+    "core/path/saampath.mjs::rounded": {
+      "owner": "toolpath"
+    },
+    "core/path/saampath.mjs::stored": {
+      "owner": "toolpath"
+    },
+    "core/path/saampath.mjs::storedFields": {
+      "owner": "toolpath"
+    },
+    "core/path/saampath.mjs::saamPathText": {
+      "owner": "toolpath"
+    },
+    "core/path/stack-curves.mjs::spiralRun::at": {
+      "owner": "toolpath"
+    },
+    "core/print/portable.mjs::sourceProblem": {
+      "owner": "bundle"
+    },
+    "core/print/portable.mjs::repairProblem": {
+      "owner": "bundle"
+    },
+    "core/print/recipe-migration.mjs::vertexBounds": {
+      "owner": "geometry"
+    },
+    "core/print/slice-deposition.mjs::AssignmentFailure": {
+      "owner": "toolpath"
+    },
+    "core/print/slice-deposition.mjs::assignmentWork": {
+      "owner": "toolpath"
+    },
+    "skills/gridfinity/scripts/gridfinity.mjs::editedGridfinityParameters": {
+      "owner": "extensions"
+    },
+    "skills/heat-set-inserts/scripts/feature.mjs::borePoint": {
+      "owner": "extensions"
+    },
+    "studio/print-name.mjs::safeStem": {
+      "owner": "studio"
+    },
+    "core/path/stack-curves.mjs::spiralRun::boundarySample": {
+      "owner": "toolpath"
+    },
+    "core/memory.mjs::@module": {
+      "owner": "application"
+    },
+    "core/memory.mjs::heapCeilingMb": {
+      "owner": "application"
+    },
+    "studio/camera.mjs::DEFAULT_CAMERA": {
+      "owner": "studio"
+    },
+    "core/application/result-images.mjs::createResultImages::retire": {
+      "owner": "application"
+    },
+    "core/application/result-images.mjs::createResultImages::release": {
+      "owner": "application"
+    },
+    "core/application/runtime.mjs::createRuntime::releaseHandbackImages": {
+      "owner": "application"
+    },
+    "core/application/chat-requests.mjs::createChatRequests::@default/onHandBack": {
+      "owner": "application"
+    },
+    "core/dimensions.mjs::XYZ_PROGRAM_DECIMALS": {
+      "owner": "export",
+      "reason": "Approved final machine-command XYZ precision; fine construction/admission resolution is retained."
     }
   },
   "retiredAssignments": [
@@ -14712,7 +14837,34 @@
     "core/print/plan.mjs::validatePlanProcess::positive",
     "core/print/plan.mjs::validatePlanSelections",
     "core/geom/build.mjs::hasMesh",
-    "core/print/recipe-migration.mjs::migrateRecipeFields"
+    "core/print/recipe-migration.mjs::migrateRecipeFields",
+    "skills/supports/scripts/supports.mjs::@module",
+    "skills/supports/scripts/supports.mjs::circle",
+    "skills/supports/scripts/supports.mjs::exact",
+    "skills/supports/scripts/supports.mjs::finite",
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts",
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts::lastLayer",
+    "skills/supports/scripts/supports.mjs::supportDependencies",
+    "skills/supports/scripts/supports.mjs::treeSection",
+    "skills/supports/scripts/supports.mjs::validateSupports",
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts::validateResult",
+    "core/geom/planar-region-layers.mjs::@module",
+    "core/geom/planar-region-layers.mjs::planarRegionLayers",
+    "core/print/slice-region-context.mjs::@module",
+    "core/print/slice-region-context.mjs::prepareSliceRegionContext",
+    "skills/supports/scripts/supports.mjs::prepareSupportContexts::referenceStack.regionsAt",
+    "skills/supports/scripts/supports.mjs::requireThat",
+    "skills/supports/scripts/supports.mjs::supportRuntime",
+    "skills/supports/scripts/supports.mjs::supportRuntime::prepareSupportContexts",
+    "skills/supports/scripts/supports.mjs::supportRecordRuntime",
+    "skills/standard-support/scripts/support-geometry.mjs::shift",
+    "skills/standard-support/scripts/support-geometry.mjs::migrateTreeSupports",
+    "skills/standard-support/scripts/support-geometry.mjs::migrateFootprintSupport",
+    "skills/standard-support/scripts/support-geometry.mjs::migrateFootprintSupport::close",
+    "core/print/computation-job.mjs::heapCeilingMb",
+    "machines/ultimaker/griffin.mjs::distance",
+    "machines/dobot/dobot.mjs::inside",
+    "machines/dobot/dobot.mjs::exportDobot::written"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

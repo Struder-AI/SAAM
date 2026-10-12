@@ -8,6 +8,7 @@ import {hasConstruction,sliceSummary,recipeRows,materialGrams,nextExportName,dep
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {createViewerRenderer} from './viewer-renderer.mjs';
+import {DEFAULT_CAMERA} from './camera.mjs';
 import {planRefreshNavigation,outputView} from './refresh-plan.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
@@ -30,7 +31,7 @@ const exportKey=()=>printSync.state?.printId+':'+printSync.state?.outputId;
 const printSync={state:undefined,stateTag:null,stateUpdate:0,loadedUpdate:0,polling:false,reconnecting:false,changeTimer:undefined,stateFallbackTimer:undefined,progressFallbackTimer:undefined,progressPolling:false};
 const studioWork={busy:false,generating:false,generationTarget:null,acknowledging:false,importElapsedTimer:null,episodeWorking:false,tourUI:undefined};
 const viewState={tab:'geometry',selected:null,activePresentation:null,exportNameState:null,machineColors:machinePalette,waveBoundsMoves:null,waveDisplayBounds:null};
-const orbitView={yaw:-0.78,tilt:0.62,zoom:1,pan:[0,0],fitBounds:null,drag:null,moved:false};
+const orbitView={...DEFAULT_CAMERA,zoom:1,pan:[0,0],fitBounds:null,drag:null,moved:false};
 const playState={playing:false,frame:0,seconds:0,lastFrame:0,playbackEpoch:0,movieController:null,movieUrl:null};
 const machinePose={machineSession:null,requestingPose:null,manualValues:null,manualJog:null,manualDescriptor:null};
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
@@ -156,6 +157,7 @@ const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.materialModel==='relay-estimate'
   ? ['Material estimate',round2(materialGrams(program.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
+  : program.materialModel==='relay-estimate-unavailable' ? ['Material estimate','Unavailable; external extrusion rate is not configured']
   : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.volumeMm3))+' g'];
 // A relay-extrusion machine feeds material by external control; it has no filament, bed or fan settings.
 const relay=state=>state.machine?.capabilities?.includes('relay-extrusion');
@@ -242,7 +244,7 @@ const views={
       const rows=[...depositionFamilyRows(state.pathSummary?.inspection),
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round((state.program.seconds??duration())/60)+' min'],materialFact(state.program)];
       for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.repetitions+' repetitions']);
-      if(state.program.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
+      if(['relay-estimate','relay-estimate-unavailable'].includes(state.program.materialModel))rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasConstruction(state.plan,'sleeve')){
         const selections=state.plan.slices.assignments.filter(a=>a.construction==='sleeve');
         rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
@@ -613,7 +615,7 @@ connectCanvasPointerEvents();
 canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom');orbitView.zoom=Math.max(.08,Math.min(4,orbitView.zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){orbitView.pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;orbitView.pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')orbitView.yaw-=.1;else if(e.key==='ArrowRight')orbitView.yaw+=.1;else if(e.key==='ArrowUp')orbitView.tilt-=.1;else orbitView.tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
-$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){orbitView.yaw=-.78;orbitView.tilt=.62;}if(mode==='side'){orbitView.yaw=0;orbitView.tilt=0;}if(mode==='top'){orbitView.yaw=0;orbitView.tilt=Math.PI/2;}requestDraw();});
+$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){orbitView.yaw=DEFAULT_CAMERA.yaw;orbitView.tilt=DEFAULT_CAMERA.tilt;}if(mode==='side'){orbitView.yaw=0;orbitView.tilt=0;}if(mode==='top'){orbitView.yaw=0;orbitView.tilt=Math.PI/2;}requestDraw();});
 function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??printSync.state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-(plan.placement?.xMm??0),q[1]-(plan.placement?.yMm??0),q[2]];}
 function fitMachine(){return machinePose.machineSession?.scene?machineFitBounds(machinePose.machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
@@ -627,7 +629,7 @@ $('#machine-view').onchange=()=>{
   useCamera(cameras.switch(next,cameraState(),{yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:1,pan:[0,0],fitBounds:fitMachine()}));
   $('#fit-program').hidden=next==='machine';$('#fit-program').textContent=orbitView.fitBounds?.allMoves?'Fit part':'Fit all moves';updateMachineStatus();saveView();requestDraw();
 };
-$('#reset-view').onclick=()=>{orbitView.zoom=1;orbitView.pan=[0,0];orbitView.yaw=-.78;orbitView.tilt=.62;orbitView.fitBounds=cameras.mode==='machine'?fitMachine():fitDisplayedPart();$('#fit-program').textContent='Fit all moves';requestDraw();};
+$('#reset-view').onclick=()=>{orbitView.zoom=1;orbitView.pan=[0,0];orbitView.yaw=DEFAULT_CAMERA.yaw;orbitView.tilt=DEFAULT_CAMERA.tilt;orbitView.fitBounds=cameras.mode==='machine'?fitMachine():fitDisplayedPart();$('#fit-program').textContent='Fit all moves';requestDraw();};
 $('#fit-program').onclick=()=>{
   if(orbitView.fitBounds?.allMoves){orbitView.fitBounds=fitDisplayedPart();$('#fit-program').textContent='Fit all moves';}
   else {

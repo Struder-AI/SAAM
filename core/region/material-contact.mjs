@@ -5,7 +5,6 @@ import {beadContactAlong,depositedBeadSegments} from '../path/deposited-curves.m
 import {prepareSliceRay,sliceRayIntersections} from '../geom/slice.mjs';
 import {pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {dot} from '../geom/frame.mjs';
-import {requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 export function materialContact(curves,{id='slice',layer,bounds,support,contactFragments=[],predecessorReference=null,substrateAdaptation=false,required=false}){
@@ -16,7 +15,7 @@ export function materialContact(curves,{id='slice',layer,bounds,support,contactF
   const reference=substrateAdaptation&&predecessorReference?prepareSliceRay(predecessorReference,direction):null;
   const fragments=reference?contactFragments.map(fragment=>({...fragment,queries:fragment.layers.filter(source=>source.slice&&Array.isArray(source.region)).map(source=>({region:source.region,prepared:prepareSliceRay(source.slice,direction)}))})):[];
   const segmentsByFragment=new Map();
-  const report={queries:0,samples:0,uncoveredSamples:0,minGapMm:Infinity,maxGapMm:0},after=new Set();
+  const report={queries:0,samples:0,uncoveredSamples:0,minGapMm:Infinity,maxGapMm:0,missingRequiredSamples:0},after=new Set();
   const distancesMm=curves.map(curve=>curve.points.map((point,i)=>{
     const chart=curve.chartPoints[i],normal=curve.normals[i];
     const established=pointInRegion(chart,previousRegion)||previousRegion.some(loop=>loop.some((a,j)=>pointSegmentDistance(chart,a,loop[(j+1)%loop.length])<PRINT_RESOLUTION_MM));
@@ -37,12 +36,13 @@ export function materialContact(curves,{id='slice',layer,bounds,support,contactF
     if(segments.length)report.queries++;
     const contact=segments.length?beadContactAlong(segments,point,direction,{maxDistanceMm:envelope}):null;
     if(!contact&&(reference&&!established||segments.length))report.uncoveredSamples++;
-    requireThat(!substrateAdaptation||!required||contact,`Slice ${id} layer ${layer.index} has missing required substrate at ${JSON.stringify(point)}. Experimental substrate adaptation requires contact with the selected source.`);
+    if(substrateAdaptation&&required&&!contact)report.missingRequiredSamples++;
     const distanceMm=contact?.distanceMm??Math.min(nominal,direction[2]>ROUNDING_RELATIVE?Math.max(0,(point[2]-bounds.min[2])/direction[2]):nominal);
     const normalGap=distanceMm*dot(normal,direction);
     if(!contact)return distanceMm;
     report.samples++;report.minGapMm=Math.min(report.minGapMm,normalGap);report.maxGapMm=Math.max(report.maxGapMm,normalGap);after.add(contact.operationId);
     return contact.distanceMm;
   }));
+  if(report.missingRequiredSamples)report.notes=[`Slice ${id} layer ${layer.index}: ${report.missingRequiredSamples} samples have no selected substrate; nominal slice spacing was used there.`];
   return {distancesMm,direction,after:[...after],report};
 }

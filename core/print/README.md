@@ -31,14 +31,10 @@ independently paired artifact. Reports persist in the geometry descriptor; uncha
 and loaded geometry stay exact. Technique semantics are checked at edit
 and regeneration after prerequisites exist; saved geometry needs no extension rerun.
 
-`prepareSliceRegionContext` accepts a supplied Geometry slice stack, preset,
-recipe, process resolver and report. Toolpath resolves the assignment's filament
-and process and returns an ordinary Slice context; it does not infer regions.
-
 [Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
 setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
 snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
-`recordExtensionDependency` records supplied supports/plastic-weld configuration
+`recordExtensionDependency` records supplied plastic-weld configuration
 in existing `plan.skills`; absence means unselected. No defaults or execution occur.
 Geometry/construction references retain their own dependencies. Reusable changes
 never refresh existing bundles; manuals use saved capabilities.

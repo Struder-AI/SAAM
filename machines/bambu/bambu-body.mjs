@@ -30,7 +30,7 @@ export function exportBambuBody(path,plan,machine,Export){
       continue;
     }
     actions.push(action);
-    if(action.kind==='move')position=action.to.map(Export.number);
+    if(action.kind==='move')position=action.to.map(value=>Export.number(value,'xyz'));
     if(action.kind==='retract')debt[selected.setup.tool]=(debt[selected.setup.tool]??0)+action.filamentMm;
     if(action.kind==='recover')debt[selected.setup.tool]=Math.max(0,(debt[selected.setup.tool]??0)-action.filamentMm);
     // Authored fan percent passes through; the fan state restored after a change is the fan's range.

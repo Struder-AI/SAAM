@@ -6,7 +6,6 @@ import {selectSettings} from '../machine/settings.mjs';
 
 import {prepareExtensionRecipe} from './extension-recipe.mjs';
 import {prepareExtensionGeometry} from '../geom/extension-edit.mjs';
-import {assignmentPlan} from './assignment-process.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 import {resolveSpatialPlan,normalizeSpatialPlan} from './spatial-inputs.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';
@@ -22,7 +21,7 @@ export async function applyExtensionEdit(directory,extension,request,{expectedRe
   const state=await loadBundle(directory,{program:false});
   requireEditRevision(state,{expectedRevision,expectedEditRevision},{optional:true});
   const {plan,report}=await prepareExtensionEdit(state.plan,extension,request,options);
-  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
+  await validateSelectedExtensionRecipe(plan);
   const normalized=normalizeSpatialPlan(plan);
   const updated=await updatePlan(directory,normalized,state.revision,{expectedEditRevision});
   return report?{...updated,extensionReport:report}:updated;
@@ -33,7 +32,7 @@ export async function createExtensionBundle(directory,extension,request,options=
   const selection=options.machineId?await selectSettings(options.machineId,options):null;
   const source=selection?{...defaults(selection.machine),...selection.settings}:{schema:'saam-shell-plan/1'};
   const {plan,report}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
-  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
+  await validateSelectedExtensionRecipe(plan);
   const normalized=normalizeSpatialPlan(plan);
   // The construction's notes are recorded with the creation, so they show as the print's limitations.
   await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,notes:[...(selection?.notes??[]),...(report?.notes??[])]});

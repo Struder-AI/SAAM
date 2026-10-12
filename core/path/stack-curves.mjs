@@ -62,7 +62,8 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
 function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role}){
   const n=referenceStack.layers.length,sleeve=referenceStack.boundary?null:boundarySleeve(referenceStack);
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
-  const profile=spiralProfile({...coordinate,firstHeightMm,levelEnd});
+  const foundationHeightMm=referenceStack.layers[0].heightMm??firstHeightMm;
+  const profile=spiralProfile({...coordinate,firstHeightMm:foundationHeightMm,levelEnd});
   let curve,turns;
   if(referenceStack.boundary){
     const cuts=[0];
@@ -70,7 +71,8 @@ function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,
       const next=Math.min(profile.turns,t<profile.risingTurns-ROUNDING_RELATIVE?profile.risingTurns:Infinity,(Math.floor(t*16+ROUNDING_RELATIVE)+1)/16);
       cuts.push(next);t=next;
     }
-    const samples=sampleCurveIntervals({at:t=>({...referenceStack.boundary.at(t,spiralHeight(profile,t)),chart:[t,spiralHeight(profile,t)]}),
+    const boundarySample=t=>({...referenceStack.boundary.at(t,spiralHeight(profile,t)),chart:[t,spiralHeight(profile,t)]});
+    const samples=sampleCurveIntervals({at:boundarySample,
       cuts,stepMm:sampleStepMm,toleranceMm:toleranceMm/2,chartSteps:[1/16,referenceStack.chartStepMm]});
     curve={points:samples.map(s=>s.point),frameSamples:samples.map(s=>s.frame)};turns=samples.map(s=>s.t);
   }else{
@@ -88,7 +90,7 @@ function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,
   // A layer gap that reverses (the stack folds back) deposits nothing there.
   const gaps=referenceStack.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
     const a=curve.frameSamples[i].point,b=curve.frameSamples[i+1].point,u=(a[0]+b[0])/2,v=(a[1]+b[1])/2;
-    if(u<=1)return firstHeightMm;
+    if(u<=1)return foundationHeightMm;
     const normal=stackNormal(sleeve,u,v),current=evaluateSurface(sleeve,[u,v]).point,previous=evaluateSurface(sleeve,[u,Math.max(0,Math.min(n-1,u-2))]).point;
     return dot(current.map((x,k)=>x-previous[k]),normal);
   });

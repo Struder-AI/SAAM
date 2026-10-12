@@ -23,7 +23,7 @@
  "skills/hole-supports/scripts/edit.mjs": 1,
  "skills/line-text/scripts/strokefont.mjs": 1,
  "skills/plastic-weld/scripts/runtime.mjs": 1,
- "skills/supports/scripts/supports.mjs": 1,
+ "skills/standard-support/scripts/support-geometry.mjs": 1,
  "skills/vase-wall/scripts/runtime.mjs": 1,
  "skills/wing/aircraft.mjs": 4,
  "skills/wing/airfoils.mjs": 1,

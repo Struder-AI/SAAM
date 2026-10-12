@@ -20,12 +20,6 @@
         "flowMm3S": 0.5,
         "holdSeconds": 1,
         "nozzleC": null
-      },
-      "supports": {
-        "enabled": false,
-        "assignments": [],
-        "topGapMm": 0.2,
-        "treeChordMm": 0.02
       }
     },
     "slices": {

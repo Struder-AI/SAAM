@@ -17,7 +17,7 @@ export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDe
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid AMS change fan state.');
   const feed=n(k.startupPurgeFlowMm3S/2.4053*60),area=Math.PI*(next.setup.filamentMm/2)**2;
   requireThat(Number.isFinite(k.materialChangeFlushMm3)&&k.materialChangeFlushMm3>0,'AMS change needs a positive chute flush volume.');
-  const z=n(position[2]),lines=[`;SAAM_TOOL_CHANGE ${to}`,'M400','G90','M83',
+  const z=n(position[2],'xyz'),lines=[`;SAAM_TOOL_CHANGE ${to}`,'M400','G90','M83',
     `M620 S${to}A`,`M204 S${k.toolChangeAcceleration}`,`G1 Z${z} F1200`,
     'G1 X70 F21000','G1 Y245','G1 Y265 F3000','M400','M106 P1 S0','M106 P2 S0',
     `M104 S${old.setup.nozzleC}`,'M620.11 S0','M400',
@@ -37,7 +37,7 @@ export function renderX1MaterialChange(plan,machine,{from,to,position,incomingDe
     'G1 X80 F15000','G1 X60','G1 X80','G1 X60','G1 X80','G1 X100 F5000','G1 X165 F15000','G1 Y256','M400',
     `G1 Z${z} F3000`,`M204 S${k.bodyAcceleration}`,`M621 S${to}A`,
     'G90','G21','M83','G92 E0',`M109 S${next.setup.nozzleC}`,`M106 P1 S${n(fan)}`,
-    `G1 X${n(position[0])} Y${n(position[1])} Z${z} F${n(Math.min(old.process.travelSpeedMmS,next.process.travelSpeedMmS)*60)}`,
+    `G1 X${n(position[0],'xyz')} Y${n(position[1],'xyz')} Z${z} F${n(Math.min(old.process.travelSpeedMmS,next.process.travelSpeedMmS)*60)}`,
     'M400',';SAAM_TOOL_CHANGE_END');
   return lines.join('\n')+'\n';
 }

@@ -60,25 +60,22 @@ export function validateCurveAssignment(a,{parts=null}={}) {
 // named in ignored, and repeated polyline vertices are dropped. A curve without
 // two distinct vertices (three when closed) is null: it prints nothing. Speed
 // and flow need only be finite: zero flow moves along the curve without
-// depositing, and a negative flow, which would remove material, reads as zero
-// and is named in zeroed.
+// depositing; a negative flow fails within its assignment's deposition boundary.
 const CURVE_FIELDS=['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
 const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
 export function readAuthoredCurve(source){
   const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)
     &&(key!=='speedMmS'&&key!=='flowMultiplier'||Number.isFinite(value))&&(key!=='role'||typeof value==='string'&&value.length>0)));
-  const zeroed=read.flowMultiplier<0?['flowMultiplier']:[];
-  if(zeroed.length)read.flowMultiplier=0;
   const profiles=readCurveProfiles(read.vary),width=readWidthRule(read.widthRule);
   const ignored=[...Object.keys(source).filter(key=>!Object.hasOwn(read,key)),...profiles.ignored,...width.ignored];
   const curve={...read,vary:profiles.vary,widthRule:width.rule};
   for(const key of ['vary','widthRule'])if(curve[key]===undefined)delete curve[key];
   const input=curve.uv??curve;
-  if(!input.points)return {curve,ignored,zeroed};
+  if(!input.points)return {curve,ignored};
   const distinct=distinctPolyline(input.points,curve.closed);
-  if(distinct.points.length<(curve.closed?3:2))return {curve:null,ignored,zeroed:[]};
+  if(distinct.points.length<(curve.closed?3:2))return {curve:null,ignored};
   const points=curve.uv?{uv:{...curve.uv,points:distinct.points}}:{points:distinct.points};
-  return {curve:{...curve,...points,...(curve.segmentMetadata?{segmentMetadata:distinct.segments.map(j=>curve.segmentMetadata[j])}:{})},ignored,zeroed};
+  return {curve:{...curve,...points,...(curve.segmentMetadata?{segmentMetadata:distinct.segments.map(j=>curve.segmentMetadata[j])}:{})},ignored};
 }
 
 // Spans of a curve declaring contact where its supporting material is absent;
@@ -101,9 +98,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
   const indices=referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
   const finalizeInside=assignment.sequence||assignment.curves.some(c=>c.contact);
   const read=assignment.curves.map(readAuthoredCurve),ignored=read.flatMap(({ignored},i)=>ignored.map(field=>`curves[${i}].${field}`)),authored=read.flatMap(({curve})=>curve?[curve]:[]);
-  const zeroed=read.flatMap(({zeroed},i)=>zeroed.map(field=>`curves[${i}].${field}`));
-  const batches=[],parts=[],notes=[...(ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[]),
-    ...(zeroed.length?[`Trace ${assignment.id}: ${zeroed.join(', ')} below zero reads as 0; those curves move without depositing.`]:[])],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const batches=[],parts=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   for(let repetition=0;repetition<count;repetition++){
     const index=indices?.[repetition]??repetition;
     const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));

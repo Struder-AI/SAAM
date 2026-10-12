@@ -108,9 +108,9 @@ test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',asyn
   assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,['0.4','0.6']);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
 });
-test('H2D rejects altered firmware, cold state and tool excursions',async()=>{
+test('H2D requires startup handoff, supported heating and shutdown clearance',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  const changed=structuredClone(machine);changed.outputs[0].program.start.push('M999');await assert.rejects(()=>exportProgram(path,plan,changed,release),/Unknown Bambu firmware envelope/);
+  const changed=structuredClone(machine);changed.outputs[0].program.start.push('M999');await assert.rejects(()=>exportProgram(path,plan,changed,release),/Bambu tool\/startup contract mismatch/);
   const unavailable=structuredClone(machine);unavailable.outputs[0].implemented=false;await assert.rejects(()=>exportProgram(path,plan,unavailable,release),/No exporter/);
   const chamber=structuredClone(plan);chamber.setup.buildVolumeC=40;await assert.rejects(()=>exportProgram(path,chamber,machine,release),/chamber heating/);
   const tall=structuredClone(path);tall.summary.boundsMm.max[2]=315;tall.actions.at(-1).to=[100,100,317];
@@ -125,7 +125,7 @@ test('H2D fresh export is deterministic and its thumbnails agree',async()=>{
   for(const name of ['plate_no_light_1','top_1','pick_1'])assert.deepEqual(entries.get(`Metadata/${name}.png`),thumbnail);
 });
 
-test('H2D restores initial XY/Z registration before loading and accepts only its reviewed startup',async()=>{
+test('H2D restores initial XY/Z registration before loading',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
   const current=(await exportProgram(path,plan,machine,release)).bytes,code=unpackZip(current).get(GCODE).toString();
   const start=code.split(';SAAM_BODY_BEGIN\n')[0];
@@ -138,12 +138,7 @@ test('H2D restores initial XY/Z registration before loading and accepts only its
   assert.match(start,/G1 X290 E10 F623\.623/,'front priming line remains');
   assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
 
-  // Any edit to the pinned startup or shutdown needs a reviewed new contract.
   assert.equal((await exportProgram(path,plan,machine,release)).report.envelope.contract,machine.outputs[0].program.contract);
-  const edited=structuredClone(machine);edited.outputs[0].program.start.splice(edited.outputs[0].program.start.indexOf('M1002 gcode_claim_action : 74'),0,'G28 X T300');
-  await assert.rejects(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
-  const retired=structuredClone(machine);retired.outputs[0].program.contract='h2d-02.08.02.61-pla-textured-v1';
-  await assert.rejects(()=>exportProgram(path,plan,retired,release),/Unsupported Bambu output contract/);
 });
 test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and package facts',async()=>{
   const machine=loadMachine('bambu-x1-carbon'),plan=defaults(machine);plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
@@ -173,7 +168,6 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const cool=structuredClone(plan);cool.setup.bedC=45;await assert.rejects(()=>exportProgram(path,cool,machine,release),/bed temperature of 46–70 C/);
   const petg=structuredClone(plan);Object.assign(petg.setup,{material:'PETG',nozzleC:250,bedC:70});await assert.rejects(()=>exportProgram(path,petg,machine,release),/requires a declared 0\.4 mm PLA setup/);
   const moved=structuredClone(machine);moved.tools[0].startupXY=[120,100];await assert.rejects(()=>exportProgram(path,plan,moved,release),/tool\/startup contract mismatch/);
-  const edited=structuredClone(machine);edited.outputs[0].program.end.push('M999');await assert.rejects(()=>exportProgram(path,plan,edited,release),/Unknown Bambu firmware envelope/);
 });
 test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent across every artifact',async()=>{
   for(const tool of [0,1])for(const diameter of [0.4,0.6,0.8])for(const plate of ['textured_plate','hot_plate']){
@@ -251,8 +245,6 @@ test('Bambu rejects conflicting declarations and unsupported settings before pro
     const m=structuredClone(machine);m.outputs[0].package.projectSettings[key]=['wrong'];
     await assert.rejects(()=>exportProgram(path,plan,m,release),/cannot override/);
   }
-  const m=structuredClone(machine);m.outputs[0].constraints.startupPurgeFlowMm3S=100;
-  await assert.rejects(()=>exportProgram(path,plan,m,release),/Unknown Bambu firmware envelope/);
 });
 
 test('startup choices are explicit and X1 smooth plate has no textured correction',async()=>{

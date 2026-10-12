@@ -67,30 +67,54 @@ export function validateExtensionAssignment(assignment,options){
   return true;
 }
 
-// The selected copy validates technique semantics only when construction is
-// requested. Opening a saved bundle never evaluates extension code.
-export async function validateSelectedExtensionRecipe(plan,processForAssignment){
-  let heatSet=false;const runtimes=new Map();
-  for(const geometry of geometryTree(plan.geometry)){
-    const record=GEOMETRY_RECORDS[geometry.shape];if(!record)continue;
-    if(!runtimes.has(record.extension))runtimes.set(record.extension,(await loadExtensionEntry(record.extension,'record-runtime'))());
-    const runtime=runtimes.get(record.extension);
-    runtime.validate(geometry);
-    if(geometry.shape==='heat-set')heatSet=true;
-  }
-  if(heatSet)runtimes.get('heat-set-inserts').validateAssignments(plan);
+// The selected copy validates the construction about to run. Completed
+// geometry records use their stored meshes; their authors run only on edits.
+export async function validateSelectedExtensionRecipe(plan){
+  const failures=[];
   if(plan.skills?.['plastic-weld']?.enabled){
-    const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))();
-    runtime.validatePlasticWeld(plan,processForAssignment);
+    const settings=plan.skills['plastic-weld'],sites=settings.sites??[];
+    try{
+      const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))(),seen=new Set();
+      for(const site of sites){
+        const assignment='plastic-weld:'+site?.id;
+        try{
+          requireThat(!seen.has(site?.id),'Duplicate rivet site ID.');seen.add(site?.id);
+          runtime.validatePlasticWeld({...plan,skills:{...plan.skills,'plastic-weld':{...settings,sites:[site]}}});
+        }catch(error){
+          if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+          failures.push({assignment,message:error.message});
+        }
+      }
+    }catch(error){
+      if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+      for(const site of sites)failures.push({assignment:'plastic-weld:'+site?.id,message:error.message});
+    }
   }
   const sleeves=plan.slices?.assignments?.filter(assignment=>assignment.construction==='sleeve')??[];
   if(sleeves.length){
-    const runtime=(await loadExtensionEntry('vase-wall','record-runtime'))();
-    for(const assignment of sleeves)runtime.validateSleeveAssignment(assignment);
-    const patterns=sleeves.filter(assignment=>assignment.pattern!==null);
+    try{
+      const runtime=(await loadExtensionEntry('vase-wall','record-runtime'))();
+      for(const assignment of sleeves)try{runtime.validateSleeveAssignment(assignment);}catch(error){
+        if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+        failures.push({assignment:assignment.id,message:error.message});
+      }
+    }catch(error){
+      if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+      for(const assignment of sleeves)failures.push({assignment:assignment.id,message:error.message});
+    }
+    const patterns=sleeves.filter(assignment=>assignment.pattern!==null&&!failures.some(failure=>failure.assignment===assignment.id));
     if(patterns.length){
-      const advanced=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))();
-      for(const assignment of patterns)advanced.validateSleevePattern(assignment.pattern,assignment.pathMode);
+      try{
+        const advanced=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))();
+        for(const assignment of patterns)try{advanced.validateSleevePattern(assignment.pattern,assignment.pathMode);}catch(error){
+          if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+          failures.push({assignment:assignment.id,message:error.message});
+        }
+      }catch(error){
+        if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+        for(const assignment of patterns)failures.push({assignment:assignment.id,message:error.message});
+      }
     }
   }
+  return {failures};
 }

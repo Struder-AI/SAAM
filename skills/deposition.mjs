@@ -2,20 +2,30 @@
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
 
+async function depositionRuntime(id,engines,dependency){
+  try{const create=await loadExtensionEntry(id,'deposition-runtime');return {runtime:await create(engines,dependency),error:null};}
+  catch(error){if(error.name==='AbortError')throw error;return {runtime:null,error};}
+}
+
 export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
-  const weld=plan.skills?.['plastic-weld']?.enabled?await (await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines):null;
+  const weldLoaded=plan.skills?.['plastic-weld']?.enabled?await depositionRuntime('plastic-weld',engines):{runtime:null,error:null};
+  const weld=weldLoaded.runtime;
   // A rivet site that cannot be prepared is left out with a note.
-  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:[]};
+  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
-  const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
-  const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
+  const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
+  const vase=vaseLoaded.runtime;
+  const advancedLoaded=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await depositionRuntime('advanced-vase-wall',engines,vase):{runtime:null,error:null};
+  const advanced=advancedLoaded.runtime;
   // A sleeve prepares its geometry as it is constructed, so its failure is its own.
-  const vaseWork=vase?args=>{
+  const vaseWork=args=>{
+    if(vaseLoaded.error)throw vaseLoaded.error;
     const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
+    if(node.context.assignment.pattern!==null&&advancedLoaded.error)throw advancedLoaded.error;
     if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
     const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
     return vase.standardVaseResult({...node.context,geometry,after},{foundationSegments,substrateAdaptation});
-  }:null;
+  };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
       // A spiral boundary that cannot be resolved fails as its own assignment.
@@ -28,16 +38,17 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
         construct:vaseWork,providesSurface:true,kind:'trace'};
     }
     const {assignment,shell}=context;
+    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},providesSurface:true,kind:'trace'};
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
   return {notes,
-    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
+    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
+    reserves:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),envelopes:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),
     constructions:sleeves,
-    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(vase?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
-    operationDependencies:operation=>weld?.weldOperationDependencies(sites,operation)??[],
+    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};},
+    operationDependencies:(operation,excluded)=>weld?.weldOperationDependencies(sites.filter(site=>!excluded.has(site.assignment.id)),operation)??[],
     finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):{results:batch.results,failures:[]}
   };
 }

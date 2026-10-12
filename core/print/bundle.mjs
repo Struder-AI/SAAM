@@ -3,7 +3,7 @@ import { createBundleWorkflow } from './workflow.mjs';
 import {VERSION,BUILD_DATE} from './version.mjs';
 import {pathDependencies,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {resolvePlanPatch} from './resolve-plan.mjs';
-import {requireGenerationExtensions} from '../path/extension-dependencies.mjs';
+import {generationExtensionSources} from '../path/extension-dependencies.mjs';
 import {createHash} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {normalizeSpatialPlan,manufacturingInput} from './spatial-inputs.mjs';
@@ -39,7 +39,6 @@ async function patchPlan(previous,patch){
 }
 
 export async function generatePreparedPath(plan,options){
-  await requireGenerationExtensions(plan);
   const [{compileRecipe},{generatePath},{prepareModulationFields}]=await Promise.all([
     import('./plan.mjs'),import('./generate.mjs'),import('./modulation-fields.mjs')]);
   plan=compileRecipe(plan).plan;
@@ -52,12 +51,12 @@ export async function pathSource(plan){
     .catch(error=>{if(error.code!=='ENOENT')throw error;return {version:PATH_CONTRACT};});
   if(!release||typeof release.version!=='string'||!release.version)throw Error('Installed release record has no version.');
   const version=release.version;
-  try {
-    const selected=await requireGenerationExtensions(plan);
-    const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,
-      selected.map(({id,digest})=>[id,digest])])).digest('hex');
-    return {release:version,hash};
-  } catch(error){if(error.code!=='EXTENSION_MISSING')throw error;return {release:version,hash:null,missing:error};}
+  // An unavailable executable extension affects only its assignments. Its
+  // absence still belongs to the source snapshot, so installing or repairing
+  // it invalidates an earlier partial path before the next generation.
+  const selected=await generationExtensionSources(plan);
+  const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,selected])).digest('hex');
+  return {release:version,hash};
 }
 
 export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({

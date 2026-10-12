@@ -7,7 +7,7 @@
 const skyBlue='#5b9fd3',orange='#c65b19';
 export const DEFAULT_PHASE_COLOURS=Object.freeze({
   travel:'#657fa3',deposition:skyBlue,modulated:'#a799dc',
-  planar:skyBlue,spiral:skyBlue,study:skyBlue,'plastic-weld':skyBlue,curves:skyBlue,supports:skyBlue,
+  planar:skyBlue,spiral:skyBlue,study:skyBlue,'plastic-weld':skyBlue,curves:skyBlue,
   'vase-wall':orange,'segmented-paths':orange,inject:'#b85c28',
   prime:'#5b92a3',start:skyBlue,startup:skyBlue,finish:skyBlue
 });

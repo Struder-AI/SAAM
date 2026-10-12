@@ -5,7 +5,7 @@
 // shows one derived mechanically from its leaves, marked `≈`.
 //
 // The set is a folder holding `map.json`:
-//   {"mode":"influence","title":…,"analysis":FILE,"analyse":{"maxHeapMB":4096}?,"authored":DIR,
+//   {"mode":"influence","title":…,"analysis":FILE,"analyse":{"maxHeapMB":N}?,"authored":DIR,
 //    "sourceRoots":[DIR…],"preview":true?,"missing":[FILE…]?,"jobs":2?,"solve":"changed"|"place"?}
 // `analysis` is a `run.mjs --out` result. With `analyse` it is made by regenerate itself
 // (analyse.mjs, from the current source, kept under the set's store); without it, it is a result
@@ -25,6 +25,7 @@ import {readFileSync,writeFileSync,mkdirSync,existsSync,rmSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {resolve,dirname,basename,relative,isAbsolute} from 'node:path';
 import {spawn} from 'node:child_process';
+import {heapCeilingMb} from '../../core/memory.mjs';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {parse} from 'acorn';
@@ -70,7 +71,7 @@ async function prepare(paths) {
 // Each authored node's solve is kept in store/solve/ by a hash of exactly what it reads (its
 // slice, the options and the solver's code), so a node solves again only when that changed. A
 // node to solve is solved cold (annealed from flat) and, when it has a kept solve, also warm from
-// it (solve-middle.mjs solveNode), each in its own small-heap process, `jobs` at a time. The warm
+// it (solve-middle.mjs solveNode), each in its own process sharing the available-memory allowance, `jobs` at a time. The warm
 // result is kept unless the cold one's energy is lower by COLD_MARGIN of it, or the node is named
 // in `cold`: a cold result reshuffles clusters (new identities, labels to author), so it must
 // clearly gain. The kept summary names the other result as `rival`. With map.json
@@ -96,6 +97,7 @@ function keepEntry(dir,entry) {
 }
 
 async function solveAll(prep,{jobs=2,mode='changed',cold=[],log=()=>{}}={}) {
+  const workers=Math.max(1,Math.floor(jobs)),heapMB=heapCeilingMb({workers});
   const {sm,authored,model,slices,options}=prep;
   if(!['changed','place'].includes(mode))throw Error(`map.json "solve" is "changed" (default) or "place", not ${JSON.stringify(mode)}.`);
   const unknown=cold.filter(id=>!slices.has(id));
@@ -117,7 +119,7 @@ async function solveAll(prep,{jobs=2,mode='changed',cold=[],log=()=>{}}={}) {
     const {node,start}=job,{id,slice,hash,names,results}=node,started=Date.now();
     const input=resolve(dir,'pending',`${entryFile(id)}.${start}`),out=`${input}.out`;
     writeFileSync(input,JSON.stringify({slice,options,hash,names,warm:job.warm??null}));
-    const args=['--max-old-space-size=1536',resolve(repo,'dev-map/influence/solve-middle.mjs'),'--slice',input,'--out',out];
+    const args=[`--max-old-space-size=${heapMB}`,resolve(repo,'dev-map/influence/solve-middle.mjs'),'--slice',input,'--out',out];
     const code=await new Promise(done=>{const child=spawn(process.execPath,args,{cwd:repo,stdio:['ignore','ignore','pipe']});
       let err='';child.stderr.on('data',d=>{err+=d;if(err.length>20000)err=err.slice(-10000);});
       child.on('exit',c=>{if(c!==0)failures.push({node:`${id} ${start}`,code:c,stderr:err.slice(-2000)});done(c);});});
@@ -133,7 +135,7 @@ async function solveAll(prep,{jobs=2,mode='changed',cold=[],log=()=>{}}={}) {
     solved[id]={warm:warm?e(warm):null,cold:e(c),kept:keep,...(node.forced?{forced:true}:{}),seconds:{...(warm?{warm:warm.seconds}:{}),cold:c.seconds}};
     log(`${id}: warm ${warm?`${e(warm).toFixed(4)} (${warm.seconds} s)`:'none'}, cold ${e(c).toFixed(4)} (${c.seconds} s): kept ${keep}${node.forced?' (--cold)':''}`);
   }};
-  await Promise.all(Array.from({length:Math.max(1,jobs)},run));
+  await Promise.all(Array.from({length:workers},run));
   if(failures.length)throw Error(`Solve failed: ${failures.map(f=>`${f.node} (exit ${f.code}): ${f.stderr}`).join('\n')}`);
   return {solved:Object.fromEntries(authored.nodes.filter(n=>solved[n.id]).map(n=>[n.id,solved[n.id]])),reused,placed,entries};
 }

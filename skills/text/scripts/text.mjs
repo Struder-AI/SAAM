@@ -35,11 +35,12 @@ export async function compileText(base,features,{buildGeometry,constructSolids,m
   for(const f of normalized){
     requireThat(result||f.mode==='raised','Standalone text must begin with a raised feature.');
     const textSolid=mappedTextMaterial(f,target,{toleranceMm,maxEdgeMm});
+    if(!textSolid)continue;
     if(f.mode==='raised')materials.set('text/'+f.id,result?difference(textSolid,result):textSolid);
     else {baseUncut=false;for(const [id,material] of materials)materials.set(id,difference(material,textSolid));}
     result=result?{operation:f.mode==='raised'?'union':'difference',operands:[result,textSolid]}:textSolid;
   }
-  const [mesh,...parts]=await constructSolids([result,...materials.values()],{toleranceMm});
+  const [mesh,...parts]=result?await constructSolids([result,...materials.values()],{toleranceMm}):[null];
   const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh?.vertices??[],triangles:mesh?.triangles??[]};
   record.materialParts=[...materials.keys()].flatMap((id,i)=>!parts[i]?[]:[{id,geometry:id==='base'&&baseUncut?null:{shape:'mesh',source:null,vertices:parts[i].vertices,triangles:parts[i].triangles}}]);
   if(standalone)record.standalone=true;

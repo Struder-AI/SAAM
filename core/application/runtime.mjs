@@ -184,7 +184,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function createChat(ownerId,{name=ownerId,client=null,lobby=false,visibility='visible'}={}){
   const presentation={visibility};
   const {requests:agentRequests,events:studioEvents,binding}=createChatChannel(libraryRoot,{ownerId,folder:resolve(stateRoot,'.studio-requests'),ownerOf:requestOwner,
-    attachment:lobby?null:Object.freeze({ownerId,name,client})});
+    attachment:lobby?null:Object.freeze({ownerId,name,client}),onHandBack:releaseHandbackImages});
+  async function releaseHandbackImages(record){
+    if(!record?.printId)return;
+    const active=await agentRequests.query({printId:record.printId});
+    if(active.some(request=>request.workActive||request.handbackPending))return;
+    await resultImages.release(ownerId,record.printId);
+  }
   studioEvents.observe(observeEvent);
   const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0};
   const generationStatus=()=>[...[...calculations.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),...[...studioSessions.values()].map(({server:studio})=>agentStudioJob(studio.generationStatus())).filter(Boolean),
@@ -528,16 +534,19 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           if(workError&&workRecords.length)workError.workRequest={id:workRecords[0].episodeId??workRecords[0].id,
             ...(bookkeepingError?{bookkeepingError:bookkeepingError.message}:{}),
             reminder:'This operation failed; the work episode remains active for repair. Hand back once with respond_to_studio_request when the sequence stops.'};
-          if(episode)agentRequests.settle(episode,{error:workError});
-          activeOperations.delete(callId);
+          try{
+            if(!workError&&episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
+              const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage,ownerId);
+              if(visualCheck)call.result={...call.result,visualCheck};
+            }
+          }finally{
+            if(episode)agentRequests.settle(episode,{error:workError});
+            activeOperations.delete(callId);
+          }
         }
         if(bookkeepingError&&!originalError)throw bookkeepingError;
       }
         if(workRecords.length&&call.result&&typeof call.result==='object')call.result={...call.result,workRequest:{id:workRecords[0].episodeId??workRecords[0].id,requestIds:workRecords.map(r=>r.id),reminder:'Keep working across intermediate saves. When intent is achieved, a decision is needed, or a new user message interrupts you, call respond_to_studio_request once with this id and completed or waiting status.'}};
-        if(episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
-          const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage);
-          if(visualCheck)call.result={...call.result,visualCheck};
-        }
         if(ignored.length&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,ignoredArguments:ignored};
         if(view&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,studio:{studioInstanceId:view.server.agentSession().instanceId,bundleId:view.server.agentSession().printId,url:view.url,browserOpenRequested:view.browserOpenRequested}};
         const result=call.result;
@@ -1289,7 +1298,11 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {completed:true};
   }
   // A turn end reaches only a chat this runtime holds; it never starts or attaches one.
-  async function endTurn(chatId,reason){const chat=chats.get(chatId);return chat&&chat!==lobby?chat.endTurn(reason):{handedBack:0};}
+  async function endTurn(chatId,reason){
+    const chat=chats.get(chatId),result=chat&&chat!==lobby?await chat.endTurn(reason):{handedBack:0};
+    if(reason==='closed')await resultImages.release(chatId);
+    return result;
+  }
   return {beginSession,connectChat,endTurn,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},

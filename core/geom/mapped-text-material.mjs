@@ -45,7 +45,9 @@ function mapper(reference,anchor){
 }
 
 export function mappedTextMaterial(feature,target,{toleranceMm,maxEdgeMm}){
-  const outline=textOutlines(feature,toleranceMm),reference=referenceSurface(feature.reference,target);
+  const outline=textOutlines(feature,toleranceMm);
+  if(!outline.loops.length)return null;
+  const reference=referenceSurface(feature.reference,target);
   const lower=feature.offsetMm+(feature.mode==='raised'?-feature.overlapMm:-feature.depthMm);
   const upper=feature.offsetMm+(feature.mode==='raised'?feature.depthMm:feature.overlapMm);
   const glyphs=(feature.bendGlyphs?[{loops:outline.loops}]:outline.glyphs).map(group=>{

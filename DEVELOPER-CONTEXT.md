@@ -68,7 +68,7 @@ change both together.
 6. Record approvals as given, without widening their scope. Report software and physical results separately.
 7. Work enters a release intent only on the owner's request or approval.
 8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
-9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
+9. A cap is never replaced by silent truncation: degrade and label partial output.
 
 ## Code shape
 

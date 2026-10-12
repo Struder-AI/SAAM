@@ -345,7 +345,7 @@ async function readBundleInput(directory) {
   if(terms.setup)terms.setup=neutralMaterials(terms.setup);
   // The recipe is read as a current one, with generic defaults without a machine, and setup blocks the
   // machine's profile gained since the snapshot was locked; its notes join the limitations.
-  const {machine}=currentMachineSnapshot(bundle.machine??null);
+  const {machine,notes:machineNotes}=currentMachineSnapshot(bundle.machine??null);
   const savedGeometry=bundle.geometry?.descriptor??null;
   const {plan,notes:recipeNotes,geometryFromSaved}=adapter.readRecipe?await adapter.readRecipe(terms,machine,{savedGeometry}):{plan:terms,notes:[]};
   // A geometry read from the saved artifact describes that artifact; a recipe without geometry has none.
@@ -356,7 +356,7 @@ async function readBundleInput(directory) {
   const unshown=saved.review?.generation&&!bundle.review.generation?[UNSHOWN_PROGRAM_NOTE]:[];
   return {dir,plan,machine,review:bundle.review,geometryArtifact,revision:bundle.revision,
     editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,
-    phaseColours:checkedPhaseColours(bundle.phaseColours),recipeNotes:[...converted,...unshown,...recorded,...recipeNotes]};
+    phaseColours:checkedPhaseColours(bundle.phaseColours),recipeNotes:[...converted,...unshown,...recorded,...machineNotes,...recipeNotes]};
 }
 
 async function describeBundle(input,program) {

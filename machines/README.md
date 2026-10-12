@@ -15,8 +15,8 @@ declaring its id (local first), and what it skipped; `extension_library checkout
 | `dobot` | MG400 | `dobot-lua` | [Dobot](dobot/SKILL.md) |
 | `denso` | VS-068A4 / RC8A with rotary | `denso-pacscript` | [DENSO](denso/SKILL.md) |
 
-A review-only output declares `implemented: false`; generation names the missing
-contract before building a toolpath. The original UM2 Extended needs volumetric UltiGCode,
+A review-only output declares `implemented: false`; SAAMpath still generates and
+the result names the missing machine-program contract. The original UM2 Extended needs volumetric UltiGCode,
 the standard UM3 its own Griffin startup (one selected AA core; no BB core or tool
 changes); neither inherits the S5 startup. X1 Carbon PETG, ABS, ASA, PC and TPU are
 setup-review materials; only PLA has an output contract; material selection retunes nothing.
@@ -38,37 +38,36 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
    a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry).
 2. **Adapter.** `createAdapter(Export)` returns
    `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
-   - `output` is the profile's `outputs[].id`. `poses: true` only when the program writes tool
-     orientation; otherwise posed paths are refused.
+   - `output` names `outputs[].id`; `poses: true` writes orientation, other outputs accept upright orientation.
    - `settings.key` names the block `plan.setup[key]`. Preparation reads its `initialPositionMm`
      and, when posed, `initialPose` and `retreatMm`.
      `validate({machine, setup, process, output}, {required})` throws on invalid values and,
-     when `required` (export), names unresolved ones; `rows` (same input) returns
-     `[[label, text]]` for Studio's settings panel.
-   - `export` receives the prepared path (the SAAMpath plus startup, priming, material-change
-     lifts and axis-feed limits; [prepare-path.mjs](../core/export/prepare-path.mjs)) and
-     `{machine, setup, process, output, release}`. `report` holds `notice`, `limitations` (this print's only; standing caveats belong in `SKILL.md`),
-     optional `seconds` and `volumeMm3` of what was written (else the path's) and any facts
-     Studio shows. Core adds the move count and [short-travel advisory](../core/export/README.md#short-travel-advisory);
-     Bundle stores the report, and reopen and delivery run no adapter code.
-   - `Export` is everything an adapter uses besides its own files: `number` (program
-     resolution), `slackMm`, `gcodeMotion(prepared, settings, options)` (G-code lines and the
-     totals written), `packZip`, `unpackZip`, `crc32`, `encodePng`, `temperatureC` (ceiling check) and
-     `frame` (stateless rotation math). Adapters import no core module.
-3. **Verification, debug only.** `machine-verify` exports `verify(bytes, plan, machine, Export)`,
-   which executes a checked program; `node scripts/machine-verify.mjs BUNDLE_DIR` compares it
-   with the stored report. Nothing else loads it. Delete it once the contract records a physical trial.
+     when `required` (export), names unresolved ones; `rows` returns `[[label, text]]` for Studio.
+   - `export` receives [export-prepared motion](../core/export/prepare-path.mjs) and
+     `{machine, setup, process, output, release, defaultProcess}`; preparation adds startup,
+     priming, material-change lifts and axis-feed adaptation only at export; neutral SAAMpath and
+     Studio preview stay available. `report` holds `notice`, this print's `limitations`, optional written
+     `seconds`/`volumeMm3` and Studio facts; standing caveats belong in `SKILL.md`.
+     Core adds totals and the [short-travel advisory](../core/export/README.md#short-travel-advisory).
+     Bundle stores the report; reopening and delivery run no adapter code.
+   - `Export` supplies shared SAAM operations: `number` (XYZ to 0.001 mm), `slackMm`,
+     `gcodeMotion(prepared, settings, options)` (written lines/totals; filament E to five decimals with residual carry),
+     `packZip`, `unpackZip`, `crc32`, `encodePng`, `temperatureC` and
+     `frame` and `kinematics` (stateless numeric math/dimensions). Adapters import their own files
+     and use ordinary runtime APIs; this boundary supplies their SAAM inputs.
+3. **Verification.** Optional `machine-verify` exports `verify(bytes, plan, machine, Export)`;
+   `node scripts/machine-verify.mjs BUNDLE_DIR` interprets written bytes against the stored report.
 4. **Contract.** `SKILL.md` states what the output contains, its settings, vendor evidence and trials.
 
-| # | Standard |
+| # | Owner-approved standard (2026-10-12) |
 |---|---|
-| S1 | Use only the prepared path, settings and `Export`. |
-| S2 | Write every action kind or reject it at export with a named error; drop none. |
-| S3 | Write coordinates and amounts at program resolution (`PROGRAM_DECIMALS`, [core/dimensions.mjs](../core/dimensions.mjs), through `Export.number`); quantize once and derive later values from written ones; a deposition that collapses is not written and its material carries to the next written amount. |
-| S4 | Enforce physical limits from settings: workspace, axis feed, temperature ceiling, park and material-change clearance. |
-| S5 | Unresolved installation values block export and are named. |
-| S6 | The same prepared path, settings and adapter give identical bytes; dates come from `release`. |
-| S7 | The report states what the drawn path does not show (firmware blocks, purge, park, external start or heating) and the time and material estimates with their model. |
-| S8 | Vendor-fixed blocks are profile data pinned by hash; changing one needs review. |
-| S9 | No fixed size or count cap: split into what the controller accepts ([limits](../core/README.md#limits-that-adapt-and-limits-that-are-kept)). |
-| S10 | Verification is debug-only; the first physical trial changes one thing from a file known to load. |
+| S1 | Adapters translate the prepared SAAMpath and resolved machine settings through the public Export interface. |
+| S2 | Adapters account for each requested action through a command, an applicable external arrangement, or a named limitation. |
+| S3 | Writers use precision appropriate to each commanded quantity, derive estimates from written values, and handle collapsed moves without failure. |
+| S4 | Export adapts commands to the machine’s actual command contract; each remaining refusal identifies a concrete failure it prevents. |
+| S5 | Program writing names only the unresolved settings needed to write its commands; geometry and SAAMpath remain available. |
+| S6 | Writers use supplied inputs and release metadata, giving repeatable output without wall-clock variation. |
+| S7 | The stored report gives material program differences and labels the scope and model of its estimates. |
+| S8 | Machine-specific service definitions have one owner, with their source and scope recorded. |
+| S9 | Adapters preserve requested work through supported splitting or streaming and name actual controller or format boundaries. |
+| S10 | Builders use temporary verification to resolve named adapter uncertainties; production uses the writer’s stored result. |

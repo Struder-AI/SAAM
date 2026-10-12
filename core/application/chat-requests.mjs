@@ -31,7 +31,7 @@ function currentBaseline(baseline,current){
 // completing one request cannot clear another's dots. A record belongs to the chat
 // attached to its Studio instance (ownerOf), else to the chat that wrote it; records
 // are never rewritten when a Studio changes chat.
-export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,folder:requestFolder,ownerOf=record=>record.ownerId}){
+export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,folder:requestFolder,ownerOf=record=>record.ownerId,onHandBack=async()=>{}}){
   const lifetime={closed:false};
   let workTail=Promise.resolve();
   const transition=action=>{const run=workTail.then(action);workTail=run.catch(()=>{});return run;};
@@ -150,12 +150,14 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     if(response.status==='working')return update(requestId,response);
     const running=underway(requestId);
     const pending=await startHandback(requestId,response);
-    if(!pending)return update(requestId,response);
-    if(!pending.handbackPending)return pending;
+    if(!pending){const record=await update(requestId,response);await onHandBack(record);return record;}
+    if(!pending.handbackPending){await onHandBack(pending);return pending;}
     const completed=await Promise.all([...new Set([...running,...underway(requestId)])]),last=completed.at(-1);
     if(last?.error)response={...response,status:response.status==='cancelled'?'cancelled':'failed',message:last.error.message};
     const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,response,last?last.snapshot:pending.lastSaved));
-    return handed.find(r=>r.id===requestId)??handed[0];
+    const record=handed.find(r=>r.id===requestId)??handed[0];
+    await onHandBack(record);
+    return record;
   }
   async function cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await update(r.id,{status:'cancelled'});}
   async function cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await update(r.id,{status:'cancelled'});}
@@ -233,8 +235,8 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
 
 // One chat's channel: its ledger, its event log and Studio's binding to them. attachment
 // is null for the lobby (no chat attached).
-export function createChatChannel(libraryRoot,{ownerId,folder,ownerOf,attachment=null}){
-  const events=createChatEvents(),requests=createChatRequests(libraryRoot,{ownerId,events,folder,ownerOf});
+export function createChatChannel(libraryRoot,{ownerId,folder,ownerOf,attachment=null,onHandBack}){
+  const events=createChatEvents(),requests=createChatRequests(libraryRoot,{ownerId,events,folder,ownerOf,onHandBack});
   return {requests,events,binding:chatBinding({requests,events,attachment})};
 }
 // Studio's whole view of one chat.

@@ -151,7 +151,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   }
 });
 
-test('a wall takes the points its geometry requires, and a retired point budget is rejected',async()=>{
+test('a wall takes the points its geometry requires',async()=>{
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
   const tall=vasePlan(machine,boxMesh(8,6,90));tall.slices.assignments[0].sampleStepMm=0.1;
@@ -160,7 +160,4 @@ test('a wall takes the points its geometry requires, and a retired point budget 
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);
   assert.equal('maxSectionQueries' in result.report,false);
-  // The retired budget is no longer accepted anywhere in a recipe.
-  const retired=vasePlan();retired.slices.assignments[0].maxPoints=100;
-  assert.throws(()=>validatePlan(retired,machine),/Invalid sleeve assignment fields/);
 });

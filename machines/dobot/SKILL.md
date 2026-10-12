@@ -7,7 +7,7 @@ metadata:
 
 # Dobot MG400 output
 
-The configured-installation Lua output contract. See the [shared machine interface](../../core/export/README.md) for common motion semantics.
+See the [shared machine interface](../../core/export/README.md) for common motion semantics.
 
 ## Kinematics
 
@@ -26,29 +26,22 @@ legacy Lua runtime; export, inspection and delivery use the existing SAAMpath
 and print lifecycle. The default profile's installation fields are null:
 generation builds and shows the SAAMpath, and the program waits for them, naming
 what is missing. The locked setup must supply frame IDs, XY calibration
-and offsets, bed Z, fixed orientation, initial position, Cartesian workspace,
-motion limits, relay output/rate/policy and external temperature-control basis.
+and offsets, bed Z, fixed orientation, initial position, motion limits, relay
+output/policy and external temperature-control basis. Provenance and recorded
+Cartesian envelopes are optional; a rectangle establishes no robot reachability.
+The optional positive relay rate supplies an estimate; otherwise that estimate is unavailable.
 Never substitute synthetic fixture numbers for actual installation values.
-
-For a provisional software demo of any shape, create the selected machine's
-complete plan, apply `syntheticDobotSetup(plan)` from the packaged
-[fixture](../../core/tests/fixtures/dobot.mjs), then initialize a new bundle and use
-development generation; keep its labeled settings out of remembered setup.
 
 The ZIP contains `global.lua`, `src1.lua`, `src0.lua` and `manifest.json`.
 It is a transport package for Lua source, not a verified DobotStudio project
 import format. Vendor importer acceptance, controller execution and physical
-printing remain unvalidated. Studio interprets the actual delivered entry,
+printing remain unvalidated. The debug verifier interprets the delivered entry,
 helper and motion files, transforms their fixed-orientation Cartesian commands
 back to the design frame and rejects missing/altered helpers, unsupported Lua
 or motion semantics, incompatible setup and stale artifact hashes.
 
-A program is never refused for its length. The reader stops it only when it stops
-making progress: commanding the machine is the one effect the reader can observe,
-so each host call clears the quiet-step count, and a program that runs more
-statements between two host calls than the whole loaded program contains is
-reported as looping without commanding anything. A generated program is
-straight-line, so its statements run once each and the rule never reaches it.
+No program length cap; the debug reader detects loops executing more statements
+between commands than the source contains. Generated source is straight-line; Studio draws SAAMpath.
 
 Only bounded linear `MovL` at `CP=0`, explicit fixed frames/orientation, `DO`,
 `Sync` and relay-off `Wait` are supported. The selected
@@ -60,18 +53,24 @@ the 0–60,000 ms range per command, reporting one dwell event for each. Each mo
 uses a modeled rest-to-rest acceleration profile. This differs from the legacy
 continuous-through-travel reference and must be explicitly selected in setup.
 No startup positioning, heating commands or priming wait are inserted. External
-positioning and temperature control must already be established. Retraction,
-fan control, arcs, joint moves, rotation changes and tool changes are rejected.
+positioning and heating must already be established. Requested nozzle temperature
+changes are named in the print's limitations for external arrangement at those
+points; fan and retraction actions are separately named as omitted controls.
+Arcs, joint moves, rotation changes, tool changes and stationary extrusion actions
+have no implemented command and produce a named export error. Temperatures keep
+the shared 350 °C ceiling.
+
+Calibrated controller XYZ use 0.001 mm; orientation and SpeedL/AccL retain ten decimals.
+Timing follows those written points and percentages; SpeedL adapts through 100%.
+Collapsed material carries to the next written deposition; terminal material
+with no representable deposition is reported as omitted.
 
 SAAMpath bead volume is process intent; relay material is a separate estimate
 from the configured rate and modeled motion time. Checks and Studio expose that
 distinction and do not claim metered flow or simulated temperature state. A
 continuous vase stroke does not establish smooth deposition when this output
 stops at every segment. Actual acceleration, relay lag and controller queue
-timing can alter the result. Cartesian workspace checks are not inverse
-kinematics, robot reachability, singularity or link/fixture collision checks.
+timing can alter the result. Export does not check robot reachability,
+singularities or link/fixture collisions.
 
-Targeted software checks cover Lua execution and rejection, transformed workspace
-and motion limits, shared skill outputs, synthetic two-stage review,
-changed helper/archive rejection, MCP access and exact-byte ZIP delivery.
-Use the same native geometry, locked plan, Studio and delivery on every profile.
+Software checks cover Lua, frame identity, timing, shared skills, stale edits and exact-byte delivery.

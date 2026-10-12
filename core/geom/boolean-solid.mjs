@@ -32,9 +32,11 @@ export function displayGeometry(geometry){
 // Difference keeps the first operand's extent; intersection keeps the overlap,
 // flat where the operands' boxes do not meet: no material, shown empty.
 export function booleanShell(operation,operands){
-  const boxes=operands.map(o=>o.bounds),overlap=[0,1,2].map(a=>Math.max(...boxes.map(b=>b.min[a])));
+  const empty=operation==='union'?operands.every(operand=>operand.empty):operation==='difference'?Boolean(operands[0]?.empty):operands.some(operand=>operand.empty);
+  if(empty)return {kind:'boolean',operation,operands,empty:true,bounds:{min:[0,0,0],max:[0,0,0]}};
+  const boxes=(operation==='union'?operands.filter(operand=>!operand.empty):operands).map(o=>o.bounds),overlap=[0,1,2].map(a=>Math.max(...boxes.map(b=>b.min[a])));
   const bounds=operation==='union'?{min:[0,1,2].map(a=>Math.min(...boxes.map(b=>b.min[a]))),max:[0,1,2].map(a=>Math.max(...boxes.map(b=>b.max[a])))}
     :operation==='difference'?structuredClone(boxes[0])
     :{min:overlap,max:[0,1,2].map(a=>Math.max(overlap[a],Math.min(...boxes.map(b=>b.max[a]))))};
-  return {kind:'boolean',operation,operands,bounds};
+  return {kind:'boolean',operation,operands,empty:false,bounds};
 }

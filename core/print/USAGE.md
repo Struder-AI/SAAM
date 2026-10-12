@@ -29,8 +29,8 @@ choices, rejects an incompatible recipe, and names any gated guidance it opens.
 
 Print setup selects the default nozzle/material for every producer. For Bambu,
 `composition.filaments: [{part:"body",filament:1}]` overrides a component, including
-its Slice, Trace, Inject and rivet work. `{assignment:"supports",filament:1}` routes
-tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targeted.
+its Slice, Trace, Inject and rivet work. An authored support Slice id or
+`plastic-weld:SITE_ID` can be targeted with an assignment route.
 Priority: print assignment route, assignment's explicit filament, exact part route,
 parent component route, print setup. `part:null` names the single geometry part.
 Trace/Inject `part` associates material ownership; XYZ is in the part's frame, moved by print placement.
@@ -83,7 +83,7 @@ Only setup is remembered; existing prints keep their snapshots. Bambu needs its 
 ## Phase colours
 
 Studio colours each move by its SAAMpath phase, the label the generator or exporter
-gives it (`planar`, `curves`, `supports`, `prime`, ...); `travel` is every
+gives it (`planar`, `curves`, `prime`, ...); `travel` is every
 non-depositing move. `set_phase_colours` takes `bundleId`, current `expectedRevision`
 and `phaseColours` (`{phase:"#rrggbb"}`, null clears); it is display only. The
 person's `<SAAM home>/local/phase-colours.json`, same shape, is the local preference.

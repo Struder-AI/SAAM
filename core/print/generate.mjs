@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
-import {ASSIGNMENT_RECORDS,validateSelectedExtensionRecipe} from '../../skills/records.mjs';
+import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 import {extensionDeposition,extensionSummary} from '../../skills/deposition.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared deposition
@@ -65,31 +65,40 @@ function primeLineResult(plan){
 // places those requests, including within-volumes in their owner's frame.
 export async function preparePathGeometry(plan) {
   plan=compileRecipe(plan).plan;
-  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map()};
+  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map(),geometryFailures:new Map()};
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
-  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined).map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
-  const assignments=plan.slices.assignments.filter(a=>!a.construction);
-  const requests=[{},...components.map(selection=>({selection})),...named.map(selection=>({selection}))];
-  const volumeSlots=new Map(assignments.map(assignment=>[assignment.id,assignment.within.map(volume=>{
-    if(volume.kind!=='geometry')return null;
-    const index=requests.length;requests.push({selection:assignment.part,geometry:volume.geometry});return index;
-  })]));
+  const requests=[{},...components.map(selection=>({selection}))];
   const values=await resolveGeometrySelections(plan.geometry,requests);
   const placed=values[0],componentShells=plan.geometry.shape==='assembly'?new Map(components.map((id,i)=>[id,values[1+i]])):null;
-  const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
-    ...named.map((part,i)=>[part,values[1+components.length+i],false])];
-  const volumes=new Map([...volumeSlots].map(([id,slots])=>[id,slots.map(index=>index===null?null:values[index])]));
-  return {placed,componentShells,shells,volumes};
+  const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true])],volumes=new Map(),geometryFailures=new Map();
+  // A selected component or within-volume belongs to its assignment. Resolve
+  // it at that boundary so the rest of the print retains its own geometry.
+  for(const assignment of plan.slices.assignments){
+    try{
+      if(assignment.part!==undefined&&assignment.part!==null&&!shells.some(([part])=>part===assignment.part)){
+        const [shell]=await resolveGeometrySelections(plan.geometry,[{selection:assignment.part}]);
+        shells.push([assignment.part,shell,false]);
+      }
+      if(assignment.construction)continue;
+      const selections=assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}));
+      const resolved=await resolveGeometrySelections(plan.geometry,selections),slots={index:0};
+      volumes.set(assignment.id,assignment.within.map(volume=>volume.kind==='geometry'?resolved[slots.index++]:null));
+    }catch(error){
+      if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+      geometryFailures.set(assignment.id,error);
+    }
+  }
+  return {placed,componentShells,shells,volumes,geometryFailures};
 }
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export async function generateModelResults(plan,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
+export async function generateModelResults(plan,{placed,componentShells,shells,volumes,geometryFailures=new Map(),planningState,emittedIds=[]},onProgress) {
+  if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   // An assembly construction with no component chosen uses the whole assembly.
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
-    if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent)requireThat(shell,'A surface construction needs selected geometry.');
     return {assignment,shell,process:selected.process};
   });
   const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:extensionEngines,
@@ -99,7 +108,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   // Generation notes: what was not covered or failed, joining the print's limitations.
-  const notes=[...extensions.notes,...sliced.notes];
+  const notes=[...[...geometryFailures].map(([id,error])=>`${id} failed; it produces nothing. ${error.message}`),...extensions.notes,...sliced.notes];
   if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
   const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
@@ -196,8 +205,12 @@ export function depositionInspection(results){
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
   plan=compileRecipe(plan).plan;
   const authoredTemperatures=plannedNozzleTemperatures(plan);
-  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
-  const prepared=await preparePathGeometry(plan);
+  const validation=await validateSelectedExtensionRecipe(plan),failedIds=new Set(validation.failures.map(failure=>failure.assignment));
+  const usable=validation.failures.length?{...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!failedIds.has(assignment.id))},
+    skills:{...plan.skills,...(plan.skills?.['plastic-weld']?{'plastic-weld':{...plan.skills['plastic-weld'],sites:plan.skills['plastic-weld'].sites.filter(site=>!failedIds.has('plastic-weld:'+site.id))}}:{})}}:plan;
+  const geometry=await preparePathGeometry(usable);
+  const prepared={...geometry,geometryFailures:new Map([...validation.failures.map(failure=>[failure.assignment,Error(failure.message)]),...geometry.geometryFailures])};
+  plan=usable;
   const evaluated=modulations?{...plan,modulations}:plan;
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];

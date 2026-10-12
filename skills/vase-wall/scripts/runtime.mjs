@@ -41,8 +41,8 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
   const terminal=rim?.segmentMetadata.findIndex(metadata=>metadata.boundaryRole==='rim');
   const levelBoundary=levelTop&&geometry.terminalBoundary!==false?{zMm:geometry.end,widthMm:process.lineWidthMm,strokes:[strokeRange(rim??strokes[0],terminal)]}:null;
   // A rising end leaves the top one layer low toward its seam; material printed above rests on it.
-  const risingEnd=settings.endTransition!=='level'&&geometry.terminalBoundary!==false&&shell.bounds.max[2]>geometry.end+PRINT_RESOLUTION_MM
-    ?[`Vase wall ${settings.id} ends rising at Z ${geometry.end} mm: anything printed above it rests on a top up to one layer (${process.layerMm} mm) low toward its seam. A level end gives a flat top.`]:[];
+  const risingEnd=profile&&settings.endTransition!=='level'&&above.length
+    ?[`Vase wall ${settings.id}: plain layers above the spiral (${[...new Set(above.flatMap(item=>item.segmentMetadata.map(metadata=>metadata.layer)))].join(', ')}) rest on its rising end, up to one layer (${process.layerMm} mm) low toward the seam. A level end gives a flat top.`]:[];
   const notes=[...(traced.report.notes??[]),...stackNotes,...risingEnd,...spans.map(span=>contactSpanNote(`Vase wall ${settings.id}`,span))];
   const result={...traced,operations,referenceStack,stackId:settings.id,...(levelBoundary?{levelBoundary}:{}),report:{...traced.report,
     owner:settings.id,part:settings.part,construction:'sleeve',depositionFamily:'trace',extension:'vase-wall',startMm:geometry.start,endMm:geometry.end,baseTopMm:geometry.base,
@@ -65,16 +65,20 @@ function vaseFoundationSegments({node,samePart,substrateAdaptation}){
 }
 
 function vaseDependencies(node,nodes){
-  const needs=new Set();
+  const needs=new Set(),notes=[];
   for(const other of nodes){
     if(other===node)continue;
     if(node.construction==='sleeve'&&other.part===node.part){
       if(other.kind==='slice'&&!other.record.reference&&other.nominalRank<=(node.context??node.record.context).startMm+PRINT_RESOLUTION_MM||other.construction==='sleeve'&&(other.context??other.record.context).endMm<=(node.context??node.record.context).startMm+PRINT_RESOLUTION_MM)needs.add(other.key);
     }
     // Slices above a sleeve print after it, on its level or rising end (the sleeve's result notes a rising one).
-    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+PRINT_RESOLUTION_MM)needs.add(other.key);
+    if(node.kind==='slice'&&!node.record.reference&&other.construction==='sleeve'&&other.part===node.part&&node.nominalRank>(other.context??other.record.context).endMm+PRINT_RESOLUTION_MM){
+      needs.add(other.key);
+      const context=other.context??other.record.context;
+      if(context.assignment.endTransition!=='level')notes.push(`Slice ${node.sourceId} layer ${node.index} prints above vase wall ${other.sourceId}'s rising end at Z ${context.endMm} mm, up to one layer (${context.process.layerMm} mm) low toward its seam. A level end gives a flat top.`);
+    }
   }
-  return [...needs];
+  return {dependencies:[...needs],notes};
 }
 
   return {standardVaseResult,vaseFoundationSegments,vaseDependencies,

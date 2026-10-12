@@ -72,6 +72,5 @@ export function textOutlines(feature,toleranceMm){
       x+=position.xAdvance*scale+feature.letterSpacingMm;y+=position.yAdvance*scale;
     });
   });
-  requireThat(glyphs.length>0,'Text needs at least one visible outline glyph.');
   return {glyphs,loops:union(glyphs.flatMap(g=>g.loops),[]),fontName:font.postscriptName};
 }

@@ -14,12 +14,16 @@ export function loadMachine(id='ultimaker-s5') {
 
 // A locked machine snapshot as current adapters read it: setup blocks its
 // profile gained after it was saved (an adapter's installation block) come from
-// the installed profile; every value it has stays. filled names the added keys.
+// the installed profile; every authored value stays. Missing output templates
+// use the same profile, with notes. filled names the added setup keys.
 export function currentMachineSnapshot(machine){
-  const profile=machine?machineCatalog().get(machine.id):null;
-  if(!profile)return {machine,filled:[]};
-  const defaults=JSON.parse(readFileSync(profile.file,'utf8')).defaultSetup??{};
+  const entry=machine?machineCatalog().get(machine.id):null;
+  if(!entry)return {machine,filled:[],notes:[]};
+  const profile=JSON.parse(readFileSync(entry.file,'utf8')),defaults=profile.defaultSetup??{};
   const filled=Object.keys(defaults).filter(key=>!Object.hasOwn(machine.defaultSetup??{},key));
-  if(!filled.length)return {machine,filled};
-  return {machine:{...machine,defaultSetup:{...machine.defaultSetup,...Object.fromEntries(filled.map(key=>[key,defaults[key]]))}},filled};
+  const supplied=machine.outputs.map(output=>({output,program:output.program??profile.outputs.find(candidate=>candidate.id===output.id)?.program}));
+  const restored=supplied.filter(({output,program})=>!output.program&&program);
+  const outputs=supplied.map(({output,program})=>program&&!output.program?{...output,program}:output);
+  const notes=restored.map(({output})=>`This print's ${machine.name} snapshot has no program templates; the installed profile's were used (${output.id}).`);
+  return {machine:{...machine,outputs,defaultSetup:{...machine.defaultSetup,...Object.fromEntries(filled.map(key=>[key,defaults[key]]))}},filled,notes};
 }

@@ -54,7 +54,7 @@ export function meshInputError(message){return Object.assign(new Error(`${messag
 
 function meshResult(vertices,triangles,name,derived){
   // Each record owns its copy of the cached normals.
-  return {kind:'triangle-mesh',name,vertices,triangles,
+  return {kind:'triangle-mesh',name,vertices,triangles,empty:triangles.length===0,
     bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice(),contacts:{count:derived.contacts.count,pairs:derived.contacts.pairs.map(p=>[...p])},topology:{...derived.topology}};
 }
 
@@ -89,9 +89,10 @@ export function makeMesh(vertices,triangles,{name='mesh'}={}){
 }
 
 function validateMeshInput(vertices,triangles){
-  requireMeshInput(Array.isArray(vertices)&&vertices.length>=4,'Mesh needs at least 4 vertices.');
+  requireMeshInput(Array.isArray(vertices),'Mesh vertices must be an array.');
   requireMeshInput(vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Mesh vertices must be finite XYZ millimeters.');
-  requireMeshInput(Array.isArray(triangles)&&triangles.length>=4,'Mesh needs at least 4 triangles.');
+  requireMeshInput(Array.isArray(triangles),'Mesh triangles must be an array.');
+  requireMeshInput(vertices.length===0&&triangles.length===0||vertices.length>=4&&triangles.length>=4,'Mesh needs at least 4 vertices and 4 triangles, or no material.');
   checkMeshCapacity(vertices.length,triangles.length);
   for(const t of triangles)requireMeshInput(Array.isArray(t)&&t.length===3&&t.every(v=>Number.isInteger(v)&&v>=0&&v<vertices.length)&&t[0]!==t[1]&&t[1]!==t[2]&&t[0]!==t[2],'Invalid mesh triangle indices.');
   return {vertices,triangles};
@@ -101,6 +102,7 @@ function meshFaceGeometry({vertices,triangles}){
   const counts=[vertices.length,triangles.length];
   const normals=meshAllocation('Mesh face normals',...counts,()=>new Float64Array(triangles.length*3)),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   for(const p of vertices)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],p[k]);bounds.max[k]=Math.max(bounds.max[k],p[k]);}
+  if(!vertices.length){bounds.min=[0,0,0];bounds.max=[0,0,0];}
   // A sliver (below the height contract) that cleanup could not remove is counted, not
   // refused; it keeps its raw unit normal, or none when exactly flat.
   let slivers=0;

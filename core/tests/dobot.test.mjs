@@ -58,17 +58,21 @@ test('the Lua reader stops a program that commands nothing, not one that keeps c
   assert.throws(()=>new LuaRuntime({host:{}}).load('while true do end','spin.lua'),/looping without making progress/);
 });
 
-test('Dobot rejects invalid instance/unsupported process and checks calibrated workspace and feed',async()=>{
+test('Dobot rejects invalid command settings and adapts feed without claiming rectangular reachability',async()=>{
   const {machine,plan}=fixture(),path=await generatePath(plan,machine);
-  for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/]]){
+  for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/]]){
     const p=structuredClone(plan);p.setup.dobot[key]=value;await assert.rejects(()=>exportProgram(path,p,machine,release),pattern);
   }
+  const envelope=structuredClone(plan);envelope.setup.dobot.workspaceMaxMm=[0,0,1];
+  assert.ok((await exportProgram(path,envelope,machine,release)).report.seconds>0);
+  const limited=structuredClone(plan);limited.setup.dobot.maxLinearSpeedMmS=1;
+  assert.ok((await exportProgram(path,limited,machine,release)).report.limitations.some(text=>/representable SpeedL/.test(text)));
   // A relay has no retraction or fan: the program omits them and says so.
   const fan=structuredClone(path);fan.actions.push({kind:'retract',filamentMm:1,speedMmS:25,phase:'test',layer:0},{kind:'fan',percent:50,phase:'test',layer:0});
   assert.ok((await exportProgram(fan,plan,machine,release)).report.limitations.some(text=>/no retraction or fan control/.test(text)));
   // Heating is external: an unstated nozzle temperature is reported, not refused.
   const cold=structuredClone(plan);cold.setup.nozzleC=0;
-  assert.ok((await exportProgram(path,cold,machine,release)).report.limitations.includes('Externally established nozzle temperature: not stated; the program writes none.'));
+  assert.match((await exportProgram(path,cold,machine,release)).report.notice,/External start and heating are declared in setup/);
 });
 test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwell and adds no priming wait',async()=>{
   // Bed-frame paths: no placement offset.

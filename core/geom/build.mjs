@@ -33,7 +33,8 @@ export function buildShells(rhino,geometries,{material=false}={}){
     }
     if(geometry.shape==='assembly'&&hasMesh(geometry)) {
       const components=geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm));
-      return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};
+      const material=components.filter(component=>!component.empty);
+      return {kind:'assembly',components,empty:!material.length,bounds:material.length?{min:[0,1,2].map(i=>Math.min(...material.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...material.map(c=>c.bounds.max[i])))}:{min:[0,0,0],max:[0,0,0]}};
     }
     if(geometry.shape==='assembly') {
       const entries=geometry.parts.flatMap(part=>build(part.geometry).surfaces.map(entry=>{

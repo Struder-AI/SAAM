@@ -186,15 +186,21 @@ export async function resolveExtensions(ids,options={}){
   return resolved;
 }
 
+// The running module graph and its declared source must agree. A restart
+// clears this owned state and makes the changed extension available.
+export function extensionRuntimeSourceError(resolved){
+  for(const item of resolved){
+    const loaded=loadedDigests.get(item.directory);
+    if(loaded&&loaded!==item.digest)return {code:'EXTENSION_RELOAD_REQUIRED',message:`Extension ${item.id} changed while SAAM is running; its new scripts load after \`saam reload-runtime\`.`};
+  }
+  return null;
+}
+
 export async function loadExtensionEntry(id,name,options={}){
   const resolved=await resolveExtensions([id],options),selected=resolved.at(-1),entry=selected.manifest.entries[name];
   if(!entry)throw Error(`Extension ${id} has no ${name} entry.`);
-  for(const item of resolved){
-    const loaded=loadedDigests.get(item.directory);
-    // A running process cannot replace a loaded module graph, and running the old
-    // scripts would record the new extension digest as their source.
-    if(loaded&&loaded!==item.digest)throw Error(`Extension ${item.id} changed while SAAM is running; its new scripts load after \`saam reload-runtime\`.`);
-  }
+  const unavailable=extensionRuntimeSourceError(resolved);
+  if(unavailable)throw Object.assign(Error(unavailable.message),{code:unavailable.code});
   const module=await import(pathToFileURL(resolve(selected.directory,entry.file)).href);
   if(typeof module[entry.export]!=='function')throw Error(`Extension ${id} entry ${entry.file} does not export ${entry.export}.`);
   loadedDigests.set(selected.directory,selected.digest);

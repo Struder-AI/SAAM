@@ -32,6 +32,7 @@ import {fileURLToPath,pathToFileURL} from 'node:url';
 import {importGraph,closureOf,parseModule,staticImports} from './scope.mjs';
 import {mergeStateFacts} from './state.mjs';
 import {mergeContactFacts} from './channels.mjs';
+import {heapCeilingMb} from '../../core/memory.mjs';
 
 // The single switch: true once one sound run can cover the whole scope (plans/dev-maps.md). The
 // whole scope is then tried first as one closure, and the closure split is only the fallback.
@@ -98,7 +99,8 @@ async function runClosure(repo,{root,files,out,startHeapMB,maxHeapMB}) {
 // ---- the closure plan -------------------------------------------------------------------------
 const nameOf=root=>root==='all'?'_scope':root.replace(/[\/.]/g,'_');
 
-export async function analyse({repo=repoOf,out,maxHeapMB=4096,startHeapMB=2048,log=()=>{}}={}) {
+export async function analyse({repo=repoOf,out,maxHeapMB:requestedHeapMB,startHeapMB:requestedStartHeapMB,log=()=>{}}={}) {
+  const maxHeapMB=heapCeilingMb({limitMb:requestedHeapMB}),startHeapMB=Math.min(requestedStartHeapMB??maxHeapMB,maxHeapMB);
   if(!out)throw Error('analyse needs an output file.');
   const started=Date.now();
   const dir=resolve(dirname(out),'closures');mkdirSync(dir,{recursive:true});
@@ -270,6 +272,6 @@ export function merge(runs) {
 
 if(process.argv[1]&&pathToFileURL(resolve(process.argv[1])).href===import.meta.url) {
   const argv=process.argv.slice(2),value=flag=>{const i=argv.indexOf(flag);return i>=0?argv[i+1]:undefined;};
-  const report=await analyse({out:resolve(value('--out')??'analysis.json'),maxHeapMB:Number(value('--max-heap-mb')??4096),log:line=>process.stderr.write(line+'\n')});
+  const report=await analyse({out:resolve(value('--out')??'analysis.json'),maxHeapMB:value('--max-heap-mb')===undefined?undefined:Number(value('--max-heap-mb')),log:line=>process.stderr.write(line+'\n')});
   console.log(JSON.stringify(report,null,1));
 }

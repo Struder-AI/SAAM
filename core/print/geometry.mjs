@@ -47,7 +47,7 @@ export async function geometryDescriptor(parameters,descriptor){
   if(descriptor.parameters&&canonicalHash(descriptor.parameters)!==canonicalHash(parameters))return (await createGeometryArtifact(parameters)).descriptor;
   const mesh=directMesh(parameters);
   if(mesh)return {...descriptor,schema:'saam-shell-geometry/1',parameters,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh'),
-    boundsMm:parameters.shape==='spatial'?descriptor.boundsMm:{min:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[axis]),Infinity)),max:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[axis]),-Infinity))}};
+    boundsMm:parameters.shape==='spatial'?descriptor.boundsMm:mesh.vertices.length?{min:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[axis]),Infinity)),max:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[axis]),-Infinity))}:{min:[0,0,0],max:[0,0,0]}};
   return {...descriptor,schema:'saam-shell-geometry/1',parameters};
 }
 export function storedGeometryDescriptor(descriptor,{snapshot=false}={}){

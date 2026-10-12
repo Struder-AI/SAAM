@@ -1,5 +1,5 @@
 import {requireThat,distance} from '../private/export/numeric.mjs';
-import {PROGRAM_DECIMALS,PROGRAM_SLACK_MM} from '../dimensions.mjs';
+import {PROGRAM_DECIMALS,XYZ_PROGRAM_DECIMALS,PROGRAM_SLACK_MM} from '../dimensions.mjs';
 import {Kinematics} from '../machine/kinematics.mjs';
 import {validateTemperatureC} from '../private/export/temperature.mjs';
 import {loadExtensionEntry,machineCatalog} from '../extensions/library.mjs';
@@ -11,13 +11,13 @@ import {validateSetup} from '../machine/rules.mjs';
 import {preparedTravelAdvisory} from './travel-advisory.mjs';
 import {knownSeconds} from '../path/saampath.mjs';
 import {settingsDefaults} from '../machine/settings.mjs';
-import {loadMachine} from '../machine/profile.mjs';
+import {currentMachineSnapshot} from '../machine/profile.mjs';
 
 // The plug: besides the prepared path and settings, the only operations an
 // adapter receives. Frame math is Geometry's stateless library (no part data);
 // kinematics is what the extension's own kinematics plug is built from.
 export const Export=Object.freeze({
-  number:value=>Number(value.toFixed(PROGRAM_DECIMALS)),slackMm:PROGRAM_SLACK_MM,
+  number:(value,quantity)=>Number(value.toFixed(quantity==='xyz'?XYZ_PROGRAM_DECIMALS:PROGRAM_DECIMALS)),slackMm:PROGRAM_SLACK_MM,
   gcodeMotion,knownSeconds,packZip,unpackZip,crc32,encodePng,temperatureC:validateTemperatureC,
   frame:Kinematics.frame,kinematics:Kinematics
 });
@@ -66,21 +66,11 @@ function pathTotals(prepared){
   }
   return {moves,seconds,volumeMm3,untimedMoves};
 }
-// A snapshot locked before its output declared program templates writes with
-// the installed profile's, and says so.
-function withProgramTemplates(plan,machine){
-  const at=machine.outputs.findIndex(o=>o.id===plan.output);
-  if(machine.outputs[at].program||!machineCatalog().get(machine.id))return {machine,notes:[]};
-  const program=loadMachine(machine.id).outputs.find(o=>o.id===plan.output)?.program;
-  if(!program)return {machine,notes:[]};
-  const outputs=machine.outputs.map((o,i)=>i===at?{...o,program}:o);
-  return {machine:{...machine,outputs},notes:[`This print's ${machine.name} snapshot has no program templates; the installed profile's were used.`]};
-}
 // Prepares the path once and writes it. The report is what Bundle stores:
 // the adapter's notice, limitations and estimates (the path's own totals when
 // the adapter gives none), the move count and the short-travel advisory.
 export async function exportProgram(path,plan,locked,release){
-  const adapter=await machineAdapter(plan,locked),{machine,notes}=withProgramTemplates(plan,locked),prepared=prepareExportPath(path,plan,machine,adapter);
+  const adapter=await machineAdapter(plan,locked),{machine,notes}=currentMachineSnapshot(locked),prepared=prepareExportPath(path,plan,machine,adapter);
   // defaultProcess: the profile's process defaults, for a writer that needs a
   // value the authored one cannot give (a robot command needs a positive time).
   const {bytes,report}=adapter.export(prepared,{machine,setup:plan.setup,process:plan.process,output:plan.output,release,defaultProcess:settingsDefaults(machine).process}),totals=pathTotals(prepared);
