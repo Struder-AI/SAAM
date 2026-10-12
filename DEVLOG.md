@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-10-12 — H2D contract v14: an AMS-fed start that changes nozzle leaves out the startup prime and wipe
+
+- Source: physical runs by tkeller on 2026-10-03 (TK-DEV f4c8423), ported here onto the machine extension. A two-colour job on an H2D (left nozzle fed by an AMS HT, right by slot 1 of a four-slot AMS, both 0.4 mm, fast start) stalled for good right after its first nozzle change: after unloading, purging, wiping and loading it moved into the print area and sat still, no alert, resume doing nothing, 215/215 °C, bed 60 °C. Tiny repro jobs (a thin pad, then two fat bars) stalled the same way.
+- Ruled out by physical runs: nozzle temperature (215 and 225), full against fast start, AMS connections declared or not, feed sources declared against auto.
+- Isolated by progress-marker runs (`M400` and `M73 P<n>` after each step, read off the printer later): with the startup prime (`G1 E45 F{flushFeed}`, `G1 E-3`, `M400 P500`) and nozzle-clean stage (`M400`, `M1002 gcode_claim_action : 14`, `G150 T{nozzleC}`, `M106 S255`) removed, the job ran to the end, with and without markers and with the bed cold or at 60. One run each; which of the two stages matters, and why, is not known.
+- Relation to the [2026-10-02 investigation](#2026-10-02--investigate-h2d-first-ams-change-stall): that stall was on a full start, and these runs stalled on fast start too, so fast start alone does not avoid it. The DUAL-20 pass started from an external spool with both stages present and passed.
+- Change: `machines/bambu/bambu-h2d.json` revision 24, contract `h2d-saam-startup-v14`. The two stages sit in `exceptAmsNozzleChange` blocks, which the adapter leaves out when the job starts on an AMS-fed filament (`ams`, `ams-ht` or `auto`) and later moves to the other nozzle (`job.amsNozzleChange`, `machines/bambu/bambu-job.mjs`). An external-spool start and any job without a nozzle change keep the startup unchanged. The v14 envelope is byte-identical to the one printed on 2026-10-03 (hash b56ffb90…); `ENVELOPE_HASHES` keeps v13 so older archives open. Test in `core/tests/bambu-dual.test.mjs`.
+- Software check: `npm test` fails the same 14 tests with and without this change (including the H2D hardware regression the 2026-10-02 entry records); the new test passes.
+- Not done: the cause; separating the two stages; a same-nozzle AMS material change (the 2026-10-02 case) was not exercised with v14.
+
 ## 2026-10-06 — Publish SAAM 0.3.6
 
 - Owner: "let's package 0.3.6, update locally". Published v0.3.6 at source 9b77fdbbc4998cd5b4d7684246b223462ac3b150 (8b1044cd plus the builder change). Windows 43,472,948 bytes, 016d40b280cb169e34e0a52da6badcd2a64d6ec99abe02cd5f99d657a94f73a9; arm64 Mac 47,410,304 bytes, fa6056173d5a47d2b0c4659697747e4f2fbbd7b53614f42f396a6e75937baf5c; Intel Mac 48,763,953 bytes, 7e85af04ba3747901a974a24c1c8f7328adcce869b83ae879cd39156a824220f. Windows mesh helper rebuilt for the current source (95134816…); Mac packages without native repair. Node v24.19.0, checksum-verified.
