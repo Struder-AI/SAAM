@@ -32,9 +32,12 @@ export async function createExtensionBundle(directory,extension,request,options=
   const {defaults}=await import('./plan.mjs');
   const selection=options.machineId?await selectSettings(options.machineId,options):null;
   const source=selection?{...defaults(selection.machine),...selection.settings}:{schema:'saam-shell-plan/1'};
-  const {plan}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
+  const {plan,report}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const normalized=normalizeSpatialPlan(plan);
-  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,notes:selection?.notes??[]});
-  return loadBundle(directory,{program:false});
+  // The construction's notes are recorded with the creation, so they show as the print's limitations.
+  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,notes:[...(selection?.notes??[]),...(report?.notes??[])]});
+  // The fresh state is this call's own; assigning keeps its non-enumerable geometry artifact.
+  const created=await loadBundle(directory,{program:false});
+  return report?Object.assign(created,{extensionReport:report}):created;
 }

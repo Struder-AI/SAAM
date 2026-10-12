@@ -78,8 +78,8 @@ async function start(args){
       adoptWindow:async args=>request('adopt',args)}});
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
+  // A reload, or an open after this runtime exited unexpectedly, brings back its windows; every other Studio opens on request.
   await host.runtime.restoreStudios(args.windows??[]);
-  if(args.autoOpen&&args.openOnStart!==false&&!args.windows?.length)await host.runtime.openStudio();
   return {contract:orchestratorContract};
 }
 async function handle(message){

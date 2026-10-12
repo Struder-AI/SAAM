@@ -1,6 +1,6 @@
 ---
 name: heat-set-inserts
-description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up.
+description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins, on any face and axis.
 metadata:
   saam-kind: extension
 ---
@@ -31,8 +31,8 @@ then use an existing bundle. `apply_heat_set` takes `bundleId`, the current `exp
 }
 ```
 
-`positionMm` is the mouth centre in component coordinates; the bore points down
-Z from its flat insertion face. For an assembly add `part` with the component id.
+`positionMm` is the mouth centre in component coordinates; the bore points along
+`axis` from there. For an assembly add `part` with the component id.
 Edit with the same feature id and only changed fields; remove with
 `{"remove":"mount"}` (plus `part`). Changes follow the normal revision and
 confirmation workflow.
@@ -42,6 +42,7 @@ confirmation workflow.
 | `id` | `insert`; unique within its feature group |
 | `insertId` | Required for the first feature; exact manual-listed size/profile |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
+| `axis` | `[0,0,-1]`; direction the bore points into the part; never inherited |
 | `depthMm` | `null`: insert length plus two thread pitches; an explicit depth must fit the insert |
 | `diameterAdjustmentMm` | `0`; signed printer/material hole calibration; resulting bore diameter must stay positive |
 | `finCount` | `6`; nonnegative count of radial ribs |
@@ -65,10 +66,8 @@ reinforcement.
 
 It works with meshes, supported spline hosts, named assembly parts and planar
 material regions, and lettering over the result keeps the holes. A vase or
-nonplanar-only region does not acquire the loops. The bore axis is Z and the
-insertion face flat: reorient side-entry parts first. Blind floors need remaining
-material, and the loops and fins need room inside the exterior walls; the tool
-reports insufficient room or conflicting reservations so placement, fin length,
-host size or process can be revised. Intersecting holes and fins are not merged.
+nonplanar-only region does not acquire the loops. Each bore is cut as placed;
+the report notes material over the mouth within the insert length, a face below
+the mouth, or a bore breaking out beyond its floor. Intersecting holes and fins are not merged.
 Manufacturer dimensions are a starting point: printed fit and strength need
 physical evidence.

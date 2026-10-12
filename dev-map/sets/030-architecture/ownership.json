@@ -1403,6 +1403,10 @@
       "owner": "extensions",
       "reason": "Standard-support extension edit: authored support contributions."
     },
+    "skills/standard-support/scripts/support-geometry.mjs": {
+      "owner": "extensions",
+      "reason": "Standard-support geometry: closed support solids, their Slice settings and retired-form migration."
+    },
     "scripts/extensions.mjs": {
       "owner": "application",
       "reason": "Extension command entry: lists and validates extensions through the application."
@@ -9230,6 +9234,9 @@
     "skills/hole-supports/scripts/edit.mjs::roundHole": {
       "owner": "extensions"
     },
+    "skills/hole-supports/scripts/edit.mjs::sectionHole": {
+      "owner": "extensions"
+    },
     "skills/hole-supports/scripts/edit.mjs::sleeve": {
       "owner": "extensions"
     },
@@ -10898,6 +10905,81 @@
       "owner": "extensions"
     },
     "skills/standard-support/scripts/edit.mjs::requireThat": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/edit.mjs::sourceSolid": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/edit.mjs::sourceSolid::close": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::@module": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::requireThat": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::finitePoint": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::supportSlice": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::skinSlice": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::withSupportOperand": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::supportSolid": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::cross": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::signedArea": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::inside": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::segmentsCross": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::triangulate": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::footprintRoofs": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::footprintRoofs::index": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::branchMesh": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::branchMesh::ring": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::treeSolids": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::treeSolids::rooted": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::treeSolids::point": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::shift": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::migrateTreeSupports": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::migrateFootprintSupport": {
+      "owner": "extensions"
+    },
+    "skills/standard-support/scripts/support-geometry.mjs::migrateFootprintSupport::close": {
       "owner": "extensions"
     },
     "studio/chat-ui.mjs::@module": {

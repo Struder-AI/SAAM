@@ -7,22 +7,6 @@ import {compileText} from './text.mjs';
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 
-export function unwrapTextGeometry(geometry){
-  const layers=[];
-  let base=geometry;
-  while(base.shape==='text'&&base.base&&!base.standalone){layers.push(base);base=base.base;}
-  return {base,layers};
-}
-
-export async function rebuildTextGeometry(base,layers,geometryOperations){
-  let rebuilt=base;
-  for(let i=layers.length-1;i>=0;i--){
-    const layer=layers[i];
-    rebuilt=await compileText(rebuilt,layer.features,{...geometryOperations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
-  }
-  return rebuilt;
-}
-
 export async function editText(source,request,geometryOperations){
   requireThat(request&&Object.keys(request).every(k=>['feature','remove','part','standalone','assignments','toleranceMm','maxEdgeMm'].includes(k)),'Unknown text request field.');
   requireThat(Boolean(request.feature)!==Boolean(request.remove),'Supply one feature to add/update, or remove its id.');
@@ -54,10 +38,9 @@ export async function editText(source,request,geometryOperations){
     const next={...(index>=0?features[index]:{}),...feature};
     if(index>=0)features[index]=next;else features.push(next);
   }
-  if(!features.length){requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');owner.geometry=base;}
-  else {
-    owner.geometry=await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1});
-  }
+  const compiled=features.length?await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1}):null;
+  if(!compiled)requireThat(base&&!standalone,'Removing the last standalone text feature would leave no geometry.');
+  owner.geometry=compiled?compiled.geometry:base;
   // A removed/changed feature may invalidate a material selector. Let the caller
   // replace those assignments in the same validated edit, without an invalid
   // intermediate bundle or silently deleting dependent printing operations.
@@ -65,5 +48,5 @@ export async function editText(source,request,geometryOperations){
     requireThat(Array.isArray(request.assignments),'Text assignments must be the complete common slice assignment list.');
     plan.slices={...plan.slices,assignments:structuredClone(request.assignments)};
   }
-  return {geometry:plan.geometry,...(request.assignments===undefined?{}:{assignments:plan.slices.assignments})};
+  return {geometry:plan.geometry,...(request.assignments===undefined?{}:{assignments:plan.slices.assignments}),...(compiled?.notes.length?{report:{notes:compiled.notes}}:{})};
 }

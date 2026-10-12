@@ -15,15 +15,15 @@ export function describeJobs(jobs){
   }).join('\n');
 }
 export async function createRuntimeRegistry({paths,autoOpen,services,retryClients,codeRoot}){
-  const windows=await createStudioWindows(paths.state,{autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
+  const windows=createStudioWindows({autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
   const operationObservers=new Set(),eventObservers=new Set();
-  async function service(args){
-    if(args.method==='status')return services.status();
+  async function service(runtime,args){
+    if(args.method==='status')return {...services.status(),quitScope:quitScope()};
     if(args.method==='activate')return services.activate(args.invite);
     if(args.method==='dismiss')return services.dismissFirstRun();
     if(args.method==='check-update'){await services.checkUpdate();return services.status();}
     if(args.method==='update')return services.update(args.options);
-    if(args.method==='quit')return services.quit(args.options);
+    if(args.method==='quit')return quitFrom(runtime,args.options);
     if(args.method==='report')return services.report(args.report);
     throw Error('Unknown release service request.');
   }
@@ -32,7 +32,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(message.type==='window')return windows.register(runtime,message.args);
     if(message.type==='show')return windows.show(message.args.url,{visibility:message.args.visibility});
     if(message.type==='clients')return retryClients();
-    if(message.type==='service')return service(message.args);
+    if(message.type==='service')return service(runtime,message.args);
     if(message.type==='release-bundle')return releaseBundle(runtime,message.args.bundleId);
     if(message.type==='route')return route(runtime,message.args);
     if(message.type==='adopt')return adopt(runtime,message.args);
@@ -65,8 +65,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     });
   })();}
   const orchestrator=()=>({contract:orchestratorContract,label:'the running SAAM ('+services.status().version+')'});
-  // openOnStart:false: the open that starts this runtime shows its own window.
-  async function launch(selected,{openOnStart=true}={}){
+  async function launch(selected){
     if(selection.closing)throw Error('SAAM is stopping.');
     const problem=contractProblem(orchestrator(),selected);
     if(problem)throw problem;
@@ -87,7 +86,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     // A runtime stopped on purpose was already removed; its exit must not detach a successor's windows.
     function failed(error){for(const waiter of runtime.pending.values())waiter.fail(error);runtime.pending.clear();if(runtimes.get(runtime.id)===runtime){runtimes.delete(runtime.id);windows.detach(runtime.id);}}
     child.once('error',failed);child.once('exit',code=>failed(Error('Runtime '+runtime.label+' exited ('+code+'). '+runtime.stderr)));
-    try{await rpc(runtime,'start',{orchestrator:orchestrator(),autoOpen,openOnStart,service:services.status(),
+    // A runtime starts with no Studio of its own: every window opens on request (openOnStart:false
+    // tells runtimes before 0.3.7, which opened one by default).
+    try{await rpc(runtime,'start',{orchestrator:orchestrator(),autoOpen,openOnStart:false,service:services.status(),
       stateRoot:resolve(paths.state,'runtimes',runtime.id.replaceAll(':','-')),windows:windows.restore(runtime.id)});if(selection.closing)throw Error('SAAM is stopping.');runtime.starting=false;return runtime;}
     catch(error){await closeRuntime(runtime).catch(cleanup=>{error.message+=' Runtime cleanup: '+cleanup.message;});throw error;}
   }
@@ -101,22 +102,21 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   }
   // Starting and stopping runtimes is serial. A running runtime keeps its code until an explicit reload.
   function serial(action){const task=selection.tail.then(action);selection.tail=task.then(()=>{},()=>{});return task;}
-  function selected(message,launching={}){
+  function selected(message){
     return serial(async()=>{
       if(selection.closing)throw Error('SAAM is stopping.');
       // Runtime roots are validated locally; the client cannot supply an executable.
       const chosen=message.runtime?await selectRuntime(message.runtime.codeRoot):fallback;
       if(message.runtime?.id&&message.runtime.id!==chosen.id)throw Error('The selected runtime is no longer at its recorded code location. Reconnect with an explicit target.');
-      return runtimes.get(chosen.id)??launch(chosen,launching);
+      return runtimes.get(chosen.id)??launch(chosen);
     });
   }
   async function inspect(runtime){const status=await rpc(runtime,'status',{},controlProbeMs);windows.reconcile(runtime.id,status.studios);return status;}
-  async function sync(runtime){const status=await rpc(runtime,'status',{},controlProbeMs);await windows.sync(runtime.id,status.studios);return status;}
   // An explicit take-over closes other runtimes' Studios showing the print (refused while work runs there).
   async function releaseBundle(caller,bundleId){
     for(const other of runtimes.values())if(other!==caller){
-      const studio=(await sync(other)).studios.find(item=>item.printId===bundleId);
-      if(studio){await rpc(other,'release',{studioInstanceId:studio.instanceId});await sync(other);}
+      const studio=(await inspect(other)).studios.find(item=>item.printId===bundleId);
+      if(studio){await rpc(other,'release',{studioInstanceId:studio.instanceId});await inspect(other);}
     }
     return {released:true};
   }
@@ -125,7 +125,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   async function route(caller,{instanceId,printId,owner}){
     const target=await selected({runtime:{codeRoot:owner.codeRoot??paths.app}});
     if(target.id!==owner.id)throw Error(owner.label+' is no longer at its recorded location.');
-    if((await sync(target)).studios.some(studio=>studio.printId===printId))throw Object.assign(Error('This print is open in another Studio window of '+target.label+'. Switch to that window.'),{code:'BUNDLE_INSTANCE_BUSY'});
+    if((await inspect(target)).studios.some(studio=>studio.printId===printId))throw Object.assign(Error('This print is open in another Studio window of '+target.label+'. Switch to that window.'),{code:'BUNDLE_INSTANCE_BUSY'});
     setImmediate(()=>void moveWindow(caller,target,instanceId,{printId,routed:true}).catch(error=>console.error('Studio window move failed: '+error.message)));
     return {routed:true,runtime:{id:target.id,label:target.label}};
   }
@@ -139,7 +139,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       windows.move(instanceId,caller);
       try{await rpc(from,'release',{studioInstanceId:instanceId,idle:true});}
       catch{windows.move(instanceId,from);continue;}
-      await sync(from);return {instanceId,sessionToken};
+      await inspect(from);return {instanceId,sessionToken};
     }
     return null;
   }
@@ -152,7 +152,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     catch(error){windows.move(instanceId,from);throw error;}
     try{await rpc(to,'restore',{windows:[{...record,printId}]});}
     catch(error){windows.move(instanceId,from);await rpc(from,'restore',{windows:[record]});throw error;}
-    finally{await sync(to);await sync(from);}
+    finally{await inspect(to);await inspect(from);}
   }
   // An untargeted open uses the installed default; its runtime reuses a visible Studio.
   // display:'caller' marks the person's own launch or tray click: the answer says how
@@ -167,9 +167,8 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(opening&&message.runtimeId&&named&&windows.runtimeFor(named)!==message.runtimeId)throw Error('The Studio and runtime targets do not match.');
     const target=message.runtimeId??(opening&&named?windows.runtimeFor(named):null);
     const candidate=target?runtimes.get(target)??windows.retained().find(window=>window.runtimeId===target):null;
-    const launching={openOnStart:false};
-    const runtime=target?(candidate?await selected({runtime:{id:target,codeRoot:candidate.codeRoot}},launching):null)
-      :await selected(message,launching);
+    const runtime=target?(candidate?await selected({runtime:{id:target,codeRoot:candidate.codeRoot}}):null)
+      :await selected(message);
     if(!runtime)throw Error('The selected runtime stopped. Reconnect from its checkout.');
     runtime.active++;
     try{
@@ -178,7 +177,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
         return {ok:true,...opened,...(callerShows?{display:windows.display(opened.url)}:{})};
       }
       return await rpc(runtime,'command',message);
-    }finally{runtime.active--;if(runtime.child.connected)await sync(runtime);}
+    }finally{runtime.active--;if(runtime.child.connected)await inspect(runtime);}
   }
   async function status(){
     const states=await Promise.all([...runtimes.values()].map(async runtime=>({runtime,status:runtime.starting?{jobs:[],studios:[]}:await inspect(runtime)})));
@@ -194,7 +193,14 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   }
   // A starting runtime holds nothing to warn; it exits when the orchestrator disconnects.
   async function notifyStopping(reason){await Promise.allSettled([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'stopping',{reason},controlProbeMs)));}
-  // Stops the runtime a message names; its windows keep their addresses for the next start.
+  // A runtime's active work as a confirmation to stop or reload it; null when it is idle.
+  async function activeWork(runtime,reason){
+    const current=await inspect(runtime);
+    if(!current.jobs.length&&!runtime.active&&!current.active)return null;
+    const jobs=current.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}));
+    return {confirmationRequired:true,jobs,message:(reason==='restart'?'Reloading':'Stopping')+' '+runtime.label+' cancels its active work:\n'+(describeJobs(jobs)||'- agent operations in progress')};
+  }
+  // Stops the runtime a message names. A reload keeps its windows for the new process; a stop retires them.
   // Closing waits for the runtime's Studios, which may themselves be asking to start a runtime.
   async function halt(message,reason){
     const removed=await serial(async()=>{
@@ -204,12 +210,11 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
         if(message.runtimeId&&!retained)throw Error('That runtime is no longer registered. Reconnect with an explicit code target.');
         return {stopped:false,runtimeId:id,codeRoot:retained?.codeRoot??message.runtime?.codeRoot??codeRoot};
       }
-      const current=message.force?{jobs:[]}:await inspect(runtime);
-      if((current.jobs.length||runtime.active||current.active)&&!message.force){
-        const jobs=current.jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}));
-        return {confirmationRequired:true,jobs,message:(reason==='restart'?'Reloading':'Stopping')+' '+runtime.label+' cancels its active work:\n'+(describeJobs(jobs)||'- agent operations in progress')};
-      }
-      await rpc(runtime,'stopping',{reason},controlProbeMs).catch(()=>{});windows.detach(runtime.id);runtimes.delete(runtime.id);
+      const work=message.force?null:await activeWork(runtime,reason);
+      if(work)return work;
+      await rpc(runtime,'stopping',{reason},controlProbeMs).catch(()=>{});
+      if(reason==='restart')windows.detach(runtime.id);else windows.retireRuntime(runtime.id);
+      runtimes.delete(runtime.id);
       return {stopped:true,runtime};
     });
     if(!removed.stopped)return removed;
@@ -218,11 +223,27 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     return {stopped:true,runtimeId:runtime.id,codeRoot:runtime.codeRoot};
   }
   const stopRuntime=message=>halt(message,'runtime-stop');
+  // Studio's Quit: while other runtimes run, it stops only its window's runtime; in the only running
+  // runtime it quits SAAM, as the tray does. scope is what the person confirmed; when this moment's
+  // answer differs, the person is asked again.
+  const quitScope=()=>runtimes.size>1?'runtime':'saam';
+  const quitQuestion=(runtime,scope)=>scope==='saam'?'No other SAAM runtime is running now, so Quit closes SAAM and its tray. Quit SAAM?'
+    :'Other SAAM runtimes are running now, so Quit stops only '+runtime.label+'; SAAM and its tray keep running. Stop it?';
+  async function quitFrom(runtime,{force=false,scope}={}){
+    const actual=quitScope();
+    if(scope!==undefined&&scope!==actual)return {confirmationRequired:true,scope:actual,message:quitQuestion(runtime,actual)};
+    if(actual==='saam')return {...await services.quit({force}),scope:actual};
+    const work=force?null:await activeWork(runtime,'runtime-stop');
+    if(work)return {...work,scope:actual,message:work.message+'\nStop it anyway?'};
+    // The answer reaches the window first: closing the runtime waits for this request to finish.
+    setImmediate(()=>void halt({runtimeId:runtime.id,force:true},'runtime-stop').catch(error=>console.error('Stopping '+runtime.label+' failed: '+error.message)));
+    return {quitting:true,scope:actual};
+  }
   // The only way a running runtime gets newer code; its windows reopen with it.
   async function reloadRuntime(message){
     const halted=await halt(message,'restart');
     if(halted.confirmationRequired)return halted;
-    const runtime=await selected({runtime:{id:halted.runtimeId,codeRoot:halted.codeRoot}},{openOnStart:false});
+    const runtime=await selected({runtime:{id:halted.runtimeId,codeRoot:halted.codeRoot}});
     return {reloaded:true,runtime:{id:runtime.id,label:runtime.label}};
   }
   // Stop exactly the selected Studio, leaving other sessions and its runtime alive.
@@ -233,7 +254,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       const runtime=runtimes.get(windows.runtimeFor(instanceId));
       if(!runtime)return windows.retire(instanceId);
       const result=await rpc(runtime,'release',{studioInstanceId:instanceId});
-      await sync(runtime);return {stopped:result.completed,studioInstanceId:instanceId};
+      await inspect(runtime);return {stopped:result.completed,studioInstanceId:instanceId};
     });
   }
   async function close(){selection.closing=true;const outcomes=await Promise.allSettled([...runtimes.values()].map(closeRuntime));await windows.close();runtimes.clear();const failed=outcomes.find(outcome=>outcome.status==='rejected');if(failed)throw failed.reason;}

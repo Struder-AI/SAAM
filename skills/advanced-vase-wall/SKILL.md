@@ -108,6 +108,8 @@ sampled Z; depth stays in millimetres. Only the authored paths deposit, and
 the minimum layer time applies to each repeat. Continuous mode requires joined
 path and repeat endpoints (a sized tile ends `tileWidthMm` after it starts);
 segmented mode allows explicit travel between gaps. No connector or guide wall is invented.
+Repeated consecutive points are dropped; heights beyond the wall interval are
+clamped to it, with a note.
 
 A legacy `tile` field is read as equivalent turns paths, with a recipe note.
 

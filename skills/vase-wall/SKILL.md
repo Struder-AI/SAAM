@@ -24,18 +24,22 @@ For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`
 and set a positive `zStartMm` on the process layer grid; the wall claims the part
 above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
 
-A [rim](../thick-lip/SKILL.md) can follow a level end.
+A [rim](../thick-lip/SKILL.md) can follow a level end. Slices above the wall
+print after it; above a rising end they rest on a top up to one layer low, noted.
 Experimental [substrate adaptation](../../core/region/README.md#material-ownership-and-surface-contact) defaults off. When enabled,
 a raised first wall turn retains XYZ but recalculates local bead gaps from
 final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
 
 ## Input geometry: normally a solid
 
-Use a validated closed mesh or a supported untrimmed closed spline shell with
-one outer section throughout the selected interval. A modeled bore is unnecessary;
-one bore is allowed. Concave sections work while the requested inset remains one
-closed loop. Multiple islands, split/collapsed contours, arbitrary trimmed CAD
-faces and open uncapped meshes are unsupported.
+Use a validated closed mesh or a supported untrimmed closed spline shell. The
+spiral follows sections with one outer boundary whose inset is one closed loop;
+bores and concave sections are fine. Layers with several islands, or whose inset
+splits or collapses, print plain (each island one closed loop, a narrower one
+nothing), and a note names them; the spiral joins the longest run of followed
+layers, interpolated between them when any layer is plain. Patterns and a
+fitted `meshSleeve` still need one outer boundary throughout. Arbitrary trimmed
+CAD faces and open uncapped meshes are unsupported.
 
 Mesh sections are fitted to a periodic NURBS **sleeve**: a reference surface open
 along its height, never itself deposited. Horizontal sections are offset inward

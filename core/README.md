@@ -101,7 +101,7 @@ or derives from the print's own dimensions, and says which:
 |---|---|---|
 | Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Every shape judgement (same point, joined, touching, on a plane, overlapping, too thin, collinear) uses it. |
 | Process scale | the print's `lineWidthMm`, `layerMm`, or an operation's chord or sampling tolerance chosen from them | Construction accuracy that matters to one print: chord error, sampling steps, wall merging (`planarWallToleranceMm`). |
-| Program resolution, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM` | 5 decimals (1e-5 mm) | What an exporter can express, 100x below print resolution. Constructed points converge to it: more accuracy cannot reach the program, and judgements at print resolution never see the error. |
+| Program resolution, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM` | 5 decimals (1e-5 mm) | What an exporter can express, 100x below print resolution. Constructed points converge to it: more accuracy cannot reach the program, and judgements at print resolution never see the error. The admitted SAAMpath keeps it: coordinates in mm, amounts, rates and times relative to their size, directions over `BUILD_SCALE_MM`. |
 | Rounding guards, `ROUNDING_MM`, `ROUNDING_RELATIVE` | print resolution / 1000; / `BUILD_SCALE_MM` | Slack that absorbs floating-point rounding in a predicate or division. Never judges shape. |
 
 Display budgets never reach geometry or programs. Compare areas to areas; dimensionless

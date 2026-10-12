@@ -6,7 +6,7 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 ## Spline surfaces
 
-`geometry: {shape: "spline", patches: [...]}` is a closed shell of untrimmed NURBS
+`geometry: {shape: "spline", patches: [...]}` is a shell of untrimmed NURBS
 patches. A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?}`:
 `controlPoints` is rows along U, each a list of points along V, each `[x,y,z]` or
 `[x,y,z,weight]`. Degrees are 1–5 and below the control count. Omitted knots are
@@ -30,10 +30,10 @@ Orientation does not matter.
 - Creases: separate patches meet at an edge, or a knot repeats `degree` times.
 - Local shaping: move interior controls; add rows or columns for more freedom.
 
-**Closure.** Every patch edge must coincide with another edge, with the same
-patch's opposite edge (a seam), or collapse to a point (a pole). Sharing boundary
-control points and knots between neighbours makes this exact. An open shell is
-rejected with the unmatched `patch:edge`.
+**Closure.** A shell is closed when every patch edge coincides with another edge,
+with the same patch's opposite edge (a seam), or collapses to a point (a pole).
+Sharing boundary control points and knots between neighbours makes this exact. An
+open shell saves and shows; each layer slices what closes; [booleans](#booleans) need closed solids.
 
 **Worked forms**
 
@@ -51,9 +51,8 @@ rejected with the unmatched `patch:edge`.
   sharing the circle's knots.
 - *Tube.* The same with a bore: outer and bore sides, and two flat annular ends
   ruled between the circles.
-- *A surface to show.* Geometry holds closed solids, so give an open surface, such as one
-  patch, an arbitrarily small thickness (about 0.02 mm): the patch, a copy offset along its
-  normal, and degree-1 strips ruling their edges. Showing control points or curves is one optional use.
+- *A surface.* One patch saves and shows as it is. To print it as a sheet, add a copy
+  offset along its normal and degree-1 strips ruling their edges.
 
 **Named patches.** Slicing uses the patches themselves, not a tessellation, and
 skills address surfaces by patch name: the roof a draped skin follows (a patch
@@ -108,6 +107,7 @@ recognized defects and reports cancellable progress.
 spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
 joins them, `intersection` keeps what they share, and `difference` subtracts
 every later operand from the first: a drilled plate is a box minus a cylinder.
+Operands are closed solids; a result with no material saves and shows empty, with a note.
 Spline sections remain exact; named-patch operations need a plain spline part.
 Optional `displayOperand` selects a zero-based operand for the geometry preview; manufacturing still uses the full Boolean. Standard support uses `0` to hide its support solid. Nested choices compose.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;

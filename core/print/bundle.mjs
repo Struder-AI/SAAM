@@ -13,11 +13,13 @@ import {geometryTree} from '../../skills/records.mjs';
 const defaults=async machine=>(await import('./plan.mjs')).defaults(machine);
 // A geometry using a retired shape is read as its saved geometry's mesh
 // (savedGeometry, the stored descriptor); without one the recipe shows without geometry.
+// A wedge plan's geometry (eight corner points) is such a shape.
 async function readRecipe(plan,machine,{savedGeometry=null}={}){
   const {readRecipe:read,GEOMETRY_SHAPES}=await import('./plan.mjs');
-  const retired=[...new Set(geometryTree(plan.geometry).map(node=>node.shape).filter(shape=>shape!==undefined&&!GEOMETRY_SHAPES.includes(shape)))];
+  const shapeOf=node=>node.shape??(plan.schema==='saam-wedge-plan/1'?'wedge':undefined);
+  const retired=[...new Set(geometryTree(plan.geometry).map(shapeOf).filter(shape=>shape!==undefined&&!GEOMETRY_SHAPES.includes(shape)))];
   if(!retired.length)return read(plan,machine);
-  const {geometry:_retired,...recipe}=plan,shapes=retired.join(', ');
+  const {geometry:_retired,...wider}=plan,recipe={...wider,schema:'saam-shell-plan/1'},shapes=retired.join(', ');
   const mesh=Array.isArray(savedGeometry?.vertices)&&Array.isArray(savedGeometry?.faces)?{shape:'mesh',vertices:savedGeometry.vertices,source:null,
     triangles:savedGeometry.faces.flatMap(face=>face.slice(2).map((_,i)=>[face[0],face[i+1],face[i+2]]))}:null;
   const result=read(mesh?{...recipe,geometry:mesh}:recipe,machine);
@@ -35,20 +37,6 @@ async function patchPlan(previous,patch){
   const {geometryTemplate}=await import('./plan.mjs');
   return resolvePlanPatch(previous,patch,{geometryTemplate});
 }
-
-export const LIMITATIONS = [
-  'Physical clearance is the operator’s responsibility; no collision model is implemented.',
-  'Bead shape, perimeter overlap and surface stacking are approximations.',
-  'Contour sampling is bounded by minFeatureMm; a closed feature smaller than that can be missed.',
-  'Firmware startup and service routines are not motion-simulated.'
-];
-
-const limitationsFor = (plan, machine) => {
-  const assignments=plan.slices?.assignments??[];
-  const limits=[...LIMITATIONS,...(machine?.limitations??[])];
-  if(assignments.some(a=>a.fillOrder?.kind==='fronts'))limits.push('Experimental surface wave overhangs: seeds and material ownership are explicitly assigned. Surface propagation, lateral bead attachment, cooling and warping have not been physically validated. Small numerical residuals are retained in the wave report.');
-  return limits;
-};
 
 export async function generatePreparedPath(plan,options){
   await requireGenerationExtensions(plan);
@@ -74,9 +62,8 @@ export async function pathSource(plan){
 
 export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,readRecipe,patchPlan,createGeometry,normalizePlan,manufacturingInput,presentGeometry,
-  generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,completionContract:NEUTRAL_PATH_CONTRACT,
-  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode',
-  limitations:limitationsFor
+  generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,
+  version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode'
 });
 
 export {changeMachine} from '../machine/bundle-settings.mjs';

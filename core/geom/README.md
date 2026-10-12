@@ -88,12 +88,12 @@ physical-invariant failures rather than loosening checks.
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
-| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
-| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; faces need nonzero XY projection and vertices above the plane. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
+| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes with `notes` (a refinement kept short of its tolerance), or null for empty material. Feature rules and editable records remain with extensions. |
+| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes `{solid, notes}`, a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; vertical or degenerate faces and faces reaching the plane are skipped and noted. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
 | [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process and authored `regionsAt(z)` polygons, return merged planar Slice layers and their stack; it never invents source regions. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice stack. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
-| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
+| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes and invalid shells/meshes retain construction errors; an empty intersection has flat bounds. No recipe placement or Bundle mutation. |
 | [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
 | [prepareBlobField / evaluateBlobField](blob-field.mjs) | Preparation turns finite weighted points or a periodic bump lattice into a plain record once; queries sample that record. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
 | [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
@@ -261,7 +261,7 @@ The caller chooses centerline offset; optional fitted mesh contact is unilateral
 
 ### Geometry contract
 
-The **spline backend** accepts a closed shell of untrimmed bivariate spline
+The **spline backend** accepts a shell of untrimmed bivariate spline
 patches. Mesh input uses the [shared geometry interface](#geometry-interoperability-for-skill-authors).
 Every spline face is
 a full rectangular (u,v) patch, which is what makes sectioning tractable without
@@ -272,11 +272,11 @@ booleans, no brep meshing and no surface intersection, its `BrepTrim` carries
 topology indices with no parameter-space curve, and `BrepFace.loops` is unbound
 in this build. A trimmed face therefore cannot be classified, and is rejected.
 
-Closure is verified numerically: every non-degenerate patch boundary must be
-matched by another patch's boundary, compared geometrically by closest point
-rather than by parameter, since a ruled surface reparameterises its source
-iso-curve. A degenerate boundary (a pole, as at a cap centre) closes by
-itself. A trimmed or missing face fails this check.
+Closure is measured numerically: each patch boundary is matched to another by
+closest point rather than by parameter, since a ruled surface reparameterises its
+source iso-curve; a pole closes by itself. An open shell builds, saves, shows and
+slices what closes on each layer; [target tessellation](./tessellate.mjs) names
+its open edges to solid operations.
 
 ### Sectioning untrimmed spline shells
 
@@ -367,9 +367,8 @@ word to fill the circle. Bezier arc length uses a subdivided chord table with
 continuous curve/tangent evaluation; it is approximate. Existing UV references
 and saved compiled meshes retain their semantics.
 
-[Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
-Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
-There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
+[Target tessellation](./tessellate.mjs) samples closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
+Its dyadic grid doubles, with no triangle budget, until sampled chord deviation meets tolerance; once a doubling no longer lowers it, the closer grid is kept with a note.
 Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 

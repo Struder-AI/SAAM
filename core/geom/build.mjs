@@ -1,6 +1,6 @@
 // Build and place ordinary geometry values. Saved extension meshes need only
 // vertices and triangles here; feature recipes belong to their authors.
-import {makeShell,assertClosed} from './shell.mjs';
+import {makeShell} from './shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from './spline-solid.mjs';
 import {makeMesh,translateMesh,hasMesh} from './mesh.mjs';
 import {booleanShell} from './boolean-solid.mjs';
@@ -41,7 +41,7 @@ export function buildShells(rhino,geometries,{material=false}={}){
         requireThat(surface.translate([part.xMm,part.yMm,part.zMm]),'Could not place native component.');
         return {name:part.id+'/'+entry.name,surface};
       }));
-      return assertClosed(shellFromSurfaces(rhino,entries,'assembly'));
+      return shellFromSurfaces(rhino,entries,'assembly');
     }
     throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
   }
@@ -94,6 +94,6 @@ export function translateShell(shell, dx, dy, dz = 0) {
   });
   const moved = makeShell(patches, { name: shell.name });
   moved.surfaces = shell.surfaces;
-  return assertClosed(moved);
+  return moved;
 }
 

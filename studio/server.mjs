@@ -115,6 +115,8 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,chat:binding,relay,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,studioTitle='SAAM Studio',fingerprint,routeStudio}) {
   const attachedTo=next=>({binding:next,tour:createTour(libraryRoot,{studioId:instanceId,chat:next})});
   const chat={current:attachedTo(binding),stopRequestFeed:null};
+  // The tour is this Studio's while it runs here; elsewhere this Studio stays an ordinary one.
+  const tourHere=guide=>Boolean(guide.active&&guide.studioOwner?.instanceId===instanceId);
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
@@ -172,7 +174,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       await opened;
       // A reused window leaves its print for the bundle being created.
       if(dir&&dir!==selected){
-        if(operations.active||(await chat.current.tour.info()).active)throw Error('The Studio changed before bundle creation.');
+        if(operations.active||tourHere(await chat.current.tour.info()))throw Error('The Studio changed before bundle creation.');
         if(reservation&&reservedDirectory===dir){await releaseBundleInstance(dir,reservation);reservation=null;reservedDirectory=null;}
         dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
       }
@@ -235,10 +237,16 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   const activeCalculationStatus=()=>{const status=calculationStatus();return ['generating','importing'].includes(status.status)?status:null;};
   const generationStatus=()=>{const status=activeCalculationStatus();return status?{...status,printId:workIdFor(status.directory)}:null;};
   const publishProgress=(status=activeCalculationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
+  // The person opening, importing or adopting another print in the tour's Studio leaves
+  // the tour first, as its Exit does; an agent's import there still waits for the tour.
+  const leaveTour=async reason=>{
+    const result=await chat.current.tour.action('exit');if(dir)await useExample(dir);
+    note('tour-exited',{action:'exit',reason,step:result.data.step,runId:result.data.runId,active:result.data.active,completed:result.data.completed});
+  };
   const runImport=async(source,{name,units,directory,signal}={})=>{
     signal?.throwIfAborted();
     if(closed)throw Error('Studio is closing. Reopen it before importing.');
-    if((await chat.current.tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
+    if(tourHere(await chat.current.tour.info()))throw Error('This Studio is running the tour; import after the tour ends.');
     signal?.throwIfAborted();
     importController=new AbortController();
     const controller=importController,abort=()=>controller.abort(signal.reason);
@@ -275,7 +283,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       try{const record=trigger==='agent'?null:await chat.current.binding.ask({directory:generationDir,studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.editRevision+':'+reported,
         instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
-          '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
+          '\nFix the cause, or leave out only what cannot be made and say what was left out; unchanged inputs fail again. Explain material process changes to the maker, then verify the result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
         note('generation-failed',{editRevision:state.editRevision,trigger,error:reported,stage:error.stage??'generation',...(record?{requestId:record.id}:{})});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
@@ -416,7 +424,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         send(calculationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
-        const p=await chat.current.tour.info(),prints=p.active
+        const p=await chat.current.tour.info(),prints=tourHere(p)
           ?(await Promise.all(Object.values(p.copies).map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
           :await listPrints(libraryRoot,resolveBundle);
         send({prints});return;
@@ -503,6 +511,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const current=await opened;
         const progress=await chat.current.tour.info();
         if(importing){
+          if(tourHere(progress))await leaveTour('import-stl');
           await runImport(body,{name:data.name,units:data.units});
           send({ok:true});return;
         }
@@ -555,24 +564,23 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           }
         }
         else if(url.pathname==='/api/use-example'){
-          if(progress.active)throw Error('Exit the tour first.');
-          if(!await tourExample(dir))throw Error('This print is already using the normal workflow.');
-          await useExample(dir);note('example-adopted',{});
+          if(tourHere(progress))await leaveTour('use-example');
+          else if(await tourExample(dir)){await useExample(dir);note('example-adopted',{});}
         }
         else if(url.pathname==='/api/open'){
-          if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
+          if(tourHere(progress)&&selected!==dir)await leaveTour('open');
           // Another runtime's print reopens this window in that runtime.
           const routed=await routeStudio?.(selected);
           if(routed)note('print-opened',{runtime:routed.runtime});
           else{
             await openPrint(selected);
             const adapter=await opened,state=(await adapter.loadBundleSnapshot(dir,{program:true})).state;
-            note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+            note('print-opened',{name:await printName(dir,state.plan),tour:tourHere(await chat.current.tour.info()),revision:state.revision});
           }
         }
         else if(url.pathname==='/api/history'){
-          if(progress.active)throw Error('Exit the tour before restoring edits.');
+          if(tourHere(progress))throw Error('Exit the tour before restoring edits.');
           const updated=await runBundleEdit(dir,()=>current.restoreRevision(dir,{direction:data.direction,expectedRevision:data.revision}));
           note('plan-updated',{revision:updated.revision,history:data.direction});
         }

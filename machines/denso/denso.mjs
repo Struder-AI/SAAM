@@ -104,7 +104,7 @@ function exportDenso(path,plan,machine,release,Export,kinematics){
   files.set('main.pcs',[...names.map(n=>`#Include "${n}.pcs"`),"' SAAM experimental RC8A; external start/heat and rotary setup required.",'Sub Main',`  TakeArm ${c.armGroup} Keep = 0`,`  ChangeTool ${c.toolFrame}`,`  ChangeWork ${c.workFrame}`,`  Reset IO[${c.extrusionOutput}]`,...names.map(n=>'  Call '+n),`  Reset IO[${c.extrusionOutput}]`,'End Sub',''].join('\n'));
   files.set('manifest.json',JSON.stringify({schema:'saam-denso-program/1',entry:'main.pcs',machineHash:digest(machine),setupHash:digest(plan.setup),release,limitations:DENSO_LIMITATIONS,
     initialRotaryControllerDeg:c.rotaryZeroDeg+heldTableDeg(c)*c.rotarySign,sourceFiles:[...files.keys()]},null,2)+'\n');
-  return {bytes:Export.packZip(files),report:{seconds,volumeMm3,materialModel:'relay-estimate',estimatedRelayVolumeMm3:c.extrusionRateMm3S*onSeconds,limitations:[...DENSO_LIMITATIONS,...relayOmissions(omitted),...defaultedNote(defaulted,plan.defaultProcess),
+  return {bytes:Export.packZip(files),report:{seconds,volumeMm3,materialModel:'relay-estimate',estimatedRelayVolumeMm3:c.extrusionRateMm3S*onSeconds,limitations:[...relayOmissions(omitted),...defaultedNote(defaulted,plan.defaultProcess),
       ...(plan.setup.nozzleC>0?[`The print's nozzle temperature (${plan.setup.nozzleC} °C) is not written; heating is external.`]:[])],
     notice:'Experimental RC8A program. Requested TIME at 100% external speed; reach, joint limits, collisions and physical deposition unchecked.'}};
 }

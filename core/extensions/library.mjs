@@ -191,7 +191,9 @@ export async function loadExtensionEntry(id,name,options={}){
   if(!entry)throw Error(`Extension ${id} has no ${name} entry.`);
   for(const item of resolved){
     const loaded=loadedDigests.get(item.directory);
-    if(loaded&&loaded!==item.digest)throw Error(`Extension ${item.id} changed while SAAM is running. Restart SAAM to use its new scripts.`);
+    // A running process cannot replace a loaded module graph, and running the old
+    // scripts would record the new extension digest as their source.
+    if(loaded&&loaded!==item.digest)throw Error(`Extension ${item.id} changed while SAAM is running; its new scripts load after \`saam reload-runtime\`.`);
   }
   const module=await import(pathToFileURL(resolve(selected.directory,entry.file)).href);
   if(typeof module[entry.export]!=='function')throw Error(`Extension ${id} entry ${entry.file} does not export ${entry.export}.`);

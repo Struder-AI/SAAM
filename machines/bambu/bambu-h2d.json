@@ -12,10 +12,6 @@
     "maxDevices": 12
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
-  "limitations": [
-    "H2D uses a bounded PLA / Textured or Smooth PEI service sequence. Nozzle, plate and logical filament declarations share one resolved job; stored startup/shutdown reuse the exact authored executable sections. Fresh v13 AMS-19 passed same-nozzle blue/orange/blue; DUAL-20 passed left 0.4 external PLA/right 0.8 blue AMS PLA/left with correct-height deposition. Both used fast startup and Textured PEI through the ordinary exporter without reference project substitution. Other installations need separate physical evidence. Service flow reaches 25 mm³/s; service time/material are excluded from body totals. Printer-selected calibration may heat both nozzles.",
-    "The H2D non-planar limit is an explicit user-selected experimental limit, not a manufacturer clearance rating."
-  ],
   "capabilities": [
     "xyz-extrusion",
     "planar",

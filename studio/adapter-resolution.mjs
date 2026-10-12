@@ -3,7 +3,9 @@ import {resolve} from 'node:path';
 
 const bundles={
   'saam-machine-study/1':()=>import('./machine-study.mjs'),
-  'saam-shell-plan/1':()=>import('../core/print/bundle.mjs')
+  'saam-shell-plan/1':()=>import('../core/print/bundle.mjs'),
+  // A wedge plan reads as a shell plan whose retired geometry is its saved mesh.
+  'saam-wedge-plan/1':()=>import('../core/print/bundle.mjs')
 };
 
 export const supportsBundleSchema=schema=>Boolean(bundles[schema]);

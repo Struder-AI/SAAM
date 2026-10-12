@@ -81,6 +81,12 @@ async function main(){
     for(const item of devices)console.log(`${item.label??'(no invite)'}  activated ${time(item.activated)}  last received ${time(item.lastSeen)}  [${item.id}]`);
     console.log(`${devices.length} of ${limit} installations activated. Records kept ${recordDays} days; ${(databaseBytes/1e6).toFixed(1)} MB stored.`);return;
   }
+  if(command==='rename'){
+    if(!id||!named.to)throw Error('rename NAME --to "NEW NAME" (see devices).');
+    const device=byName(await deviceList(relay,secret),id,'installation');
+    await send(relay,secret,'PATCH',`/operator/devices/${encodeURIComponent(device.id)}`,{body:{label:named.to}});
+    console.log(`Renamed ${device.label??device.id} to ${named.to}.`);return;
+  }
   if(command==='remove'){
     const refs=positional.slice(1);if(!refs.length)throw Error('remove NAME [NAME…] (see devices).');
     const devices=await deviceList(relay,secret);
@@ -109,7 +115,7 @@ async function main(){
     }
     console.log(`\n${reports.length} bug report${reports.length===1?'':'s'} since ${time(from)} UTC.`);return;
   }
-  if(command!=='pull')throw Error('Commands: invite --for NAME [--days N], invites, revoke-invite NAME, devices, remove NAME…, reports [--device NAME] [--since 7d], pull [--device NAME] [--since 1d].');
+  if(command!=='pull')throw Error('Commands: invite --for NAME [--days N], invites, revoke-invite NAME, devices, rename NAME --to NEW, remove NAME…, reports [--device NAME] [--since 7d], pull [--device NAME] [--since 1d].');
   if(!named.device&&!named.since)throw Error('pull needs --device or --since.');
   const records=await allRecords(relay,secret,{device:await device(),since:since(named.since)});
   const folder=resolve(root,'.local/relay-records');await mkdir(folder,{recursive:true});

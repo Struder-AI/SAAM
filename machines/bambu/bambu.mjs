@@ -165,8 +165,7 @@ function report(written,c,s,job){
       ...(materialChanges?{materialChanges}:{})}};
   const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
     +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
-  return {notice:startup,seconds:written.seconds,untimedMoves:written.untimedMoves,volumeMm3:written.volumeMm3,
-    limitations:['Deposited-height travel checked; physical head clearance is not modeled.'],envelope};
+  return {notice:startup,seconds:written.seconds,untimedMoves:written.untimedMoves,volumeMm3:written.volumeMm3,limitations:job.notes,envelope};
 }
 
 function packageEntries(code,c,program,plan,output,job,s,encodePng){

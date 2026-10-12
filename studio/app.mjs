@@ -645,7 +645,8 @@ $('#fit-program').onclick=()=>{
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 async function download(){
-  const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
+  // A blank name exports under the print's own name (the server's choice).
+  const name=$('#export-name').value.trim();
   const key=exportKey(),response=await api('export',{exportSnapshot:printSync.state.exportSnapshot,name,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const attachment=await response.json();
@@ -656,7 +657,7 @@ async function download(){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
-  const nextName=nextExportName(name);
+  const nextName=name?nextExportName(name):name;
   if(nextName!==name){
     $('#export-name').value=nextName;
     Object.assign(viewState.exportNameState,{value:nextName,dirty:true});

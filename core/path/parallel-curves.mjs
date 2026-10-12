@@ -7,12 +7,24 @@ import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.m
 const CROSSING_MM=1e-7;
 
 
-// Wanted ink width -> one sized bead or the fewest side-by-side beads.
+// A width rule as read: unknown fields are named in ignored, and a rule without
+// positive width, ordered positive bead range and spacing, or with a zero or
+// non-XYZ initialNormal, is null (the curve keeps its own bead width).
+const WIDTH_RULE_FIELDS=['widthMm','beadRangeMm','spacingFactor','initialNormal'];
+export function readWidthRule(rule){
+  if(rule===undefined)return {rule:undefined,ignored:[]};
+  const known=rule&&typeof rule==='object'?Object.fromEntries(Object.entries(rule).filter(([key])=>WIDTH_RULE_FIELDS.includes(key))):null;
+  const ignored=known?Object.keys(rule).filter(key=>!WIDTH_RULE_FIELDS.includes(key)).map(key=>'widthRule.'+key):[];
+  const {widthMm,beadRangeMm,spacingFactor=1,initialNormal}=known??{};
+  const usable=known&&(initialNormal===undefined||Array.isArray(initialNormal)&&initialNormal.length===3&&initialNormal.every(Number.isFinite)&&Math.hypot(...initialNormal)>0)
+    &&Number.isFinite(widthMm)&&widthMm>0&&Array.isArray(beadRangeMm)&&beadRangeMm.length===2&&beadRangeMm.every(w=>Number.isFinite(w)&&w>0)&&beadRangeMm[1]>=beadRangeMm[0]&&Number.isFinite(spacingFactor)&&spacingFactor>0;
+  return usable?{rule:known,ignored}:{rule:undefined,ignored:['widthRule']};
+}
+
+// Wanted ink width -> one sized bead or the fewest side-by-side beads. The
+// rule is one readWidthRule returned.
 export function beadWidthRule(rule){
-  requireThat(rule&&Object.keys(rule).every(k=>['widthMm','beadRangeMm','spacingFactor','initialNormal'].includes(k)),'Unknown width construction field.');
   const {widthMm,beadRangeMm,spacingFactor=1}=rule;
-  requireThat(rule.initialNormal===undefined||Array.isArray(rule.initialNormal)&&rule.initialNormal.length===3&&rule.initialNormal.every(Number.isFinite)&&Math.hypot(...rule.initialNormal)>0,'Width initialNormal must be a nonzero XYZ vector.');
-  requireThat(Number.isFinite(widthMm)&&widthMm>0&&Array.isArray(beadRangeMm)&&beadRangeMm.length===2&&beadRangeMm.every(w=>Number.isFinite(w)&&w>0)&&beadRangeMm[1]>=beadRangeMm[0]&&Number.isFinite(spacingFactor)&&spacingFactor>0,'Width construction needs positive width, ordered bead range and spacing.');
   const [min,max]=beadRangeMm,count=widthMm<=max?1:Math.ceil((widthMm/max-1)/spacingFactor)+1;
   const beadWidthMm=Math.max(min,widthMm/(1+(count-1)*spacingFactor));
   return {beadWidthMm,parallelCount:count,pitchMm:beadWidthMm*spacingFactor,strokeWidthMm:beadWidthMm*(1+(count-1)*spacingFactor)};

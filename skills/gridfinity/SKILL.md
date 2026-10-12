@@ -25,9 +25,9 @@ The `gridfinity` tool creates a print:
 
 To edit, call it with `action: "update"`, `bundleId`, `expectedRevision` and a
 partial `parameters` object; omitted parameters stay as saved. Omit `machineId`
-on updates, and supply `part` with the component id for an assembly. Updates
-change existing gridfinity geometry only: create another print to change between
-bin, blank and baseplate. Wrong fields, incompatible settings, stale revisions,
+on updates, and supply `part` with the component id for an assembly. A new
+`kind` keeps the footprint and tolerance and takes that kind's defaults for the
+rest. Wrong fields, incompatible settings, stale revisions,
 mesh failures are rejected before saving; export checks machine bounds, and
 `create` never overwrites a print. Dimension edits invalidate geometry and
 settings/toolpath confirmations; `adjust_recipe` on the baked mesh or parameters

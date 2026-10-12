@@ -62,7 +62,8 @@ artifacts.
 `shareBundle(directory,newZip)` packages current recipe, machine/settings,
 original source/repair provenance and selected extension dependency files.
 `importBundle(zip,newDirectory)` verifies inputs and imports extensions without execution;
-existing bundles/local edits are never overwritten. Open the returned directory in Studio.
+saved review state, listed non-input files and inconsistent source/repair provenance
+are left out and named in its notes. Existing bundles/local edits are never overwritten. Open the returned directory in Studio.
 Native geometry is rebuilt; toolpaths, programs, checks, history and caches are excluded;
 recipients edit/regenerate and confirm before export. Print-ready delivery stays separate.
 
@@ -190,7 +191,8 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 `loadBundle` reads what SAAM wrote without re-hashing, regenerating or requiring
 complete settings. Content hashes are taken once where bytes arrive from outside
 SAAM: an imported STL and extension packages. Prints saved before these ids
-are read once by `savedBundle`, which drops undo history and old hashes.
+are read once by `savedBundle`, which drops undo history, old hashes and a program
+saved without its SAAMpath (kept in `exports/`; the print shows no toolpath until generated).
 
 The adapter caches interpretations by output id. Reopening interprets saved
 commands on a miss; it never regenerates. Export copies the displayed bytes.

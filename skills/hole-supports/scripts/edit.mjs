@@ -38,17 +38,18 @@ function roundHole(loop,toleranceMm){
 }
 
 // toleranceMm is process scale: the deviation a tessellated CAD circle may show.
+// Returns {candidates, notes}; sections start at the component's lowest point.
 export function findBedCounterbores(shell,createSectionQuery,{layerMm,lineWidthMm,toleranceMm=.08}={}){
   check(typeof createSectionQuery==='function','Hole detection needs Geometry.createSectionQuery.');
   check(finite(layerMm)&&layerMm>0&&finite(lineWidthMm)&&lineWidthMm>0,'Hole detection needs positive layer and bead widths.');
-  check(Math.abs(shell.bounds.min[2])<=Math.max(layerMm/4,.05),'Hole supports require a component standing on the bed at Z=0.');
-  const sectionAt=createSectionQuery(shell),height=shell.bounds.max[2]-shell.bounds.min[2];
+  const base=shell.bounds.min[2],notes=[],sectionAt=createSectionQuery(shell),height=shell.bounds.max[2]-base;
+  if(Math.abs(base)>Math.max(layerMm/4,.05))notes.push(`The component's lowest point is ${base.toFixed(3)} mm above the bed.`);
   const step=Math.min(.5,Math.max(layerMm,.15));
   const firstZ=Math.min(height-step*.25,step*.5);
-  check(firstZ>0&&height>step,'Hole detection needs at least two horizontal sections.');
+  if(!(firstZ>0&&height>step))return {candidates:[],notes:[...notes,'The component is too short for two horizontal sections.']};
+  const nudges=[];
   const holesAt=z=>{
-    const cut=sectionAt(z);
-    check(cut.nudgedByMm<=toleranceMm,'A horizontal section needed excessive geometric nudging; repair the part before hole support.');
+    const cut=sectionAt(base+z);nudges.push(cut.nudgedByMm);
     return cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean);
   };
   const tracks=holesAt(firstZ).map(lower=>({lower,previous:lower,last:firstZ,done:false}));
@@ -68,20 +69,22 @@ export function findBedCounterbores(shell,createSectionQuery,{layerMm,lineWidthM
         // separately selects complete repetitions in the open lower cavity.
         let low=last,high=z;
         while(high-low>toleranceMm/16){
-          const mid=(low+high)/2,at=sectionAt(mid).loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
+          const mid=(low+high)/2,at=sectionAt(base+mid).loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
             .find(h=>distance(h.centerMm,lower.centerMm)<=Math.max(toleranceMm*2,lineWidthMm/2));
           check(mid>low&&mid<high,'Counterbore shoulder refinement cannot progress at this coordinate precision.');
           if(at&&at.radiusMm>(previous.radiusMm+current.radiusMm)/2)low=mid;else high=mid;
         }
-        const shoulderZMm=(low+high)/2;
+        const shoulderZMm=base+(low+high)/2;
         candidates.push({centerMm:lower.centerMm,lowerRadiusMm:previous.radiusMm,upperRadiusMm:current.radiusMm,shoulderZMm,
-          detectedFromMm:[firstZ,z]});
+          detectedFromMm:[base+firstZ,base+z]});
         track.done=true;continue;
       }
       track.previous=current;track.last=z;
     }
   }
-  return candidates.filter((candidate,i)=>candidates.findIndex(other=>distance(other.centerMm,candidate.centerMm)<toleranceMm*2)===i);
+  const nudged=Math.max(...nudges);
+  if(nudged>toleranceMm)notes.push(`Sections were nudged up to ${nudged.toFixed(3)} mm past coincident geometry; check the detected radii.`);
+  return {candidates:candidates.filter((candidate,i)=>candidates.findIndex(other=>distance(other.centerMm,candidate.centerMm)<toleranceMm*2)===i),notes};
 }
 
 function chooseCandidate(candidates,request,toleranceMm){
@@ -111,84 +114,87 @@ function materialAt(loops,[x,y]){
   return inside;
 }
 
-function cavityAt(sectionAt,z,candidate,toleranceMm){
-  const cut=sectionAt(z),hole=cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
-    .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
-  check(hole&&hole.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm,
-    `The counterbore cavity narrows near Z ${z.toFixed(3)} mm; this support repetition would collide with the model.`);
-  check(!cut.loops.some(loop=>area(loop)>0&&loop.every(point=>distance(point,hole.centerMm)<hole.radiusMm-toleranceMm)),
-    `Material lies inside the counterbore cavity near Z ${z.toFixed(3)} mm.`);
+const sectionHole=(cut,candidate,toleranceMm)=>cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
+  .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
+// The measured cavity at z; where it narrows or holds material, the detected
+// lower bore stands in and the notes say where.
+function cavityAt(sectionAt,z,candidate,toleranceMm,notes){
+  const cut=sectionAt(z),found=sectionHole(cut,candidate,toleranceMm);
+  const open=found&&found.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm;
+  const hole=open?found:{centerMm:candidate.centerMm,radiusMm:candidate.lowerRadiusMm};
+  if(!open)notes.push(`The counterbore cavity narrows near Z ${z.toFixed(3)} mm; the support there meets model material.`);
+  if(cut.loops.some(loop=>area(loop)>0&&loop.every(point=>distance(point,hole.centerMm)<hole.radiusMm-toleranceMm)))
+    notes.push(`Material lies inside the counterbore cavity near Z ${z.toFixed(3)} mm.`);
   return {hole,loops:cut.loops};
 }
 
-function lastOpenSlice(candidate,process,sectionAt,toleranceMm){
+// The highest planar repetition below the shoulder with the whole cavity open;
+// failing that, the highest one below the shoulder, noted.
+function lastOpenSlice(candidate,process,sectionAt,toleranceMm,notes){
   const {firstLayerMm,layerMm}=process;
   check([firstLayerMm,layerMm].every(v=>finite(v)&&v>0),'Hole supports need planar firstLayerMm and layerMm.');
-  for(let n=Math.floor((candidate.shoulderZMm-firstLayerMm+PRINT_RESOLUTION_MM)/layerMm);n>=0;n--){
-    const z=firstLayerMm+n*layerMm,cut=sectionAt(z),hole=cut.loops.map(loop=>roundHole(loop,toleranceMm)).filter(Boolean)
-      .find(h=>distance(h.centerMm,candidate.centerMm)<=Math.max(toleranceMm*2,.2));
-    if(hole&&hole.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm)return z;
-  }
-  throw Error('No complete planar repetition lies inside the lower counterbore cavity.');
+  const top=Math.floor((candidate.shoulderZMm-firstLayerMm+PRINT_RESOLUTION_MM)/layerMm);
+  check(top>=0,'The counterbore shoulder lies below the first layer.');
+  const open=Array.from({length:top+1},(_,i)=>firstLayerMm+(top-i)*layerMm).find(z=>{
+    const hole=sectionHole(sectionAt(z),candidate,toleranceMm);
+    return hole&&hole.radiusMm+PRINT_RESOLUTION_MM>=candidate.lowerRadiusMm-toleranceMm;
+  });
+  if(open===undefined)notes.push('No planar repetition has the whole lower cavity open; the highest one below the shoulder is used.');
+  return open??firstLayerMm+top*layerMm;
 }
 
-function anchoredSpan(role,a,b,anchor,loops,process,repetition){
+function anchoredSpan(role,a,b,anchor,loops,process,repetition,notes){
   const d=distance(a,b),u=[(b[0]-a[0])/d,(b[1]-a[1])/d],before=[a[0]-anchor*u[0],a[1]-anchor*u[1],a[2]],after=[b[0]+anchor*u[0],b[1]+anchor*u[1],b[2]];
-  check(materialAt(loops,before)&&materialAt(loops,after),
-    `A ${role} attachment leaves the counterbore rim; shorten anchorMm or choose another hole.`);
+  if(!materialAt(loops,before)||!materialAt(loops,after))notes.push(`A ${role} attachment ends beyond the counterbore rim near Z ${a[2].toFixed(3)} mm.`);
   const samples=Math.ceil(d/Math.max(process.lineWidthMm/2,.1));
-  for(let i=0;i<=samples;i++){
-    const p=[a[0]+(b[0]-a[0])*i/samples,a[1]+(b[1]-a[1])*i/samples];
-    check(!materialAt(loops,p),`A ${role} free span crosses model material; choose another hole.`);
-  }
+  if(Array.from({length:samples+1},(_,i)=>[a[0]+(b[0]-a[0])*i/samples,a[1]+(b[1]-a[1])*i/samples]).some(p=>materialAt(loops,p)))
+    notes.push(`A ${role} free span crosses model material near Z ${a[2].toFixed(3)} mm.`);
   return [path(`${role}-attach`,[before,a],process),path(role,[a,b],process),path(`${role}-attach`,[b,after],process)]
     .map(curve=>repetition===undefined?curve:{...curve,repetitions:[repetition]});
 }
 
-function membrane(candidate,request,process,id,shell,createSectionQuery,toleranceMm){
-  const [x,y]=candidate.centerMm,w=process.lineWidthMm,sectionAt=createSectionQuery(shell);
+function membrane(candidate,request,process,id,sectionAt,toleranceMm,notes){
+  const [x,y]=candidate.centerMm,w=process.lineWidthMm;
   const pitch=request.pitchMm??w,overlap=request.anchorMm??w*1.5;
-  check(finite(pitch)&&pitch>=w*.75&&pitch<=w*1.5,'Membrane pitchMm must be 0.75–1.5 bead widths.');
-  check(finite(overlap)&&overlap>=w,'Membrane anchorMm must cover at least one bead width of the cavity rim.');
-  const z=lastOpenSlice(candidate,process,sectionAt,toleranceMm),{hole,loops}=cavityAt(sectionAt,z,candidate,toleranceMm),r=hole.radiusMm-w/2;
+  check(finite(pitch)&&pitch>0&&finite(overlap)&&overlap>=0,'Membrane pitchMm must be positive and anchorMm nonnegative.');
+  const z=lastOpenSlice(candidate,process,sectionAt,toleranceMm,notes),{hole,loops}=cavityAt(sectionAt,z,candidate,toleranceMm,notes),r=hole.radiusMm-w/2;
   const count=Math.max(1,Math.ceil(2*r/pitch)),curves=[];
   for(let i=0;i<count;i++){
     const dy=(i+.5-count/2)*pitch;
     if(Math.abs(dy)>=r)continue;
     const half=Math.sqrt(Math.max(0,r**2-dy**2));
     const anchorLength=Math.sqrt(Math.max(0,hole.radiusMm**2-dy**2))+overlap-half;
-    curves.push(...anchoredSpan('hole-drill-membrane',[x-half,y+dy,z],[x+half,y+dy,z],anchorLength,loops,process));
+    curves.push(...anchoredSpan('hole-drill-membrane',[x-half,y+dy,z],[x+half,y+dy,z],anchorLength,loops,process,undefined,notes));
   }
   check(curves.length,'The selected bore is too small for a membrane stroke.');
   return trace(id,curves,request.after??[]);
 }
 
-function tangentBridge(candidate,request,process,id,shell,createSectionQuery,toleranceMm){
-  const [x,y]=candidate.centerMm,large=candidate.lowerRadiusMm,small=candidate.upperRadiusMm,w=process.lineWidthMm;
+function tangentBridge(candidate,request,process,id,sectionAt,toleranceMm,notes){
+  const [x,y]=candidate.centerMm,small=candidate.upperRadiusMm,w=process.lineWidthMm;
   const anchor=request.anchorMm??w*1.5,offset=request.tangentOffsetMm??small+w/2;
-  check(finite(anchor)&&anchor>=w,'Tangent anchorMm must cover at least one bead width of the cavity rim.');
-  check(finite(offset)&&offset>=small-w/2&&offset<large-w,'Tangent offset must skirt the smaller bore and fit inside the outer bore.');
-  const sectionAt=createSectionQuery(shell),top=lastOpenSlice(candidate,process,sectionAt,toleranceMm);
+  check(finite(anchor)&&anchor>=0&&finite(offset)&&offset>=0,'Tangent anchorMm and tangentOffsetMm must be nonnegative.');
+  const top=lastOpenSlice(candidate,process,sectionAt,toleranceMm,notes);
   const topIndex=Math.round((top-process.firstLayerMm)/process.layerMm);
   const atStage=stage=>process.firstLayerMm+(topIndex-2+stage)*process.layerMm;
-  const z=atStage(0);
-  check(z>=process.firstLayerMm-PRINT_RESOLUTION_MM,'A three-stage tangent bridge needs three complete lower-cavity layers.');
+  check(atStage(0)>=process.firstLayerMm-PRINT_RESOLUTION_MM,'A three-stage tangent bridge needs three layers below the shoulder.');
   const curves=[];
   for(let stage=0;stage<2;stage++){
-    const atZ=atStage(stage),{hole,loops}=cavityAt(sectionAt,atZ,candidate,toleranceMm);
+    const atZ=atStage(stage),{hole,loops}=cavityAt(sectionAt,atZ,candidate,toleranceMm,notes);
     const half=Math.sqrt((hole.radiusMm-w/2)**2-offset**2);
-    check(finite(half)&&half>0,'Tangent bridge has no free span inside the detected cavity.');
+    if(!(half>0)){notes.push(`Tangent stage ${stage+1} has no free span inside the cavity and was skipped.`);continue;}
     for(const sign of [-1,1]){
       const a=stage===0?[x-half,y+sign*offset,atZ]:[x+sign*offset,y-half,atZ];
       const b=stage===0?[x+half,y+sign*offset,atZ]:[x+sign*offset,y+half,atZ];
       const anchorLength=Math.sqrt(hole.radiusMm**2-offset**2)+anchor-half;
-      curves.push(...anchoredSpan(`hole-tangent-stage-${stage+1}`,a,b,anchorLength,loops,process,stage));
+      curves.push(...anchoredSpan(`hole-tangent-stage-${stage+1}`,a,b,anchorLength,loops,process,stage,notes));
     }
   }
+  check(curves.length,'Tangent bridge has no free span inside the detected cavity.');
   // Third repetition marks the intended bore perimeter in four separate arcs.
   const radius=small+w/2,segments=Math.max(2,Math.ceil(Math.PI*radius/(2*.25)));
-  const thirdZ=atStage(2),{hole:thirdHole}=cavityAt(sectionAt,thirdZ,candidate,toleranceMm);
-  check(radius+w/2< thirdHole.radiusMm-toleranceMm,'The third-stage bore rim does not fit inside the counterbore void.');
+  const thirdZ=atStage(2),{hole:thirdHole}=cavityAt(sectionAt,thirdZ,candidate,toleranceMm,notes);
+  if(radius+w/2>=thirdHole.radiusMm-toleranceMm)notes.push('The third-stage bore rim reaches the counterbore wall.');
   for(let quadrant=0;quadrant<4;quadrant++){
     const points=Array.from({length:segments+1},(_,i)=>{
       const a=(quadrant+i/segments)*Math.PI/2;return [x+radius*Math.cos(a),y+radius*Math.sin(a),thirdZ];
@@ -198,40 +204,46 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
   return {...trace(id,curves,request.after??[]),repeat:{count:3,translation:[0,0,0]},repetitionIds:['tangents-a','tangents-b','bore-rim']};
 }
 
-function sleeve(candidate,request,process,id){
+// A removable sleeve is an annulus from the bed to below the shoulder, closed by
+// the host and sliced as concentric loops only, with no hop or retraction.
+function sleeve(candidate,request,process,id,closeMeshPatchToPlane){
   const [x,y]=candidate.centerMm,w=process.lineWidthMm,xyGapMm=request.xyGapMm??.3,topGapMm=request.topGapMm??.2;
   check(finite(xyGapMm)&&xyGapMm>=0&&finite(topGapMm)&&topGapMm>=0,'Sleeve gaps must be nonnegative.');
   const outer=candidate.lowerRadiusMm-xyGapMm,inner=request.sleeveInnerRadiusMm??Math.max(w,candidate.upperRadiusMm-w);
-  check(finite(inner)&&inner>=w&&outer-inner>=2*w,'The removable sleeve needs at least two beads of wall between its bore and cleared outer edge.');
-  const top=candidate.shoulderZMm-topGapMm,count=Math.floor((top-process.firstLayerMm+PRINT_RESOLUTION_MM)/process.layerMm)+1;
-  check(count>=1,'The removable sleeve has no complete planar layer below its top gap.');
-  const outerCenter=outer-w/2,innerCenter=inner+w/2,ringCount=Math.max(2,Math.ceil((outerCenter-innerCenter)/w)+1);
-  const curves=Array.from({length:ringCount},(_,i)=>{
-    const radius=outerCenter-(outerCenter-innerCenter)*i/(ringCount-1);
-    return {role:'hole-removable-sleeve',closed:true,points:circle(x,y,radius).map(([a,b])=>[a,b,process.firstLayerMm]),
-      speedMmS:process.planarSpeedMmS};
-  });
-  return {id,construction:'curves',curves,sequence:true,repeat:{count,translation:[0,0,process.layerMm]},after:request.after??[]};
+  check(finite(inner)&&inner>0&&outer>inner,'The sleeve needs a positive inner radius below its outer clearance radius.');
+  const top=candidate.shoulderZMm-topGapMm,rim=circle(x,y,outer),count=rim.length;
+  const bore=Array.from({length:count},(_,i)=>[x+inner*Math.cos(i*2*Math.PI/count),y+inner*Math.sin(i*2*Math.PI/count)]);
+  const roof={vertices:[...rim,...bore].map(([a,b])=>[a,b,top]),triangles:rim.flatMap((_,i)=>{const j=(i+1)%count;return [[i,j,count+j],[i,count+j,count+i]];})};
+  const {solid,notes}=closeMeshPatchToPlane(roof,{triangleIndices:roof.triangles.map((_,i)=>i),planeZMm:0});
+  return {solid,notes,assignment:{id,part:null,loops:Math.max(1,Math.ceil((outer-inner)/(2*w))),fillDensity:0,solidTop:0,solidBottom:0,
+    process:{liftMm:0,retractMm:0},within:[{kind:'geometry',geometry:solid}],dependencies:{afterParts:[],beforeParts:[],after:request.after??[]},
+    description:'Removable counterbore sleeve.'}};
 }
 
 export async function editHoleSupports(source,request,operations){
   check(request&&typeof request==='object'&&!Array.isArray(request),'Hole support request must be an object.');
   check(['discover','membrane','tangent-bridge','sleeve'].includes(request.mode),'Choose discover, membrane, tangent-bridge or sleeve.');
-  check(source.geometry&&source.geometry.shape!=='assembly','Hole supports currently require one whole planar component.');
-  check((source.slices?.assignments??[]).every(a=>a.construction==='curves'||!a.construction&&a.part==null&&a.surface?.kind==='horizontal'),
-    'Hole supports require whole-component planar Slice construction; existing Trace assignments are retained.');
+  check(source.geometry&&source.geometry.shape!=='assembly','Hole supports need a single component; this print is an assembly.');
   check(typeof operations.buildGeometry==='function','Hole supports need Geometry.buildGeometry.');
   const process=source.process??{},shell=operations.buildGeometry(source.geometry),toleranceMm=request.toleranceMm??.08;
-  check(finite(toleranceMm)&&toleranceMm>0&&toleranceMm<=.25,'toleranceMm must be positive and at most 0.25 mm.');
-  const candidates=findBedCounterbores(shell,operations.createSectionQuery,{...process,toleranceMm});
-  if(request.mode==='discover')return {report:{candidates,scope:'Circular counterbores open to the bed in one upright planar component; section-based candidates require maker review.'}};
+  check(finite(toleranceMm)&&toleranceMm>0,'toleranceMm must be positive.');
+  const {candidates,notes}=findBedCounterbores(shell,operations.createSectionQuery,{...process,toleranceMm});
+  if(request.mode==='discover')return {report:{candidates,notes}};
+  const prior=source.slices?.assignments??[];
+  if(!prior.every(a=>a.construction==='curves'||!a.construction&&a.part==null&&a.surface?.kind==='horizontal'))
+    notes.push('Some Slice assignments are not whole-component planar; inspect where their layers meet the support.');
   const candidate=chooseCandidate(candidates,request,toleranceMm),id=request.id??`hole-${request.mode}`;
   check(typeof id==='string'&&/^[a-z][a-z0-9-]*$/.test(id),'Hole support id must be lowercase hyphenated.');
-  const prior=source.slices?.assignments??[];
   check(!prior.some(a=>a.id===id),'An assignment already has this hole-support id; choose a new id or remove the old assignment first.');
-  const assignment=request.mode==='membrane'?membrane(candidate,request,process,id,shell,operations.createSectionQuery,toleranceMm)
-    :request.mode==='tangent-bridge'?tangentBridge(candidate,request,process,id,shell,operations.createSectionQuery,toleranceMm)
-    :sleeve(candidate,request,process,id);
-  return {assignmentRequests:[...prior,assignment],report:{candidate,mode:request.mode,assignmentId:id,
-    limits:'Experimental authored support only. Inspect exact deposition, removal access, material contact and drilling before export; no physical success is inferred.'}};
+  const report={candidate,mode:request.mode,assignmentId:id,notes};
+  if(request.mode==='sleeve'){
+    const made=sleeve(candidate,request,process,id,operations.closeMeshPatchToPlane),original=source.geometry;
+    const geometry=original.shape==='boolean'&&original.operation==='union'&&original.displayOperand===0
+      ?{...original,operands:[...original.operands,made.solid]}:{shape:'boolean',operation:'union',operands:[original,made.solid],displayOperand:0};
+    return {geometry,assignmentRequests:[made.assignment,...prior],report:{...report,notes:[...notes,...made.notes]}};
+  }
+  const sectionAt=operations.createSectionQuery(shell);
+  const assignment=request.mode==='membrane'?membrane(candidate,request,process,id,sectionAt,toleranceMm,notes)
+    :tangentBridge(candidate,request,process,id,sectionAt,toleranceMm,notes);
+  return {assignmentRequests:[...prior,assignment],report};
 }

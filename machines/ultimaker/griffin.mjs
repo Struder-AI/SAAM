@@ -24,7 +24,7 @@ function exportGriffin(path,plan,machine,{generatorVersion,buildDate},Export) {
     if(a.filamentMm)time+=Export.knownSeconds(a.filamentMm,a.speedMmS);
   }
   const envelope=machine.outputs.find(o=>o.id===plan.output).program;
-  requireThat(envelope, 'Machine snapshot has no program templates; recreate this print from the current machine profile.');
+  requireThat(envelope, 'Neither the print\'s machine snapshot nor the installed profile has Griffin program templates.');
   const values={...s,tool,generatorVersion,buildDate,volume:Math.ceil(volume),seconds:Math.ceil(time),startupZ:fmt(startupZ)};
   for(const [bound,points] of [['min',min],['max',max]]) for(const [i,axis] of ['X','Y','Z'].entries()) values[bound+axis]=fmt(points[i]);
   const render=lines=>{

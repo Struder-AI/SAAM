@@ -49,18 +49,15 @@ export const GEOMETRY_RECORDS=Object.freeze({
 
 const weldDefaults={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
-const supportDefaults={enabled:false,assignments:[],topGapMm:0.2,treeChordMm:0.02};
-export const extensionSettings=()=>({'plastic-weld':structuredClone(weldDefaults),supports:structuredClone(supportDefaults)});
+export const extensionSettings=()=>({'plastic-weld':structuredClone(weldDefaults)});
 
 export function validateExtensionRecipe(plan){
-  for(const [id,template] of [['plastic-weld',weldDefaults],['supports',supportDefaults]])
-    if(plan.skills?.[id]!==undefined)requireThat(sameFields(plan.skills[id],template),`Invalid ${id} settings fields.`);
+  if(plan.skills?.['plastic-weld']!==undefined)requireThat(sameFields(plan.skills['plastic-weld'],weldDefaults),'Invalid plastic-weld settings fields.');
 }
 
 export function extensionProducerIds(plan){
-  return [...(plan.skills?.supports?.enabled?['supports']:[]),
-    ...(plan.skills?.['plastic-weld']?.enabled&&Array.isArray(plan.skills['plastic-weld'].sites)
-      ?plan.skills['plastic-weld'].sites.map(site=>'plastic-weld:'+site.id):[])];
+  return plan.skills?.['plastic-weld']?.enabled&&Array.isArray(plan.skills['plastic-weld'].sites)
+    ?plan.skills['plastic-weld'].sites.map(site=>'plastic-weld:'+site.id):[];
 }
 
 export function validateExtensionAssignment(assignment,options){
@@ -82,10 +79,6 @@ export async function validateSelectedExtensionRecipe(plan,processForAssignment)
     if(geometry.shape==='heat-set')heatSet=true;
   }
   if(heatSet)runtimes.get('heat-set-inserts').validateAssignments(plan);
-  if(plan.skills?.supports?.enabled){
-    const runtime=(await loadExtensionEntry('supports','record-runtime'))();
-    runtime.validateSupports(plan.skills.supports,processForAssignment({id:'supports'}));
-  }
   if(plan.skills?.['plastic-weld']?.enabled){
     const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))();
     runtime.validatePlasticWeld(plan,processForAssignment);

@@ -2,14 +2,12 @@ import {canonicalHash} from '../canonical-json.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
 // Spline shells require a different representation from an indexed mesh:
-// rhino3dm builds no general solid from a set of patches, so a shell is stored
-// as its named untrimmed surfaces and its closure is verified numerically by
-// the same check the slicer relies on. The file is accepted once it reopens
-// as the same closed shell.
+// rhino3dm builds no general solid from a set of patches, so a shell, open or
+// closed, is stored as its named untrimmed surfaces. The file is accepted once
+// it reopens as the same patches.
 
 import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
-import { makeShell, assertClosed } from '../geom/shell.mjs';
 import {buildShell,buildShells} from '../geom/build.mjs';
 import {hasMesh} from '../geom/mesh.mjs';
 import {assemblyComponents} from '../geom/selections.mjs';
@@ -112,7 +110,7 @@ async function createGeometryArtifact(parameters) {
   const descriptor = {
     schema: 'saam-shell-geometry/1',
     parameters,
-    nativeForm: 'named untrimmed NURBS surfaces; closure verified numerically, not a Rhino solid',
+    nativeForm: 'named untrimmed NURBS surfaces, not a Rhino solid',
     patchHash: netHash(shell.patches),
     features,
     boundsMm: shell.bounds,
@@ -122,8 +120,8 @@ async function createGeometryArtifact(parameters) {
   return { bytes, descriptor };
 }
 
-// Reopen the written 3DM, rebuild the patches from it, and require the closed
-// shell they form to be the one just built.
+// Reopen the written 3DM, rebuild the patches from it, and require them to be
+// the ones just built.
 async function reopenShell(bytes, descriptor) {
   const r = await rhino();
   const doc = r.File3dm.fromByteArray(bytes);
@@ -136,7 +134,6 @@ async function reopenShell(bytes, descriptor) {
       requireThat(attributes.getUserString('saam:feature') === feature.id, `3DM object ${index} is not the named face "${feature.id}".`);
       patches.push(patchFromSurface(object.geometry(), feature.id));
     }
-    assertClosed(makeShell(patches, { name: descriptor.parameters.shape }));
     requireThat(netHash(patches) === descriptor.patchHash, 'The 3DM surfaces differ from the reviewed geometry.');
   } finally { doc?.destroy(); }
 }
@@ -187,9 +184,10 @@ async function createMeshGeometry(r,parameters) {
   // A nested assembly shows its components, outer/inner, as generation slices them.
   const parts=parameters.shape==='assembly'?assemblyComponents(parameters.parts):[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
   const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))]);
-  const vertices=[],faces=[],labels=[],features=[];
+  const vertices=[],faces=[],labels=[],features=[],notes=[];
   const append=async(component,id,translation)=>{
     const display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    for(const note of display?.notes??[])notes.push(id?`${id}: ${note}`:note);
     const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
       :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
     const offset=vertices.length;
@@ -201,5 +199,5 @@ async function createMeshGeometry(r,parameters) {
   };
   for(const [index,part] of parts.entries())await append(components[index],part.id,[part.xMm,part.yMm,part.zMm]);
   return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,
-    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels}};
+    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels,...(notes.length?{notes}:{})}};
 }

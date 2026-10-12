@@ -47,7 +47,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
      `[[label, text]]` for Studio's settings panel.
    - `export` receives the prepared path (the SAAMpath plus startup, priming, material-change
      lifts and axis-feed limits; [prepare-path.mjs](../core/export/prepare-path.mjs)) and
-     `{machine, setup, process, output, release}`. `report` holds `notice`, `limitations`,
+     `{machine, setup, process, output, release}`. `report` holds `notice`, `limitations` (this print's only; standing caveats belong in `SKILL.md`),
      optional `seconds` and `volumeMm3` of what was written (else the path's) and any facts
      Studio shows. Core adds the move count and [short-travel advisory](../core/export/README.md#short-travel-advisory);
      Bundle stores the report, and reopen and delivery run no adapter code.
@@ -64,7 +64,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
 |---|---|
 | S1 | Use only the prepared path, settings and `Export`. |
 | S2 | Write every action kind or reject it at export with a named error; drop none. |
-| S3 | Write coordinates and amounts at program resolution (`PROGRAM_DECIMALS`, [core/dimensions.mjs](../core/dimensions.mjs), through `Export.number`); quantize once and derive later values from written ones; a deposition that collapses is an error naming the move. |
+| S3 | Write coordinates and amounts at program resolution (`PROGRAM_DECIMALS`, [core/dimensions.mjs](../core/dimensions.mjs), through `Export.number`); quantize once and derive later values from written ones; a deposition that collapses is not written and its material carries to the next written amount. |
 | S4 | Enforce physical limits from settings: workspace, axis feed, temperature ceiling, park and material-change clearance. |
 | S5 | Unresolved installation values block export and are named. |
 | S6 | The same prepared path, settings and adapter give identical bytes; dates come from `release`. |

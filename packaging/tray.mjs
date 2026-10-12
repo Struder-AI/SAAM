@@ -1,7 +1,7 @@
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
-// The tray is optional: SAAM runs without it and Studio's Quit still stops SAAM.
+// The tray is optional: SAAM runs without it, and saam quit or Studio's Quit in the only running runtime stops SAAM.
 // The result's problem says why a tray this platform supports did not start.
 export async function startTray({port,token,pid=process.pid}={}){
   if(!['win32','darwin'].includes(process.platform))return {problem:null,stop(){}};

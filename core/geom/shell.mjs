@@ -1,4 +1,4 @@
-// A closed shell of untrimmed bivariate spline patches.
+// A shell of untrimmed bivariate spline patches.
 //
 // This is the geometry contract the pattern skills accept. Every face is a full
 // rectangular (u,v) patch, so a face's section is the zero contour of g over the
@@ -6,9 +6,9 @@
 // rhino3dm exposes no parameter-space trim curves (BrepTrim carries topology
 // indices only, and BrepFace.loops is unbound in this build).
 //
-// Closure is therefore verified numerically: every non-degenerate patch boundary
-// must be matched, point for point, by a boundary of some patch. A trimmed face
-// fails that test rather than silently producing an open section.
+// Closure is therefore measured numerically: a non-degenerate patch boundary
+// matched by no other boundary is open. An open shell builds, shows and slices
+// what closes on each layer; solid operations name its open edges (tessellate.mjs).
 
 import { evaluate } from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
@@ -26,14 +26,6 @@ export function makeShell(patches, { name = 'shell' } = {}) {
   requireThat(patches.length >= 1, `${name} needs at least one patch.`);
   const shell = { name, patches, bounds: shellBounds(patches) };
   shell.closure = verifyClosure(patches);
-  return shell;
-}
-
-export function assertClosed(shell) {
-  const open = shell.closure.unmatched;
-  requireThat(open.length === 0,
-    `${shell.name} is not closed: ${open.length} unmatched patch boundary/boundaries (${open.slice(0, 3).map(o => `${o.patch}:${o.edge}`).join(', ')}). ` +
-    'This core accepts closed shells of untrimmed patches; a trimmed face reports here.');
   return shell;
 }
 
@@ -153,6 +145,7 @@ function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4, gapMm = 0 } =
 
 // Open section pieces (chart polylines) whose ends lie within gapMm join,
 // nearest ends first, into closed loops; what still does not close is dropped.
+// A join below print resolution is ordinary closure and is not reported.
 // -> {loops, open: [{kind: 'joined', point, sizeMm: gap} | {kind: 'dropped', point, sizeMm: length}]}.
 export function closeOpenChains(chains, gapMm) {
   const pool = chains.filter(chain => chain.length > 1).map(chain => [...chain]), loops = [], open = [];
@@ -172,13 +165,13 @@ export function closeOpenChains(chains, gapMm) {
     const a = pool[best.i];
     if (best.i === best.j) {
       pool.splice(best.i, 1); loops.push(a);
-      open.push({ kind: 'joined', point: midpoint(a[a.length - 1], a[0]), sizeMm: best.gap });
+      if (best.gap >= PRINT_RESOLUTION_MM) open.push({ kind: 'joined', point: midpoint(a[a.length - 1], a[0]), sizeMm: best.gap });
       continue;
     }
     // Orient a to end, and b to start, at the joined ends (j > i keeps i's place).
     const b = pool[best.j], head = best.ai ? a : [...a].reverse(), tail = best.bj ? [...b].reverse() : b;
     pool.splice(best.j, 1); pool[best.i] = [...head, ...tail];
-    open.push({ kind: 'joined', point: midpoint(head[head.length - 1], tail[0]), sizeMm: best.gap });
+    if (best.gap >= PRINT_RESOLUTION_MM) open.push({ kind: 'joined', point: midpoint(head[head.length - 1], tail[0]), sizeMm: best.gap });
   }
   for (const chain of pool) open.push({ kind: 'dropped', point: chain[chain.length >> 1], sizeMm: chain.slice(1).reduce((sum, p, i) => sum + distance2(chain[i], p), 0) });
   return { loops, open };

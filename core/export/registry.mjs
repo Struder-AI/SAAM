@@ -11,6 +11,7 @@ import {validateSetup} from '../machine/rules.mjs';
 import {preparedTravelAdvisory} from './travel-advisory.mjs';
 import {knownSeconds} from '../path/saampath.mjs';
 import {settingsDefaults} from '../machine/settings.mjs';
+import {loadMachine} from '../machine/profile.mjs';
 
 // The plug: besides the prepared path and settings, the only operations an
 // adapter receives. Frame math is Geometry's stateless library (no part data);
@@ -65,15 +66,26 @@ function pathTotals(prepared){
   }
   return {moves,seconds,volumeMm3,untimedMoves};
 }
+// A snapshot locked before its output declared program templates writes with
+// the installed profile's, and says so.
+function withProgramTemplates(plan,machine){
+  const at=machine.outputs.findIndex(o=>o.id===plan.output);
+  if(machine.outputs[at].program||!machineCatalog().get(machine.id))return {machine,notes:[]};
+  const program=loadMachine(machine.id).outputs.find(o=>o.id===plan.output)?.program;
+  if(!program)return {machine,notes:[]};
+  const outputs=machine.outputs.map((o,i)=>i===at?{...o,program}:o);
+  return {machine:{...machine,outputs},notes:[`This print's ${machine.name} snapshot has no program templates; the installed profile's were used.`]};
+}
 // Prepares the path once and writes it. The report is what Bundle stores:
 // the adapter's notice, limitations and estimates (the path's own totals when
 // the adapter gives none), the move count and the short-travel advisory.
-export async function exportProgram(path,plan,machine,release){
-  const adapter=await machineAdapter(plan,machine),prepared=prepareExportPath(path,plan,machine,adapter);
+export async function exportProgram(path,plan,locked,release){
+  const adapter=await machineAdapter(plan,locked),{machine,notes}=withProgramTemplates(plan,locked),prepared=prepareExportPath(path,plan,machine,adapter);
   // defaultProcess: the profile's process defaults, for a writer that needs a
   // value the authored one cannot give (a robot command needs a positive time).
   const {bytes,report}=adapter.export(prepared,{machine,setup:plan.setup,process:plan.process,output:plan.output,release,defaultProcess:settingsDefaults(machine).process}),totals=pathTotals(prepared);
   const untimed=report.seconds===undefined?totals.untimedMoves:report.untimedMoves??0;
-  return {bytes,report:{limitations:[],...report,...(untimed?{limitations:[...report.limitations??[],`The time estimate excludes ${untimed} move(s) with no positive speed.`]}:{}),moves:totals.moves,seconds:report.seconds??totals.seconds,
+  const limitations=[...notes,...prepared.notes,...report.limitations??[],...(untimed?[`The time estimate excludes ${untimed} move(s) with no positive speed.`]:[])];
+  return {bytes,report:{...report,limitations,moves:totals.moves,seconds:report.seconds??totals.seconds,
     volumeMm3:report.volumeMm3??totals.volumeMm3,shortTravel:preparedTravelAdvisory(prepared,plan)}};
 }

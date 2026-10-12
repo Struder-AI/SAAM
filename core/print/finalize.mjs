@@ -24,7 +24,10 @@ function finalizedOperation(operation,plan,result){
         const length=distance(stroke.points[i-1],p),metadata=stroke.segmentMetadata?.[i-1];
         const speed=metadata?.speedMmS??stroke.speedMmS;
         const volume=stroke.volumesMm3?.[i-1]??length*stroke.beadAreaMm2;
-        requireThat(Number.isFinite(speed)&&length>0,`Modulated operation ${operation.id} has invalid speed or a zero-length deposition segment.`);
+        // A zero-length segment moves nowhere; planning skips it. Speeds at or
+        // below zero pass with an unknown time; a non-finite one is a SAAM fault.
+        if(!length)continue;
+        requireThat(Number.isFinite(speed),`Modulated operation ${operation.id} has a non-finite deposition speed.`);
         const seconds=moveSeconds(length,speed);
         const flow=volume/seconds;
         requireThat(Number.isFinite(flow)&&flow>=0,`Modulated operation ${operation.id} produced invalid deposition flow.`);

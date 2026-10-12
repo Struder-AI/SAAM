@@ -4,13 +4,13 @@
 // stop half a bead inside the fin (no fill overlap). Every owner is ordinary slice data
 // with a geometry volume in the part's own frame; the core slices them like
 // any other owner, and the part's default owner takes the rest.
-import {dimensions,heatSetAssignmentId,legacyHeatSetAssignmentId} from './feature.mjs';
+import {dimensions,heatSetAssignmentId,legacyHeatSetAssignmentId,borePoint} from './feature.mjs';
 
 export const HEAT_SET_SLICE_PREFIX='heat-set-';
 // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
 const PRINT_RESOLUTION_MM=1e-3;
-// The owner volumes rise by print resolution so no layer lies on their faces: a
-// layer at the mouth height falls inside, one at the floor height below.
+// The owner volumes rise by print resolution so no layer lies on their faces: for
+// a vertical bore a layer at the mouth height falls inside, one at the floor below.
 const SIDES=96,LIFT=PRINT_RESOLUTION_MM;
 
 // A closed prism between two polygons, counterclockwise seen from above.
@@ -23,28 +23,31 @@ function prism(bottom,top){
 
 // feature, part id (null for a single part), process -> slice assignments.
 export function heatSetSlices(feature,part,{lineWidthMm},{existingIds=new Set()}={}){
-  const {diameterMm,depthMm}=dimensions(feature),[x,y,mouth]=feature.positionMm,w=lineWidthMm;
-  const floor=mouth-depthMm+LIFT,top=mouth+LIFT,radial=diameterMm/2+6*w;
-  const ring=z=>Array.from({length:SIDES},(_,i)=>[x+radial*Math.cos(2*Math.PI*i/SIDES),y+radial*Math.sin(2*Math.PI*i/SIDES),z]);
+  // Bore-frame points (radius, angle, distance s outward from the mouth), lifted.
+  const {diameterMm,depthMm}=dimensions(feature),w=lineWidthMm,radial=diameterMm/2+6*w;
+  const lifted=(r,a,s)=>borePoint(feature,r,a,s).map((c,i)=>i===2?c+LIFT:c);
+  const ring=s=>Array.from({length:SIDES},(_,i)=>lifted(radial,2*Math.PI*i/SIDES,s));
   const flat={fillDensity:0,solidTop:0,solidBottom:0};
   const canonical=heatSetAssignmentId(feature,part),legacy=legacyHeatSetAssignmentId(feature);
   const retain=(current,prior)=>existingIds.has(current)?current:existingIds.has(prior)?prior:current;
   const name=retain(canonical,legacy);
-  const annulus={id:name,part,loops:6,...flat,within:[{kind:'geometry',geometry:prism(ring(floor),ring(top))}]};
+  const annulus={id:name,part,loops:6,...flat,within:[{kind:'geometry',geometry:prism(ring(-depthMm),ring(0))}]};
   // A gusset's radial reach grows linearly from the floor to finLengthMm at
   // the face, its width tapering from twice the fin width at the annulus to
   // the fin width at the tip; a fin starts where it reaches one bead.
   const finWidth=Math.max(w,Math.round(feature.finWidthMm/w)*w),root=2*finWidth;
   const tip=length=>finWidth*(2-length/feature.finLengthMm);
   if(feature.finLengthMm<w)return [annulus];
-  const start=floor+depthMm*w/feature.finLengthMm;
+  const start=-depthMm+depthMm*w/feature.finLengthMm;
   const fins=Array.from({length:feature.finCount},(_,n)=>{
-    const degrees=feature.finAngleDeg+n*360/feature.finCount,a=degrees*Math.PI/180,u=[Math.cos(a),Math.sin(a)],v=[-u[1],u[0]];
-    const at=(r,t,z)=>[x+r*u[0]+t*v[0],y+r*u[1]+t*v[1],z];
-    const face=(length,z)=>[at(radial,-root/2,z),at(radial+length,-tip(length)/2,z),at(radial+length,tip(length)/2,z),at(radial,root/2,z)];
-    const across=((degrees+90)%360+540)%360-180;
+    // Radial distance r and offset t across the fin, as a radius and angle about the axis.
+    const a=(feature.finAngleDeg+n*360/feature.finCount)*Math.PI/180,at=(r,t,s)=>lifted(Math.hypot(r,t),a+Math.atan2(t,r),s);
+    const face=(length,s)=>[at(radial,-root/2,s),at(radial+length,-tip(length)/2,s),at(radial+length,tip(length)/2,s),at(radial,root/2,s)];
+    // Rows run across the fin: its direction projected onto the layer.
+    const side=borePoint(feature,1,a+Math.PI/2,0).map((c,i)=>c-feature.positionMm[i]);
+    const across=((Math.atan2(side[1],side[0])*180/Math.PI)%360+540)%360-180;
     return {id:retain(`${canonical}--fin-${n}`,`${legacy}-fin-${n}`),part,loops:0,fillDensity:1,solidTop:0,solidBottom:0,fillOverlap:0,
-      rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,top))}]};
+      rotateFill:false,fillAnglesDeg:[across],within:[{kind:'geometry',geometry:prism(face(w,start),face(feature.finLengthMm,0))}]};
   });
   return [annulus,...fins];
 }

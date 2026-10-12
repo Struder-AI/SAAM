@@ -12,13 +12,15 @@ export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1
     const {heightMm:localHeight,heightsMm,widthsMm,flowMultipliers,flowMultiplier:localFlow,...stroke}=curve;
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
-    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed),
-      'Curve deposition needs positive bead width and flow, and a speed.');
+    // Speed passes through; zero flow moves along the curve without depositing.
+    // Negative flow is read as zero, with a note, where it is authored.
+    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>=0&&Number.isFinite(speed),
+      'Curve deposition needs a positive bead width, a nonnegative flow and a speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
       'Curve deposition needs at least two finite XYZ points.');
     if(heightsMm||widthsMm||flowMultipliers){
       const explicit=strokeRange(stroke),points=explicit.points;
-      if(flowMultipliers)requireThat(flowMultipliers.length===points.length-1&&flowMultipliers.every(f=>Number.isFinite(f)&&f>0),'Curve flow needs one positive multiplier per segment.');
+      if(flowMultipliers)requireThat(flowMultipliers.length===points.length-1&&flowMultipliers.every(f=>Number.isFinite(f)&&f>=0),'Curve flow needs one nonnegative multiplier per segment.');
       if(widthsMm)requireThat(widthsMm.length===points.length-1&&widthsMm.every(w=>Number.isFinite(w)&&w>=0),'Curve deposition needs one finite nonnegative width per segment.');
       const segmentMetadata=points.slice(1).map((_,i)=>({...curve.segmentMetadata?.[i],...(widthsMm?{beadWidthMm:widthsMm[i]}:{}),beadHeightMm:(heightsMm?.[i]??height)*flow*(flowMultipliers?.[i]??1)}));
       const deposited=depositionStroke({points,heightsMm:heightsMm??points.slice(1).map(()=>height),widthMm:width*flow,

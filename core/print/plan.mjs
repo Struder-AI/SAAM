@@ -22,7 +22,7 @@ import {defaultSlices,validateSlices} from './slices.mjs';
 import {defaultModulations,readModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
-import {currentAssignmentForms} from './recipe-migration.mjs';
+import {currentAssignmentForms,currentSupportForms} from './recipe-migration.mjs';
 
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
 import {VERSION} from './version.mjs';
@@ -91,8 +91,8 @@ const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 // generated is what generation uses, and notes name every field filled or
 // ignored, every form rewritten and every piece skipped.
 export function readRecipe(plan,machine=null){
-  const fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.unread);
-  return {plan:current,generated:generated.plan,notes:[...forms.notes,
+  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.unread);
+  return {plan:current,generated:generated.plan,notes:[...supports.notes,...forms.notes,
     ...(fields.filled.length?[`Recipe fields filled from current defaults: ${fields.filled.join(', ')}; the next save or migrate_bundle records them.`]:[]),
     ...(fields.ignored.length?[`Recipe fields ignored, not read by this SAAM: ${fields.ignored.join(', ')}; the next save or migrate_bundle drops them.`]:[]),
     ...generated.notes]};
@@ -101,17 +101,18 @@ export function readRecipe(plan,machine=null){
 // Each section takes its defaults' missing and unreadable fields and drops the
 // fields it does not read. Fields are removed by name and sections rebuilt by
 // name, so no value moves to another field. Geometry is only trimmed: its
-// fields are never invented. A setup is machine-specific: completed, never trimmed.
+// fields are never invented; retired supports add their solids to it before
+// (currentSupportForms). A setup is machine-specific: completed, never trimmed.
 function currentFields(plan,machine,fields){
   const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
-  const present=isRecord(plan.skills)?plan.skills:{},skillTemplate={supports:skills.supports,'plastic-weld':skills['plastic-weld']};
+  const present=isRecord(plan.skills)?plan.skills:{},skillTemplate={'plastic-weld':skills['plastic-weld']};
   const geometry=isRecord(plan.geometry)?geometryTemplate(plan.geometry.shape,plan.geometry):null;
   noteFields(plan,{...defaults,...(Object.hasOwn(plan,'skills')?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})},'',fields,true);
   for(const name of ['process','placement','experimental','composition','slices','modulations'])
     if(isRecord(plan[name]))noteFields(plan[name],defaults[name],name+'.',fields,true);
   if(isRecord(plan.setup))for(const key of Object.keys(settings.setup))if(!Object.hasOwn(plan.setup,key))fields.filled.push('setup.'+key);
   noteFields(present,{},'skills.',fields,false,skillTemplate);
-  for(const id of ['supports','plastic-weld'])if(isRecord(present[id]))noteFields(present[id],skillTemplate[id],`skills.${id}.`,fields,true);
+  if(isRecord(present['plastic-weld']))noteFields(present['plastic-weld'],skillTemplate['plastic-weld'],'skills.plastic-weld.',fields,true);
   if(geometry)noteFields(plan.geometry,geometry,'geometry.',fields,false);
   const experimental=section(plan.experimental,base.experimental);
   return {...defaults,...knownFields(plan,{...defaults,skills,geometry:null,workspace:null}),
@@ -121,7 +122,6 @@ function currentFields(plan,machine,fields){
     slices:section(plan.slices,base.slices),modulations:section(plan.modulations,base.modulations),
     setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})},
     ...(Object.hasOwn(plan,'skills')?{skills:{...knownFields(present,skillTemplate),
-      ...(isRecord(present.supports)?{supports:section(present.supports,skills.supports)}:{}),
       ...(isRecord(present['plastic-weld'])?{'plastic-weld':section(present['plastic-weld'],skills['plastic-weld'])}:{})}}:{}),
     ...(geometry?{geometry:knownFields(plan.geometry,geometry)}:{})};
 }

@@ -8,14 +8,16 @@ function unwrapTextGeometry(geometry){
   while(base.shape==='text'&&base.base&&!base.standalone){layers.push(base);base=base.base;}
   return {base,layers};
 }
+// -> {geometry, notes} of the lettering reapplied innermost first.
 async function rebuildTextGeometry(base,layers,operations){
-  let rebuilt=base;
+  const notes=[];let rebuilt=base;
   for(let i=layers.length-1;i>=0;i--){
     const layer=layers[i];
     requireThat(typeof operations.compileText==='function','Heat-set text needs the selected text extension compiler.');
-    rebuilt=await operations.compileText(rebuilt,layer.features,{...operations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+    const compiled=await operations.compileText(rebuilt,layer.features,{...operations,toleranceMm:layer.toleranceMm,maxEdgeMm:layer.maxEdgeMm});
+    rebuilt=compiled.geometry;notes.push(...compiled.notes);
   }
-  return rebuilt;
+  return {geometry:rebuilt,notes};
 }
 
 export async function editHeatSet(source,request,geometryOperations){
@@ -32,13 +34,15 @@ export async function editHeatSet(source,request,geometryOperations){
     // Same-print values are the actual last-used feature settings. New named
     // holes inherit dimensions and fin choices, but never copy placement silently.
     const previous=index>=0?features[index]:features.at(-1);
-    const reusable=previous?Object.fromEntries(Object.entries(previous).filter(([k])=>!['id','positionMm'].includes(k))):{};
+    const reusable=previous?Object.fromEntries(Object.entries(previous).filter(([k])=>!['id','positionMm','axis'].includes(k))):{};
     const next={...reusable,...(index>=0?features[index]:{}),...feature};
     requireThat(next.insertId,'Choose an exact insertId from the heat-set manual size/profile table.');
     if(index>=0)features[index]=next;else features.push(next);
   }
-  const rebuilt=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
-  owner.geometry=await rebuildTextGeometry(rebuilt,layers,geometryOperations);
+  const bored=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):{geometry:base,notes:[]};
+  const lettered=await rebuildTextGeometry(bored.geometry,layers,geometryOperations);
+  owner.geometry=lettered.geometry;
+  const notes=[...bored.notes,...lettered.notes];
   // Reinforcement is slice data: this part's heat-set owners are rewritten
   // ahead of every other slice assignment.
   const part=request.part??null;
@@ -55,5 +59,5 @@ export async function editHeatSet(source,request,geometryOperations){
   }
   const assignmentRequests=[...features.flatMap(f=>heatSetSlices(heatSetFeature(f),part,plan.process,
     {existingIds:existingByFeature.get(f.id)??new Set()})),...kept];
-  return {geometry:plan.geometry,assignmentRequests};
+  return {geometry:plan.geometry,assignmentRequests,...(notes.length?{report:{notes}}:{})};
 }

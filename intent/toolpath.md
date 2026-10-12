@@ -60,7 +60,7 @@ Sources: [D-025](../DECISIONS.md#d-025--support-areas-assigned-through-judgment)
 
 Summary: a standard support is the chosen underside copied down by a 0.15 mm gap and closed to the bed as a solid, sliced with no perimeters, single-direction infill, no hop or retract, on a base or brim.
 
-Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40. [0.3.4 "Standard-support gap"](../plans/0.3.4.md) records the gap as "Decide … 0.1 to 0.15 mm", and the skill still uses 0.1 (see report).
+Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40. [0.3.4 "Standard-support gap"](../plans/0.3.4.md) records the gap as "Decide … 0.1 to 0.15 mm"; the skill uses 0.15.
 
 ## One wiring for the same operation
 > "slab-under-skin should be used for standard supports as well" — owner, 2026-10-05 (Claude 98e25b54 15:39); "I just mean, if we have dedicated wiring … use that for all operations that do exactly the same thing." (15:40)

@@ -30,7 +30,7 @@ export async function loadWorkspaceRuntime(extensionId,options={}){
 }
 export async function requireWorkspaceCurrent(extension,options={}){
   const current=workspaceIdentity(await resolveExtensions([extension.id],options));
-  if(JSON.stringify(current)!==JSON.stringify(extension))throw Error(`Workspace ${extension.id} changed while open. Restart SAAM to use the selected extension.`);
+  if(JSON.stringify(current)!==JSON.stringify(extension))throw Error(`Workspace ${extension.id} changed while open; its new scripts load after \`saam reload-runtime\`.`);
 }
 export function workspacePieces(value){
   if(!Array.isArray(value)||!value.length)throw Error('A workspace must supply at least one printable piece.');

@@ -42,21 +42,21 @@ owns that investigation and the exact delivered-file evidence.
 
 ## Maker setup
 
-The current user's installation is a test case, not a shared machine default:
-H2D left 0.4 mm fed by an external spool, right 0.8 mm fed by a four-slot AMS.
-The development goal covers every feed combination supported by each machine.
-Keep logical filaments, nozzle assignments, installed diameters, feed devices,
-their connections and physical slot choices independent. Discover or ask for
-installation facts for each job; never infer them from this example or its colours.
-Machine capabilities constrain valid combinations; an unimplemented adapter must
-report its limit instead of silently routing through a different source. Physical
-dispatch remains delegated to the printer; declared capacities are described below.
+The tested installation (H2D left 0.4 mm external spool, right 0.8 mm four-slot
+AMS) is an example, not a default; development covers every supported feed
+combination. Keep logical filaments, nozzle assignments, installed diameters,
+feed devices, their connections and physical slot choices independent; never
+infer them from this example or its colours. Machine capabilities constrain valid
+combinations; an unimplemented adapter reports its limit instead of silently
+routing through a different source.
 
-Before generation, establish the selected nozzle, **both installed diameters** on
-H2D, plate, PLA identity/colour, temperatures and intended spool. Profile defaults
-are editable assumptions, not observations of the printer. In particular,
-`otherNozzleMm: 0.4` and the default filament colour must not be represented as
-confirmed hardware or spool identity.
+Generate with what is known, including [local agent notes](../../core/application/README.md#local-agent-notes),
+and profile defaults otherwise, stated beside the preview; `otherNozzleMm: 0.4` or
+the default filament colour is an assumption, not confirmed hardware or spool.
+The SAAMpath depends on nozzle temperature and process values; diameters, plate,
+colour and spool apply only to the machine program ([dependencies](../../core/path/dependencies.mjs)).
+Line width and layer height suit the diameter, so ask with the first preview when
+it is unknown. Confirm diameters, plate, filament, temperatures and spool before Export.
 
 Example: H2D right 0.8 mm, left 0.4 mm, textured plate, one brown PLA filament:
 
@@ -88,8 +88,9 @@ These are setup fields to merge into a complete recipe with normal print tools,
 not a complete plan. `GFA01` is an example preset identity, not a universal brown
 PLA ID. Use the actual material identity and colour. `filaments: null` declares
 one PLA Basic (`GFA00`) logical filament using `setup.filamentColor` or the profile
-placeholder. It does not discover spools. An explicit list and an explicit
-`setup.filamentColor` must agree on the selected entry or export is rejected.
+placeholder. It does not discover spools. The selected entry's colour wins over a
+differing `setup.filamentColor`; a colour that is not six-digit hex falls back to
+`setup.filamentColor` or the placeholder. Each is noted.
 
 `setup.nozzleMm` is the selected diameter; `core` must name that same diameter.
 `otherNozzleMm` names the **unselected** H2D nozzle; update it when switching
@@ -360,11 +361,10 @@ regression preserves both the successful executable and generated project.
 This installation is evidence for the workflow, not a fixed required feed layout
 or certification of other untested installations.
 
-1. Establish the machine and installation: left and right diameters, plate,
-   materials, nozzle temperatures, feed devices and which nozzle each device
-   connects to. `tool: 0` is left and `tool: 1` is right. These are not physical
-   heater selectors or AMS slots. The tested external-left/AMS-right combination
-   is an example, not a required topology.
+1. Take the known or assumed installation ([Maker setup](#maker-setup)): left and
+   right diameters, plate, materials, nozzle temperatures, feed devices and which
+   nozzle each device connects to. `tool: 0` is left and `tool: 1` is right; these
+   are not physical heater selectors or AMS slots.
 2. Set the starting filament's `setup.tool`, `nozzleMm`, matching `core`,
    `nozzleC` and global process. `bambu.otherNozzleMm` describes the other side.
    Declare each logical filament once, with its `tool`, material ID, colour and
@@ -434,9 +434,9 @@ values, not defaults to substitute for a user's material or installation.
 }
 ```
 
-1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
-   and colours. Set `setup.tool`, `nozzleMm`, matching `core`, temperature and
-   `bambu.otherNozzleMm`; do not substitute equal diameters to match a reference.
+1. From the known or assumed installation ([Maker setup](#maker-setup)), set
+   `setup.tool`, `nozzleMm`, matching `core`, temperature, plate and
+   `bambu.otherNozzleMm`, not a reference's diameters.
 2. Declare two `setup.filaments` entries with the **same tool**, their actual
    material IDs/colours and `source: {"type":"auto"}`. Leave `setup.ams` null for
    automatic matching. Declare known AMS connections independently. A colour is

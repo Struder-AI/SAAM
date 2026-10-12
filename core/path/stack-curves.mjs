@@ -6,11 +6,17 @@ import {sampleAuthoredCurve} from './authored-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {spiralProfile,spiralHeight,spiralBeadCurve} from './curve-construction.mjs';
 
+// A layer the sleeve chart joins has one closed boundary of at least three points.
+const joinable=layer=>layer.curves?.length===1&&layer.curves[0].closed&&layer.curves[0].points.length>=3;
+// Ascending layer indices as runs: "layer 3", "layers 3, 5–8".
+const layerList=indices=>(indices.length>1?'layers ':'layer ')+indices.reduce((runs,index)=>{const run=runs.at(-1);if(run&&index===run[1]+1)run[1]=index;else runs.push([index,index]);return runs;},[])
+  .map(([a,b])=>a===b?`${a}`:`${a}–${b}`).join(', ');
+
 // Stack boundaries are already offset/clipped/mapped. A sleeve is their
 // around/layer correspondence, so joins never reslice geometry or select a skill.
+// spiralStackCurve passes only a run of two or more joinable layers.
 export function boundarySleeve(referenceStack){
-  requireThat(referenceStack?.layers?.length>=2,'A boundary sleeve needs at least two layers.');
-  for(const layer of referenceStack.layers)requireThat(layer.curves?.length===1&&layer.curves[0].closed&&layer.curves[0].points.length>=3,'Spiral joining needs one closed boundary per stack layer, with no holes.');
+  requireThat(referenceStack.layers.length>=2&&referenceStack.layers.every(joinable),'A boundary sleeve joins two or more layers, each with one closed boundary.');
   return {kind:'sleeve-chart',layers:referenceStack.layers,direction:normalize(referenceStack.direction??[0,0,1])};
 }
 
@@ -28,11 +34,33 @@ function stackNormal(sleeve,u,v){
   return normalize(a.map((x,k)=>x+(b[k]-x)*t));
 }
 
+// A boundary function is the wall itself; its layers only label segments, so
+// any layer count and shape spirals. A sleeve chart is interpolated between
+// layer boundaries: it joins the longest run of consecutive joinable layers,
+// and every other layer prints its boundaries as separate closed layers
+// (layerCurves; one note names them). Without such a run, profile is null and
+// layerCurves hold every layer.
+export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,role='spiral',...options}){
+  requireThat(firstHeightMm>0&&widthMm>0&&Number.isFinite(speedMmS),'Spiral joining needs positive bead values and a speed.');
+  const bead={firstHeightMm,widthMm,speedMmS,role,...options};
+  if(referenceStack.boundary)return {...spiralRun(referenceStack,bead),layerCurves:[]};
+  const runs=[];
+  for(const layer of referenceStack.layers){const run=runs.at(-1);if(run?.joinable&&joinable(layer))run.layers.push(layer);else runs.push({joinable:joinable(layer),layers:[layer]});}
+  const joined=runs.filter(run=>run.joinable&&run.layers.length>=2).reduce((best,run)=>run.layers.length>(best?.layers.length??0)?run:best,null)?.layers??[];
+  const separate=referenceStack.layers.filter(layer=>!joined.includes(layer)),whole=joined.length===referenceStack.layers.length;
+  // A part of the stack takes the chart's own layer coordinate.
+  const spiral=joined.length?spiralRun({...referenceStack,layers:joined,...(whole?{}:{coordinate:undefined})},bead):{profile:null,notes:[]};
+  // Collapsed boundaries carry nothing to print.
+  const layerCurves=separate.flatMap(layer=>(layer.curves??[]).filter(curve=>curve.points?.length>=(curve.closed?3:2)).map(curve=>({...curve,role,speedMmS,beadWidthMm:widthMm,
+    heightMm:layer.heightMm??firstHeightMm,segmentMetadata:curve.points.slice(curve.closed?0:1).map(()=>({layer:layer.index}))})));
+  const notes=separate.length?[`Spiral stack: ${layerList(separate.map(layer=>layer.index))} printed plain, not spiral-joined; a spiral joins consecutive layers that each have one closed boundary${joined.length?`, here ${layerList(joined.map(layer=>layer.index))}`:''}.`]:[];
+  return {...spiral,layerCurves,notes:[...spiral.notes,...notes]};
+}
+
 // Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm
 // line; widthMm is in scope but the defaults are kept so existing spirals do not move.
-export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role='spiral'}){
-  const sleeve=boundarySleeve(referenceStack),n=sleeve.layers.length;
-  requireThat(firstHeightMm>0&&widthMm>0&&Number.isFinite(speedMmS),'Spiral joining needs positive bead values and a speed.');
+function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role}){
+  const n=referenceStack.layers.length,sleeve=referenceStack.boundary?null:boundarySleeve(referenceStack);
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
   const profile=spiralProfile({...coordinate,firstHeightMm,levelEnd});
   let curve,turns;
@@ -57,13 +85,14 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
     })};
   }
   const bead=spiralBeadCurve({profile,points:curve.points,turns,role,speedMmS,minimumTurnSeconds});
-  const heightsMm=referenceStack.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
+  // A layer gap that reverses (the stack folds back) deposits nothing there.
+  const gaps=referenceStack.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
     const a=curve.frameSamples[i].point,b=curve.frameSamples[i+1].point,u=(a[0]+b[0])/2,v=(a[1]+b[1])/2;
     if(u<=1)return firstHeightMm;
     const normal=stackNormal(sleeve,u,v),current=evaluateSurface(sleeve,[u,v]).point,previous=evaluateSurface(sleeve,[u,Math.max(0,Math.min(n-1,u-2))]).point;
-    const gap=dot(current.map((x,k)=>x-previous[k]),normal);
-    requireThat(gap>=-PRINT_RESOLUTION_MM,'Spiral stack reverses its deposited layer gap.');return Math.max(0,gap);
+    return dot(current.map((x,k)=>x-previous[k]),normal);
   });
+  const heightsMm=gaps.map(gap=>Math.max(0,gap));
   const segmentMetadata=bead.segmentMetadata.map((metadata,i)=>{
     const mid=(turns[i]+turns[i+1])/2;
     const index=referenceStack.boundary?Math.min(n-1,Math.max(0,Math.floor(mid-1))):Math.min(n-1,Math.max(0,Math.floor((curve.frameSamples[i].point[1]+curve.frameSamples[i+1].point[1])/2)));
@@ -71,20 +100,28 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
     return {...metadata,layer:terminal?referenceStack.layers.at(-1).index:referenceStack.layers[index].index,
       ...(referenceStack.boundary?{}:{surfaceNormal:stackNormal(sleeve,mid,(curve.frameSamples[i].point[1]+curve.frameSamples[i+1].point[1])/2),beadHeightMm:heightsMm[i]})};
   });
-  return {...curve,...bead,frameSamples:curve.frameSamples,heightsMm,beadWidthMm:widthMm,segmentMetadata,profile};
+  const reversed=[...new Set(gaps.flatMap((gap,i)=>gap<-PRINT_RESOLUTION_MM?[segmentMetadata[i].layer]:[]))].sort((a,b)=>a-b);
+  const notes=reversed.length?[`Spiral stack: the layer gap reverses at ${layerList(reversed)}; the spiral passes there without depositing.`]:[];
+  return {...curve,...bead,frameSamples:curve.frameSamples,heightsMm,beadWidthMm:widthMm,segmentMetadata,profile,notes};
 }
 
+// A join rule as read: a mode, transition or toleranceMm SAAM cannot read takes
+// its default and is named in ignored. A continuous join connects each gap above
+// toleranceMm with a depositing connector, or by default leaves it to the
+// composer's travel (travelGaps counts them).
+const JOIN_MODES=['separate','ordered','continuous'],JOIN_TRANSITIONS=['travel','deposit'];
 export function joinCurveSequence(curves,{mode='separate',toleranceMm=PRINT_RESOLUTION_MM,transition='travel',speedMmS,heightMm}={}){
-  requireThat(['separate','ordered','continuous'].includes(mode)&&['travel','deposit'].includes(transition)&&toleranceMm>=0,'Invalid curve joining rule.');
-  if(mode==='separate'||mode==='ordered')return {curves,continuous:mode==='ordered'};
-  const output=[];
+  const ignored=[...(JOIN_MODES.includes(mode)?[]:['mode']),...(JOIN_TRANSITIONS.includes(transition)?[]:['transition']),...(Number.isFinite(toleranceMm)&&toleranceMm>=0?[]:['toleranceMm'])];
+  const rule={mode:JOIN_MODES.includes(mode)?mode:'separate',transition:JOIN_TRANSITIONS.includes(transition)?transition:'travel',toleranceMm:ignored.includes('toleranceMm')?PRINT_RESOLUTION_MM:toleranceMm};
+  if(rule.mode!=='continuous')return {curves,continuous:rule.mode==='ordered',ignored,travelGaps:0};
+  const output=[];let travelGaps=0;
   for(const curve of curves){
     const previous=output.at(-1);
-    if(previous&&distance(previous.points.at(-1),curve.points[0])>toleranceMm){
-      requireThat(transition==='deposit','Continuous curve join has a gap; declare a depositing connector or separate travel.');
-      output.push({role:'connector',closed:false,points:[previous.points.at(-1),curve.points[0]],speedMmS:speedMmS??curve.speedMmS,heightMm:heightMm??curve.heightMm});
+    if(previous&&distance(previous.points.at(-1),curve.points[0])>rule.toleranceMm){
+      if(rule.transition==='deposit')output.push({role:'connector',closed:false,points:[previous.points.at(-1),curve.points[0]],speedMmS:speedMmS??curve.speedMmS,heightMm:heightMm??curve.heightMm});
+      else travelGaps++;
     }
     output.push(curve);
   }
-  return {curves:output,continuous:true};
+  return {curves:output,continuous:true,ignored,travelGaps};
 }

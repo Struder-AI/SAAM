@@ -412,7 +412,8 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
     const pitch=lineSpacing(width,layerSettings),angles=layerSettings.fillAnglesDeg,angleAt=index=>layerSettings.rotateFill?angles[index%angles.length]:angles[0];
     const masked=layerSettings.fillDensity<1&&(layerSettings.solidTop>0||layerSettings.solidBottom>0||solidRegions.size>0);
     const area=loops=>!loops.length?0:slice.kind==='patch'?patchMeanNormal(slice.patch,loops,{sampleStepMm:layerSettings.sampleStepMm}).areaMm2:regionArea(loops);
-    if (!region.length) { report.skippedLayers++; continue; }
+    const regionAreaMm2=area(region);
+    if (!regionAreaMm2) { report.skippedLayers++; continue; }
     const own = layer.material ?? region, outward = layer.outward ?? false;
     const solid = masked ? union(solidMasks(maskLayers, index, { bottomLayers: layerSettings.solidBottom, topLayers: layerSettings.solidTop }).solid,
       intersect(region, union(solidRegions.get(index) ?? [], []))) : null;
@@ -471,7 +472,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
       current.push(opId);
     }
     previous = current;
-    report.layers++; report.areaMm2 += area(region);
+    report.layers++; report.areaMm2 += regionAreaMm2;
   }
   if(layers.some(layer=>layer.slice.kind==='surface-chart')){report.areaChart2=report.areaMm2;report.solidAreaChart2=report.solidAreaMm2;delete report.areaMm2;delete report.solidAreaMm2;}
   const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));

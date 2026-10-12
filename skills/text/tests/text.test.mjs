@@ -15,7 +15,7 @@ const bytes=await readFile(fontPath),font={data:bytes.toString('base64'),sha256:
 const r=await rhino(),buildGeometry=g=>buildShell(r,g);
 const plane={kind:'plane',origin:[0,0,3],xAxis:[1,0,0],yAxis:[0,1,0]};
 const feature=(patch={})=>textFeature({text:'BO',font,reference:plane,positionMm:[2,2],sizeMm:7,...patch});
-const compile=(target,features,options={})=>compileText(target,features,{buildGeometry,constructSolids,mappedTextMaterial,...options});
+const compile=async(target,features,options={})=>(await compileText(target,features,{buildGeometry,constructSolids,mappedTextMaterial,...options})).geometry;
 const volume=async mesh=>{const k=await solidKernel(),s=solidFromMesh(k,mesh);try{return s.volume();}finally{s.delete();}};
 
 test('lettering finer than the retired triangle ceiling compiles and stays valid',async()=>{

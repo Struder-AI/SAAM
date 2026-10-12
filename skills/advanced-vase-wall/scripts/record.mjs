@@ -2,7 +2,7 @@
 // validate a saved sleeve before regeneration.
 export function advancedVaseRecordRuntime(){
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));// Patterns use sleeve coordinates, never independent world XYZ.
+  // Patterns use sleeve coordinates, never independent world XYZ.
 
 // A turns pattern's perimeter position is periodic; a sized pattern's arc is not.
 // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
@@ -40,10 +40,9 @@ function validateSleevePattern(pattern,mode='continuous') {
     requireThat(heights.length===path.points.length&&heights.every(h=>Number.isFinite(h)&&h>=0),'Pattern beadHeightMm must be nonnegative or one height per point.');
     const offsets=Array.isArray(path.offsetMm)?path.offsetMm:path.points.map(()=>path.offsetMm??0);
     requireThat(offsets.length===path.points.length&&offsets.every(Number.isFinite),'Pattern offsetMm must be finite or one finite offset per point.');
-    for(let i=1;i<path.points.length;i++) {
-      requireThat(distance(path.points[i-1],path.points[i])>0||offsets[i-1]!==offsets[i],'Remove duplicate consecutive pattern points.');
+    // Repeated consecutive points are dropped at mapping.
+    for(let i=1;i<path.points.length;i++)
       requireThat(heights[i-1]+heights[i]>0,'Split travel into separate pattern paths; zero-deposition segments are not pattern paths.');
-    }
   }
   requireThat(paths[0].points[0][1]>=0,'The first pattern point cannot start below the selected print height.');
   // Every turn of a sized pattern starts its first tile at the seam, so a

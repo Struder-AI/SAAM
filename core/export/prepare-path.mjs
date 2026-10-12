@@ -48,7 +48,8 @@ function limitedFeed(start,actions,machine){
 // the exact selected-machine motion sent into the program writer. The adapter
 // declares whether it writes poses; its setup block may state the start pose
 // and the posed-travel retreat (initialPose, retreatMm). The SAAMpath is moved
-// onto the bed by the recipe's placement first.
+// onto the bed by the recipe's placement first. notes: what adaptation could not
+// write as the profile asks (a shortened or omitted priming lane).
 export function prepareExportPath(saved,plan,machine,adapter){
   requireThat(saved?.schema==='saampath/1'&&saved.completion?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
@@ -65,8 +66,7 @@ export function prepareExportPath(saved,plan,machine,adapter){
   const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
-  if(path.actions.some(a=>a.volumeMm3>0)&&!hasPrime(path))
-    machinePriming(motion,machine,bounds,geometryBounds);
+  const priming=path.actions.some(a=>a.volumeMm3>0)&&!hasPrime(path)?machinePriming(motion,machine,bounds,geometryBounds):null;
   motion.phase='start';motion.layer=0;motion.operationId=null;
   motion.travel(path.initialPosition,oriented?path.initialPose??null:null);
   const debts=new Map([[selected.tool,0]]);let neutralFrom=path.initialPosition,relocating=false;
@@ -105,9 +105,8 @@ export function prepareExportPath(saved,plan,machine,adapter){
     if(original.kind==='move'){
       // Rounding guard: a neutral move of zero length within rounding is no move.
       if(original.volumeMm3>0&&distance(motion.position,neutralFrom)>ROUNDING_MM)motion.travel(neutralFrom);
-      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){
-        requireThat(original.volumeMm3===0,'A zero-length move needs stationary extrusion.');neutralFrom=original.to;continue;
-      }
+      // A deposition move of zero length is not written either.
+      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){neutralFrom=original.to;continue;}
       motion.position=[...original.to];motion.pose=original.pose??null;
       if(original.volumeMm3>0)motion.depositedMaxZ=Math.max(motion.depositedMaxZ,neutralFrom[2],original.to[2]);
       neutralFrom=original.to;
@@ -122,7 +121,7 @@ export function prepareExportPath(saved,plan,machine,adapter){
   if(relocating)motion.travel(neutralFrom);
   const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
     initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
-    actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
+    actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds},notes:priming?[priming]:[]};
   if(!oriented)delete prepared.initialPose;
   return prepared;
 }

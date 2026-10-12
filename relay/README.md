@@ -40,6 +40,7 @@ node relay/scripts/operator.mjs invite --for "Name" [--days 14]
 node relay/scripts/operator.mjs invites
 node relay/scripts/operator.mjs revoke-invite NAME
 node relay/scripts/operator.mjs devices
+node relay/scripts/operator.mjs rename NAME --to "New name"
 node relay/scripts/operator.mjs remove NAME [NAME…]
 node relay/scripts/operator.mjs pull --device NAME | --since 7d
 node relay/scripts/operator.mjs reports [--device NAME] [--since 7d]
@@ -50,9 +51,11 @@ brackets, is needed only when two share a name or for a removed installation's
 records. The CLI reads `SAAM_RELAY_URL` or `--relay URL`, otherwise the deployed origin.
 `pull` writes JSONL under `.local/relay-records/`; `reports` prints Studio and agent
 bug reports, each with its installation's records from the 30 minutes before.
+With the `SLACK_WEBHOOK_URL` secret (a Slack incoming webhook), each stored bug
+report is also posted, redacted as stored, to that channel; a failed post is logged.
 Removing a device invalidates its credential, not its retained records. Routes:
 `GET/POST /operator/invites`, `DELETE /operator/invites/:id`, `GET /operator/devices`,
-`DELETE /operator/devices/:id`, paged `GET /records?device=&since=&until=&after=`.
+`PATCH`/`DELETE /operator/devices/:id`, paged `GET /records?device=&since=&until=&after=`.
 
 ## Local run and deployment
 

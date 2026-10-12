@@ -60,12 +60,8 @@ export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
   requireThat(['level','spiral'].includes(endTransition),'endTransition must be level or spiral.');
   // A sized pattern's turn rises riseMm across its tiles; its tile count follows the sleeve.
   const sized=Boolean(pattern&&Object.hasOwn(pattern,'tileWidthMm')),repeats=sized?pattern.turns:pattern?.repeats;
+  // Generation clamps a pattern exceeding the interval and notes it.
   if(pattern){
-    let minimum=Infinity,maximum=-Infinity;
-    for(const path of pattern.paths)for(const p of path.points){minimum=Math.min(minimum,p[1]);maximum=Math.max(maximum,p[1]);}
-    requireThat(minimum>=-ROUNDING_MM,'The authored pattern descends below its first bead; revise the explicit path heights.');
-    requireThat(maximum+(sized?repeats*pattern.riseMm:(repeats-1)*pattern.advance[1])<=span+ROUNDING_MM,
-      'The requested complete pattern repetitions exceed the detected sleeve interval. Revise repeats or the selected interval explicitly; no path was trimmed.');
     authoredPoints=sized?null:pattern.paths.reduce((n,p)=>n+p.points.length,0)*(repeats+(endTransition==='level'?2:0));
     requireThat(sized||Number.isSafeInteger(authoredPoints),'The authored pattern point count exceeds the safe integer range.');
   }

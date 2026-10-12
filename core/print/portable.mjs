@@ -71,15 +71,21 @@ async function readInput(directory,name){
   return readFile(target);
 }
 
-function checkSources(document,files){
+// The one sentence for each source-provenance problem; null when consistent.
+function sourceProblem(document,files){
   const provenance=files.get('geometry/source.json'),sources=sourceRecords(document.geometry);
   if(provenance){
     const source=JSON.parse(provenance);
-    if(source?.format!=='stl'||source.sha256!==hash(files.get('geometry/source.stl')??Buffer.alloc(0)))throw Error('Source provenance differs from the retained STL.');
+    if(source?.format!=='stl'||source.sha256!==hash(files.get('geometry/source.stl')??Buffer.alloc(0)))return 'Source provenance differs from the retained STL.';
     sources.push(source);
   }
   if(new Set(sources.map(source=>source.sha256)).size>1)
-    throw Error('This bundle records multiple distinct STL sources, but retains only geometry/source.stl. Supply a self-contained source recipe before sharing.');
+    return 'This bundle records multiple distinct STL sources, but retains only geometry/source.stl.';
+  return null;
+}
+function checkSources(document,files){
+  const problem=sourceProblem(document,files);
+  if(problem)throw Error(problem+(problem.startsWith('This bundle')?' Supply a self-contained source recipe before sharing.':''));
 }
 
 export async function shareBundle(directory,packageFile,options={}){
@@ -139,16 +145,21 @@ function validateExtensionPaths(document){
   checkPathSpellings(document.files.map(file=>file.path));
 }
 
-function checkRepairProvenance(files){
+function repairProblem(files){
   const original=files.get('repair/original.stl'),report=files.get('repair/repair.json');
-  if(Boolean(original)!==Boolean(report))throw Error('Repair provenance needs both original STL and repair report.');
+  if(Boolean(original)!==Boolean(report))return 'Repair provenance needs both original STL and repair report.';
   if(report){
     const record=JSON.parse(report);
     if(record.sourceSha256!==hash(original)||record.repairedSha256!==hash(files.get('geometry/source.stl')??Buffer.alloc(0)))
-      throw Error('Repair provenance differs from the retained original/repaired source.');
+      return 'Repair provenance differs from the retained original/repaired source.';
   }
+  return null;
 }
+function checkRepairProvenance(files){const problem=repairProblem(files);if(problem)throw Error(problem);}
 
+// Integrity (listed bytes, paths, extension identities, required inputs) is
+// checked; saved review state, unrelated listed files and inconsistent source
+// or repair provenance are left out and named in notes.
 function validatePackage(files){
   const metadata=JSON.parse(files.get('package.json')??'null');
   if(![SCHEMA,'saam-print-package/2'].includes(metadata?.schema)||!Array.isArray(metadata.files)||!Array.isArray(metadata.extensions))throw Error('Unsupported bundle package.');
@@ -159,14 +170,14 @@ function validatePackage(files){
     if(!bytes||bytes.length!==item.bytes||hash(bytes)!==item.sha256)throw Error(`Package input changed: ${item.path}.`);
   }
   if(names.size!==files.size)throw Error('Bundle package contains unlisted files.');
-  const document=JSON.parse(files.get('plan.json')??'null');
-  if(document?.bundle?.schema!=='saam-print-bundle/2'||!Object.hasOwn(document.bundle,'machine'))
-    throw Error('Portable bundles contain inputs only, without review results.');
-  if(Object.keys(document.bundle).sort().join()!=='machine,schema')throw Error('Portable bundle metadata contains generated or unrelated state.');
+  const saved=JSON.parse(files.get('plan.json')??'null'),notes=[];
+  if(!saved||typeof saved!=='object'||Array.isArray(saved))throw Error('Bundle package has no readable plan.');
+  const {bundle:savedBundle,...recipe}=saved,document={...recipe,bundle:{schema:'saam-print-bundle/2',machine:savedBundle?.machine??null}};
+  if(Object.keys(savedBundle??{}).some(key=>!['machine','schema'].includes(key)))notes.push('Saved review results and other bundle state in the package were not imported.');
   const expected=new Set(inputNames(document));
   if(metadata.schema==='saam-print-package/2'){
-    if(!files.has('geometry/source.json'))throw Error('Source-provenance package is incomplete.');
-    expected.add('geometry/source.json');expected.add('geometry/source.stl');
+    expected.add('geometry/source.stl');
+    if(files.has('geometry/source.json'))expected.add('geometry/source.json');else notes.push('The package has no source provenance record; the STL was imported without it.');
   }
   for(const name of ['repair/original.stl','repair/repair.json'])if(files.has(name))expected.add(name);
   const ids=new Set();
@@ -179,15 +190,18 @@ function validatePackage(files){
     validateExtensionPaths(record);
   }
   for(const id of requiredExtensionIds(document))if(!ids.has(id))throw Error(`Required extension ${id} is absent from the package.`);
-  if(expected.size!==metadata.files.length||[...expected].some(name=>!files.has(name)))throw Error('Bundle package input inventory is incomplete or contains unrelated files.');
-  checkSources(document,files);
-  checkRepairProvenance(files);
-  return {metadata,document};
+  if([...expected].some(name=>!files.has(name)))throw Error('Bundle package input inventory is incomplete.');
+  const unrelated=metadata.files.map(item=>item.path).filter(name=>!expected.has(name));
+  if(unrelated.length)notes.push(`Package files that are not bundle inputs were not imported: ${unrelated.join(', ')}.`);
+  const source=sourceProblem(document,files),repair=repairProblem(files);
+  if(source){notes.push(source+' The source provenance record was not imported.');files.delete('geometry/source.json');}
+  if(repair){notes.push(repair+' The repair record was not imported.');files.delete('repair/original.stl');files.delete('repair/repair.json');}
+  return {metadata,document,notes};
 }
 
 export async function importBundle(packageFile,directory,options={}){
   options.progress?.({stage:'Validating portable ZIP inputs'});
-  const files=readArchive(await readFile(resolve(packageFile))),{metadata,document}=validatePackage(files);
+  const files=readArchive(await readFile(resolve(packageFile))),{metadata,document,notes}=validatePackage(files);
   const target=resolve(directory),parent=dirname(target);
   async function requireCreationDestination(){
     if(!options.instance?.token)throw Error('Import destination already exists. Choose a new bundle directory.');
@@ -224,7 +238,7 @@ export async function importBundle(packageFile,directory,options={}){
     // compiled extension meshes. This does not load selected extension scripts.
     options.progress?.({stage:'Reconstructing bundle geometry'});
     for(const geometry of geometryTree(document.geometry))delete geometry.compiledHash;
-    await initBundle(staging,document,{sourceBytes:files.get('geometry/source.stl')});
+    await initBundle(staging,document,{sourceBytes:files.get('geometry/source.stl'),notes});
     await loadBundle(staging,{program:false});
     await options.beforeCommit?.();
     // mkdir is the exclusive destination claim on every supported OS; rename
@@ -248,7 +262,7 @@ export async function importBundle(packageFile,directory,options={}){
     const state=await loadBundle(target,{program:false});
     destination.completed=true;
     return {directory:target,revision:state.revision,editRevision:state.editRevision,files:[...files.keys()].filter(name=>name!=='package.json'),
-      extensions:selectedExtensions,artifacts:state.artifacts,
+      extensions:selectedExtensions,artifacts:state.artifacts,...(notes.length?{notes}:{}),
       next:'Open this directory in Studio; edit and regenerate before review/export.'};
   }catch(error){
     // Exact validated library copies remain useful even if publication fails;

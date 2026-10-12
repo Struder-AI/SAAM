@@ -19,7 +19,10 @@ extension compiles lettering into explicit XYZ curves.
 
 Scalar beadWidthMm, heightMm, speedMmS and flowMultiplier override process
 defaults. `vary` provides increasing normalized-parameter `[t,value]` samples
-spanning 0–1 for those values. Pose is optional derived Slice output, with field
+spanning 0–1 for those values. Fields Trace cannot use (unknown keys, malformed
+profiles or width rules, non-positive widths) are ignored and listed in
+`limitations`; repeated vertices are dropped, and a collapsed curve prints
+nothing. Pose is optional derived Slice output, with field
 modulation; Trace does not accept hand-authored pose samples. `widthRule` fits one or parallel real paths to widthMm
 within beadRangeMm, with optional spacingFactor and initialNormal for spatial
 frames. Sleeve/mesh-roof creases use physical facet transitions; nonzero normal

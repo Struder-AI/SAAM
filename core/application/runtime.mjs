@@ -34,6 +34,8 @@ import { readGuidance, readManual } from '../agent/manuals.mjs';
 import { onboardingSources, machineHint } from '../agent/layers.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../skills/catalog.mjs';
 import {geometryTree,COMPILED_GEOMETRY_TOOLS} from '../../skills/records.mjs';
+import {resolvePlanPatch} from '../print/resolve-plan.mjs';
+import {canonicalJson} from '../canonical-json.mjs';
 import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftStackSchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -53,13 +55,48 @@ const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
 const editIdentitySchema={expectedRevision:z.string().min(1).optional(),expectedEditRevision:z.string().min(1).optional()};
 async function bundleModule(){return import('../print/bundle.mjs');}
+// The first compiled geometry record the patch would change.
+async function changedCompiledGeometry(plan,patch){
+  const {geometryTemplate}=await import('../print/plan.mjs'),compiled=geometry=>geometryTree(geometry).filter(node=>COMPILED_GEOMETRY_TOOLS[node.shape]);
+  const saved=new Set(compiled(plan.geometry).map(canonicalJson));
+  return compiled(resolvePlanPatch(plan,patch,{geometryTemplate}).geometry).find(node=>!saved.has(canonicalJson(node)));
+}
 
-function noApprovalFields(value) {
-  if (!value || typeof value !== 'object') return;
-  for (const [key, child] of Object.entries(value)) {
-    if (/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i.test(key))
-      throw new Error(`Field ${key} is not an agent-editable recipe setting; review state belongs to Bundle and the person exports from Studio.`);
-    noApprovalFields(child);
+// Review state belongs to Bundle and the person exports from Studio: a review
+// field anywhere in a recipe or request is removed, and its path returned.
+const REVIEW_FIELD=/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i;
+const REVIEW_ARGUMENTS=['plan','patch','request','parameters','assignment','modifier'];
+function noApprovalFields(value,at=[]) {
+  if (!value || typeof value !== 'object') return [];
+  return Object.keys(value).flatMap(key=>{
+    if(!REVIEW_FIELD.test(key))return noApprovalFields(value[key],[...at,key]);
+    delete value[key];return [[...at,key].join('.')];
+  });
+}
+// Arguments an operation does not read, misspelled ones included, are removed
+// and named; a known argument of the wrong type still fails. A union follows
+// the branch whose only objection is unknown keys.
+function unknownArgumentPaths(issues,at=[]){
+  return issues.flatMap(issue=>{
+    const path=[...at,...issue.path];
+    if(issue.code==='unrecognized_keys')return issue.keys.map(key=>[...path,key]);
+    const branch=issue.code==='invalid_union'?issue.errors.find(errors=>errors.length&&errors.every(error=>error.code==='unrecognized_keys')):null;
+    return branch?unknownArgumentPaths(branch,path):[];
+  });
+}
+function parseArguments(schema,args){
+  const input=structuredClone(args),ignored=[];
+  for(;;){
+    const parsed=schema.safeParse(input);
+    const removed=parsed.success?[]:unknownArgumentPaths(parsed.error.issues).filter(path=>{
+      const parent=path.slice(0,-1).reduce((value,key)=>value?.[key],input);
+      return parent&&typeof parent==='object'&&Object.hasOwn(parent,path.at(-1))&&delete parent[path.at(-1)];
+    });
+    ignored.push(...removed.map(path=>path.join('.')+' (not an input of this operation)'));
+    if(removed.length)continue;
+    if(!parsed.success)return {parsed,ignored};
+    for(const name of REVIEW_ARGUMENTS)ignored.push(...noApprovalFields(parsed.data[name],[name]).map(path=>path+' (review state belongs to Bundle; the person exports from Studio)'));
+    return {parsed,ignored};
   }
 }
 
@@ -299,7 +336,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
   async function applyExtension(bundleId,extensionId,request,options={},kindError='Extensions modify shared shell/mesh prints.'){
-    noApprovalFields(request);
     const {dir,state}=await read(bundleId,{program:false});
     if(state.kind!=='shell')throw new Error(kindError);
     const updated=await applyExtensionEdit(dir,extensionId,request,options);
@@ -337,8 +373,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours'].includes(name);
     const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle'].includes(name);
-    // The full strict schema makes unexpected top-level approval data an error
-    // instead of letting Zod silently discard it.
+    // The strict schema names unexpected arguments, which invoke removes and reports.
     const schema=z.object({...shape,expectedStudio:expectedStudioSchema.optional(),...(tracked?{requestIds:z.array(z.string()).optional(),studioInstanceId:z.string().optional()}: {})}).strict();
     operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,resultStage,immediate:immediateTools.has(name)});
   }
@@ -434,12 +469,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function invoke(name,args={},session){
     const definition=operations.get(name);
     if(!definition)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
-    const parsed=definition.schema.safeParse(args);
+    const {parsed,ignored}=parseArguments(definition.schema,args);
     const execute=async()=>{
       if(app.closing)throw Error('The SAAM application is quitting.');
       const started=operationObservers.size?Date.now():null;
       try{
-        if(!parsed.success)throw parsed.error;
+        if(!parsed.success)throw ignored.length?Object.assign(Error(parsed.error.message+' Ignored arguments: '+ignored.join('; ')+'.',{cause:parsed.error}),{ignoredArguments:ignored}):parsed.error;
         await validateTarget(name,parsed.data);
         const {requestIds,expectedStudio,...input}=parsed.data;
         if(definition.schema.shape.expectedEditRevision&&input.action!=='create'&&!input.expectedEditRevision&&!input.expectedRevision)
@@ -503,6 +538,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage);
           if(visualCheck)call.result={...call.result,visualCheck};
         }
+        if(ignored.length&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,ignoredArguments:ignored};
         if(view&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,studio:{studioInstanceId:view.server.agentSession().instanceId,bundleId:view.server.agentSession().printId,url:view.url,browserOpenRequested:view.browserOpenRequested}};
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:definition.readOnly,
@@ -636,7 +672,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('create_bundle','Create and show a bundle with authored/imported geometry or standalone Trace/Inject assignments; an unfinished recipe is saved as it is. Missing fields take current defaults (generic without machineId; a machine can be selected later) and unread fields are ignored, both named in limitations; deposition reports what generation makes of it. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string().optional(), plan: objectSchema },false,false,'geometry');
   async function createBundle({ bundleId, kind, machineId, plan }){
-      noApprovalFields(plan);
       if(machineId)loadMachine(machineId);
       const dir = await directory(bundleId, { create: true }), bundle = await bundleModule();
       await bundle.initBundle(dir, plan, { machineId });
@@ -659,7 +694,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function recoverBundleInstanceOperation({bundleId}){return {bundleId,...await recoverBundleInstance(await directory(bundleId))};}
   operation('repair_stl','Maintenance: normalize source vertices below print resolution and repair a local STL into a new absolute outputDirectory (original.stl, repaired.stl in mm, repair.json). Optional vertex tolerance adds a larger merge; hole limits use boundary edge count and bounding-box diagonal in mm. Ordinary imports repair recognized defects and fill holes within 500 edges and 2 mm. Import repaired.stl with units mm for review. get_studio_events reports its jobId and progress; cancel_studio_calculation cancels it.',{sourcePath:z.string().min(1),outputDirectory:z.string().min(1),units:z.enum(['mm','inch']),mergeToleranceMm:z.number().min(0).optional(),maxHoleEdges:z.number().int().min(0).optional(),maxHoleDiameterMm:z.number().min(0).optional(),maxSampledDistanceMm:z.number().min(0).optional()},false);
   async function repairStl({sourcePath,outputDirectory,units,...limits}){
-    if(!isAbsolute(sourcePath)||!/\.stl$/i.test(sourcePath))throw Error('Choose an absolute path to a local .stl source file.');
+    // The source is read as an STL whatever its name, here and in import_stl_bundle.
+    if(!isAbsolute(sourcePath))throw Error('Choose an absolute path to a local .stl source file.');
     if(!isAbsolute(outputDirectory))throw Error('Choose an absolute path for the new repair directory.');
     const jobId=randomUUID(),controller=new AbortController();
     const job={ownerId,jobId,printId:null,studioInstanceId:null,kind:'stl-repair',status:'repairing',startedAt:Date.now(),controller,progress:{stage:'read-source'}};
@@ -679,18 +715,20 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',{bundleId:bundleIdSchema,packageFile:z.string()},true,true);
   async function shareBundle({bundleId,packageFile}){
-      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path for a new .zip package.');
-      return exchangeBundle('share',bundleId,await directory(bundleId),packageFile);
+      // A name without the .zip suffix gains it; the result names the file written.
+      if(!isAbsolute(packageFile))throw Error('Choose an absolute path for a new .zip package.');
+      return exchangeBundle('share',bundleId,await directory(bundleId),/\.zip$/i.test(packageFile)?packageFile:packageFile+'.zip');
     }
   operation('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',{bundleId:bundleIdSchema,packageFile:z.string()},false,true,'geometry');
   async function importBundle({bundleId,packageFile},instance){
-      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path to a .zip package.');
+      // The package is read as a ZIP whatever its name.
+      if(!isAbsolute(packageFile))throw Error('Choose an absolute path to a .zip package.');
       return exchangeBundle('import',bundleId,await directory(bundleId,{create:true}),packageFile,instance);
     }
   operation('import_stl_bundle','Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',{ bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },false,false,'geometry');
   async function importStlBundle({ bundleId, sourcePath, units, machineId }){
       loadMachine(machineId);
-      if (!isAbsolute(sourcePath) || !/\.stl$/i.test(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
+      if (!isAbsolute(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
       const source = await stat(sourcePath);
       if (!source.isFile()) throw new Error('STL source must be a regular file.');
       const dir = await directory(bundleId, { create: true });
@@ -715,10 +753,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('blob_field','Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',{bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function blobField({bundleId,action,request,machineId,expectedRevision,expectedEditRevision,part}){
-      noApprovalFields(request);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
-        loadMachine(machineId);
+        // A machine can be selected later; revision and part apply only to updates.
+        if(machineId)loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
         const machineSetups=await machineSetupStore();
         return summary(bundleId,await calculateGeometry(bundleId,options=>createBlobFieldBundle(dir,request,{machineId,machineSetups,...options})));
@@ -730,10 +767,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('gridfinity','gridfinity',{bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function gridfinity({bundleId,action,parameters,machineId,expectedRevision,expectedEditRevision,part}){
-      noApprovalFields(parameters);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
-        loadMachine(machineId);
+        // A machine can be selected later; revision and part apply only to updates.
+        if(machineId)loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
         return summary(bundleId,await createExtensionBundle(dir,'gridfinity',parameters,{machineId,machineSetups:await machineSetupStore()}));
       }
@@ -755,29 +791,26 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function intersectGeometry({bundleId,request}){return intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request);}
   operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function combineGeometryOperation({bundleId,expectedRevision,expectedEditRevision,request}){
-      noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
       return summary(bundleId,await combineGeometry(dir,request,{expectedRevision,expectedEditRevision}));
     }
   operation('slice','Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns saved settings and immediate deposition diagnostics; blocked findings leave valid intermediate recipes editable. No export or confirmation is created.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},false);
   async function slice({bundleId,expectedRevision,expectedEditRevision,...request}){
-      noApprovalFields(request.assignment);
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
   operation('modulate','Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#contact-poses-and-extensions.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},false);
   async function modulate({bundleId,expectedRevision,expectedEditRevision,...request}){
-      noApprovalFields(request.modifier);
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
   operation('adjust_recipe','Apply a recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Unread fields are ignored and named in limitations. Edits invalidate final confirmation; read fresh state if stale.',{ bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() },false);
   async function adjustRecipe({ bundleId, expectedRevision,expectedEditRevision, patch }){
-      noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      // A patch may replace compiled geometry with another shape, not edit it.
-      const compiled=patch.geometry&&(patch.geometry.shape??state.plan.geometry?.shape)===state.plan.geometry?.shape&&geometryTree(state.plan.geometry).find(geometry=>COMPILED_GEOMETRY_TOOLS[geometry.shape]);
+      // A patch may replace compiled geometry with another shape or carry it unchanged, as an
+      // assembly's parts list does; changing it is the compiling tool's work, which this cannot do.
+      const compiled=patch.geometry&&(patch.geometry.shape??state.plan.geometry?.shape)===state.plan.geometry?.shape&&await changedCompiledGeometry(state.plan,patch);
       if(compiled)throw new Error(`This print's ${compiled.shape} geometry changes only through ${COMPILED_GEOMETRY_TOOLS[compiled.shape]}.`);
       const options={expectedRevision,expectedEditRevision};
       const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
@@ -786,8 +819,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('check_bundle','Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate.',{ bundleId: bundleIdSchema });
   async function checkBundle({ bundleId }){
+    // A program that cannot be read is reported in programError, beside what was checked.
     const { state } = await read(bundleId);
-    if (state.programError) throw new Error(state.programError);
     return { ...summary(bundleId, state), checked: [...(state.geometry?['geometry']:[]),'plan',...(state.program?['exact-export']:[])], physicalValidation: 'not performed' };
   }
   operation('restore_revision','Undo or redo a saved print edit at its current revision. Restoring history invalidates affected confirmation; show the resulting print in Studio.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),direction:z.enum(['undo','redo'])},false);
@@ -817,7 +850,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const session=studioInstanceId?studioSessions.get(studioInstanceId):null;
       if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
       if(!bundleId&&record)bundleId=record.printId;
-      if(!bundleId){const guide=await tourStatus(libraryRoot,binding),selected=guide.active?guide.directory:session?.server.currentPrint()??(studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null);if(!selected)throw Error('Specify bundleId or studioInstanceId when no single active Studio instance is available.');bundleId=requestPrintId(libraryRoot,selected);}
+      if(!bundleId){const guide=await tourStatus(libraryRoot,binding),selected=guide.active&&studioSessions.has(guide.studioOwner?.instanceId)?guide.directory:session?.server.currentPrint()??(studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null);if(!selected)throw Error('Specify bundleId or studioInstanceId when no single active Studio instance is available.');bundleId=requestPrintId(libraryRoot,selected);}
       const dir=await directory(bundleId);
       if(!studioInstanceId){
         const matches=[...studioSessions.values()].filter(candidate=>candidate.server.currentPrint()===dir);
@@ -942,8 +975,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
   async function generateToolpath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);
+    // The operation established the displaying Studio before running.
     const studio=[...studioSessions.values()].find(session=>session.server.currentPrint()===dir);
-    if(!studio)throw Error('Show the bundle in Studio before generating.');
     const checks=await studio.server.generate({trigger:'agent'});
     return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
   }
@@ -1188,7 +1221,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   async function requireOwnRuntime(bundleId){
     const owner=await printRuntime(bundleId);
-    if(owner)throw Object.assign(Error('Print '+bundleId+' belongs to SAAM runtime '+owner.label+'. Use '+owner.command+' for it, or take it over in this runtime ('+application.runtime.label+') with: '+application.runtime.command+' call capture_bundle --bundle-id '+bundleId),
+    if(owner)throw Object.assign(Error('Print '+bundleId+' was last saved by SAAM runtime '+owner.label+'. Use '+owner.command+' for it, or take it over in this runtime ('+application.runtime.label+') with: '+application.runtime.command+' call capture_bundle --bundle-id '+bundleId),
       {code:'BUNDLE_OTHER_RUNTIME',bundleRuntime:owner});
   }
   // The person opened another runtime's print in Studio: the orchestrator moves this window to that runtime.

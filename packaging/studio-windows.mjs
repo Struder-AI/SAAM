@@ -1,19 +1,10 @@
-// Stable loopback addresses outlive runtime processes and restore after orchestrator restart.
+// Stable loopback addresses outlive runtime processes for this orchestrator's lifetime.
+// Nothing is saved: each start of SAAM begins with no windows and no runtimes.
 import {createServer,request} from 'node:http';
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
-import {replaceFile} from '../core/file-write.mjs';
-import {controlProbeMs} from '../core/application/control.mjs';
 import {openBrowser} from '../studio/browser.mjs';
 
-export async function createStudioWindows(stateRoot,{autoOpen=true}={}){
-  const file=resolve(stateRoot,'studio-windows.json'),windows=new Map();
-  const saved=await readFile(file,'utf8').then(JSON.parse).catch(error=>{if(error.code!=='ENOENT')throw error;return [];});
-  const writes={tail:Promise.resolve(),restored:false,closing:false};
-  async function persist(){
-    const records=[...windows.values()].filter(window=>!window.closed).map(({server,upstream,upstreamUrl,viewers,...record})=>record);
-    writes.tail=writes.tail.catch(()=>{}).then(()=>replaceFile(file,JSON.stringify(records)+'\n'));await writes.tail;
-  }
+export function createStudioWindows({autoOpen=true}={}){
+  const windows=new Map(),lifetime={closing:false};
   async function listener(record){
     const window={...record,upstream:null,viewers:0,closed:false,server:null};
     window.server=createServer((req,res)=>{
@@ -30,29 +21,26 @@ export async function createStudioWindows(stateRoot,{autoOpen=true}={}){
       upstream.once('error',()=>{if(!res.headersSent){res.writeHead(503);res.end('Cannot reach this SAAM runtime.');}else res.destroy();});
       res.once('close',()=>upstream.destroy());req.pipe(upstream);
     });
-    await new Promise((done,fail)=>{window.server.once('error',fail);window.server.listen(record.port??0,'127.0.0.1',done);});
-    if(writes.closing){window.server.closeAllConnections();await new Promise(done=>window.server.close(done));throw Error('SAAM is stopping.');}
+    await new Promise((done,fail)=>{window.server.once('error',fail);window.server.listen(0,'127.0.0.1',done);});
+    if(lifetime.closing){window.server.closeAllConnections();await new Promise(done=>window.server.close(done));throw Error('SAAM is stopping.');}
     window.port=window.server.address().port;windows.set(window.instanceId,window);return window;
   }
-  try{for(const record of saved)await listener(record);}catch(error){await close();throw Error('A saved Studio window address is unavailable. Resolve its port conflict before starting SAAM.',{cause:error});}
-  writes.restored=true;
-  // A window keeps its runtime's code root, so an open can start that runtime again.
+  // A window keeps its runtime's code root: after that runtime exits unexpectedly, opening the window starts it again.
   async function register(runtime,record){
-    if(writes.closing)throw Error('SAAM is stopping.');
+    if(lifetime.closing)throw Error('SAAM is stopping.');
     const window=windows.get(record.instanceId)??await listener({...record,runtimeId:runtime.id});
     if(window.runtimeId!==runtime.id)throw Error('Studio window belongs to another runtime.');
-    window.codeRoot=runtime.codeRoot;window.runtimeLabel=runtime.label;delete window.dataHome;window.visibility=record.visibility??window.visibility??'visible';window.chatVisibility=record.chatVisibility??window.chatVisibility??window.visibility;window.upstream=record.upstreamUrl;window.sessionToken=record.sessionToken;window.closed=false;
-    await persist();return {url:'http://127.0.0.1:'+window.port};
+    window.codeRoot=runtime.codeRoot;window.runtimeLabel=runtime.label;window.visibility=record.visibility??window.visibility??'visible';window.chatVisibility=record.chatVisibility??window.chatVisibility??window.visibility;window.upstream=record.upstreamUrl;window.sessionToken=record.sessionToken;window.closed=false;
+    return {url:'http://127.0.0.1:'+window.port};
   }
   function reconcile(runtimeId,studios){
     for(const studio of studios){const window=windows.get(studio.instanceId);if(window&&window.runtimeId===runtimeId){window.printId=studio.printId;window.attachment=studio.attachment;window.visibility=studio.visibility??'visible';window.chatVisibility=studio.chatVisibility??window.visibility;}}
     for(const window of windows.values())if(window.runtimeId===runtimeId&&!studios.some(studio=>studio.instanceId===window.instanceId)){window.upstream=null;window.closed=true;}
   }
-  async function sync(runtimeId,studios){reconcile(runtimeId,studios);await persist();}
   const record=instanceId=>{const {server,upstream,upstreamUrl,viewers,...saved}=windows.get(instanceId)??{};if(!saved.instanceId||saved.closed)throw Error('That Studio window is closed.');return saved;};
   // A viewer of a window whose Studio is replaced reconnects to it: the window stays present meanwhile.
   const reconnecting=window=>{if(window.viewers>0)window.dispatchedAt=Date.now();};
-  function move(instanceId,runtime){const window=windows.get(instanceId);reconnecting(window);window.runtimeId=runtime.id;window.codeRoot=runtime.codeRoot;window.runtimeLabel=runtime.label;delete window.dataHome;}
+  function move(instanceId,runtime){const window=windows.get(instanceId);reconnecting(window);window.runtimeId=runtime.id;window.codeRoot=runtime.codeRoot;window.runtimeLabel=runtime.label;}
   function detach(runtimeId){for(const window of windows.values())if(window.runtimeId===runtimeId){reconnecting(window);window.upstream=null;}}
   function restore(runtimeId){return [...windows.values()].filter(window=>window.runtimeId===runtimeId&&!window.closed).map(({server,upstream,upstreamUrl,viewers,...record})=>record);}
   // A window opened for a viewer counts as present while the browser starts, so no second tab opens.
@@ -87,7 +75,9 @@ export async function createStudioWindows(stateRoot,{autoOpen=true}={}){
     return opened;
   }
   const retained=()=>[...windows.values()].filter(window=>!window.closed).map(window=>({...record(window.instanceId),url:'http://127.0.0.1:'+window.port}));
-  async function retire(instanceId){const window=windows.get(instanceId);if(!window||window.closed)throw Error('That Studio window is closed.');window.closed=true;window.upstream=null;await persist();return {stopped:true,studioInstanceId:instanceId};}
-  async function close(){writes.closing=true;if(writes.restored)await new Promise(done=>{const timer=setTimeout(done,controlProbeMs);const finished=()=>{clearTimeout(timer);done();};persist().then(finished,finished);});await Promise.all([...windows.values()].map(async window=>{if(window.server.listening){const done=new Promise(resolve=>window.server.close(resolve));window.server.closeAllConnections();await done;}}));windows.clear();}
-  return {register,sync,reconcile,detach,restore,show,display,retained,retire,close,record,move,present:()=>[...windows.values()].filter(present),runtimeFor:instanceId=>{const window=windows.get(instanceId);return window&&!window.closed?window.runtimeId:undefined;}};
+  function retire(instanceId){const window=windows.get(instanceId);if(!window||window.closed)throw Error('That Studio window is closed.');window.closed=true;window.upstream=null;return {stopped:true,studioInstanceId:instanceId};}
+  // A runtime stopped on purpose takes its windows with it: nothing lists or reopens them.
+  function retireRuntime(runtimeId){for(const window of windows.values())if(window.runtimeId===runtimeId){window.closed=true;window.upstream=null;}}
+  async function close(){lifetime.closing=true;await Promise.all([...windows.values()].map(async window=>{if(window.server.listening){const done=new Promise(resolve=>window.server.close(resolve));window.server.closeAllConnections();await done;}}));windows.clear();}
+  return {register,reconcile,detach,restore,show,display,retained,retire,retireRuntime,close,record,move,present:()=>[...windows.values()].filter(present),runtimeFor:instanceId=>{const window=windows.get(instanceId);return window&&!window.closed?window.runtimeId:undefined;}};
 }

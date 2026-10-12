@@ -1,6 +1,7 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
+import {saamPathText} from '../path/saampath.mjs';
 import {completedOutputState} from './review-state.mjs';
 import {checkedPhaseColours} from './phase-colours.mjs';
 // One print lifecycle for every geometry/generator adapter.
@@ -58,6 +59,7 @@ const json=async file=>JSON.parse(await readFile(file,'utf8'));
 // Events after a program that leave its inputs unchanged.
 const KEEPS_INPUTS=new Set(['generated','generation-reused','delivered','human-approval','converted']);
 const CONVERTED_NOTE='Converted from the old bundle format; originals kept.';
+const UNSHOWN_PROGRAM_NOTE='Its program from an older SAAM is kept in exports/ but not shown or exported; generate to see the toolpath.';
 const originalSource=geometry=>geometry?.source??(geometry?.solid?originalSource(geometry.solid):geometry?.base?originalSource(geometry.base):null);
 async function save(file,value){
   await replaceFile(file,typeof value==='string'||value instanceof Uint8Array?value:JSON.stringify(value,null,2)+'\n');
@@ -95,7 +97,7 @@ export function machineChangedReview(review, from, to, time = new Date().toISOSt
 
 export function createBundleWorkflow(adapter) {
   const {kind,defaults,createGeometry,generatePath,geometryTemplate,patchPlan,
-    version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME,limitations:limitationsFor}=adapter;
+    version:VERSION,buildDate:BUILD_DATE,exportName:EXPORT_NAME}=adapter;
   const contract=adapter.generationContract??null;
   const exportName=(plan,machine)=>{
     const extension=machine.outputs.find(o=>o.id===plan.output)?.extension??'.gcode';
@@ -123,8 +125,9 @@ export function createBundleWorkflow(adapter) {
       pathInputId:geometryChanged||pathInput(plan)!==pathInput(state.plan)?randomUUID():current.pathInputId};
   }
   // The one reading of prints saved before input ids: hashes, approvals and
-  // undo history are dropped; a program is kept when no recorded event after
-  // its last generation changed its inputs.
+  // undo history are dropped; a program is kept with its saved SAAMpath when no
+  // recorded event after its last generation changed its inputs. Otherwise the
+  // print shows its geometry and no toolpath until it is generated.
   function savedBundle(bundle){
     if(bundle.editRevision)return bundle;
     const {approvals:_approvals,navigation:_navigation,generation:old,path:oldPath,...review}=bundle.review??{};
@@ -136,7 +139,7 @@ export function createBundleWorkflow(adapter) {
       geometry:bundle.geometry&&{id:bundle.geometry.hash,file:bundle.geometry.file,descriptor:bundle.geometry.descriptor},
       review:{...review,history,
         path:kept&&oldPath?{id:oldPath.hash,file:oldPath.file,inputId:id,contract,...(oldPath.source?{source:oldPath.source}:{})}:null,
-        generation:kept&&old?{...generation,id:exportHash,editRevision:id,geometryInputId:id,contract,checks:checks?keptChecks:null}:null}};
+        generation:kept&&old&&oldPath?{...generation,id:exportHash,editRevision:id,geometryInputId:id,contract,checks:checks?keptChecks:null}:null}};
   }
 // A new print's recipe defaults and the notes from selecting its settings.
 async function proposedPlan(machineId, options={}) {
@@ -350,9 +353,10 @@ async function readBundleInput(directory) {
   // A conversion, and any change recorded with notes, is noted until the print's next recorded change.
   const last=bundle.review.history?.at(-1),converted=last?.event==='converted'?[CONVERTED_NOTE]:[];
   const recorded=Array.isArray(last?.notes)?last.notes.filter(note=>typeof note==='string'):[];
+  const unshown=saved.review?.generation&&!bundle.review.generation?[UNSHOWN_PROGRAM_NOTE]:[];
   return {dir,plan,machine,review:bundle.review,geometryArtifact,revision:bundle.revision,
     editRevision:bundle.editRevision,geometryInputId:bundle.geometryInputId,pathInputId:bundle.pathInputId,deferRememberSetup:bundle.deferRememberSetup===true,
-    phaseColours:checkedPhaseColours(bundle.phaseColours),recipeNotes:[...converted,...recorded,...recipeNotes]};
+    phaseColours:checkedPhaseColours(bundle.phaseColours),recipeNotes:[...converted,...unshown,...recorded,...recipeNotes]};
 }
 
 async function describeBundle(input,program) {
@@ -362,13 +366,14 @@ async function describeBundle(input,program) {
   const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':pathCurrent?'current':'stale',
     program:!review.generation?'absent':review.generation.editRevision===editRevision&&review.generation.contract===contract?'current':'stale'};
   const geometryId=geometryArtifact?.id??null;
-  const workEvidence={schema:'saam-work-evidence/1',revision,inputKey:editRevision,geometryKey:geometryId,generationKey:review.generation?.id??null,editRevision};
+  const workEvidence={schema:'saam-work-evidence/1',revision,inputKey:editRevision,geometryKey:geometryId,generationKey:review.generation?.id??review.path?.id??null,editRevision};
   const history={canUndo:Boolean(review.navigation?.past.length),canRedo:Boolean(review.navigation?.future.length)};
   const state={kind,dir,plan,machine,geometry,geometryChecks:[],review,geometryId,geometryInputId,editRevision,pathInputId,revision,artifacts,history,workEvidence,deferRememberSetup,phaseColours};
   Object.defineProperty(state,'geometryArtifact',{value:geometryArtifact,enumerable:false});
-  // What the program writer still needs; the toolpath never waits for it.
-  return Object.assign(state,{programChecked:Boolean(machine&&program&&review.generation),
-    exportName:machine?exportName(plan,machine):null,limitations:[...limitationsFor(plan,machine),...(machine?bedFit(plan,machine,geometry):[]),...recipeNotes,...(pathCurrent?review.path.limitations??[]:[])],
+  // What the program writer still needs; the toolpath never waits for it. A read
+  // that looked for the program and found none has checked it: generation is next.
+  return Object.assign(state,{programChecked:Boolean(machine&&program),
+    exportName:machine?exportName(plan,machine):null,limitations:[...(machine?bedFit(plan,machine,geometry):[]),...recipeNotes,...(geometry?.notes??geometryArtifact?.descriptor?.notes??[]),...(pathCurrent?review.path.limitations??[]:[])],
     settingsRows:machine?await settingsRows(plan,machine):[],outputAvailability:await programReadiness(plan,machine),
     skills: [...new Set((plan.slices?.assignments??[]).map(assignment=>assignment.construction==='sleeve'
       ?'trace':ordinaryAssignmentFamily(assignment))),
@@ -383,11 +388,13 @@ function bedFit(plan,machine,geometry){
   return [`The part at placement X ${offset[0]} / Y ${offset[1]} mm does not fit the ${machine.name} bed.`];
 }
 
-// The adapter's report, stored at generation. Older prints stored decoded
-// metadata, which kept the relay estimate in its summary; their checks hold the rest.
+// The adapter's report, stored at generation; its limitations are the program's
+// own. Older prints stored decoded metadata, which kept the relay estimate in its
+// summary; their checks, when saved, hold the rest. Older checks also hold the
+// print's notes of that time, which the read recomputes, so they are not shown.
 function storedReport({programMetadata,checks}){
-  const {summary,...report}=programMetadata??{};
-  return {limitations:checks.limitations??[],seconds:checks.estimatedMinutes*60,volumeMm3:checks.volumeMm3,shortTravel:checks.shortTravel,
+  const {summary,...report}=programMetadata??{},saved=checks??{};
+  return {limitations:[],...(Number.isFinite(saved.estimatedMinutes)?{seconds:saved.estimatedMinutes*60}:{}),volumeMm3:saved.volumeMm3,shortTravel:saved.shortTravel,
     ...report,...(summary?.materialModel?{materialModel:summary.materialModel,estimatedRelayVolumeMm3:summary.estimatedRelayVolumeMm3}:{})};
 }
 
@@ -406,7 +413,7 @@ async function restoreBundleProgram(input,program) {
     state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(review.path)===canonicalJson(output.path),
       plan:output.plan,machine:output.machine,geometry:output.geometry,geometryId:output.geometryId,geometryInputId:output.geometryInputId,editRevision:output.generation.editRevision,
       outputId:output.id,inputRevision:output.generation.inputRevision??null,exportName:exportName(output.plan,output.machine),review:{generation:output.generation},
-      limitations:limitationsFor(output.plan,output.machine),settingsRows:await settingsRows(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};
+      settingsRows:await settingsRows(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};
     state.exportName=state.completedOutput.exportName;
     Object.defineProperty(state,'checkedBytes',{value:output.bytes,enumerable:false});
   } catch (error) { state.programError = error.message; }
@@ -504,9 +511,8 @@ async function prepareToolpath(state,{onProgress,source}={}){
     }
     if(source.missing)throw source.missing;
     const path=await generatePath(state.plan,{onProgress});
-    requireThat(!adapter.completionContract||path.completion?.contract===adapter.completionContract,'Generated SAAMpath completion does not match its contract.');
     const id=randomUUID(),file=`paths/${id}.json`;
-    await save(resolve(state.dir,file),JSON.stringify(path));
+    await save(resolve(state.dir,file),saamPathText(path));
     // Generation notes stay with the path, so a print without a program shows them.
     return {path,artifact:{id,file,inputId:state.pathInputId,contract,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
       ...(path.summary.limitations?.length?{limitations:path.summary.limitations}:{})}};
@@ -620,10 +626,9 @@ async function currentGenerationCandidate(directory,state){
   if(!state.review.generation)return null;
   const current=await loadBundle(directory,{program:true});
   if(!current.program||current.programError||!current.completedOutput?.current)return null;
+  // Checks that do not match their program are stale: generation replaces them.
   const checks=current.review.generation.checks;
-  requireThat(checks?.schema==='saam-checks/1'&&checks.result==='pass'
-    &&checks.mode===current.review.generation?.mode,'Saved checks do not match the reviewed export.');
-  return {checks,current};
+  return checks?.schema==='saam-checks/1'&&checks.result==='pass'&&checks.mode===current.review.generation?.mode?{checks,current}:null;
 }
 
 async function promoteReviewedGeneration(dir,{checks,current}){
@@ -644,7 +649,7 @@ function generationChecks(state,{report,summary},development){
     travel: summary.travel,
     shortTravel: report.shortTravel,
     surfaceDomain: summary.surfaceDomain ?? null,
-    limitations: [...new Set([...state.limitations,...(summary.limitations??[]),...report.limitations])],
+    limitations: [...new Set([...(summary.limitations??[]),...report.limitations])],
     ...(report.materialModel==='relay-estimate'?{materialModel:'relay-estimate',commandedVolumeMm3:report.volumeMm3,estimatedRelayVolumeMm3:report.estimatedRelayVolumeMm3,relayEstimateDifferenceMm3:report.estimatedRelayVolumeMm3-report.volumeMm3}:{})
   };
 }

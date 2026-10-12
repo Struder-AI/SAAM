@@ -6,12 +6,16 @@ import {knownSeconds} from '../path/saampath.mjs';
 // from a single command, not a limit on how long a path may pause.
 const DWELL_COMMAND_MS=60000;
 const fmt=n=>Number(n.toFixed(PROGRAM_DECIMALS)).toString();
+const comment=text=>String(text).replace(/[\r\n]+/g,' ');
 
 // The G-code motion writer most printers share: prepared SAAMpath actions to
 // command lines, plus the totals of exactly what was written (written
 // coordinates, amounts and feeds), so no adapter re-reads its own program.
 // tally: seconds, volumeMm3, strokes ([from,to] of each deposition, written
 // coordinates) and layers (deposited `phase:layer` keys in first-use order).
+// A deposition or extrusion that collapses at program precision is not written;
+// its material carries to the next written amount (absolute E by construction,
+// relative E in its residual), so written position and totals stay exact.
 export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
@@ -40,16 +44,19 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
     lines.push(line);
     return written/60;
   };
+  // Written feed in mm/min, rounded down; an authored speed passes through and a
+  // positive one below that precision is the smallest positive feed.
+  const feedOf=mmS=>{const steps=Math.floor(mmS*60*1000);return (mmS>0?Math.max(steps,1):steps)/1000;};
   const timed=(lengthMm,speedMmS)=>{if(!(speedMmS>0))tally.untimedMoves++;return knownSeconds(lengthMm,speedMmS);};
   const deposit=(a,from,to,amount,seconds)=>{
     tally.volumeMm3+=amount*area;tally.seconds+=seconds;
     tally.strokes.push([from,to]);tally.layers.add(`${a.phase}:${a.layer}`);
   };
   for(const a of path.actions) {
-    if((a.operation??'')!==operation){operation=a.operation??'';requireThat(!/[\r\n]/.test(operation),'Invalid operation label.');lines.push(`;SAAM_OPERATION:${operation}`);}
-    requireThat(!/[\r\n]/.test(a.phase),'Invalid phase label.');
+    // Labels are comments: a line break in one is written as a space.
+    if((a.operation??'')!==operation){operation=a.operation??'';lines.push(`;SAAM_OPERATION:${comment(operation)}`);}
     const nextTag=`${a.phase}:${a.layer}`;
-    if(tag!==nextTag){lines.push(`;SAAM_PHASE:${a.phase}`,`;LAYER:${a.layer}`);tag=nextTag;}
+    if(tag!==nextTag){lines.push(`;SAAM_PHASE:${comment(a.phase)}`,`;LAYER:${a.layer}`);tag=nextTag;}
     if(a.kind==='move') {
       // Quantize once: command text, flow calculation and following position
       // must all use these same written coordinates and extrusion value.
@@ -58,16 +65,13 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
         // Relative amounts carry their rounding remainder forward, as absolute
         // E does by construction, so many equal short segments keep their total.
         // A remainder never erases a segment that is writable on its own.
-        const ownMm=a.volumeMm3/area,filamentMm=ownMm+(relativeE?residualE:0);
+        const ownMm=a.volumeMm3/area,filamentMm=ownMm+(relativeE?residualE:0),length=distance(writtenPosition,target);
         if(!relativeE)e+=filamentMm;
+        if(!(length>0)){if(relativeE)residualE=filamentMm;continue;}
         let nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
         if(relativeE){if(!(nextE>0))nextE=Number(ownMm.toFixed(PROGRAM_DECIMALS));residualE=filamentMm-nextE;}
-        const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
-        requireThat(length>0, 'A deposition move collapsed at export precision.');
-        const feed=Math.floor(a.speedMmS*60*1000)/1000;
-        // An authored speed passes through; only a positive one may not collapse.
-        requireThat(feed>0||!(a.speedMmS>0),'Deposition feed collapsed at export precision.');
-        deposit(a,writtenPosition,target,de,timed(length,motion('G1',target,nextE,feed)));
+        const de=relativeE?nextE:nextE-writtenE;
+        deposit(a,writtenPosition,target,de,timed(length,motion('G1',target,nextE,feedOf(a.speedMmS))));
         if(!relativeE)writtenE=nextE;
       }
       else tally.seconds+=timed(distance(writtenPosition,target),motion(travelCommand,target,undefined,a.speedMmS*60));
@@ -77,10 +81,8 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
       if(!relativeE)e+=filamentMm;
       const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
       const de=relativeE?nextE:nextE-writtenE;
-      requireThat(de>0,'Stationary extrusion collapsed at export precision.');
-      const feed=Math.floor(a.flowMm3S/area*60*1000)/1000;
-      requireThat(feed>0,'Stationary extrusion feed collapsed at export precision.');
-      deposit(a,writtenPosition,writtenPosition,de,de/motion('G1',null,nextE,feed));
+      if(!(de>0)){if(relativeE)residualE+=filamentMm;continue;}
+      deposit(a,writtenPosition,writtenPosition,de,de/motion('G1',null,nextE,feedOf(a.flowMm3S/area)));
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='temperature') {
       lines.push(`M400`,`M109 S${fmt(a.targetC)}`);

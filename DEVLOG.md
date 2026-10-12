@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-12 — Checkpoint the second refusals pass, supports, precision and Quit
+
+- Owner requested a checkpoint of the shared checkout before three GPT-6.1 Sol workers resume the remaining 0.3.7 implementation. This records all non-ignored work, including the concurrent relay device-renaming and optional stored-bug-report Slack forwarding changes; it is not release acceptance or publication.
+- The paused session reports implemented geometry, toolpath, exporter, runtime/Studio and skill refusal fixes; the Bambu manual, zero-area patch handling and separate bug-report dialog; SAAMpath precision at admission and text output; tray/Studio Quit and tour scoping; support geometry expressed through Slice and the first part of support recipe migration. Its targeted worker verification is retained as reported in `.local/pause-2026-10-12.md`; no new verification was run for this checkpoint.
+- Integration is unfinished: `finishResults` now returns `{results, failures}` while `executeDepositionWork` still consumes an array, blocking generation. The latest support-step-2 edits have not been syntax-checked. Remaining work includes retiring support-specific routes, per-assignment failure handling, empty extension preservation, stored geometry without its extension, Griffin fallback notes, spiral/dependency and flow/speed follow-ups, map regeneration, documentation and targeted verification.
+- Tray/Studio Quit has disposable-process evidence; installed routing, native tray behavior and tour scoping still need the post-update checklist. No full suite, installed update, physical trial, push or release was performed. Open owner questions remain pending.
+
 ## 2026-10-12 — Refusals audit: show, don't refuse (first pass)
 
 - Owner, 2026-10-09: "Our job is to show things in saam, not limit what we can do with saam." Items from `.local/refusals-audit-2026-10-09.md`, each decided by the owner; decisions and quotes are in plans/0.3.7.md.

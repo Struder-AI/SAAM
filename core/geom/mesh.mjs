@@ -281,8 +281,9 @@ export function sectionMeshIndex(index,h,{gapMm=0}={}) {
       // Remove triangle seams collinear to rounding before offsetting regions. The section
       // stays the exact cut: a shape tolerance here would switch retained vertices as Z
       // moves, and callers simplify at their own tolerance (contour-sleeve, layer-strokes).
+      // A loop collapsing within the rounding guard has no area to print.
       const clean=cleanPlanarLoop(edges.map(point),ROUNDING_MM);
-      requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
+      if(clean.length>=3)loops.push(clean);
     }
     const closed=closeOpenChains(contours.open.map(edges=>edges.map(point)),gapMm);
     for(const loop of closed.loops){const clean=cleanPlanarLoop(loop,ROUNDING_MM);if(clean.length>=3)loops.push(clean);}

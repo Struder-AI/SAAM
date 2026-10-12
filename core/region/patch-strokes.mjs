@@ -14,8 +14,8 @@ export function patchOffset(slice,region,distanceMm,{sampleStepMm=.2}={}) {
 }
 
 export function projectedFillStrokes(slice,region,{spacingMm,angleDeg,role='fill',sampleStepMm=.2,direction=null}) {
-  if(!region.length)return [];
-  const normal=direction??patchMeanNormal(slice.patch,region,{sampleStepMm}).normal;
+  const normal=!region.length?null:direction??patchMeanNormal(slice.patch,region,{sampleStepMm}).normal;
+  if(!normal)return [];
   const seed=Math.abs(normal[0])<.9?[1,0,0]:[0,1,0];
   const x=normalize(seed.map((v,k)=>v-dot(seed,normal)*normal[k])),y=cross(normal,x),angle=angleDeg*Math.PI/180;
   const across=x.map((v,k)=>-Math.sin(angle)*v+Math.cos(angle)*y[k]);

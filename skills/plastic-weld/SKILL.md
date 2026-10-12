@@ -40,8 +40,8 @@ Supported combinations:
   for injection; surface contact requires finalized deposited coverage and must
   not treat a reserved or unfinished cavity as filled material.
 - Draped roofs, vase walls, thick lips, waves and supports can coexist elsewhere
-  in the plan. The cavity itself must lie in solid planar material. Continuous or
-  curved deposition crossing a cavity is rejected, rather than split silently.
+  in the plan. The cavity belongs in solid planar material. Deposition inside a
+  cavity is shown and noted; only material where the seated nozzle enters stops generation.
 - Existing composition ordering, travel, cooling, plan locking, `saam` edits,
   Studio review and exact-byte delivery. Higher operations wait for injection.
 - S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
@@ -60,7 +60,7 @@ Enable global `skills.plastic-weld.enabled`, then supply `sites`. Each site has
 exactly `id`, `part`, `xMm`, `yMm`, `zBottomMm`, `zTopMm`. `part` is null for one
 component or its assembly ID. XY is in that component's model coordinates before
 assembly and print placement. Z is relative to the component's minimum Z.
-Bottom, opening and floor start align with its normal planar layer grid.
+Bottom and opening move to the nearest layer of its grid, with a note.
 
 For an ordinary 0.4 mm nozzle and 0.2 mm layers, begin with these **untested**
 values and adjust after a small coupon trial:
@@ -119,10 +119,9 @@ staggeredWeldSites({columns: 2, rows: 2, levels: 2,
 Alternating levels shift half a pitch in X. With these values, successive 4 mm
 depths overlap in height by 1 mm while their cavities remain separate. This
 distributes reinforcement through the part; it does not claim intersecting rivet
-columns or measured whole-part strength. Keep overlapping-height envelope centers
-at least `basinDiameterMm + 2*wallMm` apart. The helper defaults to 12 mm pitch;
-overlapping staggered levels need at least 10.8 mm pitch with these diameters.
-Site counts have no fixed cap. Check that the chosen grid fits the body.
+columns or measured whole-part strength. Overlapping-height envelopes closer than
+`basinDiameterMm + 2*wallMm` (10.8 mm with these values; the helper defaults to
+12 mm) leave each other's walls incomplete, which is noted. Site counts have no fixed cap.
 
 ## Generate, review and adjust
 
@@ -139,8 +138,8 @@ source-decoded volume and temperature during injection. It does not simulate
 molten flow or display an invented filled shape. Review nozzle entry/withdrawal
 and later cover layers before the normal toolpath confirmation and delivery.
 
-If enclosure fails, move the site farther inside the solid, thicken its host,
-or assign a solid region; do not accept a leak into sparse cells. If an operation
+Missing enclosure or floor is noted with its heights: move the site farther
+inside the solid, thicken its host, or assign a solid region. If an operation
 crosses the pocket, move it or change the region assignment. For conflicting
 dependencies, inspect the atomic operation and injection height: a continuous
 path cannot be interrupted mid-operation. Test modest coupons and adjust the
@@ -149,5 +148,5 @@ dimensions, seating, volume, flow and temperature using observed results.
 Developer preparation uses `preparePlasticWeld` for sites and cavity reservations.
 The common dependency graph calls `rivetInjectionResult` for each ready site,
 validating finalized enclosure and using the [shared point operation](../inject/SKILL.md).
-The shared finalizer publishes each result; `validateRivetClearance` audits the
+The shared finalizer publishes each result; `rivetClearanceNotes` audits the
 complete finalized batch. Host and later-cover prerequisites belong to that graph.

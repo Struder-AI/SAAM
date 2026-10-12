@@ -45,19 +45,21 @@ export function createServicePanel({token,available:hasService=true}){
   function render(){
     if(view.stopping){
       updateApplicationConnection('stopped');
-      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':view.stopping==='restart'?'Reloading this runtime with updated code…':view.stopping==='runtime-stop'?'This runtime stopped. Ask your agent to reconnect.':'SAAM has stopped. Start SAAM again from its app icon.';
-      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update','report-section'])$(id).hidden=true;
+      $('service-status').textContent=view.stopping==='update'?'SAAM is updating and opens again.':view.stopping==='restart'?'Reloading this runtime with updated code…':view.stopping==='runtime-stop'?'This runtime stopped; SAAM keeps running in the tray. Open Studio from the tray or ask your agent.':'SAAM has stopped. Start SAAM again from its app icon.';
+      for(const id of ['service-consent','service-quit','service-invite-row','service-dismiss','service-check','service-update','report-bug'])$(id).hidden=true;
+      $('report-dialog').close();
       message('');return;
     }
     const status=view.status,available=status?.available!==false;
     $('service-toggle').hidden=false;
-    // Reports travel only through an activated connection; otherwise the section says how to report.
-    $('report-section').hidden=false;$('report-form').hidden=!status?.activated;
+    // Reports travel only through an activated connection; otherwise the dialog says how to report.
+    $('report-bug').hidden=false;$('report-form').hidden=!status?.activated;
     $('report-hint').textContent=status?.activated?'Sends your description with the SAAM version, platform, this window and its print; diagnostics SAAM already sent give the context.'
-      :available?'Bug reports travel through the alpha service: enter an alpha invite above to send one, or describe the problem to your agent.'
+      :available?'Bug reports travel through the alpha service: enter an alpha invite in Connect to send one, or describe the problem to your agent.'
       :'This installation has no alpha service: describe the problem to your agent.';
     $('service-consent').hidden=!available;
     $('service-quit').hidden=!status?.canQuit;
+    const quitting=quitText(status?.quitScope);$('service-quit').textContent=quitting.label;$('service-quit').title=quitting.title;
     $('service-invite-row').hidden=!available||Boolean(status?.activated);
     $('service-dismiss').hidden=!status?.firstRunPrompt;
     $('service-check').hidden=!status?.activated;
@@ -131,15 +133,27 @@ export function createServicePanel({token,available:hasService=true}){
       closeTab(`SAAM is updating to ${offer.version} and opens again. You can close this tab.`);}
     catch(error){view.updating=false;render();message(error.message);open();}
   }
+  // Quit stops only this window's runtime while other runtimes run; in the only running runtime it
+  // quits SAAM and its tray. SAAM decides when Quit arrives and asks again if the label was stale.
+  function quitText(scope){
+    return scope==='runtime'?{label:'Quit runtime',title:'Other SAAM runtimes are running: Quit stops only this window’s runtime. SAAM and its tray keep running; your prints stay saved.',
+      question:'Stop this window’s runtime? Other runtimes, SAAM and its tray keep running. Your prints stay saved.',
+      done:'This runtime has stopped; SAAM keeps running in the tray. You can close this tab and open Studio again from the tray.'}
+      :{label:'Quit SAAM',title:'This is the only running SAAM runtime: Quit closes SAAM and its tray. Your prints stay saved.',
+      question:'Quit SAAM? This is its only running runtime, so SAAM and its tray close. Your prints stay saved.',
+      done:'SAAM has stopped. You can close this tab and start SAAM again from its app icon.'};
+  }
   async function quit(){
-    if(!confirm('Quit SAAM? Your prints stay saved.'))return;
+    const scope=(await refresh())?.quitScope;
+    if(!confirm(quitText(scope).question))return;
     try{
-      const result=await request('quit');
-      if(result.confirmationRequired){
+      let result=await request('quit',{scope});
+      while(result.confirmationRequired){
         if(!confirm(result.message))return;
-        const confirmed=await request('quit',{force:true});if(!confirmed.quitting)throw Error('SAAM did not quit.');
+        result=await request('quit',{scope:result.scope??scope,force:Boolean(result.jobs)});
       }
-      closeTab('SAAM has stopped. You can close this tab and start SAAM again from its app icon.');}
+      if(!result.quitting)throw Error('SAAM did not quit.');
+      closeTab(quitText(result.scope).done);}
     catch(error){message(error.message);open();}
   }
   function open(){$('service-panel').hidden=false;$('service-toggle').setAttribute('aria-expanded','true');}
@@ -156,7 +170,8 @@ export function createServicePanel({token,available:hasService=true}){
   $('service-check').onclick=()=>void checkUpdate();
   $('report-send').onclick=()=>void sendReport();
   $('report-text').addEventListener('input',countReport);countReport();
-  $('report-bug').onclick=()=>{open();$('report-section').scrollIntoView({block:'nearest'});if(!$('report-form').hidden)$('report-text').focus();};
+  $('report-bug').onclick=()=>{$('report-dialog').showModal();if(!$('report-form').hidden)$('report-text').focus();};
+  $('report-close').onclick=()=>$('report-dialog').close();
   $('service-invite').addEventListener('keydown',event=>{if(event.key==='Enter')void activate();});
   $('service-panel').addEventListener('keydown',event=>{if(event.key==='Escape'){if(view.status?.firstRunPrompt)void dismiss();else close();$('service-toggle').focus();}});
   document.addEventListener('visibilitychange',()=>{if(hasService&&document.visibilityState==='visible')void refresh();});

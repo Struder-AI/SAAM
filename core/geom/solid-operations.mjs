@@ -5,13 +5,15 @@ import {solidKernel,solidFromMesh,meshFromSolid,discardSolidKernel,KERNEL_TRIANG
 import {tessellateSolid} from './boolean-display.mjs';
 import {requireThat,distance} from './tolerance.mjs';
 
+// -> per request, a mesh with the notes of its construction (an approximation
+// kept short of its tolerance), or null for no material.
 export async function constructSolids(requests,{toleranceMm=.02}={}){
-  const kernel=await solidKernel(),owned=[],cache=new Map();
+  const kernel=await solidKernel(),owned=[],cache=new Map(),notes=new Map();
   const keep=solid=>{owned.push(solid);return solid;};
   const operandsOf=async request=>{const solids=[];for(const operand of request.operands)solids.push(await evaluate(operand));return solids;};
   const evaluate=async request=>{
     if(cache.has(request))return cache.get(request);
-    let solid;
+    const own=[];let solid;
     switch(request.kind?null:request.operation){
       case 'union': solid=keep(kernel.Manifold.union(await operandsOf(request)));break;
       case 'intersection': solid=keep(kernel.Manifold.intersection(await operandsOf(request)));break;
@@ -20,15 +22,17 @@ export async function constructSolids(requests,{toleranceMm=.02}={}){
       case 'box': solid=keep(kernel.Manifold.cube(request.size));break;
       case 'cylinder': solid=keep(kernel.Manifold.cylinder(request.heightMm,request.radiusMm,request.radiusMm,request.segments));break;
       case 'loft': solid=keep(solidFromMesh(kernel,loftMesh(request.rings,request.centers)));break;
-      case 'mapped-extrusion': solid=keep(mappedExtrusion(kernel,request));break;
-      default: solid=keep(solidFromMesh(kernel,await tessellateSolid(request,{toleranceMm})));
+      case 'mapped-extrusion': {const extrusion=mappedExtrusion(kernel,request);solid=keep(extrusion.solid);own.push(...extrusion.notes);break;}
+      default: {const mesh=await tessellateSolid(request,{toleranceMm});own.push(...mesh.notes??[]);solid=keep(solidFromMesh(kernel,mesh));}
     }
     requireThat(solid.status()==='NoError','Solid construction produced invalid geometry.');
+    const inputs=request.kind?[]:request.operation==='translate'?[request.geometry]:request.operands??[];
+    notes.set(request,[...new Set([...own,...inputs.flatMap(input=>notes.get(input))])]);
     cache.set(request,solid);return solid;
   };
   try{
     const meshes=[];
-    for(const request of requests){const solid=await evaluate(request);meshes.push(solid.isEmpty()?null:meshFromSolid(solid));}
+    for(const request of requests){const solid=await evaluate(request);meshes.push(solid.isEmpty()?null:{...meshFromSolid(solid),notes:notes.get(request)});}
     return meshes;
   }finally{for(const solid of owned.reverse())try{solid.delete();}catch{}}
 }
@@ -63,9 +67,9 @@ function mappedExtrusion(kernel,{loops,map,lower,upper,maxEdgeMm,toleranceMm,nor
       catch(error){discardSolidKernel();throw new Error(`The solid kernel failed while ${what}: ${error.message}. Increase maxEdgeMm or toleranceMm, or simplify the geometry.`);}
     };
     solid=grow(()=>solid.refineToLength(maxEdgeMm),`refining geometry to ${maxEdgeMm} mm edges`);
-    // Each pass quarters the sampled deviation of a smooth reference, so a pass
-    // that fails to reduce it is reported as a reference that cannot be
-    // resolved rather than counted against a fixed number of passes.
+    // Each pass quarters the sampled deviation of a smooth reference. A pass
+    // that fails to reduce it will not reach toleranceMm, so the finest mesh
+    // is kept and its deviation noted, rather than counting passes.
     for(let previousError=Infinity;;){
       const mesh=solid.getMesh();
       let error=0;
@@ -78,16 +82,16 @@ function mappedExtrusion(kernel,{loops,map,lower,upper,maxEdgeMm,toleranceMm,nor
           error=Math.max(error,distance(map(mid),chord));
         }
       }
-      if(error<=toleranceMm){
+      if(error<=toleranceMm||error>=previousError*0.9){
         // Reversing the reference normal reverses the map's handedness.
         // Manifold's mirror updates winding before the orientation-preserving warp.
         const source=normalSide===-1?solid.mirror([0,0,1]):solid;
         let warped;
         try{warped=source.warp(p=>{const q=map([p[0],p[1],p[2]*normalSide]);p[0]=q[0];p[1]=q[1];p[2]=q[2];});}
         finally{if(source!==solid)source.delete();}
-        try{meshFromSolid(warped);return warped;}catch(error){warped.delete();throw error;}
+        try{meshFromSolid(warped);}catch(error){warped.delete();throw error;}
+        return {solid:warped,notes:error<=toleranceMm?[]:[`Mapped extrusion tessellation stopped converging at ${error.toFixed(6)} mm against a ${toleranceMm} mm tolerance; the finest mesh is used.`]};
       }
-      requireThat(error<previousError*0.9,`Mapped extrusion tessellation stopped converging at ${error.toFixed(6)} mm against a ${toleranceMm} mm tolerance; revise the reference or toleranceMm.`);
       previousError=error;
       solid=grow(()=>solid.refine(2),'refining mapped extrusion against its reference');
     }

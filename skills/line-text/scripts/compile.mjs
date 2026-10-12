@@ -84,7 +84,8 @@ export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, 
     process: {lineWidthMm: w},
     report: {
       strokes: network.length, beadLengthMm: round(network.reduce((sum, s) => sum + lengthOf(s), 0)),
-      extentMm: [round(ink.max[0] - ink.min[0] + w), round(ink.max[1] - ink.min[1] + w)], lines: laid.lines.length
+      extentMm: [round(ink.max[0] - ink.min[0] + w), round(ink.max[1] - ink.min[1] + w)], lines: laid.lines.length,
+      ...(laid.missing.length ? {notes: [`Font ${font.id} has no glyph for ${laid.missing.map(c => JSON.stringify(c)).join(', ')}; left out.`]} : {})
     }
   };
 }

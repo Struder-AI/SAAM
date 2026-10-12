@@ -17,10 +17,26 @@ import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseC
 import {authoredNurbs} from '../geom/spatial.mjs';
 export {authoredNurbs} from '../geom/spatial.mjs';
 
-export function validateCurveProfiles(vary){
-  if(vary===undefined)return;
-  requireThat(vary&&Object.keys(vary).every(k=>['beadWidthMm','heightMm','flowMultiplier','speedMmS'].includes(k)),'Unknown curve parameter profile; pose comes from optional Slice output and field modulation.');
-  for(const [key,values] of Object.entries(vary))requireThat(Array.isArray(values)&&values.length>=2&&values[0][0]===0&&values.at(-1)[0]===1&&values.every((p,i)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&(!i||p[0]>values[i-1][0])&&Number.isFinite(p[1])&&p[1]>0),`Curve ${key} profile needs increasing [t,value] pairs spanning 0..1.`);
+// Profiles as read: increasing [t,value] pairs spanning 0..1, with positive
+// values (speeds need only be finite: they pass through; zero flow moves without
+// depositing). Any other key, such as pose (Slice output and field modulation
+// supply it), or an unusable profile is left out and named in ignored.
+const PROFILE_KEYS=['beadWidthMm','heightMm','flowMultiplier','speedMmS'];
+const usableProfile=(key,values)=>Array.isArray(values)&&values.length>=2&&values.every((p,i)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&(!i||p[0]>values[i-1][0])&&Number.isFinite(p[1])&&(key==='speedMmS'||(key==='flowMultiplier'?p[1]>=0:p[1]>0)))
+  &&values[0][0]===0&&values.at(-1)[0]===1;
+export function readCurveProfiles(vary){
+  if(vary===undefined)return {vary:undefined,ignored:[]};
+  const entries=vary&&typeof vary==='object'&&!Array.isArray(vary)?Object.entries(vary):null;
+  if(!entries)return {vary:undefined,ignored:['vary']};
+  const usable=entries.filter(([key,values])=>PROFILE_KEYS.includes(key)&&usableProfile(key,values));
+  return {vary:usable.length?Object.fromEntries(usable):undefined,ignored:entries.filter(entry=>!usable.includes(entry)).map(([key])=>'vary.'+key)};
+}
+// Polyline vertices as read: a segment whose ends repeat a vertex has no length
+// and is dropped with its metadata (segments: the source indices kept).
+export function distinctPolyline(points,closed){
+  const segments=[];
+  for(let j=0;j<points.length-(closed?0:1);j++){const a=points[j],b=points[(j+1)%points.length];if(a.some((v,k)=>v!==b[k]))segments.push(j);}
+  return {points:closed?segments.map(j=>points[j]):[points[0],...segments.map(j=>points[j+1])],segments};
 }
 export function curveProfile(values,t,fallback){
   if(!values)return fallback;

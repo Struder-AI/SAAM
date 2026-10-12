@@ -1,5 +1,5 @@
 // One ready local application owns commands, Studios, jobs and release services.
-import {writeFile,unlink,readFile} from 'node:fs/promises';
+import {writeFile,unlink,readFile,rm} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
@@ -122,6 +122,8 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
     await cleanupTemporaryWorkspaces();
     await writeHomeGuidance(paths.home);
     state.runtimeMigration=await migrateRuntimeState(paths.state);
+    // Releases before 0.3.7 saved Studio windows here to revive them; each start now begins with none.
+    await rm(resolve(paths.state,'studio-windows.json'),{force:true});
     state.runtime=await createRuntimeRegistry({paths,autoOpen,services:state.services,retryClients,codeRoot});
     state.services.observeRuntime(state.runtime);
     async function command(message){

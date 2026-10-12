@@ -1,8 +1,8 @@
-import {lifecycleReview,completedOutputState} from '../core/print/review-state.mjs';
+import {completedOutputState} from '../core/print/review-state.mjs';
 
 export function studioControls(state,ui){
   const {tab,busy,generating,exported,currentExportKey,inspection,machineView}=ui;
-  const review=lifecycleReview(state),output=completedOutputState(state,{generating:generating||state.outputGenerating===true});
+  const output=completedOutputState(state,{generating:generating||state.outputGenerating===true});
   const pending=output.generating;
   const toolpathViewable=output.available||Boolean(!state.completedOutput&&state.neutralProgram);
   const programReady=output.available,productionReady=output.exportable;

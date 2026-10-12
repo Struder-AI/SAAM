@@ -151,6 +151,7 @@ export class RelayObject extends DurableObject{
     if(this.sql.exec('DELETE FROM devices WHERE id=?',id).rowsWritten===0)return false;
     this.record({device:id,kind:'activation',name:'removed'});return true;
   }
+  renameDevice(id,label){return this.sql.exec('UPDATE devices SET label=? WHERE id=?',label,id).rowsWritten>0;}
   async deviceFor(secret){
     if(!secret)return null;
     return this.sql.exec('SELECT id FROM devices WHERE secret_hash=?',await sha256(secret)).toArray()[0]?.id??null;
@@ -161,6 +162,6 @@ export class RelayObject extends DurableObject{
     const name=typeof event.kind==='string'?event.kind:typeof event.name==='string'?event.name:null;
     if(!this.record({device,kind:'diagnostic',name:name?safeText(name).slice(0,100):null,
       bytes:encoder.encode(JSON.stringify({event,about})).length,body:{event,about}}))return {error:'Diagnostic storage unavailable.'};
-    return {received:true};
+    return {received:true,device,label:this.sql.exec('SELECT label FROM devices WHERE id=?',device).toArray()[0]?.label??null};
   }
 }

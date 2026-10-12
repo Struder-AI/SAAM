@@ -1,6 +1,6 @@
 import {distance,requireThat} from './numeric.mjs';
 import {samePose,uprightPose} from '../../path/pose.mjs';
-import {ROUNDING_MM} from '../../dimensions.mjs';
+import {ROUNDING_MM,PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
 import {moveSeconds} from '../../path/saampath.mjs';
 
 // Motion needed only to enter a selected installation and service its material
@@ -68,29 +68,35 @@ export class AdaptationMotion {
   }
 }
 
+// Two connected sacrificial passes along a bed edge, inside the selected tool
+// bounds and clear of the complete deposition footprint. Returns null when the
+// full lane is written, otherwise the note: the lane was shortened to the bed,
+// or there is no room and the program starts without it.
 export function machinePriming(motion,machine,bounds,geometryBounds){
   const settings=machine.startup?.primingStrokes;
-  if(!settings)return;
+  if(!settings)return null;
   const {lineLengthMm:length,clearanceMm:gap}=settings,p=motion.process,w=p.lineWidthMm,z=p.firstLayerMm,bed=bounds??machine.bounds;
   requireThat(Number.isFinite(length)&&length>0&&Number.isFinite(gap)&&gap>0,'Invalid machine priming strokes.');
-  const candidates=[];
+  const lanes=[];
   for(const axis of [1,0])for(const sign of [-1,1]){
-    const along=1-axis,edge=sign<0?bed.min[axis]+w/2:bed.max[axis]-w/2,start=bed.min[along]+w/2;
+    // A bed shorter than the lane shortens it; a lane below print resolution is no lane.
+    const along=1-axis,edge=sign<0?bed.min[axis]+w/2:bed.max[axis]-w/2,start=bed.min[along]+w/2,room=Math.min(length,bed.max[along]-w/2-start);
+    if(!(room>=PRINT_RESOLUTION_MM))continue;
     const point=(a,b)=>{const q=[0,0,z];q[axis]=a;q[along]=b;return q;};
-    const points=[point(edge,start),point(edge,start+length),point(edge-sign*w,start+length),point(edge-sign*w,start)];
+    const points=[point(edge,start),point(edge,start+room),point(edge-sign*w,start+room),point(edge-sign*w,start)];
     if(points.every(q=>q.every((v,i)=>v>=bed.min[i]+(i<2?w/2:0)&&v<=bed.max[i]-(i<2?w/2:0)))){
-      if(distance(motion.position,points.at(-1))<distance(motion.position,points[0]))points.reverse();candidates.push(points);
+      if(distance(motion.position,points.at(-1))<distance(motion.position,points[0]))points.reverse();lanes.push({points,room});
     }
   }
-  requireThat(candidates.length,'No room for the machine priming lane inside the selected tool bounds.');
-  const available=geometryBounds?candidates.filter(points=>[0,1].some(axis=>
+  const available=geometryBounds?lanes.filter(({points})=>[0,1].some(axis=>
     Math.max(...points.map(q=>q[axis]))+w/2+gap<=geometryBounds.min[axis]||
-    Math.min(...points.map(q=>q[axis]))-w/2-gap>=geometryBounds.max[axis])):candidates;
-  requireThat(available.length,'No room for machine priming strokes outside the complete part/support/deposition footprint.');
-  available.sort((a,b)=>distance(motion.position,a[0])-distance(motion.position,b[0]));
-  const points=available[0];
+    Math.min(...points.map(q=>q[axis]))-w/2-gap>=geometryBounds.max[axis])):lanes;
+  if(!available.length)return `No room for the ${length} mm machine priming lane inside the selected tool bounds and ${gap} mm clear of the part; the program starts without it.`;
+  available.sort((a,b)=>b.room-a.room||distance(motion.position,a.points[0])-distance(motion.position,b.points[0]));
+  const {points,room}=available[0];
   motion.phase='prime';motion.layer=0;motion.operationId=null;
   motion.travel(points[0]);
   for(const point of points.slice(1))motion.move(point,p.firstLayerSpeedMmS,distance(motion.position,point)*w*z,{role:'prime'});
   motion.park();
+  return room<length?`The machine priming lane is ${Number(room.toFixed(1))} of ${length} mm, the length of the selected tool bounds.`:null;
 }

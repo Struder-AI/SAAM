@@ -5,14 +5,17 @@ import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.m
 // A rotation-minimizing frame for a spatial centerline. The least-parallel
 // coordinate axis supplies the automatic initial normal. Closed curves spread
 // their holonomy correction over arc length, with an identical seam frame.
+// A point within rounding of the previous one shares its frame: a zero-length
+// segment has no direction. Frames stay one per input point.
 export function transportCurveFrames(points,{closed=false,initialNormal=null}={}){
-  const duplicate=points.length>2&&distance(points[0],points.at(-1))<PRINT_RESOLUTION_MM,source=duplicate?points.slice(0,-1):points,cyclic=closed||duplicate,n=source.length;
+  const duplicate=points.length>2&&distance(points[0],points.at(-1))<PRINT_RESOLUTION_MM,input=duplicate?points.slice(0,-1):points,cyclic=closed||duplicate;
+  const source=[],slots=input.map(p=>{if(!source.length||distance(p,source.at(-1))>ROUNDING_MM)source.push(p);return source.length-1;}),n=source.length;
   requireThat(n>=2,'A curve frame needs at least two points.');
   const lengths=[0];for(let i=1;i<n;i++)lengths.push(lengths.at(-1)+distance(source[i-1],source[i]));
   const total=lengths.at(-1)+(cyclic?distance(source.at(-1),source[0]):0);
   const tangents=source.map((p,i)=>{
-    const before=i?source[i-1]:cyclic?source.at(-1):null,after=i<n-1?source[i+1]:cyclic?source[0]:null;
-    requireThat((!before||distance(p,before)>ROUNDING_MM)&&(!after||distance(p,after)>ROUNDING_MM),'A curve frame cannot resolve a zero-length segment.');
+    // A closed curve's wrap neighbour, unless its last point returns onto its first.
+    const before=i?source[i-1]:cyclic&&distance(p,source.at(-1))>ROUNDING_MM?source.at(-1):null,after=i<n-1?source[i+1]:cyclic&&distance(p,source[0])>ROUNDING_MM?source[0]:null;
     const a=before?normalize(p.map((v,k)=>v-before[k])):null,b=after?normalize(after.map((v,k)=>v-p[k])):null;
     requireThat(!a||!b||Math.hypot(...a.map((v,k)=>v+b[k]))>ROUNDING_RELATIVE,'A curve frame cannot resolve a reversing cusp.');
     return normalize(a&&b?a.map((v,k)=>v+b[k]):a??b);
@@ -31,5 +34,6 @@ export function transportCurveFrames(points,{closed=false,initialNormal=null}={}
   let seamCorrectionRad=0;
   if(cyclic){const terminal=transport(sides.at(-1),tangents.at(-1),tangents[0]);seamCorrectionRad=Math.atan2(dot(tangents[0],cross(terminal,sides[0])),dot(terminal,sides[0]));}
   const frames=source.map((p,i)=>{const u=tangents[i],v=rotate(sides[i],u,seamCorrectionRad*lengths[i]/total);return {point:[lengths[i],0,0],u,v,normal:normalize(cross(u,v))};});
-  return {frames:duplicate?[...frames,{...frames[0],point:[total,0,0]}]:frames,lengthMm:total,seamCorrectionRad,closed:cyclic};
+  const shared=slots.map(slot=>frames[slot]);
+  return {frames:duplicate?[...shared,{...frames[0],point:[total,0,0]}]:shared,lengthMm:total,seamCorrectionRad,closed:cyclic};
 }

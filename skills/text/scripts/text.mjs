@@ -20,6 +20,7 @@ export function textFeature(spec){
   return f;
 }
 
+// -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
 export async function compileText(base,features,{buildGeometry,constructSolids,mappedTextMaterial,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
   requireThat(typeof buildGeometry==='function'&&typeof constructSolids==='function'&&typeof mappedTextMaterial==='function'&&Array.isArray(features)&&features.length>0,
     'Text needs Geometry buildGeometry, constructSolids and mappedTextMaterial operations and at least one feature.');
@@ -39,9 +40,8 @@ export async function compileText(base,features,{buildGeometry,constructSolids,m
     result=result?{operation:f.mode==='raised'?'union':'difference',operands:[result,textSolid]}:textSolid;
   }
   const [mesh,...parts]=await constructSolids([result,...materials.values()],{toleranceMm});
-  requireThat(mesh,'Text operation produced an empty solid.');
-  const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh.vertices,triangles:mesh.triangles};
+  const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh?.vertices??[],triangles:mesh?.triangles??[]};
   record.materialParts=[...materials.keys()].flatMap((id,i)=>!parts[i]?[]:[{id,geometry:id==='base'&&baseUncut?null:{shape:'mesh',source:null,vertices:parts[i].vertices,triangles:parts[i].triangles}}]);
   if(standalone)record.standalone=true;
-  return record;
+  return {geometry:record,notes:mesh?mesh.notes??[]:['The text leaves no material.']};
 }

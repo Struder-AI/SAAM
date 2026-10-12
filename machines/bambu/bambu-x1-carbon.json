@@ -12,9 +12,6 @@
     "maxDevices": 4
   },
   "kinematics": "cartesian-fixed-vertical-nozzle",
-  "limitations": [
-    "X1 Carbon uses a bounded 0.4 mm PLA / Textured or Smooth PEI service sequence. Startup flushes at 250 C and includes front-edge purge/calibration; service time/material are excluded from body totals. First-layer scan and printer-selected calibration remain. This revision awaits physical validation."
-  ],
   "capabilities": [
     "xyz-extrusion",
     "planar",

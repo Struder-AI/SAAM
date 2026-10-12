@@ -35,7 +35,8 @@ The selected machine output's `program.header`, `program.start` and
 `program.end` arrays contain literal lines with named value substitutions.
 Values come from the locked setup, release metadata and path totals/bounds;
 templates execute no JavaScript. Unknown values and invalid/nonfinite path data
-are rejected. The emitter writes shared SAAMpath actions between these sections.
+are rejected. A snapshot locked without templates uses the installed profile's, noted.
+The emitter writes shared SAAMpath actions between these sections.
 The supported dialect remains the declared Griffin subset, not arbitrary G-code.
 
 The Griffin/H2D modal reader has no arbitrary program-size cutoff. It walks
@@ -79,8 +80,9 @@ relay output add no recovery. Physical confirmation of this correction is open.
 S5 profile revision 7 also supplies `startup.primingStrokes` to shell generation:
 two connected 100 mm sacrificial passes, with 4 mm clearance outside the complete
 geometry and generated stroke footprint (including supports). The generator
-chooses a fitting side within selected-tool bounds, including bead width, and
-reports insufficient space rather than silently omitting the prime. It uses the
+chooses a fitting side within selected-tool bounds, including bead width; a lane
+longer than those bounds is shortened, and with no room the program starts without
+it, each noted. It uses the
 locked first-layer height, line width and speed.
 The first unretract occurs at the prime; the nozzle retracts and lifts before
 approaching the part. These are ordinary `prime`-phase SAAMpath moves, included

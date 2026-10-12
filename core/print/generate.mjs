@@ -1,7 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
 import {ASSIGNMENT_RECORDS,validateSelectedExtensionRecipe} from '../../skills/records.mjs';
-import {extensionDeposition,extensionResultDependencies,extensionSummary} from '../../skills/deposition.mjs';
+import {extensionDeposition,extensionSummary} from '../../skills/deposition.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared deposition
 // and their finalized-material consumers.
@@ -16,7 +16,6 @@ import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {planarPolicy} from '../path/builder.mjs';
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
-import {planarRegionLayers} from '../geom/planar-region-layers.mjs';
 import {prepareContourSleeve} from '../geom/sleeve/contour-sleeve.mjs';
 import {difference,union,intersect} from '../region/intersection.mjs';
 import {regionArea,pointSegmentDistance} from '../region/region2d.mjs';
@@ -30,15 +29,14 @@ import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {traceResult} from './curves.mjs';
 import {contactCurveGaps,contactSpanNote} from '../path/contact-curves.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
-import {prepareSliceRegionContext} from './slice-region-context.mjs';
 import {prepareSliceBoundaryStack} from './slices.mjs';
 import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './slice-deposition.mjs';
 
 const extensionEngines={
-  Geometry:{planarRegionLayers,prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface},
-  Toolpath:{prepareSliceRegionContext,prepareSliceBoundaryStack,pointInjectionOperation,assignmentFilament,
+  Geometry:{prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface},
+  Toolpath:{prepareSliceBoundaryStack,pointInjectionOperation,assignmentFilament,
     spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,contactSpanNote,depositedBeadSegments}
 };
 
@@ -69,7 +67,7 @@ export async function preparePathGeometry(plan) {
   plan=compileRecipe(plan).plan;
   if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map()};
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
-  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
+  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined).map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
   const assignments=plan.slices.assignments.filter(a=>!a.construction);
   const requests=[{},...components.map(selection=>({selection})),...named.map(selection=>({selection}))];
   const volumeSlots=new Map(assignments.map(assignment=>[assignment.id,assignment.within.map(volume=>{
@@ -101,21 +99,15 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
   // Generation notes: what was not covered or failed, joining the print's limitations.
-  if(sliced.notes?.length)summary.limitations=sliced.notes;
+  const notes=[...extensions.notes,...sliced.notes];
+  if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
   const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
   if(Object.keys(stacks).length)summary.referenceStacks=stacks;
   if(stacks.roof){const roofs=stacks.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
   const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
-  return {results,summary,survey:null,shells,slicedSupports:sliced.supports,execution:sliced.execution};
-}
-
-export async function addComplementaryResults(plan,geometry,batch) {
-  const supports=batch.slicedSupports??[],results=[...batch.results],summary={...batch.summary};
-  if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
-  const completed=[...supports,...applyResultDependencies(results,await extensionResultDependencies(results,supports,extensionEngines))];
-  return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
+  return {results,summary,survey:null,shells,execution:sliced.execution};
 }
 
 // The recipe's dependency declarations apply to every construction, including
@@ -215,7 +207,7 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
     selection:selections?.[defaultFilament]??null,selections}),0);
   const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
   const model=await generateModelResults(evaluated,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
-  const complemented=await addComplementaryResults(evaluated,prepared,model);
+  const complemented={...model,results:applyDeclaredDependencies(evaluated,model.results)};
   const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
   const {placed}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);

@@ -95,7 +95,9 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
     const bad=structuredClone(plan);bad.setup.ams=ams;await assert.rejects(()=>exportProgram(path,bad,machine,release),/AMS choice/);
   }
   const miscoloured=structuredClone(plan);miscoloured.setup.filamentColor='teal';
-  await assert.rejects(()=>exportProgram(path,miscoloured,machine,release),/hex color/);
+  const fallback=await exportProgram(path,miscoloured,machine,release);
+  assert.match(unpackZip(fallback.bytes).get('Metadata/slice_info.config').toString(),new RegExp('color="'+machine.outputs[0].defaultFilamentColor+'"'));
+  assert.ok(fallback.report.limitations.some(text=>/"teal" is not a six-digit hex colour/.test(text)));
   const noFeeder=structuredClone(machine);delete noFeeder.ams;const asks=structuredClone(plan);asks.setup.ams={unit:1,slot:1};
   await assert.rejects(()=>exportProgram(path,asks,noFeeder,release),/declares no AMS/);
 });
@@ -235,8 +237,15 @@ test('Bambu rejects conflicting declarations and unsupported settings before pro
     [{bambu:{...plan.setup.bambu,otherNozzleMm:null}},/other installed/],
     [{filament:1},/filament index/],
     [{bambu:{...plan.setup.bambu,startup:{bedLeveling:'maybe'}}},/printer, on or off/],
-    [{filamentColor:'#FFFFFF',filaments:[{id:'GFA00',colour:'#000000'}]},/colour disagrees/],
   ]){const p=structuredClone(plan);Object.assign(p.setup,patch);await assert.rejects(()=>exportProgram(path,p,machine,release),message);}
+  const differing=structuredClone(plan);Object.assign(differing.setup,{filamentColor:'#FFFFFF',filaments:[{id:'GFA00',colour:'#000000'}]});
+  const resolved=await exportProgram(path,differing,machine,release);
+  assert.match(unpackZip(resolved.bytes).get('Metadata/slice_info.config').toString(),/color="#000000"/);
+  assert.ok(resolved.report.limitations.some(text=>/differs from filament 1's colour #000000; the package uses #000000/.test(text)));
+  const extra=structuredClone(plan);extra.setup.bambu.legacyTray=3;
+  const read=await exportProgram(path,extra,machine,release);
+  assert.equal(read.bytes.length,(await exportProgram(path,plan,machine,release)).bytes.length);
+  assert.ok(read.report.limitations.includes('Bambu setup fields ignored, not read by this SAAM: legacyTray.'));
   const old=structuredClone(plan);delete old.setup.bambu;await assert.rejects(()=>exportProgram(path,old,machine,release),/Invalid bambu configuration/);
   for(const key of ['nozzle_diameter','filament_map','curr_bed_type','nozzle_type']){
     const m=structuredClone(machine);m.outputs[0].package.projectSettings[key]=['wrong'];

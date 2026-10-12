@@ -2,13 +2,13 @@ import {validateBlobField} from './blob-field.mjs';
 import {requireThat} from './tolerance.mjs';
 
 export const BLOB_FIELD_COMPILER='saam/blob-marching-tetrahedra/1';
-// Records keep the compiler that made their checked mesh; meshes from the
-// earlier kernel extraction stay valid geometry.
-const RECORDED_COMPILERS=[BLOB_FIELD_COMPILER,'manifold-3d@3.5.3/blob-level-set/1'];
+// Records keep the compiler that made their mesh. The mesh is the geometry, read
+// and checked as any mesh whichever compiler made it; blob_field rebuilds with
+// the current one.
 export const blobFieldTemplate=()=>({shape:'blob-field',field:null,extraction:null,vertices:[],triangles:[]});
 export function validateBlobFieldExtraction(extraction){
   requireThat(extraction&&Object.keys(extraction).sort().join()==='compiler,edgeMm','Unexpected blob field extraction fields.');
-  requireThat(RECORDED_COMPILERS.includes(extraction.compiler),'Unsupported blob field compiler. Rebuild it with the blob_field tool.');
+  requireThat(typeof extraction.compiler==='string'&&extraction.compiler.length>0,'Blob field extraction names its compiler.');
   requireThat(Number.isFinite(extraction.edgeMm)&&extraction.edgeMm>0,'Blob field extraction edgeMm must be positive.');
 }
 export function validateBlobFieldRecord(record){

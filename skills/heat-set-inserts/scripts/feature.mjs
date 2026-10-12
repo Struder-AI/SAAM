@@ -2,14 +2,15 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 import {INSERT_CATALOG} from './catalog.mjs';
 
-export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0};
+export const HEAT_SET_DEFAULTS={id:'insert',insertId:'spirol-29-m3-long',positionMm:[15,15,12],depthMm:null,diameterAdjustmentMm:0,finCount:6,finLengthMm:4,finWidthMm:0.8,finAngleDeg:0,axis:[0,0,-1]};
 export function heatSetFeature(input){
   requireThat(input&&Object.keys(input).every(k=>Object.hasOwn(HEAT_SET_DEFAULTS,k)),'Unknown heat-set feature setting.');
   const f={...structuredClone(HEAT_SET_DEFAULTS),...structuredClone(input)};
   requireThat(typeof f.id==='string'&&/^[\w-]+$/.test(f.id),'Invalid heat-set feature id.');
   const insert=INSERT_CATALOG.find(i=>i.id===f.insertId);
   requireThat(insert,'Unknown heat-set insertId; choose an entry from the catalog.');
-  requireThat(Array.isArray(f.positionMm)&&f.positionMm.length===3&&f.positionMm.every(Number.isFinite),'positionMm must be [x,y,z] at the insertion face; the bore points down Z.');
+  requireThat(Array.isArray(f.positionMm)&&f.positionMm.length===3&&f.positionMm.every(Number.isFinite),'positionMm must be [x,y,z], the mouth centre on the insertion face.');
+  requireThat(Array.isArray(f.axis)&&f.axis.length===3&&f.axis.every(Number.isFinite)&&Math.hypot(...f.axis)>0,'axis must be a nonzero [x,y,z] direction the bore points into the part.');
   requireThat(Number.isFinite(f.diameterAdjustmentMm)&&insert.holeDiameterMm+f.diameterAdjustmentMm>0,'Adjusted insert bore diameter must be positive.');
   requireThat(f.depthMm===null||Number.isFinite(f.depthMm)&&f.depthMm>=insert.lengthMm,'depthMm must accommodate the selected insert length, or be null for the catalog recommendation.');
   requireThat(Number.isSafeInteger(f.finCount)&&f.finCount>=0,'finCount must be a nonnegative safe integer.');
@@ -20,7 +21,17 @@ export function heatSetFeature(input){
 export function dimensions(f){
   const insert=INSERT_CATALOG.find(i=>i.id===f.insertId);
   requireThat(insert,'Unknown heat-set catalog entry.');
-  return {diameterMm:insert.holeDiameterMm+f.diameterAdjustmentMm,depthMm:f.depthMm??insert.lengthMm+insert.bottomClearanceMm};
+  return {diameterMm:insert.holeDiameterMm+f.diameterAdjustmentMm,depthMm:f.depthMm??insert.lengthMm+insert.bottomClearanceMm,lengthMm:insert.lengthMm};
+}
+// A point of the bore's frame: radius r at angle a about its axis, s outward
+// from the mouth. Outward d, with u along the world axis least aligned with it
+// and v = d x u, is right-handed, so increasing a runs counterclockwise about d;
+// a bore pointing down Z has u = X and v = Y.
+export function borePoint(f,r,a,s){
+  const n=Math.hypot(...f.axis),d=f.axis.map(c=>-c/n),k=d.map(Math.abs).reduce((best,c,i,all)=>c<all[best]?i:best,0);
+  const raw=d.map((c,i)=>(i===k)-c*d[k]),m=Math.hypot(...raw),u=raw.map(c=>c/m);
+  const v=[d[1]*u[2]-d[2]*u[1],d[2]*u[0]-d[0]*u[2],d[0]*u[1]-d[1]*u[0]];
+  return f.positionMm.map((c,i)=>c+s*d[i]+r*(Math.cos(a)*u[i]+Math.sin(a)*v[i]));
 }
 export const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[]});
 export function validateHeatSetRecord(record){

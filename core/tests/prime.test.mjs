@@ -55,8 +55,12 @@ test('priming avoids generated support extents and finds space away from occupie
   assert.ok(deposition.every(a=>a.to[0]>=.2&&a.to[0]<=329.8&&a.to[1]<=239.8));
   const full=fixture();full.geometry={min:[0,0,0],max:[330,240,2]};
   const unchanged=structuredClone(full.motion);
-  assert.throws(()=>machinePriming(full.motion,full.machine,full.bounds,full.geometry),/No room for machine priming strokes/);
-  assert.deepEqual(structuredClone(full.motion),unchanged,'rejection leaves incoming preparation state unchanged');
+  assert.match(machinePriming(full.motion,full.machine,full.bounds,full.geometry),/starts without it/);
+  assert.deepEqual(structuredClone(full.motion),unchanged,'no lane leaves incoming preparation state unchanged');
+  const small=fixture();
+  assert.equal(machinePriming(small.motion,small.machine,{min:[0,0,0],max:[60,60,300]},{min:[30,30,0],max:[40,40,2]}),'The machine priming lane is 59.6 of 100 mm, the length of the selected tool bounds.');
+  const lane=small.motion.actions.filter(a=>a.volumeMm3>0);
+  assert.equal(lane.length,3);assert.ok(lane.every(a=>a.to.every((v,i)=>i===2||v<=59.8)),'a shortened lane stays inside the bounds');
 });
 
 test('profiles without explicit priming and empty deposition preserve their paths',async()=>{

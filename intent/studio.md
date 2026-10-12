@@ -79,8 +79,10 @@ Sources: [0.3.3 "Tray Quit feedback in Studio"](../plans/0.3.3.md).
 > "The bug report was supposed to be an agent-activated command. Let's keep the user-activated option on the connect page, but remove "links and file paths are removed" from the text (any of that should be in the collapsible consent section)." — owner, 2026-10-06 (Claude 14d40329 18:23)
 >
 > "Add a donate button to the 0.3.3 plan. Not sure what the target url will be yet." — owner, 2026-10-03 (Codex 01a0fec9 01:23)
+>
+> "Make the user-facing bug report thing a separate button rather than being on the connections pane." — owner, 2026-10-12 (Claude c58e0202)
 
-Summary: Connect offers Report a bug beside the agent's command, with privacy details only in the consent section; a Donate button waits for the owner's destination.
+Summary: a Report a bug button opens its own form beside the agent's command; privacy details stay in Connect's consent section; Donate waits for a destination.
 
 Sources: [0.3.4 "Bug report button"](../plans/0.3.4.md); [0.3.5 "Donate button"](../plans/0.3.5.md); [Application](application.md#bug-reports).
 

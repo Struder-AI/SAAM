@@ -3,8 +3,9 @@
 [Machines](../../machines/README.md) lists each machine extension, its output contract
 and [how to add one](../../machines/README.md#adding-a-machine).
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
-X1 Carbon shares the H2D adapter with its own pinned envelope. Declared output
-limitations are reported at export; catalog presence is not export support.
+X1 Carbon shares the H2D adapter with its own pinned envelope. Each output's standing
+limitations are in its manual; an export reports only what concerns the print.
+Catalog presence is not export support.
 
 ## Machine interoperability design
 

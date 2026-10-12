@@ -8,6 +8,13 @@ const OPTIONS={
   blank:{heightUnits:1,magnetHoles:false},
   baseplate:{floorMm:1.2}
 };
+// An edit merges into the saved parameters; a changed kind keeps only the common
+// ones (footprint and tolerance), since its other settings mean something else.
+export function editedGridfinityParameters(previous,changes){
+  const kept=changes.kind===undefined||changes.kind===previous.kind?previous
+    :Object.fromEntries(Object.entries(previous).filter(([key])=>key!=='kind'&&Object.hasOwn(COMMON,key)));
+  return {...kept,...changes};
+}
 export function gridfinityParameters(input={}){
   requireThat(input&&typeof input==='object'&&!Array.isArray(input),'Gridfinity parameters must be an object.');
   const kind=input.kind??'bin';
@@ -50,6 +57,7 @@ function roundedRing(width,depth,radius,z,cx,cy,steps){
   return ring;
 }
 
+// -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
 export async function compileGridfinity(input={}, {constructSolids}={}){
   requireThat(typeof constructSolids==='function','Gridfinity needs the Geometry constructSolids operation.');
   const p=gridfinityParameters(input);
@@ -114,6 +122,6 @@ export async function compileGridfinity(input={}, {constructSolids}={}){
       }
     }
     const [mesh]=await constructSolids([solid],{toleranceMm:p.toleranceMm});
-    requireThat(mesh,'Gridfinity construction failed to produce a solid.');
-    return {shape:'gridfinity',parameters:p,vertices:mesh.vertices,triangles:mesh.triangles};
+    return {geometry:{shape:'gridfinity',parameters:p,vertices:mesh?.vertices??[],triangles:mesh?.triangles??[]},
+      notes:mesh?mesh.notes??[]:['The Gridfinity construction leaves no material.']};
 }

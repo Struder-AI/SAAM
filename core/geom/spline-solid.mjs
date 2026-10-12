@@ -1,8 +1,8 @@
 // A solid authored as named, untrimmed NURBS patches: the agent writes the
-// control nets and SAAM checks that they close. Nothing here is a template;
+// control nets and SAAM measures where they close. Nothing here is a template;
 // every patch is exactly what the recipe says.
 import {patchFromSurface} from './nurbs.mjs';
-import {makeShell,assertClosed} from './shell.mjs';
+import {makeShell} from './shell.mjs';
 import {requireThat} from './tolerance.mjs';
 
 const PATCH_FIELDS=['name','degreeU','degreeV','controlPoints','knotsU','knotsV'];
@@ -44,8 +44,8 @@ export function splineSolidBounds(geometry){
   return {min,max};
 }
 
-// Named Rhino surfaces as a shell; closure is verified by makeShell and
-// enforced by the caller's assertClosed.
+// Named Rhino surfaces as a shell; makeShell measures closure, which only
+// solid operations require.
 export function shellFromSurfaces(rhino, entries, name) {
   const patches = entries.map(entry => patchFromSurface(entry.surface, entry.name));
   const shell = makeShell(patches, { name });
@@ -56,7 +56,7 @@ export function shellFromSurfaces(rhino, entries, name) {
 export function splineSolidShell(rhino,geometry){
   validateSplineSolid(geometry);
   const entries=geometry.patches.map(patch=>({name:patch.name,surface:nurbsSurface(rhino,patch)}));
-  return assertClosed(shellFromSurfaces(rhino,entries,'spline'));
+  return shellFromSurfaces(rhino,entries,'spline');
 }
 
 // openNURBS stores homogeneous points and omits the first and last knot.

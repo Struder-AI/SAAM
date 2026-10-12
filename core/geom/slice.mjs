@@ -140,8 +140,12 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
     for(let k=0;k<3;k++)sum[k]+=area[k]*weight;
     areaMm2+=Math.hypot(...area)*weight;
   }
-  requireThat(areaMm2>0&&Math.hypot(...sum)>areaMm2*ROUNDING_RELATIVE,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
-  return {normal:normalize(sum),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
+  // A region with no area at print resolution has nothing to print: it answers
+  // no area and no normal, like an empty one. The whole reference needs a normal.
+  if(region&&areaMm2<=PRINT_RESOLUTION_MM*PRINT_RESOLUTION_MM)return {normal:null,meanNormal:null,areaMm2:0,sampleStepMm};
+  const length=Math.hypot(...sum);
+  requireThat(areaMm2>0&&length>areaMm2*ROUNDING_RELATIVE,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
+  return {normal:sum.map(v=>v/length),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
 }
 
 // A stack of one base slice: layer k is the base translated along the unit

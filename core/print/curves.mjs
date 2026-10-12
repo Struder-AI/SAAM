@@ -2,11 +2,12 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 import {curveLength} from '../path/curve-construction.mjs';
-import {authoredNurbs,validateCurveProfiles,constructAuthoredCurves} from '../path/authored-curves.mjs';
-import {beadWidthRule} from '../path/parallel-curves.mjs';
+import {authoredNurbs,readCurveProfiles,distinctPolyline,constructAuthoredCurves} from '../path/authored-curves.mjs';
+import {readWidthRule} from '../path/parallel-curves.mjs';
 import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
 import {contactSpans,contactSpanNote} from '../path/contact-curves.mjs';
 import {depositCurveBatches} from '../path/curve-batches.mjs';
+import {joinCurveSequence} from '../path/stack-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 
@@ -34,12 +35,11 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
   for(const curve of a.curves){
     if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
-    requireThat(curve&&Object.keys(curve).every(k=>['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'].includes(k))&&typeof curve.closed==='boolean','Invalid authored curve.');
+    requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
     requireThat(['points','nurbs','uv'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs or uv.');
     const input=curve.uv??curve,dimensions=curve.uv?2:3;
     if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
-    else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite))&&input.points.some(p=>p.some((v,i)=>v!==input.points[0][i])),'Curve needs distinct finite points.');
-    if(input.points)requireThat(input.points.every((p,i)=>!i||p.some((v,k)=>v!==input.points[i-1][k]))&&(!curve.closed||input.points[0].some((v,k)=>v!==input.points.at(-1)[k])),'Polyline points must not repeat consecutive vertices or the implicit closed endpoint.');
+    else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite)),'Curve needs finite points.');
     if(curve.uv){
       requireThat(Object.keys(curve.uv).every(k=>['reference','points','nurbs','normalMm'].includes(k))&&['points','nurbs'].filter(k=>curve.uv[k]!==undefined).length===1,'UV curve needs exactly one points or nurbs source.');
       const r=curve.uv.reference;requireThat(r&&['patch','slice','sleeve'].includes(r.kind),'UV curve needs a named patch, slice or sleeve reference.');
@@ -51,14 +51,34 @@ export function validateCurveAssignment(a,{parts=null}={}) {
     if(curve.segmentMetadata)requireThat(input.points&&Array.isArray(curve.segmentMetadata)&&curve.segmentMetadata.length===input.points.length-(curve.closed?0:1)&&curve.segmentMetadata.every(m=>m&&typeof m==='object'&&!Array.isArray(m)),'Segment metadata needs one object per polyline segment.');
     if(curve.contact){const c=curve.contact;requireThat(Object.keys(c).sort().join()==='gapMm,referenceZMm,sampleStepMm,source'&&(c.source===null||typeof c.source==='string')&&(c.gapMm===null||Number.isFinite(c.gapMm)&&c.gapMm>=0)&&(c.referenceZMm===null||Number.isFinite(c.referenceZMm))&&Number.isFinite(c.sampleStepMm)&&c.sampleStepMm>0,'Curve contact needs source, gapMm, referenceZMm and positive sampleStepMm.');}
     if(curve.depositionAction)requireThat(curve.depositionAction.kind==='press'&&Object.keys(curve.depositionAction).sort().join()==='depthMm,kind'&&Number.isFinite(curve.depositionAction.depthMm)&&curve.depositionAction.depthMm>0,'Curve press action needs positive depthMm.');
-    validateCurveProfiles(curve.vary);
-    if(curve.widthRule)beadWidthRule(curve.widthRule);
-    for(const key of ['sampleStepMm','toleranceMm'])requireThat(curve[key]===undefined||Number.isFinite(curve[key])&&curve[key]>0,`Curve ${key} must be positive.`);
-    requireThat(curve.role===undefined||typeof curve.role==='string'&&curve.role.length>0,'Curve role must be a nonempty string.');
-    for(const field of ['beadWidthMm','heightMm','speedMmS','flowMultiplier'])requireThat(curve[field]===undefined||Number.isFinite(curve[field])&&curve[field]>0,`Curve ${field} must be positive.`);
     requireThat(curve.repetitions===undefined||Array.isArray(curve.repetitions)&&curve.repetitions.length>0&&new Set(curve.repetitions).size===curve.repetitions.length&&curve.repetitions.every(n=>Number.isInteger(n)&&n>=0&&(a.repeat?.stack||n<count)),
       'Curve repetitions must select distinct indices within its repeat count.');
   }
+}
+
+// A curve as Trace reads it: fields it cannot read or use are left out and
+// named in ignored, and repeated polyline vertices are dropped. A curve without
+// two distinct vertices (three when closed) is null: it prints nothing. Speed
+// and flow need only be finite: zero flow moves along the curve without
+// depositing, and a negative flow, which would remove material, reads as zero
+// and is named in zeroed.
+const CURVE_FIELDS=['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
+const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
+export function readAuthoredCurve(source){
+  const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)
+    &&(key!=='speedMmS'&&key!=='flowMultiplier'||Number.isFinite(value))&&(key!=='role'||typeof value==='string'&&value.length>0)));
+  const zeroed=read.flowMultiplier<0?['flowMultiplier']:[];
+  if(zeroed.length)read.flowMultiplier=0;
+  const profiles=readCurveProfiles(read.vary),width=readWidthRule(read.widthRule);
+  const ignored=[...Object.keys(source).filter(key=>!Object.hasOwn(read,key)),...profiles.ignored,...width.ignored];
+  const curve={...read,vary:profiles.vary,widthRule:width.rule};
+  for(const key of ['vary','widthRule'])if(curve[key]===undefined)delete curve[key];
+  const input=curve.uv??curve;
+  if(!input.points)return {curve,ignored,zeroed};
+  const distinct=distinctPolyline(input.points,curve.closed);
+  if(distinct.points.length<(curve.closed?3:2))return {curve:null,ignored,zeroed:[]};
+  const points=curve.uv?{uv:{...curve.uv,points:distinct.points}}:{points:distinct.points};
+  return {curve:{...curve,...points,...(curve.segmentMetadata?{segmentMetadata:distinct.segments.map(j=>curve.segmentMetadata[j])}:{})},ignored,zeroed};
 }
 
 // Spans of a curve declaring contact where its supporting material is absent;
@@ -80,10 +100,13 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
   requireThat(!assignment.repeat?.stack||referenceStack?.layers?.length,'Curve repeat needs an available named slice stack.');
   const indices=referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
   const finalizeInside=assignment.sequence||assignment.curves.some(c=>c.contact);
-  const batches=[],parts=[],notes=[],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const read=assignment.curves.map(readAuthoredCurve),ignored=read.flatMap(({ignored},i)=>ignored.map(field=>`curves[${i}].${field}`)),authored=read.flatMap(({curve})=>curve?[curve]:[]);
+  const zeroed=read.flatMap(({zeroed},i)=>zeroed.map(field=>`curves[${i}].${field}`));
+  const batches=[],parts=[],notes=[...(ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[]),
+    ...(zeroed.length?[`Trace ${assignment.id}: ${zeroed.join(', ')} below zero reads as 0; those curves move without depositing.`]:[])],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   for(let repetition=0;repetition<count;repetition++){
     const index=indices?.[repetition]??repetition;
-    const active=assignment.curves.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
+    const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
     if(!active.length)continue;
     const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:index,offset:translation.map(v=>repetition*v)}));
     const heightMm=repetition===0?process.firstLayerMm:process.layerMm,speedMmS=repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS;
@@ -117,15 +140,22 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
 // Authored and skill-mapped centerlines share bead calculation, joining,
 // travel packaging and aggregate measures. Extensions supply geometry
 // and repetition data; they do not assemble a separate deposition result.
+// Join notes: a join rule field it cannot read takes its default, and a gap in
+// a continuous join without a depositing connector prints as travel.
 export function traceResult(assignment,{batches,process,sequential=true,report={}}){
   const operations=depositCurveBatches({id:assignment.id,batches,process,after:assignment.after,filament:assignment.filament,sequential});
+  const joinNotes=batches.flatMap((batch,index)=>{
+    if(!batch.join)return [];
+    const {ignored,travelGaps}=joinCurveSequence(batch.curves,batch.join),name=`Trace ${assignment.id} batch ${batch.key??index}`;
+    return [...(ignored.length?[`${name}: join ${ignored.join(', ')} unreadable; the default is used.`]:[]),...(travelGaps?[`${name}: ${travelGaps} gap(s) in its continuous join print as travel.`]:[])];
+  });
   let lengthMm=0,strokeCount=0,volumeMm3=0;
   for(const operation of operations)for(const stroke of operation.strokes){
     const length=curveLength(stroke.points);lengthMm+=length;strokeCount++;
     const closing=stroke.closed?distance(stroke.points.at(-1),stroke.points[0]):0;
     volumeMm3+=stroke.volumesMm3?stroke.volumesMm3.reduce((sum,v)=>sum+v,0):(length+closing)*stroke.beadAreaMm2;
   }
-  return {id:assignment.id,operations,report:{...report,depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
+  return {id:assignment.id,operations,report:{...report,...(joinNotes.length?{notes:[...(report.notes??[]),...joinNotes]}:{}),depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
 }
 
 // Construct a selected trace from finalized predecessors. Dependent batches

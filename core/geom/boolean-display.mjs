@@ -8,17 +8,19 @@ import {requireThat} from './tolerance.mjs';
 
 const KERNEL_OPERATION={union:'add',difference:'subtract',intersection:'intersect'};
 
+// -> {vertices, triangles, notes}: no material is an empty mesh with a note.
 export async function booleanDisplayMesh(shell,{toleranceMm=0.05}={}){
-  const kernel=await solidKernel(),owned=[];
+  const kernel=await solidKernel(),owned=[],notes=[];
   const solidOf=node=>{
-    if(node.kind!=='boolean'){const solid=solidFromMesh(kernel,tessellateShell(node,{toleranceMm}));owned.push(solid);return solid;}
+    if(node.kind!=='boolean'){const mesh=tessellateShell(node,{toleranceMm});notes.push(...mesh.notes??[]);const solid=solidFromMesh(kernel,mesh);owned.push(solid);return solid;}
     const [first,...rest]=node.operands.map(solidOf);
     return rest.reduce((result,next)=>{const combined=combineSolids(result,next,KERNEL_OPERATION[node.operation]);owned.push(combined);return combined;},first);
   };
   try{
     const solid=solidOf(shell);
-    requireThat(solid.status()==='NoError'&&!solid.isEmpty(),'The boolean leaves no material; check the operands overlap as intended.');
-    return preciseSolidMesh(solid);
+    requireThat(solid.status()==='NoError',`The solid kernel could not combine the Boolean operands (${solid.status()}).`);
+    if(solid.isEmpty())return {vertices:[],triangles:[],notes:[...notes,`The ${shell.operation} leaves no material; check the operands overlap as intended.`]};
+    return {...preciseSolidMesh(solid),notes};
   }finally{for(const solid of owned)solid.delete();}
 }
 
