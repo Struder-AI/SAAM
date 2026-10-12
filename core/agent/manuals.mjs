@@ -29,23 +29,23 @@ function publishedPath(path) {
 // A gate marker is an HTML comment on the line directly above a heading; it gates that heading's
 // section. `layer: advanced` is read on request;
 // `requires: a, b` (advanced) also opens for a machine with any of those capabilities, and
-// `nonplanar>=N` for one whose nonplanar limit reaches N degrees.
+// `nonplanar>=N` for one whose nonplanar limit reaches N degrees. A marker that cannot be read
+// stays ordinary text, so its section is ungated; builder and developer reads note it.
 const MARKER = /^<!--\s*((?:layer|requires):[^>]*?)\s*-->\s*$/;
 function parseMarker(line) {
   const body = MARKER.exec(line.trimEnd())?.[1];
   if (!body) return undefined;
-  const gate = { layer: undefined, requires: [] };
+  const gate = { layer: undefined, requires: [] }, unreadable = reason => ({ unreadable: `"${line.trim()}": ${reason}` });
   for (const part of body.split(';')) {
     const [key, value = ''] = part.split(':').map(item => item.trim());
     if (key === 'layer' && value === 'advanced') gate.layer = value;
     else if (key === 'requires') gate.requires = value.split(',').map(item => item.trim()).filter(Boolean);
-    else throw Error(`Invalid gate marker "${line.trim()}": use layer: advanced and requires: capability, …`);
+    else return unreadable('use layer: advanced and requires: capability, …');
   }
   if (gate.requires.some(token => !/^[a-z][a-z0-9-]*$|^nonplanar>=\d+(?:\.\d+)?$/.test(token)))
-    throw Error(`Invalid requirement in "${line.trim()}": name a machine capability or nonplanar>=DEGREES.`);
+    return unreadable('name a machine capability or nonplanar>=DEGREES');
   if (gate.requires.length) gate.layer = 'advanced';
-  if (!gate.layer) throw Error(`Invalid gate marker "${line.trim()}".`);
-  return gate;
+  return gate.layer ? { gate } : unreadable('use layer: advanced and requires: capability, …');
 }
 
 // How a gate reads in the index and in the list of omitted sections.
@@ -54,8 +54,9 @@ export function gateText(gate) {
   return gate.requires.map(token => token.replace(/^nonplanar>=(.*)$/, 'nonplanar ≥ $1°')).join(' or ') + ' machines';
 }
 
-function headings(markdown) {
-  const result = [], counts = new Map();
+// A manual's headings with their gates, and the marker lines it could not read.
+function outline(markdown) {
+  const result = [], unreadable = [], counts = new Map();
   let offset = 0, fence, previous;
   for (const line of markdown.split(/(?<=\n)/)) {
     const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1];
@@ -71,21 +72,26 @@ function headings(markdown) {
         const count = counts.get(base) ?? 0;
         counts.set(base, count + 1);
         result.push({ title, anchor: count ? `${base}-${count}` : base, level: match[1].length, offset, gate: previous });
-      } else gate = parseMarker(line);
+      } else {
+        const parsed = parseMarker(line);
+        gate = parsed?.gate;
+        if (parsed?.unreadable) unreadable.push(parsed.unreadable);
+      }
     }
     previous = gate;
     offset += line.length;
   }
-  return result;
+  return { sections: result, unreadable };
 }
 const sectionEnd = (sections, index, length) =>
   sections.slice(index + 1).find(item => item.level <= sections[index].level)?.offset ?? length;
 
-// Every gated section of one manual, for the index and the machine-change hint.
+// Every gated section of one manual, for the index and the machine-change hint, and the
+// marker lines it could not read.
 export function gatedSections(markdown, path) {
-  const sections = headings(markdown);
-  return sections.filter(section => section.gate).map(({ title, anchor, gate }) =>
-    ({ title, guidanceId: `${path}#${anchor}`, layer: gate.layer, requires: gate.requires, gate: gateText(gate) }));
+  const { sections, unreadable } = outline(markdown);
+  return { sections: sections.filter(section => section.gate).map(({ title, anchor, gate }) =>
+    ({ title, guidanceId: `${path}#${anchor}`, layer: gate.layer, requires: gate.requires, gate: gateText(gate) })), unreadable };
 }
 
 export function guidanceLinks(markdown, path) {
@@ -112,7 +118,7 @@ function repositoryLinks(markdown, path) {
 
 export function guidanceSection(markdown, anchor) {
   if (!anchor) return markdown;
-  const sections = headings(markdown), index = sections.findIndex(section => section.anchor === anchor);
+  const { sections } = outline(markdown), index = sections.findIndex(section => section.anchor === anchor);
   if (index < 0) throw new Error(`Unknown heading #${anchor}. Read the document for its headings.`);
   return markdown.slice(sections[index].offset, sectionEnd(sections, index, markdown.length));
 }
@@ -131,10 +137,10 @@ export function machineOpens(selection) {
 
 // The manual as this reader gets it. `context` is {machineId, all}: an advanced section opens
 // when the machine meets a requirement, and every one with `all`. A heading asked for by name is always returned whole of its own gate.
-// Closed sections are cut and listed in `omitted`; frontmatter and markers are dropped, line
+// Closed sections are cut and listed in `omitted`; frontmatter and gate markers are dropped, line
 // endings are LF and relative links become repository paths.
 export function assembleGuidance(markdown, path, { anchor, machineId, machine, all = false } = {}) {
-  const sections = headings(markdown), opens = machineOpens(machine===undefined?machineId:machine);
+  const { sections } = outline(markdown), opens = machineOpens(machine===undefined?machineId:machine);
   let start = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(markdown)?.[0].length ?? 0, end = markdown.length, requested;
   if (anchor) {
     requested = sections.findIndex(section => section.anchor === anchor);
@@ -152,7 +158,7 @@ export function assembleGuidance(markdown, path, { anchor, machineId, machine, a
   let text = '', position = start;
   for (const [from, to] of cuts) { text += markdown.slice(position, from); position = to; }
   text += markdown.slice(position, end);
-  text = text.replace(/\r\n/g, '\n').split('\n').filter(line => !MARKER.test(line.trimEnd())).join('\n')
+  text = text.replace(/\r\n/g, '\n').split('\n').filter(line => !parseMarker(line)?.gate).join('\n')
     .replace(/\n{3,}/g, '\n\n').replace(/^\n+/, '');
   return { text: repositoryLinks(text, path), omitted };
 }
@@ -185,16 +191,18 @@ async function loadGuidance(root, guidanceId) {
 export async function readGuidance(root, guidanceId) {
   const { path, anchor, markdown } = await loadGuidance(root, guidanceId);
   const text = guidanceSection(markdown, anchor);
-  return { guidanceId, path, text, headings: headings(markdown).map(({ title, anchor }) => ({ title, guidanceId: `${path}#${anchor}` })),
+  return { guidanceId, path, text, headings: outline(markdown).sections.map(({ title, anchor }) => ({ title, guidanceId: `${path}#${anchor}` })),
     links: guidanceLinks(text, path), guidanceIds };
 }
 
 // The source as an agent reads it (see assembleGuidance); `headings` adds the manual's headings
-// with their gates, for choosing a section to read by name.
-export async function readManual(root, guidanceId, { headings: withHeadings = false, ...context } = {}) {
+// with their gates, for choosing a section to read by name; `markers` (builder and developer
+// reads) adds the marker lines it could not read.
+export async function readManual(root, guidanceId, { headings: withHeadings = false, markers: withMarkers = false, ...context } = {}) {
   const { path, anchor, markdown } = await loadGuidance(root, guidanceId);
-  const { text, omitted } = assembleGuidance(markdown, path, { ...context, anchor });
+  const { text, omitted } = assembleGuidance(markdown, path, { ...context, anchor }), { sections, unreadable } = outline(markdown);
   return { guidanceId, path, text, ...(omitted.length ? { omitted } : {}),
-    ...(withHeadings ? { headings: headings(markdown).map(({ title, anchor, gate }) =>
+    ...(withMarkers && unreadable.length ? { unreadableMarkers: unreadable } : {}),
+    ...(withHeadings ? { headings: sections.map(({ title, anchor, gate }) =>
       ({ title, guidanceId: `${path}#${anchor}`, ...(gate ? { gate: gateText(gate) } : {}) })) } : {}) };
 }

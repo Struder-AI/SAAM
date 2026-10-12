@@ -42,11 +42,11 @@ export const workflows={
     const {directory}=await createSTLBundle(join(home,'Prints','box'),source,{units:'mm',machineId:'bambu-h2d'});
     return generateAndExport(directory);
   },
-  // The wavy DENSO example on the Denso arm: static recipe, toolpath, robot program export.
+  // The pipe-cladding DENSO tube example on the Denso arm: static recipe, toolpath, robot program export.
   async 'denso-cladding'(home) {
     const {initBundle}=await core('print/bundle.mjs');
-    const {machineId,plan}=JSON.parse(await readFile(new URL('../../../examples/prints/wavy-denso/recipe.json',import.meta.url),'utf8'));
-    const directory=join(home,'Prints','wavy');
+    const {machineId,plan}=JSON.parse(await readFile(new URL('../../../skills/pipe-cladding/examples/denso-tube.json',import.meta.url),'utf8'));
+    const directory=join(home,'Prints','denso-tube');
     await initBundle(directory,plan,{machineId});
     return generateAndExport(directory);
   },

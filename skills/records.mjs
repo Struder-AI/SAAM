@@ -49,7 +49,7 @@ export const GEOMETRY_RECORDS=Object.freeze({
 
 const weldDefaults={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
-const supportDefaults={enabled:false,assignments:[],topGapMm:0.2,xyGapMm:0.3,treeChordMm:0.02};
+const supportDefaults={enabled:false,assignments:[],topGapMm:0.2,treeChordMm:0.02};
 export const extensionSettings=()=>({'plastic-weld':structuredClone(weldDefaults),supports:structuredClone(supportDefaults)});
 
 export function validateExtensionRecipe(plan){

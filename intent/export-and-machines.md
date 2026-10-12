@@ -7,7 +7,7 @@ Translating SAAMpath for a machine, machine adapters, and checks on output. [Ind
 >
 > "our own internal toolpath representation ... AND the export produced from it" — owner, 2026-09-08 ([D-019](../DECISIONS.md#d-019--a-print-includes-saampath-and-its-export))
 
-Summary: an adapter translates the neutral SAAMpath for the selected machine (compatibility, tool mapping, start and priming, change clearance, axis limits, output) and delivers checked program bytes; output-only changes never reconstruct unchanged deposition.
+Summary: an adapter translates the neutral SAAMpath for the selected machine (compatibility, tool mapping, placement, start and priming, change clearance, axis limits, output) and delivers checked program bytes; output-only changes, including a machine change, never reconstruct unchanged deposition. Generation needs only the recipe; the program waits for a machine, its exporter and its installation ([0.3.7](../plans/0.3.7.md), owner 2026-10-11: "We should be able to select the machine at any point.").
 
 Sources: [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries); [0.3.1 component 8 and "Machine independence is semantic"](../plans/0.3.1.md) (agent wording); [0.2.0 Interface migration](../plans/0.2.0.md#interface-migration) ("Delivery means checked machine-program/package bytes").
 
@@ -21,6 +21,17 @@ Sources: [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundari
 Summary: builders add machines as adapters that plug into a standard set of plugs, with guidance and owner-reviewed standards; SAAMpath and machine settings are an adapter's only input, and any other link needs the owner's specific approval. **Owner questions pending**: (a) the standards list S1-S10 was adopted in `machines/README.md` without the owner's review, and S4 enforces tool bounds and axis feed against Q19/Q20; (b) the Geometry frame-math link to Export the owner approved on 2026-10-01 ("Yes—add the narrow Geometry–Export connection", Codex 01a0f8f8 21:24) has not been re-shown under the 10-06 rule (adapter design A1 is unanswered).
 
 Sources: [0.3.6 "Machine adapters for builders"](../plans/0.3.6.md); `.local/team/adapter-design.md`; `.local/team/questions-036.md` 20-30; [0.3.1 "Owner approved 2 → 8 frame mathematics"](../plans/0.3.1.md); [machines/README](../machines/README.md).
+
+## Machine axes come from machine kinematics
+> "Robot pose motion should never be in saampath or machine output, other than end effector orientation parameter … Any machine view should just be reverse kinematics from the toolhead location/orientation." — owner, 2026-10-11
+>
+> "'transitions between tool orientations' is the extremely problematic and suspicious part, because tool orientation is continuously variable and set by saampath" — owner, 2026-10-11
+>
+> "Rotary is just another movement axis. Why are you treating it differently?" — owner, 2026-10-11
+
+Summary: a SAAMpath pose is the toolhead's orientation in the part frame; every machine axis (gantry, arm joints, rotary table) comes from the machine extension's kinematics plug, used by both the program writer and the machine view; reorientation is ordinary travel.
+
+Sources: [0.3.7 "Machine axes from machine kinematics"](../plans/0.3.7.md); [kinematics plug](../core/export/DEVELOP.md#kinematics-plug).
 
 ## Verification checks are debug-only
 > "The rest of motion is absolute garbage that should not be in here. This is just extra work, this type of thing should all be labeled explicitly as a debug system, run on new stuff in case you don't know if your new code works. OR removed completely, agents are perfectly capable of checking their own outputs." — owner, 2026-10-04 (Codex 01a10903 23:35)

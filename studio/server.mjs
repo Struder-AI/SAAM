@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
+import {machineEntrySource} from '../core/extensions/library.mjs';
 
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -65,8 +66,7 @@ export function reportedMessage(error){const note=skewNotes.get(error);return no
 const playerModules=new Set(['core/private/studio/numeric.mjs','core/geom/frame.mjs',
   'studio/path-preview.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/machine/path-time.mjs',
-  'core/machine/presentation.mjs','core/machine/jog.mjs',
-  'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
+  'core/machine/presentation.mjs','core/machine/jog.mjs','core/machine/kinematics.mjs',
   'core/print/review-state.mjs','core/print/phase-colours.mjs',
   'core/path/pose.mjs','core/path/action-context.mjs','core/geom/tolerance.mjs','core/dimensions.mjs']);
 
@@ -166,7 +166,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     editTail=run.catch(()=>{});
     return run;
   };
-  const runBundleCreation=(target,action,{fresh=true}={})=>{
+  const runBundleCreation=(target,action)=>{
     const selected=resolve(target);
     const run=editTail.then(async()=>{
       await opened;
@@ -178,7 +178,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       }
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
-      if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
+      if(!reservation){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
       const claim=reservation??await claimBundleInstance(selected,{instanceId,ownerId:chat.current.binding.ownerId,restoring,runtimeId,runtimeLabel});
       reservation=claim;reservedDirectory=selected;operations.active++;operations.creating=true;
       try{return await withBundleInstance(selected,claim,()=>action(claim));}
@@ -367,6 +367,14 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
         res.writeHead(200,{'Content-Type':'image/png'});res.end(await readFile(resolve(here,'struder-logo.png')));return;
       }
+      // A machine's kinematics plug for the machine view: the default export is
+      // its createKinematics, or null when its extension supplies none.
+      if(req.method==='GET'&&url.pathname.startsWith('/machine-kinematics/')){
+        const [name,file]=decodeURIComponent(url.pathname.slice('/machine-kinematics/'.length)).split('/'),machineId=name.replace(/\.mjs$/,'');
+        const entry=await machineEntrySource(machineId,'machine-kinematics');
+        res.writeHead(200,{'Content-Type':'text/javascript'});
+        res.end(!entry?'export default null;\n':file===undefined?`export {${entry.exportName} as default} from './${encodeURIComponent(machineId)}/entry.mjs';\n`:entry.bytes);return;
+      }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
@@ -421,7 +429,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       }
       const readDir=dir,readId=dir&&printId();
       const bundle=await opened;
-      // The drawn path: a completed output's prepared path, else the saved SAAMpath.
+      // The drawn path: a completed output's SAAMpath, else the saved SAAMpath.
       if(req.method==='GET'&&url.pathname==='/api/path'){
         const {state}=await bundle.loadBundleSnapshot(readDir,{program:true}),output=state.completedOutput;
         if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==(output?output.id:String(state.revision))

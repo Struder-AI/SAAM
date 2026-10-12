@@ -1,5 +1,4 @@
-import {rotatePointZ as bedPoint} from '../geom/frame.mjs';
-import {saamPath} from './saampath.mjs';
+import {saamPath,moveSeconds} from './saampath.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Explicit path transitions. A stage owns its local work; its inputs are read-only.
 // Actions are append/replace-tail deltas, never the accumulated program. A merge
@@ -12,7 +11,7 @@ export const NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
 
 export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
+  return {start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
     pose:motion?.initialPose?structuredClone(motion.initialPose):null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
     stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
@@ -72,26 +71,27 @@ export function planContext(state,phase,layer,operationId=state.operationId) {
 }
 
 export function planMove(input,to,speed,volumeMm3=0,extra={}) {
-  requireThat(Array.isArray(to)&&to.length===3&&to.every(Number.isFinite)&&Number.isFinite(speed)&&speed>0&&Number.isFinite(volumeMm3)&&volumeMm3>=0,'Invalid path move.');
+  requireThat(Array.isArray(to)&&to.length===3&&to.every(Number.isFinite)&&Number.isFinite(speed)&&Number.isFinite(volumeMm3)&&volumeMm3>=0,'Invalid path move.');
   const state={...input,stats:{...input.stats}},length=distance(state.position,to);
   const pose=extra.pose?validatePose(extra.pose):null;
   if(length===0){
     requireThat(volumeMm3===0,'Stationary deposition needs an explicit extrusion action.');
-    if(!pose||state.pose&&samePose(state.pose,pose))return planningResult(input);
+    if(!pose||samePose(state.pose??uprightPose(),pose))return planningResult(input);
   }
   let limited=speed;
   const dz=Math.abs(to[2]-state.position[2]);
   if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
-  const seconds=pose?(extra.durationSeconds??(length>0?length/limited:state.motion.transitionSeconds)):length/limited;
-  requireThat(Number.isFinite(seconds)&&seconds>0,'Motion needs positive duration.');
+  const seconds=pose?(extra.durationSeconds??moveSeconds(length,limited)):moveSeconds(length,limited);
+  // A reorientation at a fixed point is untimed: the machine turns at its own rate.
+  requireThat(seconds>0||length===0,'Motion needs positive duration.');
   const {durationSeconds:requestedDuration,...properties}=extra;
   const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,
-    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0?{durationSeconds:seconds}:{})}:{})};
+    ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0&&seconds>0?{durationSeconds:seconds}:{})}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
   if(run&&state.lastAction===run.action&&mergeableMove(run,action)){
     const previousLength=distance(run.from,run.action.to),combinedLength=distance(run.from,to);
-    const duration=(run.action.durationSeconds??previousLength/run.action.speedMmS)+seconds;
+    const duration=(run.action.durationSeconds??moveSeconds(previousLength,run.action.speedMmS))+seconds;
     const replacement={...run.action,to:action.to,volumeMm3:run.action.volumeMm3+volumeMm3,speedMmS:combinedLength/duration};
     shortenedMm=previousLength+length-combinedLength;
     state.moveRun={...run,action:replacement};state.lastAction=replacement;state.lastNonFan=replacement;
@@ -145,7 +145,7 @@ export function travelClearance(state,target=state.position) {
 
 export function planPark(state) {
   if(state.pose&&!samePose(state.pose,uprightPose())){
-    const retracted=planRetraction(state),retreat=planMove(retracted.state,state.position.map((v,i)=>v-state.pose.toolAxis[i]*state.motion.retreatMm),state.process.travelSpeedMmS,0,{travel:'tool-retreat'});
+    const retracted=planRetraction(state),retreat=planMove(retracted.state,state.position.map((v,i)=>v-state.pose.toolAxis[i]*state.motion.retreatMm),state.process.travelSpeedMmS,0,{pose:state.pose,travel:'tool-retreat'});
     return planningResult(retreat.state,{chunks:[retracted.actions,retreat.actions]});
   }
   const z=travelClearance(state),retracted=planRetraction(state);
@@ -200,30 +200,32 @@ export function planTravel(state,target,policy,targetPose) {
   return planningResult(recovered.state,{chunks:[retracted.actions,lifted.actions,traversed.actions,descended.actions,recovered.actions]},{travelKind:hopped?'hopped':'direct'});
 }
 
+// Reorientation is ordinary toolhead travel: retreat along the current tool
+// axis, travel over the deposited part to the approach point while the
+// orientation interpolates continuously, then approach along the new tool axis.
 export function planPoseTravel(state,target,policy,targetPose) {
-  const pose=validatePose(targetPose);
-  if(!state.pose){
-    const travelled=planTravel(state,target,policy);
-    const oriented=planMove(travelled.state,target,state.process.travelSpeedMmS,0,{pose,durationSeconds:state.motion.transitionSeconds,travel:'reorient'});
-    return planningResult(oriented.state,{chunks:[travelled.actions,oriented.actions]},{travelKind:travelled.travelKind});
-  }
-  if(distance(state.position,target)<=PRINT_RESOLUTION_MM&&samePose(state.pose,pose)){
+  const pose=validatePose(targetPose),current=state.pose??uprightPose();
+  if(distance(state.position,target)<=PRINT_RESOLUTION_MM&&samePose(current,pose)){
     const recovered=planRecovery({...state,stats:{...state.stats,joined:state.stats.joined+1}});
     return {...recovered,travelKind:'joined'};
   }
-  if(policy.poseJoinMm>0&&state.lastAction?.operation===state.operationId&&Math.abs(state.position[2]-target[2])<=PRINT_RESOLUTION_MM&&distance(state.position,target)<=policy.poseJoinMm){
+  if(state.pose&&policy.poseJoinMm>0&&state.lastAction?.operation===state.operationId&&Math.abs(state.position[2]-target[2])<=PRINT_RESOLUTION_MM&&distance(state.position,target)<=policy.poseJoinMm){
     const indexed=planMove({...state,stats:{...state.stats,combed:state.stats.combed+1}},target,state.process.skinSpeedMmS,0,{pose,travel:'surface-index'});
     return {...indexed,travelKind:'combed'};
   }
+  const held=state.pose?{pose:current}:{},retreatMm=state.motion.retreatMm;
   const retracted=planRetraction({...state,stats:{...state.stats,hopped:state.stats.hopped+1}});
-  const retreated=planMove(retracted.state,state.position.map((v,i)=>v-state.pose.toolAxis[i]*state.motion.retreatMm),state.process.travelSpeedMmS,0,{travel:'tool-retreat'});
-  const room=bedPoint(retreated.state.position,state.pose.rotaryDeg,state.motion.rotaryCenterMm);
-  const held=bedPoint(room,pose.rotaryDeg,state.motion.rotaryCenterMm,true);
-  const oriented=planMove(retreated.state,held,state.process.travelSpeedMmS,0,{pose,durationSeconds:state.motion.transitionSeconds,travel:'reorient'});
-  const approach=target.map((v,i)=>v-pose.toolAxis[i]*state.motion.retreatMm);
-  const positioned=planMove(oriented.state,approach,state.process.travelSpeedMmS,0,{pose,travel:'position'});
-  const approached=planMove(positioned.state,target,state.process.travelSpeedMmS,0,{pose,travel:'approach'}),recovered=planRecovery(approached.state);
-  return planningResult(recovered.state,{chunks:[retracted.actions,retreated.actions,oriented.actions,positioned.actions,approached.actions,recovered.actions]},{travelKind:'hopped'});
+  const retreated=planMove(retracted.state,state.position.map((v,i)=>v-current.toolAxis[i]*retreatMm),state.process.travelSpeedMmS,0,{...held,travel:'tool-retreat'});
+  const approach=target.map((v,i)=>v-pose.toolAxis[i]*retreatMm),from=retreated.state.position,clearance=travelClearance(retreated.state,approach);
+  const actions=new ActionAccumulator();actions.add(retracted.actions);actions.add(retreated.actions);
+  let cursor=retreated.state;
+  for(const [to,extra] of [[[from[0],from[1],clearance],held],[[approach[0],approach[1],clearance],{pose}],[approach,{pose}],[target,{pose}]]){
+    if(distance(cursor.position,to)===0)continue;
+    const moved=planMove(cursor,to,state.process.travelSpeedMmS,0,{...extra,travel:to===target?'approach':'position'});
+    cursor=moved.state;actions.add(moved.actions);
+  }
+  const recovered=planRecovery(cursor);actions.add(recovered.actions);
+  return planningResult(recovered.state,actions.finish(),{travelKind:'hopped'});
 }
 
 export function canDepositConnection(from,target,policy,fromPose=null,targetPose=null) {
@@ -246,7 +248,7 @@ export function materializeActions(actionChunks) {
 
 export function planningPath(state,actionChunks,summary={}) {
   return saamPath({schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
-    ...(state.initialPose?{initialPose:structuredClone(state.initialPose),motionFrame:'part',rotaryCenterMm:state.motion.rotaryCenterMm}:{}),
+    ...(state.initialPose?{initialPose:structuredClone(state.initialPose)}:{}),
     actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}}});
 }
 

@@ -42,7 +42,7 @@ selects one slice. Spacing and height use the assignment's process settings.
 The source can be Slice or a closed Trace, including a level-ended vase.
 With substrate adaptation enabled, finalized source beads and preceding slices
 supply contact; missing contact rejects. The old `construction:'rim'` record
-requires explicit migration to these fields.
+is read as these fields.
 
 The underlying technique has user-reported physical prints; experimental contact
 adaptation and large width jumps remain unqualified. Follow the shared review

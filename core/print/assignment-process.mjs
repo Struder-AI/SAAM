@@ -3,11 +3,12 @@ import {materialProcess} from '../machine/filaments.mjs';
 
 
 const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent','liftMm','retractMm'];
+// An assignment whose layer or line step is unusable produces nothing (plan.mjs).
+const steps=['firstLayerMm','layerMm','lineWidthMm'];
 
 export function validateAssignmentProcess(overrides) {
-  requireThat(overrides===null||overrides&&typeof overrides==='object'&&!Array.isArray(overrides)&&Object.keys(overrides).every(key=>fields.includes(key)&&Number.isFinite(overrides[key])),
+  requireThat(overrides===null||overrides&&typeof overrides==='object'&&!Array.isArray(overrides)&&Object.keys(overrides).every(key=>fields.includes(key)&&(steps.includes(key)||Number.isFinite(overrides[key]))),
     'Assignment process must be null or finite firstLayerMm, layerMm, lineWidthMm, planarSpeedMmS, firstLayerSpeedMmS, fanPercent, liftMm and retractMm overrides.');
-  for(const key of ['liftMm','retractMm'])requireThat(overrides?.[key]===undefined||overrides[key]>=0,`Assignment ${key} must be nonnegative.`);
   return overrides;
 }
 

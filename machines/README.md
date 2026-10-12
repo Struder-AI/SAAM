@@ -5,8 +5,8 @@ Each machine is a **machine extension**: a folder `machines/<id>/` (release) or
 an `extension.json` manifest (`saam-extension/1`, `kind: "machine"`, `machines`: its
 profile files named `<profile id>.json`, entries `machine-adapter` and optional
 `machine-verify`), the `saam-machine/1` profiles, the adapter and its output contract
-as `SKILL.md` (`saam-kind: machine`). `list_machines` names each profile's extension;
-`extension_library checkout` copies one for editing.
+as `SKILL.md` (`saam-kind: machine`). `list_machines` names each profile's extension, the first
+declaring its id (local first), and what it skipped; `extension_library checkout` copies one for editing.
 
 | Extension | Profiles | Output | Contract |
 |---|---|---|---|
@@ -29,19 +29,19 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
 ## Adding a machine
 
 1. **Profile.** Copy the nearest one. Declare capabilities (`relay-extrusion`: external
-   extrusion, so Studio omits filament, bed and fan settings; `coordinated-rotary`: Studio
-   draws the rotary table), tools, bounds, startup hand-over, `defaultSetup` (your setup
+   extrusion, so Studio omits filament, bed and fan settings), tools, bounds, startup hand-over, `defaultSetup` (your setup
    block's template; `null` marks installation values the person must supply) and
    `outputs[]`: `id`, `implemented`, vendor-fixed `program` blocks and `constraints`
    (`materialChangeMode` `tool-swap` or `single-nozzle-ams` with `toolChangeLiftMm`
    permit material changes). Studio draws a gantry
-   (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; an arm model is core code.
+   (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; any other machine needs
+   a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry).
 2. **Adapter.** `createAdapter(Export)` returns
    `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
    - `output` is the profile's `outputs[].id`. `poses: true` only when the program writes tool
-     orientation and rotary motion; otherwise posed paths are refused.
+     orientation; otherwise posed paths are refused.
    - `settings.key` names the block `plan.setup[key]`. Preparation reads its `initialPositionMm`
-     and, when posed, `initialPose`, `retreatMm`, `transitionSeconds` and `rotaryCenterMm`.
+     and, when posed, `initialPose` and `retreatMm`.
      `validate({machine, setup, process, output}, {required})` throws on invalid values and,
      when `required` (export), names unresolved ones; `rows` (same input) returns
      `[[label, text]]` for Studio's settings panel.

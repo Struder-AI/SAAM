@@ -12,7 +12,7 @@ import {splineBox} from './fixtures/spline-shapes.mjs';
 async function fixture(t){
   const root=await mkdtemp(resolve(tmpdir(),'saam-generation-control-')),dir=resolve(root,'part');
   t.after(()=>rm(root,{recursive:true,force:true,maxRetries:5,retryDelay:100}));
-  const plan=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
+  const {plan}=await bundle.proposedPlan('ultimaker-s5');plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:1});
   plan.process.minimumLayerSeconds=0;
   await bundle.initBundle(dir,plan,{machineId:'ultimaker-s5'});
   const channel=createChatChannel(root,{ownerId:'studio:test'});

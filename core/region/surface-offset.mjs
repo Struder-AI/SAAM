@@ -294,12 +294,16 @@ export function finishSurfaceOffset(patch,prepared,swept){
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
 // their records are reused without copying the accumulated cache per ray.
-function createSurfaceSampler(patch,{constrained,precisionUv,normalMm=0,toleranceMm=SURFACE_OFFSET_CHORD_MM},priorSamples=[]){
+function createSurfaceSampler(patch,{constrained,deltaMm,precisionUv,normalMm=0,toleranceMm=SURFACE_OFFSET_CHORD_MM},priorSamples=[]){
   const samples=new Map();
+  // An inward offset keeps only what lies inside its region; where the region
+  // ends at a native patch's edge (a slice stopping inside the part), the band
+  // swept past that edge continues with the edge's frame.
+  const extend=!constrained&&deltaMm<0&&Boolean(patch.cp);
   const at=(uv,hint=null)=>{
-    if(constrained)uv=uv.map((x,k)=>{
+    if(constrained||extend)uv=uv.map((x,k)=>{
       const [lo,hi]=[patch.domainU,patch.domainV][k];
-      return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
+      return extend||x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
     });
     const key=uv.join(',')+(patch.atlas&&hint?`:${hint.join(',')}`:'');
     if(samples.has(key))return samples.get(key);

@@ -40,7 +40,7 @@ export async function editHeatSet(source,request,geometryOperations){
   const rebuilt=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):base;
   owner.geometry=await rebuildTextGeometry(rebuilt,layers,geometryOperations);
   // Reinforcement is slice data: this part's heat-set owners are rewritten
-  // ahead of every other slice assignment, so they claim their volumes first.
+  // ahead of every other slice assignment.
   const part=request.part??null;
   const existingByFeature=new Map(),kept=[];
   for(const assignment of plan.slices.assignments){

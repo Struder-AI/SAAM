@@ -40,7 +40,7 @@ export async function updatedSkillIndex(repoRoot) {
   // The index of advanced sections, from the same markers the readers assemble by. Script
   // sections are not capabilities of their own: a script client reads them anyway, and a
   // web read lists them as omitted.
-  const gated = await gatedIndex(repoRoot);
+  const gated = (await gatedIndex(repoRoot)).sections;
   const known = new Set(machineIds().flatMap(id => loadMachine(id).capabilities ?? []));
   for (const section of gated) for (const token of section.requires)
     if (!known.has(token.split('>=')[0])) throw new Error(`${section.guidanceId}: no machine declares the capability ${token}.`);

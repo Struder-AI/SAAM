@@ -57,12 +57,4 @@ print and lesson. If the participant requests unrelated work, offer
 On completion, state once whether the file downloaded or the tour ended by
 viewing, then offer help with printing or another part.
 
-## Other examples
-
-| Example | Explore |
-| --- | --- |
-| [Wavy roof](surface-drape/README.md) | Transverse waves, a downhill fall and a surface-following skin. |
-| [Nudge Cup](nudge-cup/README.md) | Mesh geometry, spiral wall, weighted foot and curved skin. |
-| [Wavy DENSO](wavy-denso/README.md) | Spline substrate and axial/helical cladding with robot output. |
-
-Their recipes and the [fin block recipe](starter/recipe.mjs) are editable sources.
+The [fin block recipe](starter/recipe.mjs) is an editable source.

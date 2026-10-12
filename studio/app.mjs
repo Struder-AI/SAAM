@@ -148,7 +148,7 @@ const presentedState=()=>viewState.activePresentation?.presentedState??printSync
 // geometry action should return to it rather than start a fresh calculation.
 const generationPending=()=>studioWork.generating||printSync.state?.outputGenerating===true;
 // The toolpath pane never goes empty. Without a current program it shows a faded
-// placeholder — the previous toolpath when one is retained, otherwise the part
+// placeholder — the previous toolpath when one exists, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
 const showingGeometry=()=>viewState.tab!=='toolpath'||!presentedState()?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
@@ -361,8 +361,8 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
   const outputState=outputView(printSync.state);
-  $('#kind-label').textContent=printSync.state.neutralProgram?'Saved SAAMpath · '+(printSync.state.machine?.name??'No printer selected')
-    :(completedOutputState(printSync.state).previous?'Previous toolpath · ':outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
+  $('#kind-label').textContent=(completedOutputState(printSync.state).previous?'Previous toolpath · ':printSync.state.neutralProgram?'Saved SAAMpath · '
+    :outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
   document.title=studioTitle(printSync.state.printName);
   $('#open-print').title='Open print: '+printSync.state.printName;
   // Geometry keys off the previously loaded state's geometry id (none on a
@@ -451,7 +451,7 @@ function selectStudioPresentation(state,tab,{facts,settings}){
     guidance:'Inspect the saved, machine-independent path.',facts:[['Moves',String(state.neutralProgram.summary.moves)],
       ['Deposited volume',round2(state.neutralProgram.summary.volumeMm3)+' mm³']],settings:[],
     reviewNote:[state.programError,state.neutralProgram.notice].filter(Boolean).join(' ')};
-  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
+  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:state.plan.slices?'Generate the toolpath; ask the agent to select a printer for its program.':'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
   const inspection=state.inspection;
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
@@ -467,10 +467,14 @@ function render() {
   const presentation=selectStudioPresentation(shown,viewState.tab,{facts:()=>view().facts(shown,viewState.tab),
     settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan)]});
   if(viewState.tab==='toolpath'&&output.previous)presentation.reviewNote='Previous toolpath — recent edits are not included. '+(presentation.reviewNote??'');
-  if(output.phase==='generating')presentation.guidance='Preparing your toolpath…';
-  if(!studioWork.busy)activity(output.phase==='generating'?'Preparing your toolpath…':'');
+  if(output.generating)presentation.guidance='Preparing your toolpath…';
+  if(!studioWork.busy)activity(output.generating?'Preparing your toolpath…':'');
   $('#repair-review').hidden=viewState.tab!=='geometry'||!printSync.state.importRepair;
   $('#repair-summary').textContent=printSync.state.importRepair??'';
+  // Limitations, including the recipe notes of the current recipe.
+  const notes=printSync.state.limitations??[];
+  $('#print-notes').hidden=!notes.length;
+  $('#print-notes-list').replaceChildren(...notes.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
   $('#stage-label').textContent=presentation.stage??'';$('#stage-label').hidden=!presentation.stage;
   $('#view-title').textContent=presentation.title;
   $('#guidance').textContent=presentation.guidance;$('#guidance').hidden=!presentation.guidance;
@@ -509,7 +513,7 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasConstruction(printSync.state.plan,'cladding')?'Surface cladding':hasConstruction(printSync.state.plan,'fronts')?'Wave fronts':view().skinLabel;
-  const reviewed=$('#reviewed-download'),controls=studioControls(printSync.state,{tab:viewState.tab,busy:studioWork.busy,generating:studioWork.generating,pending:generationPending(),staleProgram:Boolean(viewState.activePresentation?.retained&&viewState.activePresentation.program),
+  const reviewed=$('#reviewed-download'),controls=studioControls(printSync.state,{tab:viewState.tab,busy:studioWork.busy,generating:studioWork.generating,pending:generationPending(),
     exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:printSync.state.inspection,
     machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});
   exportNameInput.disabled=controls.exportName.disabled;$('#export-name-row').hidden=controls.exportName.hidden;
@@ -522,7 +526,7 @@ function render() {
   $('#selection').hidden=controls.selection.hidden;
   canvas.setAttribute('aria-label',controls.canvas.label);canvas.classList.toggle('stale-toolpath',controls.canvas.stale);
   $('#scrub').max=duration();$('#scrub').value=playState.seconds;
-  $('#rotary-view').hidden=!machinePose.machineSession?.scene&&!printSync.state.machine?.capabilities?.includes('coordinated-rotary');
+  $('#rotary-view').hidden=!machinePose.machineSession?.scene;
   $('#fit-program').hidden=controls.fitProgram.hidden;
   updateMachineStatus();
   // Keep the tabs live during a toolpath generation: the geometry pane stays
@@ -531,7 +535,7 @@ function render() {
   $$('[data-tab]').forEach(b=>{const policy=controls.tabs[b.dataset.tab];b.classList.toggle('active',b.dataset.tab===viewState.tab);b.classList.toggle('done',Boolean(policy.done));b.disabled=policy.disabled;});
   studioWork.tourUI?.render(printSync.state);
   // A work episode spans intermediate saves and both inspection panes.
-  canvas.classList.toggle('work-faded',studioWork.episodeWorking||viewState.tab==='toolpath'&&output.phase==='generating');
+  canvas.classList.toggle('work-faded',studioWork.episodeWorking||viewState.tab==='toolpath'&&output.generating);
   requestDraw();
 }
 function selectFeature(id){viewState.selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}

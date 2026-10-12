@@ -1,4 +1,5 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
+import {moveSeconds} from '../path/saampath.mjs';
 // A producer's fields run before any consumer sees its supporting deposition.
 import {matchingModulations,finalizeModulatedResult} from '../path/modulation.mjs';
 import {depositedBeadFrames} from '../path/deposited-curves.mjs';
@@ -23,8 +24,8 @@ function finalizedOperation(operation,plan,result){
         const length=distance(stroke.points[i-1],p),metadata=stroke.segmentMetadata?.[i-1];
         const speed=metadata?.speedMmS??stroke.speedMmS;
         const volume=stroke.volumesMm3?.[i-1]??length*stroke.beadAreaMm2;
-        requireThat(Number.isFinite(speed)&&speed>0&&length>0,`Modulated operation ${operation.id} has invalid speed or a zero-length deposition segment.`);
-        const seconds=length/speed;
+        requireThat(Number.isFinite(speed)&&length>0,`Modulated operation ${operation.id} has invalid speed or a zero-length deposition segment.`);
+        const seconds=moveSeconds(length,speed);
         const flow=volume/seconds;
         requireThat(Number.isFinite(flow)&&flow>=0,`Modulated operation ${operation.id} produced invalid deposition flow.`);
 

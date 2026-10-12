@@ -17,7 +17,7 @@ with `depositionAction:{kind:'press',depthMm}`.
 
 The [authoring helper](scripts/prepare.mjs) converts the rail controls below into
 that explicit Trace data. It is guidance tooling; no bridge record reaches the
-generator. Legacy bridge records require explicit migration.
+generator; a legacy bridge record is read as this Trace data.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
 or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable

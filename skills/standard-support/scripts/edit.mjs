@@ -2,7 +2,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Source stays an ordinary Boolean operand; support claims are ordinary Slice
 // volumes. Each authored contribution has no private reconstruction lifecycle.
-export async function editStandardSupport(source,request,{buildGeometry,constructSolids,closeMeshPatchToPlane}){
+export function editStandardSupport(source,request,{closeMeshPatchToPlane}){
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Standard support needs a request.');
   requireThat(Object.keys(request).every(key=>['id','part','roof','triangleIndices','gapMm','fillDensity','angleDeg','baseLayers','reason'].includes(key)),'Unknown standard-support request field.');
   const {id,part=null,roof,triangleIndices,gapMm=.15,fillDensity=.2,angleDeg=0,baseLayers=2,reason='Authored underside support.'}=request;
@@ -24,13 +24,8 @@ export async function editStandardSupport(source,request,{buildGeometry,construc
   // Recipe Z is already above the build plate; only an assembly component has
   // a local Z origin. Raised parts still need supports reaching the real bed.
   const bedZMm=-(component?.zMm??0);
+  // The support prints its whole volume, also where part material lies below the roof.
   const support=closeMeshPatchToPlane(patch,{triangleIndices:selection,planeZMm:bedZMm,offsetMm:-gapMm});
-  const supportShell=buildGeometry(support);
-  const placedSupport=component?{operation:'translate',geometry:supportShell,offset:[component.xMm,component.yMm,component.zMm]}:supportShell;
-  const sourceSolids=geometry.shape==='assembly'?geometry.parts.map(p=>({operation:'translate',geometry:buildGeometry(p.geometry),offset:[p.xMm,p.yMm,p.zMm]})):[buildGeometry(original)];
-  const obstacles=sourceSolids.length===1?sourceSolids[0]:{operation:'union',operands:sourceSolids};
-  const [occlusion]=await constructSolids([{operation:'intersection',operands:[placedSupport,obstacles]}]);
-  requireThat(!occlusion,'The vertical support volume crosses part material below the selected underside. Select accessible patches or explicitly author a cutout; no supports were saved.');
   // assignmentRequests accepts ordinary Slice settings at the existing engine
   // boundary, so no extension-specific deposition configuration is introduced.
   const supportRequest={id,part,loops:0,fillDensity,fillPattern:'rectilinear',fillAnglesDeg:[angleDeg],rotateFill:false,connectNearby:false,

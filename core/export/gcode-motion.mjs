@@ -1,5 +1,6 @@
 import {PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
+import {knownSeconds} from '../path/saampath.mjs';
 
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
@@ -16,7 +17,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
   const relativeE=extrusionMode==='relative';
   let residualE=0;
-  const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2,tally={seconds:0,volumeMm3:0,strokes:[],layers:new Set()};
+  const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2,tally={seconds:0,untimedMoves:0,volumeMm3:0,strokes:[],layers:new Set()};
   let e=0,tag='',operation='',writtenE=0,writtenPosition=[...path.initialPosition];
   // This body is also embedded in machine templates. Establish XYZ and feed on
   // its first use, then rely only on modal state written by this exporter.
@@ -28,7 +29,8 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
     if(modal[key]===value)return '';
     modal[key]=value;return ` ${key}${value}`;
   };
-  // Writes one G0/G1 and returns its written feed in mm/s.
+  // Writes one G0/G1 and returns its written feed in mm/s; a feed that is not
+  // positive leaves the move out of the time estimate.
   const motion=(command,target,extrusion,feed)=>{
     let line=command;
     if(target)for(let i=0;i<3;i++)line+=field('XYZ'[i],target[i]);
@@ -38,6 +40,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
     lines.push(line);
     return written/60;
   };
+  const timed=(lengthMm,speedMmS)=>{if(!(speedMmS>0))tally.untimedMoves++;return knownSeconds(lengthMm,speedMmS);};
   const deposit=(a,from,to,amount,seconds)=>{
     tally.volumeMm3+=amount*area;tally.seconds+=seconds;
     tally.strokes.push([from,to]);tally.layers.add(`${a.phase}:${a.layer}`);
@@ -62,11 +65,12 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
         const length=distance(writtenPosition,target),de=relativeE?nextE:nextE-writtenE;
         requireThat(length>0, 'A deposition move collapsed at export precision.');
         const feed=Math.floor(a.speedMmS*60*1000)/1000;
-        requireThat(feed>0,'Deposition feed collapsed at export precision.');
-        deposit(a,writtenPosition,target,de,length/motion('G1',target,nextE,feed));
+        // An authored speed passes through; only a positive one may not collapse.
+        requireThat(feed>0||!(a.speedMmS>0),'Deposition feed collapsed at export precision.');
+        deposit(a,writtenPosition,target,de,timed(length,motion('G1',target,nextE,feed)));
         if(!relativeE)writtenE=nextE;
       }
-      else tally.seconds+=distance(writtenPosition,target)/motion(travelCommand,target,undefined,a.speedMmS*60);
+      else tally.seconds+=timed(distance(writtenPosition,target),motion(travelCommand,target,undefined,a.speedMmS*60));
       writtenPosition=target;
     } else if(a.kind==='extrude') {
       const filamentMm=a.volumeMm3/area;
@@ -84,7 +88,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
       if(!relativeE)e+=filamentMm;
       const nextE=Number((relativeE?filamentMm:e).toFixed(PROGRAM_DECIMALS));
-      tally.seconds+=Math.abs(relativeE?nextE:nextE-writtenE)/motion('G1',null,nextE,a.speedMmS*60);
+      tally.seconds+=timed(Math.abs(relativeE?nextE:nextE-writtenE),motion('G1',null,nextE,a.speedMmS*60));
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='fan') lines.push(a.percent===0?'M107':`M106 S${Math.round(a.percent*255/100)}`);
     else if(a.kind==='dwell'){

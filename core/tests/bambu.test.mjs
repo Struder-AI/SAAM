@@ -10,6 +10,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
+import {placedPath} from '../path/placement.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
@@ -150,7 +151,7 @@ test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and pa
   const moves=(await preparePath(path,plan,machine)).actions.filter(a=>a.kind==='move'),{envelope}=report;
   assert.equal(envelope.contract,'x1c-saam-startup-v5');assert.equal(report.moves,moves.length);
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
-  const bounds=path.summary.boundsMm,top=bounds.max[2];
+  const bounds=placedPath(path,plan.placement).summary.boundsMm,top=bounds.max[2];
   assert.ok(!/\{[A-Za-z]+\}/.test(start+end),'every template value is rendered');
   assert.match(start,/^M140 S60\nM190 S60$/m);assert.match(start,/^M109 S195$/m,'wipe temperature follows the nozzle temperature');
   assert.match(start,/^M620 S0A\n(?:.*\n)*?T0\n(?:.*\n)*?M621 S0A$/m,'a profile with no declared trays keeps one entry, named as position 0');

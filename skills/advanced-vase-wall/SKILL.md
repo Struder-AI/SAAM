@@ -109,8 +109,7 @@ the minimum layer time applies to each repeat. Continuous mode requires joined
 path and repeat endpoints (a sized tile ends `tileWidthMm` after it starts);
 segmented mode allows explicit travel between gaps. No connector or guide wall is invented.
 
-A legacy `tile` field needs explicit bundle migration, which expands it into
-equivalent turns paths and invalidates generation; loading never converts silently.
+A legacy `tile` field is read as equivalent turns paths, with a recipe note.
 
 With the default `endTransition: level`, a complete flat pattern repetition (one turn
 for a sized pattern) sits at the starting and ending heights around the body.

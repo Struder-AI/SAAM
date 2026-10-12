@@ -18,12 +18,9 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
 assignment, without automatic skin. Bundles always retain [geometry](../../GEOMETRY.md), including empty drafts; inline [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) inputs become curve/point geometry with recipe references.
 
-`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
-Objects merge, arrays replace, unknown fields reject; omit `bundle`.
-`experimental.substrateAdaptation` defaults false. OFF uses nominal references
-without final-material contact/remapping; ON uses finalized deposition for
-gap/volume adjustment or surface-following placement and retains required-contact
-and gap rejection. Use `migrate_bundle` for old fields, then regenerate: Slice `courses` → `sliceOverrides`; Trace `courses` → `repetitions`, `courseIds` → `repetitionIds`, `repeat.family` → `repeat.stack`. Loading never rewrites recipes; conflicting old/new fields reject. Dependencies and bridge-anchor checks apply in both modes.
+`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe; objects merge, arrays replace; omit `bundle`.
+Missing fields take defaults, unread ones are ignored, and an assignment without positive layer/line steps, or a prime pass or modulation without its numbers, produces nothing; `limitations` notes each. Old names and assignment forms read as current (Slice `courses` → `sliceOverrides`; Trace `courses` → `repetitions`, `courseIds` → `repetitionIds`, `repeat.family` → `repeat.stack`); the next save or `migrate_bundle` records the read recipe.
+`experimental.substrateAdaptation` defaults false. OFF uses nominal references without final-material contact/remapping; ON uses finalized deposition for gap/volume adjustment or surface-following placement and retains required-contact and gap rejection. Dependencies and bridge-anchor checks apply in both modes.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
@@ -36,10 +33,9 @@ its Slice, Trace, Inject and rivet work. `{assignment:"supports",filament:1}` ro
 tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targeted.
 Priority: print assignment route, assignment's explicit filament, exact part route,
 parent component route, print setup. `part:null` names the single geometry part.
-Trace/Inject `part` associates material ownership; XYZ still uses print placement.
+Trace/Inject `part` associates material ownership; XYZ is in the part's frame, moved by print placement.
 Filament entries own nozzle/process mapping ([Bambu](../../machines/bambu/SKILL.md)); every
-route uses the same generation/export/review. Existing recipes need explicit
-migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
+route uses the same generation/export/review.
 
 ### Import an STL
 
@@ -80,8 +76,8 @@ lessons Studio generates, so don't start another. A check reports
 
 ## Remember machine setup
 
-A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
-`set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
+A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged. A file that can't be read (not JSON, or for another machine or format) gives the profile's defaults and a note in `limitations`; the next export replaces it.
+`set_deferred_setup_save` (`bundleId`, current `expectedRevision`, `defer`) sets or clears the bundle's optional flag that skips these saves; no manufacturing identity changes.
 Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../../machines/bambu/SKILL.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
 
 ## Phase colours
@@ -92,7 +88,7 @@ non-depositing move. `set_phase_colours` takes `bundleId`, current `expectedRevi
 and `phaseColours` (`{phase:"#rrggbb"}`, null clears); it is display only. The
 person's `<SAAM home>/local/phase-colours.json`, same shape, is the local preference.
 Print choice overrides local preference, which overrides the [defaults](phase-colours.mjs);
-unknown phases are rejected. Multi-material moves show their filament colour.
+an entry that is not `#rrggbb` is dropped. Multi-material moves show their filament colour.
 
 ## Command line
 

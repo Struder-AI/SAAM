@@ -1,5 +1,5 @@
 import {point} from '../core/geom/frame.mjs';
-import {frameAtTime,displayPoint} from './playback.mjs';
+import {frameAtTime} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
 import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
@@ -98,11 +98,9 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
       if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`)+' · '+at.nozzleMm+' mm';
-      const rotary=shown.machine?.capabilities?.includes('coordinated-rotary'),center=shown.program.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0,machine=machineState?.pose,follow=settings.followPlate;
-      const local=p=>{const q=machine?(follow?p:point(machine.part,p)):displayPoint(p,angle,center,!rotary||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
-      if(rotary&&!machine?.hasBed){const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;let prior=null;
-        for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
-        segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);}
+      // The part moves with the machine pose's part frame (a rotary table), never with the path.
+      const machine=machineState?.pose,follow=settings.followPlate;
+      const local=p=>{const q=machine&&!follow?point(machine.part,p):p;return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
       const solid=!!materialScene&&!!materialRenderer;if(solid)motionQuality??=createMotionQuality();quality=updateUI&&solid?pinnedQuality??(moving?motionQuality.level:0):0;
       const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
       if(machine&&!solid)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameraMode,palette:machineColors,filter:c=>c.role!=='tool'});

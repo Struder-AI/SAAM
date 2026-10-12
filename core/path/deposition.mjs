@@ -12,8 +12,8 @@ export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1
     const {heightMm:localHeight,heightsMm,widthsMm,flowMultipliers,flowMultiplier:localFlow,...stroke}=curve;
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
-    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed)&&speed>0,
-      'Curve deposition needs positive bead width, flow and speed.');
+    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed),
+      'Curve deposition needs positive bead width and flow, and a speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
       'Curve deposition needs at least two finite XYZ points.');
     if(heightsMm||widthsMm||flowMultipliers){

@@ -11,7 +11,7 @@ export const workspaceIdentity=resolved=>{
     dependencies:resolved.slice(0,-1).map(({id,digest})=>({id,digest}))};
 };
 export async function listWorkspaces(options={}){
-  return (await listExtensions(options)).filter(item=>item.manifest.kind==='workspace')
+  return (await listExtensions(options)).extensions.filter(item=>item.manifest.kind==='workspace')
     .map(({id,digest,origin,manifest})=>({id,digest,origin,kind:'workspace',workspace:manifest.workspace,dependencies:manifest.dependencies,manual:`extensions/${id}/SKILL.md`}));
 }
 export async function loadWorkspaceRuntime(extensionId,options={}){

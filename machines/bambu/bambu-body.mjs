@@ -33,7 +33,8 @@ export function exportBambuBody(path,plan,machine,Export){
     if(action.kind==='move')position=action.to.map(Export.number);
     if(action.kind==='retract')debt[selected.setup.tool]=(debt[selected.setup.tool]??0)+action.filamentMm;
     if(action.kind==='recover')debt[selected.setup.tool]=Math.max(0,(debt[selected.setup.tool]??0)-action.filamentMm);
-    if(action.kind==='fan')fan=Math.round(action.percent*255/100);
+    // Authored fan percent passes through; the fan state restored after a change is the fan's range.
+    if(action.kind==='fan')fan=Math.min(255,Math.max(0,Math.round(action.percent*255/100)));
   }
   flush();return {body:lines.join('\n')+'\n',segments};
 }

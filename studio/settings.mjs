@@ -9,7 +9,7 @@ const fields={
   lineSpacingMm:['Wave spacing along surface',' mm'],beadHeightMm:['Bead height',' mm'],speedMmS:['Deposition speed',' mm/s'],
   fanPercent:['Part cooling','%'],propagationStepMm:['Surface propagation step',' mm'],
   spacingFactor:['Line spacing','× nominal spacing; bead width unchanged'],
-  pattern:['Pattern',''],topGapMm:['Minimum top gap',' mm'],xyGapMm:['Part clearance',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
+  pattern:['Pattern',''],topGapMm:['Minimum top gap',' mm'],treeChordMm:['Branch contour tolerance',' mm'],
   perimeters:['Walls',''],layers:['Skin layers',''],normalMm:['Skin thickness per layer',' mm'],
   strokeAngleDeg:['Stroke direction','°'],sampleStepMm:['Maximum sampling step',' mm'],surveyStepMm:['Surface survey grid',' mm'],
   maxAngleDegOverride:['Experimental angle override','°'],zStartMm:['Start above component base',' mm'],zEndMm:['End above component base',' mm'],

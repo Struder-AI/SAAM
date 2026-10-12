@@ -19,11 +19,13 @@ const skillManual = id => `skills/${id}/SKILL.md`;
 
 // Selected workspaces are discoverable whether bundled or imported; skill
 // extensions already in the digest only need a note for local overrides.
+// Extensions that could not be read are named with their reasons.
 export async function extensionDiscovery(root,{readTool,openTool}){
-  const selected=(await listExtensions({appRoot:root})).filter(item=>item.origin==='local'||item.manifest.kind==='workspace');
-  if(!selected.length)return null;
-  return {guidanceId:'extensions',path:'extensions',
-    text:'Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind??'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.'};
+  const {extensions,skipped}=await listExtensions({appRoot:root});
+  const selected=extensions.filter(item=>item.origin==='local'||item.manifest.kind==='workspace');
+  const notes=[...selected.length?['Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind??'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.']:[],
+    ...skipped.length?['Skipped extensions, not loaded: '+skipped.map(item=>item.extension+' ('+item.origin+'): '+item.reason).join('; ')]:[]];
+  return notes.length?{guidanceId:'extensions',path:'extensions',text:notes.join('\n')}:null;
 }
 
 export async function onboardingSources(root, context) {
@@ -39,10 +41,13 @@ export async function onboardingSources(root, context) {
 // A skill section is named `ID#heading` (read_skill takes it); any other `PATH#heading`.
 export const sectionName = guidanceId => guidanceId.replace(/^skills\/([^/]+)\/SKILL\.md#/, '$1#');
 
-// Every gated section of the maker manuals and skill manuals, in catalog order.
+// Every gated section of the maker manuals and skill manuals, in catalog order. A manual that
+// cannot be read, and a marker line that cannot, is left out and named in `unreadable`.
 export async function gatedIndex(root, ids = [...MAKER_MANUALS, ...[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].map(skillManual)]) {
-  const lists = await Promise.all(ids.map(async path => gatedSections(await readFile(resolve(root, path), 'utf8'), path)));
-  return lists.flat();
+  const lists = await Promise.all(ids.map(path => readFile(resolve(root, path), 'utf8').then(markdown => gatedSections(markdown, path),
+    error => ({ sections: [], unreadable: [error.message] }))));
+  return { sections: lists.flatMap(list => list.sections),
+    unreadable: lists.flatMap((list, index) => list.unreadable.map(reason => `${ids[index]}: ${reason}`)) };
 }
 export const indexLine = section => `- ${section.title}: ${section.gate}; ${sectionName(section.guidanceId)}`;
 
@@ -50,7 +55,7 @@ export const indexLine = section => `- ${section.title}: ${section.gate}; ${sect
 export async function machineHint(root, { from = null, to }) {
   if(!to)return null;
   const opensNow = machineOpens(to), opensBefore = machineOpens(from);
-  const sections = (await gatedIndex(root))
+  const sections = (await gatedIndex(root)).sections
     .filter(section => section.requires.some(opensNow) && !section.requires.some(opensBefore));
   return sections.length ? `This printer opens ${sections.map(section => `"${section.title}" (${sectionName(section.guidanceId)})`)
     .join(', ')}: read ${sections.length > 1 ? 'them' : 'it'} by name when the print uses ${sections.length > 1 ? 'them' : 'it'}.` : null;

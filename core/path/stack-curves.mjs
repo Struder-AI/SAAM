@@ -32,7 +32,7 @@ function stackNormal(sleeve,u,v){
 // line; widthMm is in scope but the defaults are kept so existing spirals do not move.
 export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role='spiral'}){
   const sleeve=boundarySleeve(referenceStack),n=sleeve.layers.length;
-  requireThat(firstHeightMm>0&&widthMm>0&&speedMmS>0,'Spiral joining needs positive bead/process values.');
+  requireThat(firstHeightMm>0&&widthMm>0&&Number.isFinite(speedMmS),'Spiral joining needs positive bead values and a speed.');
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
   const profile=spiralProfile({...coordinate,firstHeightMm,levelEnd});
   let curve,turns;

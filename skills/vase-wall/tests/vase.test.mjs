@@ -63,7 +63,7 @@ function seamPinchMesh(height=8) {
 }
 
 test('expanding polygonal cup keeps continuous phase when the first seam enters later sections',async()=>{
-  // Nudge Cup's 120-sided frustum. The previous nearest-point anchor flipped
+  // A 120-sided frustum. The previous nearest-point anchor flipped
   // between the two edges at its +X corner around Z=3.119693 and could not
   // converge, despite the actual surface being a straight conical wall.
   const n=120,height=17.8,vertices=[],triangles=[];
@@ -121,7 +121,7 @@ test('convex wall retains the near-straight corner regression across offset kern
   const wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall').map(({action})=>action);
   assert.ok(wall.length>100);assert.equal(wall.at(-1).to[2],.6);
   for(const action of wall) {
-    const xy=action.to.map((v,k)=>v-(k===0?plan.placement.xMm:k===1?plan.placement.yMm:0));
+    const xy=action.to;// the SAAMpath is in the part's frame
     const standoff=Math.min(...loop.map((p,i)=>pointSegmentDistance(xy,p,loop[(i+1)%n])));
     assert.ok(Math.abs(standoff-.2)<.00003,'emitted centerline stays within the measured rounding allowance');
   }
@@ -143,7 +143,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   const path=await generatePath(plan,machine),wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall');
   assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
   assert.equal(new Set(wall.map(({context})=>context.operation)).size,1,'one uninterrupted stroke');
-  const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);
+  const shell=buildShell(r,plan.geometry);// the SAAMpath is in the part's frame
   for(const {action} of wall) {
     const loop=sectionGeometry(shell,action.to[2]).loops[0];
     const gap=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));

@@ -10,7 +10,9 @@ import {canonicalHash} from '../canonical-json.mjs';
 import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
 import { makeShell, assertClosed } from '../geom/shell.mjs';
-import {buildShell,buildShells,hasMesh} from '../geom/build.mjs';
+import {buildShell,buildShells} from '../geom/build.mjs';
+import {hasMesh} from '../geom/mesh.mjs';
+import {assemblyComponents} from '../geom/selections.mjs';
 
 import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
@@ -182,7 +184,8 @@ async function createMeshGeometry(r,parameters) {
     return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,nativeForm:'indexed manufacturing mesh',
       features:[{id:'mesh'}],boundsMm:shell.bounds,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh')}};
   }
-  const parts=parameters.shape==='assembly'?parameters.parts:[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
+  // A nested assembly shows its components, outer/inner, as generation slices them.
+  const parts=parameters.shape==='assembly'?assemblyComponents(parameters.parts):[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
   const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))]);
   const vertices=[],faces=[],labels=[],features=[];
   const append=async(component,id,translation)=>{

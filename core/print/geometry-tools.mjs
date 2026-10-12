@@ -53,19 +53,19 @@ export async function intersectDraftStacks(shell,drafts,{includeLoops=false}={})
   if(!drafts.length)return [];
   const assignments=drafts.map((draft,i)=>sliceAssignment({id:`draft-${i}`,...draft}));
   requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft stacks use ordinary slices of the queried geometry; select a part in the outer request.');
-  validateSlices({version:1,assignments},{parts:[],lineWidthMm:.4,firstLayerMm:.2});
+  validateSlices({version:1,assignments},{parts:[],firstLayerMm:.2});
   const shells=[[null,shell,true]],processes=assignments.map(a=>({firstLayerMm:.2,layerMm:.2,lineWidthMm:.4,...a.process}));
   const geometries=assignments.flatMap(a=>a.within.filter(v=>v.kind==='geometry').map(v=>v.geometry));
   const materials=await resolveMaterialGeometry(geometries),byGeometry=new Map(geometries.map((geometry,i)=>[geometry,materials[i]]));
   const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?byGeometry.get(v.geometry):null)]));
   const owners=sliceOwners(assignments,{shells,processes,volumes});
-  return ownedLayers(owners,{shells}).map(({owner,referenceStack,layers,leader})=>({
-    id:owner.assignment.id,owner:owner.id,principal:leader??owner.id,direction:referenceStack.direction,layerCount:layers.length,targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,gapMetric:referenceStack.gapMetric,
-    fullCrossing:'checked at computed section boundaries',layers:layers.map(layer=>{
+  return ownedLayers(owners).map(({owner,referenceStack,layers,notes})=>({
+    id:owner.assignment.id,owner:owner.id,direction:referenceStack.direction,layerCount:layers.length,targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,gapMetric:referenceStack.gapMetric,
+    notes,layers:layers.map(layer=>{
       const samples=layer.region.flat(),normals=samples.map(p=>evaluateSurface(layer.slice,p).normal);
       const step=layer.translationMm??(layer.referenceIndex===0||layer.index===0?referenceStack.firstTranslationMm??referenceStack.firstLayerMm:referenceStack.translationStepMm??referenceStack.pitchMm);
       const gaps=normals.map(n=>step*n.reduce((sum,v,i)=>sum+v*referenceStack.direction[i],0));
-      return {index:layer.index,shared:layer.shared,loops:layer.region.length,sampleCount:samples.length,
+      return {index:layer.index,loops:layer.region.length,sampleCount:samples.length,
         sampledThicknessMm:gaps.length?[Math.min(...gaps),Math.max(...gaps)]:null,nonpositiveGapSamples:gaps.filter(v=>v<=0).length,
         thicknessSampling:'section-boundary normals; first contact may taper further',
         ...(includeLoops?{loops:layer.region.map(loop=>({chart:loop,pointsMm:loop.map(p=>evaluateSurface(layer.slice,p).point)}))}:{})};

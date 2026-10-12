@@ -15,7 +15,7 @@ import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {createGeometry} from '../print/geometry.mjs';
 import {rhino} from '../geom/runtime.mjs';
-import {initBundle,generateBundle,loadBundle,readToolpath} from '../print/bundle.mjs';
+import {initBundle,generateBundle,loadBundle,readDrawnPath} from '../print/bundle.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {uprightPose} from '../path/pose.mjs';
@@ -45,7 +45,7 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const path=await generatePath(old,s5);assert.ok((await exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'})).report.volumeMm3>0);
   old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
   const oriented=await generatePath(old,s5);assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
-  await assert.rejects(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
+  await assert.rejects(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright tool orientation/);
 });
 
 test('same-height cylindrical shells retain explicit prerequisites in the existing scheduler',async()=>{
@@ -67,27 +67,28 @@ test('existing mesh/spline regional skills use RC8A at fixed orientation',async(
     const path=await generatePath(plan,machine),program={...(await exportProgram(path,plan,machine)).report,moves:(await drawn(path,plan)).moves};
     for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
-    assert.ok(program.moves.every(m=>m.rotaryToDeg===0&&m.toolAxisTo[2]===-1));
+    assert.ok(program.moves.every(m=>m.toolAxisTo[2]===-1));
     near(program.volumeMm3,path.actions.reduce((sum,a)=>sum+(a.volumeMm3??0),0));
   }
 });
 
 test('oriented motion preserves pose-only actions and unsupported outputs reject rather than flatten',async()=>{
   const plan=small(),initial=createPlanningState({start:[10,0,1],machine,process:plan.process,generatorVersion:'test',motion:plan.setup.denso});
-  const rotated=planMove(initial,[10,0,1],10,0,{pose:{...uprightPose(),rotaryDeg:720},durationSeconds:2});
-  const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:{...uprightPose(),rotaryDeg:720}});
+  const tilted={toolAxis:[-1,0,0],toolUp:[0,1,0]};
+  const rotated=planMove(initial,[10,0,1],10,0,{pose:tilted,durationSeconds:2});
+  const raised=planMove(rotated.state,[10,0,2],10,.08,{pose:tilted});
   const path={...planningPath(raised.state,[rotated.actions,raised.actions]),completion:{contract:'saam-neutral-motion/1'}};
   const actions=[...contextualActions(path)].map(({action})=>action);
-  assert.equal(actions.length,2);assert.equal(actions[0].pose.rotaryDeg,720);
+  assert.equal(actions.length,2);assert.equal(actions[0].pose.toolAxis[0],-1);
   const s5=loadMachine(),unsupported=defaults(s5);
-  await assert.rejects(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright orientation or rotary motion/);
+  await assert.rejects(()=>exportProgram(path,unsupported,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright tool orientation/);
 });
 
-test('rotary deposition across multiple turns reports its written timing, volume and relay estimate',async()=>{
+test('an older path rotaryDeg is ignored; timed stationary deposition reports its written timing, volume and relay estimate',async()=>{
   const plan=small(),c=plan.setup.denso;c.initialPositionMm=[10,0,1];c.workOffsetMm=[15,-8,12];c.workYawDeg=37;c.rotarySign=-1;c.rotaryZeroDeg=20;
   const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
   const {report}=(await exportProgram(path,plan,machine)),moves=(await drawn(path,plan)).moves,deposition=moves.filter(m=>m.extruding);
-  near(deposition.reduce((seconds,m)=>seconds+m.durationSeconds,0),4);near(report.volumeMm3,8);near(moves.at(-1).rotaryToDeg,720);near(report.estimatedRelayVolumeMm3,2.56);
+  near(deposition.reduce((seconds,m)=>seconds+m.durationSeconds,0),4);near(report.volumeMm3,8);assert.ok(moves.every(m=>!('rotaryToDeg' in m)));near(report.estimatedRelayVolumeMm3,2.56);
 });
 
 test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
@@ -103,15 +104,15 @@ test('tube export retains the substrate and normal-aligned axial/hoop shells out
   const stale=structuredClone(plan);stale.slices.assignments.find(a=>a.stack?.direction==='normal').maxPoints=100;assert.throws(()=>validatePlan(stale,machine),/unexpected maxPoints/);
 });
 
-test('RC8A uses the public bundle, the drawn prepared path and cold reopen without reslicing',async t=>{
+test('RC8A uses the public bundle, the drawn SAAMpath and cold reopen without reslicing',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
   await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);
   const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=outputView(await(await fetcher('/api/state')).json());
   assert.equal(remote.program.moves,state.program.moves,"the page receives the stored report, not move rows");
-  const preview=await loadPathPreview(remote,{id:remote.outputId},fetcher),expected=await drawn(JSON.parse(await readToolpath(state)),plan);
-  assert.deepEqual(preview.moves,expected.moves);assert.ok(preview.moves.some(m=>m.rotaryToDeg!==undefined));
+  const preview=await loadPathPreview(remote,{id:remote.outputId},fetcher),expected=pathPreview(JSON.parse(await readDrawnPath(state)),{plan});
+  assert.deepEqual(preview.moves,expected.moves);assert.ok(preview.moves.some(m=>m.toolAxisTo!==undefined));
   for(const name of ['/core/geom/frame.mjs','/core/geom/tolerance.mjs','/studio/path-preview.mjs'])assert.equal((await fetcher(name)).status,200);
   const script=`import {loadBundle} from './core/print/bundle.mjs';const s=await loadBundle(process.argv[1]);if(s.programError)throw new Error(s.programError);console.log(s.outputId);`;
   assert.equal(execFileSync(process.execPath,['--input-type=module','-e',script,dir],{encoding:'utf8'}).trim(),state.outputId);

@@ -28,7 +28,7 @@ export function pipeMesh({innerRadiusMm,outerRadiusMm,heightMm,toleranceMm}){
   return makeMesh(vertices,triangles);
 }
 export function cylindricalPoint(center,radius,angle,z){const a=angle*Math.PI/180;return [center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),z];}
-export function cylindricalPose(angle,tiltDeg){const a=angle*Math.PI/180,t=tiltDeg*Math.PI/180;return {rotaryDeg:-angle,toolAxis:[-Math.sin(t)*Math.cos(a),-Math.sin(t)*Math.sin(a),-Math.cos(t)],toolUp:[-Math.sin(a),Math.cos(a),0]};}
+export function cylindricalPose(angle,tiltDeg){const a=angle*Math.PI/180,t=tiltDeg*Math.PI/180;return {toolAxis:[-Math.sin(t)*Math.cos(a),-Math.sin(t)*Math.sin(a),-Math.cos(t)],toolUp:[-Math.sin(a),Math.cos(a),0]};}
 
 // The ordinary fill skill consumes its actual section clipped to the substrate.
 export function substrateSection(shell,plan){

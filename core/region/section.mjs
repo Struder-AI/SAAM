@@ -176,16 +176,18 @@ export function prepareSection(geometry, slice) {
   return { kind: 'prepared-mesh', mesh: geometry, bounds: geometry.bounds, index: meshSectionIndex(geometry, frameAxes(slice)) };
 }
 
-// The region of a solid on a slice: {slice, loops, nudgedByMm, touchesEdge}.
-// Geometry is a spline shell, a triangle mesh, a boolean of solids or an
-// assembly (the union of its components), each possibly prepared. nudgedByMm
-// is the largest displacement a degenerate plane cut needed; touchesEdge says
-// the region reaches a patch slice's edge, where the slice stops inside the
-// solid instead of crossing it.
+// The region of a solid on a slice: {slice, loops, nudgedByMm, touchesEdge,
+// open}. Geometry is a spline shell, a triangle mesh, a boolean of
+// solids or an assembly (the union of its components), each possibly prepared.
+// nudgedByMm is the largest displacement a degenerate plane cut needed;
+// touchesEdge says the region reaches a patch slice's edge, where the slice
+// stops inside the solid instead of crossing it. open lists the gaps a plane
+// cut that did not close joined (up to options.gapMm, the line width) and the
+// pieces it dropped, at chart points.
 export function section(geometry, slice, options = {}) {
   requireThat(geometry?.bounds, 'Section needs a solid with bounds.');
-  const { loops, nudgedByMm } = sectionLoops(geometry, slice, options);
-  return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops) };
+  const { loops, nudgedByMm, open = [] } = sectionLoops(geometry, slice, options);
+  return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops), open };
 }
 
 function sectionLoops(geometry, slice, options) {
@@ -224,22 +226,23 @@ function sectionLoops(geometry, slice, options) {
     return { loops: surfaceInside(slice.patch, solid, options).loops, nudgedByMm: 0 };
   }
   requireThat(slice.kind === 'plane', `Unsupported slice kind ${slice.kind}.`);
-  if (geometry.kind === 'prepared-mesh') return sectionPreparedMesh(geometry, slice);
-  if (geometry.kind === 'triangle-mesh') return sectionPreparedMesh({ mesh: geometry, index: meshSectionIndex(geometry, frameAxes(slice), { search: false }) }, slice);
+  if (geometry.kind === 'prepared-mesh') return sectionPreparedMesh(geometry, slice, options);
+  if (geometry.kind === 'triangle-mesh') return sectionPreparedMesh({ mesh: geometry, index: meshSectionIndex(geometry, frameAxes(slice), { search: false }) }, slice, options);
   requireThat(Array.isArray(geometry.patches), 'Unsupported geometry backend.');
   return sectionShell(geometry, slice, options);
 }
 
 // A mesh index cuts at frame height n·origin; its loops sit in the frame's
 // (x, y) and shift to the slice's chart origin.
-function sectionPreparedMesh({ mesh, index }, slice) {
+function sectionPreparedMesh({ mesh, index }, slice, { gapMm = 0 } = {}) {
   const axes = frameAxes(slice);
   if (!axes.every((axis, i) => axis.every((v, k) => v === index.axes[i][k])))
-    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice);
+    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice, { gapMm });
   const [x, y, n] = axes, o = slice.origin;
-  const cut = sectionMeshIndex(index, dot(n, o));
-  const ox = dot(x, o), oy = dot(y, o);
-  return { loops: ox === 0 && oy === 0 ? cut.loops : cut.loops.map(loop => loop.map(([a, b]) => [a - ox, b - oy])), nudgedByMm: cut.nudgedByMm };
+  const cut = sectionMeshIndex(index, dot(n, o), { gapMm });
+  const ox = dot(x, o), oy = dot(y, o), shift = ([a, b]) => [a - ox, b - oy];
+  return { loops: ox === 0 && oy === 0 ? cut.loops : cut.loops.map(loop => loop.map(shift)), nudgedByMm: cut.nudgedByMm,
+    open: cut.open.map(item => ({ ...item, point: shift(item.point) })) };
 }
 
 const frameAxes = slice => [slice.xAxis, slice.yAxis, slice.normal];
@@ -252,6 +255,6 @@ function combine(operation, sections) {
     : operation === 'difference' ? difference(loops[0], loops.slice(1).reduce((a, b) => union(a, b), []))
     : loops.slice(1).reduce((a, b) => intersect(a, b), loops[0]);
   const nudgedByMm = sections.reduce((n, s) => Math.abs(s.nudgedByMm ?? 0) > Math.abs(n) ? s.nudgedByMm : n, 0);
-  return { loops: result, nudgedByMm };
+  return { loops: result, nudgedByMm, open: sections.flatMap(s => s.open ?? []) };
 }
 

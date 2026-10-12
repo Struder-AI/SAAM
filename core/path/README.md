@@ -26,9 +26,12 @@ labels (reset first, null clears), physical moves, effective speeds and gap samp
 
 Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
 `{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates
-either baseline. Omitted pose output keeps ordinary three-axis motion. Pose
-samples, tool axes and rotary angles are internal results, not recipe inputs;
-exporters represent these results using their machine's kinematics.
+either baseline. Omitted pose output keeps ordinary three-axis motion. A pose is
+`{toolAxis, toolUp}` in the part frame, an internal result, not a recipe input
+(an older path's `rotaryDeg` is ignored); machine axes come from the machine's
+kinematics. Reorientation is ordinary travel: retreat along the tool axis, travel
+over the part to the approach point while orientation interpolates, approach; a
+turn in place is untimed (the machine's own rate).
 
 Skills return an in-memory result `{id, operations, report}`. An operation has
 a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
@@ -56,12 +59,11 @@ Material ownership is explicit; fronts do not publish a finished surface chart.
 rejects duplicate IDs, missing dependencies and cycles, and uses stable result
 order to break ties. Plan `composition` contains `order`
 (an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges). Material claims live in common slice assignments. Ready
+`{before, after}` edges); an entry naming no operation matches nothing. Material claims live in common slice assignments. Ready
 operations use ascending maximum actual deposition Z. Rank breaks ties within a result's
 height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. Old batchLayers recipes require explicit migration and regeneration;
-generation executes the locked rules without a new planning stage.
+skill's prerequisites. Generation executes the locked rules without a new planning stage.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
 preparation and topological ordering as separate stages. Their returned records

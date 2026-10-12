@@ -109,7 +109,7 @@ export function planStrokeDeposition(initialState,stroke,op) {
     const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
     requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
     const speed=stroke.segmentMetadata?.[i-1]?.speedMmS??stroke.speedMmS;
-    requireThat(Number.isFinite(speed)&&speed>0,'Invalid operation deposition speed.');
+    requireThat(Number.isFinite(speed),'Invalid operation deposition speed.');
     const moved=planMove(state,stroke.points[i],speed,volume,segmentExtras(stroke,op,i-1));
     state=moved.state;actions.add(moved.actions);
   }
@@ -154,17 +154,17 @@ export function prepareOperationPriorities(operations,resultIndex) {
 
 export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {
   const prerequisites = new Map(operations.map(op => [op.id, new Set(op.after ?? [])]));
-  for (const edge of dependencies) {
-    requireThat(edge && byId.has(edge.before) && byId.has(edge.after), 'Unknown composition dependency.');
-    prerequisites.get(edge.after).add(edge.before);
-  }
   for (const [id, after] of prerequisites) for (const predecessor of after)
     requireThat(byId.has(predecessor) && id !== predecessor, id===predecessor
       ?`Operation ${id} cannot depend on itself.`:`Operation ${id} depends on unknown operation ${predecessor}; use an exact operation ID.`);
-  requireThat(new Set(order).size === order.length && order.every(id => byId.has(id)), 'Duplicate or unknown operation in composition order.');
+  // Recipe composition entries that name no operation of this path match
+  // nothing; a repeated order entry keeps its first place.
+  for (const edge of dependencies)
+    if (byId.has(edge.before) && byId.has(edge.after) && edge.before !== edge.after) prerequisites.get(edge.after).add(edge.before);
+  const sequence = [...new Set(order)].filter(id => byId.has(id));
   // Explicit order is an additional precedence constraint, never permission to
   // bypass geometry/support dependencies. Omitted operations remain schedulable.
-  for (let i = 1; i < order.length; i++) prerequisites.get(order[i]).add(order[i - 1]);
+  for (let i = 1; i < sequence.length; i++) prerequisites.get(sequence[i]).add(sequence[i - 1]);
   return prerequisites;
 }
 

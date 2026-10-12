@@ -327,6 +327,10 @@
       "owner": "toolpath",
       "reason": "Composition of finalized operations into SAAMpath."
     },
+    "core/path/placement.mjs": {
+      "owner": "toolpath",
+      "reason": "Placement as an XY offset of the part-frame SAAMpath, applied at display and program writing."
+    },
     "core/path/modulation.mjs": {
       "owner": "toolpath",
       "reason": "Scalar field evaluation and application to deposition."
@@ -379,13 +383,17 @@
       "owner": "toolpath",
       "reason": "Machine-independent pose/process preparation; shared settings access requires explicit interfaces."
     },
-    "core/machine/denso-kinematics.mjs": {
+    "machines/denso/kinematics.mjs": {
       "owner": "export",
-      "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
+      "reason": "DENSO kinematics plug: table choice, nominal arm FK/IK and machine view for the writer and Studio."
     },
-    "core/machine/dobot-kinematics.mjs": {
+    "machines/dobot/kinematics.mjs": {
       "owner": "export",
-      "reason": "Machine feasibility/kinematics and dialect preparation; rules currently mix setup and path checks."
+      "reason": "Dobot kinematics plug: nominal arm FK/IK and machine view for Studio."
+    },
+    "core/machine/kinematics.mjs": {
+      "owner": "export",
+      "reason": "What a machine kinematics plug receives: frame math and dimension classes."
     },
     "core/machine/rules.mjs": {
       "owner": "export",
@@ -1595,7 +1603,7 @@
     "core/agent/manuals.mjs::guidanceSection": {
       "owner": "context"
     },
-    "core/agent/manuals.mjs::headings": {
+    "core/agent/manuals.mjs::outline": {
       "owner": "context"
     },
     "core/agent/manuals.mjs::loadGuidance": {
@@ -3115,6 +3123,9 @@
     "core/geom/shell.mjs::assertClosed": {
       "owner": "geometry-leaf-415df8f06a97"
     },
+    "core/geom/shell.mjs::closeOpenChains": {
+      "owner": "geometry"
+    },
     "core/geom/shell.mjs::distanceToCurve": {
       "owner": "geometry-leaf-0f2fe10133de"
     },
@@ -3668,57 +3679,6 @@
     "core/geom/trimmed-surface.mjs::trimmedSurface": {
       "owner": "geometry-leaf-dc9e2015979c"
     },
-    "core/machine/denso-kinematics.mjs::@module": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoForward": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoForward::move": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoForward::turn": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoGeometry": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoInverse": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoInverse::branch": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoInverse::sign": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::densoWristFromPose": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::linear": {
-      "owner": "export"
-    },
-    "core/machine/denso-kinematics.mjs::rotationError": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::@module": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::dobotForward": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::dobotGeometry": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::dobotInverse": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::ry": {
-      "owner": "export"
-    },
-    "core/machine/dobot-kinematics.mjs::rz": {
-      "owner": "export"
-    },
     "core/machine/filaments.mjs::@module": {
       "owner": "toolpath"
     },
@@ -3819,6 +3779,10 @@
     "core/machine/profile.mjs::loadMachine": {
       "owner": "settings",
       "reason": "Machine profile discovery/loading belongs to settings 9."
+    },
+    "core/machine/profile.mjs::currentMachineSnapshot": {
+      "owner": "settings",
+      "reason": "Reads a locked machine snapshot against its installed profile; machine profiles belong to settings 9."
     },
     "core/machine/rules.mjs::@module": {
       "owner": "export"
@@ -4016,6 +3980,12 @@
       "owner": "toolpath"
     },
     "core/path/contact-curves.mjs::contactCurveGaps": {
+      "owner": "toolpath"
+    },
+    "core/path/contact-curves.mjs::contactSpans": {
+      "owner": "toolpath"
+    },
+    "core/path/contact-curves.mjs::contactSpanNote": {
       "owner": "toolpath"
     },
     "core/path/contact-curves.mjs::depositedContact": {
@@ -4532,7 +4502,7 @@
     "core/print/curves.mjs::point": {
       "owner": "toolpath"
     },
-    "core/print/curves.mjs::requireCurveContact": {
+    "core/print/curves.mjs::unsupportedCurveSpans": {
       "owner": "toolpath"
     },
     "core/print/curves.mjs::traceResult": {
@@ -4746,50 +4716,12 @@
       "owner": "bundle",
       "reason": "Combines Toolpath recipe structure and Settings selections as an explicit new-recipe proposal."
     },
-    "core/print/plan.mjs::depositionOnlyPlan": {
-      "owner": "toolpath",
-      "reason": "Generation prerequisite predicate recognizing explicit Trace/Inject construction without solid geometry."
-    },
     "core/print/plan.mjs::geometryTemplate": {
       "owner": "geometry-leaf-65a24fc862d6"
-    },
-    "core/print/plan.mjs::keys": {
-      "owner": "toolpath",
-      "reason": "Generation recipe compilation validation; private Toolpath assertions, with Geometry flat shape check separate. No Bundle storage admission or selected-machine lookup."
-    },
-    "core/print/plan.mjs::validateMeshSource": {
-      "owner": "geometry-leaf-4072acbb5e26"
     },
     "core/print/plan.mjs::validatePlan": {
       "owner": "toolpath",
       "reason": "Compatibility name delegates complete generation validation to compileRecipe; no Bundle storage admission."
-    },
-    "core/print/plan.mjs::validatePlanAuxiliary": {
-      "owner": "toolpath",
-      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
-    },
-    "core/print/plan.mjs::validatePlanFields": {
-      "owner": "toolpath",
-      "reason": "Generation recipe compilation validation; private Toolpath assertions, with Geometry flat shape check separate. No Bundle storage admission or selected-machine lookup."
-    },
-    "core/print/plan.mjs::validatePlanGeometry": {
-      "owner": "geometry-leaf-4057187b0154"
-    },
-    "core/print/plan.mjs::validatePlanPlacement": {
-      "owner": "toolpath",
-      "reason": "Generation recipe compilation validation; private Toolpath assertions, with Geometry flat shape check separate. No Bundle storage admission or selected-machine lookup."
-    },
-    "core/print/plan.mjs::validatePlanProcess": {
-      "owner": "toolpath",
-      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
-    },
-    "core/print/plan.mjs::validatePlanProcess::positive": {
-      "owner": "toolpath",
-      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
-    },
-    "core/print/plan.mjs::validatePlanSelections": {
-      "owner": "toolpath",
-      "reason": "Toolpath engine owns deposition recipe defaults, assignments and extension process interpretation."
     },
     "core/print/recipe-migration.mjs::@module": {
       "owner": "toolpath"
@@ -4798,9 +4730,6 @@
       "owner": "toolpath"
     },
     "core/print/recipe-migration.mjs::explicitSleevePaths::at": {
-      "owner": "toolpath"
-    },
-    "core/print/recipe-migration.mjs::migrateRecipeFields": {
       "owner": "toolpath"
     },
     "core/print/repair-stl.mjs::@module": {
@@ -8110,9 +8039,6 @@
     "core/geom/build.mjs::buildShell": {
       "owner": "geometry-leaf-706e05a6a492"
     },
-    "core/geom/build.mjs::hasMesh": {
-      "owner": "geometry-leaf-a241650f568c"
-    },
     "core/geom/build.mjs::translateShell": {
       "owner": "geometry-leaf-627e4545f233"
     },
@@ -8164,6 +8090,14 @@
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
+    "core/path/placement.mjs::@module": {
+      "owner": "toolpath",
+      "reason": "Placement as an XY offset of the part-frame SAAMpath, applied at display and program writing."
+    },
+    "core/path/placement.mjs::placedPath": {
+      "owner": "toolpath",
+      "reason": "Placement as an XY offset of the part-frame SAAMpath, applied at display and program writing."
+    },
     "core/path/saampath.mjs::@module": {
       "owner": "toolpath",
       "reason": "Reviewed checks-refactor declaration: SAAMpath admission/process semantics."
@@ -8197,7 +8131,7 @@
     },
     "core/print/plan.mjs::validateRecipeValue": {
       "owner": "toolpath",
-      "reason": "CompileRecipe's complete-generation prerequisite sequence: geometry, process, assignments and placement. This is not Bundle storage admission; each called validator retains its actual owner."
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
     },
     "core/geom/stl-file.mjs::@module": {
       "owner": "geometry-leaf-3d67fee0dc22"
@@ -8275,6 +8209,14 @@
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
     },
+    "core/machine/settings.mjs::rememberedSetup": {
+      "owner": "settings",
+      "reason": "Reads a machine's remembered setup; an unreadable file reads as defaults with a note (owner, 2026-10-12, G46)."
+    },
+    "core/machine/settings.mjs::defaultPlacement": {
+      "owner": "settings",
+      "reason": "Default XY placement on the selected bed; a machine change recentres only a default placement."
+    },
     "core/machine/settings.mjs::settingsDefaults": {
       "owner": "settings",
       "reason": "Resolves reusable machine/material/installation settings and owns remembered setup storage; commits selected values through Bundle."
@@ -8340,6 +8282,10 @@
     "core/print/revisions.mjs::commitManifest": {
       "owner": "bundle",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
+    },
+    "core/print/revisions.mjs::manifestRevision": {
+      "owner": "bundle",
+      "reason": "The manifest revision commitManifest checks and readers present."
     },
     "core/print/revisions.mjs::restoreContent": {
       "owner": "bundle",
@@ -13097,7 +13043,7 @@
     "core/print/revisions.mjs::saveDescriptor": {
       "owner": "bundle"
     },
-    "core/print/spatial-inputs.mjs::placementInput": {
+    "core/print/spatial-inputs.mjs::manufacturingInput": {
       "owner": "bundle"
     },
     "core/print/geometry.mjs::reopenShell": {
@@ -13169,6 +13115,18 @@
     "core/extensions/library.mjs::machineCatalog": {
       "owner": "extensions"
     },
+    "core/extensions/library.mjs::machineProfiles": {
+      "owner": "extensions"
+    },
+    "core/extensions/library.mjs::selectedManifests": {
+      "owner": "extensions"
+    },
+    "core/extensions/library.mjs::skippedCopy": {
+      "owner": "extensions"
+    },
+    "core/extensions/library.mjs::manifestText": {
+      "owner": "extensions"
+    },
     "core/machine/profile.mjs::machineIds": {
       "owner": "settings"
     },
@@ -13183,6 +13141,10 @@
     },
     "core/export/registry.mjs::settingsRows": {
       "owner": "export"
+    },
+    "core/export/registry.mjs::programReadiness": {
+      "owner": "export",
+      "reason": "Names what the program writer still needs: machine, exporter, installation."
     },
     "machines/bambu/bambu.mjs::rows": {
       "owner": "export"
@@ -13804,6 +13766,131 @@
     },
     "core/print/geometry.mjs::createGeometryArtifact": {
       "owner": "geometry-module-e0f7e6b8074c"
+    },
+    "core/print/plan.mjs::readRecipe": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::currentFields": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::readable": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::currentComposition": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::generationRecipe": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::componentGeometry": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::usablePrimeLine": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::usablePrimePass": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::processOf": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::unusableSteps": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::stepNote": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::producingSkills": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::producingAssignment": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::isRecord": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::finite": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::positive": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::validateGeometry": {
+      "owner": "geometry-leaf-4057187b0154"
+    },
+    "core/geom/mesh.mjs::hasMesh": {
+      "owner": "geometry-leaf-a241650f568c"
+    },
+    "core/geom/selections.mjs::assemblyComponents": {
+      "owner": "geometry-leaf-31466bb7642a"
+    },
+    "core/print/plan.mjs::section": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::knownFields": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/print/plan.mjs::noteFields": {
+      "owner": "toolpath",
+      "reason": "Recipe reading and generation recipe compilation: current fields, notes and refusal of what cannot be built. No Bundle storage admission or selected-machine lookup."
+    },
+    "core/path/saampath.mjs::moveSeconds": {
+      "owner": "toolpath"
+    },
+    "core/path/modulation.mjs::readModulations": {
+      "owner": "toolpath"
+    },
+    "core/print/bundle.mjs::readRecipe": {
+      "owner": "bundle",
+      "reason": "Lazy existing new-recipe proposal entry; no new generation or defaults policy."
+    },
+    "core/print/deposition-diagnostics.mjs::depositionFinding": {
+      "owner": "bundle"
+    },
+    "core/extensions/library.mjs::machineEntrySource": {
+      "owner": "extensions"
+    },
+    "core/machine/kinematics.mjs::@module": {
+      "owner": "export"
+    },
+    "core/print/recipe-migration.mjs::currentAssignmentForm": {
+      "owner": "toolpath"
+    },
+    "core/print/recipe-migration.mjs::currentAssignmentForms": {
+      "owner": "toolpath"
+    },
+    "core/path/saampath.mjs::knownSeconds": {
+      "owner": "toolpath"
+    },
+    "machines/denso/denso.mjs::commandSpeed": {
+      "owner": "export"
+    },
+    "machines/denso/denso.mjs::defaultedNote": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::commandSpeed": {
+      "owner": "export"
+    },
+    "machines/dobot/dobot.mjs::defaultedNote": {
+      "owner": "export"
     }
   },
   "retiredAssignments": [
@@ -14531,7 +14618,19 @@
     "core/private/studio/hash.mjs::@module",
     "core/private/studio/hash.mjs::canonical",
     "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeReady",
-    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeRun"
+    "core/print/mesh-repair-worker.mjs::initializeRepairWorkerChannel::nativeRun",
+    "core/print/plan.mjs::depositionOnlyPlan",
+    "core/print/plan.mjs::keys",
+    "core/print/plan.mjs::validateMeshSource",
+    "core/print/plan.mjs::validatePlanAuxiliary",
+    "core/print/plan.mjs::validatePlanFields",
+    "core/print/plan.mjs::validatePlanGeometry",
+    "core/print/plan.mjs::validatePlanPlacement",
+    "core/print/plan.mjs::validatePlanProcess",
+    "core/print/plan.mjs::validatePlanProcess::positive",
+    "core/print/plan.mjs::validatePlanSelections",
+    "core/geom/build.mjs::hasMesh",
+    "core/print/recipe-migration.mjs::migrateRecipeFields"
   ],
   "scope": "Exact root responsibilities plus evidenced operation homes; unresolved submap containment remains explicit."
 }

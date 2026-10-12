@@ -68,7 +68,7 @@ These are operations; complete generation orchestrates them.
 | c2 | Extract a mesh | Mesh a field's threshold surface or tessellate spline geometry when a mesh consumer requires it. Preserve the source and approximation meaning. |
 | c3 | Slice geometry | Intersect geometry with a cutting surface and return its surface region/reference. Native spline and mesh backends may differ. |
 | c4 | Construct slice stacks | Translate a reference so its area-weighted mean normal gap matches the target layer height. Default direction comes from the entire reference surface. Local gaps vary with slope; report them and check full crossing. |
-| c5 | Resolve material ownership | Select disjoint regions and the unclaimed remainder. Competing overlapping claims are unsupported; touching boundaries use geometry tolerance. Joint adaptation and interlock integration are deferred to [0.4.0](plans/0.4.0.md). |
+| c5 | Resolve material ownership | Select each explicit claim's region and the unclaimed remainder. Shared ownership is [0.4.0](plans/0.4.0.md) intent. |
 | c6 | Evaluate owned slice regions | Evaluate spatial ownership on each cutting surface, lazily if useful. Neighboring slices identify solid top/bottom material; ownership seams do not create artificial solid tops. |
 | c7 | Boolean surface regions | Union, intersect or subtract areas on a common surface/chart. Polygon and NURBS boundaries require explicit representation support; unrelated UV charts cannot be compared directly. |
 | c8 | Clip paths | Keep portions of curves inside an allowed surface region, preserving open ends, holes and seams. |

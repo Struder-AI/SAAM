@@ -9,19 +9,23 @@ metadata:
 
 The configured-installation Lua output contract. See the [shared machine interface](../../core/export/README.md) for common motion semantics.
 
-The [shared Studio provider](../../core/machine/README.md#dobot) supplies the nominal
-four-axis MG400 model when its installation is explicit, and otherwise declares
-bed/tool-only scope. [Machine studies](../../tools/kinematics/README.md) use the
-same Studio viewer for synthetic model inspection.
+## Kinematics
+
+[kinematics.mjs](kinematics.mjs), this extension's kinematics plug, poses the arm
+in Studio when `kinematicModel` gives `worldFromBase` and `toolLengthMm`; otherwise
+Studio shows bed and tool only. It uses the nominal
+[MG400 URDF](https://github.com/Dobot-Arm/MG400_ROS/blob/main/mg400_description/urdf/mg400_description.urdf)
+with an idealized vertical wrist; its elbow branch and wrist winding are model
+policies. The controller solves the written program's joints.
 
 ### Dobot output contract
 
 `machines/dobot/dobot-mg400.json` declares experimental `dobot-lua` output through
 `machines/dobot/dobot.mjs`. `machines/dobot/debug/dobot-lua-subset.mjs` adopts the selected
 legacy Lua runtime; export, inspection and delivery use the existing SAAMpath
-and print lifecycle. Geometry can be reviewed with the default
-profile, but its installation fields are null and generation refuses an
-unconfigured installation. The locked setup must supply frame IDs, XY calibration
+and print lifecycle. The default profile's installation fields are null:
+generation builds and shows the SAAMpath, and the program waits for them, naming
+what is missing. The locked setup must supply frame IDs, XY calibration
 and offsets, bed Z, fixed orientation, initial position, Cartesian workspace,
 motion limits, relay output/rate/policy and external temperature-control basis.
 Never substitute synthetic fixture numbers for actual installation values.

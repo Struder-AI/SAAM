@@ -52,8 +52,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 - `outline` and `support` supply the auxiliary regions described below.
 
 Volumes include their `kind` as shown by the tool schemas. An unbounded owner
-retains explicit owners' remainder. Competing positive claims reject; touching
-within geometry tolerance is allowed. Shared ownership/interlock remains in 0.4.0.
+retains explicit owners' remainder; each explicit owner prints its claimed region.
 Each owner walls its own boundaries; solid masks follow the part's material.
 
 References may be horizontal, an authored plane, a roof height chart or a native

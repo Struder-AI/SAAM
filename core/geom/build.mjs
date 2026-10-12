@@ -2,13 +2,12 @@
 // vertices and triangles here; feature recipes belong to their authors.
 import {makeShell,assertClosed} from './shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from './spline-solid.mjs';
-import {makeMesh,translateMesh} from './mesh.mjs';
+import {makeMesh,translateMesh,hasMesh} from './mesh.mjs';
 import {booleanShell} from './boolean-solid.mjs';
 import {requireThat} from './tolerance.mjs';
 import {geometrySelections} from './selections.mjs';
 import {rhino} from './runtime.mjs';
 
-export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 
 export function buildShell(rhino, geometry) {
   return buildShells(rhino,[geometry])[0];
@@ -58,12 +57,12 @@ export async function resolveMaterialGeometry(geometries){
 // Each request returns ordinary geometry in the requested frame. A replacement
 // geometry (a within-volume) uses the selected component/partition's origin.
 // Null selects the whole source, including an assembly, at the source origin.
-export async function resolveGeometrySelections(geometry,requests,{offset=[0,0,0]}={}){
+export async function resolveGeometrySelections(geometry,requests){
   const selections=geometrySelections(geometry);
   const selected=requests.map(({selection=null,geometry:replacement})=>{
     const source=selection===null?{geometry,xMm:0,yMm:0,zMm:0}:selections.get(selection);
     requireThat(source,`Unknown geometry selection ${selection}.`);
-    return {geometry:replacement??source.geometry,offset:[source.xMm+offset[0],source.yMm+offset[1],source.zMm+offset[2]]};
+    return {geometry:replacement??source.geometry,offset:[source.xMm,source.yMm,source.zMm]};
   });
   const shells=buildShells(await rhino(),selected.map(s=>s.geometry)),placed=new Map();
   return selected.map((selection,i)=>{
@@ -74,7 +73,7 @@ export async function resolveGeometrySelections(geometry,requests,{offset=[0,0,0
   });
 }
 
-// Placement moves the whole shell onto the bed by shifting control points; the
+// Translation shifts control points; the
 // patches keep their parameterisation, so sections and surface solves are
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {

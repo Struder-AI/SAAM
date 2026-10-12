@@ -14,14 +14,29 @@ const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
 export const defaultModulations=()=>({version:1,modifiers:[]});
+const MODIFIER_FIELDS=['id','assignments','roles','channel','amplitude','field','sampleStepMm','tolerance','direction','frame','layers','topN','phasePerLayerRad'];
+
+// Generation reads each modifier's known fields; unknown fields are ignored and
+// an unset target list is null (all). A modifier without its numbers is skipped.
+export function readModulations(record){
+  const notes=[],modifiers=[];
+  for(const [index,m] of (Array.isArray(record?.modifiers)?record.modifiers:[]).entries()){
+    const name='Modulation '+(typeof m?.id==='string'?m.id:index+1);
+    if(!m||typeof m!=='object'||Array.isArray(m)){notes.push(`${name} is not a record; skipped.`);continue;}
+    const ignored=Object.keys(m).filter(key=>!MODIFIER_FIELDS.includes(key));
+    if(ignored.length)notes.push(`${name}: ignored fields ${ignored.join(', ')}.`);
+    if(!Number.isFinite(m.amplitude)||!positive(m.sampleStepMm)||!positive(m.tolerance)){
+      notes.push(`${name} skipped: it needs a finite amplitude and positive sampleStepMm and tolerance.`);continue;
+    }
+    modifiers.push({assignments:null,roles:null,...Object.fromEntries(Object.entries(m).filter(([key])=>MODIFIER_FIELDS.includes(key)))});
+  }
+  return {record:{...record,modifiers},notes};
+}
 
 export function validateModulations(record,{assignmentIds}={}) {
-  requireThat(record&&Object.keys(record).sort().join()==='modifiers,version'&&record.version===1&&Array.isArray(record.modifiers),'Modulations need version:1 and modifiers.');
+  requireThat(record&&record.version===1&&Array.isArray(record.modifiers),'Modulations need version:1 and modifiers.');
   const ids=new Set();
   for(const m of record.modifiers){
-    const expected=['id','assignments','roles','channel','amplitude','field','sampleStepMm','tolerance',...(['displacement','tilt'].includes(m?.channel)?['direction']:[])];
-    const optional=['frame','layers','topN','phasePerLayerRad'];
-    requireThat(m&&expected.every(k=>Object.hasOwn(m,k))&&Object.keys(m).every(k=>expected.includes(k)||optional.includes(k)),'Invalid modulation fields.');
     requireThat(typeof m.id==='string'&&/^[a-z][a-z0-9-]*$/.test(m.id)&&!ids.has(m.id),'Invalid or duplicate modulation id.');ids.add(m.id);
     for(const key of ['assignments','roles'])requireThat(m[key]===null||Array.isArray(m[key])&&m[key].length>0&&new Set(m[key]).size===m[key].length&&m[key].every(id=>typeof id==='string'&&id.length>0),`Modulation ${key} must be null or distinct nonempty names.`);
     requireThat(!assignmentIds||m.assignments===null||m.assignments.every(id=>assignmentIds.includes(id)),`Modulation ${m.id} targets an unknown slice assignment.`);
@@ -219,7 +234,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
       maxExcursionMm=Math.max(maxExcursionMm,excursion);changed ||= excursion>0||mid.flow!==1||mid.width!==1||mid.speed!==1||poseChanged;
       append(right);volumes.push(volume/length*distance(left.point,right.point)*mid.flow*mid.width);
       const speedMmS=(stroke.segmentMetadata?.[i]?.speedMmS??stroke.speedMmS)*mid.speed;
-      requireThat(positive(speedMmS),'Modulation needs a positive source and final deposition speed.');
+      requireThat(Number.isFinite(speedMmS),'Modulation needs a source and final deposition speed.');
       metadata.push({...stroke.segmentMetadata?.[i],beadWidthMm:width*mid.width,speedMmS});
     }
   }

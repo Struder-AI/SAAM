@@ -11,7 +11,7 @@ export async function changeMachine(directory,machineId,{expectedRevision,expect
   requireEditRevision(state,{expectedRevision,expectedEditRevision},{optional:true});
   const selection=await selectSettings(machineId,{machineSetups});
   const settings=resolveMachineSettings(state.plan,state.machine,selection,{boundsMm:state.geometry?.boundsMm});
-  return applySettingsSnapshot(directory,{machine:selection.machine,settings},state.revision,{expectedEditRevision});
+  return applySettingsSnapshot(directory,{machine:selection.machine,settings,notes:selection.notes},state.revision,{expectedEditRevision});
 }
 
 export async function adjustSettings(directory,patch,{expectedRevision,expectedEditRevision}={}){

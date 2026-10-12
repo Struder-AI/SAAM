@@ -11,3 +11,15 @@ export function loadMachine(id='ultimaker-s5') {
   requireThat(machine.id===id,`Machine profile ${id} names another id.`);
   return machine;
 }
+
+// A locked machine snapshot as current adapters read it: setup blocks its
+// profile gained after it was saved (an adapter's installation block) come from
+// the installed profile; every value it has stays. filled names the added keys.
+export function currentMachineSnapshot(machine){
+  const profile=machine?machineCatalog().get(machine.id):null;
+  if(!profile)return {machine,filled:[]};
+  const defaults=JSON.parse(readFileSync(profile.file,'utf8')).defaultSetup??{};
+  const filled=Object.keys(defaults).filter(key=>!Object.hasOwn(machine.defaultSetup??{},key));
+  if(!filled.length)return {machine,filled};
+  return {machine:{...machine,defaultSetup:{...machine.defaultSetup,...Object.fromEntries(filled.map(key=>[key,defaults[key]]))}},filled};
+}

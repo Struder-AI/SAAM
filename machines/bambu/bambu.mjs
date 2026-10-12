@@ -137,13 +137,13 @@ function exportBambu(path,plan,machine,release,Export){
   const filamentSequence=[plan.setup.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const {body,segments}=exportBambuBody(path,plan,machine,Export);
-  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0;
+  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0,untimedMoves=0;
   for(const {filament,tool,tally} of segments){
-    volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;
+    volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;untimedMoves+=tally.untimedMoves;
     usage.set(filament,{filament,tool,volumeMm3:(usage.get(filament)?.volumeMm3??0)+tally.volumeMm3});
     for(const key of tally.layers){if(!layerUse.has(key))layerUse.set(key,new Set());layerUse.get(key).add(filament);}
   }
-  const written={filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,layerUse,
+  const written={filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,untimedMoves,layerUse,
     strokes:segments.flatMap(segment=>segment.tally.strokes)};
   const c=contextFor(path,plan,machine,release),s=sections(c,job,output,Export.number);
   const code=header(c,written,job,Export.number)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
@@ -165,7 +165,7 @@ function report(written,c,s,job){
       ...(materialChanges?{materialChanges}:{})}};
   const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
     +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
-  return {notice:startup,seconds:written.seconds,volumeMm3:written.volumeMm3,
+  return {notice:startup,seconds:written.seconds,untimedMoves:written.untimedMoves,volumeMm3:written.volumeMm3,
     limitations:['Deposited-height travel checked; physical head clearance is not modeled.'],envelope};
 }
 

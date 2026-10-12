@@ -1,6 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
+const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 
 // Filaments a recipe assigns to deposition assignments, in recipe
 // order; the setup's own filament is not included.
@@ -16,7 +17,8 @@ function material(plan,index){
 // feeder and the selected machine-program dialect.
 export function materialProcess(plan,index){
   const process=material(plan,index).process??{};
-  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>PROCESS_FIELDS.includes(k)&&Number.isFinite(process[k])),'Invalid filament process override.');
+  // Layer and line steps are judged by the assignments that use them.
+  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>PROCESS_FIELDS.includes(k)&&(STEP_FIELDS.includes(k)||Number.isFinite(process[k]))),'Invalid filament process override.');
   return {...plan.process,...process};
 }
 

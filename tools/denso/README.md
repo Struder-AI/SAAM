@@ -47,7 +47,7 @@ DENSO command references (manufacturer manual mirror):
 - [Fig reads the taught figure](http://eidtech.dyndns-at-work.com/support/RC8_Manual/000261.html).
 - [T2P preserves the input FIG](http://eidtech.dyndns-at-work.com/support/RC8_Manual/000255.html).
 
-Nominal reach studies use the [Studio model](../../core/machine/README.md#denso-vs-068a4)
+Nominal reach studies use the [Studio model](../../machines/denso/SKILL.md#kinematics)
 with an explicit right-angle tool transform. They do not establish controller
 joint limits, calibrated FIG mapping, fixture clearance or manufacturing approval.
 

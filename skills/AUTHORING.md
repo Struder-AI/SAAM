@@ -6,8 +6,8 @@ Core/shared changes require the developer role. Read [builder orientation](../BU
 
 `SKILL.md` owns maker operations, settings, limits and recovery; optional
 `BUILDER.md`/`DEVELOPER.md` own author guidance. Mark machine-specific sections
-`<!-- requires: capability -->` and on-request sections `<!-- layer: advanced -->`;
-the [manual reader](../core/agent/README.md) opens them by machine or by name. Maps own implementation; keep each fact at one owner.
+`<!-- requires: capability -->` and on-request sections `<!-- layer: advanced -->`, which the
+[manual reader](../core/agent/README.md) opens by machine or by name; an unreadable marker stays text, noted in builder reads. Maps own implementation; keep each fact at one owner.
 Example recipes are `examples/NAME.json` files holding `{machineId, plan}` (a
 `create_bundle` input less `bundleId`), written from a verified bundle's recipe,
 linked from `SKILL.md` and read with `read_guidance`. SAAM never runs them.
@@ -20,7 +20,7 @@ refresh with `node scripts/skill-digest.mjs` after description/catalog/gate edit
 An extension is a folder `<SAAM home>/local/extensions/ID/` holding `extension.json`,
 `SKILL.md`, scripts and assets. Its manifest declares `schema: "saam-extension/1"`,
 a lowercase hyphenated `id`, `dependencies`, `entries`, `license` and `provenance`.
-Missing dependencies and cycles stop execution. Entries name `.mjs` functions for
+Listings and onboarding skip an unreadable extension, naming why; using it, a missing dependency or a cycle stops execution. Entries name `.mjs` functions for
 geometry, deposition, record or resource operations; machine extensions follow [adding a machine](../machines/README.md#adding-a-machine). Runtime factories receive named
 public Geometry and Toolpath operations; private core imports are not a portable
 interface. Extension code uses its operations' tolerances or a [tolerance class](../core/README.md#dimensions-and-tolerances)
@@ -36,8 +36,7 @@ source/requirements provenance. Ordinary sessions edit, generate and share parts
 current recipe dependencies. Extensions own construction/UI, not Bundle authority.
 
 `saam call extension_library` manages the library (`list_skills` lists it): `checkout`
-copies a release default into the local folder as an editable override that survives
-updates; `export` packages manifest, manuals, scripts, assets and hashes; `import`
+copies a release default to an editable local override that survives updates; `export` packages manifest, manuals, scripts, assets and hashes; `import`
 validates without executing code or replacing changed copies. Share explicitly; release
 promotion needs review. Document resource identity, provenance and license; callers save
 assets. Extensions have no technical sandbox or automatic I/O permission. Follow [parameter policy](../MAKERS.md#standard-parameter-policy) and [verification guidance](../DEVELOPER-CONTEXT.md#avoid-check-spirals).

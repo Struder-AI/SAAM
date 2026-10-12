@@ -73,12 +73,12 @@ This is a nominal display cross-section, not measured filament spread.
 
 The [guided tour](../examples/prints/README.md) uses this same renderer and machine
 presentation. Its fin block initializes from its source recipe and shows
-geometry before toolpath generation. At toolpath review, the normal worker and
-source interpreter supply playback and material instances. Generated display
+geometry before toolpath generation. At toolpath review, the normal worker
+supplies playback and material instances from the SAAMpath. Generated display
 caches and machine programs are not bundled in the repository.
 The browser owns one presentation model keyed by `printId`, `geometryId`,
 `editRevision`, `outputId` and path id. `planPresentation(previous, response)` returns
-that model plus explicit program effects: replace, retain or clear. A tour may
+that model plus explicit program effects: replace or clear. A tour may
 therefore return to geometry-only lessons while retaining one decoded playback
 and material scene, then reuse those buffers when the identity matches. Changed
 identity replaces or clears them; metadata-only changes rebind the machine
@@ -125,9 +125,9 @@ report its current value.
 Outgoing layers fade over two wall-clock seconds, shortened when the next layer
 arrives sooner. A transition completes the previous fade; pausing/changing speed
 never reverses it. Scrubbing, replay and opening a print reset fade history.
-**Export movie** renders the whole interpreted program into a separate canvas
+**Export movie** renders the whole SAAMpath into a separate canvas
 with the same renderer, selected speed, camera/zoom/framing, travel visibility,
-rotary view, display detail and layer fade. The viewer stays paused at its current
+followed plate, display detail and layer fade. The viewer stays paused at its current
 position. Export uses 30 fps and a deterministic video clock, including two final
 seconds to finish fades; it does not wait through real-time playback. WebCodecs
 encodes VP9 with VP8 fallback into a seekable, silent WebM download. The browser
@@ -169,25 +169,17 @@ deposition layer. Source geometry and output are unchanged.
 
 Studio uses the shared [bundle identity and reuse contract](../core/print/README.md#print-bundle-and-current-formats).
 
-Studio's state response contains geometry, review records and a small program
-summary/source manifest, never move/event arrays. It fetches the checked machine
-source separately: plain Griffin G-code, the exact G-code member of an H2D 3MF,
-or each actual Dobot Lua file (global, definitions and entry). Requests bind the
-print, review revision and export hash; the browser checks each source digest.
-Archive and H2D firmware-envelope checks remain on the server. Delivery retains
-the original archive bytes, not a repacked or regenerated program.
-
-A browser worker runs the same modal G-code interpreter or bounded Lua runtime
-as export checks. Lua helpers and entry code are executed; annotations cannot
-substitute for actual motion commands. H2D playback retains its checked print-body
-scope, with firmware service motion explicitly not simulated. The worker stores
-decoded moves in chunked typed arrays and transfers their ownership inside the
-browser. These are local drawing/timeline data, not another persisted path or
-server transport format. No motion JSON is sent to the browser. Timeline, layer,
-travel and robot acceleration controls share the existing renderer. Browsers
-still decode all moves before playback; fully paged playback is not implemented.
-Machine profile loading stays in the Node wrapper; pure machine rules and source
-interpreters are shared with the browser through an explicit module allowlist.
+Studio's state response contains geometry, review records and the adapter's
+stored report, never move/event arrays. Studio draws the SAAMpath, not the machine
+program (owner, 2026-10-11: "just show saampath in viewer, without priming/etc."):
+`/api/path` returns the completed output's SAAMpath, else the saved one, at its
+placement, bound to print, revision and path id. Playback times are the path's
+own speeds; startup, priming and material-change motion exist only in the
+program. Delivery retains the checked program bytes. A browser worker decodes
+the path into chunked typed arrays it owns; these are local drawing data, not a
+persisted path. Browsers decode all moves before playback; paged playback is not
+implemented. Pure machine rules are shared with the browser through an explicit
+module allowlist.
 
 Studio computes bounds/layout/camera transforms once per frame and coalesces
 redraw requests. It preserves segment order, colour and transparency. The

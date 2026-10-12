@@ -18,7 +18,7 @@ export async function createBlobFieldBundle(directory,request,options={}){
   const low=[0,1].map(a=>geometry.vertices.reduce((low,v)=>Math.min(low,v[a]),Infinity));
   plan.placement={xMm:20-low[0],yMm:20-low[1]};
   options.signal?.throwIfAborted();options.beforeCommit?.();
-  await initBundle(directory,{...plan,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
+  await initBundle(directory,{...plan,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,notes:selection?.notes??[]});
   return loadBundle(directory,{program:false});
 }
 export async function updateBlobFieldBundle(directory,request,{expectedRevision,expectedEditRevision,part,signal,beforeCommit}={}){

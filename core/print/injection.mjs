@@ -26,9 +26,8 @@ export function validateInjectionAssignment(assignment,{parts=[]}={}){
 export function injectionResult(assignment,{plan}){
   const selected=assignmentPlan(plan,assignment);
   const operations=assignment.points.map((record,index)=>{
-    const point=record.point.map((value,axis)=>value+(axis===0?plan.placement.xMm:axis===1?plan.placement.yMm:0));
-    return pointInjectionOperation({...record,point},{id:`${assignment.id}:${index}`,phase:'inject',
-      layer:index,layerIndex:index,layerCount:assignment.points.length,layerId:`inject:${assignment.id}:${index}`,rank:point[2],
+    return pointInjectionOperation(record,{id:`${assignment.id}:${index}`,phase:'inject',
+      layer:index,layerIndex:index,layerCount:assignment.points.length,layerId:`inject:${assignment.id}:${index}`,rank:record.point[2],
       after:[...assignment.dependencies.after,...(index?[`${assignment.id}:${index-1}`]:[])],
       ...(assignment.filament===null?{}:{filament:assignment.filament}),plan:selected,nozzleC:assignment.nozzleC});
   });

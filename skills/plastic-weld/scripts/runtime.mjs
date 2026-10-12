@@ -62,7 +62,7 @@ function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
     const process=processForAssignment({part:site.part});
     const shell=componentShells?componentShells.get(site.part):placed;
     const component=componentShells?plan.geometry.parts.find(p=>p.id===site.part):null;
-    const x=plan.placement.xMm+(component?.xMm??0)+site.xMm,y=plan.placement.yMm+(component?.yMm??0)+site.yMm;
+    const x=(component?.xMm??0)+site.xMm,y=(component?.yMm??0)+site.yMm;
     const bottom=shell.bounds.min[2]+site.zBottomMm,top=shell.bounds.min[2]+site.zTopMm;
     const grid=z=>(z-shell.bounds.min[2]-process.firstLayerMm)/process.layerMm;
     for(const z of [bottom,top,bottom-settings.floorMm])requireThat(z>=shell.bounds.min[2]-PRINT_RESOLUTION_MM&&(Math.abs(z-shell.bounds.min[2])<PRINT_RESOLUTION_MM||Math.abs(grid(z)-Math.round(grid(z)))*process.layerMm<PRINT_RESOLUTION_MM),'Rivet bottom, opening and floor must align with the component layer grid.');

@@ -12,16 +12,12 @@ export const DEFAULT_PHASE_COLOURS=Object.freeze({
   prime:'#5b92a3',start:skyBlue,startup:skyBlue,finish:skyBlue
 });
 
-// A partial {phase: '#rrggbb'} record; null when empty.
-export function checkedPhaseColours(value,source='phaseColours'){
-  if(value===null||value===undefined)return null;
-  const fail=message=>{throw TypeError(`${source}: ${message}`);};
-  if(typeof value!=='object'||Array.isArray(value))fail('map phase names to #rrggbb colours.');
-  const entries=Object.entries(value);
-  for(const [phase,colour] of entries){
-    if(!Object.hasOwn(DEFAULT_PHASE_COLOURS,phase))fail(`unknown phase "${phase}"; use ${Object.keys(DEFAULT_PHASE_COLOURS).join(', ')}.`);
-    if(typeof colour!=='string'||!/^#[0-9a-f]{6}$/i.test(colour))fail(`${phase} needs a #rrggbb colour.`);
-  }
+// The {phase: '#rrggbb'} entries of a choice; null when none. "Color barely
+// matters" (owner, 2026-10-12): an entry without a #rrggbb colour is dropped, so
+// the next palette colours that phase, and a phase no move carries colours nothing.
+export function checkedPhaseColours(value){
+  if(value===null||typeof value!=='object'||Array.isArray(value))return null;
+  const entries=Object.entries(value).filter(([,colour])=>typeof colour==='string'&&/^#[0-9a-f]{6}$/i.test(colour));
   return entries.length?Object.fromEntries(entries.map(([phase,colour])=>[phase,colour.toLowerCase()])):null;
 }
 

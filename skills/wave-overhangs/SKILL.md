@@ -16,7 +16,7 @@ cooling and thermal warping need judgment and physical trials.
 [extension script](scripts/prepare.mjs) expands to
 an ordinary assignment: a surface-domain owned volume, `fillOrder:{kind:'fronts',...}`,
 shared process overrides and dependencies. Persist that expanded record in
-`plan.slices.assignments`; legacy `construction:'fronts'` requires migration.
+`plan.slices.assignments`; legacy `construction:'fronts'` is read as it.
 There is no separate wave producer.
 
 ## Author the region and seed
@@ -25,7 +25,7 @@ There is no separate wave producer.
   `surface:{kind:'spline',patch,offsetMm:0}` supplies a named control net.
   XYZ coordinates precede print/component placement.
 - `domainUv` supplies closed chart loops: CCW outer boundaries, CW holes.
-  The preset turns these into the owned volume; shared ownership clips overlap.
+  The preset turns these into the owned volume.
 - `seedUv` identifies the already reached chart region; it is not extruded again.
   Match its edge to the intended anchor. Omit it to derive a seed from finalized
   predecessor beads. Disconnected components may require separate assignments.

@@ -8,7 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readManual} from './manuals.mjs';
-import {ONBOARDING,extensionDiscovery} from './layers.mjs';
+import {ONBOARDING,extensionDiscovery,gatedIndex} from './layers.mjs';
 import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
 import {readExtension} from '../extensions/library.mjs';
 const execFileAsync=promisify(execFile);
@@ -34,12 +34,7 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 // Manuals as this command-line agent reads them: script sections included, advanced ones for
 // the named machine (see manuals.mjs#assembleGuidance).
 export async function contextPacket(ids, context = {}) {
-  const documents=await Promise.all([...new Set(ids)].map(id => readManual(root, id, context)));
-  if(ids.includes('skills/DIGEST.md')){
-    const discovery=await extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'});
-    if(discovery)documents.push(discovery);
-  }
-  return {documents};
+  return {documents:await Promise.all([...new Set(ids)].map(id => readManual(root, id, context)))};
 }
 
 // What of main this checkout holds, for the one-line report a maker or builder gives at session
@@ -95,8 +90,8 @@ export async function readSkill(name, {maker = false, builder = false, developer
     ids.push(path);
   }
   const documents = await Promise.all(ids.map(path => path.endsWith('/SKILL.md')
-    ? readManual(root, anchor ? `${path}#${anchor}` : path, {machineId, all})
-    : readManual(root, path, {all: true})));
+    ? readManual(root, anchor ? `${path}#${anchor}` : path, {machineId, all, markers: builder || developer})
+    : readManual(root, path, {all: true, markers: true})));
   return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles, documents};
 }
 
@@ -144,9 +139,11 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...manuals(named)]
     : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...manuals(named.filter((_, k) => !owners[k].length))];
   const mapKeys = role === 'maker' ? [] : [...new Set([...targets, ...owners.flat()])];
-  const [context, environment, maps, notes] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true}),
-    environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes(homePaths())]);
-  return {role, environment, notes, ...context, maps, ...(mapKeys.length ? {mapSet: set} : {}),
+  const [context, environment, maps, notes, extensions, index] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true, markers: true}),
+    environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes(homePaths()),
+    extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'}), role === 'builder' ? gatedIndex(root) : {unreadable: []}]);
+  return {role, environment, notes, documents: [...context.documents, ...(extensions ? [extensions] : [])], maps, ...(mapKeys.length ? {mapSet: set} : {}),
+    ...(index.unreadable.length ? {unreadableMarkers: index.unreadable} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
       : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders author extensions, guidance, recipe helpers, assets, examples and diagnostics using published APIs; work the extension interface cannot express is a SAAM bug for saam call report_bug (MAKERS.md#working-boundaries). Core skills and shared capability/contract changes require the developer role. The component manual for the area you consume owns its behaviour, contracts and limits; read the one for the code you touch. Maps show what code a change affects and what affects it: read-map 0 (or --area 0), then a box, @link/MAP/FROM/TO for its leaf arrows, then the source at file:lines. Run regenerate after each task.'
       : `The versioned intent docs in plans/ are the spec, read in order (a later statement overrides an earlier one only where they conflict); intent/README.md indexes current intent by area in the owner's words; the newest version's plan holds scheduled work. Open component manuals as needed. Maps (${set}) show what code a change affects and what affects it. Before editing, read-map 0, then the boxes you will change, then @link/MAP/FROM/TO for their leaf arrows; open the source at file:lines. Run regenerate after each task. Installation/service work uses --set 030-deployment.`};

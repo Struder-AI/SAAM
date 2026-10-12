@@ -18,10 +18,10 @@ function exportGriffin(path,plan,machine,{generatorVersion,buildDate},Export) {
   const volume=path.actions.reduce((v,a)=>v+(a.volumeMm3??0),0);
   let time=0,pos=path.initialPosition;
   for(const a of path.actions) {
-    if(a.kind==='move'){time+=distance(pos,a.to)/a.speedMmS;pos=a.to;}
+    if(a.kind==='move'){time+=Export.knownSeconds(distance(pos,a.to),a.speedMmS);pos=a.to;}
     if(a.kind==='dwell')time+=a.seconds;
     if(a.kind==='extrude')time+=a.volumeMm3/a.flowMm3S;
-    if(a.filamentMm)time+=a.filamentMm/a.speedMmS;
+    if(a.filamentMm)time+=Export.knownSeconds(a.filamentMm,a.speedMmS);
   }
   const envelope=machine.outputs.find(o=>o.id===plan.output).program;
   requireThat(envelope, 'Machine snapshot has no program templates; recreate this print from the current machine profile.');
@@ -38,6 +38,6 @@ function exportGriffin(path,plan,machine,{generatorVersion,buildDate},Export) {
   // Large paths exceed the engine's argument limit when spread into push().
   for(const line of motionLines)lines.push(line);
   for(const line of render(envelope.end))lines.push(line);
-  return {bytes:lines.join('\n')+'\n',report:{seconds:tally.seconds,volumeMm3:tally.volumeMm3,
+  return {bytes:lines.join('\n')+'\n',report:{seconds:tally.seconds,untimedMoves:tally.untimedMoves,volumeMm3:tally.volumeMm3,
     notice:'Firmware startup and heating time are not simulated; this export does not request routine bed leveling.'}};
 }

@@ -18,7 +18,7 @@ export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zE
 
 export function vaseWallRuntime({Geometry,Toolpath}) {
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const {spiralStackCurve,traceResult,contactCurveGaps,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
+  const {spiralStackCurve,traceResult,contactCurveGaps,contactSpanNote,maximumPathAngle,strokeRange,publishFinishedBoundary,depositedBeadSegments}=Toolpath;
 
 function standardVaseResult({assignment:settings,process,shell,geometry,after=settings.after},{foundationSegments=[],substrateAdaptation=false}={}){
   const referenceStack=geometry.referenceStack();
@@ -26,7 +26,7 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
     levelEnd:settings.endTransition==='level',sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,
     speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),minimumTurnSeconds:geometry.minimumTurnSeconds??process.minimumLayerSeconds,role:geometry.role??'vase-wall'});
   const {profile,...centerline}=curve;
-  const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments}):[centerline];
+  const {curves,spans}=substrateAdaptation&&foundationSegments.length?contactCurveGaps([centerline],{segments:foundationSegments}):{curves:[centerline],spans:[]};
   const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,batches:[{
     key:'wall',curves,join:{mode:'ordered'},layerId:settings.id+':continuous',phase:'vase-wall',layer:0,rank:geometry.start,
     ...(geometry.batch??{}),fanPercent:process.fanPercent,trimEnd:settings.endTransition==='level',travel:{kind:'clearance',clearanceZ:geometry.end+process.liftMm}}]});
@@ -37,7 +37,8 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
   const result={...traced,operations,referenceStack,stackId:settings.id,...(levelBoundary?{levelBoundary}:{}),report:{...traced.report,
     owner:settings.id,part:settings.part,construction:'sleeve',depositionFamily:'trace',extension:'vase-wall',startMm:geometry.start,endMm:geometry.end,baseTopMm:geometry.base,
     turns:profile.turns,spiralTurns:profile.risingTurns,endTransition:settings.endTransition,levelRimMm:levelBoundary?geometry.end:null,
-    points:curve.points.length,speedMmS:curve.speedMmS,maximumAngleDeg:maximumPathAngle(curve.points),...geometry.report()}};
+    points:curve.points.length,speedMmS:curve.speedMmS,maximumAngleDeg:maximumPathAngle(curve.points),...geometry.report(),
+    ...(spans.length?{notes:spans.map(span=>contactSpanNote(`Vase wall ${settings.id}`,span))}:{})}};
   return settings.meshSleeve?result:publishFinishedBoundary(result,{shell,boundary:'side',startMm:geometry.base,
     endMm:geometry.end-(settings.endTransition==='level'?0:process.layerMm),toleranceMm:settings.boundaryToleranceMm});
 }

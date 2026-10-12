@@ -25,7 +25,6 @@
         "enabled": false,
         "assignments": [],
         "topGapMm": 0.2,
-        "xyGapMm": 0.3,
         "treeChordMm": 0.02
       }
     },

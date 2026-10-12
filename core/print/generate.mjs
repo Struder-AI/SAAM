@@ -28,7 +28,7 @@ import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {traceResult} from './curves.mjs';
-import {contactCurveGaps} from '../path/contact-curves.mjs';
+import {contactCurveGaps,contactSpanNote} from '../path/contact-curves.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {prepareSliceRegionContext} from './slice-region-context.mjs';
 import {prepareSliceBoundaryStack} from './slices.mjs';
@@ -39,13 +39,15 @@ import {finalizedSliceResults} from './slice-deposition.mjs';
 const extensionEngines={
   Geometry:{planarRegionLayers,prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface},
   Toolpath:{prepareSliceRegionContext,prepareSliceBoundaryStack,pointInjectionOperation,assignmentFilament,
-    spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,depositedBeadSegments}
+    spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,contactSpanNote,depositedBeadSegments}
 };
 
 
+// A zero-length pass deposits nothing.
 function primeLineResult(plan){
   const p=plan.process.primeLine;if(p===null)return null;
-  const passes=p.passes??[p],region=[],strokes=[];
+  const passes=(p.passes??[p]).filter(pass=>Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>0),region=[],strokes=[];
+  if(!passes.length)return null;
   let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
   for(const pass of passes){
     const [a,b]=[pass.startMm,pass.endMm],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*pass.widthMm/2,ny=dx/length*pass.widthMm/2;
@@ -74,7 +76,7 @@ export async function preparePathGeometry(plan) {
     if(volume.kind!=='geometry')return null;
     const index=requests.length;requests.push({selection:assignment.part,geometry:volume.geometry});return index;
   })]));
-  const values=await resolveGeometrySelections(plan.geometry,requests,{offset:[plan.placement.xMm,plan.placement.yMm,0]});
+  const values=await resolveGeometrySelections(plan.geometry,requests);
   const placed=values[0],componentShells=plan.geometry.shape==='assembly'?new Map(components.map((id,i)=>[id,values[1+i]])):null;
   const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
     ...named.map((part,i)=>[part,values[1+components.length+i],false])];
@@ -86,17 +88,20 @@ export async function preparePathGeometry(plan) {
 // supporting producer before constructing surface consumers.
 export async function generateModelResults(plan,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  // An assembly construction with no component chosen uses the whole assembly.
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
-    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,assignment);
+    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent)requireThat(shell,'A surface construction needs selected geometry.');
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,engines:extensionEngines,
+  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:extensionEngines,
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
   const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress,planningState,emittedIds});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
+  // Generation notes: what was not covered or failed, joining the print's limitations.
+  if(sliced.notes?.length)summary.limitations=sliced.notes;
   Object.assign(summary,extensionSummary(results));
   const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
   if(Object.keys(stacks).length)summary.referenceStacks=stacks;
@@ -205,7 +210,7 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
-  const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
+  const start=[0,0,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
   const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
     selection:selections?.[defaultFilament]??null,selections}),0);
   const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);

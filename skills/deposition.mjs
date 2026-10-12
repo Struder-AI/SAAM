@@ -1,20 +1,20 @@
 // Extension compositions return engine inputs and finalized-result constraints.
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
-import {requireExclusiveClaims} from '../core/region/ownership.mjs';
-import {PRINT_RESOLUTION_MM} from '../core/dimensions.mjs';
 
-export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,processForAssignment,engines}){
+export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
   const support=plan.skills?.supports?.enabled?await (await loadExtensionEntry('supports','deposition-runtime'))(engines):null;
   const weld=plan.skills?.['plastic-weld']?.enabled?await (await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines):null;
   const sites=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
   const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
+  // A sleeve prepares its geometry as it is constructed, so its failure is its own.
   const vaseWork=vase?args=>{
     const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
-    return node.context.assignment.pattern===null?vase.standardVaseResult({...node.context,after},{foundationSegments,substrateAdaptation})
-      :advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
+    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
+    const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
+    return vase.standardVaseResult({...node.context,geometry,after},{foundationSegments,substrateAdaptation});
   }:null;
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
@@ -30,10 +30,6 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
-  for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
-    if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>PRINT_RESOLUTION_MM)
-      requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  for(const context of sleeves)if(!context.geometry)context.geometry=vase.prepareSleeveGeometry({...context,onProgress});
   const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
   return {
     bands:sleeves.filter(s=>!s.assignment.join).map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),

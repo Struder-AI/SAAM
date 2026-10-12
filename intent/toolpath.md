@@ -60,27 +60,23 @@ Sources: [D-025](../DECISIONS.md#d-025--support-areas-assigned-through-judgment)
 
 Summary: a standard support is the chosen underside copied down by a 0.15 mm gap and closed to the bed as a solid, sliced with no perimeters, single-direction infill, no hop or retract, on a base or brim.
 
-Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40. [0.3.4 "Slice ownership by rule"](../plans/0.3.4.md) records the gap as "Separately decide … 0.1 to 0.15 mm", and the skill still uses 0.1 (see report).
+Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40. [0.3.4 "Standard-support gap"](../plans/0.3.4.md) records the gap as "Decide … 0.1 to 0.15 mm", and the skill still uses 0.1 (see report).
 
-## Overlapping claims and the overlap check
-> "That's a stupid arbitrary check that only gets in the way (just saying this so our review catches the bug). We need to print it!" — owner, 2026-10-03 (Codex 01a0ff63 03:38)
->
-> "Okay, good to correct that misunderstanding, but that's still a shit check. Can you tell me why?" — owner, 2026-10-05 (Claude c6c50c08 17:11)
->
+## One wiring for the same operation
 > "slab-under-skin should be used for standard supports as well" — owner, 2026-10-05 (Claude 98e25b54 15:39); "I just mean, if we have dedicated wiring … use that for all operations that do exactly the same thing." (15:40)
 >
 > "I don't feel like we've seen eye-to-eye yet on slab under skin. After restart, you should explain to me in more depth what is going on there." — owner, 2026-10-05 (Claude 98e25b54 15:43)
 
-Summary: the Slice overlap refusal is a bad check, and operations that do the same thing share one wiring. **Owner question pending**: the 0.3.4 row proposes settling overlaps by an ownership rule because no dedicated slab-under-skin mechanism exists; the explanation the owner asked for is not recorded.
+Summary: operations that do the same thing share one wiring. **Owner question pending**: no dedicated slab-under-skin mechanism exists (a slab and a draped skin are ordinary Slice assignments); the explanation the owner asked for is not recorded.
 
-Sources: [0.3.3 "One wiring for slab-under-skin"](../plans/0.3.3.md) (retired); [0.3.4 "Slice ownership by rule, not overlap refusal"](../plans/0.3.4.md); `.local/team/questions.md` (after-restart note).
+Sources: [0.3.3 "One wiring for slab-under-skin"](../plans/0.3.3.md) (retired); `.local/team/questions.md` (after-restart note).
 
-## Material overlap and shared ownership (0.4.0)
-> "material overlap is too difficult for today, we need to defer it to 0.3.0"; "Should return as unsupported"; "make sure the tolerances for 'touching' are reasonable" — owner, 2026-09-30 ([D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries))
+## Overlapping material regions
+> "Forget the slice stack crossing check, get rid of it entirely. Just let overlapping material regions co-exist (don't bother even reporting), since we are about to fix it in 0.4.0 anyway. And it should never happen anyway, that would be an agent error already. And now the agent gets an image, so even if it does happen, the image will probably catch it, or the user will see it. Make sure you fully remove all signs of the overlapping material regions checks, and all current intent OTHER THAN the plan in 0.4.0. I don't want this coming back to life until 0.4.0." — owner, 2026-10-11, on audit item G22
 
-Summary: competing material overlaps return unsupported and touching boundaries are allowed; shared ownership (first explicit claimant principal, subordinate regions adapting layers and interlock) is 0.4.0 intent.
+Summary: overlapping slice and material claims co-exist, each assignment printing its own claimed region; shared ownership is 0.4.0 intent.
 
-Sources: [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent); [0.4.0 "Material overlap and shared ownership"](../plans/0.4.0.md) (agent wording); [D-042](../DECISIONS.md#d-042--020-authoring-and-shared-deposition-intent) ("Finish shared ownership integration", 2026-09-29).
+Sources: [0.3.7 "Overlapping material regions"](../plans/0.3.7.md); [0.4.0 "Material overlap and shared ownership"](../plans/0.4.0.md) (agent wording).
 
 ## No general gap filling
 > "We NEVER want this" — owner, 2026-09-30, on general gap filling ([D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries))

@@ -1,24 +1,29 @@
 import {distance,requireThat} from './numeric.mjs';
-import {rotatePointZ as bedPoint} from '../../geom/frame.mjs';
+import {samePose,uprightPose} from '../../path/pose.mjs';
 import {ROUNDING_MM} from '../../dimensions.mjs';
+import {moveSeconds} from '../../path/saampath.mjs';
 
 // Motion needed only to enter a selected installation and service its material
 // changes. The authored deposition/travel actions are retained by Export.
 export class AdaptationMotion {
-  constructor({start,process,retracted=false,pose=null,motion=null}){
+  constructor({start,process,retracted=false,pose=null,retreatMm=process.liftMm}){
     this.position=[...start];this.process=process;this.retracted=retracted;
-    this.pose=pose;this.motion=motion??{retreatMm:process.liftMm,transitionSeconds:1,rotaryCenterMm:[0,0,0]};
+    this.pose=pose;this.retreatMm=retreatMm;
     this.depositedMaxZ=0;this.phase='start';this.layer=0;this.operationId=null;this.actions=[];
   }
   context(action){this.phase=action.phase;this.layer=action.layer;this.operationId=action.operation??null;}
   append(action){this.actions.push({...action,phase:this.phase,layer:this.layer,...(this.operationId?{operation:this.operationId}:{})});}
   move(to,speed,volumeMm3=0,extra={}){
     const length=distance(this.position,to),pose=extra.pose??null;
-    // Rounding guard: a move of zero length within rounding is no move.
-    if(length<ROUNDING_MM&&!pose){requireThat(volumeMm3===0,'A zero-length move needs stationary extrusion.');return;}
-    requireThat(Number.isFinite(speed)&&speed>0,'Machine adaptation needs positive speed.');
-    const durationSeconds=pose?(extra.durationSeconds??(length?length/speed:this.motion.transitionSeconds)):undefined;
-    this.append({kind:'move',to:[...to],speedMmS:speed,volumeMm3,...extra,...(pose?{durationSeconds}:{} )});
+    // Rounding guard: a move of zero length within rounding is no move, unless it
+    // turns the tool: that reorientation is untimed (the machine's own rate).
+    if(length<ROUNDING_MM){
+      requireThat(volumeMm3===0,'A zero-length move needs stationary extrusion.');
+      if(!pose||samePose(this.pose??uprightPose(),pose)){if(pose)this.pose=pose;return;}
+    }
+    requireThat(Number.isFinite(speed),'Machine adaptation needs a speed.');
+    const durationSeconds=pose&&length>=ROUNDING_MM?(extra.durationSeconds??moveSeconds(length,speed)):extra.durationSeconds;
+    this.append({kind:'move',to:[...to],speedMmS:speed,volumeMm3,...extra,...(durationSeconds!==undefined?{durationSeconds}:{})});
     if(volumeMm3>0)this.depositedMaxZ=Math.max(this.depositedMaxZ,this.position[2],to[2]);
     this.position=[...to];this.pose=pose;
   }
@@ -30,19 +35,21 @@ export class AdaptationMotion {
     if(!this.retracted)return;
     this.append({kind:'recover',filamentMm:this.process.retractMm,speedMmS:this.process.retractSpeedMmS});this.retracted=false;
   }
+  // Reorientation is ordinary toolhead travel, as in neutral planning: retreat
+  // along the current tool axis, travel over the deposited part to the approach
+  // point while the orientation interpolates, then approach along the new axis.
   travel(target,targetPose=null){
-    if(targetPose&&this.pose){
-      this.retract();
-      const currentPose=this.pose;
-      const retreat=this.position.map((v,i)=>v-currentPose.toolAxis[i]*this.motion.retreatMm);
-      this.move(retreat,this.process.travelSpeedMmS,0,{travel:'tool-retreat'});
-      const room=bedPoint(this.position,currentPose.rotaryDeg,this.motion.rotaryCenterMm);
-      const held=bedPoint(room,targetPose.rotaryDeg,this.motion.rotaryCenterMm,true);
-      this.move(held,this.process.travelSpeedMmS,0,{pose:targetPose,durationSeconds:this.motion.transitionSeconds,travel:'reorient'});
-      const approach=target.map((v,i)=>v-targetPose.toolAxis[i]*this.motion.retreatMm);
-      this.move(approach,this.process.travelSpeedMmS,0,{pose:targetPose,travel:'position'});
-      this.move(target,this.process.travelSpeedMmS,0,{pose:targetPose,travel:'approach'});
-      this.recover();return;
+    if(targetPose){
+      const current=this.pose??uprightPose(),speed=this.process.travelSpeedMmS;
+      if(distance(this.position,target)>ROUNDING_MM||!samePose(current,targetPose)){
+        this.retract();
+        const held=this.pose?{pose:this.pose}:{};
+        this.move(this.position.map((v,i)=>v-current.toolAxis[i]*this.retreatMm),speed,0,{...held,travel:'tool-retreat'});
+        const approach=target.map((v,i)=>v-targetPose.toolAxis[i]*this.retreatMm),z=Math.max(this.depositedMaxZ+this.process.liftMm,this.position[2],approach[2]);
+        for(const [to,extra] of [[[this.position[0],this.position[1],z],held],[[approach[0],approach[1],z],{pose:targetPose}],[approach,{pose:targetPose}],[target,{pose:targetPose}]])
+          if(distance(this.position,to)>=ROUNDING_MM)this.move(to,speed,0,{...extra,travel:to===target?'approach':'position'});
+      }
+      this.pose=targetPose;this.recover();return;
     }
     if(distance(this.position,target)>ROUNDING_MM){
       this.retract();
@@ -52,11 +59,10 @@ export class AdaptationMotion {
       this.move(target,this.process.zSpeedMmS);
     }
     this.recover();
-    if(targetPose)this.move(target,this.process.travelSpeedMmS,0,{pose:targetPose,durationSeconds:this.motion.transitionSeconds,travel:'reorient'});
   }
   park(){
     this.retract();
-    if(this.pose){this.move(this.position.map((v,i)=>v-this.pose.toolAxis[i]*this.motion.retreatMm),this.process.travelSpeedMmS,0,{travel:'tool-retreat'});return;}
+    if(this.pose){this.move(this.position.map((v,i)=>v-this.pose.toolAxis[i]*this.retreatMm),this.process.travelSpeedMmS,0,{pose:this.pose,travel:'tool-retreat'});return;}
     const z=Math.max(this.depositedMaxZ+this.process.liftMm,this.position[2]);
     this.move([this.position[0],this.position[1],z],this.process.zSpeedMmS);
   }

@@ -9,7 +9,7 @@ export const DOBOT_LIMITATIONS=[
   'Commanded volume is SAAMpath intent, not metered extrusion. Relay volume is an estimate from the configured external rate and modeled rest-to-rest timing; acceleration, pauses and relay lag can change the actual deposit.',
   'Playback shows fixed-orientation Cartesian commands transformed back into the design frame. Robot joint solutions, reachability, singularities, link/fixture collisions and controller queue latency are not simulated.',
   'No startup motion or heating commands are emitted. The configured initial pose and external nozzle/bed temperatures must already be established. No priming dwell is inserted.',
-  'Only linear MovL at CP=0, explicit fixed frame/orientation, DO, Sync and relay-off Wait are supported. Joint moves, arcs, orientation changes, tool changes, nonzero retraction and fan control are rejected. No physical validation has been performed.'
+  'Only linear MovL at CP=0, explicit fixed frame/orientation, DO, Sync and relay-off Wait are supported. Joint moves, arcs, orientation changes and tool changes are rejected; retraction and fan settings are omitted. No physical validation has been performed.'
 ];
 // The longest pause one Wait command can express, not a limit on how long a
 // path may pause; a longer pause is split across commands.
@@ -54,10 +54,8 @@ function validate(plan,{required=false}={}){
   if(c.relayPolicy!==null)requireThat(c.relayPolicy==='stroke-stop-start-unblended','Unsupported Dobot relay policy. Explicitly select experimental stroke-stop-start-unblended.');
   if(c.temperatureControl!==null)requireThat(c.temperatureControl==='external-preheated','Dobot requires explicit external-preheated temperature control.');
   if(required){
-    requireThat(missing.length===0,`Dobot installation is unconfigured; supply ${missing.join(', ')} before export.`);
-    requireThat(plan.setup.nozzleC>0,'Supply the externally controlled Dobot nozzle temperature before export.');
+    requireThat(missing.length===0,`Dobot installation is unconfigured: ${missing.join(', ')} ${missing.length>1?'are':'is'} not set.`);
   }
-  requireThat(plan.process.retractMm===0&&plan.process.fanPercent===0,'Dobot relay output cannot retract or control a fan; set retractMm and fanPercent to zero.');
 }
 const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
 // Studio settings rows: the installation as configured.
@@ -70,28 +68,35 @@ const rows=({setup})=>{const d=setup.dobot;return [
   ['Controller linear speed limit',value(d.maxLinearSpeedMmS)+' mm/s'],['Controller acceleration limit',value(d.maxLinearAccelMmS2)+' mm/s²'],
   ['Commanded acceleration',value(d.accelerationPercent)+'%'],['Extrusion output',value(d.extrusionOutput)],
   ['Extrusion policy',value(d.relayPolicy)],['External extrusion rate',value(d.extrusionRateMm3S)+' mm³/s; estimate only'],
-  ['Thermal control',value(d.temperatureControl)],['Externally established nozzle / bed temperature',setup.nozzleC+' / '+setup.bedC+'°C']];};
+  ['Thermal control',value(d.temperatureControl)],['Externally established nozzle / bed temperature',externalNozzle(setup)+' / '+setup.bedC+'°C']];};
+// Heating is external: the program writes no temperature, and an unset one is stated as such.
+const externalNozzle=setup=>setup.nozzleC>0?String(setup.nozzleC):'not stated';
 export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate,rows},
   export:(prepared,settings)=>exportDobot(prepared,settings,settings.machine,settings.release,Export.packZip)});
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
+// A robot command needs a positive time: a move without a positive speed is
+// written at the profile's default deposition or travel speed, and noted.
+const commandSpeed=(action,defaults)=>action.speedMmS>0?action.speedMmS:action.volumeMm3>0?defaults.planarSpeedMmS:defaults.travelSpeedMmS;
+const defaultedNote=(count,defaults)=>count?[`${count} move(s) had no positive speed and are written at the profile default (deposition ${defaults.planarSpeedMmS} mm/s, travel ${defaults.travelSpeedMmS} mm/s).`]:[];
 function exportDobot(path,plan,machine,release,packZip){
   const c=config(plan,machine);
   requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
   inside(transform(path.initialPosition,c),c);
   const global=`-- SAAM fixed XYZ calibration; installation values are locked in manifest.json.\nfunction P(x,y,z)\n  return {coordinate={x*${num(c.scaleX)}+${num(c.offsetXMm)},y*${num(c.scaleY)}+${num(c.offsetYMm)},z+${num(c.bedZMm)},${num(c.rDeg)}},tool=${c.toolFrame},user=${c.userFrame}}\nend\n`;
-  const lines=['-- SAAM experimental stroke relay program','function RunPlan()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`];
+  const omitted=new Set(),lines=['-- SAAM experimental stroke relay program','function RunPlan()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`];
   // Timing and the relay estimate use the written commands: P() of the written
   // coordinates, the written SpeedL/AccL percentages, rest-to-rest motion.
   const written=p=>[num(p[0])*num(c.scaleX)+num(c.offsetXMm),num(p[1])*num(c.scaleY)+num(c.offsetYMm),num(p[2])+num(c.bedZMm)];
   const acceleration=num(c.accelerationPercent)/100*c.maxLinearAccelMmS2;
-  let relay=false,from=path.initialPosition,controller=transform(c.initialPositionMm,c),seconds=0,volumeMm3=0,estimate=0;
+  let relay=false,from=path.initialPosition,controller=transform(c.initialPositionMm,c),seconds=0,volumeMm3=0,estimate=0,defaulted=0;
   const switchRelay=on=>{if(on!==relay){lines.push('  Sync()',`  DO(${JSON.stringify(c.extrusionOutput)},${on?1:0})`);relay=on;}};
   for(const a of path.actions){
     if(a.kind==='move'){
       const to=transform(a.to,c),start=transform(from,c);inside(to,c);
-      const requestedSeconds=distance(from,a.to)/a.speedMmS;
+      const speed=commandSpeed(a,plan.defaultProcess);if(speed!==a.speedMmS)defaulted++;
+      const requestedSeconds=distance(from,a.to)/speed;
       const percent=distance(start,to)/requestedSeconds/c.maxLinearSpeedMmS*100;
       requireThat(percent>0&&percent<=100,'Dobot transformed feed exceeds configured linear speed.');
       switchRelay(a.volumeMm3>0);
@@ -106,8 +111,9 @@ function exportDobot(path,plan,machine,release,packZip){
       switchRelay(false);lines.push('  Sync()');
       let remaining=a.seconds*1000;
       do{const part=Math.min(remaining,WAIT_COMMAND_MS);lines.push(`  Wait(${num(part)})`);seconds+=num(part)/1000;remaining-=part;}while(remaining>0);
-    }else if(['retract','recover'].includes(a.kind))requireThat(a.filamentMm===0,'Dobot relay extrusion cannot retract or recover filament.');
-    else if(a.kind==='fan')requireThat(a.percent===0,'Dobot output has no fan control.');
+    }else if(['retract','recover'].includes(a.kind)){if(a.filamentMm>0)omitted.add('retraction');}
+    else if(a.kind==='fan'){if(a.percent!==0)omitted.add('fan');}
+    else if(a.kind==='temperature')omitted.add('temperature');
     else throw new Error(`Unsupported Dobot action ${a.kind}.`);
   }
   switchRelay(false);lines.push('  Sync()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`,'end','');
@@ -115,6 +121,6 @@ function exportDobot(path,plan,machine,release,packZip){
     entry:'src0.lua',initialPositionMm:path.initialPosition,coordinateFrame:'SAAM design XYZ; P maps to configured tool/user frame',
     relayPolicy:c.relayPolicy,volumeModel:'SAAM commanded intent plus independent relay-rate estimate',release,limitations:DOBOT_LIMITATIONS};
   return {bytes:packZip(new Map([['global.lua',global],['src1.lua',lines.join('\n')],['src0.lua','-- Entry tab: definitions must be loaded first.\nRunPlan()\n'],['manifest.json',JSON.stringify(manifest,null,2)+'\n']])),
-    report:{seconds,volumeMm3,materialModel:'relay-estimate',estimatedRelayVolumeMm3:estimate,limitations:DOBOT_LIMITATIONS,
+    report:{seconds,volumeMm3,materialModel:'relay-estimate',estimatedRelayVolumeMm3:estimate,limitations:[...DOBOT_LIMITATIONS,...defaultedNote(defaulted,plan.defaultProcess),`Externally established nozzle temperature: ${externalNozzle(plan.setup)}${plan.setup.nozzleC>0?' °C':''}; the program writes none.`,...(omitted.size?[`Relay output has no ${[...omitted].join(' or ')} control; the SAAMpath's ${[...omitted].join(' and ')} settings are omitted from the program.`]:[])],
       notice:`Experimental CP=0 stroke relay output. Commanded volume ${volumeMm3.toFixed(2)} mm³; modeled relay-rate estimate ${estimate.toFixed(2)} mm³ (difference ${(estimate-volumeMm3).toFixed(2)} mm³). Neither is measured deposition. Timing is rest-to-rest from the configured speed and acceleration; the drawn path does not show it. Robot reachability, kinematics and collision clearance are unchecked.`}};
 }

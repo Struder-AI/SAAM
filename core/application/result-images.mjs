@@ -207,7 +207,7 @@ export function createResultImages(paths){
         if(toolpath){
           try{
             const local=await readLocalPhaseColours(paths).catch(error=>{result.phaseColoursProblem='Local phase colours ignored: '+error.message;return null;});
-            const drawn=pathImage(JSON.parse(await adapter.readToolpath(state)),{plan:state.plan,
+            const drawn=pathImage(JSON.parse(await adapter.readDrawnPath(state)),{plan:state.plan,
               palette:resolvePhaseColours(state.phaseColours,local),inspection:state.review.generation?.summary?.inspection});
             if(drawn){result.toolpath=await write(bundleId,'toolpath',after.generationKey,drawn.png);result.phases=drawn.phases;}
           }catch(error){result.toolpathError=error.message;}

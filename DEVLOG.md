@@ -1,5 +1,18 @@
 # Development log
 
+## 2026-10-12 — Refusals audit: show, don't refuse (first pass)
+
+- Owner, 2026-10-09: "Our job is to show things in saam, not limit what we can do with saam." Items from `.local/refusals-audit-2026-10-09.md`, each decided by the owner; decisions and quotes are in plans/0.3.7.md.
+- Overlapping material (G22, G25, G61): overlapping slice claims and supports co-exist; every overlap/clearance check and the slice-stack crossing check removed. Shared ownership stays 0.4.0.
+- Old recipes pass through (G1/G2/G12 and related): one `readRecipe` fills missing fields, drops unknown ones, rewrites old assignment forms, with notes in `limitations` (Studio "Notes and limitations"); speeds, fan and signs pass through; create_bundle always saves; nested assemblies flatten; time estimates stay finite.
+- Previous toolpath (G17): one concept after any edit. Viewer draws only the saved SAAMpath; generation builds it without a machine and writes a program only when machine, exporter and installation exist (G41/G42); machine changes keep process and material; placement is an XY offset applied at display and program writing (PATH_CONTRACT saam-deposition/14).
+- Poses are {toolAxis, toolUp}; reorientation is ordinary travel; kinematics are a `machine-kinematics` extension plug (DENSO, Dobot); core/machine/*-kinematics.mjs deleted; DENSO holds `tableDeg`.
+- Old bundles (G14): split-file bundles convert on first read; ids derived for revision-less manifests; missing setup blocks filled; retired shapes read as saved mesh. All 75 split-file and 72 current repository bundles open (temp copies).
+- One bad layer or assignment (G23/G24): open sections join gaps up to a line width and keep closed loops; curved references print what they cover; a failing assignment is left out with a note. Contact curves (G30) print unsupported spans as authored and deposit nothing into material, with notes.
+- Skips instead of global failure: bad extension manifest or manual marker (G48/G49), bad phase colour (G15, default silently), defer flag (G16), unreadable remembered setup (G46).
+- Examples: nudge-cup, surface-drape and wavy-denso deleted with their references (owner); starter and the tour README kept.
+- Verified: targeted test files per change (see each row); scratch end-to-end runs in temporary SAAM homes. Not run: full suite, Studio in a browser, physical prints.
+
 ## 2026-10-09 — Map analysis memory, ownership and labels
 
 - Cause of the two unanalysed runtime closures: `currentAssignmentTerms`' `rename(record,from,to)` reads `record[from]` and writes `{...rest,[to]:value}`. Keys from parameters read as any field, so every recipe field received every other's values once `currentRecipeTerms` reached bundle, workflow and revisions (fe3d67a5). The `slice-edit` closure grew from 89 K to 820 K field nodes and 0.5 s to 66 s solving; the 197- and 200-file runtime closures exceeded 4096 MB (893 MB on 2026-10-07).

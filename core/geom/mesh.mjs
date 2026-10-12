@@ -1,7 +1,7 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import { requireThat, cross } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE, PROGRAM_STEP_MM } from '../dimensions.mjs';
-import { orientLoops } from './shell.mjs';
+import { orientLoops, closeOpenChains } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
@@ -76,6 +76,8 @@ function meshIdentity(vertices,triangles){
   const put=v=>{if(offset===buffer.length){hash.update(buffer);offset=0;}buffer.writeDoubleLE(v,offset);offset+=8;};
   put(vertices.length);put(triangles.length);for(const p of vertices)for(const v of p)put(v);for(const t of triangles)for(const v of t)put(v);hash.update(buffer.subarray(0,offset));return hash.digest('hex');
 }
+// Geometry built through this backend: indexed meshes, booleans, and assemblies holding either.
+export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
   const input=validateMeshInput(vertices,triangles);
   const identity=meshIdentity(input.vertices,input.triangles);
@@ -218,8 +220,12 @@ function trianglesAt(index,cut) {
   return found.sort((a,b)=>a-b).map(i=>index.triangles[i]);
 }
 
+// Contour pieces of a cut: crossed mesh edges chained through the triangles
+// between them. A crossed edge two triangles share continues its piece; one on an
+// open boundary, or shared by more, ends it. -> {loops, open}, each piece a list
+// of crossed edges [p, q].
 function meshContourEdges(vertices,cut,triangles){
-  const edges=new Map(),graph=new Map();
+  const edges=new Map(),segments=[],incident=new Map();
   for(const t of triangles){
     const hits=[];
     for(let k=0;k<3;k++){
@@ -229,46 +235,58 @@ function meshContourEdges(vertices,cut,triangles){
       // Keep the last triangle's edge orientation and interpolation order.
       edges.set(key,[p,q]);hits.push(key);
     }
-    if(hits.length===2)for(let k=0;k<2;k++){const list=graph.get(hits[k])??[];list.push(hits[1-k]);graph.set(hits[k],list);}
+    if(hits.length!==2)continue;
+    segments.push(hits);
+    for(const key of hits){const list=incident.get(key)??[];list.push(segments.length-1);incident.set(key,list);}
   }
-  requireThat([...graph.values()].every(n=>n.length===2),'Mesh section is not a closed set of contours.');
-  const remaining=new Set(graph.keys()),contours=[];
-  while(remaining.size){
-    const start=remaining.values().next().value,loop=[];let previous=null,current=start;
-    do {
-      requireThat(remaining.delete(current),'Ambiguous mesh contour.');loop.push(edges.get(current));
-      const next=graph.get(current).find(k=>k!==previous);previous=current;current=next;
-    } while(current!==start);
-    contours.push(loop);
-  }
-  return contours;
+  const used=new Uint8Array(segments.length),loops=[],open=[];
+  // From start along segment first until the piece returns to start or ends.
+  const walk=(start,first)=>{
+    const keys=[start];
+    for(let key=start,segment=first;segment!==undefined;){
+      used[segment]=1;key=segments[segment][0]===key?segments[segment][1]:segments[segment][0];
+      if(key===start){loops.push(keys.map(k=>edges.get(k)));return;}
+      keys.push(key);
+      const list=incident.get(key);
+      segment=list.length===2?list.find(s=>!used[s]):undefined;
+    }
+    open.push(keys.map(k=>edges.get(k)));
+  };
+  for(const [key,list] of incident)if(list.length!==2)for(const s of list)if(!used[s])walk(key,s);
+  for(const [key,list] of incident)for(const s of list)if(!used[s])walk(key,s);
+  return {loops,open};
 }
 
 // The section at frame height h: loops in the frame's (x, y), outer loops
 // counterclockwise and holes clockwise, and the nudge that moved the cut off
-// a vertex.
-export function sectionMeshIndex(index,h) {
+// a vertex. A contour an open or nonmanifold edge breaks closes over gaps up
+// to gapMm, the print's line width; open lists those gaps and the pieces dropped
+// (closeOpenChains).
+export function sectionMeshIndex(index,h,{gapMm=0}={}) {
   requireThat(Number.isFinite(h),'Section height must be finite.');
   const [min,max]=[index.bounds.min[2],index.bounds.max[2]];
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
   // geometric nudge below; genuinely outside layers must still be empty.
   const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
-  if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0};
+  if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0,open:[]};
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
   for(const nudge of SECTION_NUDGES_MM) {
     const cut=h+nudge;
     if(cut<=min||cut>=max||nearVertex(index,cut))continue;
+    const contours=meshContourEdges(index.vertices,cut,trianglesAt(index,cut));
+    const point=([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];};
     const loops=[];
-    for(const edges of meshContourEdges(index.vertices,cut,trianglesAt(index,cut))){
-      const loop=edges.map(([p,q])=>{const f=(cut-p[2])/(q[2]-p[2]);return [p[0]+f*(q[0]-p[0]),p[1]+f*(q[1]-p[1])];});
+    for(const edges of contours.loops){
       // Remove triangle seams collinear to rounding before offsetting regions. The section
       // stays the exact cut: a shape tolerance here would switch retained vertices as Z
       // moves, and callers simplify at their own tolerance (contour-sleeve, layer-strokes).
-      const clean=cleanPlanarLoop(loop,ROUNDING_MM);
+      const clean=cleanPlanarLoop(edges.map(point),ROUNDING_MM);
       requireThat(clean.length>=3,'Mesh section collapsed below tolerance.');loops.push(clean);
     }
-    return {loops:orientLoops(loops),nudgedByMm:nudge};
+    const closed=closeOpenChains(contours.open.map(edges=>edges.map(point)),gapMm);
+    for(const loop of closed.loops){const clean=cleanPlanarLoop(loop,ROUNDING_MM);if(clean.length>=3)loops.push(clean);}
+    return {loops:orientLoops(loops),nudgedByMm:nudge,open:closed.open};
   }
   throw new Error('Mesh cut is ambiguous within section tolerance.');
 }

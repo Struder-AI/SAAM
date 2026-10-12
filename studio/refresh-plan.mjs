@@ -12,9 +12,9 @@ export function planPresentation(previous,next,{follow,pathMoves,materialMoves})
   const identity=presentationIdentity(next);
   const output=completedOutputState(next);
   const visible=output.available?next.program:!next.completedOutput?next.neutralProgram:null;
-  if(visible)return {model:{identity,presentedState:next.program?outputView(next):{...next,program:visible},program:visible,retained:false},
+  if(visible)return {model:{identity,presentedState:next.program?outputView(next):{...next,program:visible},program:visible},
     effects:{program:'replace',buildPath:pathMoves!==visible.moves,buildMaterial:!visible.neutral&&materialMoves!==visible.moves}};
-  return {model:{identity,presentedState:outputView(next),program:null,retained:false},
+  return {model:{identity,presentedState:outputView(next),program:null},
     effects:{program:'clear',buildPath:false,buildMaterial:false}};
 }
 

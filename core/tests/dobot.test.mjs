@@ -22,15 +22,17 @@ function fixture(){
   plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
   return {machine,plan};
 }
-test('Dobot unconfigured profile is discoverable and allows geometry review, but refuses export',async()=>{
+test('Dobot unconfigured profile generates and shows the SAAMpath; only the program waits',async()=>{
   const machine=loadMachine('dobot-mg400'),plan=defaults(machine);plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});
   validatePlan(plan,machine);
   const dir=await mkdtemp(join(tmpdir(),'saam-dobot-unconfigured-'));
   try{
     await initBundle(dir,plan,{machineId:machine.id});
+    const result=await generateBundle(dir,{development:true});
+    assert.match(result.message,/^Toolpath ready\. The .* program is not written yet: Dobot installation is unconfigured/);
     const state=await loadBundle(dir);
-    await assert.rejects(()=>generateBundle(dir,{development:true}),/Dobot installation is unconfigured/);
-    assert.equal(state.review.generation,null);
+    assert.equal(state.artifacts.path,'current');assert.equal(state.review.generation,null);
+    assert.match(state.outputAvailability,/Dobot installation is unconfigured/);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('Dobot export preserves three skill paths and reports relay estimates separately',async()=>{
@@ -61,11 +63,16 @@ test('Dobot rejects invalid instance/unsupported process and checks calibrated w
   for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/],['workspaceMaxMm',[0,0,1],/workspace/],['maxLinearSpeedMmS',1,/linear speed/]]){
     const p=structuredClone(plan);p.setup.dobot[key]=value;await assert.rejects(()=>exportProgram(path,p,machine,release),pattern);
   }
-  const p=structuredClone(plan);p.process.retractMm=1;await assert.rejects(()=>exportProgram(path,p,machine,release),/cannot retract/);
-  const fan=structuredClone(path);fan.actions.push({kind:'fan',percent:50,phase:'test',layer:0});await assert.rejects(()=>exportProgram(fan,plan,machine,release),/fan control/);
+  // A relay has no retraction or fan: the program omits them and says so.
+  const fan=structuredClone(path);fan.actions.push({kind:'retract',filamentMm:1,speedMmS:25,phase:'test',layer:0},{kind:'fan',percent:50,phase:'test',layer:0});
+  assert.ok((await exportProgram(fan,plan,machine,release)).report.limitations.some(text=>/no retraction or fan control/.test(text)));
+  // Heating is external: an unstated nozzle temperature is reported, not refused.
+  const cold=structuredClone(plan);cold.setup.nozzleC=0;
+  assert.ok((await exportProgram(path,cold,machine,release)).report.limitations.includes('Externally established nozzle temperature: not stated; the program writes none.'));
 });
 test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwell and adds no priming wait',async()=>{
-  const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
+  // Bed-frame paths: no placement offset.
+  const {machine,plan}=fixture();plan.placement={xMm:0,yMm:0};const action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
   const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[200,180,20],actions:[
     action([190,180,20],0),action([180,180,20],0.8),action([170,180,20],0.8),
     {kind:'dwell',seconds:0.5,phase:'test',layer:0},action([160,180,20],0),action([150,180,20],0.8)
@@ -75,7 +82,7 @@ test('Dobot relay policy keeps adjacent print moves on, turns off for travel/dwe
   assert.deepEqual(body.match(/Wait\(\d+\)/g),['Wait(500)'],'one dwell, no priming wait');
 });
 test('a pause longer than one Wait command is split, not refused',async()=>{
-  const {machine,plan}=fixture(),action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
+  const {machine,plan}=fixture();plan.placement={xMm:0,yMm:0};const action=(to,volumeMm3)=>({kind:'move',to,speedMmS:10,volumeMm3,phase:'test',layer:0});
   const program=async seconds=>{
     const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[200,180,20],actions:[
       action([190,180,20],0),{kind:'dwell',seconds,phase:'test',layer:0},action([180,180,20],0.8)]};

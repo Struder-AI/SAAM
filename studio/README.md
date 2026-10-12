@@ -79,9 +79,10 @@ A matching toolpath view queues one [short-travel advisory](../core/export/READM
 per export. Acknowledge it and describe the findings; it neither blocks review
 nor requests repair. Reopening an acknowledged export does not resend it.
 
-The toolpath view draws the completed output's prepared path; the adapter's stored
-report supplies notice, estimates and limitations, and its settings rows follow the
-common settings. Development preview supplies no confirmation or authority to deliver.
+The toolpath view draws the SAAMpath, the completed output's or else the saved one, at its
+placement; the adapter's stored report supplies notice, estimates and limitations, and its
+settings rows follow the common settings. Next generates without a machine; Export waits
+for the program, whose missing machine, exporter or installation the review note names. Development preview supplies no confirmation or authority to deliver.
 
 ## Opening local prints in Studio
 
@@ -91,9 +92,9 @@ is not implemented. One Studio owns each open bundle. Changing the selected
 bundle changes all tabs of that Studio; mutation requests carry print identity
 so an old tab cannot export a newly selected print.
 
-Opening checks saved artifacts without regenerating current files. A current
-saved SAAMpath with no checked machine program is labeled as neutral source and
-cannot export. A tour starts with geometry and generates when its toolpath
+Opening checks saved artifacts without regenerating current files. A saved
+SAAMpath with no checked machine program is labeled as neutral source and cannot
+export. A tour starts with geometry and generates when its toolpath
 lesson opens. Outside tours, a fresh bundle starts in geometry view.
 
 An obsolete calculation is cancelled when its inputs change. While replacing a

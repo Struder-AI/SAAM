@@ -4,10 +4,12 @@ import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../mach
 import {materialProcess,materialTool} from '../machine/filaments.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 import {samePose,uprightPose} from '../path/pose.mjs';
+import {placedPath} from '../path/placement.mjs';
+import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
+import {moveSeconds} from '../path/saampath.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
-const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
 const upright=pose=>!pose||samePose(pose,uprightPose());
 const selection=(plan,machine,index)=>{
   const tool=materialTool(plan,index);
@@ -38,26 +40,28 @@ function limitedFeed(start,actions,machine){
     let speed=action.speedMmS;
     for(let i=0;i<3;i++)if(delta[i]>0)speed=Math.min(speed,machine.maxFeedMmS['xyz'[i]]*length/delta[i]);
     from=action.to;
-    return {...action,speedMmS:speed,...(action.durationSeconds?{durationSeconds:Math.max(action.durationSeconds,length/speed)}:{})};
+    return {...action,speedMmS:speed,...(action.durationSeconds?{durationSeconds:Math.max(action.durationSeconds,moveSeconds(length,speed))}:{})};
   });
 }
 
 // The saved SAAMpath is independent of machine/output. This ephemeral path is
 // the exact selected-machine motion sent into the program writer. The adapter
 // declares whether it writes poses; its setup block may state the start pose
-// and posed-travel motion (retreatMm, transitionSeconds, rotaryCenterMm). A posed
-// prepared path declares the rotary centre it moved about, for Studio to draw.
-export function prepareExportPath(path,plan,machine,adapter){
-  requireThat(path?.schema==='saampath/1'&&path.completion?.contract===NEUTRAL_PATH_CONTRACT,
+// and the posed-travel retreat (initialPose, retreatMm). The SAAMpath is moved
+// onto the bed by the recipe's placement first.
+export function prepareExportPath(saved,plan,machine,adapter){
+  requireThat(saved?.schema==='saampath/1'&&saved.completion?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
+  const path=placedPath(saved,plan.placement);
   validateSetup(plan,machine,{required:true,adapter});
   const oriented=adapter.poses===true,block=plan.setup[adapter.settings?.key];
   requireThat(oriented||[path.initialPose,...path.actions.map(a=>a.pose)].every(upright),
-    'Selected output cannot represent non-upright orientation or rotary motion.');
+    'Selected output cannot represent non-upright tool orientation.');
   const bounds=toolBounds(machine,plan.setup.tool);
   let selected={plan,tool:plan.setup.tool,process:plan.process,bounds};
   const start=startupPosition(machine,plan,block),motion=new AdaptationMotion({start,process:plan.process,
-    retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,motion:oriented?block:null});
+    retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,
+    ...(oriented&&block?.retreatMm?{retreatMm:block.retreatMm}:{})});
   const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
@@ -101,7 +105,7 @@ export function prepareExportPath(path,plan,machine,adapter){
     if(original.kind==='move'){
       // Rounding guard: a neutral move of zero length within rounding is no move.
       if(original.volumeMm3>0&&distance(motion.position,neutralFrom)>ROUNDING_MM)motion.travel(neutralFrom);
-      if(distance(motion.position,original.to)<ROUNDING_MM&&!original.pose){
+      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){
         requireThat(original.volumeMm3===0,'A zero-length move needs stationary extrusion.');neutralFrom=original.to;continue;
       }
       motion.position=[...original.to];motion.pose=original.pose??null;
@@ -118,7 +122,6 @@ export function prepareExportPath(path,plan,machine,adapter){
   if(relocating)motion.travel(neutralFrom);
   const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
     initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
-    ...(oriented?{rotaryCenterMm:motion.motion.rotaryCenterMm}:{}),
     actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds}};
   if(!oriented)delete prepared.initialPose;
   return prepared;

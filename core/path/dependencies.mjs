@@ -1,14 +1,19 @@
 import {resolveSpatialPlan} from '../print/spatial-inputs.mjs';
+import {assignedFilaments} from '../machine/filaments.mjs';
 
-export const PATH_CONTRACT='saam-deposition/13';
+// 14: built in the part's frame; placement applies at display and program writing.
+// Poses are {toolAxis, toolUp}; reorientation is ordinary travel (no rotary angle).
+export const PATH_CONTRACT='saam-deposition/14';
 export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
-// Only authored deposition inputs affect the saved path. Output and installed
-// machine settings are checked while preparing the selected machine program.
+// Only authored deposition inputs affect the saved path. Output, placement and
+// installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){
   plan=resolveSpatialPlan(plan);
-  const {output,setup,...authored}=plan;
+  const {output,setup,placement:_placement,...authored}=plan;
+  // The default filament matters only when assignments select filaments (generatePath).
+  const assigned=assignedFilaments(plan);
   const materialIntent={nozzleC:setup?.nozzleC,
-    defaultFilament:setup?.filament??null,
+    defaultFilament:assigned.length?setup?.filament??assigned[0]:null,
     filaments:setup?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
   const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['supports','plastic-weld'].includes(id)||config?.enabled));
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};

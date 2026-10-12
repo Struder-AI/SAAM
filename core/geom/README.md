@@ -90,7 +90,7 @@ physical-invariant failures rather than loosening checks.
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
 | [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
 | [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; faces need nonzero XY projection and vertices above the plane. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
-| [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and their stack. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
+| [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process and authored `regionsAt(z)` polygons, return merged planar Slice layers and their stack; it never invents source regions. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice stack. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
 | [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
@@ -105,7 +105,7 @@ chart endpoint matching and point cleanup at print resolution. Only regions add 
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
-Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
+Geodesic region offsets keep their C2 limit, and growth its domain limit; piecewise roofs/sleeves
 keep explicit crease transitions. No trimmed-surface capability is introduced.
 Native geometry and explicit manufacturing meshes remain authoritative; display
 approximations never replace them. Saved/native/display artifacts retain their
@@ -126,15 +126,13 @@ closes the file. Leading whitespace, CRLF and a closing solid name are accepted.
 triangles. It counts, without refusing, nonadjacent triangles that cross or touch within
 the rounding guard (`contacts`) and, in `topology`, open, nonmanifold and inconsistently
 wound edges, sheets meeting at a vertex, unused vertices and slivers (a sliver keeps its
-raw normal). Sections stop only where they meet such a defect. It does not repair geometry. Checks are
+raw normal). It does not repair geometry. Checks are
 controlled by a configurable memory estimate and a spatial hierarchy. The number
 of candidate pairs tested is whatever the mesh's own overlapping bounds and
 shared vertices produce; there is no work allowance on it. Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
 a complete solid-kernel validity proof. [Mesh repair](#explicit-mesh-repair) also
-reports adjacent faces folded onto each other. Mesh sections preserve holes/islands and
-report nudged boundary cuts. Normals at equal-height creases use the steeper
-facet. Drape requires a continuous accessible roof; discontinuities or sampled
+reports adjacent faces folded onto each other. Normals at equal-height creases use the steeper facet. Drape requires a continuous accessible roof; discontinuities or sampled
 segments above its angle limit are rejected. Sampling and bead-width limits remain.
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
@@ -306,11 +304,11 @@ chord follows the surface within tolerance, with each inserted point projected
 back onto the contour. What can still be missed is a component smaller than the
 final cell, bounded by `minFeatureMm`, whose default is the bead width.
 
-A plane through a critical point of the surface (a saddle, where the contour
-self-touches) or flush with a whole face is genuinely ambiguous. Both are
-resolved the way slicers resolve them, by displacing the plane by up to 0.1 um
-and re-cutting; the displacement is reported. A section that still will not
-close raises rather than returning a part with a gap in it.
+A plane through a saddle of the surface (where the contour self-touches) or flush
+with a whole face is ambiguous; like other slicers, SAAM displaces it by up to 10 um,
+re-cuts and reports the displacement. A section that still does not close, or meets
+an open or nonmanifold mesh edge, joins gaps up to the caller's `gapMm` (the line
+width), keeps every closed loop and lists the gaps and left-out pieces in `open`.
 
 ## Mesh sleeves
 
@@ -398,7 +396,7 @@ consumers, prefixing their names with the assembly component id where present.
 The final merged mesh remains the default whole-solid selection and review model.
 Changing the selected material or toolpath skill leaves the geometry record
 unchanged. The [region contract](../region/README.md#material-ownership-and-surface-contact)
-owns assignment and overlap rules.
+owns assignment rules.
 
 Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
 [Manifold](https://manifoldcad.org/docs/jsapi/documents/Using_Manifold.html).

@@ -39,9 +39,9 @@ Sources: [0.3.3 "Bundle evidence and output diagnostics"](../plans/0.3.3.md).
 ## Old bundles update when work resumes
 > "Any stale bundles should be updated to new versions only at the point after the upgrade when that bundle is actively being worked on. Reduce complexity" — owner, 2026-10-01 (Codex 01a0f8f8 22:30)
 
-Summary: after an upgrade a bundle is updated only when someone works on it again, with no bulk migration; saved geometry and SAAMpath stay viewable without extension code, and a recipe that needs migration says to run `migrate_bundle`.
+Summary: after an upgrade a bundle is updated only when someone works on it again, with no bulk migration (a split-file bundle converts on its first read, keeping its original files); saved geometry and SAAMpath stay viewable without extension code, and an old recipe generates with notes on what was filled, ignored or skipped.
 
-Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [0.3.4 "Old recipes say how to generate"](../plans/0.3.4.md).
+Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [0.3.4 "Old recipes say how to generate"](../plans/0.3.4.md); [0.3.7 "Old recipes pass through" and "Old bundles convert on first read"](../plans/0.3.7.md).
 
 ## Sharing a bundle
 > "We need a shared bundle operation. Think about which parts of it need to be included, so that the other SAAM install on the other machine can do everything it needs to, but don't bloat the file size. Regenerate toolpaths for example, rather than ship toolpaths" — owner, 2026-10-03 (Codex 01a102a0 17:18)

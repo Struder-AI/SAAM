@@ -198,24 +198,13 @@ function tangentBridge(candidate,request,process,id,shell,createSectionQuery,tol
   return {...trace(id,curves,request.after??[]),repeat:{count:3,translation:[0,0,0]},repetitionIds:['tangents-a','tangents-b','bore-rim']};
 }
 
-function sleeve(candidate,request,process,id,shell,createSectionQuery,toleranceMm){
+function sleeve(candidate,request,process,id){
   const [x,y]=candidate.centerMm,w=process.lineWidthMm,xyGapMm=request.xyGapMm??.3,topGapMm=request.topGapMm??.2;
   check(finite(xyGapMm)&&xyGapMm>=0&&finite(topGapMm)&&topGapMm>=0,'Sleeve gaps must be nonnegative.');
   const outer=candidate.lowerRadiusMm-xyGapMm,inner=request.sleeveInnerRadiusMm??Math.max(w,candidate.upperRadiusMm-w);
   check(finite(inner)&&inner>=w&&outer-inner>=2*w,'The removable sleeve needs at least two beads of wall between its bore and cleared outer edge.');
   const top=candidate.shoulderZMm-topGapMm,count=Math.floor((top-process.firstLayerMm+PRINT_RESOLUTION_MM)/process.layerMm)+1;
   check(count>=1,'The removable sleeve has no complete planar layer below its top gap.');
-  // Trace does not participate in Slice's region-ownership proof. Check every
-  // commanded bead envelope against the actual circular void section instead.
-  const sectionAt=createSectionQuery(shell);
-  for(let layer=0;layer<count;layer++){
-    const z=process.firstLayerMm+layer*process.layerMm;
-    for(const probe of [Math.max(PRINT_RESOLUTION_MM,z-(layer?process.layerMm:process.firstLayerMm)),z]){
-      const {hole}=cavityAt(sectionAt,probe,candidate,toleranceMm);
-      check(hole.radiusMm+PRINT_RESOLUTION_MM>=outer+xyGapMm,
-        `Sleeve envelope meets model material near Z ${probe.toFixed(3)} mm; revise the sleeve or use another support mode.`);
-    }
-  }
   const outerCenter=outer-w/2,innerCenter=inner+w/2,ringCount=Math.max(2,Math.ceil((outerCenter-innerCenter)/w)+1);
   const curves=Array.from({length:ringCount},(_,i)=>{
     const radius=outerCenter-(outerCenter-innerCenter)*i/(ringCount-1);
@@ -242,7 +231,7 @@ export async function editHoleSupports(source,request,operations){
   check(!prior.some(a=>a.id===id),'An assignment already has this hole-support id; choose a new id or remove the old assignment first.');
   const assignment=request.mode==='membrane'?membrane(candidate,request,process,id,shell,operations.createSectionQuery,toleranceMm)
     :request.mode==='tangent-bridge'?tangentBridge(candidate,request,process,id,shell,operations.createSectionQuery,toleranceMm)
-    :sleeve(candidate,request,process,id,shell,operations.createSectionQuery,toleranceMm);
+    :sleeve(candidate,request,process,id);
   return {assignmentRequests:[...prior,assignment],report:{candidate,mode:request.mode,assignmentId:id,
     limits:'Experimental authored support only. Inspect exact deposition, removal access, material contact and drilling before export; no physical success is inferred.'}};
 }

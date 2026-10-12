@@ -141,7 +141,8 @@ export function sampledChartRegion(bounds,stepMm,contains) {
     let a=inside,b=outside;
     while(Math.hypot(a[0]-b[0],a[1]-b[1])>PROGRAM_STEP_MM) {
       const middle=[(a[0]+b[0])/2,(a[1]+b[1])/2];
-      requireThat(middle[0]!==a[0]||middle[1]!==a[1],'Chart boundary refinement cannot progress at floating-point precision.');
+      // Halving has reached floating-point precision: a is the boundary.
+      if(middle[0]===a[0]&&middle[1]===a[1]||middle[0]===b[0]&&middle[1]===b[1])break;
       if(contains(middle))a=middle;else b=middle;
     }
     return a;
@@ -149,14 +150,12 @@ export function sampledChartRegion(bounds,stepMm,contains) {
   return extractLevelSet({xs,ys,values},0,{refine});
 }
 
-export function sectionHeightSlice(geometry,slice,{sampleStepMm=slice.sampleStepMm,fullCrossing=true}={}) {
+// The region of the solid on a height slice, where its reference covers it.
+export function sectionHeightSlice(geometry,slice,{sampleStepMm=slice.sampleStepMm}={}) {
   const source=geometry.kind==='prepared-mesh'?geometry.mesh:geometry;
   const contains=point=>{
     const top=referenceHeight(slice.reference,...point);
-    if(!top) {
-      requireThat(!fullCrossing||slice.reference.kind!=='spline'||!topAt(source,...point),'Spline slice domain stops over the part; extend the reference to fully cross its material.');
-      return false;
-    }
+    if(!top)return false;
     const p=heightSlicePoint(slice,point),epsilon=PRINT_RESOLUTION_MM;
     return containsPoint(source,[p[0],p[1],p[2]-epsilon])||containsPoint(source,[p[0],p[1],p[2]+epsilon]);
   };

@@ -1,6 +1,6 @@
 import {GEOMETRY_SHAPES} from '../print/plan.mjs';
 // Discoverable patch schemas. Named records let the existing SDK emit local
-// references instead of repeated shapes; recipe validators still own completeness.
+// references instead of repeated shapes; recipe reading owns completeness.
 import {z} from 'zod';
 import {FILL_PATTERNS} from '../region/fill-patterns.mjs';
 const number=z.number().finite(),positive=number.positive(),names=z.array(z.string()),xyz=z.tuple([number,number,number]).meta({id:'saam.xyz'}),uv=z.tuple([number,number]).meta({id:'saam.uv'});
@@ -23,7 +23,7 @@ const modulationRecordSchema=z.object({id:z.string().optional(),assignments:name
   field:fieldSchema.optional(),sampleStepMm:positive.optional(),tolerance:positive.optional()
 }).strict();
 export const surfaceSchema=z.object({kind:z.enum(['horizontal','plane','roof','spline','patch','mesh-strip','terminal']).optional(),assignment:z.string().optional(),minFeatureMm:positive.optional(),origin:xyz.optional(),normal:xyz.optional(),xAxis:xyz.optional(),offsetMm:number.optional(),patch:z.union([patchSchema,z.string()]).optional(),part:z.string().nullable().optional(),periodicU:z.boolean().optional(),normalSide:z.union([z.literal(1),z.literal(-1)]).optional(),uvBounds:z.tuple([uv,uv]).optional(),rows:z.array(z.array(z.number().int())).optional()}).strict();
-const process=z.object({...Object.fromEntries(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS'].map(k=>[k,positive.optional()])),fanPercent:number.min(0).max(100).optional(),liftMm:number.min(0).optional(),retractMm:number.min(0).optional()}).strict();
+const process=z.object(Object.fromEntries(['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent','liftMm','retractMm'].map(k=>[k,number.optional()]))).strict();
 const nurbs=z.object({degree:z.number().int().positive(),knots:z.array(number),controlPoints:z.array(z.union([uv,xyz])),weights:z.array(positive).optional()}).meta({id:'saam.nurbs'});
 const profile=z.array(z.tuple([number,positive])).meta({id:'saam.profile'});
 const reference=z.object({kind:z.enum(['patch','slice','sleeve']),part:z.string().nullable().optional(),name:z.string().optional(),assignment:z.string().optional(),index:z.number().int().optional()}).strict();

@@ -41,12 +41,12 @@ Trace receives its resolved curves. Generation establishes no adhesion or streng
 `sequence:true` finalizes each repetition of the curve set before constructing the next;
 `repetitionIds` names those repetitions, and `repetitions:[indices]` selects which contain a curve.
 `maxExcursionMm` bounds each group's Z span; null imposes no ceiling.
-A curve may require supporting material with
+A curve may declare its supporting material with
 `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}`. Null source
 uses available predecessors; a producer or operation ID narrows it. Null gap
 uses the resolved bead height; null reference Z uses each sampled curve point.
-Contact is checked vertically against positive-volume strands, not inferred
-from a solid guide. No enclosing solid is required.
+Contact is checked vertically against positive-volume strands, not inferred from a solid guide;
+no enclosing solid is required. A span without it prints as authored, listed in `limitations`.
 
 A down-and-up curve can declare `depositionAction:{kind:"press",depthMm}` within its bead height.
 Polyline `segmentMetadata` retains segment identities through resampling and compaction.

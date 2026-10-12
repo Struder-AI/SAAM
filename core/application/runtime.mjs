@@ -18,12 +18,12 @@ import {randomUUID} from 'node:crypto';
 import {runPortableBundleJob} from './portable-bundle-job.mjs';
 import {changeMachine,adjustSettings,recordExtensionDependency} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
-import { machineIds, loadMachine } from '../machine/profile.mjs';
+import { loadMachine } from '../machine/profile.mjs';
 import { createStudio, listPrints } from '../../studio/server.mjs';
 import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import {tourStatus,tourExample} from '../../studio/tour.mjs';
 import {createChatChannel,requestPrintId,workEvidence} from './chat-requests.mjs';
-import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension,machineCatalog} from '../extensions/library.mjs';
+import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension,machineProfiles} from '../extensions/library.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../agent/blob-field.mjs';
 import {applySlice} from '../print/slice-edit.mjs';
 import {applyModulation} from '../print/modulation.mjs';
@@ -53,7 +53,6 @@ const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
 const editIdentitySchema={expectedRevision:z.string().min(1).optional(),expectedEditRevision:z.string().min(1).optional()};
 async function bundleModule(){return import('../print/bundle.mjs');}
-async function recipeModule(){return import('../print/plan.mjs');}
 
 function noApprovalFields(value) {
   if (!value || typeof value !== 'object') return;
@@ -105,7 +104,7 @@ export function summary(bundleId, state) {
     programError: state.programError ?? null, outputId: state.outputId ?? null,
     shortTravel: state.program?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
+    nextStep: !state.machine?'Generate the toolpath from the recipe; select a machine to write its program.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
       : 'Review settings and the exact toolpath together in Studio; the person exports from Studio.'
   };
@@ -319,13 +318,14 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    for(const extension of (await listExtensions({appRoot:root})).filter(extension=>extension.manifest.kind!=='machine')){
+    const {extensions,skipped}=await listExtensions({appRoot:root});
+    for(const extension of extensions.filter(extension=>extension.manifest.kind!=='machine')){
       const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
       found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind&&extension.manifest.kind!=='skill'?{kind:extension.manifest.kind}:{}),layer:'extension',origin:extension.origin,
         digest:extension.digest,manualTool:'read_skill'});
     }
     found.push(...await localExtension.skills?.()??[]);
-    return found.sort((a, b) => a.id.localeCompare(b.id));
+    return {skills:found.sort((a, b) => a.id.localeCompare(b.id)),...(skipped.length?{skipped}:{})};
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour','get_workspace','capture_bundle','get_bundle_instance','recover_bundle_instance','repair_stl']);
   const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
@@ -336,7 +336,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     extensionActions.delete(name);
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours'].includes(name);
-    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle','migrate_bundle'].includes(name);
+    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle'].includes(name);
     // The full strict schema makes unexpected top-level approval data an error
     // instead of letting Zod silently discard it.
     const schema=z.object({...shape,expectedStudio:expectedStudioSchema.optional(),...(tracked?{requestIds:z.array(z.string()).optional(),studioInstanceId:z.string().optional()}: {})}).strict();
@@ -398,16 +398,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {dir,server:session.server};
   }
 
-  async function visibleBundle(bundleId,{studioInstanceId,requestIds,migrating=false}={}){
+  async function visibleBundle(bundleId,{studioInstanceId,requestIds}={}){
     const dir=await directory(bundleId,{create:true,exclusive:false});
     const saved=await access(resolve(dir,'plan.json')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
     const retained=[...studioSessions.values()].find(session=>session.server.creationTarget()===dir);
-    const existing=saved&&!migrating?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
-    if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,migrating,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
+    const existing=saved?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
+    if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
     if(existing){const session=allStudios.get(existing.server.agentSession().instanceId);return {...existing,url:session.url,pending:false,browserOpenRequested:false};}
-    const studio=await viewStudio(saved&&!migrating?dir:null);
+    const studio=await viewStudio(saved?dir:null);
     const browserOpenRequested=await show(studio);
-    const view={dir,server:studio.server,url:studio.url,pending:!saved||migrating,browserOpenRequested,migrating,opening:null,stopWatching:null};
+    const view={dir,server:studio.server,url:studio.url,pending:!saved,browserOpenRequested,opening:null,stopWatching:null};
     if(view.pending)view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});
     return view;
   }
@@ -449,7 +449,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           if(existing&&transferringStudios.has(existing.server.agentSession().instanceId))throw Error('This Studio is transferring to another chat. Retry after the capture finishes.');
           if(existing&&existing.ownerId!==ownerId)throw Error('This bundle is attached to another chat. Explicitly capture it before editing.');
         }
-        const view=input.bundleId&&!definition.immediate&&!['capture_bundle','request_review'].includes(name)?await visibleBundle(input.bundleId,{studioInstanceId:input.studioInstanceId,requestIds,migrating:name==='migrate_bundle'}):null;
+        const view=input.bundleId&&!definition.immediate&&!['capture_bundle','request_review'].includes(name)?await visibleBundle(input.bundleId,{studioInstanceId:input.studioInstanceId,requestIds}):null;
         const associated=definition.instanceScope&&input.action!=='create'&&!view?.pending?view??await associatedStudio(input.bundleId,input.studioInstanceId,requestIds):null;
         const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
         if(input.studioInstanceId&&!studioSessions.has(input.studioInstanceId))throw Error('That Studio is no longer attached to this chat.');
@@ -473,7 +473,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         if(definition.tracked)await touch();
         if(view?.pending&&definition.resultChanging){
           creationViews.add(view.dir);
-          try{call.result=await view.server.runBundleCreation(view.dir,instance=>performAndCapture(input,instance),{fresh:!view.migrating});}
+          try{call.result=await view.server.runBundleCreation(view.dir,instance=>performAndCapture(input,instance));}
           finally{creationViews.delete(view.dir);view.stopWatching?.();}
         }else if(definition.instanceScope&&input.action!=='create'){
           const {studioInstanceId,...fields}=input;
@@ -555,14 +555,17 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(!relay)throw Error('Bug reports travel through the SAAM application.');
     return relay.report({description,context:{reporter:'agent',client,printId:printId??null,runtimeId:application.runtime?.id??null,runtimeLabel:application.runtime?.label??null}});
   }
-  operation('list_machines','List installed machine profiles, the machine extension providing each (its contract: read_skill with that id) and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
-  async function listMachines(){const catalog=machineCatalog();return machineIds().map(id => {
-    const m = loadMachine(id);
-    return { id, name: m.name, extension: catalog.get(id).extension, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
-      outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
-      defaultSetup: m.defaultSetup };
-  });}
-  operation('list_skills','List core skills, guidance and skill/workspace extension manuals. Catalog membership does not establish recipe compatibility.',{});
+  operation('list_machines','List installed machine profiles, the machine extension providing each (its contract: read_skill with that id) and declared outputs; skipped names unreadable extensions and profiles. Catalog presence is not proof that a particular recipe is supported.',{});
+  // A machine extension or profile that cannot be read is named in skipped; the others list.
+  async function listMachines(){const {profiles,skipped}=machineProfiles(),machines=[];
+    for(const [id,{extension}] of profiles){
+      try{const m=loadMachine(id);machines.push({ id, name: m.name, extension, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
+        outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
+        defaultSetup: m.defaultSetup });}
+      catch(error){skipped.push({extension,profile:id,reason:error.message});}
+    }
+    return {machines,...(skipped.length?{skipped}:{})};}
+  operation('list_skills','List core skills, guidance and skill/workspace extension manuals; skipped names unreadable extensions. Catalog membership does not establish recipe compatibility.',{});
   operation('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new print bundles for ordinary Studio review.',{});
   async function listWorkspacesOperation(){
     const {listWorkspaces}=await import('../extensions/workspaces.mjs');
@@ -604,9 +607,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('read_guidance','Read published repository Markdown, or a skill example recipe (create_bundle input), by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Short IDs: makers, geometry, development, glossary, application, print-tools. This reader does not expose private files, source code or register capabilities.',{ guidanceId: z.string().min(1), machineId: machineIdSchema,bundleId:bundleIdSchema.optional() });
   async function readGuidanceOperation({ guidanceId, machineId,bundleId }){return readManual(root, guidanceId, {...await manualContext({machineId,bundleId}),headings:true});}
-  operation('get_recipe_defaults','Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',{ kind: kindSchema, machineId: z.string() });
-  async function getRecipeDefaults({ kind, machineId }){return { kind, machineId,
-      plan: await (await bundleModule()).proposedPlan(machineId, { machineSetups: await machineSetupStore() }) };}
+  operation('get_recipe_defaults','Get process, setup and common assignment defaults, including remembered setup; without machineId, generic defaults. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',{ kind: kindSchema, machineId: z.string().optional() });
+  async function getRecipeDefaults({ kind, machineId }){
+    const {plan,notes}=await (await bundleModule()).proposedPlan(machineId, { machineSetups: await machineSetupStore() });
+    return { kind, machineId, plan, ...(notes.length?{limitations:notes}:{}) };}
   operation('list_bundles','Discover saved print names, machines and modification times. Export status is unchecked; use get_bundle or check_bundle for validated status.',{});
   async function listBundles(){
     const result = [];
@@ -630,17 +634,17 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   }
-  operation('create_bundle','Create a bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false,false,'geometry');
+  operation('create_bundle','Create and show a bundle with authored/imported geometry or standalone Trace/Inject assignments; an unfinished recipe is saved as it is. Missing fields take current defaults (generic without machineId; a machine can be selected later) and unread fields are ignored, both named in limitations; deposition reports what generation makes of it. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string().optional(), plan: objectSchema },false,false,'geometry');
   async function createBundle({ bundleId, kind, machineId, plan }){
       noApprovalFields(plan);
-      const machine = loadMachine(machineId), recipe = await recipeModule();
-      recipe.validatePlan(plan);
+      if(machineId)loadMachine(machineId);
       const dir = await directory(bundleId, { create: true }), bundle = await bundleModule();
       await bundle.initBundle(dir, plan, { machineId });
-      return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
+      const state = await bundle.loadBundle(dir), {depositionFinding} = await import('../print/deposition-diagnostics.mjs');
+      return {...await withMachineHint(bundleId, state, machineId), deposition: await depositionFinding(state.plan)};
     }
 
-  operation('migrate_bundle','Explicitly migrate legacy bundle and recipe fields, retaining original artifacts. Regenerate after recipe migration. Shows the migrated bundle in Studio; no implicit read-time migration.',{bundleId:bundleIdSchema},false);
+  operation('migrate_bundle','Tidy a bundle: save its recipe as SAAM reads it (defaults filled, unread fields removed, legacy assignment forms rewritten), clearing its field notes. Generation never requires it; regenerate afterwards. Shows the bundle in Studio.',{bundleId:bundleIdSchema},false);
   async function migrateBundleOperation({bundleId}){
     const dir=await directory(bundleId),bundle=await bundleModule();return {bundleId,...await bundle.migrateBundle(dir)};
   }
@@ -768,7 +772,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
-  operation('adjust_recipe','Apply a validated recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Edits invalidate final confirmation; read fresh state if stale.',{ bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() },false);
+  operation('adjust_recipe','Apply a recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Unread fields are ignored and named in limitations. Edits invalidate final confirmation; read fresh state if stale.',{ bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() },false);
   async function adjustRecipe({ bundleId, expectedRevision,expectedEditRevision, patch }){
       noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
@@ -798,7 +802,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',{bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),...editIdentitySchema},false);
   async function recordExtensionDependencyOperation({bundleId,extensionId,configuration,expectedRevision,expectedEditRevision}){return summary(bundleId,
       await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision,expectedEditRevision}));}
-  operation('set_deferred_setup_save','Defer remembering the exact exported setup for this bundle (defer:true), or resume normal remembering (false). Persists across sessions; edits and existing remembered defaults are unchanged.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),defer:z.boolean()},false);
+  operation('set_deferred_setup_save','Set (defer:true) or clear (false) this bundle\'s optional flag that skips remembering its exported setup; clearing removes the flag. Persists across sessions; edits and remembered defaults are unchanged.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),defer:z.boolean()},false);
   async function setDeferredSetupSaveOperation({bundleId,expectedRevision,defer}){
     const {dir,bundle}=await locate(bundleId);return {bundleId,...await bundle.setDeferredSetupSave(dir,{defer,expectedRevision})};
   }
@@ -934,7 +938,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...agentStudioSession(result),connected:false};
   }
-  operation('generate_toolpath','Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
+  operation('generate_toolpath','Generate the SAAMpath from the recipe and, when the selected machine, its exporter and installation are supplied, check its program; otherwise the result names what the program still needs. Includes the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
   // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
   async function generateToolpath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);

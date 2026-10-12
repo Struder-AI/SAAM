@@ -31,14 +31,13 @@ Use the normal assignment editor; it supplies the remaining Slice defaults:
 The four slices at 0.2 mm spacing alternate axial tracks and circumferential helices.
 `directions:["forward","reverse"]` alternates helical winding. A longer list
 repeats in order. `spacingFactor` changes track pitch without changing bead
-width. `fromMm` and `toMm` select the owned normal-depth interval; overlapping
-owners reject before deposition; touching intervals are allowed.
+width. `fromMm` and `toMm` select the owned normal-depth interval.
 
 `part` selects an assembly component. A null contact source consumes its
 available finalized producers; an assignment ID selects one. Source operation
 prerequisites are retained. Geometry edits update the reference; the recipe does
-not freeze a mesh or baked machine path. Legacy `construction:'cladding'` records
-require explicit migration to these ordinary Slice fields.
+not freeze a mesh or baked machine path. A legacy `construction:'cladding'` record
+has no automatic reading and produces nothing until authored this way.
 
 ## Select a surface
 

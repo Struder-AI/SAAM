@@ -3,6 +3,7 @@
 // process intent and labels, never playback coordinates or rotary motion.
 
 import {requireThat,distance,validateDensoConfiguration,DENSO_LIMITATIONS} from '../denso.mjs';
+import {heldTableDeg} from '../kinematics.mjs';
 import {createHash} from 'node:crypto';
 // Debug-only machine verification (machine-verify): executes the written
 // PacScript subset. Generation, reopen, Studio and delivery never load it;
@@ -39,11 +40,11 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
     requireThat(!body,'Unclosed Sub in '+file);
   }
   load('main.pcs');requireThat(visited.size===Object.keys(files).length,'Unreferenced source in PacScript package.');
-  let rotary=c.initialPose.rotaryDeg,room=bedPoint(c.initialPositionMm,rotary,c.rotaryCenterMm),
+  let rotary=heldTableDeg(c),room=bedPoint(c.initialPositionMm,rotary,c.rotaryCenterMm),
     orientation={toolAxis:rotateZ(c.initialPose.toolAxis,rotary),toolUp:rotateZ(c.initialPose.toolUp,rotary)},
     seconds=0,relay=null,taken=false,tool=null,work=null,volume=0,estimate=0;
   const events=[],active=new Set(),numberPattern='[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?';
-  const movePattern=new RegExp('^Move L,\\s*@0 T\\(([^)]+)\\) EX\\(\\((\\d+),\\s*('+numberPattern+')\\)\\),\\s*Time\\s*=\\s*('+numberPattern+')$','i');
+  const movePattern=new RegExp('^Move L,\\s*@0 T\\(([^)]+)\\) EX\\(\\((\\d+),\\s*('+numberPattern+')\\)\\)(?:,\\s*Time\\s*=\\s*('+numberPattern+'))?$','i');
   function execute(name){
     const body=functions.get(name);requireThat(body&&!active.has(name),'Unknown/recursive PacScript call '+name);active.add(name);
     for(const site of body){
@@ -59,8 +60,9 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
         need(taken&&tool!==null&&work!==null&&relay!==null,'Motion needs explicit arm, frames and relay state.');
         const raw=m[1].split(',').map(x=>x.trim());need(raw.length===10&&raw.every(x=>new RegExp('^'+numberPattern+'$').test(x)),'T requires ten numeric components.');
         const v=raw.map(Number);need(v.every(Number.isFinite)&&v[9]===c.figure&&Number(m[2])===c.rotaryAxis,'Unexpected figure/external axis.');
-        const duration=Number(m[4])/1000,nextRotary=rotary+Number(m[3])/c.rotarySign;
-        need(Number.isFinite(duration)&&duration>0&&Number.isFinite(nextRotary),'Invalid requested motion time/angle.');
+        // No Time: the controller's own speed, as for a reorientation in place.
+        const duration=m[4]===undefined?0:Number(m[4])/1000,nextRotary=rotary+Number(m[3])/c.rotarySign;
+        need(Number.isFinite(duration)&&(duration>0||m[4]===undefined)&&Number.isFinite(nextRotary),'Invalid requested motion time/angle.');
         const nextRoom=fromWork(v.slice(0,3),c),nextOrientation={toolUp:rotateZ(v.slice(3,6),-c.workYawDeg),toolAxis:rotateZ(v.slice(6,9),-c.workYawDeg)};
         validateDirectionPair(nextOrientation.toolAxis,nextOrientation.toolUp);
         need(site.annotation,'Missing process-intent annotation.');const label=JSON.parse(site.annotation);
@@ -71,14 +73,14 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
         // index is refused.
         const n=Math.max(1,Math.ceil(Math.abs(nextRotary-rotary)),Math.ceil(distance(room,nextRoom)/2));
         need(Number.isSafeInteger(n),'Requested rotary sweep or travel is too large to subdivide.');
-        let from=bedPoint(room,rotary,c.rotaryCenterMm,true),oldAngle=rotary,oldAxis=rotateZ(orientation.toolAxis,-rotary),oldUp=rotateZ(orientation.toolUp,-rotary);
+        let from=bedPoint(room,rotary,c.rotaryCenterMm,true),oldAxis=rotateZ(orientation.toolAxis,-rotary),oldUp=rotateZ(orientation.toolUp,-rotary);
         for(let i=1;i<=n;i++){
           const t=i/n,a=rotary+(nextRotary-rotary)*t,world=room.map((x,k)=>x+(nextRoom[k]-x)*t),[axisRoom,upRoom]=interpolateDirectionPair([orientation.toolAxis,orientation.toolUp],[nextOrientation.toolAxis,nextOrientation.toolUp],t),
             to=bedPoint(world,a,c.rotaryCenterMm,true),axis=rotateZ(axisRoom,-a),up=rotateZ(upRoom,-a),intent=label.volumeMm3/n,estimated=relay?c.extrusionRateMm3S*duration/n:0;
           moves.push({line:site.line,file:site.file,from,to,extruding:relay,volumeMm3:intent,commandedVolumeMm3:intent,estimatedRelayVolumeMm3:estimated,
-            phase:label.phase,layer:label.layer,operation:label.operation??null,fan:0,speedMmS:distance(from,to)/(duration/n),startSeconds:seconds+(i-1)*duration/n,durationSeconds:duration/n,
-            rotaryFromDeg:oldAngle,rotaryToDeg:a,toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,rotaryCenterMm:c.rotaryCenterMm,interpolation:'nominal-cartesian-rotary'});
-          from=to;oldAngle=a;oldAxis=axis;oldUp=up;estimate+=estimated;
+            phase:label.phase,layer:label.layer,operation:label.operation??null,fan:0,speedMmS:duration>0?distance(from,to)/(duration/n):0,startSeconds:seconds+(i-1)*duration/n,durationSeconds:duration/n,
+            toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,interpolation:'nominal-cartesian-rotary'});
+          from=to;oldAxis=axis;oldUp=up;estimate+=estimated;
         }
         volume+=label.volumeMm3;seconds+=duration;room=nextRoom;orientation=nextOrientation;rotary=nextRotary;
       }else need(false,'Unsupported PacScript statement: '+text);

@@ -73,10 +73,9 @@ function manufacturingVolume(volume){
   return volume.kind==='geometry'?{...volume,geometry:manufacturingGeometry(volume.geometry)}:structuredClone(volume);
 }
 
-// The recipe values besides geometry that change the placed manufacturing geometry.
-export function placementInput(plan){
-  return {placement:plan.placement??null,
-    spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
+// The recipe values besides geometry that change the manufacturing geometry.
+export function manufacturingInput(plan){
+  return {spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
       ...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:a.within.map(manufacturingVolume)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
 }
 

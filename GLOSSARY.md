@@ -18,7 +18,7 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 | Slice surface | A planar or curved reference surface on which Slice constructs deposition paths within the assigned material’s intersection with that surface. |
 | Slice stack | An ordered sequence of related slice surfaces spanning a material region, with defined spacing and correspondence between neighboring surfaces. |
 | Surface region | A bounded portion of a surface, possibly with holes or disconnected components. |
-| Material ownership | Spatial responsibility resolved before execution order; overlap policy and compatible slicing constrain scheduling. |
+| Material ownership | Spatial responsibility resolved before execution order: explicit claims and a default remainder. |
 | Supports | Auxiliary printed structures that carry or stabilize selected areas of a part during fabrication and are intended for removal afterward. Their placement and form are chosen using judgment about printing and removal. |
 | Substrate | The surface or previously deposited material beneath a deposition location, including the build plate. It need not be a sacrificial support structure. |
 | Compound geometry | Component solids with an optional boolean operation. Assembly preserves components; boolean modes combine their material. |

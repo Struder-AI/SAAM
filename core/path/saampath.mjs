@@ -5,6 +5,12 @@ import {validatePose} from './pose.mjs';
 import {CONTEXT_KEYS,sameContext,contextualActions} from './action-context.mjs';
 
 const paths=new WeakSet();
+// Authored speeds pass through, and firmware clamps feed rates. A move without
+// a positive speed has no known duration.
+export const moveSeconds=(lengthMm,speedMmS)=>speedMmS>0?lengthMm/speedMmS:Infinity;
+// The known part of a time estimate: an untimed move counts as zero, and the
+// estimate says how many it excludes.
+export const knownSeconds=(lengthMm,speedMmS)=>speedMmS>0?lengthMm/speedMmS:0;
 const point=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 function freeze(value){
   if(value&&typeof value==='object'&&!Object.isFrozen(value)){
@@ -15,13 +21,14 @@ function freeze(value){
 }
 function pathAction(input){
   const a=structuredClone(input);
-  if(a.kind==='move')requireThat(point(a.to)&&Number.isFinite(a.speedMmS)&&a.speedMmS>0&&Number.isFinite(a.volumeMm3)&&a.volumeMm3>=0,'Invalid SAAMpath move.');
-  else if(a.kind==='retract'||a.kind==='recover')requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS)&&a.speedMmS>0,'Invalid filament action.');
+  if(a.kind==='move')requireThat(point(a.to)&&Number.isFinite(a.speedMmS)&&Number.isFinite(a.volumeMm3)&&a.volumeMm3>=0,'Invalid SAAMpath move.');
+  else if(a.kind==='retract'||a.kind==='recover')requireThat(Number.isFinite(a.filamentMm)&&a.filamentMm>=0&&Number.isFinite(a.speedMmS),'Invalid filament action.');
   else if(a.kind==='extrude')requireThat(Number.isFinite(a.volumeMm3)&&a.volumeMm3>0&&Number.isFinite(a.flowMm3S)&&a.flowMm3S>0,'Invalid stationary deposition.');
   else if(a.kind==='temperature')requireThat(Number.isFinite(a.targetC)&&a.targetC>0,'Invalid nozzle temperature.');
   else if(a.kind==='toolChange')requireThat(Number.isInteger(a.filament)&&a.filament>=0&&!Object.hasOwn(a,'tool'),
     'Neutral material selection needs a logical filament, not an installed tool.');
-  else if(a.kind==='fan')requireThat(Number.isFinite(a.percent)&&a.percent>=0&&a.percent<=100,'Fan outside limits.');
+  // Fan percent is authored intent; firmware clamps it to the fan's range.
+  else if(a.kind==='fan')requireThat(Number.isFinite(a.percent),'Fan percent must be a number.');
   else if(a.kind==='dwell')requireThat(Number.isFinite(a.seconds)&&a.seconds>=0,'Dwell outside limits.');
   else throw Error('Unsupported SAAMpath action: '+a.kind);
   if(a.pose)validatePose(a.pose);
@@ -50,7 +57,8 @@ export function saamPath(input){
         delete physical.durationSeconds;
       }
       if(physical.durationSeconds!==undefined)requireThat(length===0&&physical.pose,'Explicit duration requires a zero-length pose move.');
-      if(length===0)requireThat(physical.pose&&physical.durationSeconds!==undefined&&physical.volumeMm3===0,'A zero-length move needs a timed pose change; use extrusion for stationary deposition.');
+      // A zero-length move is a reorientation, timed or at the machine's own rate.
+      if(length===0)requireThat(physical.pose&&physical.volumeMm3===0,'A zero-length move is a pose change; use extrusion for stationary deposition.');
       from=physical.to;
     }
     compact.push(pathAction(physical));

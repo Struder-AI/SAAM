@@ -23,7 +23,7 @@ async function adoptProgramState(next,{presentation,decode,bind}){
 }
 
 async function adoptNeutralPath(next,{presentation,decodeNeutral}){
-  if(next.completedOutput||next.program||next.programViewError||next.artifacts?.path!=='current'||!next.review?.path)return next;
+  if(next.completedOutput||next.program||next.programViewError||!next.review?.path)return next;
   const reusable=presentation?.identity.printId===next.printId
     &&presentation.identity.pathId===next.review.path.id&&presentation.program?.neutral;
   if(reusable)return {...next,neutralProgram:presentation.program};

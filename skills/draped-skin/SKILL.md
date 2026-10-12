@@ -22,8 +22,8 @@ To survey the selected roof automatically, use
 `within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:0.5}]`.
 The footprint follows geometry edits. An explicit `loopsUv` instead selects a
 known chart domain. Use `contact:{source:null}` for available supporting material
-or name a required producer. There is no serialized skin record; explicit
-migration converts old skin settings to these ordinary Slice fields.
+or name a required producer. There is no serialized skin record; old skin
+settings are read as these ordinary Slice fields.
 
 Whole-reference normals calibrate translation to the target mean normal gap.
 Local gaps vary and directly set volume: segment length × width × normal gap.

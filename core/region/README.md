@@ -153,15 +153,8 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 ## Material ownership and surface contact
 
 `plan.slices.assignments` owns surface, stack and material selection.
-[allocateChartClaims](ownership.mjs) rejects competing positive material claims;
-a default owner retains the remainder after explicit regions and reservations.
-Shared ownership and overlap between different slice stacks are deferred to [0.3.0](../../plans/0.3.0.md).
-Diagnostics identify assignments/components. Planar polygon contact uses the
-print resolution rather than bead dimensions; spline evidence includes `TOLERANCE.chord`
-(print resolution). Bounds and control hulls prove separation, never overlap. Boundary-interval probes catch
-thin claims between print layers. Uncertifiable curved, rotated or concave pairs
-report that exclusivity cannot be established; touching is not universally certified.
-Matching reference charts compare regions/depth directly. See the
+[allocateChartClaims](ownership.mjs) gives each explicit claimant its claimed region
+and a default owner the remainder after explicit regions and reservations. See the
 [slice manual](../../skills/slice/SKILL.md); assembly components are not implicitly unioned.
 Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
 component ID in an assembly. [Geometry selections](../geom/selections.mjs)
@@ -188,9 +181,9 @@ error. Only actual exporters enforce machine orientation compatibility.
 
 A skin's `supportFrom` selects a finalized source and prerequisites.
 Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
-reference gaps without final-bead queries. ON selects nominal predecessor slices
-per chart column and measures actual bead gaps; missing required substrate and
-invalid contact rejects; exporters enforce machine limits. This changes volume, not authored slice XYZ.
+reference gaps without final-bead queries. ON selects nominal predecessor slices per chart column and measures actual bead gaps;
+missing required substrate rejects; exporters enforce machine limits. A course with no material below keeps its nominal bead, one
+running into material deposits nothing there, and `limitations` lists each span. This changes volume, not authored slice XYZ.
 3D-printing support assignment is a separate judgment. Absent named sources and
 dependency cycles remain invalid in either mode.
 

@@ -10,7 +10,7 @@ export function advancedVaseRuntime({Geometry,Toolpath},vase){
   // Pattern heights stay inside the sleeve interval to rounding, within the print
   // resolution its height queries accept (core/geom/sleeve).
   const {sampleCurveIntervals}=Geometry;
-  const {maximumPathAngle,traceResult,contactCurveGaps}=Toolpath;
+  const {maximumPathAngle,traceResult,contactCurveGaps,contactSpanNote}=Toolpath;
 // A pattern is a stack of repeats in unwrapped strip coordinates [turns,
 // height mm, depth mm]. A turns pattern repeats its tile by a fixed advance. A
 // sized pattern makes each turn one repeat holding the whole number of tiles
@@ -164,16 +164,17 @@ function advancedVaseResult({shell,assignment,process,geometry,after=assignment.
   const reference=geometry??vase.prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
-  const parts=[];
+  const parts=[],notes=[];
   for(const {layerIdSuffix,...source} of mapped.batches){
-    const curves=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments}):source.curves;
+    const {curves,spans}=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments}):{curves:source.curves,spans:[]};
+    notes.push(...spans.map(span=>contactSpanNote(`Advanced vase wall ${assignment.id}`,span)));
     const batch={...source,curves,layerId:assignment.id+layerIdSuffix};
     parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{batches:[batch],process}));
   }
   const operations=parts.flatMap(part=>part.operations),strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary;
   const measures=Object.fromEntries(['strokes','lengthMm','volumeMm3'].map(key=>[key,parts.reduce((sum,part)=>sum+part.report[key],0)]));
   return {id:assignment.id,operations,referenceStack:{...reference.referenceStack(),name:`${assignment.id} sleeve`},
-    report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part,depositionFamily:'trace',extension:'advanced-vase-wall',...measures},
+    report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part,depositionFamily:'trace',extension:'advanced-vase-wall',...measures,...(notes.length?{notes}:{})},
     ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
 }
 

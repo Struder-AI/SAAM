@@ -35,6 +35,6 @@ export async function createExtensionBundle(directory,extension,request,options=
   const {plan}=await prepareExtensionEdit(source,extension,request,{...options,create:true});
   await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
   const normalized=normalizeSpatialPlan(plan);
-  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined});
+  await initBundle(directory,{...normalized,bundle:{machine:selection?.machine??null}},{...options,machineId:undefined,notes:selection?.notes??[]});
   return loadBundle(directory,{program:false});
 }
