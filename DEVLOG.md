@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-12 — Clarify release scope and installed verification
+
+- Owner: "clearance/collision checks are not a 0.3.7 requirement. I'm deferring the additional specification until after release." These are removed from the release-blocking discussion queue; no new collision model, service-motion adaptation or removal of existing firmware services is implemented. Accurate time estimates also remain outside acceptance.
+- "Installed/native acceptance" meant post-update observation of the installed CLI/tray/Studio and actual agent-client hooks: shared tray/runtime routing and Quit, no revival of a stopped source runtime, request hand-back/dimming and transient images, tour scoping and extension-backed kinematics display. Native refers to the desktop/tray integration. These record unobserved end-to-end behavior, not extra feature requirements or a new pre-release approval ceremony. Source contract 2 cannot be exercised through installed 0.3.6 contract 1 before its update. The older checklist also contains optional failure-injection and installer trials; no such trial, full suite, packaging or publication was run for this clarification.
+
 ## 2026-10-12 — Implement the approved adapter standards
 
 - Final integration: 68 changed JavaScript modules pass syntax, with final robot precision-label syntax checks also passing. Repository checks pass for 111 documents, 1,430 local links and 51 decision records, plus digest/private exclusions. Map regeneration completed all analysis and warm/cold comparisons: 197 maps, 2,227 drawn leaves, reads/drawings agree, no unowned or stale files. It retains 1,701 architecture findings (1,125 contract, 270 command-returns-data, 264 unmodelled, 42 unlinked); this is not architecture conformance approval. The cold Application layout introduces 15 generated cluster labels for later owner review; authored positions ride with this feature checkpoint. Source completion remains distinct from installed/physical acceptance.
