@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-12 — Release 0.3.7
+
+- Owner: "Okay so then we are ready, do the release, do it minimally so it is fast (no full test suite or long verification procedures, we can always release a quick patch), then we will proceed to the post-release checks". Build the clean committed source for win-x64, darwin-arm64 and darwin-x64; use only the builder checks, publish the archives/checksums and installation guide, compare published digests and deploy the updated relay offer. This authorizes release push/publication/deployment. No additional suite, isolated installation or long trial precedes publication; installed observations follow the update.
+
 ## 2026-10-12 — Clarify release scope and installed verification
 
 - Owner: "clearance/collision checks are not a 0.3.7 requirement. I'm deferring the additional specification until after release." These are removed from the release-blocking discussion queue; no new collision model, service-motion adaptation or removal of existing firmware services is implemented. Accurate time estimates also remain outside acceptance.
