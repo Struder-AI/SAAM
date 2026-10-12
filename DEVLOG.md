@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-12 — Correct Windows update module loading
+
+- The owner's 0.3.6→0.3.7 update downloaded and launched its installer, then SAAM stopped normally. The installer failed during home preparation: Microsoft.PowerShell.Security could not load Get-Acl because PowerShell 7 type definitions duplicated Windows PowerShell's built-ins. It left the earlier installation unchanged and did not reach relaunch. Relay installer diagnostics supplied the exact failure.
+- Windows PowerShell invoked directly from PowerShell 7 succeeds, while invoking it through Node reproduces the failure. Putting this process's own `$PSHOME/Modules` first makes the same read-only C:/SAAM ACL query succeed. The installer now sets that process-local priority before its first module use; home permission checks and installation/relaunch behavior remain. This follows [Microsoft's PSModulePath documentation](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath). No full suite or new stored test was added; no installation was performed as a test.
+
 ## 2026-10-12 — Release 0.3.7
 
 - Published [v0.3.7](https://github.com/Struder-AI/SAAM/releases/tag/v0.3.7) at exact source `b57d42bca0c382ff308ef1629cad3ce45f1fb3de`. All three builder checks pass; GitHub's seven uploaded asset records and source tag match the build. Node v24.19.0 comes from official archives/host executable checked against nodejs.org SHASUMS256. A clean local checkout was needed because 189 shared-checkout files had noncanonical line endings; the owner's checkout was preserved. Windows ZIP: 42,235,688 bytes, SHA-256 `f0420822364ee274bc3a9dc75fa98a44c558e72bab70fc4234382e8423e1282a`; Apple Silicon: 47,470,839 bytes, `f2d243d163d1ab9b8057da48d949cc9200b6ef226c80cb7b93fb4ad32b9f28eb`; Intel Mac: 48,821,877 bytes, `5cf66f9e419cfbbd0b117d87896d860bd2864541c21a0b94bcf8ca4580da9cd1`.
