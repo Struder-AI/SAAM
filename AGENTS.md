@@ -32,10 +32,9 @@ read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md
 
 ## Using the saam command
 
-Never use `dev-instance.mjs`; use the installed SAAM orchestrator.
-[Application commands](core/application/README.md) own Studio, chat attachment,
-tours, waits, jobs and the SAAM home. Use `saam help` or `saam help OPERATION`.
-Pass JSON through stdin or `--input FILE`; PowerShell 5.1 changes quoted JSON.
+Use `saam` directly, one command per call; never `dev-instance.mjs` or a shell wrapper.
+[Application commands](core/application/README.md) own Studio, chat, tours and jobs; `saam help OPERATION` owns schemas.
+Prefer workspace `--input FILE` or directly supplied stdin; remember the `saam` prefix, not operations, filenames or bundle IDs.
 
 The command sends the client's session ID when available. Retain a returned chat
 ID and pass `--chat-id ID` on later commands. Naming a print attaches to its open

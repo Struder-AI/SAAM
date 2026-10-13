@@ -10,8 +10,7 @@ import {validatePose} from '../path/pose.mjs';
 import {prepareDepositionMotion,prepareReferenceMotion} from '../path/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
 
-function finalizedOperation(operation,plan,result){
-  const selected=operation.filament===undefined?plan:{...plan,process:materialProcess(plan,operation.filament)};
+function finalizedOperation(operation){
   let high=-Infinity;
   for(const stroke of operation.strokes){
     if(stroke.poses){
@@ -35,14 +34,15 @@ function finalizedOperation(operation,plan,result){
       }
     }
   }
-  const clearanceZ=Math.max(operation.clearanceZ??-Infinity,high+selected.process.liftMm);
-  // Coverage and direct-travel regions belong to the original coordinates.
-  const {region,materialRegion,materialCoverage,travelPolicy,...rest}=operation;
-  return {...rest,modulationPendingPublication:false,clearanceZ,connectNearby:false,
-    travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>clearanceZ}};
+  // Coverage belongs to the original coordinates. Scheduling derives clearance
+  // from the new material height and its resolved process, after Bundle saves it.
+  const {region,materialRegion,materialCoverage,materialGeometry,clearanceZ,...rest}=operation;
+  return {...rest,modulationPendingPublication:false,connectNearby:false,
+    materialGeometry:{kind:'bounds',maxZ:high}};
 }
 
-export function finalizeDepositionResult(result,plan,{entryPosition}={}){
+export function finalizeDepositionResult(result,plan){
+  if(result.depositionFinalized)return result;
   result={...result,operations:result.operations.map(op=>({...op,nominalRank:op.nominalRank??op.rank}))};
   // A nominal region cannot prove a join safe after its bead geometry changes.
   // Freeze every operation's order here; all deposited material, including joins,
@@ -50,21 +50,21 @@ export function finalizeDepositionResult(result,plan,{entryPosition}={}){
   const excludedOperationIds=plan.modulations?.modifiers.length?result.operations.filter(op=>op.strokes.some(stroke=>
     matchingModulations(result,stroke.role,plan.modulations,op).some(m=>['displacement','width','flow'].includes(m.channel)))).map(op=>op.id):[];
   if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result);
-  result=resolveDepositionConnections(result,{excludedOperationIds,entryPosition});
+  result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
-  if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return result;
+  if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return {...result,depositionFinalized:true};
   const prepared={...result,operations:result.operations.map(op=>{
     const selected=op.filament===undefined?plan:{...plan,process:materialProcess(plan,op.filament)};
     return {...op,strokes:op.strokes.map(stroke=>({...stroke,beadWidthMm:stroke.beadWidthMm??selected.process.lineWidthMm}))};
   })};
   const answer=finalizeModulatedResult(depositedBeadFrames(prepared),plan.modulations);
-  if(!answer.report.changed)return result;
+  if(!answer.report.changed)return {...result,depositionFinalized:true};
   const changed=new Set(answer.report.changedOperations);
-  const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op,plan,result):op);
+  const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op):op);
   const candidate={...answer.result,operations};
   const finalized=answer.report.materialChanged?republishDepositedBoundary(candidate,{widthMm:plan.process.lineWidthMm}):candidate;
-  return {...finalized,report:{...result.report,modulation:answer.report}};
+  return {...finalized,depositionFinalized:true,report:{...result.report,modulation:answer.report}};
 }
 
 // Finalization may split a construction into operations or batches. Recombining
@@ -78,5 +78,5 @@ export function combineFinalizedResults(result,parts){
     materialChanged:modulations.some(m=>m.materialChanged),materialChangedOperations:modulations.flatMap(m=>m.materialChangedOperations??[]),
     operationModifiers:Object.assign({},...modulations.map(m=>m.operationModifiers??{})),maxExcursionMm:Math.max(...modulations.map(m=>m.maxExcursionMm??0)),
     changedOperations:modulations.flatMap(m=>m.changedOperations),modifiers:[...new Set(modulations.flatMap(m=>m.modifiers))]};
-  return {...result,report,operations:parts.flatMap(part=>part.operations)};
+  return {...result,report,depositionFinalized:parts.every(part=>part.depositionFinalized),operations:parts.flatMap(part=>part.operations)};
 }

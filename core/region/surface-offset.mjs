@@ -178,12 +178,20 @@ export function sweepSurfaceOffset(patch,prepared){
     }
     return ray;
   };
+  // Tangent directions are independent of an edge's parameter length. Map a
+  // unit UV direction through the metric so a regular microscopic edge is not
+  // mistaken for a singular surface by the physical vector rounding guard.
+  const mappedDirection=(frame,deltaUv)=>{
+    const span=Math.hypot(...deltaUv);
+    requireThat(span>0,'Surface offset tangent requires distinct chart points.');
+    return frame.du.map((x,k)=>x*(deltaUv[0]/span)+frame.dv[k]*(deltaUv[1]/span));
+  };
   const addStrip=(a,b)=>{
     const tangentUv=plus(b,a,-1), samples=new Map();
     const sample=t=>{
       if(samples.has(t))return samples.get(t);
       const uv=plus(a,tangentUv,t),hint=midpoint(a,b),frame=at(uv,hint);
-      const tangent=frame.du.map((x,k)=>x*tangentUv[0]+frame.dv[k]*tangentUv[1]);
+      const tangent=mappedDirection(frame,tangentUv);
       const normal=cross(tangent,frame.normal).map(x=>x*Math.sign(deltaMm));
       const value={uv,point:frame.point,offset:shoot(uv,normal,hint)};
       samples.set(t,value);return value;
@@ -204,7 +212,7 @@ export function sweepSurfaceOffset(patch,prepared){
   };
   const addDisk=(uv,previous,next,full=false)=>{
     const frame=at(uv), incoming=plus(uv,previous,-1),outgoing=plus(next,uv,-1);
-    const tangent=t=>normalize(frame.du.map((x,k)=>x*t[0]+frame.dv[k]*t[1]));
+    const tangent=t=>normalize(mappedDirection(frame,t));
     const before=tangent(incoming),after=tangent(outgoing);
     const turn=dot(cross(before,after),frame.normal);
     // Same corner distinction as Clipper: closing sides overlap in the strips;
@@ -286,7 +294,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
     }
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':settings.normalMm?'analytic-rational-normal-offset':'native-patch'),
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':patch.cp?(settings.normalMm?'analytic-rational-normal-offset':'native-patch'):'adaptive-numerical-surface-chart'),
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
     inverseMappings:0,bandPolygons:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};

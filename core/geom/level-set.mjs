@@ -11,10 +11,10 @@ const CHAIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 // Directed pieces keep the high side on the left. Regions require closure;
 // contours can end at the sampled domain, without constructing border edges.
-function chain(pieces, output) {
+function chain(pieces, output, precision = CHAIN_TOLERANCE) {
   const pool = pieces.map(piece => [...piece]).filter(piece => piece.length >= 2);
   const buckets=new Map(),ends=new Map(),used=new Set();
-  const cell=p=>p.map(v=>Math.floor(v/CHAIN_TOLERANCE));
+  const cell=p=>p.map(v=>Math.floor(v/precision));
   for(let i=0;i<pool.length;i++){
     const key=cell(pool[i][0]).join('|');
     if(!buckets.has(key))buckets.set(key,[]);
@@ -26,7 +26,7 @@ function chain(pieces, output) {
     }
   }
   const neighbor=(tip,index,endpoint)=>{
-    let best=-1,bestDistance=CHAIN_TOLERANCE;
+    let best=-1,bestDistance=precision;
     const [x,y]=cell(tip);
     for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++)for(const i of index.get((x+dx)+'|'+(y+dy))??[]){
       if(used.has(i))continue;
@@ -44,7 +44,7 @@ function chain(pieces, output) {
     if(used.has(start))continue;
     let current = [...pool[start]];used.add(start);
     let guard = 0;
-    while (distance2(current[0], current[current.length - 1]) > CHAIN_TOLERANCE && guard++ < limit) {
+    while (distance2(current[0], current[current.length - 1]) > precision && guard++ < limit) {
       const best=neighbor(current.at(-1),buckets,0);
       if (best < 0) break;
       used.add(best);current.push(...pool[best].slice(1));
@@ -54,21 +54,21 @@ function chain(pieces, output) {
       // backwards too, then flatten once to avoid repeated array prepends.
       const prefix=[];
       let head=current[0];
-      while(distance2(head,current.at(-1))>CHAIN_TOLERANCE&&guard++<limit){
+      while(distance2(head,current.at(-1))>precision&&guard++<limit){
         const best=neighbor(head,ends,-1);
         if(best<0)break;
         used.add(best);prefix.push(pool[best].slice(0,-1));head=pool[best][0];
       }
       current=[...prefix.reverse().flat(),...current];
-      const closed=distance2(current[0],current.at(-1))<=CHAIN_TOLERANCE;
+      const closed=distance2(current[0],current.at(-1))<=precision;
       const points=[];
-      for(const point of current)if(!points.length||distance2(points.at(-1),point)>PRINT_RESOLUTION_MM)points.push(point);
-      if(closed)while(points.length>1&&distance2(points[0],points.at(-1))<=PRINT_RESOLUTION_MM)points.pop();
+      for(const point of current)if(!points.length||distance2(points.at(-1),point)>precision)points.push(point);
+      if(closed)while(points.length>1&&distance2(points[0],points.at(-1))<=precision)points.pop();
       if(closed?points.length>=3&&Math.abs(loopArea(points))>0:points.length>1)loops.push({points,closed});
       continue;
     }
-    requireThat(distance2(current[0],current.at(-1))<=CHAIN_TOLERANCE,'Region operation produced an open contour.');
-    const closed = dedupe(current);
+    requireThat(distance2(current[0],current.at(-1))<=precision,'Region operation produced an open contour.');
+    const closed = dedupe(current,precision);
     // Area is mm², so a chord tolerance in mm cannot decide whether material
     // exists. Retain every nonzero loop assembled on the endpoint grid.
     if (closed.length >= 3 && Math.abs(loopArea(closed)) > 0) loops.push(closed);
@@ -97,14 +97,14 @@ export function levelSetCoverage(field, level) {
 // boundary. Curves are ordinary {points,closed} polylines without that boundary.
 // Equality belongs to the high side; ambiguous cells retain ordered exit/entry
 // pairing. This is sampled topology, not a reconstruction of unsampled detail.
-export function extractLevelSet(field, level, { output = 'region', refine = null } = {}) {
+export function extractLevelSet(field, level, { output = 'region', refine = null, precision = CHAIN_TOLERANCE } = {}) {
   const { xs, ys } = field;
   requireThat(xs.length > 1 && ys.length > 1, 'A level set needs a sampled grid.');
   requireThat(output==='region'||output==='curves','Choose level-set region or curves.');
   const interiorSegments=levelSetInteriorSegments(field,level,refine);
-  if(output==='curves')return chain(interiorSegments,output);
+  if(output==='curves')return chain(interiorSegments,output,precision);
   const boundarySegments=levelSetBoundarySegments(field,level,refine);
-  return chain([...interiorSegments,...boundarySegments],output);
+  return chain([...interiorSegments,...boundarySegments],output,precision);
 }
 
 function crossingPoint(p,q,level,refine){

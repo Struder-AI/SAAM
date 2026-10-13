@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {x1ColourFixture} from './fixtures/bambu-x1-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
@@ -14,7 +15,7 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
   const {plan,machine}=x1ColourFixture();
   plan.setup.filaments[1].process={retractMm:0.6};
   plan.setup.filaments[2].process={retractMm:1};
-  const path=await generatePath(plan,machine),prepared=(await preparePath(path,plan,machine));
+  const path=schedulePath(await generatePath(plan,machine)),prepared=(await preparePath(path,plan,machine));
   assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,2]);
   assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[0,1],[0,2]]);
   const {bytes,report}=(await exportProgram(path,plan,machine,release)),program=pathPreview(prepared,{plan});
@@ -40,7 +41,7 @@ test('X1 white-grey-black makes exactly two same-nozzle AMS changes, with checke
 });
 
 test('X1 automatic changes reject external feed and missing clearance contract',async()=>{
-  const {plan,machine}=x1ColourFixture(),path=await generatePath(plan,machine);
+  const {plan,machine}=x1ColourFixture(),path=schedulePath(await generatePath(plan,machine));
   plan.setup.filaments[1].source={type:'external'};
   await assert.rejects(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
   plan.setup.filaments[1].source={type:'auto'};

@@ -18,7 +18,7 @@ import {booleanSolidTemplate,validateBooleanSolid,booleanShell} from '../geom/bo
 import {assemblyComponents} from '../geom/selections.mjs';
 import {spatialTemplate} from '../geom/spatial.mjs';
 import {normalizeSpatialPlan,resolveSpatialPlan} from './spatial-inputs.mjs';
-import {defaultSlices,validateSlices} from './slices.mjs';
+import {defaultSlices,validateSlices} from "./slice-records.mjs";
 import {defaultModulations,readModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';

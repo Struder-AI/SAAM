@@ -119,10 +119,10 @@ export function pointSegmentDistance(p, a, b) {
   return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
-export const dedupe = loop => {
+export const dedupe = (loop, precision = PRINT_RESOLUTION_MM) => {
   const out = [];
-  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > PRINT_RESOLUTION_MM) out.push(point);
-  while (out.length > 1 && distance2(out[0], out[out.length - 1]) <= PRINT_RESOLUTION_MM) out.pop();
+  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > precision) out.push(point);
+  while (out.length > 1 && distance2(out[0], out[out.length - 1]) <= precision) out.pop();
   return out;
 };
 

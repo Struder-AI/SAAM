@@ -15,7 +15,9 @@
 // so a missed loop is smaller than anything the nozzle can lay down. This is a
 // sampling basis, not a proof of completeness.
 
-import { evaluate, evaluateScalar, gradientBound, planeCoefficients, candidateSpans, clamp } from './nurbs.mjs';
+import {clipLineToRegion} from './curve-region.mjs';
+import {evaluateSurface,surfaceChartCovers} from './surface-evaluation.mjs';
+import { evaluateScalar, gradientBound, planeCoefficients, candidateSpans, clamp } from './nurbs.mjs';
 import { TOLERANCE, requireThat, findRoot, distance, subtract, add, scale, dot } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
 
@@ -26,7 +28,7 @@ const CELL_MAX = 96, SPLIT_LIMIT = 8;
 // crosses a grid node - which is what a plane flush with a grid line does.
 const positive = value => value >= 0;
 
-export function sectionPatch(patch, plane, { minFeatureMm = 0.4 } = {}) {
+export function sectionPatch(patch, plane, { minFeatureMm = 0.4,chordMm=TOLERANCE.chord } = {}) {
   const { normal, offset } = plane;
   const coefficients = planeCoefficients(patch, normal, offset);
   let allZero = true;
@@ -44,9 +46,43 @@ export function sectionPatch(patch, plane, { minFeatureMm = 0.4 } = {}) {
       for (let j = 0; j < vs.length - 1; j++)
         for (const segment of cellSegments(g, us, vs, values, i, j)) chains.push(segment);
   }
-  return { chains: joinSegments(chains, patch, g), coincident: false };
+  return { chains: joinSegments(chains, patch, g,chordMm), coincident: false };
 }
 
+// A plane's contour on an evaluated surface keeps that surface's native chart.
+// Sampling is physical, while shared marching/root/chaining stages retain UV.
+// Features wholly between samples remain below this sampled topology contract.
+export function sectionSurface(surface, plane, {boundsUv=null,sampleStepMm=0.2,minFeatureMm=sampleStepMm}={}) {
+  if(surface.cp)return sectionPatch(surface,plane,{minFeatureMm});
+  if(surface.kind==='patch')return sectionPatch(surface.patch,plane,{minFeatureMm});
+  const bounds=boundsUv??[surface.domainU,surface.domainV];
+  requireThat(bounds?.length===2&&bounds.every(b=>b?.length===2&&b.every(Number.isFinite)&&b[1]>b[0]),'Evaluated surface section needs bounded chart intervals.');
+  requireThat(Number.isFinite(sampleStepMm)&&sampleStepMm>0,'Surface section sampling must be positive physical millimetres.');
+  if(surface.kind==='plane'){
+    const a=dot(plane.normal,surface.xAxis),b=dot(plane.normal,surface.yAxis),c=dot(plane.normal,surface.origin)-plane.offset,length2=a*a+b*b;
+    if(length2<=TOLERANCE.parameter**2)return {chains:[],coincident:Math.abs(c)<=PRINT_RESOLUTION_MM};
+    const origin=[-c*a/length2,-c*b/length2],direction=[-b,a],rectangle=[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]];
+    const cut=clipLineToRegion(origin,direction,[rectangle]);
+    const chains=cut.spans.map(span=>span.map(t=>{const uv=origin.map((v,k)=>v+t*direction[k]);return {u:uv[0],v:uv[1],point:evaluateSurface(surface,uv).point};}));
+    return {chains,coincident:false};
+  }
+  const chart={...surface,domainU:bounds[0],domainV:bounds[1]},speeds=[0,0];
+  for(let i=0;i<=4;i++)for(let j=0;j<=4;j++){
+    const uv=[bounds[0][0]+i*(bounds[0][1]-bounds[0][0])/4,bounds[1][0]+j*(bounds[1][1]-bounds[1][0])/4];
+    if(!surfaceChartCovers(chart,uv))continue;
+    const e=evaluateSurface(chart,uv);
+    requireThat(e.du&&e.dv,'Surface section requires first derivatives of its chart.');
+    speeds[0]=Math.max(speeds[0],Math.hypot(...e.du));speeds[1]=Math.max(speeds[1],Math.hypot(...e.dv));
+  }
+  requireThat(speeds.every(v=>v>0),'Surface section has a singular sampling metric.');
+  const counts=bounds.map((b,k)=>Math.max(2,Math.ceil((b[1]-b[0])*speeds[k]/sampleStepMm)));
+  const axes=bounds.map((b,k)=>Array.from({length:counts[k]+1},(_,i)=>b[0]+i*(b[1]-b[0])/counts[k])),[us,vs]=axes;
+  const g=(u,v)=>surfaceChartCovers(chart,[u,v])?dot(plane.normal,evaluateSurface(chart,[u,v]).point)-plane.offset:NaN;
+  const values=us.map(u=>Float64Array.from(vs,v=>g(u,v))),segments=[];
+  if(values.every(column=>column.every(value=>Math.abs(value)<=PRINT_RESOLUTION_MM)))return {chains:[],coincident:true};
+  for(let i=0;i<us.length-1;i++)for(let j=0;j<vs.length-1;j++)segments.push(...cellSegments(g,us,vs,values,i,j));
+  return {chains:joinSegments(segments,chart,g),coincident:false,uncoveredSamples:values.reduce((sum,c)=>sum+c.filter(v=>!Number.isFinite(v)).length,0)};
+}
 // Sampling density is chosen by the function, not guessed from size. The grid
 // starts coarse and doubles while any cell could still hide a contour the
 // sampling has not seen. "Could hide" is decided by the gradient bound, so a
@@ -147,6 +183,7 @@ function cellSegments(g, us, vs, values, i, j) {
     { u: us[i + 1], v: vs[j + 1], value: values[i + 1][j + 1] },
     { u: us[i], v: vs[j + 1], value: values[i][j + 1] }
   ];
+  if(corners.some(c=>!Number.isFinite(c.value)))return [];
   const crossings = [];
   for (let e = 0; e < 4; e++) {
     const a = corners[e], b = corners[(e + 1) % 4];
@@ -175,7 +212,7 @@ function cellSegments(g, us, vs, values, i, j) {
 // on a shared knot-span boundary is solved separately by each span, from
 // different brackets, so the two results agree to rounding but not bit for
 // bit. Exact keys leave the contour broken at every span boundary.
-function joinSegments(segments, patch, g) {
+function joinSegments(segments, patch, g,chordMm=TOLERANCE.chord) {
   const epsU = (patch.domainU[1] - patch.domainU[0]) * TOLERANCE.domainFraction;
   const epsV = (patch.domainV[1] - patch.domainV[0]) * TOLERANCE.domainFraction;
   const cell = p => [Math.round(p.u / epsU), Math.round(p.v / epsV)];
@@ -211,29 +248,29 @@ function joinSegments(segments, patch, g) {
         if (direction) chain.push(other); else chain.unshift(other);
       }
     }
-    chains.push(refine(chain, patch, g));
+    chains.push(refine(chain, patch, g,chordMm));
   }
   return chains;
 }
 
-function refine(chain, patch, g) {
+function refine(chain, patch, g,chordMm=TOLERANCE.chord) {
   const out = [withPoint(patch, chain[0])];
-  for (let i = 1; i < chain.length; i++) out.push(...split(patch, g, out[out.length - 1], withPoint(patch, chain[i]), 0));
+  for (let i = 1; i < chain.length; i++) out.push(...split(patch, g, out[out.length - 1], withPoint(patch, chain[i]), 0,chordMm));
   return out;
 }
 
-const withPoint = (patch, p) => p.point ? p : { ...p, point: evaluate(patch, p.u, p.v, false).point };
+const withPoint = (patch, p) => p.point ? p : { ...p, point: evaluateSurface(patch, [p.u, p.v]).point };
 
 // Recursive chord check. The refinement point must lie on the section, so the
 // parameter midpoint is projected back onto g = 0 along the perpendicular in
 // parameter space before it is used or measured.
-function split(patch, g, a, b, depth) {
+function split(patch, g, a, b, depth,chordMm=TOLERANCE.chord) {
   if (depth >= SPLIT_LIMIT) return [b];
   const mid = contourPointNear(patch, g, (a.u + b.u) / 2, (a.v + b.v) / 2, b.u - a.u, b.v - a.v);
   if (!mid) return [b];
   const chordMid = scale(add(a.point, b.point), 0.5);
-  if (distance(mid.point, chordMid) <= TOLERANCE.chord) return [b];
-  return [...split(patch, g, a, mid, depth + 1), ...split(patch, g, mid, b, depth + 1)];
+  if (distance(mid.point, chordMid) <= chordMm) return [b];
+  return [...split(patch, g, a, mid, depth + 1,chordMm), ...split(patch, g, mid, b, depth + 1,chordMm)];
 }
 
 // Step perpendicular to the segment until g changes sign, then solve for the
@@ -244,7 +281,7 @@ function contourPointNear(patch, g, u, v, du, dv) {
   if (!(scale0 > 0)) return null;
   const pu = -dv / scale0, pv = du / scale0;
   const centre = g(u, v);
-  if (Math.abs(centre) <= PROGRAM_STEP_MM) return { u, v, point: evaluate(patch, u, v, false).point };
+  if (Math.abs(centre) <= PROGRAM_STEP_MM) return { u, v, point: evaluateSurface(patch, [u, v]).point };
   for (let step = scale0 / 8; step <= scale0 * 2; step *= 2) {
     for (const direction of [1, -1]) {
       const su = clamp(u + pu * step * direction, patch.domainU), sv = clamp(v + pv * step * direction, patch.domainV);
@@ -252,7 +289,7 @@ function contourPointNear(patch, g, u, v, du, dv) {
       if (positive(value) === positive(centre)) continue;
       const t = findRoot(x => g(u + (su - u) * x, v + (sv - v) * x), 0, 1, centre, value);
       const fu = u + (su - u) * t, fv = v + (sv - v) * t;
-      return { u: fu, v: fv, point: evaluate(patch, fu, fv, false).point };
+      return { u: fu, v: fv, point: evaluateSurface(patch, [fu, fv]).point };
     }
   }
   return null;

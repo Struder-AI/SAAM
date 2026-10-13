@@ -22,7 +22,7 @@ async function newerCode(){
   return code.newer;
 }
 const relay={
-  status:async()=>({...await request('service',{method:'status'}),runtime:{label:processRuntime().label,newerCode:await newerCode()}}),
+  status:async options=>({...await request('service',{method:'status',studioInstanceId:options?.studioInstanceId}),runtime:{label:processRuntime().label,newerCode:await newerCode()}}),
   activate:async invite=>request('service',{method:'activate',invite}),
   dismissFirstRun:async()=>request('service',{method:'dismiss'}),
   checkUpdate:async()=>request('service',{method:'check-update'}),

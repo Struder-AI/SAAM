@@ -14,18 +14,27 @@ export async function compileHeatSet(base,features,{buildGeometry,constructSolid
   requireThat(normalized.length>0,'Choose at least one heat-set feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid heat-set tolerance.');
   // A loft between rings at distances s outward from the mouth along the bore.
-  const prism=(f,r,from,to)=>{
-    const segments=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/r))));
-    const ring=s=>Array.from({length:segments},(_,i)=>borePoint(f,r,2*Math.PI*i/segments,s));
-    return {operation:'loft',rings:[ring(from),ring(to)],centers:[borePoint(f,0,0,from),borePoint(f,0,0,to)]};
+  const prism=(f,r,from,to,outerRadius=r)=>{
+    const radius=Math.max(r,outerRadius),segments=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/radius))));
+    const ring=(s,radial)=>Array.from({length:segments},(_,i)=>borePoint(f,radial,2*Math.PI*i/segments,s));
+    return {operation:'loft',rings:[ring(from,r),ring(to,outerRadius)],centers:[borePoint(f,0,0,from),borePoint(f,0,0,to)]};
   };
   const t=toleranceMm,bores=[],checks=[];
   for(const f of normalized){
     const {diameterMm,depthMm,lengthMm}=dimensions(f),r=diameterMm/2;
-    bores.push(prism(f,r,-depthMm,2*t));
+    // A through bore passes the furthest host-bounds corner along this axis.
+    // depthMm remains the insert seat/reinforcement depth, never a Z span.
+    const axis=f.axis.map(c=>c/Math.hypot(...f.axis));
+    const reach=axis.reduce((sum,c,i)=>sum+c*((c<0?shell.bounds.min[i]:shell.bounds.max[i])-f.positionMm[i]),0);
+    const cutDepth=f.throughHole?Math.max(depthMm,reach+2*t):depthMm;
+    bores.push(prism(f,r,-cutDepth,2*t));
+    if(f.chamferDepthMm>0){
+      const slope=Math.tan(f.chamferAngleDeg*Math.PI/180);
+      bores.push(prism(f,r,-f.chamferDepthMm,2*t,r+(f.chamferDepthMm+2*t)*slope));
+    }
     checks.push([f,'material lies over its mouth within the insert length; the bore is cut as placed.',{operation:'intersection',operands:[shell,prism(f,r,2*t,2*t+lengthMm)]}],
       [f,'the face lies below the mouth at part of its rim; the bore is shallower there.',{operation:'difference',operands:[prism(f,r,-3*t,-t),shell]}],
-      [f,'the bore breaks out beyond its floor.',{operation:'difference',operands:[prism(f,r,-depthMm-3*t,-depthMm-t),shell]}]);
+      [f,f.throughHole?'the host ends before the selected insert seat depth.':'the bore breaks out beyond its floor.',{operation:'difference',operands:[prism(f,r,-depthMm-3*t,-depthMm-t),shell]}]);
   }
   const [mesh,...found]=await constructSolids([{operation:'difference',operands:[shell,...bores]},...checks.map(([,,request])=>request)],{toleranceMm});
   const notes=[...(mesh?mesh.notes??[]:['The heat-set holes leave no material.']),...checks.flatMap(([f,note],i)=>found[i]?[`Heat-set ${f.id}: ${note}`]:[])];

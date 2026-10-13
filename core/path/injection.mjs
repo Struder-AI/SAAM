@@ -21,5 +21,5 @@ export function pointInjectionOperation(record,{plan,nozzleC=null,role='injectio
   return {...operation,order:'given',connectNearby:false,strokes,process:plan.process,
     fanPercent:plan.process.fanPercent,
     ...(nozzleC===null?{}:{nozzleC,restoreNozzleC:plan.setup.nozzleC}),
-    clearanceZ:approach[2],travelPolicy:{maxCombMm:0,canTravelDirect:()=>false,clearanceFor:()=>approach[2],constantClearanceZ:approach[2]}};
+    clearanceZ:approach[2],materialGeometry:{kind:'bounds',maxZ:point[2],approachZ:approach[2],constant:true}};
 }

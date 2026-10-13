@@ -24,7 +24,8 @@ export function generationExtensionIds(plan){
   // Geometry records carry their completed meshes. Only executing a
   // construction needs its extension; editing geometry selects its own author.
   for(const assignment of plan.slices?.assignments??[])
-    if(assignment.join)ids.add('vase-wall');
+    if(assignment.construction==='curves'&&assignment.source)ids.add(assignment.source.extension);
+    else if(assignment.join)ids.add('vase-wall');
     else if(assignment.construction==='sleeve')ids.add(assignment.pattern===null?'vase-wall':'advanced-vase-wall');
   for(const [id,settings] of Object.entries(plan.skills??{}))
     if(settings?.enabled)ids.add(id);

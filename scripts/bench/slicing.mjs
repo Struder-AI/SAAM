@@ -14,6 +14,7 @@ import {horizontalSlice, sliceStack } from '../../core/geom/slice.mjs';
 import {section} from '../../core/region/section.mjs';
 import { signedArea } from '../../core/geom/shell.mjs';
 import { generatePath } from '../../core/print/generate.mjs';
+import {schedulePath} from '../../core/path/schedule.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../../core/print/plan.mjs';
 import { loadMachine } from '../../core/machine/profile.mjs';
 import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
@@ -47,7 +48,7 @@ async function skillTrial(mode, geometry) {
     process:{...base.process,minimumLayerSeconds:0},slices:{...base.slices,assignments:base.slices.assignments.map(a=>
       mode==='planar'?a:{...a,fillDensity:1})}};
   if(mode==='draped')plan.slices.assignments.push(skinAssignment({id:'draped-skin'}));
-  const start=performance.now(),c={value:await generatePath(plan,machine)},time={sliceMs:performance.now()-start};
+  const start=performance.now(),c={value:schedulePath(await generatePath(plan,machine))},time={sliceMs:performance.now()-start};
   const e=await measureAsync(async()=>(await exportProgram(c.value,plan,machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes);time.exportMs=e.ms;
   return {time,actions:c.value.actions.length,depositedMm3:c.value.actions.reduce((v,a)=>v+(a.volumeMm3??0),0),
     operations:c.value.summary.composition.operationOrder.length,exportBytes:Buffer.byteLength(e.value),
@@ -156,7 +157,7 @@ async function main() {
     logicalCpus: os.cpus().length, totalMemoryGiB: os.totalmem() / 2 ** 30, commit: git('rev-parse', 'HEAD'), dirty: git('status', '--short'),
     sourceHashes, runtimeHash: sha(sourceHashes), trials, modes, targets, results: [], fixtures: [], errors: [],
     process: { ...defaults(machine).process, minimumLayerSeconds: 0 }, skillSettings: defaults(machine).skills, slices: defaults(machine).slices,
-    timingBoundary: 'Shared generatePath including recipe validation and geometry preparation. Excludes bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
+    timingBoundary: 'Shared generatePath and downstream schedulePath including recipe validation and geometry preparation. Excludes bundle I/O, runtime hashing, native reopening, Studio, delivery and OS process launch. Export/interpretation reported separately. All workers serial; one first run plus warm repeats. No forced GC.' };
   const r = await rhino();
   for (const name of names) {
     process.stderr.write(`Preparing ${name}\n`);

@@ -792,7 +792,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function applyText({bundleId,expectedRevision,expectedEditRevision,request},session){
       return applyExtension(bundleId,'text',request,{expectedRevision,expectedEditRevision},'Text modifies shared shell/mesh prints.');
     }
-  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
+  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; a source Trace adds walls and continuous star fins on each inherited Slice layer, intentionally overlapping its infill. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function applyHeatSet({bundleId,expectedRevision,expectedEditRevision,request}){
       return applyExtension(bundleId,'heat-set-inserts',request,{expectedRevision,expectedEditRevision},'Heat-set inserts modify shared shell/mesh prints.');
     }

@@ -1,5 +1,6 @@
 // Native height-field slice references. The chart is world XY in millimetres;
 // it preserves the source roof or spline, never fits a replacement surface.
+import {evaluateSurface,surfaceChartCovers} from './surface-evaluation.mjs';
 import {topAt,containsPoint} from './query.mjs';
 import {projectToPatch,patchCoversChart} from './field.mjs';
 import {normalize,requireThat} from './tolerance.mjs';
@@ -132,14 +133,18 @@ export function heightSliceNormal(slice,[x,y]) {
 // Contours of an evaluated predicate, sampled at the requested spatial pitch
 // and bisected to program resolution at each detected crossing. Features wholly
 // between grid samples are outside this explicitly sampled topology contract.
-export function sampledChartRegion(bounds,stepMm,contains) {
+export function sampledChartRegion(bounds,stepMm,contains,{surface=null,precisionUv=PRINT_RESOLUTION_MM}={}) {
   requireThat((Array.isArray(stepMm)?stepMm:[stepMm]).every(s=>Number.isFinite(s)&&s>0),'Chart sampling pitch must be positive.');
   const counts=[0,1].map(i=>Math.max(2,Math.ceil((bounds.max[i]-bounds.min[i])/(Array.isArray(stepMm)?stepMm[i]:stepMm))));
   const axes=[0,1].map(axis=>Array.from({length:counts[axis]+3},(_,i)=>bounds.min[axis]+(i-1)*(bounds.max[axis]-bounds.min[axis])/counts[axis]));
   const [xs,ys]=axes,values=xs.map(x=>Float64Array.from(ys,y=>contains([x,y])?SENTINEL:-SENTINEL));
+  const crossingWide=(a,b)=>{
+    if(surface&&surfaceChartCovers(surface,a)&&surfaceChartCovers(surface,b))return Math.hypot(...evaluateSurface(surface,a).point.map((v,k)=>v-evaluateSurface(surface,b).point[k]))>PROGRAM_STEP_MM;
+    return Math.hypot(a[0]-b[0],a[1]-b[1])>(surface?precisionUv:PROGRAM_STEP_MM);
+  };
   const refine=(inside,outside)=>{
     let a=inside,b=outside;
-    while(Math.hypot(a[0]-b[0],a[1]-b[1])>PROGRAM_STEP_MM) {
+    while(crossingWide(a,b)) {
       const middle=[(a[0]+b[0])/2,(a[1]+b[1])/2];
       // Halving has reached floating-point precision: a is the boundary.
       if(middle[0]===a[0]&&middle[1]===a[1]||middle[0]===b[0]&&middle[1]===b[1])break;
@@ -147,7 +152,7 @@ export function sampledChartRegion(bounds,stepMm,contains) {
     }
     return a;
   };
-  return extractLevelSet({xs,ys,values},0,{refine});
+  return extractLevelSet({xs,ys,values},0,{refine,precision:precisionUv});
 }
 
 // The region of the solid on a height slice, where its reference covers it.

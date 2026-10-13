@@ -2,6 +2,7 @@ import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
 import {saamPathText} from '../path/saampath.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {completedOutputState} from './review-state.mjs';
 import {checkedPhaseColours} from './phase-colours.mjs';
 // One print lifecycle for every geometry/generator adapter.
@@ -505,31 +506,48 @@ async function prepareToolpath(state,{onProgress,source}={}){
   const result=(async()=>{
     const saved=state.review.path;
     if(state.artifacts.path==='current'&&!staleGenerationSource(state,source)){
-      const path=await readPathArtifact(state.dir,saved);
+      const path=await readMotionArtifact(state.dir,saved);
       onProgress?.({stage:'Reusing saved SAAMpath'});
       return {path,artifact:saved};
     }
     if(source.missing)throw source.missing;
-    const path=await generatePath(state.plan,{onProgress});
+    const constructed=await generatePath(state.plan,{onProgress});
     const id=randomUUID(),file=`paths/${id}.json`;
-    await save(resolve(state.dir,file),saamPathText(path));
-    // Generation notes stay with the path, so a print without a program shows them.
-    return {path,artifact:{id,file,inputId:state.pathInputId,contract,...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
-      ...(path.summary.limitations?.length?{limitations:path.summary.limitations}:{})}};
+    await save(resolve(state.dir,file),saamPathText(constructed));
+    const stored=await readPathArtifact(state.dir,{file});
+    const motionFile=Array.isArray(stored.operations)?`paths/${id}.motion.json`:null;
+    if(motionFile){
+      onProgress?.({stage:'Scheduling saved deposition'});
+      const motion=schedulePath(stored,{onProgress});
+      await save(resolve(state.dir,motionFile),saamPathText(motion));
+    }
+    const artifact={id,file,...(motionFile?{motionFile}:{}),inputId:state.pathInputId,contract,
+      ...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
+      ...(stored.summary.limitations?.length?{limitations:stored.summary.limitations}:{})};
+    return {path:await readMotionArtifact(state.dir,artifact),artifact};
   })();
   pathPreparation={key,result};
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
 }
 
 async function readPathArtifact(dir,artifact){return JSON.parse(await readFile(resolve(dir,artifact.file)));}
+async function readMotionArtifact(dir,artifact){return JSON.parse(await readFile(resolve(dir,artifact.motionFile??artifact.file)));}
+async function readConstructedPath(state){
+  const artifact=state.completedOutput?.path??state.review.path;
+  requireThat(artifact,'No saved SAAMpath.');
+  const path=await readPathArtifact(state.dir,artifact);
+  requireThat(Array.isArray(path.operations),'This saved SAAMpath has no deposition operation records; regenerate to use them.');
+  return path;
+}
+function partFramePath(artifact){return artifact.contract===contract||artifact.contract?.startsWith('saam-deposition/')&&Number(artifact.contract.slice('saam-deposition/'.length))>=14;}
 // What Studio and the result image draw: the SAAMpath itself, a completed
 // output's else the saved one, current or not, at its recipe's placement.
 // Paths made before part-frame deposition were built already placed.
 async function readDrawnPath(state){
   const output=state.completedOutput,artifact=output?output.path:state.review.path;
   requireThat(artifact,'No saved SAAMpath.');
-  const path=await readPathArtifact(state.dir,artifact);
-  return Buffer.from(JSON.stringify(artifact.contract===contract?placedPath(path,(output?.plan??state.plan).placement):path));
+  const path=await readMotionArtifact(state.dir,artifact);
+  return Buffer.from(JSON.stringify(partFramePath(artifact)?placedPath(path,(output?.plan??state.plan).placement):path));
 }
 
 // Chat-driven adjustment: the agent applies a patch and dependent output
@@ -742,5 +760,5 @@ async function applySettingsSnapshot(directory,selection,expectedRevision,{expec
 }
 
 return {root,EXPORT_NAME,proposedPlan,initBundle,loadBundle,loadBundleSnapshot,
-  migrateBundle,readDrawnPath,prepareGeneration,commitGeneration,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,exportReviewed,setDeferredSetupSave,setPhaseColours,applySettingsSnapshot};
+  migrateBundle,readDrawnPath,readConstructedPath,prepareGeneration,commitGeneration,restoreRevision,checkPathBundle,adjustBundle,updatePlan,generateBundle,exportReviewed,setDeferredSetupSave,setPhaseColours,applySettingsSnapshot};
 }

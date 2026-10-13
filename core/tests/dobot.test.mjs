@@ -7,6 +7,7 @@ import {join} from 'node:path';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {unpackZip} from '../export/zip.mjs';
@@ -36,7 +37,7 @@ test('Dobot unconfigured profile generates and shows the SAAMpath; only the prog
   }finally{await rm(dir,{recursive:true,force:true});}
 });
 test('Dobot export preserves three skill paths and reports relay estimates separately',async()=>{
-  const {machine,plan}=fixture(),path=await generatePath(plan,machine);
+  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
   const {bytes,report}=(await exportProgram(path,plan,machine,release)),prepared=(await preparePath(path,plan,machine)),program=pathPreview(prepared,{plan});
   assert.deepEqual(bytes,(await exportProgram(path,plan,machine,release)).bytes);
   assert.equal(report.moves,prepared.actions.filter(a=>a.kind==='move').length);
@@ -59,7 +60,7 @@ test('the Lua reader stops a program that commands nothing, not one that keeps c
 });
 
 test('Dobot rejects invalid command settings and adapts feed without claiming rectangular reachability',async()=>{
-  const {machine,plan}=fixture(),path=await generatePath(plan,machine);
+  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
   for(const [key,value,pattern] of [['scaleX',0,/scaleX/],['relayPolicy','continuous',/relay policy/],['temperatureControl',null,/unconfigured/]]){
     const p=structuredClone(plan);p.setup.dobot[key]=value;await assert.rejects(()=>exportProgram(path,p,machine,release),pattern);
   }

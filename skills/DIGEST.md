@@ -23,6 +23,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | Skill | Use |
 |---|---|
 | [line-network](line-network/SKILL.md) | Guidance for sparse frames and trusses made from Trace centerlines. |
+| [hole-supports](hole-supports/SKILL.md) | Experimental. Downward-hole printing guidance using general breakaway bridge supports or an additional sacrificial membrane Slice below the overhang. |
 
 ## Extensions
 
@@ -36,13 +37,12 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [thick-lip](thick-lip/SKILL.md) | Extension for making a thickened or rolled edge with Slice or Trace. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Extension for experimental axial or helical Slice coatings on periodic surface references. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
-| [heat-set-inserts](heat-set-inserts/SKILL.md) | Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins, on any face and axis. |
+| [heat-set-inserts](heat-set-inserts/SKILL.md) | Catalog heat-set bores with reinforcement following actual Slice layers. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
 | [line-text](line-text/SKILL.md) | Make printable single-line lettering as explicit Trace centerlines. |
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [standard-support](standard-support/SKILL.md) | Experimental authored supports from a selected underside, flat footprint or tree skeleton, closed to the bed and sliced infill-only. |
-| [hole-supports](hole-supports/SKILL.md) | Experimental support options for a detected bed-facing circular counterbore under a smaller through bore. |
 
 ## Workspace extensions
 

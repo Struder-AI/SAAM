@@ -19,12 +19,9 @@ These steps are for the agent asked to install SAAM, a desktop application for m
 
 ## After installing
 
-Studio opens in the browser. Tell the person to:
-
-- enter the invite code from their SAAM email under **Connect** in Studio, which turns on updates;
-- start a new chat, restarting the client if it was open, and mention SAAM;
-- in Codex, trust SAAM's hooks in `/hooks`.
-
-If the new chat cannot use `saam`, run `saam call repair_client_setup`.
+Studio opens. Have the person activate updates with their invite under **Connect**, restart an open client, start a new chat and mention SAAM.
+Initial setup remembers only SAAM command access: Codex's `~/.codex/rules/saam.rules`, and Claude Code's `Bash(saam *)` / `PowerShell(saam *)` rules in user settings. Manual users can remove these grants (Claude: `/permissions`); updates and repairs preserve edits/removals and other client policies. Use the stable `saam` prefix so new recipe files, operations and print IDs reuse the same grant.
+Codex separately requires review of SAAM's four hooks in `/hooks`; unchanged definitions retain trust across updates. [Codex rules](https://learn.chatgpt.com/docs/agent-configuration/rules), [hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks) and [Claude permissions](https://code.claude.com/docs/en/permissions) own client behavior; explicit ask/deny or managed policies take precedence.
+If the new chat cannot use `saam`, run `saam call repair_client_setup`; do not restore permissions the person removed.
 
 To uninstall later: `saam quit`, then `C:\SAAM\app\packaging\windows\uninstall.ps1 -Yes` (run as above) or `bash ~/SAAM/app/packaging/macos/uninstall.sh --yes`. Prints and settings stay.

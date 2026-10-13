@@ -5,12 +5,13 @@ import { readFileSync } from 'node:fs';
 import { exportProgram } from '../export/registry.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker/ultimaker-s5.json','utf8'));
 const plan=defaults();
 plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
-const path=await generatePath(plan,machine);
+const path=schedulePath(await generatePath(plan,machine));
 const emit=async(m=machine,p=path)=>(await exportProgram(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes;
 
 test('machine templates preserve the last working S5 envelope',async()=>{

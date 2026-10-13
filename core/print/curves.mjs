@@ -15,7 +15,7 @@ import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
   requireThat(construction==='curves','Trace uses explicit curves; retired technique records require migration.');
-  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,repetitionIds:null,maxExcursionMm:null,...options});
+  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,repetitionIds:null,maxExcursionMm:null,source:null,toolPose:null,...options});
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
@@ -32,7 +32,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(a.maxExcursionMm===null||Number.isFinite(a.maxExcursionMm)&&a.maxExcursionMm>0,'Trace excursion limit must be null or a positive authored bound.');
   const count=a.repeat?.count??1;
   requireThat(typeof a.sequence==='boolean'&&(a.repetitionIds===null||Array.isArray(a.repetitionIds)&&a.repetitionIds.length===count&&new Set(a.repetitionIds).size===count&&a.repetitionIds.every(id=>typeof id==='string'&&id.length)),'Trace sequence is boolean; repetitionIds are null or unique names for each repetition.');
-  requireThat(Array.isArray(a.curves)&&a.curves.length>0,'Curve assignment needs explicit centerlines.');
+  const source=a.source;
+  requireThat(source===null||source&&Object.keys(source).sort().join()==='assignment,extension,parameters'&&typeof source.extension==='string'&&/^[a-z][a-z0-9-]*$/.test(source.extension)&&typeof source.assignment==='string'&&source.assignment!==a.id&&source.assignment.length&&source.parameters&&typeof source.parameters==='object'&&!Array.isArray(source.parameters),'Trace source needs extension, distinct Slice assignment and parameters.');
+  requireThat(a.toolPose===null||a.toolPose&&Object.keys(a.toolPose).join()==='alignToSliceNormal'&&typeof a.toolPose.alignToSliceNormal==='boolean','Trace toolPose is null or {alignToSliceNormal:boolean}.');
+  requireThat(Array.isArray(a.curves)&&(source?a.curves.length===0&&a.repeat===null:a.curves.length>0),'Trace needs explicit centerlines or one generation-time source without curves or repeats.');
   for(const curve of a.curves){
     if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
     requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
@@ -92,19 +95,19 @@ function unsupportedCurveSpans(curve,segments,heightMm){
   }));
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,references={},modelResults=[]}) {
-  const referenceStack=assignment.repeat?.stack?references[`slice:${assignment.repeat.stack}`]:null;
+export function authoredCurveResult(assignment,{plan,process=plan.process,references={},modelResults=[],sourceLayer=null}) {
+  const referenceStack=sourceLayer?.referenceStack??(assignment.repeat?.stack?references[`slice:${assignment.repeat.stack}`]:null);
   requireThat(!assignment.repeat?.stack||referenceStack?.layers?.length,'Curve repeat needs an available named slice stack.');
-  const indices=referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
-  const finalizeInside=assignment.sequence||assignment.curves.some(c=>c.contact);
+  const indices=sourceLayer?[sourceLayer.index]:referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
+  const finalizeInside=!sourceLayer&&(assignment.sequence||assignment.curves.some(c=>c.contact));
   const read=assignment.curves.map(readAuthoredCurve),ignored=read.flatMap(({ignored},i)=>ignored.map(field=>`curves[${i}].${field}`)),authored=read.flatMap(({curve})=>curve?[curve]:[]);
-  const batches=[],parts=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})),count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const batches=[],parts=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=authored.some(curve=>curve.contact)?modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})):[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   for(let repetition=0;repetition<count;repetition++){
     const index=indices?.[repetition]??repetition;
     const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
     if(!active.length)continue;
     const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:index,offset:translation.map(v=>repetition*v)}));
-    const heightMm=repetition===0?process.firstLayerMm:process.layerMm,speedMmS=repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS;
+    const heightMm=sourceLayer?.heightMm??(repetition===0?process.firstLayerMm:process.layerMm),speedMmS=sourceLayer?.speedMmS??(repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS);
     if(referenceStack){const layer=referenceStack.layers.find(l=>l.index===(indices?.[repetition]??repetition));
       for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{
         const n=curve.frameSamples[i].normal,d=referenceStack.direction??n;return (layer.heightMm??heightMm)*Math.abs(n.reduce((sum,x,k)=>sum+x*d[k],0));
@@ -118,7 +121,8 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
-    const spec={key:assignment.repetitionIds?.[repetition]??repetition,curves:ready,heightMm,speedMmS,layer:repetition,layerIndex:repetition,layerCount:count,rank:repetition,
+    const spec={key:sourceLayer?.key??assignment.repetitionIds?.[repetition]??repetition,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
+      ...(sourceLayer?.layerId?{layerId:sourceLayer.layerId}:{}),
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
@@ -138,7 +142,9 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
 // Join notes: a join rule field it cannot read takes its default, and a gap in
 // a continuous join without a depositing connector prints as travel.
 export function traceResult(assignment,{batches,process,sequential=true,report={}}){
-  const operations=depositCurveBatches({id:assignment.id,batches,process,after:assignment.after,filament:assignment.filament,sequential});
+  const deposited=depositCurveBatches({id:assignment.id,batches,process,after:assignment.after,filament:assignment.filament,sequential});
+  const operations=assignment.toolPose?deposited.map(operation=>({...operation,strokes:operation.strokes.map(stroke=>({...stroke,
+    motionIntent:{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}}))})):deposited;
   const joinNotes=batches.flatMap((batch,index)=>{
     if(!batch.join)return [];
     const {ignored,travelGaps}=joinCurveSequence(batch.curves,batch.join),name=`Trace ${assignment.id} batch ${batch.key??index}`;

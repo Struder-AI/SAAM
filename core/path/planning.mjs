@@ -228,14 +228,6 @@ export function planPoseTravel(state,target,policy,targetPose) {
   return planningResult(recovered.state,actions.finish(),{travelKind:'hopped'});
 }
 
-export function canDepositConnection(from,target,policy,fromPose=null,targetPose=null) {
-  const gap=distance(from,target);
-  if(gap<=PRINT_RESOLUTION_MM||gap>CONNECT_MOVE_MM)return false;
-  if(fromPose&&(targetPose||!samePose(fromPose,uprightPose())))return policy.poseJoinMm>0&&gap<=policy.poseJoinMm;
-  const clearance=policy.connectClearanceMm??policy.combClearanceMm;
-  return canPlanComb({position:from},target,{...policy,combClearanceMm:clearance,directClearanceMm:policy.directClearanceMm??clearance},CONNECT_MOVE_MM);
-}
-
 // Flatten once at delivery. A replacement
 // changes only the output array's tail, never the action object that preceded it.
 export function materializeActions(actionChunks) {
@@ -246,10 +238,10 @@ export function materializeActions(actionChunks) {
   return append;
 }
 
-export function planningPath(state,actionChunks,summary={}) {
+export function planningPath(state,actionChunks,summary={},completion) {
   return saamPath({schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
     ...(state.initialPose?{initialPose:structuredClone(state.initialPose)}:{}),
-    actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}}});
+    actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}},...(completion?{completion}:{} )});
 }
 
 function mergeableMove(run,next) {

@@ -1,17 +1,4 @@
-import {createPlanningState,planningResult,planContext,planFan,planPark,planningPath} from './planning.mjs';
-import {planComposition} from './compose.mjs';
-
-// Complete neutral path boundary: prepared geometry operations and authored
-// process in; delivered actions, accounting and composition summary out.
-export function planToolpath(planningSettings,skillResults,{rules={},summary={},onProgress}={}) {
-  const initialState=createPlanningState(planningSettings);
-  const started=planFan(initialState,0);
-  const primed=planningResult(started.state);
-  const composed=planComposition(primed.state,skillResults,rules,onProgress);
-  const finished=planFinishing(composed.state);
-  return planningPath(finished.state,[started.actions,primed.actions,composed.actions,finished.actions],
-    {...summary,composition:composed.summary});
-}
+import {planningResult,planContext,planFan,planPark} from './planning.mjs';
 
 export function planFinishing(state) {
   const contextual=planContext(state,'finish',0),parked=planPark(contextual.state),cooled=planFan(parked.state,0);

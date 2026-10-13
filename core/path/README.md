@@ -10,12 +10,13 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
-Generation owns one machine-independent execution state through finalized
-deposition and finishing. Exporters add machine startup and service motions. The ready-work graph caches geometry after its material sources
-are finalized; exact operation dependencies remain separate from geometry edges.
-Eligible unmodified Slice strokes use their actual scheduled entry for ordering
-and connectors before publication. Trace, Inject and modified paths stay constrained.
-No later composer changes published material or independently reschedules it.
+Material regions resolves claims upstream. Toolpath constructs Slice, Trace and
+Inject, applies Modulation, and freezes stroke order, poses and depositing
+connections before dependent constructions consume their finished material.
+Construction follows material prerequisites without a live nozzle or motion state.
+Bundle saves this completed SAAMpath operation graph; Scheduling reads it to
+choose execution order and add travel, retraction, cooling and finishing.
+Exporters add machine startup and service motions.
 
 `planOperationEntry` applies context, selection and the operation's resolved `process`;
 `planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
@@ -33,20 +34,19 @@ kinematics. Reorientation is ordinary travel: retreat along the tool axis, trave
 over the part to the approach point while orientation interpolates, approach; a
 turn in place is untimed (the machine's own rate).
 
-Skills return an in-memory result `{id, operations, report}`. An operation has
-a unique `id`, a `layerId` identifying its deposition layer/surface, a numeric
-`rank` for ordering within a height batch, and `after` dependencies. Rank is a scheduling
-coordinate, not universally Z: planar fill uses layer height. Operations also
-provide strokes (3D points, speed, role, and either uniform bead area or per-segment
-volume/metadata) and travel-policy queries. Local `material` queries constrain
-combing against completed operations; policies without them retain their
-conservative `clearanceFor` comparison. An operation is atomic; expose smaller
-operations when within-layer interleaving is permitted. `connectNearby: true`
-declares that gaps of at most 2 mm between this operation's stroke starts and the
-preceding deposition lie inside its own material, permitting
-[deposited connectors](#whole-plan-travel-requirement).
-These runtime results are not separate machine files or a persisted preview
-format. Travel policies may contain geometry-query callbacks.
+Toolpath's private results contain operations and reports. Each saved operation
+has a unique `id`, `layerId`, numeric `rank`, exact `after` prerequisites,
+resolved process/material selection, and finalized strokes. Rank is a scheduling
+coordinate, not universally Z. Strokes hold XYZ points, speed, role, poses and
+uniform bead area or per-segment volume/metadata. Closed loops have an explicit
+closing edge. Operations remain atomic; producers expose smaller operations when
+interleaving is permitted.
+
+`materialGeometry` contains region/height-reference values or a conservative
+height envelope. Toolpath emits no travel callbacks. Geometry owns the numerical
+snapshot of native height references; Scheduling privately prepares its own
+indexes and runtime travel queries from the saved values. Construction-local
+`connectNearby` requests are resolved into depositing strokes before publication.
 
 [Wave overhangs](../../skills/wave-overhangs/SKILL.md) publish one atomic operation
 and one continuous stroke per accepted spline slice. A slice is the cooling unit;
@@ -63,7 +63,7 @@ order to break ties. Plan `composition` contains `order`
 operations use ascending maximum actual deposition Z. Rank breaks ties within a result's
 height group. This preference never splits atomic continuous operations. Explicit ordering
 and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. Generation executes the locked rules without a new planning stage.
+skill's prerequisites. Scheduling executes the saved constraints without rerunning construction.
 
 `scheduleOperations` exposes validation, priority preparation, dependency
 preparation and topological ordering as separate stages. Their returned records
@@ -81,17 +81,12 @@ bridge printability or a safe order from arbitrary strokes alone.
 
 Each slice owner produces separate wall, sparse-fill and solid-fill operations
 for each layer.
-Scanline-based interiors and draped skins label uninterrupted zigzags with
-`scanlineCell` and request `order: 'nearest-cells'`. The shared composer chooses
-the closest endpoint of either end row of each remaining cell by XYZ distance
-from the actual nozzle position. It completes that cell before selecting another.
-Row order and direction can reverse independently; equal distances retain producer
-order. `strokeRange` keeps vertex channels and edge material aligned through
-cropping, reversal and closed-loop rotation. Closed inputs retain their closing
-edge, including explicitly repeated endpoints. Ordering does not split continuous
-strokes or reorder operations; generation selects eligible operations separately.
-No lookahead, travel-time scoring or heat balancing is included; see
-[D-026](../../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations).
+Scanline interiors and draped skins label uninterrupted zigzags with
+`scanlineCell`. Toolpath orders cells and their endpoints from the construction's
+first stroke, retaining producer order on ties. `strokeRange` preserves vertex
+channels and edge material through reversal and closed-loop rotation. Scheduling
+receives `order:'given'` and preserves that deposition. Travel may be longer than
+ordering from a live nozzle; no lookahead or heat balancing is included.
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 A slice assignment's `part` selects its component (`null` means all), producing
@@ -303,7 +298,7 @@ hops. Disconnected components cannot be joined by combing. Every candidate
 edge checks both the destination policy and completed material, including edges
 of a detour. Lifted moves retain the global deposited-height clearance above.
 
-`planarPolicy` publishes the layer's actual region and height, preserving holes
+Scheduling prepares `planarPolicy` from the layer's actual region and height, preserving holes
 and disconnected footprints. `surfacePolicy` accepts an XY footprint, a local
 `surfaceZ(x,y)` query, a conservative `maxZ`, `sampleStepMm`, and permitted
 `sagMm`. Producers must return a nonfinite height for an absent or invalid
@@ -341,7 +336,7 @@ way to report additional travel cases.
 
 `core/path/planning.mjs` classifies each stroke start as joined, connected, combed
 or hopped, and reports the counts in `summary.travel`.
-The returned planning state tracks deposited height; local callbacks decide direct/combed
+The returned scheduling state tracks deposited height; its private callbacks decide direct/combed
 eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
 strokes alternate their direction to keep neighbouring endpoints close. Longer
 moves lift above material deposited so far, using the shared export and checks.

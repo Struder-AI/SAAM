@@ -5,6 +5,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {startupPosition,startupRetracted,toolBounds} from '../machine/rules.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
@@ -15,7 +16,7 @@ test('S5 prepared paths recover, sacrificial strokes, then the part on either no
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
-    const path=await generatePath(plan,machine);
+    const path=schedulePath(await generatePath(plan,machine));
     const prepared=(await preparePath(path,plan,machine)),program={moves:pathPreview(prepared,{plan}).moves,
       events:prepared.actions.map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');

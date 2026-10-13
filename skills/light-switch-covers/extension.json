@@ -1,0 +1,12 @@
+{
+  "schema":"saam-extension/1",
+  "id":"light-switch-covers",
+  "kind":"workspace",
+  "dependencies":[{"id":"text"}],
+  "entries":{"workspace-runtime":{"file":"workspace.mjs","export":"createCoverWorkspace"}},
+  "workspace":{"ui":"ui"},
+  "license":"Apache-2.0; bundled Abel font SIL-OFL-1.1",
+  "provenance":"Adapted from Timothy Keller TK-DEV f4c84235735a645d80b36b4a179554b0b27913d1 workspaces/light-switch-covers (introduced at 67e59b35); catalog research 2026-10-01; font provenance and OFL in fonts/.",
+  "credits":[{"name":"Original requester (name unconfirmed)","role":"Concept, requirements and design direction"},{"name":"Codex","role":"Original research, specification and prototype; SAAM extension adaptation"},{"name":"Timothy Keller","role":"TK-DEV source contributor"}],
+  "support":{"status":"community","maintainer":null,"scope":"No designated maintainer or Struder support commitment. Physical fit and electrical material suitability remain unverified."}
+}

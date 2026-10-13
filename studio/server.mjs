@@ -393,10 +393,11 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
         if(!relay||!reading&&!['activate','dismiss','check-update','update','quit','report'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        if(reading){send(await relay.status());return;}
+        const serviceStatus=()=>relay.status({studioInstanceId:instanceId});
+        if(reading){send(await serviceStatus());return;}
         if(action==='activate'){
           const {invite}=await serviceInput(req);
-          try{send(await relay.activate(String(invite??'')));}catch(error){send({error:error.message},400);}
+          try{await relay.activate(String(invite??''));send(await serviceStatus());}catch(error){send({error:error.message},400);}
           return;
         }
         if(action==='report'){
@@ -406,10 +407,10 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           try{send(await relay.report({description:String(description??''),context}));}catch(error){send({error:error.message},400);}
           return;
         }
-        if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
-        if(action==='check-update'){try{await relay.checkUpdate();send(await relay.status());}catch(error){send({error:error.message},502);}return;}
+        if(action==='dismiss'){try{await relay.dismissFirstRun();send(await serviceStatus());}catch(error){send({error:error.message},500);}return;}
+        if(action==='check-update'){try{await relay.checkUpdate();send(await serviceStatus());}catch(error){send({error:error.message},502);}return;}
         if(action==='update'){try{send(await relay.update(await serviceInput(req)));}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
-        if(action==='quit'){try{send(await relay.quit(await serviceInput(req)));}catch(error){send({error:error.message},400);}return;}
+        if(action==='quit'){try{send(await relay.quit({...await serviceInput(req),studioInstanceId:instanceId}));}catch(error){send({error:error.message},400);}return;}
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/chat'){
@@ -521,7 +522,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
           const state=(await current.loadBundleSnapshot(dir,{program:stage!=='geometry'})).state;
           const receiptable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).receipt;
-          const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).available;
+          const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).inspectable;
           const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
           if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.outputId===state.outputId)){
             presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});

@@ -21,21 +21,17 @@ Summary: Inject deposits at points, Trace along curves and Slice over 3D regions
 Sources: [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) (agent wording); [D-042](../DECISIONS.md#d-042--020-authoring-and-shared-deposition-intent); [GLOSSARY](../GLOSSARY.md).
 
 ## Trace works on curves
-> "Trace is supposed to operate on curves. Why does it have any surface dependencies whatsoever? We will likely be removing those." — owner, 2026-10-01 (Codex 01a0f65b 07:27)
->
-> "Trace IS the deposition primitive. Did we also build tools for arraying that primitive along surfaces? That's kind of what slice is." — owner, 2026-10-01 (Codex 01a0f65b 07:45)
->
-> ""A Trace curve can contain UV coordinates plus a named patch, slice or sleeve reference" - good, we keep this. … Go ahead and change advanced vase to an extension, and down scope trace." — owner, 2026-10-01 (Codex 01a0f65b 07:52)
+> "A Trace curve can contain UV coordinates plus a named patch, slice or sleeve reference" — owner, 2026-10-01 (Codex 01a0f65b 07:52)
 
-Summary: Trace deposits along curves (which may carry a surface reference for their coordinates) and has no surface machinery of its own; surface-generated curves come from their producers.
+Summary: Trace deposits along curves; surface producers supply curves and their coordinate references. Geometry stores Trace curves and Inject points; solid-free bundles can show them before generation, with auxiliary geometry hidden when appropriate (owner approval, 2026-10-12).
 
-Agent wording, approved by the owner 2026-10-12: Geometry stores the curves used by Trace and the points used by Inject. Their recipes reference that geometry and describe deposition. Trace-only and Inject-only bundles do not require a solid. Curves and points can be shown before toolpath generation; auxiliary geometry may remain hidden where appropriate.
+[Breakaway bridge supports](../skills/bridge-supports/SKILL.md) interpolate matched control nets between selected base and landing curves, open or closed, into ordinary Trace. Bases may be on the bed or printed material. Part edges receive an outward half-bead ribbon before interpolation; the factor is code-tunable, not agent-facing. Requested average layer height determines divisions. Dependencies name the actual supporting base and later bridge, allowing support and part to advance together. Membranes remain ordinary Slice guidance; stepped reduction is excluded.
 
-Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension); owner, 2026-10-03 (Codex 01a102ba, 18:25/18:32 UTC), on curve/point geometry and visibility; owner, 2026-10-12: "That statement seems fine."
+[Heat-set reinforcement](../skills/heat-set-inserts/SKILL.md) keeps Boolean bore walls from the main Slice. Trace adds walls to reach max(4,N+1), with the star in the final added wall. Fixed fin sheets intersect actual inherited layers; physical offsets and every boundary's wall band clip their curves. Added walls/fins overlap unchanged main infill. Blind pads exclude existing dense coverage. Each heat Trace follows its main layer before its successor.
+
+Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension); owner, 2026-10-03 (Codex 01a102ba, 18:25/18:32 UTC), on curve/point geometry and visibility; owner, 2026-10-12: "That statement seems fine."; owner, Codex 01a1324b, 2026-10-12/13, control-point supports, edge contacts and fixed-fin/shared-layer reinforcement.
 
 ## Slice is one general operation
-> "We've received word that the intended slice consolidation/generalization didn't actually get done, complexity got bundled into slice instead of the actual complexity reduction/generalization that was intended." — owner, 2026-10-02 (Codex 01a0fad5 04:21)
->
 > "do you understand how each of the cases you mentioned can instead be served by the same generalized slice functionality? OTHER THAN maybe the vase mode parallel route - … BUT even if so it shouldn't be a parallel route within slice, it should be trace, using curves generated via the reference surface, and that should be an extension." — owner, 2026-10-02 (Codex 01a0fad5 04:31)
 
 Summary: Slice is one owned-region/reference-family operation; lip, cladding, skin, brim and support are inputs to it, not separate producers, and the vase spiral is Trace in an extension.

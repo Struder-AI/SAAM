@@ -10,7 +10,8 @@ export function completedOutputState(state,{generating=state.outputGenerating===
   return {generating:Boolean(generating),available,current:Boolean(current),
     previous:available?!current:savedPath&&state.artifacts?.path!=='current',
     exportable:available&&!generating&&output.review.generation.mode==='production',
-    receipt:available&&!generating&&Boolean(current)};
+    inspectable:available||savedPath,
+    receipt:!generating&&(Boolean(current)||savedPath&&state.artifacts?.path==='current')};
 }
 
 export function lifecycleReview(state,{programChecked=state.programChecked!==false}={}){

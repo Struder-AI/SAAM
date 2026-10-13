@@ -1,4 +1,5 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
+import {pointTriangleDistanceSquared} from './mesh-distance.mjs';
 import { requireThat, cross } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE, PROGRAM_STEP_MM } from '../dimensions.mjs';
 import { orientLoops, closeOpenChains } from './shell.mjs';
@@ -6,7 +7,7 @@ import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {checkMeshTopology} from './mesh-topology.mjs';
-import {overlappingBoxPairs,triangleBoxes} from './triangle-bvh.mjs';
+import {overlappingBoxPairs,triangleBoxes,triangleBVH} from './triangle-bvh.mjs';
 import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
@@ -294,10 +295,29 @@ export function sectionMeshIndex(index,h,{gapMm=0}={}) {
   throw new Error('Mesh cut is ambiguous within section tolerance.');
 }
 
+// Immutable solid identity owns the search index; caching changes recomputation
+// cost, never the vertical crossing predicates or their source-triangle order.
+const columnIndexes=new WeakMap();
+function meshColumnIndex(mesh){
+  if(columnIndexes.has(mesh))return columnIndexes.get(mesh);
+  const index=triangleBVH(mesh.vertices,mesh.triangles);columnIndexes.set(mesh,index);return index;
+}
+// Bounded physical distance to the original mesh boundary, sharing its index.
+export function meshBoundaryDistance(mesh,point,limitMm){
+  requireThat(point?.length===3&&point.every(Number.isFinite)&&Number.isFinite(limitMm)&&limitMm>0,'Mesh boundary distance needs finite XYZ and a positive physical limit.');
+  const state={squared:Infinity};
+  const measure=i=>{const t=mesh.triangles[i];state.squared=Math.min(state.squared,pointTriangleDistanceSquared(point,mesh.vertices[t[0]],mesh.vertices[t[1]],mesh.vertices[t[2]]));};
+  meshColumnIndex(mesh).query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
+  return state.squared<=limitMm*limitMm?Math.sqrt(state.squared):Infinity;
+}
 // Every non-vertical triangle the vertical line through (x, y) crosses.
 export function meshCrossingsAt(mesh,x,y) {
-  const crossings=[];
-  for(const [i,t] of mesh.triangles.entries()) {
+  const crossings=[],candidates=[];
+  const collect=i=>candidates.push(i);
+  meshColumnIndex(mesh).query([x,y,mesh.bounds.min[2]],[x,y,mesh.bounds.max[2]],collect);
+  candidates.sort((a,b)=>a-b);
+  for(const i of candidates) {
+    const t=mesh.triangles[i];
     const [a,b,c]=t.map(k=>mesh.vertices[k]);
     const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
     if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;

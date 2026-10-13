@@ -13,7 +13,6 @@ import {planRefreshNavigation,outputView} from './refresh-plan.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
-import {loadSavedPath} from './path-preview.mjs';
 import {viewerConnected} from './viewer-session.mjs';
 import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -87,7 +86,7 @@ function updateManualControls(sample){
 function machineTheme(){const style=getComputedStyle(canvas);return Object.fromEntries(Object.keys(machinePalette).map(role=>[role,style.getPropertyValue('--machine-'+role).trim()||machinePalette[role]]));}
 function updateMachineStatus(sample=machineSample()){
   const scene=machinePose.machineSession?.scene,pose=sample?.pose;
-  $('#machine-control').hidden=viewState.tab!=='toolpath'||!printSync.state?.program;
+  $('#machine-control').hidden=viewState.tab!=='toolpath'||!presentedState()?.program||!presentedState()?.machine;
   $('#machine-view').checked=cameras.mode==='machine';$('#machine-view').disabled=studioWork.busy||(!pose&&cameras.mode!=='machine');
   $('#machine-info').hidden=viewState.tab!=='toolpath'||(!scene&&!machinePose.machineSession?.error);
   const diagnostic=sample?.snapshot?.diagnostics.map(d=>d.message).join(' · ');
@@ -354,7 +353,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:viewState.activePresentation,
-    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadSavedPath,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:decodeSavedPathInWorker,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   printSync.state=adopted.state;printSync.stateTag=fetchedTag;chatUI.reflect();
@@ -443,6 +442,10 @@ async function decodeInWorker(snapshot){
     plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection});
 }
 function bindCachedProgram(snapshot){return machinePose.machineSession?.bind(snapshot);}
+async function decodeSavedPathInWorker(snapshot){
+  const program=await decodeInWorker({...snapshot,outputId:snapshot.review.path.id});
+  return {...program,neutral:true,notice:snapshot.outputAvailability??'Generate to write its machine program before exporting.'};
+}
 function table(entries) {
   const dl=document.createElement('dl');
   for(const [key,value]of entries){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;row.append(dt,dd);dl.append(row);}

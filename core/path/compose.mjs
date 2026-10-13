@@ -3,32 +3,32 @@ import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Skill results describe deposition operations. The composer advances explicit
 // planning state through scheduled operations and returns action chunks.
 
-import { orderStrokes, orderScanlineCells } from './builder.mjs';
+import {prepareTravelPolicy} from './builder.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
   planExtrusion,planDwell,planLayerCooling,planSelection,planProcess} from './planning.mjs';
 
 // Schedule once, then advance explicit motion state through operations. Layer and
 // obstacle ledgers are local scheduling work, never shared builder state.
-export function planComposition(initialState,skillResults,rules={},onProgress) {
-  const operations=scheduleOperations(skillResults,rules).map(op=>initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)
-    ?{...op,layerId:'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5))}:op);
-  const remaining=new Map(),elapsed=new Map(),deposited=[],actions=new ActionAccumulator();
-  let state=initialState,completed=0;
-  // Independent nozzle grids can have the same local layer index at different
-  // heights. Preserve the shared physical layer identity in emitted actions.
+export function planComposition(initialState,skillResults,rules={},onProgress,{geometry=[]}={}) {
+  const operations=scheduleOperations(skillResults,rules).map(op=>{
+    const layerId=initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
+    return {...op,layerId,travelPolicy:prepareTravelPolicy(op.materialGeometry,op.process??initialState.process,geometry)};
+  });
+  const elapsed=new Map(),paid=new Map(),deposited=[],actions=new ActionAccumulator(),layers=new Set();
   const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
+  let state=initialState,completed=0,last=null;
   onProgress?.({stage:'Planning print moves',completed,total:operations.length});
-  for(const op of operations)remaining.set(op.layerId,(remaining.get(op.layerId)??0)+1);
   for(const op of operations){
-    const lastInLayer=remaining.get(op.layerId)===1;
-    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{deposited,layerSeconds:elapsed.get(op.layerId)??0,finishLayer:lastInLayer&&!op.continuous});
-    state=planned.state;actions.add(planned.actions);
-    deposited.push(op.travelPolicy);elapsed.set(op.layerId,planned.operationSeconds);
-    remaining.set(op.layerId,remaining.get(op.layerId)-1);
+    if(last&&last.layerId!==op.layerId&&!last.continuous){
+      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});
+      state=cooling.state;actions.add(cooling.actions);paid.set(last.layerId,(paid.get(last.layerId)??0)+(cooling.coolingSeconds??0));
+    }
+    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{deposited,layerSeconds:elapsed.get(op.layerId)??0});
+    state=planned.state;actions.add(planned.actions);deposited.push(op.travelPolicy);elapsed.set(op.layerId,planned.operationSeconds);layers.add(op.layerId);last=op;
     onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
   }
-  return planningResult({...state,operationId:undefined},actions.finish(),
-    {summary:{operationOrder:operations.map(op=>op.id),layers:remaining.size}});
+  if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});state=cooled.state;actions.add(cooled.actions);}
+  return planningResult({...state,operationId:undefined},actions.finish(),{summary:{operationOrder:operations.map(op=>op.id),layers:layers.size}});
 }
 
 export function planOperation(initialState,op,options={}) {
@@ -47,8 +47,7 @@ export function planOperationEntry(initialState,op,layerSeconds=0) {
 
 // The caller has already applied selection, temperature and parking actions.
 export function planPreparedOperation(initialState,op,{deposited=[],finishLayer=false}={}) {
-  const strokes=op.order==='nearest'?orderStrokes(op.strokes,initialState.position)
-    :op.order==='nearest-cells'?orderScanlineCells(op.strokes,initialState.position):op.strokes;
+  const strokes=op.strokes;
   const actions=new ActionAccumulator();
   const policy=operationTravelPolicy(op.travelPolicy,deposited);
   let state=initialState;
@@ -131,12 +130,9 @@ export function validateOperationBatch(skillResults) {
   for (const operation of operations) {
     requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
     requireThat(typeof operation.layerId === 'string' && operation.layerId && Number.isFinite(operation.rank), 'Operation needs a layer reference and finite scheduling rank.');
-    requireThat(Array.isArray(operation.strokes) && operation.travelPolicy && typeof operation.travelPolicy.clearanceFor==='function',
-      'Operation needs strokes and a travel policy.');
-    requireThat(operation.order!=='nearest'||operation.strokes.every(s=>s.closed&&Number.isFinite(s.beadAreaMm2)&&!s.volumesMm3&&!s.poses),
-      'Nearest ordering requires closed strokes with a uniform bead area.');
-    requireThat(operation.order!=='nearest-cells'||(!operation.continuous&&operation.strokes.every(s=>s.scanlineCell!==undefined&&!s.closed&&!s.poses)),
-      'Nearest cell ordering requires grouped open strokes without tool poses.');
+    requireThat(Array.isArray(operation.strokes)&&operation.materialGeometry&&!operation.travelPolicy,
+      'Operation needs deposition strokes and material geometry data.');
+    requireThat(operation.order==='given','Scheduling consumes finalized deposition order.');
     byId.set(operation.id, operation);
   }
   return {operations,resultIndex,byId};
@@ -149,7 +145,7 @@ export function prepareOperationPriorities(operations,resultIndex) {
   // An atomic continuous operation stays intact; this is a preference, not a
   // height-difference gate or permission to split its deposition.
   const heights=new Map(operations.map(op=>[op.id,op.strokes.reduce((z,s)=>s.points.reduce((h,p)=>Math.max(h,p[2]),z),-Infinity)]));
-  return new Map(operations.map((op,index)=>[op.id,{height:heights.get(op.id),result:resultIndex.get(op.id),index}]));
+  return new Map(operations.map((op,index)=>[op.id,{height:heights.get(op.id),result:op.constructionRank??resultIndex.get(op.id),index}]));
 }
 
 export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {

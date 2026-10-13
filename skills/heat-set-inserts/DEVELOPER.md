@@ -1,7 +1,8 @@
 # Heat-set inserts: development
 
-Add insert families to [catalog.mjs](scripts/catalog.mjs) with manufacturer
-provenance. The bore detail is local to the shared planar producer: layer heights,
-bead volumes, material ownership, travel, composition, machine output and Studio
-are the shared ones, and shared scanline fill follows each tapered fin footprint.
-
+Placement, catalog provenance and star policy belong to this portable extension;
+Geometry owns sectioning, surface intersections, physical offsets and clipping
+through the [public connector](../AUTHORING.md). The [maker contract](SKILL.md)
+owns source selection, overlap, loop targets, blind pads and clipping behavior.
+Editable parameters persist in ordinary Trace source recipes; reapply removes
+the former six-loop/separate solid-fin owners. No private core imports.

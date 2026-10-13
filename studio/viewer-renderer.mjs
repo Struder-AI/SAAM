@@ -97,7 +97,8 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
-      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`)+' · '+at.nozzleMm+' mm';
+      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`);
+      if(Number.isFinite(at.nozzleMm))annotations.layerText+=' · '+at.nozzleMm+' mm';
       // The part moves with the machine pose's part frame (a rotary table), never with the path.
       const machine=machineState?.pose,follow=settings.followPlate;
       const local=p=>{const q=machine&&!follow?point(machine.part,p):p;return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};

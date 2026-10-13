@@ -210,7 +210,7 @@ function splitCurve(piece) {
 }
 
 // Where one edge of E meets surface S: C(t) = S(s,t), three equations in three unknowns.
-function edgeSurfacePoint(E, edge, S, x0) {
+export function edgeSurfacePoint(E, edge, S, x0) {
   let x = [...x0];
   const range = EDGES[edge].along ? E.domainV : E.domainU;
   for (let step = 0; step < 50; step++) {
@@ -227,7 +227,7 @@ function edgeSurfacePoint(E, edge, S, x0) {
 }
 
 // Closest point of S to p, from a starting guess (Gauss-Newton).
-function projectToSurface(S, p, guess) {
+export function projectToSurface(S, p, guess) {
   let x = [...guess];
   for (let step = 0; step < 50; step++) {
     const b = evaluate(S, x[0], x[1]), r = subtract(p, b.point);

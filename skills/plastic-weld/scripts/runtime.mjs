@@ -39,9 +39,10 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
   })))).flat(2);
 }
 
-export function plasticWeldRuntime({Geometry,Toolpath}) {
+export function plasticWeldRuntime({Geometry,Recipe,Toolpath}) {
   const {difference,union,regionArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface,intersect}=Geometry;
-  const {pointInjectionOperation,assignmentFilament}=Toolpath;
+  const {pointInjectionOperation}=Toolpath;
+  const {assignmentFilament}=Recipe;
   const circle=(x,y,r)=>[Array.from({length:96},(_,i)=>[x+r*Math.cos(i*2*Math.PI/96),y+r*Math.sin(i*2*Math.PI/96)])];
   const area=r=>Math.abs(regionArea(r));
   const height=op=>op.strokes.reduce((h,s)=>s.points.reduce((z,p)=>Math.max(z,p[2]),h),-Infinity);

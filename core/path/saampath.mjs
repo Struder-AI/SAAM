@@ -107,7 +107,20 @@ function admittedActionList(source,initialPosition){
 }
 export function saamPath(input){
   if(paths.has(input))return input;
-  requireThat(input?.schema==='saampath/1'&&point(input.initialPosition)&&Array.isArray(input.actions),'Invalid SAAMpath or initial position.');
+  requireThat(input?.schema==='saampath/1'&&(Array.isArray(input.operations)||point(input.initialPosition)&&Array.isArray(input.actions)),'Invalid SAAMpath or initial position.');
+  if(Array.isArray(input.operations)){
+    const {operations:source,...metadata}=input,ids=new Set();
+    const operations=source.map(operation=>{
+      requireThat(typeof operation.id==='string'&&operation.id&&!ids.has(operation.id)&&Array.isArray(operation.after)&&Array.isArray(operation.strokes),'Invalid or duplicate constructed operation.');
+      ids.add(operation.id);
+      requireThat(!operation.travelPolicy&&operation.materialGeometry,'Constructed SAAMpath contains material data, not travel callbacks.');
+      // Construction remains numerical geometry. Rounding belongs to admitted
+      // motion below, where collapsed moves and their material are omitted together.
+      return stored(structuredClone(operation),'authored',true);
+    });
+    const path=freeze({...stored(structuredClone(metadata),'authored',true),operations});
+    paths.add(path);return path;
+  }
   if(input.initialPose)validatePose(input.initialPose);
   const {actions:source,...metadata}=input,initialPosition=stored(input.initialPosition,'program',false);
   // A path rewrapping admitted actions from the same start reuses them.

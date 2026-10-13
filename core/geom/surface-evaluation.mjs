@@ -1,7 +1,7 @@
 // Existing surface charts share point, normal and first-derivative evaluation.
 // Coordinates retain their native units; offsets are physical millimetres.
 import {evaluate} from './nurbs.mjs';
-import {heightSlicePoint,heightSliceNormal} from './height-slice.mjs';
+import {heightSlicePoint,heightSliceNormal,referenceHeight} from './height-slice.mjs';
 import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
 
 const rings=new WeakMap();
@@ -41,6 +41,13 @@ export function evaluateSurface(surface,[u,v],normalMm=0){
   return {...e,reference:e.point,point:normalMm?e.point.map((x,k)=>x+normalMm*e.normal[k]):e.point,u,v};
 }
 
+// Coverage is explicit for partial height references and bounded native charts.
+export function surfaceChartCovers(surface,uv){
+  if(surface.kind==='slice-chart')return surfaceChartCovers(surface.slice,uv);
+  if(surface.kind==='height-field')return Boolean(referenceHeight(surface.reference,...uv));
+  const native=surface.kind==='patch'?surface.patch:surface;
+  return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter);
+}
 // An affine chart selection preserves native parameters and derivative units.
 export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=false}={}){
   const scale=bounds.map((b,k)=>(b[1]-b[0])/(domain[k][1]-domain[k][0]));

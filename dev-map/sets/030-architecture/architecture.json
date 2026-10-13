@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-10-02",
-  "description": "0.3.1 causal architecture (existing set identifier retained): see plans/0.3.1.md. Arrows carry named information/actions; contracts separately list permitted calls/reads, possibly opposite. Engine 3 makes neutral SAAMpath, 5 owns shared part state, 6 invokes Export 8, and 7 hosts workspace extensions owned by 4. Submaps/assignments are provisional; no conformance certificate.",
+  "description": "Toolpath boundary revised from owner direction, 2026-10-13: Slice, Trace, Inject and Modulation own deposition; Material regions is upstream and Scheduling downstream. Recipe, Extensions, Geometry and Application have explicit independent responsibilities. Bundle owns saved SAAMpath. Generated influence depicts current source, including crossings that violate these interfaces; ownership is not implementation conformance.",
   "actors": {
     "user": {
       "label": "User",
@@ -98,17 +98,17 @@
     },
     {
       "id": "slice-references",
-      "index": "3.3.1",
-      "label": "Owned reference families",
-      "description": "Resolve reference geometry to course regions; common Slice constructs deposition.",
+      "index": "12.1",
+      "label": "Material reference contexts",
+      "description": "Upstream material allocation prepares claimed regions and reference contexts before Toolpath construction.",
       "type": "component",
       "source": {
-        "file": "core/print/slice-stacks.mjs"
+        "file": "core/print/slice-material.mjs"
       }
     },
     {
       "id": "slice-metric-fill",
-      "index": "3.3.2",
+      "index": "3.3.1",
       "label": "Physical chart cells",
       "description": "One course physical fill layout shared by chart and stack choices.",
       "type": "component",
@@ -166,7 +166,7 @@
       "label": "Planar region layers",
       "description": "Build explicit per-height regions, merge their loops and check section-plane obstacle clearance. Source callbacks retain their own effects and provenance.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/planar-region-layers.mjs"
       }
     },
@@ -401,7 +401,7 @@
       "label": "core/export/griffin.md",
       "description": "S5 setup and output.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/export/griffin.md"
       }
     },
@@ -411,7 +411,7 @@
       "label": "core/export/bambu.md",
       "description": "Bambu setup and output.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/export/bambu.md"
       }
     },
@@ -421,7 +421,7 @@
       "label": "core/export/dobot.md",
       "description": "Dobot setup and output.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/export/dobot.md"
       }
     },
@@ -431,7 +431,7 @@
       "label": "core/export/denso.md",
       "description": "DENSO setup and output.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/export/denso.md"
       }
     },
@@ -512,29 +512,29 @@
       "id": "slice",
       "index": "3.3",
       "label": "Slice",
-      "description": "Region deposition through cutting surfaces and families.",
+      "description": "Deposit in supplied material regions over a reference family through the common Slice operation.",
       "type": "component",
       "source": {
-        "file": "core/print/slice-deposition.mjs",
-        "declaration": "finalizedSliceResults"
+        "file": "core/print/slices.mjs",
+        "declaration": "sliceContextResult"
       }
     },
     {
       "id": "compose",
-      "index": "3.4",
-      "label": "Construct & compose SAAMpath",
-      "description": "Public toolpath entry: dispatch producers and compose their finalized results into SAAMpath.",
+      "index": "13.1",
+      "label": "Schedule & complete motion",
+      "description": "Read saved Bundle construction data, schedule its exact prerequisites and complete travel/retraction/cooling without changing deposition.",
       "type": "component",
       "source": {
-        "file": "core/print/generate.mjs",
-        "declaration": "generatePath"
+        "file": "core/path/schedule.mjs",
+        "declaration": "schedulePath"
       }
     },
     {
       "id": "path-fields",
-      "index": "3.5",
-      "label": "Fields & modulation",
-      "description": "Evaluate scalar fields and apply displacement, width, flow, speed and tilt before publishing deposition.",
+      "index": "3.4",
+      "label": "Modulation",
+      "description": "Apply displacement, width, flow, speed and tilt to constructed deposition before publication.",
       "type": "component",
       "source": {
         "file": "core/path/modulation.mjs"
@@ -542,9 +542,9 @@
     },
     {
       "id": "path-finalize",
-      "index": "3.6",
-      "label": "Finalize deposition",
-      "description": "Apply fields, check motion/process and publish final material for consumers.",
+      "index": "3.5",
+      "label": "Private deposition machinery",
+      "description": "Shared bead calculation, contact and finalization used by the three construction families and modulation; not another construction family.",
       "type": "component",
       "source": {
         "file": "core/print/finalize.mjs"
@@ -552,9 +552,9 @@
     },
     {
       "id": "path-motion",
-      "index": "3.7",
-      "label": "Path motion & representation",
-      "description": "Shared SAAMpath records, process/motion planning and deposited-material representation.",
+      "index": "13.2",
+      "label": "Travel & process planning",
+      "description": "Downstream neutral travel, retraction, cooling and motion planning.",
       "type": "component",
       "source": {
         "file": "core/path/planning.mjs"
@@ -562,9 +562,9 @@
     },
     {
       "id": "build-evaluate",
-      "index": "3.8",
-      "label": "Prepare recipe inputs",
-      "description": "Evaluate pinned geometry/extension inputs and hand construction requests to the Toolpath engine composition stage.",
+      "index": "10.90",
+      "label": "Generation orchestration",
+      "description": "Application evaluates recipe/extension inputs and orchestrates allocation, construction, scheduling and Bundle submission.",
       "type": "component",
       "source": {
         "file": "core/print/bundle.mjs",
@@ -679,7 +679,7 @@
       "label": "supports/SKILL.md",
       "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "skills/supports/SKILL.md"
       }
     },
@@ -780,9 +780,10 @@
       "label": "adjustBundle / updatePlan",
       "description": "Revision-checked recipe edits.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
-        "declaration": "adjustBundle"
+        "declaration": "adjustBundle",
+        "reason": "Source declaration replaced during current authorized work, 2026-10-13."
       }
     },
     {
@@ -791,9 +792,10 @@
       "label": "generateBundle / commitGeneration",
       "description": "Prepare, dispatch and accept matching results.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
-        "declaration": "generateBundle"
+        "declaration": "generateBundle",
+        "reason": "Source declaration replaced during current authorized work, 2026-10-13."
       }
     },
     {
@@ -802,7 +804,7 @@
       "label": "Review & export records",
       "description": "Current review record; new export pinning still required.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
         "declaration": "approvedReview"
       }
@@ -813,9 +815,10 @@
       "label": "loadBundle",
       "description": "Read/validate saved bundle state.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
-        "declaration": "loadBundle"
+        "declaration": "loadBundle",
+        "reason": "Source declaration replaced during current authorized work, 2026-10-13."
       }
     },
     {
@@ -824,9 +827,10 @@
       "label": "saveManifest",
       "description": "Persist the bundle commit record.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
-        "declaration": "saveManifest"
+        "declaration": "saveManifest",
+        "reason": "Source declaration replaced during current authorized work, 2026-10-13."
       }
     },
     {
@@ -846,16 +850,17 @@
       "label": "applySettingsSnapshot",
       "description": "Commit supplied machine/settings values at the expected revision.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/workflow.mjs",
-        "declaration": "applySettingsSnapshot"
+        "declaration": "applySettingsSnapshot",
+        "reason": "Source declaration replaced during current authorized work, 2026-10-13."
       }
     },
     {
       "id": "bundle-schema",
-      "index": "5.8",
-      "label": "Recipe & machine settings",
-      "description": "Validate/resolve saved recipe, machine setup and migration; no engine execution.",
+      "index": "14.1",
+      "label": "Recipe records",
+      "description": "Authored recipe defaults, compilation and migration; supplied geometry and process become explicit construction inputs.",
       "type": "component",
       "source": {
         "file": "core/print/plan.mjs"
@@ -949,7 +954,7 @@
       "label": "Agent requests",
       "description": "Request status and displayed-result receipts.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "studio/agent-requests.mjs",
         "declaration": "createAgentRequests"
       }
@@ -960,7 +965,7 @@
       "label": "Studio event queue",
       "description": "Alert/held observations and delivery.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "studio/studio-events.mjs",
         "declaration": "createStudioEvents"
       }
@@ -1041,7 +1046,7 @@
       "label": "exportAndDecodeProgram",
       "description": "Select dialect; export and decode exact bytes.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/registry.mjs",
         "declaration": "exportAndDecodeProgram"
       }
@@ -1063,7 +1068,7 @@
       "label": "griffin exporter / interpreter",
       "description": "Existing machine output adapter.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/griffin.mjs"
       }
     },
@@ -1073,7 +1078,7 @@
       "label": "bambu exporter / interpreter",
       "description": "Existing machine output adapter.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/bambu.mjs"
       }
     },
@@ -1083,7 +1088,7 @@
       "label": "dobot exporter / interpreter",
       "description": "Existing machine output adapter.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/dobot.mjs"
       }
     },
@@ -1093,7 +1098,7 @@
       "label": "denso exporter / interpreter",
       "description": "Existing machine output adapter.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/denso.mjs"
       }
     },
@@ -1103,7 +1108,7 @@
       "label": "Program parsing & playback",
       "description": "Shared program syntax/time/representation helpers used by dialect adapters.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/export/gcode-lines.mjs"
       }
     },
@@ -4222,7 +4227,7 @@
       "label": "hasMesh",
       "description": "hasMesh in core/geom/build.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/build.mjs",
         "declaration": "hasMesh"
       }
@@ -4640,7 +4645,7 @@
       "label": "validateMeshSource",
       "description": "validateMeshSource in core/print/plan.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/plan.mjs",
         "declaration": "validateMeshSource"
       }
@@ -4651,7 +4656,7 @@
       "label": "validatePlanGeometry",
       "description": "validatePlanGeometry in core/print/plan.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/plan.mjs",
         "declaration": "validatePlanGeometry"
       }
@@ -5452,12 +5457,12 @@
     {
       "id": "geometry-leaf-d3269b9735b4",
       "index": "2.2.2.3.4.1",
-      "label": "prepareCurveRibbon body",
-      "description": "prepareCurveRibbon in core/geom/curve-ribbon.mjs.",
+      "label": "prepareRibbon",
+      "description": "Numerical ribbon construction; adjacent-material selection is supplied by Geometry ribbon.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-ribbon.mjs",
-        "declaration": "prepareCurveRibbon"
+        "declaration": "prepareRibbon"
       }
     },
     {
@@ -5468,7 +5473,7 @@
       "type": "component",
       "source": {
         "file": "core/geom/curve-ribbon.mjs",
-        "declaration": "prepareCurveRibbon::ribbon"
+        "declaration": "prepareRibbon::ribbon"
       }
     },
     {
@@ -6605,7 +6610,7 @@
       "label": "mesh native",
       "description": "Decode user assets, perform requested repairs and release import scratch resources. Source: core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs"
       }
     },
@@ -6615,7 +6620,7 @@
       "label": "Module initialization / exports",
       "description": "Module context and initialization; callable declarations have separate leaves.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs"
       }
     },
@@ -6625,7 +6630,7 @@
       "label": "checkInstallation",
       "description": "checkInstallation in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "checkInstallation"
       }
@@ -6636,7 +6641,7 @@
       "label": "offChunks",
       "description": "offChunks in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "offChunks"
       }
@@ -6647,7 +6652,7 @@
       "label": "readOff",
       "description": "readOff in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "readOff"
       }
@@ -6658,7 +6663,7 @@
       "label": "repairMeshNative body",
       "description": "repairMeshNative in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "repairMeshNative"
       }
@@ -6669,7 +6674,7 @@
       "label": "@default/progress",
       "description": "repairMeshNative::@default/progress in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "repairMeshNative::@default/progress"
       }
@@ -6680,7 +6685,7 @@
       "label": "runNativeMeshRepair body",
       "description": "runNativeMeshRepair in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "runNativeMeshRepair"
       }
@@ -6691,7 +6696,7 @@
       "label": "@default/progress",
       "description": "runNativeMeshRepair::@default/progress in core/geom/mesh-native.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-native.mjs",
         "declaration": "runNativeMeshRepair::@default/progress"
       }
@@ -6839,7 +6844,7 @@
       "label": "nativeReady",
       "description": "initializeRepairWorkerChannel::nativeReady in core/print/mesh-repair-worker.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/mesh-repair-worker.mjs",
         "declaration": "initializeRepairWorkerChannel::nativeReady"
       }
@@ -6850,7 +6855,7 @@
       "label": "nativeRun",
       "description": "initializeRepairWorkerChannel::nativeRun in core/print/mesh-repair-worker.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/mesh-repair-worker.mjs",
         "declaration": "initializeRepairWorkerChannel::nativeRun"
       }
@@ -6986,7 +6991,7 @@
       "label": "inspectGeometry",
       "description": "inspectGeometry in core/print/geometry.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/geometry.mjs",
         "declaration": "inspectGeometry"
       }
@@ -7052,7 +7057,7 @@
       "label": "verifyGeometry",
       "description": "verifyGeometry in core/print/geometry.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/print/geometry.mjs",
         "declaration": "verifyGeometry"
       }
@@ -7063,7 +7068,7 @@
       "label": "hash",
       "description": "Native/display representations, geometry inspection and stable identity; no bundle persistence. Source: core/private/geometry/hash.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/private/geometry/hash.mjs"
       }
     },
@@ -7073,7 +7078,7 @@
       "label": "Module initialization / exports",
       "description": "Module context and initialization; callable declarations have separate leaves.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/private/geometry/hash.mjs"
       }
     },
@@ -7083,7 +7088,7 @@
       "label": "canonical",
       "description": "canonical in core/private/geometry/hash.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/private/geometry/hash.mjs",
         "declaration": "canonical"
       }
@@ -7094,7 +7099,7 @@
       "label": "hash",
       "description": "hash in core/private/geometry/hash.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/private/geometry/hash.mjs",
         "declaration": "hash"
       }
@@ -7125,7 +7130,7 @@
       "label": "blobFieldDigest",
       "description": "blobFieldDigest in core/geom/blob-field-record.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/blob-field-record.mjs",
         "declaration": "blobFieldDigest"
       }
@@ -7445,7 +7450,7 @@
       "label": "assertClosed",
       "description": "assertClosed in core/geom/shell.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/shell.mjs",
         "declaration": "assertClosed"
       }
@@ -7802,7 +7807,7 @@
       "label": "rejectIntersections body",
       "description": "rejectIntersections in core/geom/mesh.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh.mjs",
         "declaration": "rejectIntersections"
       }
@@ -7813,7 +7818,7 @@
       "label": "inspectCandidate",
       "description": "rejectIntersections::inspectCandidate in core/geom/mesh.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh.mjs",
         "declaration": "rejectIntersections::inspectCandidate"
       }
@@ -7868,7 +7873,7 @@
       "label": "normal",
       "description": "separatedTriangles::normal in core/geom/mesh.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh.mjs",
         "declaration": "separatedTriangles::normal"
       }
@@ -7954,7 +7959,7 @@
       "label": "checkAdjacentContacts",
       "description": "checkAdjacentContacts in core/geom/mesh-spatial.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-spatial.mjs",
         "declaration": "checkAdjacentContacts"
       }
@@ -7998,7 +8003,7 @@
       "label": "boxDistance",
       "description": "triangleIndex::boxDistance in core/geom/mesh-spatial.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-spatial.mjs",
         "declaration": "triangleIndex::boxDistance"
       }
@@ -8009,7 +8014,7 @@
       "label": "build",
       "description": "triangleIndex::build in core/geom/mesh-spatial.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-spatial.mjs",
         "declaration": "triangleIndex::build"
       }
@@ -8031,7 +8036,7 @@
       "label": "nearest · visit",
       "description": "triangleIndex::nearest::visit in core/geom/mesh-spatial.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-spatial.mjs",
         "declaration": "triangleIndex::nearest::visit"
       }
@@ -8181,7 +8186,7 @@
       "label": "build",
       "description": "triangleBVH::build in core/geom/triangle-bvh.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/triangle-bvh.mjs",
         "declaration": "triangleBVH::build"
       }
@@ -8192,7 +8197,7 @@
       "label": "center",
       "description": "triangleBVH::center in core/geom/triangle-bvh.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/triangle-bvh.mjs",
         "declaration": "triangleBVH::center"
       }
@@ -9994,7 +9999,7 @@
       "label": "buildShapes",
       "description": "buildShapes in core/geom/build.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/build.mjs",
         "declaration": "buildShapes"
       }
@@ -10005,7 +10010,7 @@
       "label": "buildShapes · build",
       "description": "buildShapes::build in core/geom/build.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/build.mjs",
         "declaration": "buildShapes::build"
       }
@@ -10016,7 +10021,7 @@
       "label": "buildShapes · construct",
       "description": "buildShapes::construct in core/geom/build.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/build.mjs",
         "declaration": "buildShapes::construct"
       }
@@ -10209,7 +10214,7 @@
       "id": "toolpath",
       "index": "3",
       "label": "Toolpath",
-      "description": "Inject, Trace and Slice produce the completed SAAMpath, including explicit motion planning.",
+      "description": "Slice, Trace and Inject construct machine-independent deposition; Modulation changes it before publication. Material allocation is upstream; scheduling and travel are downstream. Shared deposition helpers are private implementation. Source crossings are findings, not permission to enlarge this bin.",
       "type": "component"
     },
     {
@@ -10247,7 +10252,7 @@
       "label": "Native repair program",
       "description": "Native repair program; explicit source resource, not scanned JavaScript declarations.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/native/mesh-repair.cpp"
       }
     },
@@ -10257,7 +10262,7 @@
       "label": "Native build configuration",
       "description": "Native build configuration; explicit source resource, not scanned JavaScript declarations.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/native/CMakeLists.txt"
       }
     },
@@ -10267,7 +10272,7 @@
       "label": "Pinned native dependencies",
       "description": "Pinned native dependencies; explicit source resource, not scanned JavaScript declarations.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/native/dependencies.json"
       }
     },
@@ -10277,7 +10282,7 @@
       "label": "Native license",
       "description": "Native license; explicit source resource, not scanned JavaScript declarations.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/native/LICENSE.GPL"
       }
     },
@@ -10287,7 +10292,7 @@
       "label": "Native build and repair limits",
       "description": "Native build and repair limits; explicit source resource, not scanned JavaScript declarations.",
       "type": "guidance",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/native/README.md"
       }
     },
@@ -11112,7 +11117,7 @@
       "label": "collapseTinyTriangles",
       "description": "collapseTinyTriangles in core/geom/mesh-autorefine.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-autorefine.mjs",
         "declaration": "collapseTinyTriangles"
       }
@@ -11178,7 +11183,7 @@
       "label": "sourceMeshStatus",
       "description": "sourceMeshStatus in core/geom/mesh-source.mjs.",
       "type": "component",
-      "source": {
+      "retiredSource": {
         "file": "core/geom/mesh-source.mjs",
         "declaration": "sourceMeshStatus"
       }
@@ -11346,6 +11351,37 @@
       "source": {
         "file": "core/geom/piecewise-chart.mjs",
         "declaration": "crossSlack"
+      }
+    },
+    {
+      "id": "material-regions",
+      "index": "12",
+      "label": "Material regions",
+      "description": "Upstream assignment claims, default remainders and process reservations. Supplies explicit material regions to Toolpath; overlap/interlocking implementation remains deferred.",
+      "type": "component"
+    },
+    {
+      "id": "scheduling",
+      "index": "13",
+      "label": "Scheduling",
+      "description": "Downstream dependency ordering, travel and cooling over constructed deposition. Does not own geometry construction or material allocation.",
+      "type": "component"
+    },
+    {
+      "id": "recipe",
+      "index": "14",
+      "label": "Recipe",
+      "description": "Explicit recipe records, process resolution, defaults, validation and migration; no shared part-state authority.",
+      "type": "component"
+    },
+    {
+      "id": "bundle-path",
+      "index": "5.90",
+      "label": "Saved SAAMpath contract",
+      "description": "SAAMpath value admission, serialization, decoding, placement and timing queries for Bundle consumers.",
+      "type": "component",
+      "source": {
+        "file": "core/path/saampath.mjs"
       }
     }
   ],
@@ -12214,117 +12250,29 @@
       ]
     },
     {
-      "id": "extension-toolpath",
-      "from": "extension-run",
-      "to": "compose",
-      "label": "construction requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "depositionAssignment",
-        "prepareSliceRegionContext"
-      ],
-      "inputs": "Typed Inject/Trace/Slice construction requests and pinned process context.",
-      "outputs": "Operations or SAAMpath value and diagnostics.",
-      "effects": "No shared mutation.",
-      "failure": "Unsupported constructions are explicit.",
-      "excludes": "No export, bundle writes or confirmation.",
-      "access": [
-        {
-          "from": "extension-run",
-          "to": "compose"
-        }
-      ],
-      "evidence": [
-        "core/print/assignment-records.mjs::depositionAssignment",
-        "core/print/slice-region-context.mjs::prepareSliceRegionContext",
-        "skills/vase-wall/scripts/runtime.mjs",
-        "skills/plastic-weld/scripts/runtime.mjs"
-      ],
-      "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Extensions supply construction requests to engine primitives; returned results do not reverse that initiating action."
-    },
-    {
       "id": "recipe-path",
       "from": "build-evaluate",
-      "to": "compose",
+      "to": "path-finalize",
       "label": "construction plan",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "generate"
+        "constructDepositionResults",
+        "constructionPath"
       ],
-      "inputs": "Evaluated geometry and declarative construction plan.",
-      "outputs": "Generated result and diagnostics.",
+      "inputs": "Prepared material contexts, explicit construction inputs and resolved recipe/process/modulation.",
+      "outputs": "Completed deposition graph; no motion execution.",
       "effects": "No shared mutation; returns owned values.",
       "failure": "Return a structured error; no partial commit.",
       "excludes": "No access to unrelated component internals.",
       "access": [
         {
           "from": "build-evaluate",
-          "to": "compose"
+          "to": "path-finalize"
         }
-      ]
-    },
-    {
-      "id": "dispatch-inject",
-      "from": "inject",
-      "to": "compose",
-      "label": "point requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "construct"
       ],
-      "inputs": "Point requests and process values.",
-      "outputs": "Deposition operations.",
-      "effects": "No shared mutation; returns owned values.",
-      "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals.",
-      "access": [
-        {
-          "from": "compose",
-          "to": "inject"
-        }
-      ]
-    },
-    {
-      "id": "dispatch-trace",
-      "from": "trace",
-      "to": "compose",
-      "label": "curve requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "construct"
-      ],
-      "inputs": "Curves/profiles and process values.",
-      "outputs": "Deposition operations.",
-      "effects": "No shared mutation; returns owned values.",
-      "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals.",
-      "access": [
-        {
-          "from": "compose",
-          "to": "trace"
-        }
-      ]
-    },
-    {
-      "id": "dispatch-slice",
-      "from": "slice",
-      "to": "compose",
-      "label": "region requests",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "construct"
-      ],
-      "inputs": "Regions, slice stacks, material ownership and process values.",
-      "outputs": "Deposition operations.",
-      "effects": "No shared mutation; returns owned values.",
-      "failure": "Return a structured error; no partial commit.",
-      "excludes": "No access to unrelated component internals.",
-      "access": [
-        {
-          "from": "compose",
-          "to": "slice"
-        }
+      "evidence": [
+        "core/print/generate.mjs::generatePath",
+        "core/print/construction.mjs::finalizeAssignments"
       ]
     },
     {
@@ -12533,7 +12481,7 @@
     },
     {
       "id": "workspace-toolpath",
-      "from": "compose",
+      "from": "recipe",
       "to": "workspace-implementations",
       "label": "recipe construction operations",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
@@ -12549,7 +12497,7 @@
       "access": [
         {
           "from": "workspace-implementations",
-          "to": "compose"
+          "to": "recipe"
         }
       ],
       "evidence": [
@@ -14603,28 +14551,6 @@
       ]
     },
     {
-      "id": "compose-finalize",
-      "from": "path-finalize",
-      "to": "compose",
-      "label": "finalized deposition",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "finalize deposition"
-      ],
-      "inputs": "Produced operations, process and prepared fields.",
-      "outputs": "Finalized operations/material and diagnostics.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "compose",
-          "to": "path-finalize"
-        }
-      ]
-    },
-    {
       "id": "finalize-fields",
       "from": "path-fields",
       "to": "path-finalize",
@@ -14643,138 +14569,6 @@
         {
           "from": "path-finalize",
           "to": "path-fields"
-        }
-      ]
-    },
-    {
-      "id": "inject-motion",
-      "from": "path-motion",
-      "to": "inject",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "inject",
-          "to": "path-motion"
-        }
-      ]
-    },
-    {
-      "id": "trace-motion",
-      "from": "path-motion",
-      "to": "trace",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "trace",
-          "to": "path-motion"
-        }
-      ]
-    },
-    {
-      "id": "slice-motion",
-      "from": "path-motion",
-      "to": "slice",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "slice",
-          "to": "path-motion"
-        }
-      ]
-    },
-    {
-      "id": "compose-motion",
-      "from": "path-motion",
-      "to": "compose",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "compose",
-          "to": "path-motion"
-        }
-      ]
-    },
-    {
-      "id": "path-finalize-motion",
-      "from": "path-motion",
-      "to": "path-finalize",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "path-finalize",
-          "to": "path-motion"
-        }
-      ]
-    },
-    {
-      "id": "path-fields-motion",
-      "from": "path-motion",
-      "to": "path-fields",
-      "label": "path values and motion",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "path values and motion"
-      ],
-      "inputs": "Explicit process/pose/path values.",
-      "outputs": "Validated/planned path values.",
-      "effects": "Private computation; no access to another component mutable state.",
-      "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
-      "access": [
-        {
-          "from": "path-fields",
-          "to": "path-motion"
         }
       ]
     },
@@ -16955,14 +16749,14 @@
     },
     {
       "id": "workspace-construction-identity",
-      "from": "compose",
+      "from": "recipe",
       "to": "workspace-interface",
       "label": "protected construction identity",
       "direction": "Causal flow: stable recipe identity passes from Toolpath operation to host.",
       "access": [
         {
           "from": "workspace-interface",
-          "to": "compose"
+          "to": "recipe"
         }
       ],
       "operations": [
@@ -17009,6 +16803,443 @@
         "core/application/runtime.mjs",
         "scripts/saam.mjs"
       ]
+    },
+    {
+      "id": "material-regions-geometry",
+      "from": "geometry",
+      "to": "material-regions",
+      "label": "Resolved material geometry",
+      "operations": [
+        "section",
+        "prepareSection",
+        "sliceStack",
+        "chartPrism",
+        "translateSlice",
+        "offsetSurfaceChart",
+        "intersect",
+        "difference",
+        "union"
+      ],
+      "inputs": "Supplied geometry, reference family, claims and tolerances.",
+      "outputs": "Chart regions and reference contexts.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Geometry supplies the stated values to Material regions.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-material-regions",
+      "from": "recipe",
+      "to": "material-regions",
+      "label": "Explicit allocation inputs",
+      "operations": [
+        "compileRecipe",
+        "depositionAssignments",
+        "assignmentPlan",
+        "validateSliceAssignment"
+      ],
+      "inputs": "Authored geometry, region claims, reference and process settings.",
+      "outputs": "Resolved assignment records.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Recipe supplies the stated values to Material regions.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "material-regions-toolpath",
+      "from": "material-regions",
+      "to": "slice",
+      "label": "Allocated material regions",
+      "operations": [
+        "prepareSliceContexts",
+        "referenceSliceContext",
+        "resolveSliceStack",
+        "prepareSliceBoundaryStack"
+      ],
+      "inputs": "Explicit assignment claims, reservations and reference families.",
+      "outputs": "Owned regions and reference contexts; not deposition or execution order.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Material regions supplies the stated values to Slice.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "evidence": [
+        "core/print/slice-material.mjs::prepareSliceContexts",
+        "core/print/construction.mjs::finalizeAssignments"
+      ]
+    },
+    {
+      "id": "recipe-scheduling",
+      "from": "recipe",
+      "to": "scheduling",
+      "label": "Explicit execution inputs",
+      "operations": [
+        "compileRecipe",
+        "materialProcess",
+        "filamentSelection",
+        "assignedFilaments"
+      ],
+      "inputs": "Recipe composition, logical materials and authored process.",
+      "outputs": "Resolved neutral process and dependency settings.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Recipe supplies the stated values to Scheduling.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-bundle",
+      "from": "recipe",
+      "to": "bundle",
+      "label": "Recipe values",
+      "operations": [
+        "readRecipe",
+        "recipeDefaults",
+        "currentRecipeTerms",
+        "normalizePlan",
+        "pathDependencies"
+      ],
+      "inputs": "Supplied authored records and saved versions.",
+      "outputs": "Resolved recipe and invalidation inputs.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Recipe supplies the stated values to Bundle.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-extensions",
+      "from": "recipe",
+      "to": "extension-run",
+      "label": "Recipe authoring values",
+      "operations": [
+        "depositionAssignment",
+        "curveAssignment",
+        "injectionAssignment",
+        "ordinarySliceAssignment",
+        "workspaceConstructionIdentity"
+      ],
+      "inputs": "Explicit extension-authored construction records.",
+      "outputs": "Recipe values and construction identity; no access to Bundle state.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Recipe supplies the stated values to Extension loading & invocation.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "scheduling-bundle",
+      "from": "scheduling",
+      "to": "bundle-build",
+      "label": "Completed neutral motion",
+      "operations": [
+        "schedulePath"
+      ],
+      "inputs": "Constructed SAAMpath reloaded from its saved Bundle file.",
+      "outputs": "Associated neutral motion artifact saved under the same path identity.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Implemented 2026-10-13.",
+      "direction": "Causal influence: Scheduling supplies the stated values to generateBundle / commitGeneration.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "evidence": [
+        "core/path/schedule.mjs::schedulePath",
+        "core/print/workflow.mjs::prepareToolpath"
+      ]
+    },
+    {
+      "id": "bundle-scheduling-path",
+      "from": "bundle-path",
+      "to": "scheduling",
+      "label": "SAAMpath value contract",
+      "operations": [
+        "readConstructedPath",
+        "saamPath",
+        "contextualActions",
+        "moveSeconds",
+        "knownSeconds"
+      ],
+      "inputs": "Saved operation graph and resolved neutral planning/composition values.",
+      "outputs": "Immutable constructed SAAMpath or decoded motion/timing values.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Implemented 2026-10-13; private staging is reloaded before scheduling and one manifest commits both artifacts.",
+      "direction": "Causal influence: Saved SAAMpath contract supplies the stated values to Scheduling.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "evidence": [
+        "core/print/workflow.mjs::readConstructedPath",
+        "core/path/schedule.mjs::schedulePath"
+      ]
+    },
+    {
+      "id": "bundle-toolpath-path",
+      "from": "bundle-path",
+      "to": "path-finalize",
+      "label": "Neutral deposition value queries",
+      "operations": [
+        "saamPath",
+        "moveSeconds"
+      ],
+      "inputs": "Completed operation graph, or explicit movement length and speed.",
+      "outputs": "Admitted immutable constructed SAAMpath, or neutral timing quantity.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Saved SAAMpath contract supplies the stated values to Toolpath.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "evidence": [
+        "core/path/construction-path.mjs::constructionPath",
+        "core/path/saampath.mjs::saamPath"
+      ]
+    },
+    {
+      "id": "geometry-toolpath-numerics",
+      "from": "geometry",
+      "to": "path-finalize",
+      "label": "Geometry and frame queries",
+      "operations": [
+        "evaluateSurface",
+        "sampleCurveIntervals",
+        "curvePoint",
+        "transportCurveFrames",
+        "mapSliceStrokes",
+        "sliceFrame",
+        "curveLength",
+        "uprightPose",
+        "validatePose",
+        "samePose",
+        "interpolatePose",
+        "add",
+        "subtract",
+        "scale",
+        "dot",
+        "cross",
+        "normalize",
+        "distance",
+        "requireThat"
+      ],
+      "inputs": "Explicit geometry, coordinates, frames and physical tolerances.",
+      "outputs": "Geometry/frame values; no scheduling or selected-machine policy.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Geometry supplies the stated values to Toolpath.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "geometry-scheduling",
+      "from": "geometry",
+      "to": "scheduling",
+      "label": "Travel geometry queries",
+      "operations": [
+        "clipLineToRegion",
+        "offsetRegion",
+        "SegmentIndex",
+        "evaluateSurface",
+        "uprightPose",
+        "samePose",
+        "interpolatePose"
+      ],
+      "inputs": "Supplied motion regions, positions, orientation and tolerances.",
+      "outputs": "Stateless geometry results and private query indexes.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Geometry supplies the stated values to Scheduling.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-export",
+      "from": "recipe",
+      "to": "export",
+      "label": "Resolved material intent",
+      "operations": [
+        "materialProcess",
+        "assignedFilaments"
+      ],
+      "inputs": "Saved authored material/process records.",
+      "outputs": "Explicit logical material values.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Recipe supplies the stated values to Export.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "bundle-export-path",
+      "from": "bundle-path",
+      "to": "export",
+      "label": "Saved SAAMpath queries",
+      "operations": [
+        "contextualActions",
+        "placedPath",
+        "moveSeconds",
+        "knownSeconds"
+      ],
+      "inputs": "SAAMpath and selected placement read from Bundle.",
+      "outputs": "Decoded, placed neutral actions and timing values.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Saved SAAMpath contract supplies the stated values to Export.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "bundle-studio-path",
+      "from": "bundle-path",
+      "to": "studio",
+      "label": "Saved SAAMpath preview",
+      "operations": [
+        "contextualActions"
+      ],
+      "inputs": "SAAMpath read from Bundle.",
+      "outputs": "Decoded neutral preview actions.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: Saved SAAMpath contract supplies the stated values to Studio.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "toolpath-bundle-deposition",
+      "from": "path-finalize",
+      "to": "bundle-build",
+      "label": "SAAMpath construction",
+      "operations": [
+        "constructionPath"
+      ],
+      "inputs": "Supplied owned regions/reference families, curves, points and resolved process; optional modulation.",
+      "outputs": "Constructed saampath/1: exact operation IDs/after prerequisites, frozen strokes/poses/material volumes, resolved neutral process, logical materials and numerical material geometry. No live motion state or executable travel callbacks.",
+      "effects": "Private construction state; Bundle alone accepts and commits the result.",
+      "status": "Implemented saved-artifact handoff, 2026-10-13; guarded Bundle commit retains lifecycle authority.",
+      "direction": "Causal influence: Toolpath supplies the stated values to generateBundle / commitGeneration.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "evidence": [
+        "core/path/construction-path.mjs::constructionPath",
+        "core/print/workflow.mjs::prepareToolpath"
+      ]
+    },
+    {
+      "id": "recipe-inject",
+      "from": "recipe",
+      "to": "inject",
+      "label": "Explicit deposition inputs",
+      "operations": [
+        "assignmentPlan",
+        "validateInjectionPoint"
+      ],
+      "inputs": "Authored curves, points, supplied regions and resolved process.",
+      "outputs": "Explicit construction settings; no selected-machine policy.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-trace",
+      "from": "recipe",
+      "to": "trace",
+      "label": "Explicit deposition inputs",
+      "operations": [
+        "assignmentPlan",
+        "readAuthoredCurve",
+        "readCurveProfiles",
+        "readWidthRule"
+      ],
+      "inputs": "Authored curves, points, supplied regions and resolved process.",
+      "outputs": "Explicit construction settings; no selected-machine policy.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-slice",
+      "from": "recipe",
+      "to": "slice",
+      "label": "Explicit deposition inputs",
+      "operations": [
+        "assignmentPlan",
+        "assignmentFilament",
+        "validateAssignmentProcess"
+      ],
+      "inputs": "Authored curves, points, supplied regions and resolved process.",
+      "outputs": "Explicit construction settings; no selected-machine policy.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "recipe-modulation",
+      "from": "recipe",
+      "to": "path-fields",
+      "label": "Explicit deposition inputs",
+      "operations": [
+        "readModulations"
+      ],
+      "inputs": "Authored curves, points, supplied regions and resolved process.",
+      "outputs": "Explicit construction settings; no selected-machine policy.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "extension-trace",
+      "from": "trace",
+      "to": "extension-run",
+      "label": "Construction family results",
+      "operations": [
+        "traceResult"
+      ],
+      "inputs": "Explicit curves, points, regions and process settings.",
+      "outputs": "Constructed deposition or curves for a construction family.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "extension-inject",
+      "from": "inject",
+      "to": "extension-run",
+      "label": "Construction family results",
+      "operations": [
+        "pointInjectionOperation"
+      ],
+      "inputs": "Explicit curves, points, regions and process settings.",
+      "outputs": "Constructed deposition or curves for a construction family.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "extension-slice",
+      "from": "slice",
+      "to": "extension-run",
+      "label": "Construction family results",
+      "operations": [
+        "fillSliceRegion",
+        "prepareSliceBoundaryStack"
+      ],
+      "inputs": "Explicit curves, points, regions and process settings.",
+      "outputs": "Constructed deposition or curves for a construction family.",
+      "effects": "Supplied values and private working state only; Bundle alone commits shared part state.",
+      "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
+      "direction": "Causal influence: the provider supplies the stated values to the consumer.",
+      "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
     }
   ],
   "layout": {
@@ -17059,6 +17290,18 @@
           "x": 197,
           "y": 514
         },
+        "12": {
+          "x": 1170,
+          "y": 300
+        },
+        "13": {
+          "x": 1535,
+          "y": 240
+        },
+        "14": {
+          "x": 920,
+          "y": 320
+        },
         "external:user": {
           "x": -8,
           "y": 741
@@ -17086,5 +17329,14 @@
   },
   "implementationLinks": [
     "geometry"
-  ]
+  ],
+  "boundaryIntent": {
+    "date": "2026-10-13",
+    "source": "Owner in this chat",
+    "quotes": [
+      "The toolpath bin should be slice, trace, and inject. They have access to the geometry tools they need, but nothing more (minimal interface).",
+      "Toolpath makes saampath. Saampath goes into bundle. Other consumers can read from bundle.",
+      "Ah, I forgot about modulation. Modulation belongs in toolpath. Scheduling should be downstream of toolpath. Material region sharing logic should be upstream of toolpath."
+    ]
+  }
 }

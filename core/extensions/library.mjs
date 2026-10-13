@@ -29,6 +29,20 @@ export function relativeExtensionFile(name){
 
 const relativeFile=relativeExtensionFile;
 
+function validateAttribution(raw,id){
+  const credits=raw.credits??[];
+  if(!Array.isArray(credits)||credits.some(credit=>!credit||typeof credit!=='object'
+    ||Object.keys(credit).some(key=>!['name','role'].includes(key))
+    ||typeof credit.name!=='string'||!credit.name.trim()||typeof credit.role!=='string'||!credit.role.trim()))
+    throw Error(`Extension ${id} credits need named contributors and roles.`);
+  const support=raw.support??null;
+  if(support!==null&&(!support||typeof support!=='object'||Array.isArray(support)
+    ||Object.keys(support).some(key=>!['status','maintainer','scope'].includes(key))
+    ||!['community','supported','unsupported','unspecified'].includes(support.status)
+    ||support.maintainer!==null&&typeof support.maintainer!=='string'
+    ||typeof support.scope!=='string'))throw Error(`Extension ${id} support needs status, maintainer and scope.`);
+}
+
 function manifestValue(raw,id){
   if(!raw||raw.schema!==MANIFEST_SCHEMA||raw.id!==id||!ID.test(id))throw Error(`Invalid extension manifest for ${id}.`);
   const dependencies=raw.dependencies??[];
@@ -62,6 +76,7 @@ function manifestValue(raw,id){
   }else if(raw.workspace||entries['workspace-runtime'])throw Error(`Extension ${id} must declare kind workspace.`);
   if(raw.license!==undefined&&raw.license!==null&&typeof raw.license!=='string')throw Error(`Invalid license in ${id}.`);
   if(raw.provenance!==undefined&&raw.provenance!==null&&typeof raw.provenance!=='string')throw Error(`Invalid provenance in ${id}.`);
+  validateAttribution(raw,id);
   return {...raw,dependencies,entries};
 }
 

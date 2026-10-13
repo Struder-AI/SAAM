@@ -133,10 +133,12 @@ export function createServicePanel({token,available:hasService=true}){
       closeTab(`SAAM is updating to ${offer.version} and opens again. You can close this tab.`);}
     catch(error){view.updating=false;render();message(error.message);open();}
   }
-  // Quit stops only this window's runtime while other runtimes run; in the only running runtime it
-  // quits SAAM and its tray. SAAM decides when Quit arrives and asks again if the label was stale.
+  // SAAM protects hidden sibling sessions and rechecks the displayed scope on arrival.
   function quitText(scope){
-    return scope==='runtime'?{label:'Quit runtime',title:'Other SAAM runtimes are running: Quit stops only this window’s runtime. SAAM and its tray keep running; your prints stay saved.',
+    return scope==='studio'?{label:'Close Studio',title:'Background sessions share this runtime: close only this Studio. They, SAAM and its tray keep running.',
+      question:'Close only this Studio? Background sessions, SAAM and its tray keep running. Your prints stay saved.',
+      done:'This Studio has closed. Background sessions, SAAM and its tray keep running.'}
+      :scope==='runtime'?{label:'Quit runtime',title:'Other SAAM runtimes are running: Quit stops only this window’s runtime. SAAM and its tray keep running; your prints stay saved.',
       question:'Stop this window’s runtime? Other runtimes, SAAM and its tray keep running. Your prints stay saved.',
       done:'This runtime has stopped; SAAM keeps running in the tray. You can close this tab and open Studio again from the tray.'}
       :{label:'Quit SAAM',title:'This is the only running SAAM runtime: Quit closes SAAM and its tray. Your prints stay saved.',

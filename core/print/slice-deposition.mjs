@@ -2,18 +2,16 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Resolve ownership and prerequisites before selecting work. Every construction
 // consumes finalized predecessor beads; authored rank never becomes run order.
-import {prepareSliceContexts,sliceContextResult} from './slices.mjs';
+import {sliceContextResult} from "./slices.mjs";
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 import {injectionResult} from './injection.mjs';
-import {curveAssignmentResult,depositionReferences} from './curves.mjs';
+import {curveAssignmentResult,depositionReferences,authoredCurveResult,validateCurveAssignment} from './curves.mjs';
+import {geometrySelections} from '../geom/selections.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {publishFinishedBoundary,republishDepositedBoundary} from '../path/finished-surface.mjs';
 import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {translateSlice} from '../geom/slice.mjs';
 
-import {matchingModulations} from '../path/modulation.mjs';
-import {planOperationEntry,planPreparedOperation} from '../path/compose.mjs';
-import {ActionAccumulator,planLayerCooling} from '../path/planning.mjs';
 
 function combineSliceResults(record,sliceResults){
   if(!sliceResults.length)return {id:record.spec.id,report:record.context.report,operations:[],referenceStack:{...record.referenceStack,layers:[]}};
@@ -31,13 +29,20 @@ function combineSliceResults(record,sliceResults){
 }
 
 // Expand construction and recipe constraints once to exact work-node keys.
-export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]})){
-  const nodes=contexts.flatMap(record=>{
+export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]}),curveSources=[]){
+  const baseNodes=contexts.flatMap(record=>{
     const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
       construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:i?[`slice:${record.spec.id}:${units[i-1].index}`]:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
     construct:context.construct,providesSurface:context.providesSurface,sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]}))).concat(work);
+  const followers=curveSources.flatMap(context=>{
+    const source=context.assignment.source,matching=baseNodes.filter(node=>node.kind==='slice'&&(node.sourceId===source.assignment||node.record.spec.id===source.assignment)&&(context.assignment.part===null||context.assignment.part===node.part));
+    if(!matching.length)return [{key:'curves:'+context.assignment.id,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:context.assignment.part,context,nominalRank:0,requires:[]}];
+    return matching.map(parent=>({key:'curves:'+context.assignment.id+':'+parent.record.spec.id+':'+parent.index,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:parent.part,
+      context:{...context,assignment:{...context.assignment,part:parent.part}},parentKey:parent.key,index:parent.index,nominalRank:parent.nominalRank,requires:[parent.key]}));
+  });
+  const nodes=baseNodes.map(node=>({...node,requires:[...node.requires,...followers.filter(follower=>node.requires.includes(follower.parentKey)).map(follower=>follower.key)]})).concat(followers);
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
     const needs=new Set(node.requires),defaults=new Set();
@@ -103,13 +108,15 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
     result=sliceContextResult(record,{layerIndex:node.index,priorResults:samePart.map(item=>item.result),contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
   }else if(node.kind==='trace'){
     const results=predecessors.map(item=>item.result);
-    result=curveAssignmentResult(node.context.assignment,{plan,modelResults:results,
+    if(node.context.assignment.source)result=sourceCurveResult(node,completed,{plan,results,shells});
+    else result=curveAssignmentResult(node.context.assignment,{plan,modelResults:results,
       references:depositionReferences(shells,results)});
   }else if(node.kind==='inject')result=injectionResult(node.context.assignment,{plan});
   else throw new Error(`Unsupported deposition construction ${node.kind}.`);
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-  const motionIntent=assignment.toolPose?{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}:null;
-  const selected={...result,report:{...result.report,depositionFamily:node.kind,construction:result.report.construction??(node.kind==='slice'?undefined:node.construction),owner:node.sourceId,part:node.part,...(node.dependencyNotes?.length?{notes:[...(result.report.notes??[]),...node.dependencyNotes]}:{})},operations:result.operations.map(op=>({...op,part:node.part,...(motionIntent?{strokes:op.strokes.map(stroke=>({...stroke,motionIntent}))}:{}),
+  const pose=assignment.toolPose??(assignment.source?completed.get(node.parentKey)?.node.record.spec.settings.toolPose:null);
+  const motionIntent=pose?{kind:'derived-pose',alignToSliceNormal:pose.alignToSliceNormal}:null;
+  const selected={...result,report:{...result.report,depositionFamily:node.kind,construction:result.report.construction??(node.kind==='slice'?undefined:node.construction),owner:node.sourceId,part:node.part,...(node.dependencyNotes?.length?{notes:[...(result.report.notes??[]),...node.dependencyNotes]}:{})},operations:result.operations.map(op=>({...op,part:node.part,...(motionIntent&&!result.depositionFinalized?{strokes:op.strokes.map(stroke=>({...stroke,motionIntent}))}:{}),
     after:[...new Set([...(op.after??[]),...(node.operationDependencies===false?[]:after),...(assignment.dependencies?.after??assignment.after??[])])],...(assignment.filament===null?{}:{filament:assignment.filament})}))};
   return selected;
 }
@@ -119,115 +126,79 @@ export function publishDepositionWork(node,result){
   return publication?.shell?republishDepositedBoundary(publishFinishedBoundary(result,{shell:publication.shell}),{widthMm:publication.process.lineWidthMm}):result;
 }
 
-// One assignment's construction or emission failing is that assignment's
+// One assignment's construction failing is that assignment's
 // failure, named with its error.
-class AssignmentFailure extends Error {
+export class AssignmentFailure extends Error {
   constructor(node,error){super(error.message,{cause:error});this.assignment=node.sourceId??node.key;this.family=node.kind;}
 }
 function assignmentWork(node,work){
   try{return work();}catch(error){throw error instanceof AssignmentFailure||error.name==='AbortError'?error:new AssignmentFailure(node,error);}
 }
-// A language error is a SAAM bug, still reported as the assignment's.
-const INTERNAL_ERRORS=['TypeError','RangeError','ReferenceError','SyntaxError'];
-const failureNote=({assignment,family,cause})=>`${family[0].toUpperCase()+family.slice(1)} ${assignment} produced nothing: ${INTERNAL_ERRORS.includes(cause.name)
-  ?`internal error (${cause.name}: ${cause.message}); this is a SAAM bug, report it with saam call report_bug`:cause.message}`;
-
-// Deposition of every assignment. A failing assignment produces nothing and
-// says why; the print is generated again without it, so what the others
-// deposit never depends on its partial work. -> {results, execution,
-// summary, notes}: notes are the slice stacks' notes, each result's report
-// notes (such as its contact spans) and each failure.
-export function finalizedSliceResults(args){
-  const failures=[];
-  for(;;){
-    try{return finalizeAssignments(args,failures);}catch(error){
-      if(error.name==='AbortError'||!error.assignment||failures.some(failure=>failure.assignment===error.assignment))throw error;
-      failures.push(error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error));
-    }
-  }
+// A generation-time source consumes the actual completed layer, never a newly
+// sliced approximation. The source owns curve geometry; Trace owns deposition.
+function sourceCurveResult(node,completed,{plan,results,shells}){
+  const assignment=node.context.assignment;
+  validateCurveAssignment(assignment);
+  if(node.context.sourceError)throw node.context.sourceError;
+  requireThat(node.context.curveSource&&typeof node.context.curveSource.constructLayer==='function','Trace source entry must provide constructLayer.');
+  const parent=completed.get(node.parentKey);
+  requireThat(parent,'Trace source names an absent Slice assignment or different part.');
+  const record=parent.node.record,result=parent.result,layer=result.referenceStack?.layers.find(layer=>layer.index===node.index);
+  if(!layer)return {id:assignment.id,operations:[],report:{construction:'curves',source:assignment.source,sourceLayer:node.index,skippedLayer:node.index,skipReason:'source layer has no deposited reference'}};
+  const selection=plan.geometry?geometrySelections(plan.geometry).get(node.part):null;
+  const source={slice:layer.slice,region:layer.region,material:layer.material,perimeters:layer.perimeters,
+    sectionReport:layer.sectionReport,solidRegion:layer.solidRegion,sparseRegion:layer.sparseRegion,
+    denseRegion:result.report.modulation?.materialChanged?[]:layer.denseRegion??[],
+    widthMm:layer.widthMm,pitchMm:layer.pitchMm,wallInsetMm:layer.wallInsetMm,heightMm:layer.heightMm,
+    index:node.index,sourceId:parent.node.sourceId,stackId:record.spec.id,part:node.part,
+    placement:{offset:selection?[selection.xMm,selection.yMm,selection.zMm]:[0,0,0]},
+    settings:layer.settings??record.spec.settings,process:layer.process??record.context.process,
+    key:record.spec.id+':'+node.index,ordinal:record.spec.layers.findIndex(item=>item.index===node.index),count:record.spec.totalLayerCount,
+    rank:parent.node.nominalRank,layerId:result.operations[0]?.layerId,speedMmS:result.operations[0]?.strokes[0]?.speedMmS};
+  const produced=node.context.curveSource.constructLayer({source,parameters:assignment.source.parameters});
+  requireThat(produced&&Array.isArray(produced.curves),'Trace source must return {curves,report}.');
+  const authored={...assignment,source:null,curves:produced.curves,filament:assignment.filament??record.spec.filament};
+  if(authored.curves.length)validateCurveAssignment(authored);
+  const traced=authoredCurveResult(authored,{plan,process:assignment.process?{...source.process,...assignment.process}:source.process,references:depositionReferences(shells,results),modelResults:results,sourceLayer:{...source,referenceStack:result.referenceStack}});
+  return {...traced,report:{...traced.report,...produced.report,notes:[...(traced.report.notes??[]),...(produced.report?.notes??[])],source:assignment.source,sourceLayer:node.index,sourceStack:record.spec.id,...(source.sectionReport?{sourceSection:source.sectionReport}:{})}};
 }
-function finalizeAssignments(args,failures){
-  const excluded=new Set(failures.map(failure=>failure.assignment));
-  const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(a.id))}};
-  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),reserves:(args.reserves??[]).filter(reserve=>!excluded.has(reserve.sourceId)),envelopes:(args.envelopes??[]).filter(envelope=>!excluded.has(envelope.sourceId))});
-  const contexts=sliced.contexts;
-  const generated=executeDepositionWork(args,contexts,excluded);
-  const produced=generated.results,nothing=!produced.some(result=>result.operations.length);
-  return {...generated,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...failures.map(failureNote),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
-}
 
-// Excluded assignments construct nothing. The rest is the one execution.
-function executeDepositionWork(args,contexts,excluded){
+// Construction follows material prerequisites only. It has no nozzle,
+// execution order, travel, cooling or motion-action state.
+export function constructDepositionResults(args,contexts,excluded=new Set()){
   const constructions=(args.constructions??[]).filter(context=>!excluded.has(context.assignment.id)),work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
-  // Nothing to deposit: the path is startup and finishing only.
-  if(!contexts.length&&!constructions.length&&!work.length)return {results:[],summary:null,
-    execution:{state:{...args.planningState,operationId:undefined},actions:new ActionAccumulator().finish(),summary:{operationOrder:[],layers:0}}};
-  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies),completed=new Map(),prepared=new Map(),emitted=new Set(args.emittedIds??[]);
-  const actions=new ActionAccumulator(),deposited=[],elapsed=new Map(),paid=new Map(),operationOrder=[],layerIds=new Set(),layerIndices=new Map();
-  let state=args.planningState,last=null;
-  requireThat(state,'Deposition execution needs the actual startup planning state.');
-  const priority=node=>node.kind==='slice'?contexts.indexOf(node.record):contexts.length+nodes.indexOf(node);
+  const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
+  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources),completed=new Map();
   while(completed.size<nodes.length){
-    for(const node of nodes)if(!prepared.has(node.key)&&!completed.has(node.key)&&node.requires.every(key=>completed.has(key))){
-      const {raw,parts,empty}=assignmentWork(node,()=>{
-        const raw=constructDepositionWork(node,completed,args),parts=raw.operations.map(sourceOperation=>{
-          const operation=state.selections&&/^planar:[\d.e+-]+$/.test(sourceOperation.layerId)?{...sourceOperation,layerId:'planar:'+Number(Number(sourceOperation.layerId.slice(7)).toFixed(5))}:sourceOperation;
-          const eligible=node.kind==='slice'&&['nearest','nearest-cells'].includes(operation.order)&&!operation.strokes.some(stroke=>matchingModulations(raw,stroke.role,args.plan.modulations,operation).length||stroke.motionIntent||stroke.poses);
-          const result=eligible||node.context?.assignment.sequence||node.context?.assignment.curves?.some(c=>c.contact)?{...raw,operations:[operation]}:finalizeDepositionResult({...raw,operations:[operation]},args.plan);
-          return {result,eligible,operation:result.operations[0],done:false};
-        });
-        return {raw,parts,empty:parts.length?null:publishDepositionWork(node,raw)};
-      });
-      prepared.set(node.key,{node,raw,parts});
-      if(empty)completed.set(node.key,{node,result:empty});
-    }
-    // Recipe composition entries name operation IDs. Once nothing else is
-    // ready, an entry naming no operation of this print matches nothing.
-    const readyParts=known=>[...prepared.values()].flatMap(item=>item.parts.filter(part=>!part.done).map(part=>({...item,part}))).filter(({part})=>{
-      const op=part.operation,after=[...(op.after??[])],named=id=>!known||known.has(id),order=args.plan.composition.order.filter(named);
-      for(const edge of args.plan.composition.dependencies)if(edge.after===op.id&&named(edge.before))after.push(edge.before);
-      const index=order.indexOf(op.id);if(index>0)after.push(order[index-1]);
-      after.push(...(args.operationDependencies?.(op,excluded)??[]));
-      return after.every(id=>emitted.has(id));
-    }).map(item=>({...item,height:item.part.operation.strokes.reduce((z,stroke)=>stroke.points.reduce((z,p)=>Math.max(z,p[2]),z),-Infinity)}))
-      .sort((a,b)=>a.height-b.height||priority(a.node)-priority(b.node)||a.part.operation.rank-b.part.operation.rank||a.parts.indexOf(a.part)-b.parts.indexOf(b.part));
-    const scheduled=readyParts(null),ready=scheduled.length?scheduled:readyParts(new Set([...emitted,...[...prepared.values()].flatMap(item=>item.parts.map(part=>part.operation.id))]));
+    const ready=nodes.filter(node=>!completed.has(node.key)&&node.requires.every(key=>completed.has(key)));
     if(!ready.length){
-      if(completed.size===nodes.length)break;
       const blocked=nodes.find(node=>!completed.has(node.key));
-      throw new AssignmentFailure(blocked,Error('Deposition dependencies are missing or cyclic: '+nodes.filter(node=>!completed.has(node.key)).map(node=>node.key).join(', ')));
+      throw new AssignmentFailure(blocked,Error('Construction dependencies are missing or cyclic: '+nodes.filter(node=>!completed.has(node.key)).map(node=>node.key).join(', ')));
     }
-    const chosen=ready[0],op=chosen.part.operation;
-    if(last&&last.layerId!==op.layerId&&!last.continuous){
-      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});
-      state=cooling.state;actions.add(cooling.actions);paid.set(last.layerId,(paid.get(last.layerId)??0)+(cooling.coolingSeconds??0));
+    for(const node of ready){
+      args.onProgress?.({stage:'Constructing deposition',assignment:node.sourceId,layer:node.index,completed:completed.size,total:nodes.length});
+      const result=assignmentWork(node,()=>{
+        const raw=constructDepositionWork(node,completed,args),finalized=finalizeDepositionResult(raw,args.plan);
+        const constrained={...finalized,operations:finalized.operations.map(operation=>({...operation,
+          after:[...new Set([...(operation.after??[]),...(args.operationDependencies?.(operation,excluded)??[])])]}))};
+        return publishDepositionWork(node,republishDepositedBoundary(constrained,{widthMm:args.plan.process.lineWidthMm}));
+      });
+      completed.set(node.key,{node,result});
     }
-    const layerId=state.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
-    if(!layerIndices.has(layerId))layerIndices.set(layerId,layerIndices.size);
-    const effective=state.selections?{...op,layerId,layer:layerIndices.get(layerId)}:op;
-    const {entered,emittedResult,finished,planned,whole}=assignmentWork(chosen.node,()=>{
-      const entered=planOperationEntry(state,effective,elapsed.get(op.layerId)??0);
-      const finalized=chosen.part.eligible?finalizeDepositionResult(chosen.part.result,args.plan,{entryPosition:entered.state.position}):chosen.part.result;
-      const material=finalized.operations[0],finished={...material,after:[...new Set([...(material.after??[]),...(args.operationDependencies?.(material,excluded)??[])])]};
-      const planned=planPreparedOperation(entered.state,state.selections?{...finished,layerId,layer:effective.layer}:finished,{deposited});
-      // The node's last operation completes its result.
-      const emittedResult={...finalized,operations:[finished]},complete=chosen.parts.every(part=>part.done||part===chosen.part);
-      const whole=complete?publishDepositionWork(chosen.node,republishDepositedBoundary(combineFinalizedResults(chosen.raw,chosen.parts.map(part=>part===chosen.part?emittedResult:part.result)),{widthMm:args.plan.process.lineWidthMm})):null;
-      return {entered,emittedResult,finished,planned,whole};
-    });
-    state=planned.state;actions.add(entered.actions);actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layerIds.add(op.layerId);last=finished;
-    deposited.push(finished.travelPolicy);emitted.add(op.id);operationOrder.push(op.id);chosen.part.done=true;chosen.part.result=emittedResult;
-    if(whole)completed.set(chosen.node.key,{node:chosen.node,result:whole});
   }
-  if(last&&!last.continuous){const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});state=cooling.state;actions.add(cooling.actions);}
-  const execution={state:{...state,operationId:undefined},actions:actions.finish(),summary:{operationOrder,layers:layerIds.size}};
   const results=[];
   for(const record of contexts){
     const sliceResults=nodes.filter(node=>node.kind==='slice'&&node.record===record).map(node=>completed.get(node.key).result);
     const result=combineSliceResults(record,sliceResults);
     results.push(result);
   }
-  results.push(...nodes.filter(node=>node.kind!=='slice').map(node=>completed.get(node.key).result));
+  results.push(...nodes.filter(node=>node.kind!=='slice'&&!node.context?.assignment.source).map(node=>completed.get(node.key).result));
+  for(const context of curveSources){
+    const parts=nodes.filter(node=>node.context?.assignment.source&&node.sourceId===context.assignment.id).map(node=>completed.get(node.key).result);
+    if(parts.length)results.push(combineFinalizedResults({id:context.assignment.id,report:{construction:'curves',depositionFamily:'trace',source:context.assignment.source,owner:context.assignment.id,part:context.assignment.part,
+      layers:parts.filter(part=>part.report.skippedLayer===undefined).length,skippedLayers:parts.filter(part=>part.report.skippedLayer!==undefined).length,strokes:parts.reduce((sum,part)=>sum+(part.report.strokes??0),0),lengthMm:parts.reduce((sum,part)=>sum+(part.report.lengthMm??0),0),volumeMm3:parts.reduce((sum,part)=>sum+(part.report.volumeMm3??0),0),
+      notes:parts.flatMap(part=>part.report.notes??[]),layerReports:parts.map(part=>part.report)}},parts));
+  }
   if(args.finishResults){
     const finished=args.finishResults({results,workResults:work.map(node=>completed.get(node.key).result)});
     const failure=finished.failures.find(failure=>!excluded.has(failure.assignment));
@@ -235,5 +206,5 @@ function executeDepositionWork(args,contexts,excluded){
     results.splice(0,results.length,...finished.results);
   }
   const resultLayers=new Set(results.flatMap(result=>result.operations.map(op=>op.layerId)));
-  return {results,execution,summary:{layers:resultLayers.size,instances:results.map(result=>({id:result.id,...result.report}))}};
+  return {results,summary:{layers:resultLayers.size,instances:results.map(result=>({id:result.id,...result.report}))}};
 }

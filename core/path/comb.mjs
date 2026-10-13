@@ -1,6 +1,7 @@
-import {pointInRegion,pointSegmentDistance,segmentIntersection,regionComponents} from '../region/region2d.mjs';
+import {regionContainsSegment} from '../geom/material-envelope.mjs';
+import {pointInRegion,regionComponents} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 const span=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
 
 // Prepared for one fixed layer, like its segment index. Share the closure when
@@ -17,21 +18,8 @@ export function prepareCombCorners(loops,clearance) {
     return prepared.get(component);
   };
 }
-export function combSegment(a,b,policy) {
-  const loops=policy.combRegion,clear=policy.combClearanceMm??0;
-  const index=policy.combIndex,inside=p=>index?index.contains(p):pointInRegion(p,loops);
-  if(!loops||!inside(a)||!inside(b)||!inside([(a[0]+b[0])/2,(a[1]+b[1])/2]))return false;
-  const threshold=Math.max(clear,ROUNDING_MM)-Math.min(clear/2,PRINT_RESOLUTION_MM);
-  // Only boundary segments along the travel itself can cross or approach it.
-  const edges=index?index.inCorridor(a,b,threshold):loops.flatMap(loop=>loop.map((c,i)=>[c,loop[(i+1)%loop.length]]));
-  // Crossings first: four distances cost several times one crossing test, and a
-  // blocked travel is answered by the crossing pass without running any of them.
-  for(const [c,d] of edges)if(segmentIntersection(a,b,c,d))return false;
-  for(const [c,d] of edges){
-    const distance=Math.min(pointSegmentDistance(a,c,d),pointSegmentDistance(b,c,d),pointSegmentDistance(c,a,b),pointSegmentDistance(d,a,b));
-    if(distance<threshold)return false;
-  }
-  return true;
+export function combSegment(a,b,policy){
+  return regionContainsSegment(a,b,{loops:policy.combRegion,index:policy.combIndex,clearanceMm:policy.combClearanceMm??0});
 }
 
 // Bounded visibility graph inside an inset region. Failure falls back to a hop.

@@ -30,6 +30,7 @@ const normalizePlan=plan=>({plan:normalizeSpatialPlan(currentRecipeTerms(plan))}
 async function presentGeometry(plan,descriptor){
   if(plan.geometry?.shape==='spatial'||plan.geometry&&!(plan.slices?.assignments??[]).some(a=>['curves','inject'].includes(a.construction)))return descriptor;
   const normalized=normalizeSpatialPlan(plan);
+  if(normalized.geometry?.shape!=='spatial')return descriptor;
   const {createSpatialGeometry}=await import('./geometry.mjs');
   return (await createSpatialGeometry(normalized.geometry,descriptor)).descriptor;
 }
@@ -59,7 +60,7 @@ export async function pathSource(plan){
   return {release:version,hash};
 }
 
-export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, readConstructedPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,readRecipe,patchPlan,createGeometry,normalizePlan,manufacturingInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode'

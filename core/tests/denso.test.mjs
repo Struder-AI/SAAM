@@ -13,17 +13,19 @@ import {validateDensoConfiguration} from '../../machines/denso/denso.mjs';
 import {validateDirectionPair} from '../geom/frame.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
 import {createGeometry} from '../print/geometry.mjs';
 import {rhino} from '../geom/runtime.mjs';
 import {initBundle,generateBundle,loadBundle,readDrawnPath} from '../print/bundle.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {uprightPose} from '../path/pose.mjs';
-import {prepareSliceContexts} from '../print/slices.mjs';
+import {prepareSliceContexts} from "../print/slice-material.mjs";
 import {prepareDepositionWork,constructDepositionWork} from '../print/slice-deposition.mjs';
 import {buildShell} from '../geom/build.mjs';
 import {splineTube} from './fixtures/spline-shapes.mjs';
 import {scheduleOperations} from '../path/compose.mjs';
+import {finalizeDepositionResult} from '../print/finalize.mjs';
 import {pathPreview,loadPathPreview} from '../../studio/path-preview.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {outputView} from '../../studio/refresh-plan.mjs';
@@ -42,9 +44,9 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const native=await createGeometry(plan.geometry);
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
-  const path=await generatePath(old,s5);assert.ok((await exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'})).report.volumeMm3>0);
+  const path=schedulePath(await generatePath(old,s5));assert.ok((await exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'})).report.volumeMm3>0);
   old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
-  const oriented=await generatePath(old,s5);assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
+  const oriented=schedulePath(await generatePath(old,s5));assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
   await assert.rejects(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright tool orientation/);
 });
 
@@ -52,7 +54,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
   // The cladding family resolves from the body's finished results; the work graph turns that source into operation prerequisites.
   const plan=small(),shell=buildShell(await rhino(),plan.geometry),completed=new Map();
   const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map()});
-  for(const node of prepareDepositionWork(contexts))completed.set(node.key,{node,result:constructDepositionWork(node,completed,{plan})});
+  for(const node of prepareDepositionWork(contexts))completed.set(node.key,{node,result:finalizeDepositionResult(constructDepositionWork(node,completed,{plan}),plan)});
   const operations=id=>[...completed.values()].filter(({node})=>node.sourceId===id).flatMap(({result})=>result.operations);
   const body=operations('body'),clad=operations('pipe-cladding'),last=body.at(-1).id;
   assert.deepEqual(scheduleOperations([{operations:[...clad,...body]}]).map(o=>o.id).slice(-3),[last,'pipe-cladding:0:fill','pipe-cladding:1:fill']);
@@ -64,7 +66,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
-    const path=await generatePath(plan,machine),program={...(await exportProgram(path,plan,machine)).report,moves:(await drawn(path,plan)).moves};
+    const path=schedulePath(await generatePath(plan,machine)),program={...(await exportProgram(path,plan,machine)).report,moves:(await drawn(path,plan)).moves};
     for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
     assert.ok(program.moves.every(m=>m.toolAxisTo[2]===-1));
@@ -92,7 +94,7 @@ test('an older path rotaryDeg is ignored; timed stationary deposition reports it
 });
 
 test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
-  const plan=small(),path=await generatePath(plan,machine),program=await drawn(path,plan);
+  const plan=small(),path=schedulePath(await generatePath(plan,machine)),program=await drawn(path,plan);
   const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0:fill','pipe-cladding:1:fill']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.operation?.startsWith('pipe-cladding:'));
   assert.ok(body.length&&clad.length);

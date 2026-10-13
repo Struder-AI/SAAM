@@ -20,8 +20,8 @@ import { cleanPlanarLoop } from '../geom/polyline.mjs';
 
 import {TOLERANCE} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {patchOffset,projectedFillStrokes,patchPatternStrokes,sampledChartPatternStrokes} from './patch-strokes.mjs';
-import {offsetSurfaceRegion} from './surface-offset.mjs';
+import {projectedFillStrokes,patchPatternStrokes,sampledChartPatternStrokes} from './patch-strokes.mjs';
+import {offsetSliceRegion} from './surface-operations.mjs';
 import {metricFillStrokes} from './metric-fill.mjs';
 import {frontLayerStrokes} from './seeded-fronts.mjs';
 
@@ -44,8 +44,7 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   requireThat(Number.isInteger(loops) && loops >= 0 && Number.isFinite(fillDensity) && fillDensity >= 0 && fillDensity <= 1,
     'A slice layer needs a whole loop count and a fill density from 0 to 1.');
   const pitch = lineSpacing(widthMm, { spacingFactor });
-  const offset=(loops,distance)=>!slice||slice.kind==='plane'||slice.kind==='height-field'?offsetRegion(loops,distance,offsetOptions):
-    slice.kind==='patch'?patchOffset(slice,loops,distance,{sampleStepMm}):offsetSurfaceRegion(slice,loops,distance,{maxStepMm:sampleStepMm}).loopsUv;
+  const offset=(loops,distance)=>offsetSliceRegion(slice,loops,distance,{...offsetOptions,sampleStepMm,metric:!slice||['plane','height-field'].includes(slice.kind)?'projected':'physical'});
   const boundary = outward ? material : loopBoundary;
   const walls = [];
   for (let ring = 0; ring < loops; ring++) {
@@ -57,7 +56,7 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
     // offset region keeps owning material topology.
     const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm));
     for (const points of cleaned)
-      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', closed: true, points, beadWidthMm: widthMm });
+      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, closed: true, points, beadWidthMm: widthMm });
   }
   // Fill reaches half a bead beyond the last loop, less the overlap welding
   // fill to walls. The region offset retains material topology at collapse.

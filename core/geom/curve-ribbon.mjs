@@ -1,5 +1,5 @@
-// Ribbons: a 3D curve or polyline displaced horizontally, perpendicular to its
-// XY tangent, with Z kept. There is no reference surface to resolve collisions
+// Ribbons displace a curve perpendicular to its tangent in the reference plane,
+// preserving height along the chosen direction. There is no surface to resolve collisions
 // in, so only folds are removed: where the displaced curve runs backwards in
 // plan view, the loop is cut out at the plan-view crossing that closes it,
 // leaving a small Z step there. Crossings between distant parts, such as a
@@ -88,10 +88,18 @@ export function foldCuts(moved,source,closed=false){
   return merged;
 }
 
-// Positive depth is to the right of travel seen from +Z. The result is the
+// Positive depth is right of travel seen along vertical. The result is the
 // displaced curve in order, cut where folds were removed.
-export function prepareCurveRibbon({curve,closed=false}){
+export function prepareRibbon({curve,closed=false,vertical=[0,0,1]}){
   requireCurve(curve);
+  requireThat(Array.isArray(vertical)&&vertical.length===3&&vertical.every(Number.isFinite),'Ribbon vertical is a finite direction.');
+  const size=Math.hypot(...vertical);requireThat(size>0,'Ribbon vertical direction is nonzero.');
+  const z=vertical.map(v=>v/size),seed=Math.abs(z[0])<.9?[1,0,0]:[0,1,0];
+  const projection=seed.reduce((sum,v,k)=>sum+v*z[k],0),x=seed.map((v,k)=>v-projection*z[k]),scale=Math.hypot(...x);
+  for(let k=0;k<3;k++)x[k]/=scale;
+  const y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]],axes=[x,y,z];
+  const map=(native,inverse)=>{const cp=native.cp.slice();for(let i=0;i<native.n;i++)for(let k=0;k<3;k++)cp[i*4+k]=[0,1,2].reduce((sum,j)=>sum+native.cp[i*4+j]*(inverse?axes[j][k]:axes[k][j]),0);return {...native,cp};};
+  curve=map(curve,false);
   requireThat(typeof closed==='boolean','Ribbon needs an explicit closed flag.');
   const field=looseCurveField(curve,closed,t=>sideAt(curve,t,closed,tangent=>{
     const size=Math.hypot(tangent[0],tangent[1]);
@@ -100,7 +108,7 @@ export function prepareCurveRibbon({curve,closed=false}){
   }));
   function ribbon(depth){
     const moved=curveAtDepth(field,depth),[d0,d1]=curve.domain;
-    if(depth===0)return {pieces:[moved],folds:0};
+    if(depth===0)return {pieces:[map(moved,true)],folds:0};
     const merged=foldCuts(moved,curve,closed);
     const keep=[];let from=d0;
     for(const [a,b] of merged){if(a>from)keep.push([from,a]);from=Math.max(from,b);}
@@ -108,7 +116,7 @@ export function prepareCurveRibbon({curve,closed=false}){
     const pieces=merged.length?keep.map(([a,b])=>extract(moved,a,b)):[moved];
     // A closed curve's cut through its seam is one fold.
     const acrossSeam=closed&&merged.length>1&&merged[0][0]===d0&&merged.at(-1)[1]===d1;
-    return {pieces,folds:merged.length-(acrossSeam?1:0)};
+    return {pieces:pieces.map(piece=>map(piece,true)),folds:merged.length-(acrossSeam?1:0)};
   }
   return {ribbon};
 }

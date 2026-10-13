@@ -28,8 +28,8 @@ polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topolo
 
 ## Geometry interoperability for skill authors
 
-Heat-set and text retain editable feature recipes. Heat-set [slice assignments](../../skills/heat-set-inserts/scripts/slices.mjs)
-own local deposition volumes; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
+Heat-set and text retain editable feature recipes. Heat-set [Trace reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs)
+owns layer deposition; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
 Skills share geometry queries with the explicit numerical and representation limits below.
 
 ### Shared numerical foundations
@@ -243,14 +243,12 @@ whole-period copy; each chain continues itself and reports its `wraps`. Loose ac
 spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
 from its bottom).
 
-[Ribbons](./curve-ribbon.mjs) displace a 3D curve horizontally with Z kept:
-`prepareCurveRibbon({curve, closed}).ribbon(depth)`. Where the displaced curve
-runs backwards in plan view, the fold is cut at the plan-view crossing that
-closes it within half a turn of the source, leaving a small Z step; when nothing
-closes it, only the backwards part is cut. A closed curve's fold may straddle its
-seam (the search runs on three copies). `foldCuts(moved, source, closed)`
-returns the cut intervals for other callers. Crossings between distant parts stay.
-Reversals are found from 32 samples per knot span.
+[Curve ribbons](./curve-ribbon.mjs) accept curves only:
+`prepareRibbon({curve, closed, vertical:[0,0,1]}).ribbon(depth)` offsets across the
+projected tangent and preserves height along any reference direction. A fold is
+cut at its closing crossing within half a turn, or only its backwards interval.
+Closed seams use three copies; distant crossings stay. `foldCuts` returns these
+intervals to other callers. Reversals use 32 samples per knot span.
 
 `prepareSleeveContours` in [sleeve-frame.mjs](sleeve/sleeve-frame.mjs) offsets horizontal native NURBS
 isocurves of periodic patches whose V chart reproduces actual Z. Crossings

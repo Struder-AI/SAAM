@@ -29,7 +29,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
       // A spiral boundary that cannot be resolved fails as its own assignment.
-      const prepared=(()=>{try{return engines.Toolpath.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});}catch(error){return {error};}})();
+      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});}catch(error){return {error};}})();
       if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
       const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
       return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
@@ -43,7 +43,17 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
-  return {notes,
+  const curveSources=[],sourceRuntimes=new Map();
+  for(const context of contexts.filter(({assignment})=>assignment.construction==='curves'&&assignment.source)){
+    const id=context.assignment.source.extension;
+    if(!sourceRuntimes.has(id)){
+      try{const create=await loadExtensionEntry(id,'trace-source');sourceRuntimes.set(id,{runtime:await create(engines),error:null});}
+      catch(error){if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;sourceRuntimes.set(id,{runtime:null,error});}
+    }
+    const loaded=sourceRuntimes.get(id);
+    curveSources.push({...context,curveSource:loaded.runtime,sourceError:loaded.error});
+  }
+  return {notes,curveSources,
     bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     reserves:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),envelopes:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),
     constructions:sleeves,

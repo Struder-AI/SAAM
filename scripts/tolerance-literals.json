@@ -19,8 +19,6 @@
  "skills/advanced-vase-wall/scripts/prepare-mesh.mjs": 2,
  "skills/advanced-vase-wall/scripts/record.mjs": 1,
  "skills/advanced-vase-wall/scripts/runtime.mjs": 1,
- "skills/heat-set-inserts/scripts/slices.mjs": 1,
- "skills/hole-supports/scripts/edit.mjs": 1,
  "skills/line-text/scripts/strokefont.mjs": 1,
  "skills/plastic-weld/scripts/runtime.mjs": 1,
  "skills/standard-support/scripts/support-geometry.mjs": 1,

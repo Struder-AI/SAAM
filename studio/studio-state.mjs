@@ -22,12 +22,14 @@ async function adoptProgramState(next,{presentation,decode,bind}){
   }
 }
 
-async function adoptNeutralPath(next,{presentation,decodeNeutral}){
+async function adoptNeutralPath(next,{presentation,decodeNeutral,bind}){
   if(next.completedOutput||next.program||next.programViewError||!next.review?.path)return next;
   const reusable=presentation?.identity.printId===next.printId
-    &&presentation.identity.pathId===next.review.path.id&&presentation.program?.neutral;
-  if(reusable)return {...next,neutralProgram:presentation.program};
-  try{return {...next,neutralProgram:await decodeNeutral(next)};}
+    &&presentation.identity.pathId===next.review.path.id&&presentation.identity.editRevision===next.editRevision&&presentation.program?.neutral;
+  try{
+    if(reusable){await bind?.({...next,outputId:next.review.path.id});return {...next,neutralProgram:presentation.program};}
+    return {...next,neutralProgram:await decodeNeutral(next)};
+  }
   catch(error){return {...next,neutralPathError:error.message};}
 }
 

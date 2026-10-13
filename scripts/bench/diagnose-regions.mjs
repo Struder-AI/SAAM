@@ -7,7 +7,7 @@ import {horizontalSlice, sliceStack } from '../../core/geom/slice.mjs';
 import {section} from '../../core/region/section.mjs';
 import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
-import { sliceAssignment } from '../../core/print/slices.mjs';
+import {sliceAssignment} from "../../core/print/slice-records.mjs";
 import { layerStrokes } from '../../core/region/layer-strokes.mjs';
 import { SegmentIndex } from '../../core/region/region2d.mjs';
 import { intersect, difference, union } from '../../core/region/intersection.mjs';

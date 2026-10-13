@@ -1,6 +1,6 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-// Deposition geometry contains no travel. The composer connects these strokes.
+// Toolpath finalizes deposited connections before downstream travel.
 
 
 // Curves enter in world coordinates. Mapping and ordering belong to earlier

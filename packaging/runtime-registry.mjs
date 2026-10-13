@@ -18,7 +18,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
   const windows=createStudioWindows({autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
   const operationObservers=new Set(),eventObservers=new Set();
   async function service(runtime,args){
-    if(args.method==='status')return {...services.status(),quitScope:quitScope()};
+    if(args.method==='status')return {...services.status(),quitScope:quitScope(runtime,args.studioInstanceId)};
     if(args.method==='activate')return services.activate(args.invite);
     if(args.method==='dismiss')return services.dismissFirstRun();
     if(args.method==='check-update'){await services.checkUpdate();return services.status();}
@@ -223,15 +223,29 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     return {stopped:true,runtimeId:runtime.id,codeRoot:runtime.codeRoot};
   }
   const stopRuntime=message=>halt(message,'runtime-stop');
-  // Studio's Quit: while other runtimes run, it stops only its window's runtime; in the only running
-  // runtime it quits SAAM, as the tray does. scope is what the person confirmed; when this moment's
-  // answer differs, the person is asked again.
-  const quitScope=()=>runtimes.size>1?'runtime':'saam';
-  const quitQuestion=(runtime,scope)=>scope==='saam'?'No other SAAM runtime is running now, so Quit closes SAAM and its tray. Quit SAAM?'
+  // A visible Studio cannot stop hidden sibling sessions sharing its runtime.
+  // Recheck the confirmed scope when Quit arrives; tray Quit still stops everything.
+  function quitScope(runtime,studioInstanceId){
+    if(studioInstanceId){
+      const target=windows.record(studioInstanceId);
+      if(target.runtimeId!==runtime.id)throw Error('The Studio and runtime targets do not match.');
+      if(target.visibility!=='hidden'&&windows.retained().some(window=>window.runtimeId===runtime.id&&window.instanceId!==studioInstanceId
+        &&(window.visibility==='hidden'||window.chatVisibility==='hidden')))return 'studio';
+    }
+    return runtimes.size>1?'runtime':'saam';
+  }
+  const quitQuestion=(runtime,scope)=>scope==='studio'?'Other background Studio sessions use this runtime. Close only this Studio? They, SAAM and its tray keep running.'
+    :scope==='saam'?'No other SAAM runtime is running now, so Quit closes SAAM and its tray. Quit SAAM?'
     :'Other SAAM runtimes are running now, so Quit stops only '+runtime.label+'; SAAM and its tray keep running. Stop it?';
-  async function quitFrom(runtime,{force=false,scope}={}){
-    const actual=quitScope();
+  async function quitFrom(runtime,{force=false,scope,studioInstanceId}={}){
+    const actual=quitScope(runtime,studioInstanceId);
     if(scope!==undefined&&scope!==actual)return {confirmationRequired:true,scope:actual,message:quitQuestion(runtime,actual)};
+    if(actual==='studio'){
+      const state=await inspect(runtime);
+      if(state.jobs.some(job=>job.studioInstanceId===studioInstanceId))throw Error('Cancel this Studio’s calculation before closing it. Background sessions keep running.');
+      setImmediate(()=>void stopSession({studioInstanceId}).catch(error=>console.error('Closing Studio failed: '+error.message)));
+      return {quitting:true,scope:actual};
+    }
     if(actual==='saam')return {...await services.quit({force}),scope:actual};
     const work=force?null:await activeWork(runtime,'runtime-stop');
     if(work)return {...work,scope:actual,message:work.message+'\nStop it anyway?'};

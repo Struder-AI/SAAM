@@ -1,6 +1,6 @@
 import {loadMachine} from '../../machine/profile.mjs';
 import {defaults} from '../../print/plan.mjs';
-import {sliceAssignment} from '../../print/slices.mjs';
+import {sliceAssignment} from "../../print/slice-records.mjs";
 import {splineBox} from './spline-shapes.mjs';
 
 export function h2dColourFixture(){
