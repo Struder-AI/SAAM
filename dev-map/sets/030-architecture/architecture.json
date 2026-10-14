@@ -11394,14 +11394,54 @@
       "source": {
         "file": "core/geom/text-layout.mjs"
       }
+    },
+    {
+      "id": "geometry-surface-patterns",
+      "index": "2.96",
+      "label": "Surface pattern curves",
+      "type": "component",
+      "source": {
+        "file": "core/region/surface-patterns.mjs"
+      },
+      "description": "One geometric meaning across planar, native and evaluated charts."
+    },
+    {
+      "id": "geometry-surface-measure",
+      "index": "2.97",
+      "label": "Surface region measures",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-region-measure.mjs"
+      },
+      "description": "One geometric meaning across planar, native and evaluated charts."
+    },
+    {
+      "id": "geometry-surface-ray",
+      "index": "2.98",
+      "label": "Surface ray queries",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-ray.mjs"
+      },
+      "description": "One geometric meaning across planar, native and evaluated charts."
+    },
+    {
+      "id": "geometry-affine-surface",
+      "index": "2.99",
+      "label": "Affine chart property",
+      "type": "component",
+      "source": {
+        "file": "core/geom/affine-surface.mjs"
+      },
+      "description": "One geometric meaning across planar, native and evaluated charts."
     }
   ],
   "contracts": [
     {
       "id": "slice-offset-chart",
-      "direction": "Slice requests geometry construction; Geometry returns the evaluated chart or chart curves.",
+      "direction": "Geometry supplies offset references during upstream material preparation.",
       "from": "geometry-offset-chart-1",
-      "to": "slice",
+      "to": "material-regions",
       "label": "Ambient offset reference",
       "operations": [
         "offsetSurfaceChart"
@@ -11413,13 +11453,13 @@
       "excludes": "No process, course, fill, deposition or scheduler policy.",
       "access": [
         {
-          "from": "slice",
+          "from": "material-regions",
           "to": "geometry-offset-chart-1"
         }
       ],
       "evidence": [
         "core/geom/offset-chart.mjs::offsetSurfaceChart",
-        "core/print/slice-stacks.mjs::resolveSliceStack"
+        "core/print/slice-stacks.mjs::prepareReferenceSliceStack"
       ],
       "status": "Source responsibility reviewed for authorized 0.3.2 consolidation; no conformance claim."
     },
@@ -16866,7 +16906,7 @@
       "operations": [
         "prepareSliceContexts",
         "referenceSliceContext",
-        "resolveSliceStack",
+        "prepareReferenceSliceStack",
         "prepareSliceBoundaryStack"
       ],
       "inputs": "Explicit assignment claims, reservations and reference families.",
@@ -17396,9 +17436,9 @@
     },
     {
       "id": "prepared-work-slice-layout",
-      "from": "slice",
+      "from": "material-regions",
       "to": "application",
-      "label": "prepareSliceLayer",
+      "label": "Prepared Slice layouts",
       "operations": [
         "prepareSliceLayer"
       ],
@@ -17409,10 +17449,13 @@
       "access": [
         {
           "from": "application",
-          "to": "slice"
+          "to": "material-regions"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": [
+        "core/print/slice-preparation.mjs::prepareSliceLayer",
+        "core/print/deposition-work.mjs::prepareDepositionWork"
+      ]
     },
     {
       "id": "application-prepared-toolpath",
@@ -17433,6 +17476,73 @@
         }
       ],
       "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "slice-surface-patterns",
+      "from": "geometry-surface-patterns",
+      "to": "slice",
+      "label": "surfacePatternStrokes",
+      "operations": [
+        "surfacePatternStrokes"
+      ],
+      "direction": "Geometry supplies explicit values; the named consumer calls the operation.",
+      "access": [
+        {
+          "from": "slice",
+          "to": "geometry-surface-patterns"
+        }
+      ],
+      "inputs": "Supplied surface/region geometry, direction and physical sampling tolerances.",
+      "outputs": "Geometric curves, measures or ray intersections; no deposition or scheduling policy.",
+      "effects": "Local geometric computation only.",
+      "failure": "Malformed or singular geometry reports its consuming assignment.",
+      "excludes": "No recipe, machine, persistence or completed-deposition lookup.",
+      "status": "Implemented common surface contract; geometric numerical limits remain explicit."
+    },
+    {
+      "id": "slice-surface-measures",
+      "from": "geometry-surface-measure",
+      "to": "slice",
+      "label": "measureSurfaceRegion",
+      "operations": [
+        "measureSurfaceRegion"
+      ],
+      "direction": "Geometry supplies explicit values; the named consumer calls the operation.",
+      "access": [
+        {
+          "from": "slice",
+          "to": "geometry-surface-measure"
+        }
+      ],
+      "inputs": "Supplied surface/region geometry, direction and physical sampling tolerances.",
+      "outputs": "Geometric curves, measures or ray intersections; no deposition or scheduling policy.",
+      "effects": "Local geometric computation only.",
+      "failure": "Malformed or singular geometry reports its consuming assignment.",
+      "excludes": "No recipe, machine, persistence or completed-deposition lookup.",
+      "status": "Implemented common surface contract; geometric numerical limits remain explicit."
+    },
+    {
+      "id": "prepared-material-surface-rays",
+      "from": "geometry-surface-ray",
+      "to": "material-regions",
+      "label": "prepareSurfaceRay",
+      "operations": [
+        "prepareSurfaceRay",
+        "surfaceRayIntersections"
+      ],
+      "direction": "Geometry supplies explicit values; the named consumer calls the operation.",
+      "access": [
+        {
+          "from": "material-regions",
+          "to": "geometry-surface-ray"
+        }
+      ],
+      "inputs": "Supplied surface/region geometry, direction and physical sampling tolerances.",
+      "outputs": "Geometric curves, measures or ray intersections; no deposition or scheduling policy.",
+      "effects": "Local geometric computation only.",
+      "failure": "Malformed or singular geometry reports its consuming assignment.",
+      "excludes": "No recipe, machine, persistence or completed-deposition lookup.",
+      "status": "Implemented common surface contract; geometric numerical limits remain explicit."
     }
   ],
   "layout": {

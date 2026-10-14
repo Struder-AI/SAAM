@@ -27,9 +27,9 @@ does not supply one. A schedule such as two, three, then two neighboring paths
 can make a rolled profile; paths may extend beyond the modeled wall. Width
 changes must remain supported by preceding material.
 
-## Follow a finished boundary
+## Follow a prepared boundary
 
-Ordinary Slice can follow a source's closed, level terminal curve:
+Ordinary Slice can follow a source's prepared closed, level boundary:
 
 ```json
 {"id":"lip","loops":[2,3,2],"fillDensity":0,"solidTop":0,"solidBottom":0,
@@ -40,10 +40,8 @@ Ordinary Slice can follow a source's closed, level terminal curve:
 Use the normal assignment tool to fill remaining defaults. Each loop count
 selects one slice. Spacing and height use the assignment's process settings.
 The source can be Slice or a closed Trace, including a level-ended vase.
-With substrate adaptation enabled, finalized source beads and preceding slices
-supply contact; missing contact rejects. The old `construction:'rim'` record
+A lip uses ordinary inward loops and no infill. Increasing the loop count does not enlarge the target region. Slice never reads finalized beads or performs substrate adaptation. The old `construction:'rim'` record
 is read as these fields.
 
-The underlying technique has user-reported physical prints; experimental contact
-adaptation and large width jumps remain unqualified. Follow the shared review
+The underlying technique has user-reported physical prints; large width jumps remain unqualified. Follow the shared review
 workflow; no strength or full-head clearance model is implied.

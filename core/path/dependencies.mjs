@@ -5,7 +5,9 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // Poses are {toolAxis, toolUp}; reorientation is ordinary travel (no rotary angle).
 // 15: Bundle retains finalized operation geometry/dependencies before scheduling.
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
-export const PATH_CONTRACT='saam-deposition/16';
+// 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
+// terminal regions are not widened, and no Slice reads completed deposition.
+export const PATH_CONTRACT='saam-deposition/17';
 export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/2'; // Retain geometric layer references in motion context.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.

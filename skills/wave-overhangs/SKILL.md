@@ -27,8 +27,7 @@ There is no separate wave producer.
 - `domainUv` supplies closed chart loops: CCW outer boundaries, CW holes.
   The preset turns these into the owned volume.
 - `seedUv` identifies the already reached chart region; it is not extruded again.
-  Match its edge to the intended anchor. Omit it to derive a seed from finalized
-  predecessor beads. Disconnected components may require separate assignments.
+  Match its edge to the intended anchor. Omit it to derive a seed from prepared predecessor material. Disconnected components may require separate assignments.
 - `afterParts`, `beforeParts` and `after` become ordinary dependencies. For a
   single solid, `[null]` selects its producers. Dependencies establish order,
   not physical adhesion or automatic support.

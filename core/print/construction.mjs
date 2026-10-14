@@ -33,7 +33,7 @@ function finalizeAssignments(args,failures){
   const constructions=(args.constructions??[]).filter(context=>!excluded.has(context.assignment.id));
   const work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
   const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
-  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources);
+  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells});
   const generated=constructDepositionResults({...args,nodes,curveSources},contexts);
   const produced=generated.results,nothing=!produced.some(result=>result.operations.length);
   return {...generated,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...failures.map(failureNote),...(nothing?['Nothing to print: no assignment produced material.']:[])]};

@@ -1465,7 +1465,7 @@
         "call"
       ],
       "callers": [
-        "core/print/slice-stacks.mjs::resolveSliceStack"
+        "core/print/slice-stacks.mjs::prepareReferenceSliceStack"
       ],
       "evidence": "Geometry resolves an ambient offset reference independently of Slice fill and stack lifecycle."
     },
@@ -1839,7 +1839,7 @@
     },
     {
       "contract": "prepared-work-slice-layout",
-      "target": "core/print/slices.mjs::prepareSliceLayer",
+      "target": "core/print/slice-preparation.mjs::prepareSliceLayer",
       "kinds": [
         "call"
       ],
@@ -1852,6 +1852,34 @@
         "call"
       ],
       "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "slice-surface-patterns",
+      "target": "core/region/surface-patterns.mjs::surfacePatternStrokes",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "slice-surface-measures",
+      "target": "core/geom/surface-region-measure.mjs::measureSurfaceRegion",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "prepared-material-surface-rays",
+      "target": "core/geom/surface-ray.mjs::prepareSurfaceRay",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "prepared-material-surface-rays",
+      "target": "core/geom/surface-ray.mjs::surfaceRayIntersections",
+      "kinds": [
+        "call"
+      ]
     }
   ],
   "retiredBindings": [

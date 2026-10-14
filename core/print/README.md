@@ -243,3 +243,18 @@ travel/lift, export interpretation and determinism across core and skill tests.
 development generation, byte-identical delivery, staleness after each kind of
 edit, remembered setup, and Studio serving and delivering a shell print. None
 of that establishes clearance, surface quality, or that any part prints.
+
+## Prepared Slice work
+
+Material preparation expands translated or normal-offset stacks into individual
+reference/region descriptions. Stack spacing derives their local normal gaps;
+the agent does not author a second gap parameter. Solid masks, fill progression
+and front seeds come from prepared material intent. Generated Trace sources are
+also prepared before construction and can supply terminal reference geometry.
+
+Slice uses one surface-pattern and deposition route. Flatness and wrapping are
+geometry properties; lips use zero infill and ordinary inward loops. Terminal
+selectors do not expand regions based on wall count. Slice never queries
+completed deposition, including when experimental substrate adaptation is on.
+Current fitted/pointwise normal offsets still lack general self-intersection
+trimming; this remains a Geometry limitation.

@@ -112,7 +112,7 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
 
 export function validateSliceSurface(surface, id) {
   if(surface?.kind==='terminal'){
-    requireThat(Object.keys(surface).sort().join()==='assignment,kind,minFeatureMm'&&typeof surface.assignment==='string'&&surface.assignment!==id&&surface.assignment.length&&Number.isFinite(surface.minFeatureMm)&&surface.minFeatureMm>0,'A finished-boundary reference needs another assignment and positive minFeatureMm.');return;
+    requireThat(Object.keys(surface).sort().join()==='assignment,kind,minFeatureMm'&&typeof surface.assignment==='string'&&surface.assignment!==id&&surface.assignment.length&&Number.isFinite(surface.minFeatureMm)&&surface.minFeatureMm>0,'A prepared-boundary reference needs another assignment and positive minFeatureMm.');return;
   }
   if(surface?.kind==='mesh-strip'||surface?.kind==='spline'&&typeof surface.patch==='string'){validateSurfaceSelection(surface);return;}
   if (surface?.kind === 'horizontal' && Object.keys(surface).join() === 'kind') return;

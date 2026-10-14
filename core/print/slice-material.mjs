@@ -239,7 +239,7 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],geometryCuts=
       layerOrder:layers.map(layer=>({index:layer.index,rank:sliceRank(layer.slice,owner.shell.bounds)}))});
   }
   contexts.push(...referenceAssignments.map(input=>{
-    try{return referenceSliceContext(input,plan);}catch(error){failedSlicePreparation(input.assignment,error);}
+    try{return referenceSliceContext(input);}catch(error){failedSlicePreparation(input.assignment,error);}
   }));
   return {contexts,notes};
 }

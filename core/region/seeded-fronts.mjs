@@ -3,10 +3,9 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Shared seeded fronts: constrained surface-distance propagation, chart
 // clipping, physical mapping and short in-domain connections. Original SAAM
 // implementation; research provenance: skills/wave-overhangs/BUILDER.md.
-import {surfaceDerivatives} from '../geom/surface-derivatives.mjs';
-import {patchSlice,sliceChartStep} from '../geom/slice.mjs';
-import {sampledChartRegion} from '../geom/height-slice.mjs';
-import {beadContactAlong} from '../path/deposited-curves.mjs';
+import {surfaceDerivatives as nativeDerivatives} from '../geom/surface-derivatives.mjs';
+import {evaluatedSurfaceDerivatives} from '../geom/evaluated-surface.mjs';
+import {surfaceChartBounds} from './surface-operations.mjs';
 import {offsetSurfaceRegion,UV_ROUNDING,UV_GRID} from './surface-offset.mjs'; // uv rounding and boolean grid
 import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
@@ -14,22 +13,19 @@ import {offsetRegion} from './offset.mjs';
 import {mapSliceStroke} from './layer-strokes.mjs';
 
 
-// Front order is a region-to-chart-curves construction on any patch layer.
-// An authored seed can be supplied; otherwise the seed is the actual footprint
-// of finalized predecessor beads within one translation step below the layer.
-export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm,lineWidthMm,supportSegments=[]}){
-  requireThat(layer.slice.kind==='patch','Seeded front order needs a native patch chart.');
-  const patch=layer.slice.patch,domain=layer.region;
+// Front order consumes an explicit authored/prepared seed on any regular chart.
+export function frontLayerStrokes(layer,{seedUv,lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm,lineWidthMm}){
+  requireThat(Array.isArray(seedUv),'Front order needs a prepared seed region.');
+  const domains=surfaceChartBounds(layer.slice,layer.region.flat());
+  const patch=layer.slice.patch??{...layer.slice,domainU:domains[0],domainV:domains[1]},domain=layer.region;
   const settings={lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm};
-  const bounds={min:[patch.domainU[0],patch.domainV[0]],max:[patch.domainU[1],patch.domainV[1]]};
-  const seed=seedUv??sampledChartRegion(bounds,sliceChartStep(layer.slice,sampleStepMm),uv=>{
-    if(!pointInRegion(uv,domain))return false;
-    return beadContactAlong(supportSegments,evaluateSurface(layer.slice,uv).point,layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
-  });
+  const seed=seedUv;
   const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);
   const connected=connectSurfacePasses(patch,generated.waves,domain,settings,lineWidthMm);
-  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:seedUv?'authored':'deposited'},seed};
+  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:layer.seedSource??'authored'},seed};
 }
+
+const surfaceDerivatives=(surface,u,v)=>surface.cp?nativeDerivatives(surface,u,v):evaluatedSurfaceDerivatives(surface,u,v);
 
 // Build continuous meanders using short surface connections. A connector must
 // lie wholly in the assigned domain; proximity alone cannot authorize crossing
@@ -91,7 +87,7 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
 // Shared physical mapping retains chart samples and surface normals for
 // connection diagnostics; it does not assign a machine tool pose.
 function mapFrontPath(patch,path,settings) {
-  const mapped=mapSliceStroke({points:path,closed:false},patchSlice(patch),{sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,frames:true});
+  const mapped=mapSliceStroke({points:path,closed:false},patch,{sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,frames:true});
   return {points:mapped.points,normals:mapped.normals,chartPoints:mapped.chartPoints,frameSamples:mapped.frameSamples,report:mapped.mappingReport};
 }
 

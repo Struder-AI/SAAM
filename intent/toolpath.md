@@ -36,6 +36,10 @@ Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extensio
 
 Summary: Slice is one owned-region/reference-family operation; lip, cladding, skin, brim and support are inputs to it, not separate producers, and the vase spiral is Trace in an extension.
 
+Owner clarification, 2026-10-14: planar is a slice with no curvature; cladding is a slice wrapped around itself; a lip is a slice with no infill and possibly extra loops. The agent supplies stack spacing; each slice's local normal gap is derived from that spacing and the reference geometry. Slice reads prepared material descriptions, never completed deposition. Experimental completed-material adaptation is retained only for Trace.
+
+Implementation: reference stacks, masks, fill progression and front seeds are prepared before construction. All references use shared physical offset/pattern/mapping/gap operations. Terminal selectors copy prepared level regions and never widen them according to loop count. General self-intersection trimming for normal-offset stacks is still a Geometry requirement; the current pointwise/fitted offset charts do not satisfy it. Periodic full-wrap perimeter regions also need seam-aware offset/boundary geometry; cell-fill cladding does not establish arbitrary wrapped-loop coverage.
+
 Sources: [0.3.2 "Slice consolidation — owner approved"](../plans/0.3.2.md#inherited-unfinished-intent); Codex 01a0fad5 04:36; Codex 01a0fb05 05:20 ("we have that as a generalized slice capability already").
 
 ## Supports are chosen by judgment
@@ -83,8 +87,8 @@ Summary: general gap filling is rejected, not deferred; local gap-volume compens
 
 Sources: [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent); owner's guidance prompt 2026-10-02 (listed as a deliberate removal).
 
-## Substrate adaptation is the agent's choice
-Agent wording; owner confirmed the Studio controls gone (0.2.0 R11): substrate adaptation is opt-in (`experimental.substrateAdaptation`), chosen by the agent with no Studio toggle; off uses nominal references, on adjusts gap/volume or follows the surface using finalized deposition.
+## Trace substrate adaptation is the agent's choice
+Owner clarification, 2026-10-14: Slice has no completed-deposition adaptation. The existing Trace-only substrate adaptation is opt-in (`experimental.substrateAdaptation`), chosen by the agent with no Studio toggle; off uses nominal references, on adjusts gap/volume or follows the surface using finalized deposition.
 
 Sources: [0.2.0 Settled intent and R11](../plans/0.2.0.md); [GLOSSARY](../GLOSSARY.md).
 

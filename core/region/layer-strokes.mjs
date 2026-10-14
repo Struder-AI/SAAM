@@ -1,26 +1,20 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {affineSurface} from '../geom/affine-surface.mjs';
 import {requireThat,normalize,cross,dot} from '../private/toolpath/numeric.mjs';
 // Strokes of one slice layer. layerStrokes fills an owned layer region with
 // loops and fill in the slice's chart; mapSliceStrokes maps coordinates to XYZ.
 // Deposition dimensions belong to core/path/deposition.mjs. Both are plain functions of their inputs: the slice
 // skill (core/print/slices.mjs) chooses the region, the solid mask and the
 // angles for each layer.
-//
-// Offsets run through Clipper2 offsetRegion. BR-059 item 6 (D-041) asks for
-// the curve offset with the slice as reference surface instead; measured on
-// the 0.2.0 baseline prints it was 5x to over 1000x slower per layer (DEVLOG,
-// 2026-09-28 slice skill), so the switch waits for a decision.
-import { offsetRegion } from './offset.mjs';
-import { perimeterLoops } from './perimeters.mjs';
-import { scanlineFill } from './region2d.mjs';
+// Physical offsets and pattern queries use the same surface operations.
 import { difference, intersect, union } from './intersection.mjs';
-import { fillPatternStrokes } from './fill-patterns.mjs';
+import {surfacePatternStrokes} from './surface-patterns.mjs';
+import {horizontalSlice} from '../geom/slice.mjs';
 import { lineSpacing } from '../path/spacing.mjs';
 import { cleanPlanarLoop } from '../geom/polyline.mjs';
 
 import {TOLERANCE} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {projectedFillStrokes,patchPatternStrokes,sampledChartPatternStrokes} from './patch-strokes.mjs';
 import {offsetSliceRegion} from './surface-operations.mjs';
 import {metricFillStrokes} from './metric-fill.mjs';
 import {frontLayerStrokes} from './seeded-fronts.mjs';
@@ -43,13 +37,12 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
   requireThat(Number.isInteger(loops) && loops >= 0 && Number.isFinite(fillDensity) && fillDensity >= 0 && fillDensity <= 1,
     'A slice layer needs a whole loop count and a fill density from 0 to 1.');
   const pitch = lineSpacing(widthMm, { spacingFactor });
-  const offset=(loops,distance)=>offsetSliceRegion(slice,loops,distance,{...offsetOptions,sampleStepMm,metric:!slice||['plane','height-field'].includes(slice.kind)?'projected':'physical'});
+  const offset=(loops,distance)=>offsetSliceRegion(slice,loops,distance,{...offsetOptions,sampleStepMm});
   const boundary = outward ? material : loopBoundary;
   const walls = [];
   for (let ring = 0; ring < loops; ring++) {
     const distance = (loopInsetMm??widthMm/2) + ring * pitch;
-    const planar=!slice||['plane','height-field'].includes(slice.kind);
-    const found=outward?offset(boundary,distance):planar&&loopInsetMm===null?perimeterLoops(boundary,distance):offset(boundary,-distance);
+    const found=offset(boundary,outward?distance:-distance);
     if (!found.length) break;
     // Simplify only the finished deposition contour to machine precision; the
     // offset region keeps owning material topology.
@@ -70,18 +63,19 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
 
 export function layerStrokes(region, options) {
   const {widthMm,fillDensity,fillPattern,fillAngleDeg,patternAngleDeg,solidDensity=1,spacingFactor,sampleStepMm,phaseMm=0,
-    slice=null,fillOrder=null,layer=null,direction=null,supportSegments=[],layoutReference=slice,fillState=null,fillDirection=null}=options;
+    slice=null,fillOrder=null,layer=null,direction=null,layoutReference=slice,fillState=null,fillDirection=null}=options;
   const pitch=lineSpacing(widthMm,{spacingFactor});
   const {walls,interior,solidRegion,sparseRegion}=options.preparedLayout??sliceLayerLayout(region,options);
   if(fillOrder?.kind==='fronts'){
-    const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm,supportSegments}));
+    const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm}));
     return {walls,infill:[],fill:fronts.flatMap(front=>front.curves),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
   }
   const fillOptions={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
   let constructionReport, nextFillState;
-  const pattern=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,sparseRegion,fillOptions):slice?.kind==='patch'?patchPatternStrokes(slice,sparseRegion,fillOptions):fillPatternStrokes(sparseRegion,{pattern:fillPattern,widthMm,density:fillDensity,angleDeg:patternAngleDeg,zMm:phaseMm,sampleStepMm,spacingFactor});
+  const reference=slice??horizontalSlice(phaseMm);
+  const pattern=fillOrder?.kind==='surface-cells'?[]:surfacePatternStrokes(reference,sparseRegion,fillOptions);
   const infill=pattern.map((stroke,lineIndex)=>({...stroke,role:'infill',fillFamily:stroke.fillFamily??{spacingMm:pitch/fillDensity,lineIndex},points:stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points}));
-  let fill=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,solidRegion,{...fillOptions,fillDensity:solidDensity,fillPattern:'rectilinear',patternAngleDeg:fillAngleDeg}).map(stroke=>({...stroke,role:'fill'})):slice?.kind==='patch'?projectedFillStrokes(slice,solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg,sampleStepMm,direction}):directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
+  let fill=fillOrder?.kind==='surface-cells'?[]:surfacePatternStrokes(reference,solidRegion,{...fillOptions,fillDensity:solidDensity,fillPattern:'rectilinear',patternAngleDeg:fillAngleDeg}).map(stroke=>({...stroke,role:'fill'}));
   if(fillOrder?.kind==='surface-cells'){
     const construct=(region,density)=>metricFillStrokes(slice,region,{widthMm,density,spacingFactor,sampleStepMm,
       toleranceMm:fillOrder.toleranceMm,direction:fillDirection??fillOrder.directions[(layer?.index??0)%fillOrder.directions.length],
@@ -94,26 +88,20 @@ export function layerStrokes(region, options) {
 
 }
 
-export function directedFillStrokes(region,{spacingMm,angleDeg,reverseRows=false,role='fill'}) {
-  const rows=region.length?scanlineFill(region,spacingMm,angleDeg):[];
-  const sequence=reverseRows?rows.toReversed():rows;
-  const radians=angleDeg*Math.PI/180;
-  return sequence.map((row,position)=>({role,closed:false,points:position%2?[row.to,row.from]:[row.from,row.to],scanlineCell:row.cellId,fillFamily:{direction:[Math.cos(radians),Math.sin(radians)],spacingMm,lineIndex:position}}));
-}
-
 // Material the loops of a layer cover: the band inward from the loop boundary,
 // one ring per loop when loops are spaced wider than a bead, within the region.
-export function loopMaterial(region, { widthMm, loops, spacingFactor }, {outward=false} = {}) {
+export function loopMaterial(region, { widthMm, loops, spacingFactor }, {outward=false,slice=null,sampleStepMm=.2} = {}) {
   if (outward) return region;
   const pitch = lineSpacing(widthMm, { spacingFactor });
-  if (pitch === widthMm) return difference(region, offsetRegion(region, -widthMm * loops));
-  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offsetRegion(region, -ring * pitch) : region,
-    offsetRegion(region, -ring * pitch - widthMm))).flat(), []);
+  const offset=distance=>offsetSliceRegion(slice,region,distance,{sampleStepMm});
+  if (pitch === widthMm) return difference(region, offset(-widthMm * loops));
+  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offset(-ring * pitch) : region,
+    offset(-ring * pitch - widthMm))).flat(), []);
 }
 
 // Material fill strokes cover: their region grown by half a bead. Coverage
 // takes part in booleans, so it is built to the chord tolerance.
-export const fillMaterial = (region, widthMm) => region.length ? offsetRegion(region, widthMm / 2, { arcToleranceMm: TOLERANCE.chord }) : [];
+export const fillMaterial = (region, widthMm, {slice=null,sampleStepMm=.2}={}) => region.length ? offsetSliceRegion(slice,region,widthMm/2,{sampleStepMm,arcToleranceMm:TOLERANCE.chord}) : [];
 
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.
@@ -129,7 +117,7 @@ export function mapSliceStrokes(strokes, slice, options={}) {
       normals:samples.map(e=>e.normal),referenceAlong:samples.map(e=>e.dv),widthsMm,
       segmentMetadata:samples.slice(1).map(e=>({surfaceNormal:[...e.normal]}))};
   });
-  if(slice.kind==='plane')return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>evaluateSurface(slice,point).point),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(()=>[...slice.normal]),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
+  if(affineSurface(slice))return strokes.map(stroke=>({...stroke,points:stroke.points.map(point=>evaluateSurface(slice,point).point),...(options.frames?{chartPoints:stroke.points,normals:stroke.points.map(point=>evaluateSurface(slice,point).normal),frameSamples:stroke.points.map(point=>sliceFrame(slice,point))}:{})}));
   return strokes.map(stroke=>mapSliceStroke(stroke,slice,options));
 }
 

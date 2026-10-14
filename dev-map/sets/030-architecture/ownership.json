@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Toolpath construction/scheduling separation implemented 2026-10-13. Slice, Trace, Inject and Modulation finalize deposition; material allocation and Recipe are upstream; Bundle saves data before downstream Scheduling. General Slice convergence and other crossings remain findings.",
+  "status": "Unified Slice construction, 2026-10-14: references/material masks/phase/seeds prepared before construction; no completed deposition reads; lip uses ordinary loops without contour expansion; translated/normal stacks derive local gaps. General trimmed normal offsets remain a Geometry limitation.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "dev-map/influence/position-documents.mjs": {
@@ -239,10 +239,6 @@
       "owner": "slice",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
-    "core/region/material-contact.mjs": {
-      "owner": "slice",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/region/normal-surface.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
@@ -257,15 +253,11 @@
     },
     "core/region/fill-patterns.mjs": {
       "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/region/layer-strokes.mjs": {
       "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
-    },
-    "core/region/patch-strokes.mjs": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/region/perimeters.mjs": {
       "owner": "slice",
@@ -277,7 +269,7 @@
     },
     "core/region/seeded-fronts.mjs": {
       "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/region/surface-curves.mjs": {
       "owner": "slice",
@@ -493,7 +485,7 @@
     },
     "core/print/slices.mjs": {
       "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/print/slice-settings.mjs": {
       "owner": "recipe",
@@ -829,7 +821,7 @@
     },
     "core/print/terminal-boundary.mjs": {
       "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "skills/bridging/scripts/attachment-curves.mjs": {
       "owner": "extensions",
@@ -1257,7 +1249,7 @@
     },
     "core/print/slice-stacks.mjs": {
       "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/region/metric-fill.mjs": {
       "owner": "slice",
@@ -1621,11 +1613,39 @@
     },
     "core/print/deposition-work.mjs": {
       "owner": "application",
-      "reason": "Application prepares work and extension dependencies before Toolpath runs."
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/print/assignment-failure.mjs": {
       "owner": "application",
       "reason": "Application-owned assignment failure and invocation wrapper."
+    },
+    "core/geom/affine-surface.mjs": {
+      "owner": "geometry-affine-surface",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/geom/surface-ray.mjs": {
+      "owner": "geometry-surface-ray",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/geom/surface-region-measure.mjs": {
+      "owner": "geometry-surface-measure",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/region/surface-patterns.mjs": {
+      "owner": "geometry-surface-patterns",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/print/slice-preparation.mjs": {
+      "owner": "material-regions",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/print/trace-source-preparation.mjs": {
+      "owner": "application",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/region/slice-gaps.mjs": {
+      "owner": "slice",
+      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     }
   },
   "leaves": {
@@ -4999,90 +5019,6 @@
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
     },
-    "core/print/slices.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::boxesMeet": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::evaluateRegionBatch": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::hullPoints": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::hullsSeparate": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::hullsSeparate::center": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::ownershipDependencies": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::placedFootprint": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::planeContactGaps": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::resolveSliceOwnership": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::resolveSliceOwnership::exact": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::resolveSliceOwnership::offset": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceContextResult": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult::angleAt": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult::area": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult::contains": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult::materialRegion": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResult::wallMaterial": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::sliceResults": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::volumeBox": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
     "core/print/workflow.mjs::@module": {
       "owner": "bundle"
     },
@@ -5293,22 +5229,6 @@
     "core/region/clipper.mjs::simplifyPaths": {
       "owner": "geometry-leaf-8b2d2f622e6d"
     },
-    "core/region/fill-patterns.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/fill-patterns.mjs::fillPatternStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/fill-patterns.mjs::gyroid": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/fill-patterns.mjs::sampledFieldStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
     "core/region/intersection.mjs::@module": {
       "owner": "geometry-leaf-3ee958e79ce5"
     },
@@ -5346,58 +5266,6 @@
     "core/region/layer-region.mjs::volumeSection": {
       "owner": "geometry-leaf-7f59b34ff08b"
     },
-    "core/region/layer-strokes.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::directedFillStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::fillMaterial": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::layerStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::loopMaterial": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::mapSliceStroke": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/layer-strokes.mjs::mapSliceStroke::chartPoint": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/layer-strokes.mjs::mapSliceStroke::split": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/layer-strokes.mjs::mapSliceStrokes": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/layer-strokes.mjs::sliceFrame": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/material-contact.mjs::@module": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
-    "core/region/material-contact.mjs::materialContact": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
-    "core/region/material-contact.mjs::materialContact::inRegion": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
     "core/region/normal-surface.mjs::@module": {
       "owner": "geometry-leaf-1de713055669"
     },
@@ -5431,18 +5299,6 @@
     "core/region/ownership.mjs::requireExclusiveClaims::name": {
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/patch-strokes.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/patch-strokes.mjs::patchOffset": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/patch-strokes.mjs::projectedFillStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
     "core/region/perimeters.mjs::@module": {
       "owner": "slice",
@@ -5608,58 +5464,6 @@
     "core/region/roof-region.mjs::surveyRoofRegion::refine": {
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/seeded-fronts.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::connectSurfacePasses": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::connectSurfacePasses::inside": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontLayerStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontPaths": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontPaths::near": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::mapFrontPath": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::nearBoundary": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::sliverWidth": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::sliverWidth::furthest": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
     "core/region/surface-curves.mjs::@module": {
       "owner": "slice",
@@ -7705,14 +7509,6 @@
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
     },
-    "core/print/terminal-boundary.mjs::@module": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/print/terminal-boundary.mjs::terminalBoundaryReference": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
     "skills/bridging/scripts/attachment-curves.mjs::@module": {
       "owner": "extensions"
     },
@@ -9619,26 +9415,6 @@
     "core/geom/offset-chart.mjs::offsetSurfaceChart::offsetPoint": {
       "owner": "geometry-offset-chart-5"
     },
-    "core/print/slice-stacks.mjs::@module": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/print/slice-stacks.mjs::referenceSliceContext": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/print/slice-stacks.mjs::resolveSliceStack": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/print/slices.mjs::requireExclusiveNormalBands": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::requireExclusiveNormalBands::bounds": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
     "core/region/metric-fill.mjs::@module": {
       "owner": "slice",
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
@@ -9684,22 +9460,6 @@
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
     "core/region/metric-fill.mjs::metricFillStrokes::uvAt": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/patch-strokes.mjs::patchPatternStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/patch-strokes.mjs::sampledChartPatternStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::layerStrokes::construct": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::layerStrokes::offset": {
       "owner": "slice",
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
@@ -14866,14 +14626,6 @@
     "core/region/section.mjs::sectionPreparedMesh::shift": {
       "owner": "geometry"
     },
-    "core/print/slices.mjs::planeContactGaps::gap": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/print/slices.mjs::fillSliceRegion": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
     "skills/deposition.mjs::extensionDeposition::vaseWork": {
       "owner": "extensions"
     },
@@ -15045,10 +14797,6 @@
     "core/print/generate.mjs::primeLineResult": {
       "owner": "trace",
       "reason": "The prime line is ordinary Trace deposition, not a fourth construction family."
-    },
-    "core/print/slices.mjs::sliceMaterialGeometry": {
-      "owner": "slice",
-      "reason": "Slice describes its constructed material as explicit geometry data, without travel policy."
     },
     "core/geom/curve-controls.mjs::@module": {
       "owner": "geometry"
@@ -16735,14 +16483,6 @@
     "core/geom/mapped-region-material.mjs::anchoredLayout::<return@13:10>": {
       "owner": "geometry-construction"
     },
-    "core/print/slices.mjs::prepareSliceLayer": {
-      "owner": "slice",
-      "reason": "Shared nominal Slice layout queried during work preparation and used by Slice construction."
-    },
-    "core/region/layer-strokes.mjs::sliceLayerLayout": {
-      "owner": "slice",
-      "reason": "One nominal perimeter/material layout for Slice and prepared extension sources."
-    },
     "core/extensions/geometry-edits.mjs::@module": {
       "owner": "extension-run"
     },
@@ -16757,9 +16497,6 @@
     },
     "core/geom/curve-frame.mjs::@module": {
       "owner": "geometry-curve-frames"
-    },
-    "core/print/deposition-work.mjs::@module": {
-      "owner": "application"
     },
     "core/print/assignment-failure.mjs::@module": {
       "owner": "application"
@@ -17282,158 +17019,6 @@
     },
     "core/geom/curve-frame.mjs::transportCurveFrames::shared": {
       "owner": "geometry-curve-frames",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::record": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::context": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::assignment": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::layers": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::heights": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::points": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::repeat": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::repetitions": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::authored": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::range": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::depositionWorkDescription::heightRange": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::@default/dependencies": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::baseNodes": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::baseNodes.<callback@29:36>::units": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::source": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::matching": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::parent": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::record": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::layer": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::nodes": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::descriptions": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::assignment": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::needs": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::defaults": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::references": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::other": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::offers": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::source": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::declaredDependencies": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::key": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::dependsOn": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::prepared": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::byKey": {
-      "owner": "application",
-      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
-    },
-    "core/print/deposition-work.mjs::prepareDepositionWork::reaches": {
-      "owner": "application",
       "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
     },
     "core/print/assignment-failure.mjs::AssignmentFailure": {
@@ -18098,6 +17683,244 @@
     },
     "studio/material-view.mjs::beadFrame::normal@35:49": {
       "owner": "studio"
+    },
+    "core/geom/affine-surface.mjs::@module": {
+      "owner": "geometry-affine-surface"
+    },
+    "core/geom/affine-surface.mjs::affineSurface": {
+      "owner": "geometry-affine-surface"
+    },
+    "core/geom/surface-ray.mjs::@module": {
+      "owner": "geometry-surface-ray"
+    },
+    "core/geom/surface-ray.mjs::prepareSurfaceRay": {
+      "owner": "geometry-surface-ray"
+    },
+    "core/geom/surface-ray.mjs::surfaceRayIntersections": {
+      "owner": "geometry-surface-ray"
+    },
+    "core/geom/surface-region-measure.mjs::@module": {
+      "owner": "geometry-surface-measure"
+    },
+    "core/geom/surface-region-measure.mjs::measureSurfaceRegion": {
+      "owner": "geometry-surface-measure"
+    },
+    "core/region/surface-patterns.mjs::@module": {
+      "owner": "geometry-surface-patterns"
+    },
+    "core/region/surface-patterns.mjs::surfacePatternStrokes": {
+      "owner": "geometry-surface-patterns"
+    },
+    "core/print/slice-preparation.mjs::@module": {
+      "owner": "material-regions"
+    },
+    "core/print/slice-preparation.mjs::prepareFrontSeed": {
+      "owner": "material-regions"
+    },
+    "core/print/slice-preparation.mjs::prepareSliceLayer": {
+      "owner": "material-regions"
+    },
+    "core/print/slice-preparation.mjs::prepareSliceLayer::angleAt": {
+      "owner": "material-regions"
+    },
+    "core/print/trace-source-preparation.mjs::@module": {
+      "owner": "application"
+    },
+    "core/print/trace-source-preparation.mjs::prepareTraceSourceLayer": {
+      "owner": "application"
+    },
+    "core/region/slice-gaps.mjs::@module": {
+      "owner": "slice"
+    },
+    "core/region/slice-gaps.mjs::sliceGapCurves": {
+      "owner": "slice"
+    },
+    "core/print/deposition-work.mjs::@module": {
+      "owner": "application"
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::range": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::resolveTrace": {
+      "owner": "application"
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::resolve": {
+      "owner": "application"
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::dependsOn": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::reaches": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/slices.mjs::@module": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/print/slices.mjs::evaluateRegionBatch": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/print/slices.mjs::sliceResult": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/print/slices.mjs::sliceResult::measure": {
+      "owner": "slice"
+    },
+    "core/print/slices.mjs::fillSliceRegion": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/print/slices.mjs::sliceContextResult": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/print/slice-stacks.mjs::@module": {
+      "owner": "material-regions",
+      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
+    },
+    "core/print/slice-stacks.mjs::referenceSliceContext": {
+      "owner": "material-regions",
+      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
+    },
+    "core/print/slice-stacks.mjs::prepareReferenceSliceStack": {
+      "owner": "material-regions"
+    },
+    "core/print/terminal-boundary.mjs::@module": {
+      "owner": "material-regions",
+      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
+    },
+    "core/print/terminal-boundary.mjs::terminalBoundaryReference": {
+      "owner": "material-regions",
+      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
+    },
+    "core/print/terminal-boundary.mjs::levelBoundary": {
+      "owner": "material-regions"
+    },
+    "core/region/fill-patterns.mjs::@module": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/fill-patterns.mjs::sampledFieldStrokes": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::@module": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::sliceLayerLayout": {
+      "owner": "slice",
+      "reason": "One nominal perimeter/material layout for Slice and prepared extension sources."
+    },
+    "core/region/layer-strokes.mjs::sliceLayerLayout::offset": {
+      "owner": "slice"
+    },
+    "core/region/layer-strokes.mjs::layerStrokes": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::layerStrokes::construct": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::loopMaterial": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::loopMaterial::offset": {
+      "owner": "slice"
+    },
+    "core/region/layer-strokes.mjs::fillMaterial": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/layer-strokes.mjs::mapSliceStrokes": {
+      "owner": "geometry",
+      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
+    },
+    "core/region/layer-strokes.mjs::sliceFrame": {
+      "owner": "geometry",
+      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
+    },
+    "core/region/layer-strokes.mjs::mapSliceStroke": {
+      "owner": "geometry",
+      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
+    },
+    "core/region/layer-strokes.mjs::mapSliceStroke::chartPoint": {
+      "owner": "geometry",
+      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
+    },
+    "core/region/layer-strokes.mjs::mapSliceStroke::split": {
+      "owner": "geometry",
+      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
+    },
+    "core/region/seeded-fronts.mjs::@module": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::frontLayerStrokes": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::surfaceDerivatives": {
+      "owner": "slice"
+    },
+    "core/region/seeded-fronts.mjs::connectSurfacePasses": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::connectSurfacePasses::inside": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::mapFrontPath": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::frontPaths": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::frontPaths::near": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::sliverWidth": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::sliverWidth::furthest": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::seededSurfaceFronts": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::seededSurfaceFronts::nearBoundary": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals": {
+      "owner": "slice",
+      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     }
   },
   "retiredAssignments": [

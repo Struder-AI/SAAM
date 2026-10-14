@@ -1,6 +1,10 @@
 // Application prepares work and extension dependencies before Toolpath runs.
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {prepareSliceLayer} from './slices.mjs';
+import {prepareSliceLayer,prepareFrontSeed} from './slice-preparation.mjs';
+import {prepareReferenceSliceStack} from './slice-stacks.mjs';
+import {layerStrokes} from '../region/layer-strokes.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
+import {prepareTraceSourceLayer} from './trace-source-preparation.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {AssignmentFailure,assignmentWork} from './assignment-failure.mjs';
@@ -25,7 +29,63 @@ export function depositionWorkDescription(node){
 }
 
 // Expand construction and recipe constraints once to exact work-node keys.
-export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]}),curveSources=[]){
+export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]}),curveSources=[],{plan,shells=[]}={}){
+  const references={},active=new Set(),resolvedRecords=new Set();
+  for(const [part,shell] of shells)for(const patch of shell.patches??[])references['patch:'+(part??'')+':'+patch.name]={patch};
+  const resolveTrace=context=>{
+    if(resolvedRecords.has(context))return;
+    const a=context.assignment;
+    requireThat(!active.has(context),'Prepared reference dependencies form a cycle.');active.add(context);
+    const names=[a.source?.assignment,a.repeat?.stack,...(a.curves??[]).map(curve=>curve.uv?.reference?.assignment)].filter(Boolean);
+    const hosts=contexts.filter(record=>names.includes(record.owner.assignment.id)||names.includes(record.spec.id));
+    for(const host of hosts)resolve(host);
+    if(a.source){
+      context.preparedLayers=new Map();
+      const sourceHosts=hosts.filter(record=>(record.owner.assignment.id===a.source.assignment||record.spec.id===a.source.assignment)&&(a.part===null||a.part===record.owner.part));
+      for(const host of sourceHosts)for(const layer of host.spec.layers){
+        const prepared=assignmentWork({sourceId:a.id,kind:'trace'},()=>prepareTraceSourceLayer({...context,assignment:{...a,part:host.owner.part}},host,layer,plan));
+        context.preparedLayers.set(host.spec.id+':'+layer.index,prepared);
+      }
+      context.preparedCurves=[...context.preparedLayers.values()].flatMap(prepared=>prepared.authored.curves);
+    }
+    active.delete(context);resolvedRecords.add(context);
+  };
+  const resolve=record=>{
+    if(resolvedRecords.has(record))return;
+    const assignment=record.owner.assignment;
+    requireThat(!active.has(record),'Slice reference dependencies form a cycle.');active.add(record);
+    const source=record.reference?.selection.kind==='terminal'?contexts.find(other=>other!==record&&other.owner.assignment.id===record.reference.source&&other.owner.part===record.owner.part)??
+      [...constructions,...curveSources].find(other=>other.assignment.id===record.reference.source&&other.assignment.part===record.owner.part):null;
+    if(source?.spec)resolve(source);
+    else if(source?.assignment.construction==='curves')resolveTrace(source);
+    if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareReferenceSliceStack(record,{source,references})));
+    let fillState;
+    record.preparedLayers=new Map();
+    for(const [ordinal,layer] of record.spec.layers.entries()){
+      const onSubstrate=layer.onSubstrate??Boolean(record.contact);
+      const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,bedZMm:onSubstrate?null:record.context.shell?.bounds.min[2]??null}};
+      const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
+      if(nominal.settings.fillOrder?.kind==='fronts'&&nominal.settings.fillOrder.seedUv===null){
+        const selected=record.contact?.source;
+        const supporting=contexts.filter(other=>other!==record&&other.owner.part===record.owner.part&&(selected?other.owner.assignment.id===selected:!other.contact&&!other.reference));
+        for(const other of supporting)resolve(other);
+        const prior=record.spec.layers.filter(other=>other.index<layer.index);
+        const predecessors=[...prior.slice(-1),...supporting.flatMap(other=>other.spec.layers)];
+        const seedUv=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareFrontSeed(input,{predecessors,bedZMm:record.contact?null:record.context.shell?.bounds.min[2]??null,sampleStepMm:nominal.settings.sampleStepMm,toleranceMm:nominal.settings.fillOrder.toleranceMm}));
+        nominal.strokeSettings={...nominal.strokeSettings,fillOrder:{...nominal.settings.fillOrder,seedUv},layer:{...nominal.strokeSettings.layer,seedSource:'prepared-material'}};
+      }
+      const strokes=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>layerStrokes(layer.region,{...nominal.strokeSettings,preparedLayout:nominal.preparedLayout}));
+      fillState=strokes.nextFillState;
+      record.preparedLayers.set(layer.index,{...nominal,preparedStrokes:strokes,ordinal,firstBedLayer:!onSubstrate&&ordinal===0});
+    }
+    record.spec={...record.spec,layers:record.spec.layers.map(layer=>record.preparedLayers.get(layer.index))};
+    record.referenceStack={...record.referenceStack,layers:record.spec.layers};
+    references['slice:'+record.spec.id]=record.referenceStack;
+    if(record.owner.part===null||!references['slice:'+assignment.id])references['slice:'+assignment.id]=record.referenceStack;
+    active.delete(record);resolvedRecords.add(record);
+  };
+  for(const record of contexts)assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>resolve(record));
+  for(const context of curveSources)assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>resolveTrace(context));
   const baseNodes=contexts.flatMap(record=>{
     const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
@@ -35,15 +95,6 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const followers=curveSources.flatMap(context=>{
     const source=context.assignment.source,matching=baseNodes.filter(node=>node.kind==='slice'&&(node.sourceId===source.assignment||node.record.spec.id===source.assignment)&&(context.assignment.part===null||context.assignment.part===node.part));
     if(!matching.length)return [{key:'curves:'+context.assignment.id,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:context.assignment.part,context,nominalRank:0,requires:[]}];
-    for(const parent of matching){
-      const record=parent.record,layer=record.spec.layers.find(layer=>layer.index===parent.index);
-      record.prepareForSource=true;
-      record.preparedLayers??=new Map();
-      // A source consumes the same nominal layout as Slice, prepared once.
-      if(layer?.region&&layer.slice){
-        record.preparedLayers.set(parent.index,assignmentWork(parent,()=>prepareSliceLayer(record.spec,record.context,layer)));
-      }
-    }
     return matching.map(parent=>({key:'curves:'+context.assignment.id+':'+parent.record.spec.id+':'+parent.index,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:parent.part,
       context:{...context,assignment:{...context.assignment,part:parent.part}},parentKey:parent.key,index:parent.index,nominalRank:parent.nominalRank,requires:[parent.key]}));
   });

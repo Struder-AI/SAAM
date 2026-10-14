@@ -11,9 +11,8 @@ Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../
 
 `plan.slices` is `{version:1,assignments:[...]}`. `slice` and bulk `adjust_recipe`
 edit this same list. Ordinary `body` uses two loops, 20% fill and three solid
-slices at the top and bottom. Source dependencies wait for finalized material.
-Experimental `substrateAdaptation` defaults off: nominal references retain their
-specified gaps. When on, declared contact uses final beads; unavailable contact is noted locally.
+slices at the top and bottom. Dependencies name prepared material work; construction waits for those prerequisites.
+Slice never reads completed deposition. Stack spacing determines each local normal gap; agents do not supply an independent gap parameter. The experimental adaptation flag applies only to Trace.
 
 ## Settings
 
@@ -36,7 +35,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `sliceOverrides` | Optional | Per-slice overrides of loop/fill/solid/sampling settings. |
 | `loopInsetMm`, `roles` | Optional | Signed physical first-loop inset and stroke-role names. |
 | `fillOrder` | `null` | Ordinary patterns, physical chart cells or seeded fronts; independent of stack choice. |
-| `contact`, `toolPose` | `null` | Final-material source and optional derived poses, below. |
+| `contact`, `toolPose` | `null` | Prepared-material source and optional derived poses, below. |
 | `dependencies`, `description` | Empty lists/text | Explicit `after`, `afterParts`, `beforeParts` and intent. |
 
 ## Regions and references
@@ -58,7 +57,7 @@ Each owner walls its own boundaries; solid masks follow the part's material.
 References may be horizontal, an authored plane, a roof height chart or a native
 spline patch. Translated stacks calibrate pitch against the whole-reference
 mean normal. A `terminal` reference names a source assignment's closed level
-boundary; loop arrays or `sliceOverrides` vary its subsequent regions and deposition.
+boundary; loop arrays or `sliceOverrides` vary its subsequent deposition.
 The source can be Slice or Trace, including a geometry-free Trace recipe.
 See [lip authoring](../thick-lip/SKILL.md).
 
@@ -90,17 +89,13 @@ Boundary offsets and fill retain their chart's physical metric. Planes use plana
 polygon kernels; native patches use physical offsets/sections; evaluated charts
 use numerical surface kernels. None certifies global geodesic coverage. Folds,
 singular metrics, chart edges and insufficient sampling remain geometric limits.
-Projected roof XY spacing is not geodesic. Features thinner than a bead can vanish;
+Physical offsets and fill spacing follow the surface metric. Features thinner than a bead can vanish;
 there is no general gap fill or collision model. First solid fill over sparse
 material is an unoptimised bridge. See [shared path limits](../../core/path/README.md).
 
 ## Contact, poses and extensions
 
-`contact:{source:null}` uses available final material; name an assignment for
-required contact. `toolPose:{}` derives upright poses; `alignToSliceNormal:true`
-aligns them to the reference normal. Exporters represent these poses; agents do
-not author axes or rotary samples. [Modulation](../../core/path/modulation.mjs)
-finalizes affected deposition before dependent contact queries.
+`contact:{source:null}` names available prepared material; an explicit source names its prerequisite. Front seeds are derived from prepared regions or authored directly. `toolPose:{}` derives upright poses; `alignToSliceNormal:true` aligns them to reference normals. Modulation changes completed deposition without changing later Slice geometry.
 
 [Standard vase](../vase-wall/SKILL.md) generates a spiral curve over reference
 sleeve geometry and calls Trace, as does advanced vase. Saved `join:{mode:"spiral",levelEnd:true}` requests
@@ -110,5 +105,5 @@ remain extension inputs to shared engine operations.
 
 ## Script interfaces
 
-The [Slice implementation](../../core/print/slices.mjs) owns region/boundary construction;
+The [Slice implementation](../../core/print/slices.mjs) consumes prepared region/boundary geometry and constructs deposition;
 [composition](../../core/path/README.md) owns finalization and scheduling with Trace/Inject.

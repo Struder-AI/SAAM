@@ -1,19 +1,14 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Construct prepared work. Private contact adaptation can use predecessor beads;
 // extensions receive prepared inputs, and authored rank never becomes run order.
 import {sliceContextResult} from "./slices.mjs";
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 import {injectionResult} from './injection.mjs';
 import {curveAssignmentResult,depositionReferences,authoredCurveResult,validateCurveAssignment} from './curves.mjs';
-import {geometrySelections} from '../geom/selections.mjs';
 import {publishFinishedBoundary,republishDepositedBoundary} from '../path/finished-surface.mjs';
-import {depositedBeadSegments} from '../path/deposited-curves.mjs';
-import {translateSlice} from '../geom/slice.mjs';
 import {AssignmentFailure,assignmentWork} from './assignment-failure.mjs';
 export {AssignmentFailure} from './assignment-failure.mjs';
 export {prepareDepositionWork} from './deposition-work.mjs';
-import {horizontal,sliceKey} from '../geom/slice.mjs';
 
 
 function combineSliceResults(record,sliceResults){
@@ -32,7 +27,6 @@ function combineSliceResults(record,sliceResults){
 }
 
 export function constructDepositionWork(node,completed,{plan,onProgress,shells=[]}){
-  const substrateAdaptation=plan.experimental.substrateAdaptation;
   const required=new Set();
   const collect=key=>{if(required.has(key))return;required.add(key);for(const prior of completed.get(key)?.node.requires??[])collect(prior);};
   node.requires.forEach(collect);
@@ -42,22 +36,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   let result;
   if(node.construct)result=node.construct({node,plan,onProgress});
   else if(node.kind==='slice'){
-    const record=node.record,layer=record.spec.layers.find(layer=>layer.index===node.index)??record.spec.layers[0];
-    const own=samePart.filter(item=>item.node.kind==='slice'&&item.node.record.stackId===record.stackId&&item.node.index===node.index-1);
-    const contacts=substrateAdaptation?own.filter(item=>item.result.report.modulation?.materialChanged).flatMap(item=>depositedBeadSegments(item.result.operations,{widthMm:item.node.record.context.process.lineWidthMm})):[];
-    const source=node.first?record.contact?.source:null;
-    // Point injection has no deposited surface chart. Its prerequisite is real,
-    // but an empty reference must not change a following Slice's contact frame.
-    const candidates=substrateAdaptation?samePart.filter(item=>item.node.kind!=='inject'&&item.node.sourceId!==node.sourceId&&(!source||item.node.sourceId===source)):[];
-    const contactFragments=candidates.map(item=>({layers:(item.result.referenceStack?.layers??[]).map(layer=>({...layer,
-      region:layer.region??(layer.slice?.kind==='plane'?layer.curves?.filter(curve=>curve.closed).map(curve=>curve.points.map(point=>{
-        const relative=point.map((v,k)=>v-layer.slice.origin[k]);return [layer.slice.xAxis,layer.slice.yAxis].map(axis=>axis.reduce((sum,v,k)=>sum+v*relative[k],0));
-      })):undefined)})),operations:item.result.operations,
-      widthMm:item.node.kind==='slice'?item.node.record.context.process.lineWidthMm:(item.node.context.process??plan.process).lineWidthMm}));
-    const seedSegments=record.spec.settings.fillOrder?.kind==='fronts'?samePart.filter(item=>item.node.sourceId!==node.sourceId||item.node.index===node.index-1).flatMap(item=>depositedBeadSegments(item.result.operations)):[];
-    const predecessorReference=substrateAdaptation&&node.first&&record.contact?record.contact.predecessorReference:
-      contactFragments.length&&layer.slice?translateSlice(layer.slice,(layer.direction??layer.slice.normal).map(v=>-v*layer.translationMm)):null;
-    result=sliceContextResult(record,{layerIndex:node.index,priorResults:samePart.map(item=>item.result),contactSegments:contacts,contactFragments,predecessorReference,seedSegments,substrateAdaptation,requiredContact:node.first&&record.contact?.source!==null&&record.contact?.source!==undefined});
+    result=sliceContextResult(node.record,{layerIndex:node.index});
   }else if(node.kind==='trace'){
     const results=predecessors.map(item=>item.result);
     if(node.context.assignment.source)result=sourceCurveResult(node,completed,{plan,results,shells});
@@ -74,7 +53,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
 }
 
 export function publishDepositionWork(node,result){
-  const publication=node.kind==='slice'&&node.record.reference?node.record.context:node.construction==='curves'?node.context:null;
+  const publication=node.kind==='slice'?node.record.context:node.construction==='curves'?node.context:null;
   return publication?.shell?republishDepositedBoundary(publishFinishedBoundary(result,{shell:publication.shell}),{widthMm:publication.process.lineWidthMm}):result;
 }
 
@@ -89,21 +68,9 @@ function sourceCurveResult(node,completed,{plan,results,shells}){
   requireThat(parent,'Trace source names an absent Slice assignment or different part.');
   const record=parent.node.record,layer=record.preparedLayers?.get(node.index);
   requireThat(layer,'Trace source needs a prepared Slice layer; the selected source has no resolved layer geometry.');
-  const selection=plan.geometry?geometrySelections(plan.geometry).get(node.part):null;
-  const source={slice:layer.slice,region:layer.region,material:layer.material,perimeters:layer.perimeters,
-    sectionReport:layer.sectionReport,solidRegion:layer.solidRegion,sparseRegion:layer.sparseRegion,
-    denseRegion:layer.denseRegion??[],
-    widthMm:layer.widthMm,pitchMm:layer.pitchMm,wallInsetMm:layer.wallInsetMm,heightMm:layer.heightMm,
-    index:node.index,sourceId:parent.node.sourceId,stackId:record.spec.id,part:node.part,
-    placement:{offset:selection?[selection.xMm,selection.yMm,selection.zMm]:[0,0,0]},
-    settings:layer.settings??record.spec.settings,process:layer.process??record.context.process,
-    key:record.spec.id+':'+node.index,ordinal:record.spec.layers.findIndex(item=>item.index===node.index),count:record.spec.totalLayerCount,
-    rank:parent.node.nominalRank,layerId:horizontal(layer.slice)?'planar:'+layer.slice.origin[2]:'slice:'+sliceKey(layer.slice),
-    speedMmS:!layer.onSubstrate&&node.index===0?layer.process.firstLayerSpeedMmS:layer.process.planarSpeedMmS};
-  const produced=node.context.curveSource.constructLayer({source,parameters:assignment.source.parameters});
-  requireThat(produced&&Array.isArray(produced.curves),'Trace source must return {curves,report}.');
-  const authored={...assignment,source:null,curves:produced.curves,filament:assignment.filament??record.spec.filament};
-  if(authored.curves.length)validateCurveAssignment(authored);
+  const prepared=node.context.preparedLayers?.get(record.spec.id+':'+node.index);
+  requireThat(prepared,'Trace source curves must be prepared before construction.');
+  const {source,produced,authored}=prepared;
   const referenceStack={...record.referenceStack,layers:record.spec.layers.map(layer=>record.preparedLayers?.get(layer.index)??layer)};
   const references={...depositionReferences(shells,results),['slice:'+record.spec.id]:referenceStack};
   const traced=authoredCurveResult(authored,{plan,process:assignment.process?{...source.process,...assignment.process}:source.process,references,modelResults:results,sourceLayer:{...source,referenceStack}});

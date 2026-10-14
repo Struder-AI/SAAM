@@ -127,6 +127,9 @@ function levelSetInteriorSegments({xs,ys,values},level,refine){
         { x: xs[i + 1], y: ys[j + 1], value: values[i + 1][j + 1] },
         { x: xs[i], y: ys[j + 1], value: values[i][j + 1] }
       ];
+      // An undefined scalar outside a partial chart cannot define a contour
+      // segment. Retain the open boundary at the declared sampling scale.
+      if(corners.some(corner=>!Number.isFinite(corner.value)))continue;
       // Walking the cell counter-clockwise, a crossing that leaves the high
       // side starts a contour segment and one that enters it ends the segment.
       // Emitting them in that order keeps the region at or above the level on
