@@ -105,10 +105,9 @@ internal surfaces cannot accumulate opacity; the ghost machine composites
 underneath afterwards. Bead templates are indexed and wound outward, back faces
 are culled, and a layer/operation group whose projected bounds miss the viewport
 is skipped. These match the earlier two-pass image to rounding (DEVLOG 2026-09-18).
-Draped skin and wave overhangs currently lack source surface normals and retain
-an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
-Fallback line width scales with the same camera, with a 0.04 mm current-layer
-inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space
+Material frames and bead dimensions shade paths independently of machine selection
+or tool tilt. Legacy unframed paths and browsers without WebGL2 use lines, scaled
+with the same camera and a 0.04 mm current-layer inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space
 guide. Display geometry does not modify deposition spacing, volume or export.
 
 Studio displays material estimates in grams using a fixed 1.2 g/cm³ density

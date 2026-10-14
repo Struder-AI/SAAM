@@ -6,6 +6,7 @@ import {startupPosition,startupRetracted,toolBounds} from '../machine/rules.mjs'
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
+import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
@@ -71,6 +72,6 @@ test('profiles without explicit priming and empty deposition preserve their path
     assert.equal(f.motion.actions.length,0,'old snapshots and other machines retain their startup');
   }
   const f=fixture(),start=startupPosition(f.machine,f.plan);
-  const prepared=(await preparePath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:'saam-neutral-motion/1',inputHash:'test'}},f.plan,f.machine));
+  const prepared=(await preparePath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:'test'}},f.plan,f.machine));
   assert.equal(prepared.actions.filter(a=>a.phase==='prime').length,0,'priming cannot disguise an empty part');
 });

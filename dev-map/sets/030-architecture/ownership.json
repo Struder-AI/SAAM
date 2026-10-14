@@ -18083,6 +18083,21 @@
     "core/print/geometry.mjs::createMeshGeometry::append::_label": {
       "owner": "geometry",
       "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "studio/path-preview.mjs::pathPreview::width": {
+      "owner": "studio"
+    },
+    "studio/path-preview.mjs::studyPreview::vector": {
+      "owner": "studio"
+    },
+    "studio/material-view.mjs::beadFrame::normal@18:13": {
+      "owner": "studio"
+    },
+    "studio/material-view.mjs::beadFrame::normal@26:11": {
+      "owner": "studio"
+    },
+    "studio/material-view.mjs::beadFrame::normal@35:49": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [

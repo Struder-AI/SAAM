@@ -83,6 +83,8 @@ function operationTravelPolicy(policy,deposited) {
 
 function segmentExtras(stroke,op,index) {
   return {role:stroke.role,...(stroke.poses?{pose:stroke.poses[index+1]}:{}),
+    ...(stroke.beadWidthMm!==undefined?{beadWidthMm:stroke.beadWidthMm}:{}),
+    ...(stroke.beadHeightMm!==undefined?{beadHeightMm:stroke.beadHeightMm}:{}),
     ...(op.regionId?{region:op.regionId}:{}),...(stroke.segmentMetadata?.[index]??{})};
 }
 

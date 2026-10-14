@@ -18,7 +18,7 @@ const UPRIGHT={toolAxis:[0,0,-1],toolUp:[0,1,0]};
 // A move without its own line width has its material's (a filament process override), else the recipe's.
 export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
   if(path?.schema!=='saampath/1'||!Array.isArray(path.actions)||!Array.isArray(path.initialPosition))throw Error('Invalid saved SAAMpath.');
-  const width=(action,filament)=>action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??null;
+  const width=(action,filament)=>action.beadWidthMm??action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??NaN;
   const metadata=path.summary?.inspection??inspection;
   const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
   const posed=Boolean(pose)||path.actions.some(a=>a.pose);
@@ -34,7 +34,8 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer];
     const row={line:line+1,phase:context.phase,layer:context.layer,layerId:context.layerId??null,legacyRun,operation:context.operation??'',
       sliceStack:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length,
-      fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time};
+      fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time,
+      surfaceNormal:action.surfaceNormal??[0,0,0],beadHeightMm:action.beadHeightMm??NaN};
     if(action.kind==='extrude'){
       const durationSeconds=action.volumeMm3/action.flowMm3S;
       moves.push({...row,from:position,to:position,extruding:true,volumeMm3:action.volumeMm3,speedMmS:0,durationSeconds,lineWidthMm:width(action,filament)});

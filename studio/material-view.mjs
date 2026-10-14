@@ -12,6 +12,11 @@ export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'')+(move.fi
 // `null` refuses the bead rather than inventing a frame.
 function beadFrame(move,plan,geometry,assignment){
   const p=plan.process;
+  // Frozen material frames remain valid when no machine is selected or the
+  // tool is tilted. Zero marks older source moves without a material normal.
+  if(move.surfaceNormal?.every(Number.isFinite)&&length(move.surfaceNormal)>0)
+    return {normal:()=>normalize(move.surfaceNormal),height:Number.isFinite(move.beadHeightMm)&&move.beadHeightMm>0?move.beadHeightMm:move.layer===0?p.firstLayerMm:p.layerMm,
+      centered:assignment?.stack?.direction==='normal'};
   if(assignment?.stack?.direction==='normal'){
     // Only unmodulated normal alignment lets source orientation identify the
     // deposition surface. Upright or tilted poses need a labelled line fallback.
@@ -25,8 +30,7 @@ function beadFrame(move,plan,geometry,assignment){
     const roofNormal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
     return {normal:roofNormal,height:p.skinNormalMm,centered:false};
   }
-  // Source records do not yet retain these skills' local surface normals.
-  // Keep an explicitly labelled line fallback rather than inventing a frame.
+  // Older source without material frames retains its labelled line fallback.
   if(['skin','fronts','draped-skin','wave-overhangs'].includes(move.phase))return null;
   if(assignment?.surface.kind==='plane')return {normal:()=>normalize(assignment.surface.normal),height:p.layerMm,centered:false};
   if(assignment&&assignment.surface.kind!=='horizontal')return null;
@@ -71,7 +75,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
   const indexedMove=i=>moves.at(i);
-  const read=moves.reader?.(['extruding','from','to','phase','layer','sliceStack','sliceIndex','layerId','legacyRun','modulated','operation','commandedVolumeMm3','volumeMm3','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
+  const read=moves.reader?.(['extruding','from','to','phase','layer','sliceStack','sliceIndex','layerId','legacyRun','modulated','operation','commandedVolumeMm3','volumeMm3','surfaceNormal','beadHeightMm','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=read(i);if(!move.extruding)continue;
