@@ -4,7 +4,9 @@ export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
-export const layerKey=move=>move?(move.sliceStack?`${move.sliceStack}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
+// Inspection owns repetition identity; motion retains its geometric layer
+// reference. Older paths use chronological display runs, never parsed names.
+export const layerKey=move=>move?(move.sliceStack?`stack\0${move.sliceStack}\0${move.sliceIndex}`:move.layerId?`layer\0${move.layerId}\0${move.layer}`:move.legacyRun!==undefined?`run\0${move.legacyRun}`:`operation\0${move.operation??''}\0${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
   let previous=null;
@@ -73,7 +75,7 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const read=moves.reader?.(['sliceStack','sliceIndex','phase','layer'])??(i=>moves.at(i));
+  const read=moves.reader?.(['sliceStack','sliceIndex','layerId','legacyRun','phase','operation','layer'])??(i=>moves.at(i));
   const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
     const first=i,key=keyAt(i);

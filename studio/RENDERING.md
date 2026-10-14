@@ -53,14 +53,12 @@ Cavity classification is cached per saved candidate and uses its undeformed grid
 open recesses and through holes retain displacement colors. Disable **Reveal
 enclosed cavities** to return to the opaque displacement view.
 
-Studio uses a right-handed orthographic camera: top view shows +X right and
-+Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
-top views share this projection without perspective scaling. Playback has a
-1×–30× slider, initially 10×; inactive toolpath layers draw at 50% opacity with
-one-third of the original color lightening by default. **Previous layer opacity**
-adjusts completed layers from that 50% default to 100%, where opacity and color
-strength match the active layer. It updates the paused or playing view immediately,
-is retained with same-tab view settings, and also applies to exported movies.
+The right-handed orthographic camera shows top +X right, +Y back/up, +Z toward
+the viewer; orbit/side/top share it without perspective. Playback spans 1×–30×,
+starting 10×. Layer emphasis uses inspection identity or motion's `layerId`/index;
+legacy paths use distinct chronological runs. Inactive layers default 50% opacity
+with one-third color lightening. **Previous layer opacity** spans 50%–100%; 100% matches active color/opacity.
+Changes apply immediately, persist in same-tab settings and affect exported movies.
 Current material uses shaded oval
 beads in WebGL2, with physical dimensions that scale with viewport zoom. Width
 comes from commanded volume per distance divided by the nominal layer thickness,
@@ -87,10 +85,10 @@ data during an initial geometry lesson.
 
 ### Phase colours
 
-Lines, material, partial moves, movies, legend and pipe-view sample buttons draw
-the Studio state's resolved `phasePalette` ([choice and precedence](../core/print/USAGE.md#phase-colours));
-multi-material moves show their filament colour. [`phase-colours.mjs`](../core/print/phase-colours.mjs)
-owns the defaults.
+Lines, beads, movies, legend and sample buttons use the resolved `phasePalette`
+([precedence](../core/print/USAGE.md#phase-colours)); [phase-colours.mjs](../core/print/phase-colours.mjs)
+owns defaults. Multi-material moves use filament colour. Inspection/modulation
+comes from the drawn path's summary; shaded beads do not require a machine program.
 
 ### Material geometry and playback
 

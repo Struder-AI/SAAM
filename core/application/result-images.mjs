@@ -159,12 +159,11 @@ export function pathImage(path,{plan,palette,inspection}){
   extend(framed,head.point);extend(framed,toolEnd);
   const canvas=createCanvas(),frameList=frames(framed),phases={},colours=new Map(),a=new Float64Array(3),b=new Float64Array(3);
   for(const frame of frameList)drawGrid(canvas,frame,framed);
-  pathPreview(path,{plan,moves:{push(move){
+  pathPreview(path,{plan,inspection,moves:{push(move){
     if(!move.extruding){
       for(const frame of frameList){project(frame,move.from,a,0);project(frame,move.to,b,0);drawSegment(canvas,frame,a,b,SAMPLES,...GRID_MAJOR);}
       return;
     }
-    move.modulated=Boolean(inspection?.operations?.[move.operation]?.modifiers?.length);
     const hex=phaseColour(palette,move);phases[move.modulated?'modulated':move.phase]=hex;
     if(!colours.has(hex))colours.set(hex,rgb(hex));
     const base=colours.get(hex),injection=move.from===move.to;

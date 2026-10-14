@@ -38,7 +38,7 @@ export function planOperation(initialState,op,options={}) {
 }
 
 export function planOperationEntry(initialState,op,layerSeconds=0) {
-  const contextual=planContext({...initialState,layerSeconds},op.phase,op.layer,op.id);
+  const contextual=planContext({...initialState,layerSeconds,layerId:op.layerId},op.phase,op.layer,op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const configured=planProcess(selected.state,op.process);
   const prepared=planOperationStart(configured.state,op);

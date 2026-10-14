@@ -23,9 +23,7 @@ async function handleMessage(data){
   try{
     if(type==='load'){
       const state=data.state;
-      const sliceIdentity=row=>{const info=state.inspection?.operations?.[row.operation],layer=info?.layers?.[row.layer];return {...row,
-        sliceStack:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length};};
-      worker.program=await loadPathPreview(state,{id:state.outputId,moves:moveStore(undefined,{annotate:sliceIdentity})});
+      worker.program=await loadPathPreview(state,{id:state.outputId,moves:moveStore()});
       const machine=await bind(state),{program}=worker,moves=program.moves.snapshot();
       self.postMessage({id,program:{...program,moves},...machine},worker.provider?[]:moveBuffers(moves));
     }else if(type==='bind')self.postMessage({id,...await bind(data.state)});

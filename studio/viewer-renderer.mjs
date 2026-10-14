@@ -108,7 +108,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       const detail=!solid||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
       annotations.detailText=solid?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':''):materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
       const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail),fade=fadeState.frame(currentLayer,frameNow,remainingLayerMs(pathView,at.active,position,playbackSpeed)),styles=new Map();
-      const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
+      const inspection=shown.program.summary?.inspection??shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
       if(info&&reference){
         annotations.layerText=`${info.family} · ${depositionUnit(info.kind)} ${reference.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
         annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[]),

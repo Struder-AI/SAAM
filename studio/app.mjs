@@ -403,7 +403,6 @@ async function applyProgramPresentation(decision,next){
   let publication=null;
   if(decision.effects.buildPath||decision.effects.buildMaterial){
     const shown=outputView(next),visible=shown.program??next.neutralProgram;
-    if(visible.neutral)viewer.clearProgram();
     publication=await viewer.publishProgram({moves:visible.moves,plan:shown.plan,geometry:shown.geometry,previewMaterial:visible.previewMaterial,
       buildPath:decision.effects.buildPath,buildMaterial:decision.effects.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
   const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;

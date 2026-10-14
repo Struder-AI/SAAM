@@ -5,7 +5,7 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // Poses are {toolAxis, toolUp}; reorientation is ordinary travel (no rotary angle).
 // 15: Bundle retains finalized operation geometry/dependencies before scheduling.
 export const PATH_CONTRACT='saam-deposition/15';
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/1';
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/2'; // Retain geometric layer references in motion context.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

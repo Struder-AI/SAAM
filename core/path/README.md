@@ -23,7 +23,7 @@ Exporters add machine startup and service motions.
 Retraction debt retains its amount and speed across process changes. Zero `liftMm`
 removes extra lift; travel still reaches deposited/target height. Zero `retractMm`
 prevents new withdrawal. `planningPath` assembles deltas; `contextualActions` streams
-labels (reset first, null clears), physical moves, effective speeds and gap samples.
+labels including `layerId` (reset first, null clears), moves, speeds and gap samples.
 
 Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
 `{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates

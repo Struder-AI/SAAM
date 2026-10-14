@@ -1,6 +1,6 @@
 // The first context resets the semantic snapshot; later records carry changes.
 // Null clears an optional label. Independently composed paths retain their reset.
-export const CONTEXT_KEYS=Object.freeze(['phase','layer','operation','region','role','connector','travel']);
+export const CONTEXT_KEYS=Object.freeze(['phase','layer','layerId','operation','region','role','connector','travel']);
 export function actionContext(action){
   return Object.fromEntries(CONTEXT_KEYS.filter(key=>action[key]!==undefined).map(key=>[key,action[key]]));
 }

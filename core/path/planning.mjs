@@ -85,7 +85,7 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
   // A reorientation at a fixed point is untimed: the machine turns at its own rate.
   requireThat(seconds>0||length===0,'Motion needs positive duration.');
   const {durationSeconds:requestedDuration,...properties}=extra;
-  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,
+  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,layerId:state.layerId,
     ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0&&seconds>0?{durationSeconds:seconds}:{})}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
@@ -130,7 +130,7 @@ export function planExtrusion(state,volumeMm3,flowMm3S) {
   const flow=flowMm3S;
   return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,
     depositedMaxZ:Math.max(state.depositedMaxZ,state.position[2]),moveRun:null},
-  {kind:'extrude',volumeMm3,flowMm3S:flow,phase:state.phase,layer:state.layer,operation:state.operationId});
+  {kind:'extrude',volumeMm3,flowMm3S:flow,phase:state.phase,layer:state.layer,layerId:state.layerId,operation:state.operationId});
 }
 export function planDwell(state,seconds) {
   requireThat(Number.isFinite(seconds)&&seconds>=0,'Dwell outside limits.');
