@@ -208,12 +208,12 @@
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
     "core/geom/text-outline.mjs": {
-      "owner": "extensions",
-      "reason": "Text feature implementation slated for extension ownership."
+      "owner": "geometry-font-outlines",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
     },
     "core/geom/text-layout.mjs": {
-      "owner": "extensions",
-      "reason": "Text feature implementation slated for extension ownership."
+      "owner": "geometry-text-layout",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
     },
     "core/region/clipper.mjs": {
       "owner": "geometry",
@@ -299,10 +299,6 @@
       "owner": "trace",
       "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners. Declaration overrides identify mixed responsibilities."
     },
-    "core/path/curve-frame.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy. Declaration overrides identify mixed responsibilities."
-    },
     "core/path/deposition.mjs": {
       "owner": "path-finalize",
       "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation. Declaration overrides identify mixed responsibilities."
@@ -368,8 +364,8 @@
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation. Declaration overrides identify mixed responsibilities."
     },
     "core/path/pose.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy. Declaration overrides identify mixed responsibilities."
+      "owner": "bundle-path",
+      "reason": "Neutral SAAMpath pose value contract; CAM supplies poses and Geometry supplies direction mathematics."
     },
     "core/path/process-controls.mjs": {
       "owner": "recipe",
@@ -887,10 +883,6 @@
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit. Declaration overrides identify mixed responsibilities."
     },
-    "core/geom/extension-edit.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/print/extension-recipe.mjs": {
       "owner": "extension-run",
       "reason": "Extensions own technique configuration, source invocation and implementation dependencies; core construction remains in Slice, Trace and Inject. Declaration overrides identify mixed responsibilities."
@@ -905,7 +897,7 @@
     },
     "core/private/export/numeric.mjs": {
       "owner": "export",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "reason": "Local assertions; coordinate operations re-export Geometry definitions."
     },
     "core/private/export/temperature.mjs": {
       "owner": "export",
@@ -916,8 +908,8 @@
       "reason": "Private utility implementation; no cross-bucket imports or re-exports."
     },
     "core/private/extensions/numeric.mjs": {
-      "owner": "extensions",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "owner": "extension-run",
+      "reason": "Local assertions; coordinate operations re-export Geometry definitions."
     },
     "core/private/studio/file-write.mjs": {
       "owner": "studio",
@@ -925,11 +917,11 @@
     },
     "core/private/studio/numeric.mjs": {
       "owner": "studio",
-      "reason": "Private utility implementation; no cross-bucket imports or re-exports."
+      "reason": "Local assertions; coordinate operations re-export Geometry definitions."
     },
     "core/private/toolpath/numeric.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy. Declaration overrides identify mixed responsibilities."
+      "owner": "path-finalize",
+      "reason": "Local assertions; coordinate operations re-export Geometry definitions."
     },
     "core/geom/build.mjs": {
       "owner": "geometry",
@@ -1150,10 +1142,6 @@
     "core/extensions/library.mjs": {
       "owner": "extensions",
       "reason": "Selected local extension resolution, code loading and package exchange; filesystem and module-cache effects remain explicit."
-    },
-    "core/geom/mapped-text-material.mjs": {
-      "owner": "geometry-construction",
-      "reason": "Normalized glyph outlines are mapped to explicit solids; extension owns feature defaults and composition order."
     },
     "core/geom/sleeve/contour-sleeve.mjs": {
       "owner": "geometry-charts",
@@ -1606,6 +1594,38 @@
     "core/geom/curve-material.mjs": {
       "owner": "geometry",
       "reason": "General curve control matching and the single arbitrary-direction curve ribbon."
+    },
+    "core/extensions/geometry-edits.mjs": {
+      "owner": "extension-run",
+      "reason": "Extension selection, loading and author contribution assembly."
+    },
+    "core/geom/mapped-region-material.mjs": {
+      "owner": "geometry-construction",
+      "reason": "Normalized glyph outlines are mapped to explicit solids; extension owns feature defaults and composition order."
+    },
+    "core/geom/operations.mjs": {
+      "owner": "geometry-operations",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
+    },
+    "core/geom/extruded-segments.mjs": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
+    },
+    "core/geom/spatial-curve.mjs": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
+    },
+    "core/geom/curve-frame.mjs": {
+      "owner": "geometry-curve-frames",
+      "reason": "Shared CAD operations; feature/process choices stay with callers."
+    },
+    "core/print/deposition-work.mjs": {
+      "owner": "application",
+      "reason": "Application prepares work and extension dependencies before Toolpath runs."
+    },
+    "core/print/assignment-failure.mjs": {
+      "owner": "application",
+      "reason": "Application-owned assignment failure and invocation wrapper."
     }
   },
   "leaves": {
@@ -3585,31 +3605,31 @@
       "owner": "geometry-leaf-6a51c822e542"
     },
     "core/geom/text-layout.mjs::@module": {
-      "owner": "extensions"
+      "owner": "geometry-text-layout"
     },
     "core/geom/text-layout.mjs::baselineMapper": {
-      "owner": "extensions"
+      "owner": "geometry-text-layout"
     },
     "core/geom/text-layout.mjs::textLayout": {
-      "owner": "extensions"
+      "owner": "geometry-text-layout"
     },
     "core/geom/text-outline.mjs::@module": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/text-outline.mjs::distanceToSegment": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/text-outline.mjs::flattenBezier": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/text-outline.mjs::flattenBezier::subdivide": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/text-outline.mjs::midpoint": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/text-outline.mjs::textOutlines": {
-      "owner": "extensions"
+      "owner": "geometry-font-outlines"
     },
     "core/geom/tolerance.mjs::@module": {
       "owner": "geometry-leaf-593499486ccb"
@@ -3861,31 +3881,31 @@
       "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners."
     },
     "core/path/authored-curves.mjs::referenceEntry": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::sampleAuthoredCurve": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::sampleAuthoredCurve::at": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::sampleAuthoredCurve::local": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::samplePiecewiseCurve": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::samplePiecewiseCurve::at": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::sampleRoundedCurve": {
-      "owner": "geometry",
+      "owner": "path-finalize",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/authored-curves.mjs::validateCurveProfiles": {
@@ -4139,22 +4159,6 @@
     "core/path/curve-batches.mjs::depositCurveBatches::travelPolicy.clearanceFor": {
       "owner": "trace",
       "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners."
-    },
-    "core/path/curve-frame.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/path/curve-frame.mjs::transportCurveFrames": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/path/curve-frame.mjs::transportCurveFrames::rotate": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/path/curve-frame.mjs::transportCurveFrames::transport": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/deposited-curves.mjs::@module": {
       "owner": "path-finalize",
@@ -4609,19 +4613,19 @@
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
     "core/path/pose.mjs::@module": {
-      "owner": "geometry",
+      "owner": "bundle-path",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/pose.mjs::samePose": {
-      "owner": "geometry",
+      "owner": "bundle-path",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/pose.mjs::uprightPose": {
-      "owner": "geometry",
+      "owner": "bundle-path",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/pose.mjs::validatePose": {
-      "owner": "geometry",
+      "owner": "bundle-path",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/path/process-controls.mjs::@module": {
@@ -7877,15 +7881,6 @@
     "core/private/bundle/numeric.mjs::requireThat": {
       "owner": "bundle"
     },
-    "core/private/export/numeric.mjs::@module": {
-      "owner": "export"
-    },
-    "core/private/export/numeric.mjs::distance": {
-      "owner": "export"
-    },
-    "core/private/export/numeric.mjs::requireThat": {
-      "owner": "export"
-    },
     "core/private/export/temperature.mjs::@module": {
       "owner": "export",
       "reason": "Thermal output validation shared only by Export-owned operations."
@@ -7900,99 +7895,11 @@
     "core/private/extensions/file-write.mjs::replaceFile": {
       "owner": "extensions"
     },
-    "core/private/extensions/numeric.mjs::@module": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::cross": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::distance": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::distance2": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::length": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::normalize": {
-      "owner": "extensions"
-    },
-    "core/private/extensions/numeric.mjs::requireThat": {
-      "owner": "extensions"
-    },
     "core/private/studio/file-write.mjs::@module": {
       "owner": "studio"
     },
     "core/private/studio/file-write.mjs::replaceFile": {
       "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::@module": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::add": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::cross": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::dot": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::length": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::normalize": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::requireThat": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::scale": {
-      "owner": "studio"
-    },
-    "core/private/studio/numeric.mjs::subtract": {
-      "owner": "studio"
-    },
-    "core/private/toolpath/numeric.mjs::@module": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::add": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::cross": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::distance": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::dot": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::length": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::normalize": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::requireThat": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::scale": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/private/toolpath/numeric.mjs::subtract": {
-      "owner": "geometry",
-      "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "core/geom/build.mjs::@module": {
       "owner": "geometry-leaf-afcaf504f9b3"
@@ -8002,15 +7909,6 @@
     },
     "core/geom/build.mjs::translateShell": {
       "owner": "geometry-leaf-627e4545f233"
-    },
-    "core/geom/extension-edit.mjs::@module": {
-      "owner": "geometry-leaf-7584b7892fc2"
-    },
-    "core/geom/extension-edit.mjs::prepareExtensionGeometry": {
-      "owner": "geometry-leaf-21285af9fc73"
-    },
-    "core/geom/extension-edit.mjs::prepareExtensionGeometry::buildGeometry": {
-      "owner": "geometry-leaf-bd0241faf8b9"
     },
     "core/geom/loft.mjs::@module": {
       "owner": "geometry-leaf-2c7d0ff949f0"
@@ -8599,28 +8497,6 @@
     },
     "core/extensions/library.mjs::sha256": {
       "owner": "extensions"
-    },
-    "core/geom/mapped-text-material.mjs::@module": {
-      "owner": "geometry-construction"
-    },
-    "core/geom/mapped-text-material.mjs::layoutGroup": {
-      "owner": "geometry-construction"
-    },
-    "core/geom/mapped-text-material.mjs::layoutGroup::refine": {
-      "owner": "geometry-construction"
-    },
-    "core/geom/mapped-text-material.mjs::mappedTextMaterial": {
-      "owner": "geometry-mapped-text-material",
-      "reason": "Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order."
-    },
-    "core/geom/mapped-text-material.mjs::mapper": {
-      "owner": "geometry-construction"
-    },
-    "core/geom/mapped-text-material.mjs::anchoredLayout": {
-      "owner": "geometry-construction"
-    },
-    "core/geom/mapped-text-material.mjs::anchoredLayout::<return@13:10>": {
-      "owner": "geometry-construction"
     },
     "core/geom/piecewise-chart.mjs::roundedChart::@scope/forof-4/block-1::vertex": {
       "owner": "geometry-leaf-171a30b19a59",
@@ -9302,34 +9178,13 @@
     "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime": {
       "owner": "extensions"
     },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::area": {
-      "owner": "extensions"
-    },
     "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::circle": {
-      "owner": "extensions"
-    },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::finishWeldResults": {
-      "owner": "extensions"
-    },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::height": {
       "owner": "extensions"
     },
     "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::preparePlasticWeld": {
       "owner": "extensions"
     },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::rivetEnclosureLayers": {
-      "owner": "extensions"
-    },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::rivetInjectionResult": {
-      "owner": "extensions"
-    },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::validateRivetClearance": {
-      "owner": "extensions"
-    },
     "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::weldDependencies": {
-      "owner": "extensions"
-    },
-    "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::weldOperationDependencies": {
       "owner": "extensions"
     },
     "skills/plastic-weld/scripts/runtime.mjs::plasticWeldRuntime::weldWork": {
@@ -9441,15 +9296,15 @@
       "owner": "studio"
     },
     "skills/records.mjs::gridfinityTemplate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema; selected technique validation remains in its extension."
     },
     "skills/records.mjs::heatSetTemplate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema; selected technique validation remains in its extension."
     },
     "skills/records.mjs::meshRecord": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema; selected technique validation remains in its extension."
     },
     "skills/records.mjs::requireThat": {
@@ -9465,7 +9320,7 @@
       "reason": "Extensions own technique configuration, source invocation and implementation dependencies; core construction remains in Slice, Trace and Inject."
     },
     "skills/records.mjs::textTemplate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema; selected technique validation remains in its extension."
     },
     "skills/records.mjs::validateSelectedExtensionRecipe": {
@@ -9549,7 +9404,7 @@
       "reason": "Public coordinate/direction/rigid-transform math over explicit numeric values; no machine or deposition policy."
     },
     "core/path/pose.mjs::interpolatePose": {
-      "owner": "geometry",
+      "owner": "bundle-path",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
     },
     "skills/vase-wall/scripts/record.mjs::@module": {
@@ -9577,10 +9432,6 @@
       "reason": "Selected plain-vase semantic checks, common foundation dependency policy and public-engine wall composition; advanced patterns depend on this base technique."
     },
     "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::vaseDependencies": {
-      "owner": "extensions",
-      "reason": "Selected plain-vase semantic checks, common foundation dependency policy and public-engine wall composition; advanced patterns depend on this base technique."
-    },
-    "skills/vase-wall/scripts/runtime.mjs::vaseWallRuntime::vaseFoundationSegments": {
       "owner": "extensions",
       "reason": "Selected plain-vase semantic checks, common foundation dependency policy and public-engine wall composition; advanced patterns depend on this base technique."
     },
@@ -9644,15 +9495,15 @@
       "reason": "Source-section geometric diagnostic getter over query-local accumulated state."
     },
     "skills/records.mjs::GEOMETRY_RECORDS.gridfinity.validate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
     "skills/records.mjs::GEOMETRY_RECORDS.heat-set.validate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
     "skills/records.mjs::GEOMETRY_RECORDS.text.validate": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Distinct statically named saved geometric record validator; table holder itself is not a callable leaf."
     },
     "studio/toolpath-view.mjs::representativeLayer": {
@@ -12850,15 +12701,15 @@
       "owner": "geometry-leaf-95d2b56f203c"
     },
     "skills/records.mjs::geometryTree": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema: the nested geometry records of one recipe."
     },
     "skills/records.mjs::geometryTree::visit": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema: the nested geometry records of one recipe."
     },
     "skills/records.mjs::COMPILED_GEOMETRY_TOOLS": {
-      "owner": "geometry",
+      "owner": "extension-run",
       "reason": "Host-owned saved geometry representation schema: which tool compiles each compiled record."
     },
     "workspaces/export-worker.mjs::savedRevision": {
@@ -15286,10 +15137,6 @@
       "owner": "geometry",
       "reason": "Geometry owns material membership and serializable native height references."
     },
-    "core/geom/material-envelope.mjs::materialContainsConnection": {
-      "owner": "geometry",
-      "reason": "Geometry owns material membership and serializable native height references."
-    },
     "core/geom/material-envelope.mjs::materialContainsConnection::clearance": {
       "owner": "geometry",
       "reason": "Geometry owns material membership and serializable native height references."
@@ -16865,6 +16712,1377 @@
     "core/path/builder.mjs::surfacePolicy::canTravelDirect::z": {
       "owner": "scheduling",
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation. Declaration overrides identify mixed responsibilities."
+    },
+    "core/geom/mapped-region-material.mjs::@module": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-region-material.mjs::layoutGroup": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-region-material.mjs::layoutGroup::refine": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-region-material.mjs::mappedRegionMaterial": {
+      "owner": "geometry-mapped-text-material",
+      "reason": "Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order."
+    },
+    "core/geom/mapped-region-material.mjs::mapper": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-region-material.mjs::anchoredLayout": {
+      "owner": "geometry-construction"
+    },
+    "core/geom/mapped-region-material.mjs::anchoredLayout::<return@13:10>": {
+      "owner": "geometry-construction"
+    },
+    "core/print/slices.mjs::prepareSliceLayer": {
+      "owner": "slice",
+      "reason": "Shared nominal Slice layout queried during work preparation and used by Slice construction."
+    },
+    "core/region/layer-strokes.mjs::sliceLayerLayout": {
+      "owner": "slice",
+      "reason": "One nominal perimeter/material layout for Slice and prepared extension sources."
+    },
+    "core/extensions/geometry-edits.mjs::@module": {
+      "owner": "extension-run"
+    },
+    "core/geom/operations.mjs::@module": {
+      "owner": "geometry-operations"
+    },
+    "core/geom/extruded-segments.mjs::@module": {
+      "owner": "geometry-extruded-segments"
+    },
+    "core/geom/spatial-curve.mjs::@module": {
+      "owner": "geometry-spatial-curves"
+    },
+    "core/geom/curve-frame.mjs::@module": {
+      "owner": "geometry-curve-frames"
+    },
+    "core/print/deposition-work.mjs::@module": {
+      "owner": "application"
+    },
+    "core/print/assignment-failure.mjs::@module": {
+      "owner": "application"
+    },
+    "core/private/toolpath/numeric.mjs::@module": {
+      "owner": "path-finalize"
+    },
+    "core/private/studio/numeric.mjs::@module": {
+      "owner": "studio"
+    },
+    "core/private/export/numeric.mjs::@module": {
+      "owner": "export"
+    },
+    "core/private/extensions/numeric.mjs::@module": {
+      "owner": "extension-run"
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::entry": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::selected": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::editor": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::compileText": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::input": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/extensions/geometry-edits.mjs::prepareExtensionGeometry::Geometry": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/operations.mjs::buildGeometry": {
+      "owner": "geometry-operations",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/operations.mjs::operations": {
+      "owner": "geometry-operations",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/operations.mjs::geometryOperations": {
+      "owner": "geometry-operations",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentsContain": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::min": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::max": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::segment": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::axis": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::extent": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::extrudedSegmentBounds::depth": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::segmentCoordinates": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::segmentCoordinates::tangent": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::segmentCoordinates::side": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::segmentCoordinates::relative": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::slabInterval": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::slabInterval::rounding": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::slabInterval::a": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::slabInterval::b": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval::a": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval::b": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval::c": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval::discriminant": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::diskInterval::root": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::firstIntervalOverlap": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::firstIntervalOverlap::low": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::firstIntervalOverlap::high": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::ray": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::nearest": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::vx": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::vy": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::vz": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::rounding": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::radius": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::depth": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::candidates": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::raycastExtrudedSegments::distanceMm": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::bounds": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::entries": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::build": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::build::box": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::build::axis": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::build::ordered": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::build::mid": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::tree": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::low": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::high": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::k": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::epsilon": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::a": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::intersects::b": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast::normal": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast::candidates": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast::pending": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast::node": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery::cast::hit": {
+      "owner": "geometry-extruded-segments",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::distinctPolyline": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::distinctPolyline::segments": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::distinctPolyline::j": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::distinctPolyline::a": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::distinctPolyline::b": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::authoredSegment": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::authoredSegment::lo": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::authoredSegment::hi": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::authoredSegment::mid": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::dimension": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::native": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::source": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::lengths": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::i": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::local": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::local::d": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::local::i": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::local::f": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::at": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::at::chart": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::at::e": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::breaks": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::samples": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::sampleSpatialCurve::sourceSegments": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/spatial-curve.mjs::curveLength": {
+      "owner": "geometry-spatial-curves",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::duplicate": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::input": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::cyclic": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::source": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::slots": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::n": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::lengths": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::@scope/for-1::i": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::total": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::tangents": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::tangents.<callback@16:29>::before": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::tangents.<callback@16:29>::after": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::tangents.<callback@16:29>::a": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::tangents.<callback@16:29>::b": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::seed": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::rotate": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::rotate::c": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::rotate::s": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::rotate::perpendicular": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::transport": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::transport::axis": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::transport::sine": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::transport::cosine": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::initialSide": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::sides": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::@scope/for-2::i": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::seamCorrectionRad": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::terminal": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::frames": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::frames.<callback@36:27>::u": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::frames.<callback@36:27>::v": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/curve-frame.mjs::transportCurveFrames::shared": {
+      "owner": "geometry-curve-frames",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::record": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::context": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::assignment": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::layers": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::heights": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::points": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::repeat": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::repetitions": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::authored": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::range": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::depositionWorkDescription::heightRange": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::@default/dependencies": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::baseNodes": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::baseNodes.<callback@29:36>::units": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::source": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::matching": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::parent": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::record": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::followers.<callback@35:40>::layer": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::nodes": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::descriptions": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::assignment": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::needs": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::defaults": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::references": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::other": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::offers": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::source": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::declaredDependencies": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::declared.<callback@52:28>::<callback@52:54>::key": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::dependsOn": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::prepared": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::byKey": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/deposition-work.mjs::prepareDepositionWork::reaches": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/assignment-failure.mjs::AssignmentFailure": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/assignment-failure.mjs::AssignmentFailure::constructor": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/assignment-failure.mjs::assignmentWork": {
+      "owner": "application",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/private/toolpath/numeric.mjs::requireThat": {
+      "owner": "path-finalize",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/private/studio/numeric.mjs::requireThat": {
+      "owner": "studio",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/private/export/numeric.mjs::requireThat": {
+      "owner": "export",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/private/extensions/numeric.mjs::requireThat": {
+      "owner": "extension-run",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::SECTION_TOLERANCE_MM": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::SECONDARY_AREA_FRACTION": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::UNION_GRID_MM": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::keepsAreaAsSimpleLoop": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::keepsAreaAsSimpleLoop::normalized": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::basisRow::span": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::basisRow::local": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::basisRow::row": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::basisRow::i": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::outers": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::outer": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::secondaryOuters": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::secondaryArea": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::holes": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleeveCut::bores": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::prepared": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::cache": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::maxSecondaryAreaMm2": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::maxPoreAreaMm2": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::inspect::result": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::heights": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::valid": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::first": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::last": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::end::firstProposal": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::end::bad": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::end::good": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::end::mid": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::start": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::detectMeshSleeveInterval::finish": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::settings": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::source": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::basis": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::samples": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::controlXY": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::patch": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::pointAt": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::quality": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::sectionAt": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitMeshSleeve::v": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::prepared": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::sourceCache": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::anchor": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::sourceQueries": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::seenSolid": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::seenHollow": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::maxSecondaryAreaMm2": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::maxSecondaryLoops": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::maxPoreAreaMm2": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionAt::cut": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveSource::sourceSectionAt::value": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::n": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::nu": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::nv": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::knotsU": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::knotsV": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::us": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::vs": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::solveU": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareSleeveBasis::solveV": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sampleSleeveSections::spanMm": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sampleSleeveSections::<callback@170:17>::curve": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::fitSleeveControls::ringControls": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::assembleSleevePatch::spanMm": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::assembleSleevePatch::cp": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::assembleSleevePatch::i": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::assembleSleevePatch::j": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::assembleSleevePatch::v": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleevePointQuery::spanMm": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleevePointQuery::<return@193:10>": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::sleevePointQuery::<return@193:10>::p": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::spanMm": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::sumSquared": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::maxResidual": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::@scope/for-1::j": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::@scope/for-1/for-1::i": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::residual": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::secondDerivativeBound": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::@scope/for-2::i": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::@scope/for-2/for-1::j": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::second": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::sectionSegments": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::measureSleeveFit::sectionChordBoundMm": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareFittedSections::fittedCache": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareFittedSections::<return@226:10>": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareFittedSections::<return@226:10>::loop": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareFittedSections::<return@226:10>::area": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/geom/sleeve/mesh-sleeve.mjs::prepareFittedSections::<return@226:10>::value": {
+      "owner": "geometry-surfaces",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::admissions": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::preparations": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::normalizeGeometry": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::normalizeGeometry::cached": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::normalizeGeometry::admitted": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometry::key": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometry::cached": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometry::admitted": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometry::preparation": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::geometryDescriptor::mesh": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::transferGeometry::artifact": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::receiveGeometry::parameters": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::receiveGeometry::key": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::receiveGeometry::descriptor": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::receiveGeometry::artifact": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::PROXY_STEPS_PER_SPAN": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::PROXY_STEPS_MAX": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::spans::n": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::spans::i": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometryArtifact::r": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometryArtifact::shell": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createGeometryArtifact::descriptor": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes::owned": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes::doc": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes::features": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes::attributes": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::nativeShellBytes::entry": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::reopenShell::r": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::reopenShell::doc": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::reopenShell::patches": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::reopenShell::object": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::reopenShell::attributes": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::solid": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::preview": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::bounds": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::include": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::c": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::@scope/forof-1/forof-1::p": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createSpatialGeometry::@scope/forof-2::p": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::vertices": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::faces": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::labels": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::patch": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::stepsU": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::stepsV": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::base": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::row": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::@scope/for-1::i": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::@scope/for-1/for-1::j": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::@scope/for-2::i": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::proxyMesh::@scope/for-2/for-1::j": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::shell": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::mesh": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::parts": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::vertices": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::faces": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::labels": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::features": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::notes": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::display": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::note": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::proxy": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::offset": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::p": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::f": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
+    },
+    "core/print/geometry.mjs::createMeshGeometry::append::_label": {
+      "owner": "geometry",
+      "reason": "Exact source declaration reviewed as part of the CAD/CAM separation."
     }
   },
   "retiredAssignments": [

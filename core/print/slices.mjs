@@ -16,7 +16,7 @@ import {surfaceGapCurves} from '../region/surface-curves.mjs';
 import {contactCurveGaps,contactSpanNote} from '../path/contact-curves.mjs';
 
 import {solidMasks} from "../region/layer-region.mjs";
-import { layerStrokes, mapSliceStrokes, sliceFrame, loopMaterial, fillMaterial } from '../region/layer-strokes.mjs';
+import { sliceLayerLayout, layerStrokes, mapSliceStrokes, sliceFrame, loopMaterial, fillMaterial } from '../region/layer-strokes.mjs';
 
 import { regionArea } from '../region/region2d.mjs';
 import {intersect,union} from "../region/intersection.mjs";
@@ -83,28 +83,43 @@ export function evaluateRegionBatch({id,batch,process,filament=null,contact=null
   return {operation,contactReport:measured?.report,contactSpans:[...placed.spans,...gapped.spans,...(surfaced?.spans??[])]};
 }
 
+// Nominal layout is shared by Slice and extension preparation. It contains no
+// deposited strokes, modulation results or execution state.
+export function prepareSliceLayer({settings,layers,material=null,solidRegions=new Map()},{process},layer){
+  const {index,slice,region}=layer,width=process.lineWidthMm;
+  const resolved={...settings,...layer.settings,...settings.sliceOverrides?.[index],
+    loops:settings.sliceOverrides?.[index]?.loops??layer.settings?.loops??(Array.isArray(settings.loops)?settings.loops[index%settings.loops.length]:settings.loops)};
+  const pitch=lineSpacing(width,resolved),angles=resolved.fillAnglesDeg,angleAt=index=>resolved.rotateFill?angles[index%angles.length]:angles[0];
+  const masked=resolved.fillDensity<1&&(resolved.solidTop>0||resolved.solidBottom>0||solidRegions.size>0);
+  const maskLayers=material?[...material].map(([index,region])=>({index,region})):layers;
+  const solid=masked?union(solidMasks(maskLayers,index,{bottomLayers:resolved.solidBottom,topLayers:resolved.solidTop}).solid,
+    intersect(region,union(solidRegions.get(index)??[],[]))):null;
+  const strokeSettings={...resolved,widthMm:width,fillAngleDeg:angleAt(index),solidDensity:1,direction:layer.direction,
+    patternAngleDeg:resolved.fillPattern==='rectilinear'?angleAt(index):angles[0],phaseMm:slice.origin?.[2]??slice.offsetMm??0,
+    solid,material:layer.material??region,outward:layer.outward??false,slice,loopBoundary:layer.loopBoundary??region,
+    layer:{...layer,speedMmS:process.planarSpeedMmS},fillState:layer.fillState,layoutReference:layer.layoutReference??slice,
+    wallToleranceMm:resolved.wallToleranceMm??process.planarWallToleranceMm};
+  const layout=sliceLayerLayout(region,strokeSettings);
+  return {...layer,settings:resolved,process,widthMm:width,pitchMm:pitch,wallInsetMm:resolved.loopInsetMm??width/2,
+    perimeters:layout.walls,solidRegion:layout.solidRegion,sparseRegion:layout.sparseRegion,
+    denseRegion:pitch<=width+PRINT_RESOLUTION_MM?layout.solidRegion:[],strokeSettings,preparedLayout:layout};
+}
+
 export function sliceResult({ id, settings, layers, material = null, solidRegions = new Map(), filament = null,totalLayerCount=layers.length,contactSegments=[],otherStackContactSegments=[],seedSegments=[],contactFragments=[],predecessorReference=null,predecessorRegions=new Map(),substrateAdaptation=false,requiredContact=false }, { process, shell, startMm, endMm,report: extra = {} }) {
-  const width = process.lineWidthMm, wallToleranceMm = process.planarWallToleranceMm;
+  const width = process.lineWidthMm;
   const solidDensity = 1;
-  const maskLayers = material ? [...material].map(([index, region]) => ({ index, region })) : layers;
   const roles = settings.roles;
   let operations = [],nextFillState;const stackLayers=[], report = { depositionFamily:'slice',layers: 0, skippedLayers: 0, areaMm2: 0, loops: 0, fillRows: 0, solidAreaMm2: 0, ...extra };
   let previous = [];
   for (const layer of layers) {
     const {index,slice,region}=layer,z=slice.origin?.[2]??slice.offsetMm??0;
-    const layerSettings={...settings,...layer.settings,...settings.sliceOverrides?.[layer.index],
-      loops:settings.sliceOverrides?.[layer.index]?.loops??layer.settings?.loops??(Array.isArray(settings.loops)?settings.loops[layer.index%settings.loops.length]:settings.loops)};
-    const pitch=lineSpacing(width,layerSettings),angles=layerSettings.fillAnglesDeg,angleAt=index=>layerSettings.rotateFill?angles[index%angles.length]:angles[0];
-    const masked=layerSettings.fillDensity<1&&(layerSettings.solidTop>0||layerSettings.solidBottom>0||solidRegions.size>0);
+    const prepared=layer.preparedLayout?layer:prepareSliceLayer({settings,layers,material,solidRegions},{process},layer);
+    const layerSettings=prepared.settings,pitch=prepared.pitchMm;
     const area=loops=>!loops.length?0:slice.kind==='patch'?patchMeanNormal(slice.patch,loops,{sampleStepMm:layerSettings.sampleStepMm}).areaMm2:regionArea(loops);
     const regionAreaMm2=area(region);
     if (!regionAreaMm2) { report.skippedLayers++; continue; }
-    const own = layer.material ?? region, outward = layer.outward ?? false;
-    const solid = masked ? union(solidMasks(maskLayers, index, { bottomLayers: layerSettings.solidBottom, topLayers: layerSettings.solidTop }).solid,
-      intersect(region, union(solidRegions.get(index) ?? [], []))) : null;
-    const strokeSettings={ ...layerSettings, widthMm: width, fillAngleDeg: angleAt(index), solidDensity,direction:layer.direction,layer,supportSegments:seedSegments,
-      patternAngleDeg: layerSettings.fillPattern === 'rectilinear' ? angleAt(index) : angles[0], phaseMm: z, wallToleranceMm, solid,
-      material: own, outward,slice,loopBoundary:layer.loopBoundary??region,layer:{...layer,speedMmS:process.planarSpeedMmS},fillState:layer.fillState,layoutReference:layer.layoutReference??slice,wallToleranceMm:layerSettings.wallToleranceMm??wallToleranceMm };
+    const outward=layer.outward??false;
+    const strokeSettings={...prepared.strokeSettings,preparedLayout:prepared.preparedLayout,supportSegments:seedSegments,fillState:layer.fillState};
     const strokes=layerStrokes(region,strokeSettings);
     nextFillState=strokes.nextFillState;
     if(strokes.constructionReport){
@@ -175,8 +190,7 @@ export function sliceResult({ id, settings, layers, material = null, solidRegion
 
 // Every slice assignment uses the same ownership, layer and result route.
 // -> {contexts, notes}: notes say what the stacks could not cover (sectionNotes).
-// envelopes: [{part, solidRegionAt(z)}] regions a process (a plastic-weld
-// rivet) needs solid in the slices of its part.
+// Upstream material preparation supplies explicit solid regions.
 
 // Solid chart fill uses the same region-to-stroke kernels as Slice. It owns no
 // stack, reservation or lifecycle; extensions submit the returned curves to Trace.
@@ -202,7 +216,11 @@ export function sliceContextResult(record,{layerIndex=null,priorResults=[],subst
   requireThat(layers.length,'Slice construction context has no requested layer.');
   const own=priorResults.filter(result=>result.report?.owner===record.owner.assignment.id||result.id===record.spec.id);
   const previous=own.at(-1),segments=substrateAdaptation?priorResults.flatMap(result=>depositedBeadSegments(result.operations)):[];
-  const selected=layers.map(layer=>({...layer,fillState:previous?.nextFillState,
+  if(record.prepareForSource){
+    record.preparedLayers??=new Map();
+    for(const layer of layers)if(!record.preparedLayers.has(layer.index))record.preparedLayers.set(layer.index,prepareSliceLayer(record.spec,record.context,layer));
+  }
+  const selected=layers.map(layer=>({...layer,...record.preparedLayers?.get(layer.index),fillState:previous?.nextFillState,
     contactPlacement:layer.contactPlacement?{...layer.contactPlacement,segments,ceilingMm:depositedBeadBounds(segments).max[2]}:null}));
   const context=layerIndex===null?record.context:{...record.context,report:{...record.context.report,layerStartOrdinal:record.spec.layers.findIndex(layer=>layer.index===layerIndex)}};
   const result=sliceResult({...record.spec,layers:selected,contactSegments,otherStackContactSegments,seedSegments,contactFragments,predecessorReference,substrateAdaptation,requiredContact},context);

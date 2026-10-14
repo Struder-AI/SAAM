@@ -1,4 +1,4 @@
-// Extension compositions return engine inputs and finalized-result constraints.
+// Extension compositions prepare geometry, material intent and work dependencies.
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
 
@@ -20,11 +20,11 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   // A sleeve prepares its geometry as it is constructed, so its failure is its own.
   const vaseWork=args=>{
     if(vaseLoaded.error)throw vaseLoaded.error;
-    const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
+    const {node,onProgress}=args;
     if(node.context.assignment.pattern!==null&&advancedLoaded.error)throw advancedLoaded.error;
-    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
+    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,onProgress});
     const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
-    return vase.standardVaseResult({...node.context,geometry,after},{foundationSegments,substrateAdaptation});
+    return vase.standardVaseResult({...node.context,geometry});
   };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
@@ -55,18 +55,17 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   }
   return {notes,curveSources,
     bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    reserves:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),envelopes:sites.map(site=>({...site.reservation,sourceId:site.assignment.id})),
+    geometryCuts:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.cavity})),
+    solidVolumes:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.solid})),combineSolids:engines.Geometry.combineSolids,
     constructions:sleeves,
-    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};},
-    operationDependencies:(operation,excluded)=>weld?.weldOperationDependencies(sites.filter(site=>!excluded.has(site.assignment.id)),operation)??[],
-    finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):{results:batch.results,failures:[]}
+    work:weld?.weldWork(sites)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};}
   };
 }
 
 export function extensionSummary(results){
   const summary={},vases=results.filter(result=>result.report.construction==='sleeve').map(result=>({id:result.id,...result.report}));
   if(vases.length)summary.vaseWall={...vases[0],instances:vases};
-  const weld=results.find(result=>result.id==='plastic-weld'&&Array.isArray(result.report.sites));
-  if(weld)summary.plasticWeld=weld.report;
+  const sites=results.flatMap(result=>result.report.sites??[]);
+  if(sites.length)summary.plasticWeld={sites,physicalValidation:'not performed'};
   return summary;
 }

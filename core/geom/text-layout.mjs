@@ -1,4 +1,4 @@
-import {requireThat,distance} from '../private/extensions/numeric.mjs';
+import {requireThat,distance} from './tolerance.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 // Shared flat text layout, before mapping its solid to a surface.
 

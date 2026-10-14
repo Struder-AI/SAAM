@@ -54,10 +54,16 @@ export function shellFromSurfaces(rhino, entries, name) {
   return shell;
 }
 
-export function splineSolidShell(rhino,geometry){
+export function splineSolidShell(rhino,geometry,{native=true}={}){
   validateSplineSolid(geometry);
-  const entries=geometry.patches.map(patch=>({name:patch.name,surface:nurbsSurface(rhino,patch)}));
-  return shellFromSurfaces(rhino,entries,'spline');
+  const entries=[];
+  try{
+    for(const patch of geometry.patches)entries.push({name:patch.name,surface:nurbsSurface(rhino,patch)});
+    const shell=shellFromSurfaces(rhino,entries,'spline');
+    if(native)return shell;
+    const {surfaces,...value}=shell;return value;
+  }catch(error){if(native)for(const entry of entries)entry.surface.delete();throw error;}
+  finally{if(!native)for(const entry of entries)entry.surface.delete();}
 }
 
 // openNURBS stores homogeneous points and omits the first and last knot.
@@ -65,6 +71,7 @@ function nurbsSurface(rhino,patch){
   const net=patch.controlPoints,nu=net.length,nv=net[0].length;
   const rational=net.some(row=>row.some(p=>p.length===4&&p[3]!==1));
   const surface=rhino.NurbsSurface.create(3,rational,patch.degreeU+1,patch.degreeV+1,nu,nv);
+  try{
   const set=(list,knots)=>knots.slice(1,-1).forEach((v,i)=>list.set(i,v));
   set(surface.knotsU(),patch.knotsU??clampedKnots(nu,patch.degreeU));
   set(surface.knotsV(),patch.knotsV??clampedKnots(nv,patch.degreeV));
@@ -74,4 +81,5 @@ function nurbsSurface(rhino,patch){
   }
   requireThat(surface.isValid!==false,`Patch ${patch.name} is not a valid NURBS surface; check its knots.`);
   return surface;
+  }catch(error){surface.delete();throw error;}
 }

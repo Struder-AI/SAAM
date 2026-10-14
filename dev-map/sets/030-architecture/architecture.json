@@ -130,12 +130,12 @@
     {
       "id": "geometry-mapped-text-material",
       "index": "2.2.1.8",
-      "label": "Mapped outline material",
-      "description": "Map normalized text outlines into solid construction requests; extension controls feature selection and Boolean composition order.",
+      "label": "Mapped region extrusion",
+      "description": "Explicit groups, layout, reference and depth interval produce ordinary mapped solids.",
       "type": "component",
       "source": {
-        "file": "core/geom/mapped-text-material.mjs",
-        "declaration": "mappedTextMaterial"
+        "file": "core/geom/mapped-region-material.mjs",
+        "declaration": "mappedRegionMaterial"
       }
     },
     {
@@ -439,7 +439,7 @@
       "id": "geometry",
       "index": "2",
       "label": "Geometry",
-      "description": "Ordinary geometric values and evaluations shared by existing consumers; native library lifetime belongs here.",
+      "description": "Shared CAD construction, conversion, queries and private native lifetime; callers own feature/process decisions.",
       "type": "component",
       "notes": [
         "Two consumer output families: ordinary geometry values and evaluations. Submaps group shared operations, not consumer names or source directories. Every assigned Geometry declaration has one source-linked terminal home. Process policy stays with Toolpath.",
@@ -4563,48 +4563,6 @@
       "source": {
         "file": "core/geom/spline-solid.mjs",
         "declaration": "validateSplineSolid"
-      }
-    },
-    {
-      "id": "geometry-module-79cf447eaa86",
-      "index": "2.2.1.6",
-      "label": "extension edit",
-      "description": "Build and place native solids, selections and extension construction results. Source: core/geom/extension-edit.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/extension-edit.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-7584b7892fc2",
-      "index": "2.2.1.6.1",
-      "label": "Module initialization / exports",
-      "description": "Module context and initialization; callable declarations have separate leaves.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/extension-edit.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-21285af9fc73",
-      "index": "2.2.1.6.2.1",
-      "label": "prepareExtensionGeometry body",
-      "description": "prepareExtensionGeometry in core/geom/extension-edit.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/extension-edit.mjs",
-        "declaration": "prepareExtensionGeometry"
-      }
-    },
-    {
-      "id": "geometry-leaf-bd0241faf8b9",
-      "index": "2.2.1.6.2.2",
-      "label": "buildGeometry",
-      "description": "prepareExtensionGeometry::buildGeometry in core/geom/extension-edit.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/extension-edit.mjs",
-        "declaration": "prepareExtensionGeometry::buildGeometry"
       }
     },
     {
@@ -9586,13 +9544,6 @@
       "type": "component"
     },
     {
-      "id": "geometry-module-79cf447eaa86-2",
-      "index": "2.2.1.6.2",
-      "label": "prepareExtensionGeometry",
-      "description": "prepareExtensionGeometry and its enclosed declarations.",
-      "type": "component"
-    },
-    {
       "id": "geometry-module-e3d795936cbd-9",
       "index": "2.2.2.1.28.1",
       "label": "curveCrossings",
@@ -11383,6 +11334,66 @@
       "source": {
         "file": "core/path/saampath.mjs"
       }
+    },
+    {
+      "id": "geometry-operations",
+      "index": "2.90",
+      "label": "Canonical CAD operations",
+      "type": "component",
+      "description": "Canonical CAD operations over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/operations.mjs"
+      }
+    },
+    {
+      "id": "geometry-extruded-segments",
+      "index": "2.91",
+      "label": "Extruded-segment queries",
+      "type": "component",
+      "description": "Extruded-segment queries over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/extruded-segments.mjs"
+      }
+    },
+    {
+      "id": "geometry-spatial-curves",
+      "index": "2.92",
+      "label": "Spatial curve sampling",
+      "type": "component",
+      "description": "Spatial curve sampling over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/spatial-curve.mjs"
+      }
+    },
+    {
+      "id": "geometry-curve-frames",
+      "index": "2.93",
+      "label": "Curve frame transport",
+      "type": "component",
+      "description": "Curve frame transport over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/curve-frame.mjs"
+      }
+    },
+    {
+      "id": "geometry-font-outlines",
+      "index": "2.94",
+      "label": "Font outline geometry",
+      "type": "component",
+      "description": "Font outline geometry over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/text-outline.mjs"
+      }
+    },
+    {
+      "id": "geometry-text-layout",
+      "index": "2.95",
+      "label": "Planar text layout",
+      "type": "component",
+      "description": "Planar text layout over explicit geometric inputs.",
+      "source": {
+        "file": "core/geom/text-layout.mjs"
+      }
     }
   ],
   "contracts": [
@@ -11591,7 +11602,7 @@
       "label": "Mapped extrusion/union solid requests",
       "direction": "Geometry supplies computed values; the consumer calls this public operation in the opposite direction.",
       "operations": [
-        "mappedTextMaterial"
+        "mappedRegionMaterial"
       ],
       "inputs": "Normalized feature, target geometry, chord tolerance and mesh edge length.",
       "outputs": "Mapped extrusion/union solid requests.",
@@ -11605,7 +11616,7 @@
         }
       ],
       "evidence": [
-        "core/geom/mapped-text-material.mjs::mappedTextMaterial"
+        "core/geom/mapped-region-material.mjs::mappedRegionMaterial"
       ],
       "status": "Source-grounded public operation within existing root pair; schema/effect conformance remains independently reviewed."
     },
@@ -15126,29 +15137,29 @@
     },
     {
       "id": "evaluate-geometry-21285af9fc73",
-      "from": "geometry-leaf-21285af9fc73",
+      "from": "extension-run",
       "to": "build-evaluate",
       "label": "geometry values",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
+      "direction": "Extension host supplies its contribution to the invoking caller.",
       "operations": [
         "prepareExtensionGeometry"
       ],
-      "inputs": "Authored geometry definitions and pinned assets.",
-      "outputs": "Geometry values and diagnostics.",
-      "effects": "No shared mutation; returns owned values.",
+      "inputs": "Selected extension, supplied recipe and edit request.",
+      "outputs": "Owned author contribution and report.",
+      "effects": "Extensions assemble a proposal; Bundle alone commits it.",
       "failure": "Return a structured error; no partial commit.",
       "excludes": "No access to unrelated component internals.",
       "access": [
         {
           "from": "build-evaluate",
-          "to": "geometry-leaf-21285af9fc73"
+          "to": "extension-run"
         }
       ],
       "evidence": [
-        "core/geom/extension-edit.mjs::prepareExtensionGeometry"
+        "core/extensions/geometry-edits.mjs::prepareExtensionGeometry"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Geometry values feed Toolpath; query/evaluation calls run in the opposite direction."
+      "implementation": "Author code invokes shared CAD operations; Geometry neither selects nor loads extensions."
     },
     {
       "id": "extension-geometry",
@@ -15528,30 +15539,30 @@
     },
     {
       "id": "geometry-bundle-21285af9fc73",
-      "from": "geometry-leaf-21285af9fc73",
+      "from": "extension-run",
       "to": "bundle-build",
       "label": "geometry results",
-      "direction": "Geometry output populates the bundle; bundle requests the geometry value.",
+      "direction": "Extension host supplies its contribution to the invoking caller.",
       "access": [
         {
           "from": "bundle-build",
-          "to": "geometry-leaf-21285af9fc73"
+          "to": "extension-run"
         }
       ],
       "operations": [
         "prepareExtensionGeometry"
       ],
-      "inputs": "Pinned geometry recipe/assets.",
-      "outputs": "Geometry recipe contribution and serialized/display artifacts; hybrid contributions separately identify deposition assignments.",
-      "effects": "2 computes geometry-only proposals directly; 5 commits. Contributions containing deposition assignments are composed by 3 before one Bundle commit.",
+      "inputs": "Selected extension, supplied recipe and edit request.",
+      "outputs": "Owned author contribution and report.",
+      "effects": "Extensions assemble a proposal; Bundle alone commits it.",
       "failure": "Keep the previous valid bundle geometry.",
       "excludes": "No direct geometry-engine writes to bundle state.",
       "authorship": "Owner original sketch: Geometry -> Bundle.",
       "evidence": [
-        "core/geom/extension-edit.mjs::prepareExtensionGeometry"
+        "core/extensions/geometry-edits.mjs::prepareExtensionGeometry"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Geometry returns authored/native values; Bundle stores them. Geometry-only extension contributions take this interface directly."
+      "implementation": "Author code invokes shared CAD operations; Geometry neither selects nor loads extensions."
     },
     {
       "id": "studio-import",
@@ -16278,7 +16289,7 @@
       ],
       "evidence": [
         "core/geom/reference-surface.mjs::referenceSurface",
-        "core/geom/mapped-text-material.mjs::mappedTextMaterial"
+        "core/geom/mapped-region-material.mjs::mappedRegionMaterial"
       ],
       "status": "Exact source operation and callers reviewed for 0.3.1; schemas/effects remain subject to audit."
     },
@@ -17007,18 +17018,13 @@
         "mapSliceStrokes",
         "sliceFrame",
         "curveLength",
-        "uprightPose",
-        "validatePose",
-        "samePose",
-        "interpolatePose",
         "add",
         "subtract",
         "scale",
         "dot",
         "cross",
         "normalize",
-        "distance",
-        "requireThat"
+        "distance"
       ],
       "inputs": "Explicit geometry, coordinates, frames and physical tolerances.",
       "outputs": "Geometry/frame values; no scheduling or selected-machine policy.",
@@ -17037,10 +17043,7 @@
         "clipLineToRegion",
         "offsetRegion",
         "SegmentIndex",
-        "evaluateSurface",
-        "uprightPose",
-        "samePose",
-        "interpolatePose"
+        "evaluateSurface"
       ],
       "inputs": "Supplied motion regions, positions, orientation and tolerances.",
       "outputs": "Stateless geometry results and private query indexes.",
@@ -17240,6 +17243,196 @@
       "direction": "Causal influence: the provider supplies the stated values to the consumer.",
       "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
       "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+    },
+    {
+      "id": "geometry-canonical-extension-run",
+      "from": "geometry-operations",
+      "to": "extension-run",
+      "label": "geometryOperations",
+      "operations": [
+        "geometryOperations"
+      ],
+      "inputs": "Explicit geometric inputs.",
+      "outputs": "The same immutable CAD operation collection.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "geometry-operations"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "geometry-canonical-recipe",
+      "from": "geometry-operations",
+      "to": "recipe",
+      "label": "geometryOperations",
+      "operations": [
+        "geometryOperations"
+      ],
+      "inputs": "Explicit geometric inputs.",
+      "outputs": "The same immutable CAD operation collection.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "recipe",
+          "to": "geometry-operations"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "geometry-canonical-application",
+      "from": "geometry-operations",
+      "to": "application",
+      "label": "geometryOperations",
+      "operations": [
+        "geometryOperations"
+      ],
+      "inputs": "Explicit geometric inputs.",
+      "outputs": "The same immutable CAD operation collection.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "application",
+          "to": "geometry-operations"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "geometry-extruded-toolpath-queries",
+      "from": "geometry-extruded-segments",
+      "to": "path-finalize",
+      "label": "extrudedSegmentBounds / extrudedSegmentsContain / raycastExtrudedSegments / prepareExtrudedSegmentQuery",
+      "operations": [
+        "extrudedSegmentBounds",
+        "extrudedSegmentsContain",
+        "raycastExtrudedSegments",
+        "prepareExtrudedSegmentQuery"
+      ],
+      "inputs": "Explicit shapes and tolerances.",
+      "outputs": "Bounds, membership and hits; Toolpath associates producing operations.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "geometry-extruded-segments"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "bundle-pose-path-finalize",
+      "from": "bundle-path",
+      "to": "path-finalize",
+      "label": "uprightPose / samePose / validatePose / interpolatePose",
+      "operations": [
+        "uprightPose",
+        "samePose",
+        "validatePose",
+        "interpolatePose"
+      ],
+      "inputs": "Neutral pose records.",
+      "outputs": "Pose value queries using shared frame mathematics.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "bundle-path"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "bundle-pose-scheduling",
+      "from": "bundle-path",
+      "to": "scheduling",
+      "label": "uprightPose / samePose / validatePose / interpolatePose",
+      "operations": [
+        "uprightPose",
+        "samePose",
+        "validatePose",
+        "interpolatePose"
+      ],
+      "inputs": "Neutral pose records.",
+      "outputs": "Pose value queries using shared frame mathematics.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "scheduling",
+          "to": "bundle-path"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "bundle-pose-export",
+      "from": "bundle-path",
+      "to": "export",
+      "label": "uprightPose / samePose",
+      "operations": [
+        "uprightPose",
+        "samePose"
+      ],
+      "inputs": "Neutral pose records.",
+      "outputs": "Pose value queries using shared frame mathematics.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "export",
+          "to": "bundle-path"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "prepared-work-slice-layout",
+      "from": "slice",
+      "to": "application",
+      "label": "prepareSliceLayer",
+      "operations": [
+        "prepareSliceLayer"
+      ],
+      "inputs": "Authored assignment and nominal layer.",
+      "outputs": "Prepared nominal chart, settings and material layout.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "application",
+          "to": "slice"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
+    },
+    {
+      "id": "application-prepared-toolpath",
+      "from": "application",
+      "to": "path-finalize",
+      "label": "prepareDepositionWork",
+      "operations": [
+        "prepareDepositionWork"
+      ],
+      "inputs": "Prepared construction inputs and extension declarations.",
+      "outputs": "Work nodes with resolved dependencies.",
+      "effects": "No shared part-state mutation; queries retain private caches.",
+      "direction": "Provider supplies results; consumer invokes named operations.",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "application"
+        }
+      ],
+      "evidence": "Geometry/CAM separation, 2026-10-13."
     }
   ],
   "layout": {
@@ -17338,5 +17531,14 @@
       "Toolpath makes saampath. Saampath goes into bundle. Other consumers can read from bundle.",
       "Ah, I forgot about modulation. Modulation belongs in toolpath. Scheduling should be downstream of toolpath. Material region sharing logic should be upstream of toolpath."
     ]
+  },
+  "geometryBoundaryIntent": {
+    "date": "2026-10-13",
+    "source": "Owner, Onboard and refine geometry bin",
+    "quotes": [
+      "I think of geometry as the CAD program, toolpath -> scheduler as the CAM.",
+      "Okay, I agree with one shared canonical operation and contract for each capability."
+    ],
+    "implementation": "Extension hosts share canonical CAD operations; feature depth, recipe assembly, bead policy and pose conventions stay outside Geometry."
   }
 }

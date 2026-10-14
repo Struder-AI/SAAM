@@ -4,7 +4,7 @@ import {strokeRange} from './deposition.mjs';
 import {validateModulationField,prepareScalarField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
 import {interpolatePose,validatePose,uprightPose,POSE_RESOLUTION} from './pose.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
-import {transportCurveFrames} from './curve-frame.mjs';
+import {transportCurveFrames} from '../geom/curve-frame.mjs';
 
 const positive=n=>Number.isFinite(n)&&n>0;
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);

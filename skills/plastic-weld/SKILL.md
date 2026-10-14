@@ -7,146 +7,78 @@ metadata:
 
 # Plastic weld / injected rivets
 
-For maker work read [MAKERS](../../MAKERS.md); for development start at
-[developer orientation](../../DEVELOPER-CONTEXT.md). Use the [shared print tools](../../core/print/USAGE.md)
-and [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
+For maker work read [MAKERS](../../MAKERS.md); development starts at
+[developer orientation](../../DEVELOPER-CONTEXT.md). Use the
+[shared print tools](../../core/print/USAGE.md) and
+[standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
-This skill prints a blind cavity, then injects molten plastic through its small
-opening. The wider bottom basin anchors the resulting plug, while the shaft
-crosses multiple printed layers. It is an experimental reinforcement technique:
-the software specifies volume and motion, not measured pressure, fusion, seal
-quality or strength. No physical result has been validated.
+The extension prepares a blind shaft with a wider bottom basin, then fills it
+through its small opening using ordinary [Inject](../inject/SKILL.md). Fusion,
+sealing and strength remain experimental; no physical result has been validated.
 
-## Material and interoperability
+## Geometry and material
 
-A solid slice is the natural host. The shaft and basin are reserved from the
-part's sliced material before loops and fill are generated. Rivets inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection). The bottom basin
-narrows upward as a stepped cone; the shaft continues to the injection height.
-The exterior CAD model remains the intended finished part. These temporary
-process cavities are visible in the generated toolpath, not as permanent CAD holes.
+The cavity is a Boolean difference in the part's process geometry before Slice.
+Its stepped polygonal profile defines both the removed volume and the injection
+amount. The intended finished CAD remains unchanged: injection fills the cavity.
+Studio shows the cavity in deposition and the stationary injection event.
 
-In a **sparse** slice, a solid envelope surrounds the entire cavity with a floor
-beneath it. Sparse lines are excluded from
-that material. Ordinary sparse infill alone cannot contain an injection. The
-envelope is a nominal planned seal, not proof of pressure-tight printed material.
-Its reinforcement value inside an otherwise sparse body remains unmeasured.
+An ordinary solid-material volume supplies the surrounding walls and floor,
+including in sparse hosts. Slice uses its normal loops, fill and spacing settings;
+keep spacingFactor at 1 for a solid envelope. Prepared work describes enclosure
+before injection and covering work afterward. Producers must honor that material
+intent; the extension does not scan completed strokes or recheck their enclosure.
 
-Supported combinations:
+Native mesh/spline components and translated assemblies use the same Geometry
+and Inject operations. Other constructions must respect the planned cavity.
+An atomic continuous path cannot interleave with injection mid-operation.
 
-- Native closed mesh and supported spline components, including translated
-  assembly parts, imported STL, text and Gridfinity bodies.
-- Slice assignments of any fill density. Global weld sites can cross owner
-  boundaries when the required solid host is continuous. Higher operations wait
-  for injection; surface contact requires finalized deposited coverage and must
-  not treat a reserved or unfinished cavity as filled material.
-- Draped roofs, vase walls, thick lips, waves and supports can coexist elsewhere
-  in the plan. The cavity belongs in solid planar material. Deposition inside a
-  cavity is shown and noted; only material where the seated nozzle enters stops generation.
-- Existing composition ordering, travel, cooling, plan locking, `saam` edits,
-  Studio review and exact-byte delivery. Higher operations wait for injection.
-- S5 Griffin and experimental H2D output. The robot relay exporters cannot yet
-  represent metered stationary extrusion or nozzle-temperature changes; they
-  reject those unrepresentable actions at export.
+## Recipe
 
-The skill does not insert arbitrary holes into a one-bead vase wall, infer
-pressure-tightness from spaced fill, or turn supports into permanent rivets.
-The same feature can occupy a solid base beneath a vase or a solid band beneath
-a curved roof. Solid envelopes use the slice's `spacingFactor`; keep it 1
-so the envelope does not become sparse.
-
-## Recipe and initial trial values
-
-Enable global `skills.plastic-weld.enabled`, then supply `sites`. Each site has
-exactly `id`, `part`, `xMm`, `yMm`, `zBottomMm`, `zTopMm`. `part` is null for one
-component or its assembly ID. XY is in that component's model coordinates before
-assembly and print placement. Z is relative to the component's minimum Z.
-Bottom and opening move to the nearest layer of its grid, with a note.
-
-For an ordinary 0.4 mm nozzle and 0.2 mm layers, begin with these **untested**
-values and adjust after a small coupon trial:
+Enable skills.plastic-weld.enabled and supply sites. Each site contains exactly
+id, part, xMm, yMm, zBottomMm and zTopMm. Part is null for one component or its
+assembly ID. XY is in the component's model coordinates; Z is relative to its
+minimum Z. Bottom and opening use its resolved layer grid, with moves noted.
 
 | Setting | Default | Meaning |
 |---|---:|---|
-| `shaftDiameterMm` | 1.2 | Small vertical injection passage |
-| `basinDiameterMm` | 3 | Wider anchor at the cavity bottom |
-| `basinHeightMm` | 1.2 | Upward taper from basin to shaft |
-| `wallMm` | 1.2 | Required solid material outside the cavity; infill gets a full cylindrical envelope |
-| `floorMm` | 0.8 | Solid floor below the blind cavity |
-| `seatDepthMm` | 0 | Nozzle tip at the opening plane; nonnegative insertion remaining within the shaft |
-| `volumeFactor` | 1 | Multiplier on the reserved, stepped cavity volume |
-| `flowMm3S` | 0.5 | Injection flow |
-| `holdSeconds` | 1 | Stationary hold after injecting, before withdrawal |
-| `nozzleC` | null | Use normal temperature; a numeric value requests an operation temperature |
+| shaftDiameterMm | 1.2 | Injection passage |
+| basinDiameterMm | 3 | Bottom anchor diameter |
+| basinHeightMm | 1.2 | Upward taper from basin to shaft |
+| wallMm | 1.2 | Solid material outside the cavity |
+| floorMm | 0.8 | Solid floor below the cavity |
+| seatDepthMm | 0 | Nozzle-tip insertion below the opening |
+| volumeFactor | 1 | Multiplier on prepared cavity volume |
+| flowMm3S | 0.5 | Injection flow |
+| holdSeconds | 1 | Hold after injecting, before withdrawal |
+| nozzleC | null | Normal temperature; a number requests an override |
 
 Example site in a body at least 6 mm tall:
 
 ```json
-{
-  "id": "anchor",
-  "part": null,
-  "xMm": 7,
-  "yMm": 8,
-  "zBottomMm": 0.8,
-  "zTopMm": 4.8
-}
+{"id":"anchor","part":null,"xMm":7,"yMm":8,"zBottomMm":0.8,"zTopMm":4.8}
 ```
 
-The default depth is specified by those site heights: 4 mm. Nozzle seating is a
-position command, not force control. Confirm the tip geometry can seat over the
-chosen shaft; increasing insertion can collide with or deform the mouth. The
-metered amount does not subtract unknown nozzle displacement; tune volume factor
-with any seat-depth change. Trapped air, leakage, pressure, cooling and adhesion
-must be assessed in the physical trial. More temperature is not assumed better.
+These dimensions and defaults are untested initial trial values for a 0.4 mm
+nozzle and 0.2 mm layers. Insertion is a position command, with depth remaining
+inside the cavity; it is not force control. Metered volume does not subtract
+nozzle displacement. Adjust volumeFactor when changing insertion depth.
 
-Temperatures stay within the locked machine/material ranges. A temperature
-override parks at clearance, emits the existing dialect's `M109 S` request,
-approaches and injects, then withdraws and restores the ordinary setpoint. Firmware
-heating/cooling waits are not thermally simulated; elapsed preview time excludes
-them. No override changes the machine profile or another skill's settings.
+Temperature overrides use the selected machine's existing service/approach
+operations and restore its normal setpoint afterward. Robot outputs that cannot
+represent stationary extrusion or temperature changes reject them at export.
 
-## Individual points and staggered heights
+## Authoring and review
 
-Choose explicit points where the reinforcement is wanted. To distribute points,
-the authoring helper `staggeredWeldSites` in [runtime.mjs](scripts/runtime.mjs) returns
-ordinary site records. For example:
+Use create_bundle and adjust_recipe, then review and export normally from Studio.
+Inspect the cavity, solid host, injection position/amount and subsequent covers.
+Physical trials must establish fit, flow, fusion and strength.
 
-```js
-staggeredWeldSites({columns: 2, rows: 2, levels: 2,
-  pitchMm: 12, heightStepMm: 3, depthMm: 4,
-  xMm: 4, yMm: 4, zBottomMm: 0.8, part: null})
-```
+The staggeredWeldSites helper in [runtime.mjs](scripts/runtime.mjs) returns
+ordinary editable site records from columns, rows, levels, pitchMm, heightStepMm
+and depthMm, with optional coordinates and part. Alternate levels shift half
+a pitch in X; overlapping height intervals can remain spatially separate.
 
-Alternating levels shift half a pitch in X. With these values, successive 4 mm
-depths overlap in height by 1 mm while their cavities remain separate. This
-distributes reinforcement through the part; it does not claim intersecting rivet
-columns or measured whole-part strength. Overlapping-height envelopes closer than
-`basinDiameterMm + 2*wallMm` (10.8 mm with these values; the helper defaults to
-12 mm) leave each other's walls incomplete, which is noted. Site counts have no fixed cap.
-
-## Generate, review and adjust
-
-Use the normal recipe template, `create_bundle` and `adjust_recipe`; no separate
-weld command or artifact format exists. Disable draped-skin in a plain coupon
-recipe. A reproducible trial is a 24 × 16 × 9 mm solid coupon (slice
-`fillDensity: 1`) with the two staggered sites of one column, one row and two
-levels at 12 mm pitch from X 6, Y 8 mm; keep the default slice for the
-sealed-envelope infill variant.
-
-In Studio, inspect the empty basin and shaft before each weld layer, the solid
-floor and envelope, then the stationary injection marker. The marker shows the
-source-decoded volume and temperature during injection. It does not simulate
-molten flow or display an invented filled shape. Review nozzle entry/withdrawal
-and later cover layers before the normal toolpath confirmation and delivery.
-
-Missing enclosure or floor is noted with its heights: move the site farther
-inside the solid, thicken its host, or assign a solid region. If an operation
-crosses the pocket, move it or change the region assignment. For conflicting
-dependencies, inspect the atomic operation and injection height: a continuous
-path cannot be interrupted mid-operation. Test modest coupons and adjust the
-dimensions, seating, volume, flow and temperature using observed results.
-
-Developer preparation uses `preparePlasticWeld` for sites and cavity reservations.
-The common dependency graph calls `rivetInjectionResult` for each ready site,
-validating finalized enclosure and using the [shared point operation](../inject/SKILL.md).
-The shared finalizer publishes each result; `rivetClearanceNotes` audits the
-complete finalized batch. Host and later-cover prerequisites belong to that graph.
+Preparation returns Boolean cutters, ordinary solid volumes, Inject assignments
+and work-key prerequisites. Core translates those keys to emitted operation IDs;
+Scheduling handles execution through the same saved SAAMpath as other producers.

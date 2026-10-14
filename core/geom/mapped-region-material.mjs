@@ -1,9 +1,7 @@
-// Geometry turns a normalized text feature into a mapped solid request. The
-// extension owns feature defaults, ordering, Boolean composition and records.
+// Map bounded planar groups through an explicit layout and surface reference.
+// The caller chooses the groups, depth interval and mapping orientation.
 import {requireThat,distance,cross,normalize} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {textOutlines} from './text-outline.mjs';
-import {textLayout} from './text-layout.mjs';
 import {referenceSurface} from './reference-surface.mjs';
 import {union} from '../region/intersection.mjs';
 
@@ -18,10 +16,9 @@ function anchoredLayout(layout,a,anchor,mirror){
   return (u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
 }
 
-function layoutGroup(group,feature,toleranceMm){
-  const layout=textLayout(feature,toleranceMm);
+function layoutGroup(group,layout,mirror,toleranceMm){
   const anchor=group.anchor?layout(...group.anchor):null;
-  const map=group.anchor?anchoredLayout(layout,group.anchor,anchor,feature.mirror):layout;
+  const map=group.anchor?anchoredLayout(layout,group.anchor,anchor,mirror):layout;
   const refine=(a,b,pa,pb,out)=>{
     const m=a.map((v,i)=>(v+b[i])/2),pm=map(...m),chord=pa.map((v,i)=>(v+pb[i])/2);
     requireThat(pm.every(Number.isFinite),'Baseline layout produced a non-finite point.');
@@ -44,15 +41,11 @@ function mapper(reference,anchor){
   return ([x,y,z])=>{const e=reference(x,y);return e.point.map((v,i)=>v+z*e.normal[i]);};
 }
 
-export function mappedTextMaterial(feature,target,{toleranceMm,maxEdgeMm}){
-  const outline=textOutlines(feature,toleranceMm);
-  if(!outline.loops.length)return null;
-  const reference=referenceSurface(feature.reference,target);
-  const lower=feature.offsetMm+(feature.mode==='raised'?-feature.overlapMm:-feature.depthMm);
-  const upper=feature.offsetMm+(feature.mode==='raised'?feature.depthMm:feature.overlapMm);
-  const glyphs=(feature.bendGlyphs?[{loops:outline.loops}]:outline.glyphs).map(group=>{
-    const placed=layoutGroup(group,feature,toleranceMm);
-    return {operation:'mapped-extrusion',loops:placed.loops,map:mapper(reference,placed.anchor),lower,upper,maxEdgeMm,toleranceMm,normalSide:feature.reference.normalSide??1};
+export function mappedRegionMaterial({groups,layout,mirror=false,reference:spec,lower,upper,normalSide=1},target,{toleranceMm,maxEdgeMm}){
+  const reference=referenceSurface(spec,target);
+  const solids=groups.map(group=>{
+    const placed=layoutGroup(group,layout,mirror,toleranceMm);
+    return {operation:'mapped-extrusion',loops:placed.loops,map:mapper(reference,placed.anchor),lower,upper,maxEdgeMm,toleranceMm,normalSide};
   });
-  return glyphs.reduce((a,b)=>a?{operation:'union',operands:[a,b]}:b,null);
+  return solids.reduce((a,b)=>a?{operation:'union',operands:[a,b]}:b,null);
 }

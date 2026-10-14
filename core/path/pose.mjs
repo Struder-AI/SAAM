@@ -1,5 +1,7 @@
 import {validateDirectionPair,interpolateDirectionPair} from '../geom/frame.mjs';
 import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+// Bundle's neutral SAAMpath pose contract. CAM chooses the orientations;
+// Geometry supplies direction mathematics, without toolhead conventions.
 // A SAAMpath pose is the toolhead's orientation in the part frame: {toolAxis,
 // toolUp}. Machine axes (arm joints, rotary tables) come from the machine's
 // kinematics. Fields beyond the two directions, such as an older path's

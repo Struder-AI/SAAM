@@ -12,36 +12,24 @@ export {pathDependencies} from '../path/dependencies.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
-import {prepareContourSleeve} from '../geom/sleeve/contour-sleeve.mjs';
-import {difference,union,intersect} from '../region/intersection.mjs';
-import {regionArea,loopArea,pointSegmentDistance} from '../region/region2d.mjs';
-import {horizontalSlice,sliceStack} from '../geom/slice.mjs';
-import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {makeMesh} from '../geom/mesh.mjs';
-import {constructSolids} from '../geom/solid-operations.mjs';
-import {section} from '../region/section.mjs';
-import {intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurves} from '../region/surface-operations.mjs';
-import {pointInjectionOperation} from '../path/injection.mjs';
+import {geometryOperations} from '../geom/operations.mjs';
+import {injectionAssignment} from './injection.mjs';
 import {spiralStackCurve} from '../path/stack-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
-import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {traceResult} from './curves.mjs';
-import {contactCurveGaps,contactSpanNote} from '../path/contact-curves.mjs';
-import {depositedBeadSegments} from '../path/deposited-curves.mjs';
 import {prepareSliceBoundaryStack} from "./slice-material.mjs";
 import {fillSliceRegion} from "./slices.mjs";
 import { compileRecipe, VERSION } from './plan.mjs';
 
 import {finalizedSliceResults} from './construction.mjs';
 
-const extensionEngines={
-  Geometry:{prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,loopArea,pointSegmentDistance,horizontalSlice,sliceStack,evaluateSurface,makeMesh,constructSolids,section,intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurves},
+async function extensionEngines(){return {
+  Geometry:await geometryOperations(),
   MaterialRegions:{prepareSliceBoundaryStack},
-  Recipe:{assignmentFilament},
-  Toolpath:{fillSliceRegion,pointInjectionOperation,
-    spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,contactSpanNote,depositedBeadSegments}
-};
+  Recipe:{assignmentFilament,injectionAssignment},
+  Toolpath:{fillSliceRegion,spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult}
+};}
 
 
 // A zero-length pass deposits nothing.
@@ -100,7 +88,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:extensionEngines,
+  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:await extensionEngines(),
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source)];
   const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress});

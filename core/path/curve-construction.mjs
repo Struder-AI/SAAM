@@ -2,9 +2,7 @@ import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 
-export function curveLength(points) {
-  return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
-}
+export {curveLength} from '../geom/spatial-curve.mjs';
 
 // A flat foundation turn, constant vertical pitch, then an optional level
 // finishing turn. The chart is data; geometric mapping belongs to its surface.

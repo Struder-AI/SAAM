@@ -1,4 +1,4 @@
-import {requireThat} from '../private/extensions/numeric.mjs';
+import {requireThat} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {create} from 'fontkit';
 

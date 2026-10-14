@@ -28,9 +28,9 @@ polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topolo
 
 ## Geometry interoperability for skill authors
 
-Heat-set and text retain editable feature recipes. Heat-set [Trace reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs)
-owns layer deposition; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
-Skills share geometry queries with the explicit numerical and representation limits below.
+Heat-set and text own editable features; [reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs) owns deposition.
+Every host supplies the [canonical CAD operations](operations.mjs); `await Geometry.buildGeometry(...)` returns numerical values; core calls the same implementations.
+Geometry owns construction, conversion, queries and native lifetime; callers own feature/process decisions.
 
 ### Shared numerical foundations
 
@@ -39,12 +39,10 @@ Prefer a pinned, attributable upstream implementation behind one shared SAAM
 interface over handwritten approximations or skill-local copies. Preserve the
 upstream topology logic, tolerance semantics and required preconditions; an
 algorithm's reputation does not automatically transfer to a port or adaptation.
-Record source/version, intentional adaptations, supported geometry, precision,
-reference comparisons, known failures and measured cost. Claims such as
-"proven", "reliable" or "fast" must state the scope and supporting evidence.
+Record source/version, adaptations, supported geometry, precision, reference comparisons,
+known failures and measured cost. Claims of reliability or speed name their scope and evidence.
 
-All skills must call the shared functions when offsetting or intersecting.
-Extend the shared interface when a capability is missing; do not add an inline
+All skills share offset/intersection operations. Extend the interface for missing capabilities; avoid inline
 copy, fallback kernel or private tolerance variant. Geometry-specific algorithms
 can live behind the same boundary with explicit capabilities and limitations.
 This aspiration applies to numerical geometry and toolpath operations generally,
@@ -79,6 +77,8 @@ physical-invariant failures rather than loosening checks.
 
 ### Geometry query boundary
 
+Plane sections accept `side:'negative'|'positive'` for one-sided limits along their normal, propagated through Boolean operands; outside-side extrema are empty. Default sections retain their existing numerical displacement. Curved sections do not accept this option.
+
 [section](../region/section.mjs) returns oriented loops on planes, patches or height charts, retaining Boolean topology, holes, disconnected components and nudge/edge diagnostics.
 [sliceStack](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
 [query](query.mjs) supplies native-shell and mesh top/containment queries.
@@ -106,9 +106,8 @@ classifies without extraction. Sampling may miss detail; field/deposition choice
 
 Geodesic region offsets keep their C2 limit, and growth its domain limit; piecewise roofs/sleeves
 keep explicit crease transitions. No trimmed-surface capability is introduced.
-Native geometry and explicit manufacturing meshes remain authoritative; display
-approximations never replace them. Saved/native/display artifacts retain their
-existing geometry identity. Deposited-material contact remains in Toolpath.
+Native/manufacturing geometry is authoritative; display approximations keep its identity.
+Toolpath interprets contacts; Geometry owns [containment and ray queries](extruded-segments.mjs).
 
 Indexed meshes live once in recipe geometry; display uses those manufacturing arrays.
 Geometry owns derived views and worker preparation reuse. Mixed assemblies retain

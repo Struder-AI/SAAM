@@ -114,12 +114,16 @@ const NUDGES = [0, 2, -2, 10, -10].map(k => k * PRINT_RESOLUTION_MM);
 // -> {loops, nudgedByMm, open}: open lists the gaps joined and pieces dropped.
 // gapMm is the widest gap joined, the print's line width (Code shape 6).
 export function sectionShell(shell, slice, options = {}) {
+  const side=options.side??null;
+  requireThat(side===null||side==='negative'||side==='positive','Section side is negative or positive.');
+  const nudges=side===null?NUDGES:NUDGES.filter(nudge=>side==='negative'?nudge<0:nudge>0);
   const tried = [];
-  for (const nudge of NUDGES) {
+  for (const nudge of nudges) {
     const result = sectionShellAt(shell, slice, nudge, options);
     // A displacement must not be accepted just because it produced a tidy empty
     // answer: nudging past the top of the part would silently drop the layer.
     if (!result.open.length && !result.coincident && result.loops.length > 0) return { loops: result.loops, nudgedByMm: nudge, open: [] };
+    if(side!==null&&!result.open.length&&!result.coincident)return {loops:[],nudgedByMm:nudge,open:[]};
     tried.push({ ...result, nudge });
   }
   const found = tried.filter(result => result.loops.length || result.open.length);

@@ -23,7 +23,6 @@ import { offsetRegion } from '../region/offset.mjs';
 
 import {difference,intersect} from "../region/intersection.mjs";
 import {allocateChartClaims} from '../region/ownership.mjs';
-import { clipReservedRegion, clipReservedSlice } from '../region/reservation.mjs';
 
 import {lineSpacing} from "../path/spacing.mjs";
 
@@ -102,14 +101,14 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
   return owners;
 }
 
-export function ownedLayers(inputOwners, { bands = [], reserves = [], onProgress } = {}) {
+export function ownedLayers(inputOwners, { bands = [], onProgress } = {}) {
   const owners = inputOwners;
   const cache = new Map();
   const cached = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
   // A section that does not close joins gaps up to the owner's line width.
   const partCut = (owner, slice) => cached(`section|${owner.sectionKey??owner.part}|${owner.widthMm}|${sliceKey(slice)}`, () => {
     const prepared = cached(`prepared|${owner.sectionKey??owner.part}|${JSON.stringify(slice.normal)}`, () => prepareSection(owner.shell, slice));
-    return section(prepared, slice, { gapMm: owner.widthMm });
+    return section(prepared, slice, { gapMm: owner.widthMm,...(slice.kind==='plane'?{side:'negative'}:{}) });
   });
   const partSection = (owner, slice) => partCut(owner, slice).loops;
   const material = (owner, slice) => cached(`material|${owner.sectionKey??owner.part}|${owner.widthMm}|${sliceKey(slice)}`, () => {
@@ -118,7 +117,6 @@ export function ownedLayers(inputOwners, { bands = [], reserves = [], onProgress
       const cut = volumeSection({ kind: 'slab', fromMm: band.startMm, toMm: band.endMm }, { slice }, chartExtent(owner, slice));
       region = cut === null ? [] : difference(region, cut);
     }
-    for (const reserve of reserves) region = horizontal(slice)?clipReservedRegion(region, slice.origin[2], reserve):clipReservedSlice(region,slice,reserve,{sampleStepMm:owner.assignment.sampleStepMm});
     return region;
   });
   const volume = (owner, layer) => cached(`volume|${owner.id}|${sliceKey(layer.slice)}`, () => {
@@ -189,7 +187,7 @@ function sliceRank(slice, bounds) {
   return Math.max(...heights);
 }
 
-export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],envelopes=[],onProgress}) {
+export function prepareSliceContexts({plan,shells,volumes,bands=[],geometryCuts=[],solidVolumes=[],combineSolids,onProgress}) {
   const all=depositionAssignments(plan,{expandParts:false}).filter(a=>!a.construction);
   for(const assignment of all){
     try{validateSliceAssignment(assignment,{parts:shells.map(([part])=>part).filter(part=>part!==null),firstLayerMm:plan.process.firstLayerMm});}
@@ -217,16 +215,21 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],reserves=[],e
     const selected={...a,part,filament:assignmentFilament(plan,{...a,part})};
     return {id:a.id,part,filament:selected.filament,process:assignmentPlan(plan,selected).process};
   }));
-  const owners = sliceOwners(assignments, { shells, processes, materials, volumes, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
-  const owned = ownedLayers(owners, { bands, reserves, onProgress });
+  const processShells=shells.map(([part,shell,whole])=>{
+    const cuts=geometryCuts.filter(cut=>cut.part===part);
+    return [part,cuts.length?combineSolids('difference',[shell,...cuts.map(cut=>cut.geometry)]):shell,whole];
+  });
+  const owners = sliceOwners(assignments, { shells:processShells, processes, materials, volumes, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
+  for(const owner of owners)owner.publicationShell??=shells.find(([part])=>part===owner.part)?.[1];
+  const owned = ownedLayers(owners, { bands, onProgress });
   const contexts=[],notes=owned.flatMap(stack=>stack.notes);
   for (const { owner, referenceStack, stackId, layers, material } of owned) {
     const { assignment } = owner;
     if(assignment.join||!layers.length)continue;
     const process = owner.process??processes[assignments.indexOf(assignment)];
-    const held = envelopes.filter(e => e.part === owner.part);
-    const solidRegions = new Map(held.length ? layers.map(l => [l.index, held.flatMap(e => horizontal(l.slice)?e.solidRegionAt(l.slice.origin[2]):
-      difference(l.region,clipReservedSlice(l.region,l.slice,{footprint:[[owner.shell.bounds.min.slice(0,2),[owner.shell.bounds.max[0],owner.shell.bounds.min[1]],owner.shell.bounds.max.slice(0,2),[owner.shell.bounds.min[0],owner.shell.bounds.max[1]]]],regionAt:e.solidRegionAt},{sampleStepMm:assignment.sampleStepMm})))]) : []);
+    const held = solidVolumes.filter(volume => volume.part === owner.part);
+    const solidRegions = new Map(held.length ? layers.map(layer => [layer.index,held.flatMap(volume=>
+      section(volume.geometry,layer.slice,layer.slice.kind==='plane'?{side:'negative'}:{}).loops)]) : []);
     const report = { owner: assignment.id, part: owner.part, layerMm: referenceStack.pitchMm,
       ...(lowered.has(assignment.id)?{referenceStackKind:'roof',excludedFraction:lowered.get(assignment.id).survey.steepFraction,maxSlopeDeg:lowered.get(assignment.id).survey.maxSlopeDeg,limitDeg:lowered.get(assignment.id).survey.limitDeg}:{}),
       targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,firstTranslationMm:referenceStack.firstTranslationMm,meanProjectedGapMm:referenceStack.pitchMm,minProjectedGapMm:referenceStack.minProjectedGapMm,maxProjectedGapMm:referenceStack.maxProjectedGapMm,stackMetric:'area-mean-normal-projection',

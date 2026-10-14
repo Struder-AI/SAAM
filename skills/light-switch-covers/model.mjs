@@ -83,7 +83,7 @@ export async function buildCover(input,{Geometry,Extensions}){
   requireCover(!d.treatment.startsWith('two-color')||features.length,'Two-color printing needs at least one visible label.');
   const result={geometry:base,mesh:base,materials:[]};
   if(features.length){
-    const baseShell=Geometry.buildGeometry(base),letters={operation:'union',operands:features.map(feature=>Geometry.buildGeometry(feature))},recessed=['recessed','two-color-flush'].includes(d.treatment);
+    const baseShell=await Geometry.buildGeometry(base),letters={operation:'union',operands:await Promise.all(features.map(feature=>Geometry.buildGeometry(feature)))},recessed=['recessed','two-color-flush'].includes(d.treatment);
     const solid=recessed?subtract(baseShell,letters):combine(baseShell,letters);
     if(d.treatment.startsWith('two-color')){
       const plate=recessed?solid:baseShell,labelMaterial=recessed?{operation:'intersection',operands:[baseShell,letters]}:subtract(letters,baseShell);

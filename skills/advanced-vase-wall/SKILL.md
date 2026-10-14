@@ -160,5 +160,4 @@ review and export validate no hardware.
 
 `advancedVaseResult({shell, assignment, process, ...})` returns operations,
 the reference stack, optional terminal boundary and a report without file writes.
-The caller supplies finalized foundation strands; Trace resolves whole-pattern
-crossings, joins and taper before ordinary composition and export.
+Prepared work names foundations; Trace joins and tapers before scheduling/export.

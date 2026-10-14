@@ -1,42 +1,19 @@
 import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
-import {beadContactAlong,depositedBeadBounds} from './deposited-curves.mjs';
+import {prepareExtrudedSegmentQuery} from '../geom/extruded-segments.mjs';
 
 // A geometric query over final beads, shared by contact gaps and contact charts.
 // The outward ray starts beyond the actual material bounds, not at a nominal
 // CAD surface that may now lie inside or behind displaced material.
 export function depositedContact(segments,{toleranceMm=0}={}){
   requireThat(segments.length>0,'Deposited contact needs actual material.');
-  const bounds=depositedBeadBounds(segments);
-  // Dependency-local bounding hierarchy indexes the existing fragments; it is
-  // not a reconstructed surface and carries no new material representation.
-  const entries=segments.map((segment,index)=>({segment,index,bounds:depositedBeadBounds([segment])}));
-  const build=items=>{
-    const box=items.reduce((b,e)=>({min:b.min.map((v,k)=>Math.min(v,e.bounds.min[k])),max:b.max.map((v,k)=>Math.max(v,e.bounds.max[k]))}),{min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
-    if(items.length<=8)return {bounds:box,items};
-    const axis=[0,1,2].sort((a,b)=>(box.max[b]-box.min[b])-(box.max[a]-box.min[a]))[0];
-    const ordered=[...items].sort((a,b)=>(a.bounds.min[axis]+a.bounds.max[axis])-(b.bounds.min[axis]+b.bounds.max[axis])),mid=Math.floor(items.length/2);
-    return {bounds:box,left:build(ordered.slice(0,mid)),right:build(ordered.slice(mid))};
-  };
-  const tree=build(entries);
-  const intersects=(box,point,normal)=>{
-    let low=0,high=Infinity;
-    for(let k=0;k<3;k++){
-      const epsilon=ROUNDING_RELATIVE*Math.max(1,Math.abs(point[k]),Math.abs(box.min[k]),Math.abs(box.max[k]))+toleranceMm;
-      if(Math.abs(normal[k])<ROUNDING_RELATIVE){if(point[k]<box.min[k]-epsilon||point[k]>box.max[k]+epsilon)return false;continue;}
-      const a=(point[k]-box.max[k]-epsilon)/normal[k],b=(point[k]-box.min[k]+epsilon)/normal[k];
-      low=Math.max(low,Math.min(a,b));high=Math.min(high,Math.max(a,b));if(high<low)return false;
-    }
-    return true;
-  };
+  const query=prepareExtrudedSegmentQuery(segments,{toleranceMm}),bounds=query.bounds;
   return {bounds,at(point,direction){
     const normal=normalize(direction),ceiling=normal.reduce((sum,n,i)=>sum+n*(n>=0?bounds.max[i]:bounds.min[i]),0)+toleranceMm;
     const start=point.map((p,i)=>p+normal[i]*(ceiling-dot(point,normal)));
-    const candidates=[],pending=[tree];
-    while(pending.length){const node=pending.pop();if(!intersects(node.bounds,start,normal))continue;if(node.items)candidates.push(...node.items.filter(entry=>intersects(entry.bounds,start,normal)));else pending.push(node.left,node.right);}
-    const hit=beadContactAlong(candidates.map(e=>e.segment),start,normal,{toleranceMm});
-    return hit?{...hit,segmentIndex:candidates[hit.segmentIndex].index}:null;
+    const hit=query.cast(start,normal.map(value=>-value));
+    return hit?{...hit,operationId:segments[hit.segmentIndex].operationId}:null;
   }};
 }
 

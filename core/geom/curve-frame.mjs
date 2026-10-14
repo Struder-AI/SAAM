@@ -1,4 +1,4 @@
-import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
+import {requireThat,distance,normalize,dot,cross} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 

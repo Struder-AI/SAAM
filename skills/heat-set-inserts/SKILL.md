@@ -49,7 +49,7 @@ needs no mouth chamfer; the catalog keeps its 1 mm blind clearance and wall advi
 ## Deposition and composition
 
 The bore remains part of the main geometry; the main Slice keeps its walls and
-infill. A generated [Trace](../trace/SKILL.md) follows each actual source layer.
+infill. A generated [Trace](../trace/SKILL.md) follows each prepared source layer.
 For N main loops it adds max(4,N+1)-N walls: one main loop becomes four total;
 eight become nine. The final added wall travels out and back along the fins.
 Added walls and fins intentionally overlap the unchanged main infill.
@@ -57,14 +57,13 @@ Added walls and fins intentionally overlap the unchanged main infill.
 Fixed zero-thickness fin sheets intersect the inherited layer surface; Geometry
 computes physical bead offsets there. Fin tips stay fixed; large main wall counts
 can leave little fin beyond the added wall. Settings, reference surface, width,
-pitch, gaps and tool pose inherit the actual Slice, including nonplanar layers.
+pitch, gaps and tool pose inherit the prepared main layer, including nonplanar layers.
 
 The pattern clears main wall bands at every boundary, including neighboring holes
 and exterior edges. Clipped curves stay open; gaps are travel, with fragments
 reported. The nominal loop target cannot promise loops the host cannot contain.
 
-Name all main owners in request `sourceAssignments`, for example
-`["foundation","curved-body"]`; `sourceAssignment` names one. Edits retain
+Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
 omitted source selection, and an explicit override affects only the named hole.
 Vase-only deposition has no source Slice. Coincident fin/layer sheets have no
 unique intersection curve; skipped fins and singular charts are reported.

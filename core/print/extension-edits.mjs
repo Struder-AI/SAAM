@@ -5,7 +5,7 @@ import {loadBundle,updatePlan,initBundle} from './bundle.mjs';
 import {selectSettings} from '../machine/settings.mjs';
 
 import {prepareExtensionRecipe} from './extension-recipe.mjs';
-import {prepareExtensionGeometry} from '../geom/extension-edit.mjs';
+import {prepareExtensionGeometry} from '../extensions/geometry-edits.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
 import {resolveSpatialPlan,normalizeSpatialPlan} from './spatial-inputs.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';

@@ -10,10 +10,10 @@ an unimplemented design for evaluation.
 
 ## Skill-result composition
 
-Material regions resolves claims upstream. Toolpath constructs Slice, Trace and
-Inject, applies Modulation, and freezes stroke order, poses and depositing
-connections before dependent constructions consume their finished material.
-Construction follows material prerequisites without a live nozzle or motion state.
+Material regions resolves claims upstream; Application prepares work dependencies.
+Extensions read prepared geometry/material intent and name work prerequisites.
+Toolpath constructs Slice, Trace and Inject, applies Modulation, and freezes
+stroke order, poses and connections; core lowers work prerequisites to emitted IDs.
 Bundle saves this completed SAAMpath operation graph; Scheduling reads it to
 choose execution order and add travel, retraction, cooling and finishing.
 Exporters add machine startup and service motions.
@@ -94,9 +94,8 @@ one owner per component. A roof surface-domain assignment selects its assembly c
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
 
-Dependent surface deposition waits for its declared finalized material sources.
-All skills use the same operation/dependency boundary; no skill pair has a
-separate composer. A nominal bead model does not prove physical support.
+Dependent deposition trusts its declared material sources. All skills use the
+same operation/dependency interface and composer.
 
 [Standard vase](../../skills/vase-wall/SKILL.md) generates a sleeve curve for Trace; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
 mapped Trace batches. Both use shared bead construction and composition. Their

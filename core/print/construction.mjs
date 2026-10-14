@@ -1,6 +1,7 @@
 // Application prepares material ownership, retries failed assignments, and calls Toolpath.
 import {prepareSliceContexts} from './slice-material.mjs';
 import {AssignmentFailure,constructDepositionResults} from './slice-deposition.mjs';
+import {prepareDepositionWork} from './deposition-work.mjs';
 
 // A language error is a SAAM bug, still reported as the assignment's.
 const INTERNAL_ERRORS=['TypeError','RangeError','ReferenceError','SyntaxError'];
@@ -26,9 +27,14 @@ export function finalizedSliceResults(args){
 function finalizeAssignments(args,failures){
   const excluded=new Set(failures.map(failure=>failure.assignment));
   const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(a.id))}};
-  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),reserves:(args.reserves??[]).filter(reserve=>!excluded.has(reserve.sourceId)),envelopes:(args.envelopes??[]).filter(envelope=>!excluded.has(envelope.sourceId))});
+  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),
+    geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded.has(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded.has(volume.sourceId))});
   const contexts=sliced.contexts;
-  const generated=constructDepositionResults(args,contexts,excluded);
+  const constructions=(args.constructions??[]).filter(context=>!excluded.has(context.assignment.id));
+  const work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
+  const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
+  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources);
+  const generated=constructDepositionResults({...args,nodes,curveSources},contexts);
   const produced=generated.results,nothing=!produced.some(result=>result.operations.length);
   return {...generated,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...failures.map(failureNote),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
 }

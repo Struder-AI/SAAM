@@ -91,21 +91,7 @@ async function createGeometryArtifact(parameters) {
   const r = await rhino();
   if(hasMesh(parameters))return await createMeshGeometry(r,parameters);
   const shell = buildShell(r, parameters);
-  requireThat(shell.surfaces?.length === shell.patches.length, 'The shape builder did not supply one Rhino surface per patch.');
-
-  const doc = new r.File3dm();
-  doc.applicationName = 'SAAM';
-  doc.applicationDetails = 'Shell pipeline (slices, draped-skin)';
-  doc.settings().modelUnitSystem = r.UnitSystem.Millimeters;
-  const features = [];
-  for (const [index, entry] of shell.surfaces.entries()) {
-    const attributes = new r.ObjectAttributes();
-    attributes.name = entry.name;
-    attributes.setUserString('saam:feature', entry.name);
-    features.push({ id: entry.name, objectId: doc.objects().add(entry.surface, attributes), patchIndex: index });
-  }
-  const bytes = doc.toByteArray();
-  doc.destroy();
+  const {bytes,features}=nativeShellBytes(r,shell);
 
   const descriptor = {
     schema: 'saam-shell-geometry/1',
@@ -118,6 +104,27 @@ async function createGeometryArtifact(parameters) {
   };
   await reopenShell(bytes, descriptor);
   return { bytes, descriptor };
+}
+
+// Native file encoding owns the document and surfaces until their bytes exist.
+// Only numerical patches and encoded values leave this operation.
+function nativeShellBytes(runtime,shell){
+  const owned={document:null};
+  try{
+    requireThat(shell.surfaces?.length===shell.patches.length,'The shape builder did not supply one Rhino surface per patch.');
+    const doc=new runtime.File3dm();owned.document=doc;
+    doc.applicationName='SAAM';doc.applicationDetails='Shell pipeline (slices, draped-skin)';
+    doc.settings().modelUnitSystem=runtime.UnitSystem.Millimeters;
+    const features=[];
+    for(const [index,entry]of shell.surfaces.entries()){
+      const attributes=new runtime.ObjectAttributes();
+      try{
+        attributes.name=entry.name;attributes.setUserString('saam:feature',entry.name);
+        features.push({id:entry.name,objectId:doc.objects().add(entry.surface,attributes),patchIndex:index});
+      }finally{attributes.delete();}
+    }
+    return {bytes:doc.toByteArray(),features};
+  }finally{owned.document?.destroy();for(const entry of shell.surfaces??[])entry.surface.delete();}
 }
 
 // Reopen the written 3DM, rebuild the patches from it, and require them to be
@@ -177,7 +184,7 @@ function proxyMesh(shell) {
 // A boolean shows its selected operand or Manifold mesh, one selectable body.
 async function createMeshGeometry(r,parameters) {
   if(directMesh(parameters)){
-    const shell=buildShell(r,parameters),mesh=directMesh(parameters);
+    const shell=buildShell(r,parameters,{native:false}),mesh=directMesh(parameters);
     return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,nativeForm:'indexed manufacturing mesh',
       features:[{id:'mesh'}],boundsMm:shell.bounds,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh')}};
   }

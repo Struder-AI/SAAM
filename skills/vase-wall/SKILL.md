@@ -26,9 +26,8 @@ above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
 
 A [rim](../thick-lip/SKILL.md) can follow a level end. Slices above the wall
 print after it; above a rising end they rest on a top up to one layer low, noted.
-Experimental [substrate adaptation](../../core/region/README.md#material-ownership-and-surface-contact) defaults off. When enabled,
-a raised first wall turn retains XYZ but recalculates local bead gaps from
-final deposited material, rejecting missing/out-of-range contact. It creates no Supports.
+The prepared plan supplies the foundation and its layer gap; the extension trusts
+that depositing work and does not inspect completed foundation beads.
 
 ## Input geometry: normally a solid
 

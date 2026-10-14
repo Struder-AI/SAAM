@@ -259,11 +259,14 @@ export function prepareSection(geometry, slice) {
 // pieces it dropped, at chart points.
 export function section(geometry, slice, options = {}) {
   requireThat(geometry?.bounds, 'Section needs a solid with bounds.');
+  requireThat(options.side===undefined||options.side===null||options.side==='negative'||options.side==='positive','Section side is negative or positive.');
+  requireThat(!options.side||slice.kind==='plane'||slice.kind==='slice-chart'&&slice.slice?.kind==='plane','One-sided section needs an oriented plane.');
   const { loops, nudgedByMm, open = [], report } = sectionLoops(geometry, slice, options);
   return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops), open,...(report?{report}:{}) };
 }
 
 function sectionLoops(geometry, slice, options) {
+  if(options.side&&slice.kind==='slice-chart'&&slice.slice?.kind==='plane')return sectionLoops(geometry,slice.slice,options);
   if(slice.kind==='plane'){
     const low=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.min[k]:geometry.bounds.max[k])-slice.origin[k]),0);
     const high=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]),0);
@@ -286,12 +289,14 @@ function sectionLoops(geometry, slice, options) {
       const points=corners.map(p=>[dot(p,slice.xAxis),dot(p,slice.yAxis)]);extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...points.map(p=>p[k])))};
     }else extent={min:geometry.bounds.min.slice(0,2),max:geometry.bounds.max.slice(0,2)};
     const boundsUv=[0,1].map(k=>[extent.min[k],extent.max[k]]);
+    const sideOffsetMm=options.side==='negative'?-2*ROUNDING_MM:options.side==='positive'?2*ROUNDING_MM:0;
     const loops=sampledChartRegion(extent,surfaceChartStep(slice,boundsUv,options.sampleStepMm??.2),uv=>{
       if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
       if(!surfaceChartCovers(slice,uv))return false;
-      return chartPrismContains(geometry,evaluateSurface(slice,uv).point);
+      const point=evaluateSurface(slice,uv).point;
+      return options.side?chartPrismContains(geometry,point.map((v,k)=>v+sideOffsetMm*slice.normal[k]),{boundaryToleranceMm:ROUNDING_MM}):chartPrismContains(geometry,point);
     },{surface:slice,precisionUv:ROUNDING_RELATIVE});
-    return {loops,nudgedByMm:0};
+    return {loops,nudgedByMm:sideOffsetMm};
   }
   if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
   if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
@@ -334,12 +339,12 @@ function sampledSurfaceInside(geometry,slice,options){
 }
 // A mesh index cuts at frame height n·origin; its loops sit in the frame's
 // (x, y) and shift to the slice's chart origin.
-function sectionPreparedMesh({ mesh, index }, slice, { gapMm = 0 } = {}) {
+function sectionPreparedMesh({ mesh, index }, slice, { gapMm = 0, side = null } = {}) {
   const axes = frameAxes(slice);
   if (!axes.every((axis, i) => axis.every((v, k) => v === index.axes[i][k])))
-    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice, { gapMm });
+    return sectionPreparedMesh({ mesh, index: meshSectionIndex(mesh, axes, { search: false }) }, slice, { gapMm, side });
   const [x, y, n] = axes, o = slice.origin;
-  const cut = sectionMeshIndex(index, dot(n, o), { gapMm });
+  const cut = sectionMeshIndex(index, dot(n, o), { gapMm, side });
   const ox = dot(x, o), oy = dot(y, o), shift = ([a, b]) => [a - ox, b - oy];
   return { loops: ox === 0 && oy === 0 ? cut.loops : cut.loops.map(loop => loop.map(shift)), nudgedByMm: cut.nudgedByMm,
     open: cut.open.map(item => ({ ...item, point: shift(item.point) })) };

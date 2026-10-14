@@ -23,7 +23,7 @@ export function chartPrism(reference,{loopsUv,direction,fromMm,toMm}){
   return {kind:'chart-prism',reference,loopsUv,direction:d,fromMm,toMm,axes,projectedPatch:{...reference.patch,cp},bounds:{min,max}};
 }
 
-export function chartPrismContains(prism,point){
+export function chartPrismContains(prism,point,{boundaryToleranceMm=PRINT_RESOLUTION_MM}={}){
   if(point.some((v,k)=>v<prism.bounds.min[k]-PRINT_RESOLUTION_MM||v>prism.bounds.max[k]+PRINT_RESOLUTION_MM))return false;
   if(prism.reference.kind==='height-field'){
     const uv=point.slice(0,2);
@@ -33,12 +33,12 @@ export function chartPrismContains(prism,point){
     // fails in heightSlicePoint. Invalid/folded references retain their errors.
     if(!referenceHeight(prism.reference.reference,...uv))return false;
     const surface=heightSlicePoint(prism.reference,uv),distance=point[2]-surface[2];
-    return distance>prism.fromMm+PRINT_RESOLUTION_MM&&distance<=prism.toMm+PRINT_RESOLUTION_MM;
+    return distance>prism.fromMm+boundaryToleranceMm&&distance<=prism.toMm+boundaryToleranceMm;
   }
   const p=prism.axes.map(axis=>dot(axis,point));
   return projectToPatch(prism.projectedPatch,p[0],p[1]).some(hit=>{
     const distance=p[2]-hit.point[2],uv=[hit.u,hit.v];
-    if(distance<=prism.fromMm+PRINT_RESOLUTION_MM||distance>prism.toMm+PRINT_RESOLUTION_MM)return false;
+    if(distance<=prism.fromMm+boundaryToleranceMm||distance>prism.toMm+boundaryToleranceMm)return false;
     return pointInRegion(uv,prism.loopsUv)||prism.loopsUv.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=TOLERANCE.parameter));
   });
 }

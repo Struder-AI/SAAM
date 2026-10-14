@@ -1,5 +1,5 @@
 import {requireThat,normalize,cross,dot,distance} from '../private/toolpath/numeric.mjs';
-import {transportCurveFrames} from './curve-frame.mjs';
+import {transportCurveFrames} from '../geom/curve-frame.mjs';
 import {widenPlanarStrokes} from '../geom/stroke-topology.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 // Deferred shape judgement: a band crossing itself should be judged at print resolution,

@@ -412,7 +412,7 @@
     },
     {
       "contract": "evaluate-geometry-21285af9fc73",
-      "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+      "target": "core/extensions/geometry-edits.mjs::prepareExtensionGeometry",
       "kinds": [
         "call"
       ],
@@ -532,7 +532,7 @@
     },
     {
       "contract": "geometry-bundle-21285af9fc73",
-      "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+      "target": "core/extensions/geometry-edits.mjs::prepareExtensionGeometry",
       "kinds": [
         "call"
       ],
@@ -682,7 +682,7 @@
     },
     {
       "contract": "extension-mapped-text-material",
-      "target": "core/geom/mapped-text-material.mjs::mappedTextMaterial",
+      "target": "core/geom/mapped-region-material.mjs::mappedRegionMaterial",
       "kinds": [
         "call"
       ],
@@ -1700,6 +1700,158 @@
         "call"
       ],
       "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-extension-run",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-recipe",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-application",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::extrudedSegmentBounds",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::extrudedSegmentsContain",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::raycastExtrudedSegments",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::validatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::interpolatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::validatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::interpolatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-export",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-export",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "prepared-work-slice-layout",
+      "target": "core/print/slices.mjs::prepareSliceLayer",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "application-prepared-toolpath",
+      "target": "core/print/deposition-work.mjs::prepareDepositionWork",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
     }
   ],
   "retiredBindings": [

@@ -9,13 +9,13 @@ import {geometrySelections} from './selections.mjs';
 import {rhino} from './runtime.mjs';
 
 
-export function buildShell(rhino, geometry) {
-  return buildShells(rhino,[geometry])[0];
+export function buildShell(rhino, geometry, options) {
+  return buildShells(rhino,[geometry],options)[0];
 }
 
 // One construction batch shares immutable source shapes, including components
 // encountered first while building an assembly. No caller owns this cache.
-export function buildShells(rhino,geometries,{material=false}={}){
+export function buildShells(rhino,geometries,{material=false,native=true}={}){
   const cache=new Map();
   const build=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);
@@ -23,7 +23,7 @@ export function buildShells(rhino,geometries,{material=false}={}){
   };
   function construct(geometry){
     if(geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
-    if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
+    if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
@@ -37,6 +37,10 @@ export function buildShells(rhino,geometries,{material=false}={}){
       return {kind:'assembly',components,empty:!material.length,bounds:material.length?{min:[0,1,2].map(i=>Math.min(...material.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...material.map(c=>c.bounds.max[i])))}:{min:[0,0,0],max:[0,0,0]}};
     }
     if(geometry.shape==='assembly') {
+      if(!native){
+        const patches=geometry.parts.flatMap(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm).patches.map(patch=>({...patch,name:part.id+'/'+patch.name})));
+        return makeShell(patches,{name:'assembly'});
+      }
       const entries=geometry.parts.flatMap(part=>build(part.geometry).surfaces.map(entry=>{
         const surface=entry.surface.duplicate();
         requireThat(surface.translate([part.xMm,part.yMm,part.zMm]),'Could not place native component.');
@@ -52,7 +56,7 @@ export function buildShells(rhino,geometries,{material=false}={}){
 // Material queries combine placed components, including nested assemblies.
 // Ordinary construction retains its component/surface representation.
 export async function resolveMaterialGeometry(geometries){
-  return buildShells(await rhino(),geometries,{material:true});
+  return buildShells(await rhino(),geometries,{material:true,native:false});
 }
 
 // Each request returns ordinary geometry in the requested frame. A replacement
@@ -65,7 +69,7 @@ export async function resolveGeometrySelections(geometry,requests){
     requireThat(source,`Unknown geometry selection ${selection}.`);
     return {geometry:replacement??source.geometry,offset:[source.xMm,source.yMm,source.zMm]};
   });
-  const shells=buildShells(await rhino(),selected.map(s=>s.geometry)),placed=new Map();
+  const shells=buildShells(await rhino(),selected.map(s=>s.geometry),{native:false}),placed=new Map();
   return selected.map((selection,i)=>{
     const shell=shells[i],key=selection.offset.join(',');
     let frames=placed.get(shell);if(!frames){frames=new Map();placed.set(shell,frames);}

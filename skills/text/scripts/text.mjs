@@ -21,20 +21,26 @@ export function textFeature(spec){
 }
 
 // -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
-export async function compileText(base,features,{buildGeometry,constructSolids,mappedTextMaterial,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
-  requireThat(typeof buildGeometry==='function'&&typeof constructSolids==='function'&&typeof mappedTextMaterial==='function'&&Array.isArray(features)&&features.length>0,
-    'Text needs Geometry buildGeometry, constructSolids and mappedTextMaterial operations and at least one feature.');
+export async function compileText(base,features,{buildGeometry,constructSolids,textOutlines,textLayout,mappedRegionMaterial,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
+  requireThat(typeof buildGeometry==='function'&&typeof constructSolids==='function'&&[textOutlines,textLayout,mappedRegionMaterial].every(operation=>typeof operation==='function')&&Array.isArray(features)&&features.length>0,
+    'Text needs Geometry construction, font outlines, layout and mapped-region operations and at least one feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxEdgeMm)&&maxEdgeMm>0,'Text toleranceMm and maxEdgeMm must be positive.');
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');
-  const target=base?buildGeometry(base):null;
+  const target=base?await buildGeometry(base):null;
   let result=target&&!standalone?target:null;
   const materials=new Map();let baseUncut=Boolean(result);
   if(result)materials.set('base',result);
   const difference=(a,b)=>({operation:'difference',operands:[a,b]});
   for(const f of normalized){
     requireThat(result||f.mode==='raised','Standalone text must begin with a raised feature.');
-    const textSolid=mappedTextMaterial(f,target,{toleranceMm,maxEdgeMm});
+    const outline=textOutlines(f,toleranceMm);
+    const textSolid=outline.loops.length?mappedRegionMaterial({
+      groups:f.bendGlyphs?[{loops:outline.loops}]:outline.glyphs,
+      layout:textLayout(f,toleranceMm),mirror:f.mirror,reference:f.reference,
+      lower:f.offsetMm+(f.mode==='raised'?-f.overlapMm:-f.depthMm),
+      upper:f.offsetMm+(f.mode==='raised'?f.depthMm:f.overlapMm),normalSide:f.reference.normalSide??1
+    },target,{toleranceMm,maxEdgeMm}):null;
     if(!textSolid)continue;
     if(f.mode==='raised')materials.set('text/'+f.id,result?difference(textSolid,result):textSolid);
     else {baseUncut=false;for(const [id,material] of materials)materials.set(id,difference(material,textSolid));}

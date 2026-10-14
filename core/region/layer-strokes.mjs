@@ -37,10 +37,9 @@ import {frontLayerStrokes} from './seeded-fronts.mjs';
 // loops, outermost first; infill is the
 // sparse pattern and fill the solid rows, alternating in direction so each
 // row starts where the last ended.
-export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern, fillAngleDeg, patternAngleDeg,
-  solidDensity = 1, fillOverlap, spacingFactor, sampleStepMm, phaseMm = 0, wallToleranceMm = 0, solid = null,
+export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOverlap, spacingFactor, sampleStepMm, wallToleranceMm = 0, solid = null,
   material = region, outward = false, slice = null, loopBoundary=region, loopInsetMm=null, offsetOptions={}, fillOrder=null,
-  layer=null,direction=null,supportSegments=[],layoutReference=slice,fillState=null,fillDirection=null }) {
+}) {
   requireThat(Number.isInteger(loops) && loops >= 0 && Number.isFinite(fillDensity) && fillDensity >= 0 && fillDensity <= 1,
     'A slice layer needs a whole loop count and a fill density from 0 to 1.');
   const pitch = lineSpacing(widthMm, { spacingFactor });
@@ -66,15 +65,23 @@ export function layerStrokes(region, { widthMm, loops, fillDensity, fillPattern,
   const dense = fillDensity >= 1;
   const solidRegion = dense ? interior : solid?.length ? intersect(interior, solid) : [];
   const sparseRegion = dense ? [] : solid ? difference(interior, solid) : interior;
+  return {walls,interior,solidRegion,sparseRegion};
+}
+
+export function layerStrokes(region, options) {
+  const {widthMm,fillDensity,fillPattern,fillAngleDeg,patternAngleDeg,solidDensity=1,spacingFactor,sampleStepMm,phaseMm=0,
+    slice=null,fillOrder=null,layer=null,direction=null,supportSegments=[],layoutReference=slice,fillState=null,fillDirection=null}=options;
+  const pitch=lineSpacing(widthMm,{spacingFactor});
+  const {walls,interior,solidRegion,sparseRegion}=options.preparedLayout??sliceLayerLayout(region,options);
   if(fillOrder?.kind==='fronts'){
     const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm,supportSegments}));
     return {walls,infill:[],fill:fronts.flatMap(front=>front.curves),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
   }
-  const options={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
+  const fillOptions={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
   let constructionReport, nextFillState;
-  const pattern=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,sparseRegion,options):slice?.kind==='patch'?patchPatternStrokes(slice,sparseRegion,options):fillPatternStrokes(sparseRegion,{pattern:fillPattern,widthMm,density:fillDensity,angleDeg:patternAngleDeg,zMm:phaseMm,sampleStepMm,spacingFactor});
+  const pattern=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,sparseRegion,fillOptions):slice?.kind==='patch'?patchPatternStrokes(slice,sparseRegion,fillOptions):fillPatternStrokes(sparseRegion,{pattern:fillPattern,widthMm,density:fillDensity,angleDeg:patternAngleDeg,zMm:phaseMm,sampleStepMm,spacingFactor});
   const infill=pattern.map((stroke,lineIndex)=>({...stroke,role:'infill',fillFamily:stroke.fillFamily??{spacingMm:pitch/fillDensity,lineIndex},points:stroke.closed?[...stroke.points,stroke.points[0]]:stroke.points}));
-  let fill=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,solidRegion,{...options,fillDensity:solidDensity,fillPattern:'rectilinear',patternAngleDeg:fillAngleDeg}).map(stroke=>({...stroke,role:'fill'})):slice?.kind==='patch'?projectedFillStrokes(slice,solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg,sampleStepMm,direction}):directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
+  let fill=fillOrder?.kind==='surface-cells'?[]:slice?.kind==='surface-chart'?sampledChartPatternStrokes(slice,solidRegion,{...fillOptions,fillDensity:solidDensity,fillPattern:'rectilinear',patternAngleDeg:fillAngleDeg}).map(stroke=>({...stroke,role:'fill'})):slice?.kind==='patch'?projectedFillStrokes(slice,solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg,sampleStepMm,direction}):directedFillStrokes(solidRegion,{spacingMm:pitch/solidDensity,angleDeg:fillAngleDeg});
   if(fillOrder?.kind==='surface-cells'){
     const construct=(region,density)=>metricFillStrokes(slice,region,{widthMm,density,spacingFactor,sampleStepMm,
       toleranceMm:fillOrder.toleranceMm,direction:fillDirection??fillOrder.directions[(layer?.index??0)%fillOrder.directions.length],

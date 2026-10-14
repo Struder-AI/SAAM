@@ -265,16 +265,21 @@ function meshContourEdges(vertices,cut,triangles){
 // a vertex. A contour an open or nonmanifold edge breaks closes over gaps up
 // to gapMm, the print's line width; open lists those gaps and the pieces dropped
 // (closeOpenChains).
-export function sectionMeshIndex(index,h,{gapMm=0}={}) {
+export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
   requireThat(Number.isFinite(h),'Section height must be finite.');
+  requireThat(side===null||side==='negative'||side==='positive','Section side is negative or positive.');
   const [min,max]=[index.bounds.min[2],index.bounds.max[2]];
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
   // geometric nudge below; genuinely outside layers must still be empty.
   const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
   if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0,open:[]};
+  // The requested oriented limit outside an extremum is empty; never replace
+  // it by an inward cut. Interior limits use the existing numerical clearance.
+  if(side==='negative'&&h<=min+roundoff||side==='positive'&&h>=max-roundoff)return {loops:[],nudgedByMm:0,open:[]};
   // Move a cut off vertices/edges; prefer the interior side at the top bound.
-  for(const nudge of SECTION_NUDGES_MM) {
+  const nudges=side===null?SECTION_NUDGES_MM:SECTION_NUDGES_MM.filter(nudge=>side==='negative'?nudge<0:nudge>0);
+  for(const nudge of nudges) {
     const cut=h+nudge;
     if(cut<=min||cut>=max||nearVertex(index,cut))continue;
     const contours=meshContourEdges(index.vertices,cut,trianglesAt(index,cut));

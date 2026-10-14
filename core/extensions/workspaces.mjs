@@ -1,11 +1,6 @@
 // Workspace factories receive construction operations, never Bundle/Studio/export authority.
 import {listExtensions,resolveExtensions,loadExtensionEntry} from './library.mjs';
-import {rhino} from '../geom/runtime.mjs';
-import {buildShell} from '../geom/build.mjs';
-import {constructSolids} from '../geom/solid-operations.mjs';
-import {mappedTextMaterial} from '../geom/mapped-text-material.mjs';
-import {loftPolygons} from '../geom/loft.mjs';
-import {clipLineToRegion} from '../geom/curve-region.mjs';
+import {geometryOperations} from '../geom/operations.mjs';
 import {recipeDefaults} from '../print/plan.mjs';
 import {curveAssignment} from '../print/curves.mjs';
 
@@ -23,12 +18,11 @@ export async function loadWorkspaceRuntime(extensionId,options={}){
   const resolved=await resolveExtensions([extensionId],options),selected=resolved.at(-1);
   if(selected.manifest.kind!=='workspace')throw Error(`Extension ${extensionId} is not a workspace.`);
   const create=await loadExtensionEntry(extensionId,'workspace-runtime',options);
-  const runtime=await rhino();
+  const Geometry=await geometryOperations();
   const compileText=selected.manifest.dependencies.some(dependency=>dependency.id==='text')
     ?await loadExtensionEntry('text','geometry-compile',options):null;
   const definition=await create(Object.freeze({
-    Geometry:Object.freeze({loftPolygons,clipLineToRegion,
-      buildGeometry:geometry=>buildShell(runtime,geometry),constructSolids,mappedTextMaterial}),
+    Geometry,
     Toolpath:Object.freeze({recipeDefaults,curveAssignment}),
     Extensions:Object.freeze(compileText?{text:Object.freeze({compileText})}:{})
   }));

@@ -10,7 +10,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 export async function compileHeatSet(base,features,{buildGeometry,constructSolids,toleranceMm=0.01}={}){
   requireThat([buildGeometry,constructSolids].every(value=>typeof value==='function'),
     'Heat-set needs Geometry buildGeometry and constructSolids operations.');
-  const normalized=features.map(heatSetFeature),shell=buildGeometry(base);
+  const normalized=features.map(heatSetFeature),shell=await buildGeometry(base);
   requireThat(normalized.length>0,'Choose at least one heat-set feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid heat-set tolerance.');
   // A loft between rings at distances s outward from the mouth along the bore.

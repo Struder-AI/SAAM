@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {buildShell,translateShell} from '../../../core/geom/build.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
+import {schedulePath} from '../../../core/path/schedule.mjs';
 import {rhino} from '../../../core/geom/runtime.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
@@ -116,7 +117,7 @@ test('convex wall retains the near-straight corner regression across offset kern
   for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n]);}
   for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
   const machine=loadMachine(),plan=vasePlan(machine,{shape:'mesh',vertices,triangles,source:null});
-  const path=await generatePath(plan,machine);
+  const path=schedulePath(await generatePath(plan,machine));
   assert.equal(path.summary.vaseWall.offsetPrecisionMm,.00001);
   const wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall').map(({action})=>action);
   assert.ok(wall.length>100);assert.equal(wall.at(-1).to[2],.6);
@@ -140,7 +141,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   const rawInset=offsetRegion([dedupe(seamPinchSection)],-0.2,{precisionMm:0.00001,arcToleranceMm:0.005});
   assert.ok(rawInset.length>1&&rawInset.filter(loop=>loopArea(loop)>0).length===1,'the raw seam-stepped section splits a sliver off the inward offset');
   const plan=vasePlan(machine,seamPinchMesh());plan.slices.assignments[0].zEndMm=7.5;
-  const path=await generatePath(plan,machine),wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall');
+  const path=schedulePath(await generatePath(plan,machine)),wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall');
   assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
   assert.equal(new Set(wall.map(({context})=>context.operation)).size,1,'one uninterrupted stroke');
   const shell=buildShell(r,plan.geometry);// the SAAMpath is in the part's frame

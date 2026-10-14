@@ -5,9 +5,8 @@ Adapted from Timothy Keller TK-DEV `f4c84235735a645d80b36b4a179554b0b27913d1`,
 research, parameter specification and example remain in one portable workspace.
 The old standalone server and direct native/private imports have been removed.
 
-Construction uses the fixed workspace connector's existing general Geometry
-`buildGeometry`, `constructSolids` and `mappedTextMaterial` plus the declared
-Text dependency's `compileText`. Final meshes and ordinary Slice assignments
+Construction uses shared Geometry `buildGeometry`/`constructSolids` and the
+declared Text dependency’s `compileText`. Final meshes and ordinary Slice assignments
 are self-contained Bundle contributions. Saved design is historical provenance;
 Studio owns subsequent editing, settings, generation and Export.
 

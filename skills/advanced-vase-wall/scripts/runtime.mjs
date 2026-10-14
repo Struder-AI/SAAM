@@ -8,7 +8,7 @@ export function advancedVaseRuntime({Geometry,Toolpath},vase){
   // Pattern heights are clamped to the sleeve interval, the heights its queries
   // accept (core/geom/sleeve); a clamp beyond print resolution is noted.
   const {sampleCurveIntervals}=Geometry;
-  const {maximumPathAngle,traceResult,contactCurveGaps,contactSpanNote}=Toolpath;
+  const {maximumPathAngle,traceResult}=Toolpath;
 // A pattern is a stack of repeats in unwrapped strip coordinates [turns,
 // height mm, depth mm]. A turns pattern repeats its tile by a fixed advance. A
 // sized pattern makes each turn one repeat holding the whole number of tiles
@@ -163,16 +163,14 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
 // Trace receives only resolved spatial curves and their deposition settings.
 
 
-function advancedVaseResult({shell,assignment,process,geometry,after=assignment.after,zStartMm=null,zEndMm=null,foundationSegments=[],substrateAdaptation=false,onProgress}){
+function advancedVaseResult({shell,assignment,process,geometry,after=assignment.after,zStartMm=null,zEndMm=null,onProgress}){
   requireThat(assignment.pattern!==null,'Advanced vase requires an authored repeated pattern.');
   const reference=geometry??vase.prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const parts=[],notes=[...mapped.notes];
   for(const {layerIdSuffix,...source} of mapped.batches){
-    const {curves,spans}=substrateAdaptation&&foundationSegments.length?contactCurveGaps(source.curves,{segments:foundationSegments}):{curves:source.curves,spans:[]};
-    notes.push(...spans.map(span=>contactSpanNote(`Advanced vase wall ${assignment.id}`,span)));
-    const batch={...source,curves,layerId:assignment.id+layerIdSuffix};
+    const batch={...source,layerId:assignment.id+layerIdSuffix};
     parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{batches:[batch],process}));
   }
   const operations=parts.flatMap(part=>part.operations),strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary;

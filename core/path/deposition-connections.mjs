@@ -3,12 +3,27 @@ import {distance} from '../private/toolpath/numeric.mjs';
 // Machine positioning, retraction and travel remain the composer's single pass.
 
 import {orderStrokes,orderScanlineCells} from './stroke-order.mjs';
-import {materialContainsConnection} from '../geom/material-envelope.mjs';
+import {regionContainsSegment,materialHeight} from '../geom/material-envelope.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {samePose,uprightPose} from './pose.mjs';
 import {strokeRange} from './deposition.mjs';
 
 const CONNECTION_SPAN_MM=2;
+// Toolpath chooses a connector's bead allowance and sag. Geometry answers the
+// resulting membership/height queries without interpreting process records.
+function materialContainsConnection(material,from,to){
+  if(!material||material.kind==='bounds'||material.coverage==='bounds')return false;
+  // Process scale: the existing 0.05 mm allowance for joining within a bead.
+  const clearance=material.kind==='surface'?0:Math.max(0,material.lineWidthMm/2-0.05);
+  if(!regionContainsSegment(from,to,{loops:material.loops,clearanceMm:clearance}))return false;
+  if(material.kind==='planar')return Math.abs(from[2]-to[2])<=PRINT_RESOLUTION_MM;
+  const steps=Math.max(2,Math.ceil(Math.hypot(to[0]-from[0],to[1]-from[1])/(material.sampleStepMm??0.5)));
+  for(let i=0;i<=steps;i++){
+    const t=i/steps,z=materialHeight(material,from[0]+t*(to[0]-from[0]),from[1]+t*(to[1]-from[1]));
+    if(!Number.isFinite(z)||from[2]+t*(to[2]-from[2])<z-(material.sagMm??0)-PRINT_RESOLUTION_MM)return false;
+  }
+  return true;
+}
 function canDepositConnection(from,to,material,fromPose,toPose){
   const gap=distance(from,to);
   if(gap<=PRINT_RESOLUTION_MM||gap>CONNECTION_SPAN_MM)return false;
