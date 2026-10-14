@@ -20,8 +20,8 @@ Exporters add machine startup and service motions.
 
 `planOperationEntry` applies context, selection and the operation's resolved `process`;
 `planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
-Retraction debt retains its amount and speed across process changes. Zero `liftMm`
-removes extra lift; travel still reaches deposited/target height. Zero `retractMm`
+Retraction debt retains its amount and speed across process changes. Travel
+follows the nozzle-clear route. Zero `retractMm`
 prevents new withdrawal. `planningPath` assembles deltas; `contextualActions` streams
 labels including `layerId` (reset first, null clears), moves, speeds and gap samples.
 
@@ -39,13 +39,9 @@ has a unique `id`, `layerId`, numeric `rank`, exact `after` prerequisites,
 resolved process/material selection, and finalized strokes. Rank is a scheduling
 coordinate, not universally Z. Strokes hold XYZ points, speed, role, poses and
 uniform bead area or per-segment volume/metadata. Closed loops have an explicit
-closing edge. Operations remain atomic; producers expose smaller operations when
-interleaving is permitted.
-
-`materialGeometry` contains region/height-reference values or a conservative
-height envelope. Toolpath emits no travel callbacks. Geometry owns the numerical
-snapshot of native height references; Scheduling privately prepares its own
-indexes and runtime travel queries from the saved values. Construction-local
+closing edge. Independent strokes can interleave; declared continuous courses
+remain atomic. Toolpath emits no travel callbacks. Scheduling prepares its own
+indexes and travel queries from finalized beads and poses. Construction-local
 `connectNearby` requests are resolved into depositing strokes before publication.
 
 [Wave overhangs](../../skills/wave-overhangs/SKILL.md) publish one atomic operation
@@ -55,38 +51,37 @@ seed and successor dependencies bind through the same composer, with slices in
 array order. The producer rejects geometry requiring disconnected passes.
 Material ownership is explicit; fronts do not publish a finished surface chart.
 
-`core/path/compose.mjs` is skill-independent. It topologically orders operations,
-rejects duplicate IDs, missing dependencies and cycles, and uses stable result
-order to break ties. Plan `composition` contains `order`
-(an optional ordered subsequence of operation IDs), and `dependencies` (additional
-`{before, after}` edges); an entry naming no operation matches nothing. Material claims live in common slice assignments. Ready
-operations use ascending maximum actual deposition Z. Rank breaks ties within a result's
-height group. This preference never splits atomic continuous operations. Explicit ordering
-and dependencies can interleave operations within a layer. They cannot remove a
-skill's prerequisites. Scheduling executes the saved constraints without rerunning construction.
+`core/path/compose.mjs` schedules the saved deposition through one geometric
+ordering operation. Independent strokes can interleave; continuous courses and
+deposited connector chains retain their order. Original operation IDs still own
+motion context and explicit process dependencies; course IDs identify the solved
+sequence. Construction references remain separate from physical ordering.
 
-`scheduleOperations` exposes validation, priority preparation, dependency
-preparation and topological ordering as separate stages. Their returned records
-carry the operation batch, priority lookup and prerequisite sets. The ordering
-stage builds its own mutable heap and dependency counters; it does not consume
-or change those inputs.
+[physical-order.mjs](./physical-order.mjs) derives substrate prerequisites from
+oriented bead undersides and access prerequisites from nozzle sweeps. Geometry's
+[convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex distance, spatial
+indexing and swept-volume queries. Local bead normals define substrate direction;
+tool poses define nozzle direction. Neither dependency inference nor ready-course
+selection uses world Z. Ready work favors nearby entry points and small pose changes.
+Explicit `composition.order`, `composition.dependencies` and operation `after`
+constraints remain additional prerequisites. Conflicts name affected courses and
+the inferred relationship; an indivisible course that blocks itself needs a path
+change or an interruptible boundary.
 
-Execution retains travel/retraction state. On leaving a layer it parks and pays
-remaining minimum-layer cooling debt. Consecutive same-layer work accrues together;
-elapsed work and paid debt survive revisits. This intentionally cools
-noncontiguous dependency-driven layers earlier than the former last-occurrence rule.
-Hops clear previously deposited material; this is not a swept-head collision model. Results must describe compatible regions and
-material ownership; the composer does not infer arbitrary geometric overlap, support,
-bridge printability or a safe order from arbitrary strokes alone.
+The temporary nozzle is an effectively infinite sharp cone with a 15-degree
+included angle (7.5 degrees from its axis). Its numerical length reaches beyond
+the query scene. A 0.1 mm nozzle-surface forgiveness margin allows small contact;
+overlapping deposited lines remain valid. Carriage,
+fixtures, machine joints, gravity, fusion and unsupported-span printability are
+outside this model. No support geometry is automatically added. Positive-volume
+moving beads supply occupancy; stationary injection needs authored occupied
+geometry before it can supply substrate or an obstacle volume.
 
-Each slice owner produces separate wall, sparse-fill and solid-fill operations
-for each layer.
-Scanline interiors and draped skins label uninterrupted zigzags with
-`scanlineCell`. Toolpath orders cells and their endpoints from the construction's
-first stroke, retaining producer order on ties. `strokeRange` preserves vertex
-channels and edge material through reversal and closed-loop rotation. Scheduling
-receives `order:'given'` and preserves that deposition. Travel may be longer than
-ordering from a live nozzle; no lookahead or heat balancing is included.
+Execution retains material selection, retraction and cooling state. Cooling debt
+is local to the authored layer and survives interleaving. Scheduling indexes
+actual bead volumes, including connectors and modulated paths, without restoring
+filled envelopes between sparse strands or saving travel-height snapshots.
+
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
 A slice assignment's `part` selects its component (`null` means all), producing
@@ -180,162 +175,17 @@ Ordinary factor-1 recipes retain their existing deposition behavior.
 
 ## Whole-plan travel requirement
 
-Travel minimization is a design responsibility for every skill and shared
-component. The explicitly authorized [short-travel advisory](../export/README.md#short-travel-advisory)
-flags complete same-layer travels whose endpoints are within 2 mm. It does not
-reject or repair a path; producers are expected to leave it nothing to report. Think about where the nozzle
-finishes each stroke and where the next useful deposition can start. Choose
-nearby open endpoints and nearby entry points on closed contours; consider the
-next wall, neighboring component and following layer when deciding seams and
-operation order. A simple continuous wall should not acquire long repositioning
-moves just because contour arrays begin at unrelated vertices. Aim for short
-direct transitions, continuous deposition where the intended material allows
-it, and fewer avoidable retractions and lifts. Preserve the deposited shape,
-segment volumes and required dependencies when changing entry or direction.
+The same nozzle sweep governs printing precedence and transfers through material
+already deposited. Direct motion is used when clear. A blocked fixed-pose transfer
+retreats along the nozzle axis, crosses an exterior plane and approaches along
+that axis. Changing poses route around an enclosing sphere, with every segment
+checked over its continuously interpolated orientation. Exterior clearance grows
+when needed; no fixed search budget truncates a route. The current effectively
+infinite cone cannot pass beneath existing material.
 
-Inspect representative toolpaths and compare empty travel, retractions and
-motion time during development. These observations guide construction and
-routing choices; do not turn them into travel quotas, new pass/fail validators,
-automatic print rejection or another maker approval. Shared travel handling
-still routes the transitions that remain. Nearest-entry guidance does not
-claim a globally optimal route or implement lookahead by itself.
-
-`planning.mjs::planTravel` is the shared travel stage for slices,
-draped-skin and vase-wall. `planMove` returns updated planning state with the highest
-deposited Z from both endpoints of every emitted positive-volume segment,
-including prime lines, sloping strokes and previous components. Travel without
-deposition never raises this material height. The initial material height is
-bed Z=0; pre-existing objects or fixtures are not modeled.
-
-Lifted traverses use `max(depositedMaxZ + process.liftMm, fromZ, toZ)`.
-`liftMm` is clearance in millimeters: **1 mm by default, with zero allowed**.
-Future strokes and unselected geometry do not raise current travel. The endpoint
-floor avoids descending before traversing from a higher startup/park position or
-toward a higher destination. Cooling and final SAAMpath parking use the same
-height calculation. Existing recipes
-retain their explicit locked clearance value.
-Compose all results together so planning state carries chronology across skills.
-Machine firmware service routines (including H2D shutdown) retain their separate
-export contracts; they are not ordinary SAAMpath travel.
-
-Nearest wall starts, alternating infill and verified combing reduce travel.
-The shared scanline fill completes disconnected components and splits each
-connected component into uninterrupted runs of rows at interval splits/merges.
-This also orders the sides of holes and concavities, rather than crossing each
-hole on every row. Slices and draped-skin
-use the same scanline implementation. Ordering changes neither row endpoints
-nor deposition coverage; connections still use the shared travel checks.
-
-A stroke of a `connectNearby` operation that starts within 2 mm of the end of
-the preceding deposition can become an explicit finalized connector carrying
-the next stroke's bead (its uniform area, or its
-first segment's volume per length and metadata). This joins fill rows into a
-zigzag, steps between wall loops and concentric rings, and enters fill from the
-last wall without a travel. The connector must pass the same direct-move checks
-as a travel: inside the operation's region, on its surface, clear of completed
-operations, not retracted and directly after deposition. Planar regions check it
-with `connectClearanceMm`, the half-line-width standoff less 0.05 mm, because
-wall centerlines lie on that standoff less the offset kernel's arc chords.
-Oriented strokes have no footprint query; they connect only across the
-producer's declared `poseJoinMm` index within one operation. General Slice
-fields opt in only where they can prove deposited connectivity. Explicit Trace
-gaps remain authored, and stationary Inject has no stroke connectors. A short distance never permits
-crossing an opening or bypassing an earlier operation's clearance restriction.
-
-Where no connector applies, stroke starts within 1 mm use direct non-extruding
-repositioning without a new retraction, lift or detour when the policy permits
-it, even when the longer combing budget is lower. A planar stroke starting
-within 2 mm on the next layer up is one rising `layer-step` move without
-retraction when the nozzle is already at the top of everything deposited and
-the step lies inside the new layer's region. Vase-wall's continuous stroke has
-no internal stroke-start travels; a level rim ends where its vanishing taper
-holds less than 0.001 mm3, which a machine program could only write as travel.
-`trimVanishingEnd` returns the shortened stroke with aligned point, volume and
-segment-metadata arrays; callers use it for both deposition and rim reporting.
-
-`planMove` coalesces forward moves with equal speed, flow density, pose and
-semantic metadata. Each merged endpoint stays within half print resolution of the
-run's original axis, so successive merges cannot accumulate curve flattening.
-Volume, elapsed time and final endpoints survive. Reversals, changed poses,
-process/flow and operation/layer/role boundaries, and intervening controls stay
-explicit. All producers use this shared SAAMpath writer after field evaluation
-and before export; tiny meaningful movements are retained when merging would
-lose those semantics.
-
-Mesh sections remove triangle seams collinear to the rounding guard with
-`cleanPlanarLoop` before offsetting, testing every original point in the
-replacement span, not an angle cutoff or successive local simplifications.
-Closed contours retain winding, corners and reversals. Slice loops clean offset
-deposition contours at the wall tolerance (print resolution by default), while
-retaining the offset kernel's region output for booleans. No curve-resolution or Clipper precision setting is relaxed.
-
-`prepareSection` in `core/geom/slice.mjs` prepares repeated sections of one
-fixed geometry by slices of one orientation: each mesh gets sorted vertex
-heights and a height-interval tree in the slice's frame, storing each triangle
-once and keeping triangle order, vertex nudges and contour construction. It
-belongs to one generation; prepare again after any geometry edit or placement
-change. The index changes no sampling tolerance.
-
-The shared S5/H2D motion emitter establishes XYZ/feed state on first use, then
-omits unchanged fields. Retractions update the same modal feed state. E remains
-explicit with the selected absolute/relative convention. The interpreter checks
-the final commands; regression tests compare their coordinates and volume with
-the generator's transient motion objects.
-
-Planar and height-field surface combing check boundary crossings,
-then can route around holes via a visibility graph over the offset corners of the
-endpoints' connected component. The route budget is the only bound: a corner
-joins the graph when going through it stays within the `maxCombMm` XYZ route
-length, so a layer with a detailed outline routes instead of degrading into a hop
-because it has many corners. The search is shortest-first on the route so far plus
-the straight-line distance still to run, which is never longer than any route from
-there, so it settles on the same shortest route while expanding only the corners a
-route of that length can pass. Boundary segments come from the corridor along the
-travel rather than its bounding box, which costs the travel's length instead of its
-area. Where no route fits the budget the move
-hops. Disconnected components cannot be joined by combing. Every candidate
-edge checks both the destination policy and completed material, including edges
-of a detour. Lifted moves retain the global deposited-height clearance above.
-
-Scheduling prepares `planarPolicy` from the layer's actual region and height, preserving holes
-and disconnected footprints. `surfacePolicy` accepts an XY footprint, a local
-`surfaceZ(x,y)` query, a conservative `maxZ`, `sampleStepMm`, and permitted
-`sagMm`. Producers must return a nonfinite height for an absent or invalid
-surface. Drape supplies its surveyed allowed footprint and each skin's own
-height, sampling step and sag limit. Routing lifts intermediate samples to that
-surface while preserving the exact requested endpoints. Direct moves remain
-straight chords checked against the same surface limits. Surface direct
-connections retain their centerline edge allowance (`directClearanceMm: 0`),
-with exact footprint-crossing checks even between surface samples. Planar direct
-moves and all detours retain the half-line-width boundary standoff.
-Chord sag applies only to the destination surface; it does not permit travel
-below another operation's deposited material.
-
-`materialRegion` in [material.mjs](./material.mjs) clips candidate travel to each
-completed operation's footprint through the shared Clipper2 open-path tool.
-Planar heights are compared at clipped endpoints, so a descending move cannot
-hide a low collision behind its high endpoint. Surface heights are sampled
-within each clipped interval. A print-resolution expansion includes
-boundary contact; it is not nozzle-width expansion. A missing height inside
-declared material blocks travel. Bounds and maximum height skip irrelevant
-queries; the shared boundary index resolves segments with constant footprint
-membership without clipping. Route-length lower bounds prune unreachable
-corners before surface evaluation. Material remains local rather than being collapsed into a global
-planar obstacle. The composer installs `isTravelClear` for both direct and
-routed segments; legacy policies without material geometry remain conservative.
-
-These are nominal operation regions, not reconstructed individual beads, full
-swept-head collision checks or proof of support. Sparse regions retain a
-conservative occupied envelope. Surface sampling can miss between-sample
-features; arbitrary overhangs, fixtures and oriented robot routing require
-their existing separate policies. The Studio advisory remains a nonblocking
-way to report additional travel cases.
-
-### Travel planning
-
-`core/path/planning.mjs` classifies each stroke start as joined, connected, combed
-or hopped, and reports the counts in `summary.travel`.
-The returned scheduling state tracks deposited height; its private callbacks decide direct/combed
-eligibility. See [travel requirements](#whole-plan-travel-requirement). Fill
-strokes alternate their direction to keep neighbouring endpoints close. Longer
-moves lift above material deposited so far, using the shared export and checks.
+[planning.mjs](./planning.mjs) emits that solved route through ordinary travel,
+retraction and recovery actions. Upright moves retain ordinary three-axis output;
+posed moves retain orientation for multi-axis exporters. The scheduler owns the
+occupied-bead ledger and adds material after each course. Park, cooling and
+finishing withdraw along the current tool axis. The obsolete planar/height-field
+travel policies, footprint obstacle ledger and world-Z hop route are removed.

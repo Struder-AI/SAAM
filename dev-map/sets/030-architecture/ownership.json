@@ -1646,6 +1646,14 @@
     "core/region/slice-gaps.mjs": {
       "owner": "slice",
       "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
+    },
+    "core/geom/convex-clearance.mjs": {
+      "owner": "geometry",
+      "reason": "General oriented convex volume, spatial index, continuous cone sweep and exterior routing queries; no operation or process identities."
+    },
+    "core/path/physical-order.mjs": {
+      "owner": "scheduling",
+      "reason": "Scheduling translates completed bead geometry and nozzle access hits into physical course precedence."
     }
   },
   "leaves": {
@@ -4622,7 +4630,7 @@
     },
     "core/path/planning.mjs::planTravel": {
       "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
     },
     "core/path/planning.mjs::travelClearance": {
       "owner": "scheduling",
@@ -17921,6 +17929,86 @@
     "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals": {
       "owner": "slice",
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
+    },
+    "core/geom/convex-clearance.mjs::@module": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexSupport": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexBounds": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::boundsOverlap": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::simplexClosest": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexDistance": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexSpatialIndex": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexSpatialIndex::build": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::convexSpatialIndex::query": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::nozzleAt": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::sweptNozzle": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::nozzleMotionHits": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::radialPose": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/geom/convex-clearance.mjs::nozzleMotionRoute": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
+    },
+    "core/path/physical-order.mjs::@module": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/path/physical-order.mjs::depositionCourses": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/path/physical-order.mjs::physicalOrdering": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/path/physical-order.mjs::physicalOrdering::edge": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/path/compose.mjs::resolveOperationOrder": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/geom/convex-clearance.mjs::nozzleSweepReach": {
+      "owner": "geometry",
+      "reason": "Oriented numerical convex volume and motion geometry; no process or operation identities."
     }
   },
   "retiredAssignments": [

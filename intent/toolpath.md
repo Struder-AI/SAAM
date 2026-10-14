@@ -109,7 +109,11 @@ Sources: [D-032](../DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode
 ## Ordering and scheduling
 > "We don't need to consider heat (yet - record this decision to defer these considerations)." … "Just a simple "jump to closest entry point" would be a massive improvement already." — owner, 2026-09-10 ([D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations))
 
-Summary: regions are entered closest-first and dependency-ready operations run by actual maximum Z; heat, lookahead, layer batching and carriage collision avoidance are 0.4.0 intent.
+Owner, 2026-10-14: "It should determine what is underneath (not just vertical, a cladding side wall would be underneath the next one, for example), it should determine what lines/operations would block the subsequent printing of others, instead of making the agent figure all that out beforehand." "Note that we are only considering nozzle, we don't check carriage collisions yet." "It needs to be agnostic to z direction, so it can support multi-axis printers." Implementation authorized: "Good, do it." Temporary nozzle: "It doesn't matter. Effectively infinite. The machine can't ever pass under existing material." Then: "let's change the default tip so it's a sharp cone instead, maybe 15 degrees."
+
+Owner clarification, 2026-10-14: "overlapping lines is fine - as in the heat set reinforcement fins. Only if the *nozzle* intersects with an existing line is there a problem (and there should be a small forgiveness margin)." Margin: "It should be much higher, maybe .1mm".
+
+Summary: scheduling infers local substrate and nozzle-access ordering, combines it with explicit process dependencies and interleaves interruptible courses in arbitrary orientations. Deposition overlap is allowed. The default nozzle is an effectively infinite sharp cone (agent interpretation: 15-degree included angle), with 0.1 mm surface forgiveness. Carriage collision avoidance and thermal optimization remain deferred. The [scheduling manual](../core/path/README.md) owns the implementation contract.
 
 Sources: [D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent); [0.4.0 scheduling, collision and thermal rows](../plans/0.4.0.md).
 

@@ -1,5 +1,6 @@
 import {sampleSpatialCurve} from '../geom/spatial-curve.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {referenceSurface} from '../geom/reference-surface.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
@@ -41,6 +42,8 @@ export function curveProfile(values,t,fallback){
 }
 
 function referenceEntry(reference,references,repetition){
+  if(reference.kind==='surface')return {at:referenceSurface(reference.surface,references?.[`part:${reference.part??''}`]?.shell),
+    domainU:[0,reference.surface.sizeMm[0]],domainV:[0,reference.surface.sizeMm[1]]};
   const key=reference.kind==='patch'?`patch:${reference.part??''}:${reference.name}`:`${reference.kind}:${reference.assignment}`;
   const found=references?.[key];requireThat(found,`Curve reference ${key} is unavailable.`);
   if(reference.kind==='slice'){

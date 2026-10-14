@@ -45,9 +45,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
     else requireThat(Array.isArray(input.points)&&input.points.length>=(curve.closed?3:2)&&input.points.every(p=>Array.isArray(p)&&p.length===dimensions&&p.every(Number.isFinite)),'Curve needs finite points.');
     if(curve.uv){
       requireThat(Object.keys(curve.uv).every(k=>['reference','points','nurbs','normalMm'].includes(k))&&['points','nurbs'].filter(k=>curve.uv[k]!==undefined).length===1,'UV curve needs exactly one points or nurbs source.');
-      const r=curve.uv.reference;requireThat(r&&['patch','slice','sleeve'].includes(r.kind),'UV curve needs a named patch, slice or sleeve reference.');
-      const allowed=r.kind==='patch'?['kind','name','part']:r.kind==='slice'?['kind','assignment','index']:['kind','assignment'];
-      requireThat(Object.keys(r).every(k=>allowed.includes(k))&&(r.kind==='patch'?typeof r.name==='string'&&r.name.length&&(r.part===undefined||r.part===null||typeof r.part==='string'):typeof r.assignment==='string'&&r.assignment.length),'Invalid named curve reference.');
+      const r=curve.uv.reference;requireThat(r&&['patch','slice','sleeve','surface'].includes(r.kind),'UV curve needs a patch, slice, sleeve or surface reference.');
+      const allowed=r.kind==='surface'?['kind','surface','part']:r.kind==='patch'?['kind','name','part']:r.kind==='slice'?['kind','assignment','index']:['kind','assignment'];
+      requireThat(Object.keys(r).every(k=>allowed.includes(k))&&(r.kind==='surface'?r.surface&&['part','spline'].includes(r.surface.kind):r.kind==='patch'?typeof r.name==='string'&&r.name.length:typeof r.assignment==='string'&&r.assignment.length),'Invalid curve reference.');
+      requireThat(r.part===undefined||r.part===null||typeof r.part==='string','Curve reference part must be null or a component id.');
       requireThat(r.index===undefined||Number.isInteger(r.index)&&r.index>=0,'Slice reference index must be nonnegative.');
       requireThat(curve.uv.normalMm===undefined||Number.isFinite(curve.uv.normalMm),'UV normal distance must be finite.');
     }
@@ -171,7 +172,10 @@ export function curveAssignmentResult(assignment,{plan,modelResults,references={
 // result keeps its own stack identity instead of replacing the owner's base.
 export function depositionReferences(shells,results){
   const references={};
-  for(const [part,shell] of shells)for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
+  for(const [part,shell] of shells){
+    references[`part:${part??''}`]={shell};
+    for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
+  }
   const referenceStacks=new Map();
   for(const result of results){
     const referenceStack=result.referenceStack??(result.stackLayers?{layers:result.stackLayers}:null);

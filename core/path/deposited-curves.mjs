@@ -48,7 +48,7 @@ export function depositedBeadFrames(result){
     const points=stroke.closed?strokeRange({points:stroke.points,closed:true}).points:stroke.points;
     const segmentMetadata=points.slice(1).map((b,i)=>{
       const previous=stroke.segmentMetadata?.[i]??{};
-      const normal=previous.surfaceNormal??stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??(op.slice
+      const normal=previous.surfaceNormal??stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??stroke.poses?.[i]?.toolAxis.map(v=>-v)??(op.slice
         ?evaluateSurface(op.slice,op.slice.kind==='height-field'?points[i].slice(0,2):[0,0]).normal:[0,0,1]);
       return {...previous,surfaceNormal:[...normal]};
     });
@@ -72,7 +72,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
       const metadata=stroke.segmentMetadata?.[i-1];
       if(boundaryRole!==null&&metadata?.boundaryRole!==boundaryRole)continue;
       const width=metadata?.beadWidthMm??stroke.beadWidthMm??widthMm;
-      const normal=metadata?.surfaceNormal??stroke.frameSamples?.[i-1]?.normal??stroke.normals?.[i-1]??(op.slice
+      const normal=metadata?.surfaceNormal??stroke.frameSamples?.[i-1]?.normal??stroke.normals?.[i-1]??stroke.poses?.[i-1]?.toolAxis.map(v=>-v)??(op.slice
         ?evaluateSurface(op.slice,op.slice.kind==='height-field'?a.slice(0,2):[0,0]).normal:[0,0,1]);
       requireThat(Number.isFinite(width)&&width>0,'Deposited bead coverage needs positive width.');
       const tangent=normalize(subtract(b,a));

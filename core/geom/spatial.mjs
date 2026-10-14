@@ -37,7 +37,7 @@ export function validateSpatial(geometry){
       if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
       // Repeated vertices are kept here; Trace drops them when it reads the curve.
       else requireThat(Array.isArray(input.points)&&input.points.length>=(entry.closed?3:2)&&input.points.every(p=>point(p,dimensions)),'Curve geometry needs finite points.');
-      if(entry.uv)requireThat(input.reference&&['patch','slice','sleeve'].includes(input.reference.kind),'UV geometry needs a surface reference.');
+      if(entry.uv)requireThat(input.reference&&['patch','slice','sleeve','surface'].includes(input.reference.kind),'UV geometry needs a surface reference.');
     }
   }
   return geometry;

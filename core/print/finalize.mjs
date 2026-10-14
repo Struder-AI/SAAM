@@ -52,13 +52,14 @@ export function finalizeDepositionResult(result,plan){
   if(result.operations.some(operation=>operation.strokes.some(stroke=>stroke.motionIntent)))result=prepareReferenceMotion(result);
   result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result);
+  result=depositedBeadFrames(result);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return {...result,depositionFinalized:true};
   const prepared={...result,operations:result.operations.map(op=>{
     const selected=op.filament===undefined?plan:{...plan,process:materialProcess(plan,op.filament)};
     return {...op,strokes:op.strokes.map(stroke=>({...stroke,beadWidthMm:stroke.beadWidthMm??selected.process.lineWidthMm}))};
   })};
-  const answer=finalizeModulatedResult(depositedBeadFrames(prepared),plan.modulations);
+  const answer=finalizeModulatedResult(prepared,plan.modulations);
   if(!answer.report.changed)return {...result,depositionFinalized:true};
   const changed=new Set(answer.report.changedOperations);
   const operations=answer.result.operations.map(op=>changed.has(op.id)?finalizedOperation(op):op);

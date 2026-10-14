@@ -138,7 +138,7 @@ export function depositionFamilyRows(inspection){
 function injectionRows(a,plan){
   return [[a.id,sliceSummary(a)],[a.id+' · Print after',a.dependencies.after.join(', ')||'Shared dependency order'],[a.id+' · Temperature',a.nozzleC===null?'Selected material setup':a.nozzleC+'°C, then restore setup'],
     ...a.points.map(p=>spatialRecord(plan,'points',p)).flatMap((p,index)=>[[a.id+' · Point '+(index+1),p.point?.join(', ')+' mm before XY placement'],
-      [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm vertical approach']])];
+      [a.id+' · Injection '+(index+1),p.volumeMm3+' mm³ at '+p.flowMm3S+' mm³/s · '+p.holdSeconds+' s hold · '+p.approachMm+' mm approach'+(p.direction?' along '+p.direction.join(', '):' along print Z')]])];
 }
 function sliceReferenceName(surface){
   if(!surface||surface.kind==='horizontal')return 'Horizontal plane';

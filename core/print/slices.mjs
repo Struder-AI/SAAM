@@ -19,7 +19,6 @@ function evaluateRegionBatch({id,reference,strokes,gap,speedMmS,process,filament
 function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
   const width=process.lineWidthMm,operations=[],stackLayers=[];
   const report={depositionFamily:'slice',layers:0,skippedLayers:0,areaMm2:0,loops:0,fillRows:0,solidAreaMm2:0,...extra};
-  let previous=[];
   for(const layer of layers){
     const {index,slice,region,preparedStrokes:strokes}=layer;
     requireThat(strokes&&layer.gap,'Slice needs prepared strokes and gap inputs.');
@@ -36,7 +35,7 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
     stackLayers.push({...layer,curves:boundaries,fillCurves:strokes.fill,infillCurves:strokes.infill});
     report.solidAreaMm2+=measure(strokes.solidRegion).areaMm2;
     report.loops+=strokes.walls.length;report.fillRows+=strokes.infill.length+strokes.fill.length;
-    const speedMmS=layer.firstBedLayer?process.firstLayerSpeedMmS:process.planarSpeedMmS,current=[];
+    const speedMmS=layer.firstBedLayer?process.firstLayerSpeedMmS:process.planarSpeedMmS;
     for(const [group,found] of [['walls',strokes.walls],['infill',strokes.infill],['fill',strokes.fill]]){
       if(!found.length)continue;
       const roles=s.roles??settings.roles;
@@ -45,7 +44,7 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
       const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;
       let covered;
       operations.push({...deposited,id:opId,layerId:planar?'planar:'+top:'slice:'+sliceKey(slice),phase:planar?'planar':'curves',layer:index,rank:top,
-        after:[...new Set([...previous,...current])],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
+        after:[],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
         stackDirection:layer.direction??null,...(s.continuous?{continuous:true,regionId:id+':'+index}:{}),
         order:s.order??(group==='walls'?(lifted.every(stroke=>stroke.closed&&!stroke.volumesMm3)?'nearest':'given'):lifted.every(stroke=>stroke.scanlineCell!==undefined)?'nearest-cells':'given'),
         region:measured.worldRegion,slice,ownershipIndex:index,
@@ -53,9 +52,8 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
           fillMaterial(group==='infill'?strokes.sparseRegion:strokes.solidRegion,width,{slice,sampleStepMm:s.sampleStepMm})).map(loop=>loop.map(uv=>evaluateSurface(slice,uv).point.slice(0,2)));},
         materialCoverage:group!=='walls'&&spacing>width+PRINT_RESOLUTION_MM?'sparse':'area',materialGeometry:measured.materialGeometry,
         ...((Object.hasOwn(s.process??{},'fanPercent')||layer.ordinal===1)?{fanPercent:process.fanPercent}:{}),...(filament===null?{}:{filament})});
-      current.push(opId);
     }
-    previous=current;report.layers++;report.areaMm2+=measured.areaMm2;
+    report.layers++;report.areaMm2+=measured.areaMm2;
   }
   const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));
   if(widths.length){report.minBeadWidthMm=Math.min(...widths);report.maxBeadWidthMm=Math.max(...widths);}

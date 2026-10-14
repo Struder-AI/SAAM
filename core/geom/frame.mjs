@@ -15,12 +15,21 @@ export function validateDirectionPair(primary,secondary){
   for(const v of [primary,secondary])requireThat(Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)&&Math.abs(length(v)-1)<DIRECTION_TOLERANCE,'Frame directions must be unit 3-vectors.');
   requireThat(Math.abs(dot(primary,secondary))<DIRECTION_TOLERANCE,'Frame directions must be perpendicular.');
 }
-// Linear direction interpolation, re-orthogonalized; not a rotation trajectory
-// or inverse-kinematics solver. Opposed/degenerate intermediate axes fail.
+// Shortest rigid-frame interpolation, including opposed axes. This describes
+// nominal Cartesian orientation, without joint trajectories or kinematics.
 export function interpolateDirectionPair(a,b,t){
-  const mix=(u,v)=>u.map((x,i)=>x+(v[i]-x)*t);
-  const primary=unitDirection(mix(a[0],b[0])),secondary=mix(a[1],b[1]);
-  return [primary,unitDirection(subtract(secondary,scale(primary,dot(secondary,primary))))];
+  if(t===0)return a.map(v=>[...v]);if(t===1)return b.map(v=>[...v]);
+  const from=[...a,cross(a[0],a[1])],to=[...b,cross(b[0],b[1])];
+  const matrix=[0,1,2].map(i=>[0,1,2].map(j=>from.reduce((sum,v,k)=>sum+to[k][i]*v[j],0)));
+  const cosine=Math.max(-1,Math.min(1,(matrix[0][0]+matrix[1][1]+matrix[2][2]-1)/2));
+  const skew=[matrix[2][1]-matrix[1][2],matrix[0][2]-matrix[2][0],matrix[1][0]-matrix[0][1]];
+  const sine=length(skew)/2,angle=Math.atan2(sine,cosine);
+  if(angle<DIRECTION_TOLERANCE)return a.map(v=>[...v]);
+  const principal=[0,1,2].reduce((best,i)=>matrix[i][i]>matrix[best][best]?i:best,0);
+  const halfTurn=[0,1,2].map(i=>i===principal?Math.sqrt(Math.max(0,(matrix[i][i]+1)/2)):
+    (matrix[i][principal]+matrix[principal][i])/(4*Math.sqrt(Math.max(0,(matrix[principal][principal]+1)/2))));
+  const axis=unitDirection(sine>DIRECTION_TOLERANCE?skew:halfTurn),c=Math.cos(angle*t),s=Math.sin(angle*t);
+  return a.map(v=>add(add(scale(v,c),scale(cross(axis,v),s)),scale(axis,dot(axis,v)*(1-c))));
 }
 
 export const mv=(matrix,vector)=>matrix.map(row=>dot(row,vector));

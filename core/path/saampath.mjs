@@ -113,7 +113,7 @@ export function saamPath(input){
     const operations=source.map(operation=>{
       requireThat(typeof operation.id==='string'&&operation.id&&!ids.has(operation.id)&&Array.isArray(operation.after)&&Array.isArray(operation.strokes),'Invalid or duplicate constructed operation.');
       ids.add(operation.id);
-      requireThat(!operation.travelPolicy&&operation.materialGeometry,'Constructed SAAMpath contains material data, not travel callbacks.');
+      requireThat(!operation.travelPolicy,'Constructed SAAMpath contains numerical deposition, not travel callbacks.');
       // Construction remains numerical geometry. Rounding belongs to admitted
       // motion below, where collapsed moves and their material are omitted together.
       return stored(structuredClone(operation),'authored',true);

@@ -4,10 +4,8 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Actions are append/replace-tail deltas, never the accumulated program. A merge
 // allocates a replacement action; earlier states and returned chunks stay intact.
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
-import {combRoute,combSegment} from './comb.mjs';
 import {uprightPose,validatePose,samePose} from './pose.mjs';
-
-export const NEARBY_MOVE_MM=1,CONNECT_MOVE_MM=2;
+import {nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 
 export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
@@ -160,72 +158,20 @@ export function planLayerCooling(state) {
   return planningResult({...cooled.state,layerSeconds:0},{chunks:[parked.actions,cooled.actions]},{coolingSeconds:remaining});
 }
 
-export function canPlanComb(state,target,policy,distanceLimit,from=state.position) {
-  if(policy.canTravelDirect)return policy.canTravelDirect(from,target,distanceLimit)
-    &&(!policy.combRegion||combSegment(from,target,{...policy,combClearanceMm:policy.directClearanceMm??policy.combClearanceMm}))
-    &&(!policy.isTravelClear||policy.isTravelClear(from,target));
-  const maxDistance=distanceLimit??policy.maxCombMm;
-  if(!policy.combRegion||!(maxDistance>0)||Math.abs(target[2]-from[2])>PRINT_RESOLUTION_MM)return false;
-  if(Math.hypot(target[0]-from[0],target[1]-from[1])>maxDistance)return false;
-  return combSegment(from,target,policy)&&(!policy.isTravelClear||policy.isTravelClear(from,target));
-}
-
-export function planTravel(state,target,policy,targetPose) {
-  if(targetPose)return planPoseTravel(state,target,policy,targetPose);
-  const gap=distance(state.position,target);
-  if(gap<=PRINT_RESOLUTION_MM){
-    const recovered=planRecovery({...state,stats:{...state.stats,joined:state.stats.joined+1}});
-    return {...recovered,travelKind:'joined'};
+export function planTravel(state,target,scene,targetPose=uprightPose()){
+  requireThat(scene?.index&&scene.occupied,'Travel needs the scheduler-owned deposited material scene.');
+  const current=state.pose??uprightPose(),route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,current,targetPose);
+  if(route.blocked)throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+[...new Set(route.blocked.map(i=>scene.beads[i].operationId))].join(', ')),
+    {code:'NOZZLE_ACCESS_BLOCKED',operations:[...new Set(route.blocked.map(i=>scene.beads[i].operationId))],target});
+  const retracted=distance(state.position,target)>PRINT_RESOLUTION_MM?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
+  actions.add(retracted.actions);const cursor={state:retracted.state};
+  for(const next of route){
+    const oriented=!samePose(next.pose,uprightPose())||!samePose(cursor.state.pose??uprightPose(),next.pose);
+    const moved=planMove(cursor.state,next.point,state.process.travelSpeedMmS,0,oriented?{pose:next.pose}:{});
+    cursor.state=moved.state;actions.add(moved.actions);
   }
-  const nearby=gap<=NEARBY_MOVE_MM&&canPlanComb(state,target,policy,NEARBY_MOVE_MM);
-  const layerStep=!nearby&&gap<=CONNECT_MOVE_MM&&!policy.canTravelDirect&&!state.retraction&&target[2]>state.position[2]&&state.position[2]>=state.depositedMaxZ-PRINT_RESOLUTION_MM
-    &&canPlanComb(state,target,{...policy,combClearanceMm:policy.connectClearanceMm??policy.combClearanceMm},CONNECT_MOVE_MM,[state.position[0],state.position[1],target[2]]);
-  const direct=nearby||layerStep||canPlanComb(state,target,policy);
-  const route=direct?null:combRoute(state.position,target,policy);
-  if(direct||route){
-    const actions=new ActionAccumulator();
-    let cursor={...state,stats:{...state.stats,combed:state.stats.combed+1}};
-    if(!layerStep){const recovered=planRecovery(cursor);cursor=recovered.state;actions.add(recovered.actions);}
-    for(const point of route??[target]){
-      const moved=planMove(cursor,point,state.process.travelSpeedMmS,0,{travel:layerStep?'layer-step':'combed'});
-      cursor=moved.state;actions.add(moved.actions);
-    }
-    return planningResult(cursor,actions.finish(),{travelKind:'combed'});
-  }
-  const clearance=travelClearance(state,target),hopped=clearance>Math.max(state.position[2],target[2])+PRINT_RESOLUTION_MM;
-  const retracted=planRetraction({...state,stats:{...state.stats,hopped:state.stats.hopped+Number(hopped)}});
-  const lifted=planMove(retracted.state,[state.position[0],state.position[1],clearance],state.process.zSpeedMmS);
-  const traversed=planMove(lifted.state,[target[0],target[1],clearance],state.process.travelSpeedMmS);
-  const descended=planMove(traversed.state,target,state.process.zSpeedMmS),recovered=planRecovery(descended.state);
-  return planningResult(recovered.state,{chunks:[retracted.actions,lifted.actions,traversed.actions,descended.actions,recovered.actions]},{travelKind:hopped?'hopped':'direct'});
-}
-
-// Reorientation is ordinary toolhead travel: retreat along the current tool
-// axis, travel over the deposited part to the approach point while the
-// orientation interpolates continuously, then approach along the new tool axis.
-export function planPoseTravel(state,target,policy,targetPose) {
-  const pose=validatePose(targetPose),current=state.pose??uprightPose();
-  if(distance(state.position,target)<=PRINT_RESOLUTION_MM&&samePose(current,pose)){
-    const recovered=planRecovery({...state,stats:{...state.stats,joined:state.stats.joined+1}});
-    return {...recovered,travelKind:'joined'};
-  }
-  if(state.pose&&policy.poseJoinMm>0&&state.lastAction?.operation===state.operationId&&Math.abs(state.position[2]-target[2])<=PRINT_RESOLUTION_MM&&distance(state.position,target)<=policy.poseJoinMm){
-    const indexed=planMove({...state,stats:{...state.stats,combed:state.stats.combed+1}},target,state.process.skinSpeedMmS,0,{pose,travel:'surface-index'});
-    return {...indexed,travelKind:'combed'};
-  }
-  const held=state.pose?{pose:current}:{},retreatMm=state.motion.retreatMm;
-  const retracted=planRetraction({...state,stats:{...state.stats,hopped:state.stats.hopped+1}});
-  const retreated=planMove(retracted.state,state.position.map((v,i)=>v-current.toolAxis[i]*retreatMm),state.process.travelSpeedMmS,0,{...held,travel:'tool-retreat'});
-  const approach=target.map((v,i)=>v-pose.toolAxis[i]*retreatMm),from=retreated.state.position,clearance=travelClearance(retreated.state,approach);
-  const actions=new ActionAccumulator();actions.add(retracted.actions);actions.add(retreated.actions);
-  let cursor=retreated.state;
-  for(const [to,extra] of [[[from[0],from[1],clearance],held],[[approach[0],approach[1],clearance],{pose}],[approach,{pose}],[target,{pose}]]){
-    if(distance(cursor.position,to)===0)continue;
-    const moved=planMove(cursor,to,state.process.travelSpeedMmS,0,{...extra,travel:to===target?'approach':'position'});
-    cursor=moved.state;actions.add(moved.actions);
-  }
-  const recovered=planRecovery(cursor);actions.add(recovered.actions);
-  return planningResult(recovered.state,actions.finish(),{travelKind:'hopped'});
+  const recovered=planRecovery(cursor.state);actions.add(recovered.actions);
+  return planningResult(recovered.state,actions.finish(),{travelKind:route.length>1?'routed':'direct'});
 }
 
 // Flatten once at delivery. A replacement

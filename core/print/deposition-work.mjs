@@ -89,7 +89,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const baseNodes=contexts.flatMap(record=>{
     const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
-      construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:i?[`slice:${record.spec.id}:${units[i-1].index}`]:[]}));
+      construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
     construct:context.construct,providesSurface:context.providesSurface,sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]}))).concat(work);
   const followers=curveSources.flatMap(context=>{
@@ -102,17 +102,12 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const descriptions=nodes.map(node=>assignmentWork(node,()=>depositionWorkDescription(node)));
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-    const needs=new Set(node.requires),defaults=new Set();
+    const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires),defaults=new Set();
     const references=node.construction==='curves'?[assignment.repeat?.stack,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
     for(const other of nodes){
       if(other===node)continue;
       const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
-      if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part)))needs.add(other.key);
-      if(node.kind==='slice'&&node.first&&node.record.contact){
-        const source=node.record.contact.source;
-        if(source!==null?other.sourceId===source&&other.part===node.part&&(other.kind!=='slice'||other.record.reference||other.nominalRank<=node.nominalRank+PRINT_RESOLUTION_MM):
-          other.part===node.part&&other.sourceId!==node.sourceId&&!(other.kind==='slice'&&other.record.contact)&&other.nominalRank<=node.nominalRank+PRINT_RESOLUTION_MM)needs.add(other.key);
-      }
+      if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part))){needs.add(other.key);execution.add(other.key);}
       if(references.includes(other.sourceId)||references.includes(other.record?.spec.id))needs.add(other.key);
       if(node.kind==='slice'&&node.record.reference&&other.part===node.part){
         if(node.record.reference.source!==null&&other.sourceId===node.record.reference.source)needs.add(other.key);
@@ -124,8 +119,8 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(node.kind==='slice'&&node.first&&node.record.contact?.source!==null&&node.record.contact?.source!==undefined)
       if(!nodes.some(other=>other.sourceId===node.record.contact.source&&other.part===node.part))throw new AssignmentFailure(node,Error('Contact source names an absent producer or a different part.'));
     const declaredDependencies=assignmentWork(node,()=>dependencies(descriptions[nodes.indexOf(node)],descriptions));
-    for(const key of declaredDependencies.dependencies)needs.add(key);
-    return {...node,requires:[...needs],defaults:[...defaults],dependencyNotes:declaredDependencies.notes};
+    for(const key of declaredDependencies.dependencies){needs.add(key);execution.add(key);}
+    return {...node,requires:[...needs],executionRequires:[...execution],defaults:[...defaults],dependencyNotes:declaredDependencies.notes};
   }));
   // Unnamed substrate/bridge inputs use available producers, excluding explicit
   // downstream consumers. Explicit recipe edges always retain their meaning.

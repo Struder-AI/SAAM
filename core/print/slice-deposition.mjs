@@ -32,7 +32,10 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   node.requires.forEach(collect);
   const predecessors=[...completed.values()].filter(item=>required.has(item.node.key)),samePart=predecessors.filter(item=>item.node.part===node.part);
   const prerequisiteIds=key=>{const prior=completed.get(key);return prior.result.operations.length?prior.result.operations.map(op=>op.id):prior.node.requires.flatMap(prerequisiteIds);};
-  const after=[...new Set(node.requires.flatMap(prerequisiteIds))];
+  // Geometry/reference prerequisites prepare construction; only explicit
+  // process prerequisites become execution barriers. Scheduling derives the
+  // physical support and access edges from the completed beads.
+  const after=[...new Set((node.executionRequires??node.requires).flatMap(prerequisiteIds))];
   let result;
   if(node.construct)result=node.construct({node,plan,onProgress});
   else if(node.kind==='slice'){
