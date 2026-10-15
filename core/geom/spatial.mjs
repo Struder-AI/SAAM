@@ -35,11 +35,9 @@ export function validateSpatial(geometry){
       requireThat(['points','nurbs','uv'].filter(k=>entry[k]!==undefined).length===1,'Curve geometry needs exactly one spatial definition.');
       const input=entry.uv??entry,dimensions=entry.uv?2:3;
       if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
-      else {
-        requireThat(Array.isArray(input.points)&&input.points.length>=(entry.closed?3:2)&&input.points.every(p=>point(p,dimensions)),'Curve geometry needs finite points.');
-        requireThat(input.points.every((p,i)=>!i||p.some((v,k)=>v!==input.points[i-1][k]))&&(!entry.closed||input.points[0].some((v,k)=>v!==input.points.at(-1)[k])),'Curve points must not repeat consecutive vertices or the implicit closed endpoint.');
-      }
-      if(entry.uv)requireThat(input.reference&&['patch','slice','sleeve'].includes(input.reference.kind),'UV geometry needs a surface reference.');
+      // Repeated vertices are kept here; Trace drops them when it reads the curve.
+      else requireThat(Array.isArray(input.points)&&input.points.length>=(entry.closed?3:2)&&input.points.every(p=>point(p,dimensions)),'Curve geometry needs finite points.');
+      if(entry.uv)requireThat(input.reference&&['patch','slice','sleeve','surface'].includes(input.reference.kind),'UV geometry needs a surface reference.');
     }
   }
   return geometry;

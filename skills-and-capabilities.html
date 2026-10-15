@@ -81,7 +81,7 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
     <ol>
       <li><b>There is no declared skill API.</b> Skills import core modules by relative path (<code class="i">../../../core/…</code>). This list is what they actually import, so it's the <i>de facto</i> surface. Only parts of it have written contracts: shared offsets and intersections (<code class="i">core/region/README.md</code>, which skills are <i>required</i> to use), skill-result composition (<code class="i">core/path/README.md</code>) and geometry for skill authors (<code class="i">core/geom/README.md</code>).</li>
       <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">sliceResults</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
-      <li><b>Some skills are mostly core.</b> mesh-tools and advanced-vase-wall have no scripts of their own. Repair lives in <code class="i">core/print/repair-stl.mjs</code> plus native CGAL, and advanced vase is part of vase-wall. text and heat-set-inserts put their main work in <code class="i">core/print/text.mjs</code> and <code class="i">heat-set.mjs</code>. rimming-normal reuses rimming-planar's producer.</li>
+      <li><b>Some skills are mostly core.</b> mesh-tools and advanced-vase-wall have no scripts of their own. Repair lives in <code class="i">core/print/repair-stl.mjs</code> and core geometry, and advanced vase is part of vase-wall. text and heat-set-inserts put their main work in <code class="i">core/print/text.mjs</code> and <code class="i">heat-set.mjs</code>. rimming-normal reuses rimming-planar's producer.</li>
       <li><b>Not included:</b> imports from skill tests only, such as <code class="i">core/tests/fixtures/*</code> and <code class="i">core/export/registry|griffin|bambu</code>. gridfinity's catalog description is literally "gridfinity" (its manual says this is intentional), so its description here is taken from the manual body.</li>
     </ol>
   </section>
@@ -117,8 +117,8 @@ const SKILLS = [
     ['geom/cylinder','geom/query','geom/spline-tube','geom/surface-offset','geom/surface-region','geom/tolerance','machine/profile','path/spacing','print/bundle','print/plan','region/intersection','region/normal-surface']],
   ['thingi10k','geometry','Find and download STL meshes from the Thingi10K mirror, keeping attribution and license.',
     ['file-write','machine/profile','print/import-stl']],
-  ['mesh-tools','geometry','Diagnose import failures, clean facets, repair self-intersections (CGAL) and fill bounded holes.',
-    [],'manual only; core/print/repair-stl.mjs + native CGAL'],
+  ['mesh-tools','geometry','Diagnose import failures, clean facets, repair self-intersections and fill bounded holes.',
+    [],'manual only; core/print/repair-stl.mjs'],
   ['text','geometry','Raised or recessed lettering, or standalone text, from an outline font, optionally bent onto a surface.',
     ['geom/reference-surface','geom/solid','geom/tessellate','geom/text-layout','geom/text-outline','geom/text-record','geom/tolerance','print/bundle','print/plan','print/text','region/intersection']],
   ['gridfinity','geometry','Parametric Gridfinity open bins, solid insert blanks and baseplates, output as closed meshes.',
@@ -174,7 +174,7 @@ const CAPS = [
     ['geom/cylinder', [
       ['circlePoints','Circle as a polyline within a set tolerance.'],
       ['cylindricalPoint','Point from center, radius, angle and Z.'],
-      ['cylindricalPose','Rotary angle and tool axis for a point on a cylinder.']]],
+      ['cylindricalPose','Tool axis and up direction for a point on a cylinder.']]],
     ['geom/polyline', [['cleanPlanarLoop','Remove numerical seams from a planar loop without flattening curves.']]],
     ['geom/contour-path', [['contourPath','Closed contour parameterized by arc length from a deterministic anchor.']]],
     ['geom/prepared-contours', [['prepareContourFamily','Cached contour family over a height range.']]],

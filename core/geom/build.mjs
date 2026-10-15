@@ -1,22 +1,21 @@
 // Build and place ordinary geometry values. Saved extension meshes need only
 // vertices and triangles here; feature recipes belong to their authors.
-import {makeShell,assertClosed} from './shell.mjs';
+import {makeShell} from './shell.mjs';
 import {shellFromSurfaces,splineSolidShell} from './spline-solid.mjs';
-import {makeMesh,translateMesh} from './mesh.mjs';
+import {makeMesh,translateMesh,hasMesh} from './mesh.mjs';
 import {booleanShell} from './boolean-solid.mjs';
 import {requireThat} from './tolerance.mjs';
 import {geometrySelections} from './selections.mjs';
 import {rhino} from './runtime.mjs';
 
-export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
 
-export function buildShell(rhino, geometry) {
-  return buildShapes(rhino,[geometry])[0];
+export function buildShell(rhino, geometry, options) {
+  return buildShells(rhino,[geometry],options)[0];
 }
 
 // One construction batch shares immutable source shapes, including components
 // encountered first while building an assembly. No caller owns this cache.
-function buildShapes(rhino,geometries,{material=false}={}){
+export function buildShells(rhino,geometries,{material=false,native=true}={}){
   const cache=new Map();
   const build=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);
@@ -24,7 +23,7 @@ function buildShapes(rhino,geometries,{material=false}={}){
   };
   function construct(geometry){
     if(geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
-    if(geometry.shape==='spline')return splineSolidShell(rhino,geometry);
+    if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
@@ -34,15 +33,20 @@ function buildShapes(rhino,geometries,{material=false}={}){
     }
     if(geometry.shape==='assembly'&&hasMesh(geometry)) {
       const components=geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm));
-      return {kind:'assembly',components,bounds:{min:[0,1,2].map(i=>Math.min(...components.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...components.map(c=>c.bounds.max[i])))}};
+      const material=components.filter(component=>!component.empty);
+      return {kind:'assembly',components,empty:!material.length,bounds:material.length?{min:[0,1,2].map(i=>Math.min(...material.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...material.map(c=>c.bounds.max[i])))}:{min:[0,0,0],max:[0,0,0]}};
     }
     if(geometry.shape==='assembly') {
+      if(!native){
+        const patches=geometry.parts.flatMap(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm).patches.map(patch=>({...patch,name:part.id+'/'+patch.name})));
+        return makeShell(patches,{name:'assembly'});
+      }
       const entries=geometry.parts.flatMap(part=>build(part.geometry).surfaces.map(entry=>{
         const surface=entry.surface.duplicate();
         requireThat(surface.translate([part.xMm,part.yMm,part.zMm]),'Could not place native component.');
         return {name:part.id+'/'+entry.name,surface};
       }));
-      return assertClosed(shellFromSurfaces(rhino,entries,'assembly'));
+      return shellFromSurfaces(rhino,entries,'assembly');
     }
     throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
   }
@@ -52,20 +56,20 @@ function buildShapes(rhino,geometries,{material=false}={}){
 // Material queries combine placed components, including nested assemblies.
 // Ordinary construction retains its component/surface representation.
 export async function resolveMaterialGeometry(geometries){
-  return buildShapes(await rhino(),geometries,{material:true});
+  return buildShells(await rhino(),geometries,{material:true,native:false});
 }
 
 // Each request returns ordinary geometry in the requested frame. A replacement
 // geometry (a within-volume) uses the selected component/partition's origin.
 // Null selects the whole source, including an assembly, at the source origin.
-export async function resolveGeometrySelections(geometry,requests,{offset=[0,0,0]}={}){
+export async function resolveGeometrySelections(geometry,requests){
   const selections=geometrySelections(geometry);
   const selected=requests.map(({selection=null,geometry:replacement})=>{
     const source=selection===null?{geometry,xMm:0,yMm:0,zMm:0}:selections.get(selection);
     requireThat(source,`Unknown geometry selection ${selection}.`);
-    return {geometry:replacement??source.geometry,offset:[source.xMm+offset[0],source.yMm+offset[1],source.zMm+offset[2]]};
+    return {geometry:replacement??source.geometry,offset:[source.xMm,source.yMm,source.zMm]};
   });
-  const shells=buildShapes(await rhino(),selected.map(s=>s.geometry)),placed=new Map();
+  const shells=buildShells(await rhino(),selected.map(s=>s.geometry),{native:false}),placed=new Map();
   return selected.map((selection,i)=>{
     const shell=shells[i],key=selection.offset.join(',');
     let frames=placed.get(shell);if(!frames){frames=new Map();placed.set(shell,frames);}
@@ -74,7 +78,7 @@ export async function resolveGeometrySelections(geometry,requests,{offset=[0,0,0
   });
 }
 
-// Placement moves the whole shell onto the bed by shifting control points; the
+// Translation shifts control points; the
 // patches keep their parameterisation, so sections and surface solves are
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
@@ -95,6 +99,6 @@ export function translateShell(shell, dx, dy, dz = 0) {
   });
   const moved = makeShell(patches, { name: shell.name });
   moved.surfaces = shell.surfaces;
-  return assertClosed(moved);
+  return moved;
 }
 

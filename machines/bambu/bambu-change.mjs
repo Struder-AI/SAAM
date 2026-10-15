@@ -17,7 +17,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
     requireThat(sameNozzleMaterialChanges(machine),'Same-nozzle material changes require a separate flushing contract.');
     for(const p of [old,next])requireThat(p.setup.filaments[p.setup.filament].source?.type!=='external',
       'Automatic H2D material changes require AMS feeds, not an external spool.');
-    requireThat(Math.abs(incomingDebt-next.process.retractMm)<1e-6,'AMS change must hand off the new filament retracted.');
+    requireThat(Math.abs(incomingDebt-next.process.retractMm)<=Export.slackMm,'AMS change must hand off the new filament retracted.');
   }
   requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+Export.slackMm,'Invalid incoming nozzle retraction.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid changeover fan state.');
@@ -34,7 +34,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
   // The same-nozzle Studio reference retains remapping for the outgoing
   // hotend on every change, including a return to a previously used filament.
   const feed=n(k.startupPurgeFlowMm3S/2.4053*60),reduced=n(feed*0.8),b=sameNozzle?-1:knownOutgoing?old.setup.tool:-1;
-  const oldS=old.setup,newS=next.setup,z=n(position[2]),r=n(incomingDebt);
+  const oldS=old.setup,newS=next.setup,z=n(position[2],'xyz'),r=n(incomingDebt);
   const temperatureSync=[];
   if(sameNozzle){
     requireThat(k.hotendCoolingRateCPerS>0&&k.hotendHeatingRateCPerS>0,'Missing H2D service temperature timing.');
@@ -53,6 +53,6 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
     `M620 Q${count+1}`,'M1002 gcode_claim_action : 0',
     // Explicit waits and modes instead of assuming the service macro's state.
     'G90','G21','M83','G92 E0',`M109 S${newS.nozzleC}`,`M106 S${n(fan)}`,
-    `G1 X${n(position[0])} Y${n(position[1])} Z${z} F${n(Math.min(next.process.travelSpeedMmS,old.process.travelSpeedMmS)*60)}`,
+    `G1 X${n(position[0],'xyz')} Y${n(position[1],'xyz')} Z${z} F${n(Math.min(next.process.travelSpeedMmS,old.process.travelSpeedMmS)*60)}`,
     'M400',CHANGE_END.trimEnd()].join('\n')+'\n';
 }

@@ -1,6 +1,7 @@
 import {chainStrokes, layoutText, strokeBounds, translateStrokes} from './layout.mjs';
 import {JOIN_FRACTION} from './measure.mjs';
 import {planLineText} from './plan.mjs';
+import {PRINT_RESOLUTION_MM} from './strokefont.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const round = v => Math.round(v * 1000) / 1000;
@@ -33,7 +34,7 @@ export function snapJunctions(strokes, toleranceMm) {
     const extend = (end, atStart) => {
       let best = {distance: Infinity};
       for (const o of others) { const hit = nearestOnStroke(end, o); if (hit.distance < best.distance) best = hit; }
-      if (best.distance > 1e-6 && best.distance <= toleranceMm) atStart ? points.unshift(best.point) : points.push(best.point);
+      if (best.distance > PRINT_RESOLUTION_MM && best.distance <= toleranceMm) atStart ? points.unshift(best.point) : points.push(best.point);
     };
     extend(s.points[0], true);
     extend(s.points.at(-1), false);
@@ -83,7 +84,8 @@ export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, 
     process: {lineWidthMm: w},
     report: {
       strokes: network.length, beadLengthMm: round(network.reduce((sum, s) => sum + lengthOf(s), 0)),
-      extentMm: [round(ink.max[0] - ink.min[0] + w), round(ink.max[1] - ink.min[1] + w)], lines: laid.lines.length
+      extentMm: [round(ink.max[0] - ink.min[0] + w), round(ink.max[1] - ink.min[1] + w)], lines: laid.lines.length,
+      ...(laid.missing.length ? {notes: [`Font ${font.id} has no glyph for ${laid.missing.map(c => JSON.stringify(c)).join(', ')}; left out.`]} : {})
     }
   };
 }

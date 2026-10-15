@@ -5,7 +5,8 @@
 // on those loops - offsetting for perimeters, scanline fill, and the boolean
 // ops that let several solids be combined at slice time rather than as breps.
 
-import { TOLERANCE, requireThat, distance2 } from '../geom/tolerance.mjs';
+import { requireThat, distance2 } from '../geom/tolerance.mjs';
+import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
 import {clipLineToRegion} from '../geom/curve-region.mjs';
 
 export const loopArea = loop => {
@@ -32,7 +33,7 @@ export function pointInRegion(point, loops) {
 // times per layer; both become local queries instead of full scans.
 export class SegmentIndex {
   constructor(loops, cellSize = 1) {
-    this.cell = Math.max(cellSize, 1e-3);
+    this.cell = Math.max(cellSize, PRINT_RESOLUTION_MM);
     this.buckets = new Map();
     this.rows = new Map();
     this.segments = [];
@@ -112,16 +113,16 @@ export class SegmentIndex {
 
 export function pointSegmentDistance(p, a, b) {
   const dx = b[0] - a[0], dy = b[1] - a[1], lengthSquared = dx * dx + dy * dy;
-  if (lengthSquared < 1e-18) return distance2(p, a);
+  if (lengthSquared < ROUNDING_MM**2) return distance2(p, a);
   let t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / lengthSquared;
   t = t < 0 ? 0 : t > 1 ? 1 : t;
   return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
-export const dedupe = loop => {
+export const dedupe = (loop, precision = PRINT_RESOLUTION_MM) => {
   const out = [];
-  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > TOLERANCE.point) out.push(point);
-  while (out.length > 1 && distance2(out[0], out[out.length - 1]) <= TOLERANCE.point) out.pop();
+  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > precision) out.push(point);
+  while (out.length > 1 && distance2(out[0], out[out.length - 1]) <= precision) out.pop();
   return out;
 };
 
@@ -131,10 +132,10 @@ export { offsetRegion } from './offset.mjs';
 export function segmentIntersection(a, b, c, d) {
   const r = [b[0] - a[0], b[1] - a[1]], s = [d[0] - c[0], d[1] - c[1]];
   const denominator = r[0] * s[1] - r[1] * s[0];
-  if (Math.abs(denominator) < 1e-15) return null;
+  if (Math.abs(denominator) < ROUNDING_MM**2) return null;
   const t = ((c[0] - a[0]) * s[1] - (c[1] - a[1]) * s[0]) / denominator;
   const u = ((c[0] - a[0]) * r[1] - (c[1] - a[1]) * r[0]) / denominator;
-  if (t <= 1e-9 || t >= 1 - 1e-9 || u <= 1e-9 || u >= 1 - 1e-9) return null;
+  if (t <= ROUNDING_RELATIVE || t >= 1 - ROUNDING_RELATIVE || u <= ROUNDING_RELATIVE || u >= 1 - ROUNDING_RELATIVE) return null;
   return [a[0] + r[0] * t, a[1] + r[1] * t];
 }
 
@@ -220,7 +221,7 @@ export function* sampleScanlineRows(frame,spacingMm){
     const current = [];
     for (const [left,right] of clipLineToRegion([0,y],[1,0],rotated,{fillRule:'nonzero'}).spans) {
       const length = right-left;
-      if (length <= TOLERANCE.point) continue;
+      if (length <= PRINT_RESOLUTION_MM) continue;
       current.push({left,right,
         row:{scanY:y,from:toWorld([left,y]),to:toWorld([right,y]),lengthMm:length}});
     }
@@ -241,10 +242,10 @@ export function connectScanlineCells(rows){
     // travel still goes through the shared combing/clearance checks.
     let first = 0;
     for (const span of current) {
-      while(first<previous.length&&previous[first].right<=span.left+TOLERANCE.point)first++;
-      for(let j=first;j<previous.length&&previous[j].left<span.right-TOLERANCE.point;j++) {
+      while(first<previous.length&&previous[first].right<=span.left+PRINT_RESOLUTION_MM)first++;
+      for(let j=first;j<previous.length&&previous[j].left<span.right-PRINT_RESOLUTION_MM;j++) {
         const before=previous[j];
-        if(Math.min(before.right,span.right)-Math.max(before.left,span.left)>TOLERANCE.point) {
+        if(Math.min(before.right,span.right)-Math.max(before.left,span.left)>PRINT_RESOLUTION_MM) {
           span.parents.push(before);before.children.push(span);
         }
       }

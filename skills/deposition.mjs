@@ -1,61 +1,71 @@
-// Extension compositions return engine inputs and finalized-result constraints.
+// Extension compositions prepare geometry, material intent and work dependencies.
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
-import {requireExclusiveClaims} from '../core/region/ownership.mjs';
-import {TOLERANCE} from '../core/geom/tolerance.mjs';
 
-export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,processForAssignment,engines}){
-  const support=plan.skills?.supports?.enabled?await (await loadExtensionEntry('supports','deposition-runtime'))(engines):null;
-  const weld=plan.skills?.['plastic-weld']?.enabled?await (await loadExtensionEntry('plastic-weld','deposition-runtime'))(engines):null;
-  const sites=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):[];
+async function depositionRuntime(id,engines,dependency){
+  try{const create=await loadExtensionEntry(id,'deposition-runtime');return {runtime:await create(engines,dependency),error:null};}
+  catch(error){if(error.name==='AbortError')throw error;return {runtime:null,error};}
+}
+
+export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
+  const weldLoaded=plan.skills?.['plastic-weld']?.enabled?await depositionRuntime('plastic-weld',engines):{runtime:null,error:null};
+  const weld=weldLoaded.runtime;
+  // A rivet site that cannot be prepared is left out with a note.
+  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
-  const vase=hasSleeve?await (await loadExtensionEntry('vase-wall','deposition-runtime'))(engines):null;
-  const advanced=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await (await loadExtensionEntry('advanced-vase-wall','deposition-runtime'))(engines,vase):null;
-  const vaseWork=vase?args=>{
-    const foundationSegments=vase.vaseFoundationSegments(args),{node,after,onProgress,substrateAdaptation}=args;
-    return node.context.assignment.pattern===null?vase.standardVaseResult({...node.context,after},{foundationSegments,substrateAdaptation})
-      :advanced.advancedVaseResult({...node.context,after,onProgress,foundationSegments,substrateAdaptation});
-  }:null;
+  const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
+  const vase=vaseLoaded.runtime;
+  const advancedLoaded=contexts.some(({assignment})=>assignment.construction==='sleeve'&&assignment.pattern!==null)?await depositionRuntime('advanced-vase-wall',engines,vase):{runtime:null,error:null};
+  const advanced=advancedLoaded.runtime;
+  // A sleeve prepares its geometry as it is constructed, so its failure is its own.
+  const vaseWork=args=>{
+    if(vaseLoaded.error)throw vaseLoaded.error;
+    const {node,onProgress}=args;
+    if(node.context.assignment.pattern!==null&&advancedLoaded.error)throw advancedLoaded.error;
+    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,onProgress});
+    const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
+    return vase.standardVaseResult({...node.context,geometry});
+  };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
-      const prepared=engines.Toolpath.prepareSliceBoundaryFamily({plan,assignment:context.assignment,shells,volumes});
-      const family=prepared.family,first=family.layers[0];
+      // A spiral boundary that cannot be resolved fails as its own assignment.
+      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});}catch(error){return {error};}})();
+      if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
+      const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
       return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
-        startMm:prepared.startMm,endMm:prepared.endMm,geometry:{family:()=>family,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
-          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',course:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
+        startMm:prepared.startMm,endMm:prepared.endMm,geometry:{referenceStack:()=>referenceStack,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
+          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
         construct:vaseWork,providesSurface:true,kind:'trace'};
     }
     const {assignment,shell}=context;
+    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},providesSurface:true,kind:'trace'};
     return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
-  for(let i=0;i<sleeves.length;i++)for(let j=i+1;j<sleeves.length;j++)
-    if(sleeves[i].assignment.part===sleeves[j].assignment.part&&Math.min(sleeves[i].endMm,sleeves[j].endMm)-Math.max(sleeves[i].startMm,sleeves[j].startMm)>TOLERANCE.point)
-      requireExclusiveClaims(sleeves[i].assignment,sleeves[j].assignment);
-  for(const context of sleeves)if(!context.geometry)context.geometry=vase.prepareSleeveGeometry({...context,onProgress});
-  const trees=support?support.prepareSupportContexts({plan,processForAssignment,shells:componentShells?[...componentShells.values()]:placed?[placed]:[]}):[];
-  return {
-    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    reserves:sites.map(site=>site.reservation),envelopes:sites.map(site=>site.reservation),
+  const curveSources=[],sourceRuntimes=new Map();
+  for(const context of contexts.filter(({assignment})=>assignment.construction==='curves'&&assignment.source)){
+    const id=context.assignment.source.extension;
+    if(!sourceRuntimes.has(id)){
+      try{const create=await loadExtensionEntry(id,'trace-source');sourceRuntimes.set(id,{runtime:await create(engines),error:null});}
+      catch(error){if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;sourceRuntimes.set(id,{runtime:null,error});}
+    }
+    const loaded=sourceRuntimes.get(id);
+    curveSources.push({...context,curveSource:loaded.runtime,sourceError:loaded.error});
+  }
+  return {notes,curveSources,
+    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
+    geometryCuts:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.cavity})),
+    solidVolumes:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.solid})),combineSolids:engines.Geometry.combineSolids,
     constructions:sleeves,
-    additionalContexts:trees,
-    work:weld?.weldWork(sites,processForAssignment)??[],workDependencies:(node,nodes)=>[...(vase?.vaseDependencies(node,nodes)??[]),...(weld?.weldDependencies(node,nodes)??[])],
-    operationDependencies:operation=>weld?.weldOperationDependencies(sites,operation)??[],
-    finishResults:batch=>weld?weld.finishWeldResults(plan,sites,batch):batch.results
+    work:weld?.weldWork(sites)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};}
   };
-}
-
-export async function extensionResultDependencies(results,supports,engines){
-  if(!supports.length)return [];
-  const runtime=await (await loadExtensionEntry('supports','deposition-runtime'))(engines);
-  return runtime.supportDependencies(supports,results);
 }
 
 export function extensionSummary(results){
   const summary={},vases=results.filter(result=>result.report.construction==='sleeve').map(result=>({id:result.id,...result.report}));
   if(vases.length)summary.vaseWall={...vases[0],instances:vases};
-  const weld=results.find(result=>result.id==='plastic-weld'&&Array.isArray(result.report.sites));
-  if(weld)summary.plasticWeld=weld.report;
+  const sites=results.flatMap(result=>result.report.sites??[]);
+  if(sites.length)summary.plasticWeld={sites,physicalValidation:'not performed'};
   return summary;
 }

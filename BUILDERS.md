@@ -30,11 +30,11 @@ change both together.
 2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
 3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
 4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
-5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+5. Adding or restoring a third-party package or dependency (such as CGAL or Manifold) needs explicit human approval. This requirement does not apply to methods or to using, adapting or copying algorithms.
 6. Record approvals as given, without widening their scope. Report software and physical results separately.
 7. Work enters a release intent only on the owner's request or approval.
 8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
-9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
+9. A cap is never replaced by silent truncation: degrade and label partial output.
 
 ## Design direction
 
@@ -93,7 +93,7 @@ already available or better scheduled elsewhere. Reuse requires valid input
 identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
 and placement are justified. Apply that standard to agent workflows and CI under
-[Avoid check spirals](#avoid-check-spirals); task boundaries and commits do not
+[Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals); task boundaries and commits do not
 create verification work. Distinguish algorithmic preconditions from printing
 decisions that require domain judgment.
 
@@ -146,7 +146,7 @@ changing; read the maps for what it affects and what affects it.
 | Core architecture and shared boundaries | [core/README.md](core/README.md) |
 | Agent CLI toolkit | [core/agent/README.md](core/agent/README.md) |
 | Machine interfaces and program output | [core/export/README.md](core/export/README.md), with [Bambu](machines/bambu/SKILL.md), [DENSO](machines/denso/SKILL.md), [Dobot](machines/dobot/SKILL.md), [Griffin](machines/ultimaker/SKILL.md) and the [exporter implementation](core/export/DEVELOP.md), which is off the map |
-| Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md), with [native mesh repair](core/geom/native/README.md) |
+| Geometry and numerical contracts | [core/geom/README.md](core/geom/README.md) |
 | Machine presentation models | [core/machine/README.md](core/machine/README.md) |
 | Skill composition and travel | [core/path/README.md](core/path/README.md), with the [collision-planning proposal](core/path/collision-proposal.md) |
 | Print lifecycle and persistence | [core/print/README.md](core/print/README.md) |
@@ -196,35 +196,10 @@ branches and decision records are reference
 material, never authority; where they differ from current intent, current
 intent wins.
 
-Before asking to admit a component or method from outside SAAM or from
-superseded work, identify its purpose and provenance and compare its producers and consumers with current geometry, composition,
+Before asking to add or restore a third-party package or dependency, identify
+its purpose and provenance and compare its producers and consumers with current geometry, composition,
 machine and lifecycle interfaces. Ordinary authorized development adds no
 per-task approval gate.
-
-## Avoid check spirals
-
-Choose verification for the behavior being changed and a concrete failure it
-could introduce. Use [existing coverage](core/tests/README.md) first. Once the
-applicable checks resolve the uncertainty, continue toward completion. Run or
-broaden checks again only when relevant inputs change, a failure appears, or a
-specific uncertainty remains. Reuse valid results across tasks and contributors.
-
-Checkpointing, publication, rereading guidance and task completion do not
-invalidate results or create a verification pass. Prose-only edits and read-only
-work need no software tests. Use the full suite only for broad integration risk
-or a user request; skill manuals add no second gate. Setup belongs to first use
-of an environment, with reuse governed by [SETUP.md](SETUP.md).
-
-A check in production, CI or an agent workflow must earn its cost through a
-concrete failure it detects. Account for compute, maintenance, false rejections
-and interruptions. Reuse the owning result for unchanged inputs. Reconsider an
-ineffective heuristic before adding a user-facing bypass. When a proposed
-geometry, toolpathing or extrusion gate has ambiguous value or placement, discuss
-its failure case, evidence, cost and alternatives within existing authorization.
-A maker's judgment about a print does not itself change general product policy.
-A failure states its real cause and what the person can change, leaving
-geometry and quality choices explicit. For count, size and elapsed-time limits, see
-[limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
 
 ## Reproducible examples
 
@@ -302,11 +277,11 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Task | Start here |
 |---|---|
 | Unused checkout | [Setup](SETUP.md) |
-| Choosing or changing tests | [Avoid check spirals](#avoid-check-spirals), then the [test reference](core/tests/README.md) |
+| Choosing or changing tests | [Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals), then the [test reference](core/tests/README.md) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
 | Trace the system or change an interface | [Core architecture](core/README.md), then `read-map 0` and the boxes and `@link` arrows the change touches |
-| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md) and [native mesh repair](core/geom/native/README.md); `read-map @cluster/geometry` for influence |
+| Geometry representation, queries, precision or mesh repair | [Geometry](core/geom/README.md); `read-map @cluster/geometry` for influence |
 | Offsets, intersections or material ownership | [Regions](core/region/README.md); `read-map @cluster/geometry` and `@cluster/toolpath` for influence |
 | Skill operations, scheduling or travel | [Skill composition and travel](core/path/README.md), then the relevant [skill](skills/DIGEST.md); `read-map @cluster/toolpath` for influence |
 | Plans, validation, persistence, generation or delivery | [Print lifecycle](core/print/README.md); `read-map @cluster/bundle` and `@cluster/toolpath` for influence |

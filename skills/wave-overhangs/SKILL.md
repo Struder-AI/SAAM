@@ -1,6 +1,6 @@
 ---
 name: wave-overhangs
-description: Extension for experimental seeded-front fill on ordinary Slice families.
+description: Extension for experimental seeded-front fill on ordinary Slice stacks.
 metadata:
   saam-kind: extension
 ---
@@ -16,7 +16,7 @@ cooling and thermal warping need judgment and physical trials.
 [extension script](scripts/prepare.mjs) expands to
 an ordinary assignment: a surface-domain owned volume, `fillOrder:{kind:'fronts',...}`,
 shared process overrides and dependencies. Persist that expanded record in
-`plan.slices.assignments`; legacy `construction:'fronts'` requires migration.
+`plan.slices.assignments`; legacy `construction:'fronts'` is read as it.
 There is no separate wave producer.
 
 ## Author the region and seed
@@ -25,10 +25,9 @@ There is no separate wave producer.
   `surface:{kind:'spline',patch,offsetMm:0}` supplies a named control net.
   XYZ coordinates precede print/component placement.
 - `domainUv` supplies closed chart loops: CCW outer boundaries, CW holes.
-  The preset turns these into the owned volume; shared ownership clips overlap.
+  The preset turns these into the owned volume.
 - `seedUv` identifies the already reached chart region; it is not extruded again.
-  Match its edge to the intended anchor. Omit it to derive a seed from finalized
-  predecessor beads. Disconnected components may require separate assignments.
+  Match its edge to the intended anchor. Omit it to derive a seed from prepared predecessor material. Disconnected components may require separate assignments.
 - `afterParts`, `beforeParts` and `after` become ordinary dependencies. For a
   single solid, `[null]` selects its producers. Dependencies establish order,
   not physical adhesion or automatic support.
@@ -42,7 +41,7 @@ and lateral attachment; a valid mask does not guarantee one continuous pass.
 
 | Preset option | Default | Meaning |
 |---|---:|---|
-| `layers` | 1 | Number of translated reference courses. |
+| `layers` | 1 | Number of translated slice surfaces. |
 | `beadHeightMm` | 0.2 | Target whole-reference mean normal gap. |
 | `lineSpacingMm` | 0.3 | Physical distance between fronts. |
 | `speedMmS` | 5 | Shared deposition speed. |

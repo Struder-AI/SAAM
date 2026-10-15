@@ -60,20 +60,21 @@ test('material changes use their own process limits instead of locking the X1 to
   }
 });
 
-test('profiles without an exporter persist through shared setup review and refuse output before path construction',async t=>{
+test('profiles without an exporter persist through shared setup review; generation saves the SAAMpath and names the missing exporter',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-printer-profiles-'));
   t.after(()=>rm(root,{recursive:true,force:true}));
   for(const id of ids.slice(1)){
     const directory=join(root,id),machineSetups=join(root,'machine-setups');
-    const plan=await proposedPlan(id,{machineSetups});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
+    const {plan}=await proposedPlan(id,{machineSetups});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
     await initBundle(directory,plan,{machineId:id});
     let state=await loadBundle(directory,{program:false});
     assert.equal(state.machine.id,id);
     await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision});
     state=await loadBundle(directory,{program:false});assert.equal(state.plan.setup.material,'ABS');
     const progress=[];
-    await assert.rejects(generateBundle(directory,{development:true,onProgress:event=>progress.push(event)}),/export is not implemented/);
-    assert.ok(!progress.some(event=>event.stage==='Preparing geometry'));
+    const result=await generateBundle(directory,{development:true,onProgress:event=>progress.push(event)});
+    assert.match(result.message,/^Toolpath ready\. The .* program is not written yet: .*export is not implemented/);
+    assert.equal((await loadBundle(directory,{program:false})).artifacts.path,'current');
     await assert.rejects(access(join(directory,'exports')),/ENOENT/);
   }
 });

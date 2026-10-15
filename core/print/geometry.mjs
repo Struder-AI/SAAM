@@ -2,20 +2,75 @@ import {canonicalHash} from '../canonical-json.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
 // Spline shells require a different representation from an indexed mesh:
-// rhino3dm builds no general solid from a set of patches, so a shell is stored
-// as its named untrimmed surfaces and its closure is verified numerically by
-// the same check the slicer relies on. The file is accepted once it reopens
-// as the same closed shell.
+// rhino3dm builds no general solid from a set of patches, so a shell, open or
+// closed, is stored as its named untrimmed surfaces. The file is accepted once
+// it reopens as the same patches.
 
 import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
-import { makeShell, assertClosed } from '../geom/shell.mjs';
-import {buildShell,hasMesh} from '../geom/build.mjs';
+import {buildShell,buildShells} from '../geom/build.mjs';
+import {hasMesh} from '../geom/mesh.mjs';
+import {assemblyComponents} from '../geom/selections.mjs';
 
 import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
 import {displayGeometry} from '../geom/boolean-solid.mjs';
 import {spatialPreview,validateSpatial} from '../geom/spatial.mjs';
+import {normalizeAuthoredGeometry} from '../geom/mesh-source.mjs';
+
+const admissions=new WeakMap(),preparations=new WeakMap();
+function normalizeGeometry(parameters,previousGeometry,key){
+  const cached=admissions.get(parameters);
+  if(cached?.key===key)return cached.admitted;
+  const admitted=normalizeAuthoredGeometry(parameters,previousGeometry);
+  admissions.set(parameters,{key,admitted});
+  admissions.set(admitted.geometry,{key:admitted.geometry===parameters?key:canonicalHash(admitted.geometry),admitted});return admitted;
+}
+export async function createGeometry(parameters,{previousGeometry}={}){
+  const key=canonicalHash(parameters),cached=preparations.get(parameters);
+  if(cached?.key===key)return cached.preparation;
+  const admitted=normalizeGeometry(parameters,previousGeometry,key);
+  const preparation=createGeometryArtifact(admitted.geometry).then(artifact=>{
+    if(admitted.reports.length)artifact.descriptor.meshNormalization=admitted.reports;
+    return artifact;
+  });
+  preparations.set(parameters,{key,preparation});
+  preparations.set(admitted.geometry,{key:admitted.geometry===parameters?key:canonicalHash(admitted.geometry),preparation});
+  try{return await preparation;}catch(error){preparations.delete(parameters);preparations.delete(admitted.geometry);throw error;}
+}
+
+const directMesh=parameters=>parameters?.shape==='spatial'?directMesh(parameters.solid)
+  :Array.isArray(parameters?.vertices)&&Array.isArray(parameters?.triangles)?parameters:null;
+// Source parameters are the recipe authority; cached display data cannot supply a second shape.
+export async function geometryDescriptor(parameters,descriptor){
+  if(!descriptor)return null;
+  if(descriptor.parameters&&canonicalHash(descriptor.parameters)!==canonicalHash(parameters))return (await createGeometryArtifact(parameters)).descriptor;
+  const mesh=directMesh(parameters);
+  if(mesh)return {...descriptor,schema:'saam-shell-geometry/1',parameters,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh'),
+    boundsMm:parameters.shape==='spatial'?descriptor.boundsMm:mesh.vertices.length?{min:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[axis]),Infinity)),max:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[axis]),-Infinity))}:{min:[0,0,0],max:[0,0,0]}};
+  return {...descriptor,schema:'saam-shell-geometry/1',parameters};
+}
+export function storedGeometryDescriptor(descriptor,{snapshot=false}={}){
+  const {parameters,...derived}=descriptor;
+  if(directMesh(parameters)){delete derived.vertices;delete derived.faces;delete derived.labels;}
+  return snapshot?{...derived,schema:'saam-geometry-snapshot/1',parameters}:{...derived,schema:'saam-geometry-view/1'};
+}
+export function storedGeometryArtifact(geometry){
+  return geometry?{...geometry,descriptor:storedGeometryDescriptor(geometry.descriptor)}:null;
+}
+// Worker transport carries one shape and its owned derived data, never a second recipe.
+export async function transferGeometry(parameters){
+  const artifact=await createGeometry(parameters);
+  return {schema:'saam-geometry-transfer/1',parameters:artifact.descriptor.parameters,
+    view:storedGeometryDescriptor(artifact.descriptor),bytes:artifact.bytes};
+}
+export async function receiveGeometry(record){
+  requireThat(record?.schema==='saam-geometry-transfer/1','Incompatible Geometry worker result. Reload the source runtime.');
+  const parameters=record.parameters,key=canonicalHash(parameters);
+  const descriptor=await geometryDescriptor(parameters,record.view),artifact={bytes:record.bytes,descriptor};
+  admissions.set(parameters,{key,admitted:{geometry:parameters,reports:descriptor.meshNormalization??[]}});
+  preparations.set(parameters,{key,preparation:Promise.resolve(artifact)});return parameters;
+}
 
 // Display resolution of the proxy mesh: steps per knot span, per direction,
 // within a per-patch range. The proxy is for the viewer only; every toolpath
@@ -30,31 +85,18 @@ const netHash = patches => canonicalHash(patches.map(patch => [patch.name, patch
   [...patch.knotsU].map(round), [...patch.knotsV].map(round), [...patch.cp].map(round)]));
 const round = value => Number(value.toFixed(9));
 
-export async function createGeometry(parameters) {
+async function createGeometryArtifact(parameters) {
   if(parameters.shape==='spatial')return createSpatialGeometry(parameters);
+  if(directMesh(parameters))return createMeshGeometry(null,parameters);
   const r = await rhino();
   if(hasMesh(parameters))return await createMeshGeometry(r,parameters);
   const shell = buildShell(r, parameters);
-  requireThat(shell.surfaces?.length === shell.patches.length, 'The shape builder did not supply one Rhino surface per patch.');
-
-  const doc = new r.File3dm();
-  doc.applicationName = 'SAAM';
-  doc.applicationDetails = 'Shell pipeline (slices, draped-skin)';
-  doc.settings().modelUnitSystem = r.UnitSystem.Millimeters;
-  const features = [];
-  for (const [index, entry] of shell.surfaces.entries()) {
-    const attributes = new r.ObjectAttributes();
-    attributes.name = entry.name;
-    attributes.setUserString('saam:feature', entry.name);
-    features.push({ id: entry.name, objectId: doc.objects().add(entry.surface, attributes), patchIndex: index });
-  }
-  const bytes = doc.toByteArray();
-  doc.destroy();
+  const {bytes,features}=nativeShellBytes(r,shell);
 
   const descriptor = {
     schema: 'saam-shell-geometry/1',
     parameters,
-    nativeForm: 'named untrimmed NURBS surfaces; closure verified numerically, not a Rhino solid',
+    nativeForm: 'named untrimmed NURBS surfaces, not a Rhino solid',
     patchHash: netHash(shell.patches),
     features,
     boundsMm: shell.bounds,
@@ -64,8 +106,29 @@ export async function createGeometry(parameters) {
   return { bytes, descriptor };
 }
 
-// Reopen the written 3DM, rebuild the patches from it, and require the closed
-// shell they form to be the one just built.
+// Native file encoding owns the document and surfaces until their bytes exist.
+// Only numerical patches and encoded values leave this operation.
+function nativeShellBytes(runtime,shell){
+  const owned={document:null};
+  try{
+    requireThat(shell.surfaces?.length===shell.patches.length,'The shape builder did not supply one Rhino surface per patch.');
+    const doc=new runtime.File3dm();owned.document=doc;
+    doc.applicationName='SAAM';doc.applicationDetails='Shell pipeline (slices, draped-skin)';
+    doc.settings().modelUnitSystem=runtime.UnitSystem.Millimeters;
+    const features=[];
+    for(const [index,entry]of shell.surfaces.entries()){
+      const attributes=new runtime.ObjectAttributes();
+      try{
+        attributes.name=entry.name;attributes.setUserString('saam:feature',entry.name);
+        features.push({id:entry.name,objectId:doc.objects().add(entry.surface,attributes),patchIndex:index});
+      }finally{attributes.delete();}
+    }
+    return {bytes:doc.toByteArray(),features};
+  }finally{owned.document?.destroy();for(const entry of shell.surfaces??[])entry.surface.delete();}
+}
+
+// Reopen the written 3DM, rebuild the patches from it, and require them to be
+// the ones just built.
 async function reopenShell(bytes, descriptor) {
   const r = await rhino();
   const doc = r.File3dm.fromByteArray(bytes);
@@ -78,14 +141,13 @@ async function reopenShell(bytes, descriptor) {
       requireThat(attributes.getUserString('saam:feature') === feature.id, `3DM object ${index} is not the named face "${feature.id}".`);
       patches.push(patchFromSurface(object.geometry(), feature.id));
     }
-    assertClosed(makeShell(patches, { name: descriptor.parameters.shape }));
     requireThat(netHash(patches) === descriptor.patchHash, 'The 3DM surfaces differ from the reviewed geometry.');
   } finally { doc?.destroy(); }
 }
 
 export async function createSpatialGeometry(parameters,solidDescriptor){
   validateSpatial(parameters);
-  const solid=parameters.solid?(solidDescriptor?{descriptor:solidDescriptor}:await createGeometry(parameters.solid)):null;
+  const solid=parameters.solid?(solidDescriptor?{descriptor:solidDescriptor}:await createGeometryArtifact(parameters.solid)):null;
   const {vertices=[],faces=[],labels=[],features=[]}=solid?.descriptor??{};
   const preview=spatialPreview(parameters),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   const include=p=>p.forEach((v,i)=>{bounds.min[i]=Math.min(bounds.min[i],v);bounds.max[i]=Math.max(bounds.max[i],v);});
@@ -93,8 +155,7 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
   for(const c of preview.curves)for(const p of c.points)include(p);
   for(const p of preview.points)include(p.point);
   if(!Number.isFinite(bounds.min[0])){bounds.min=[0,0,0];bounds.max=[0,0,0];}
-  const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
-  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,
+  return {bytes:solid?.bytes??null,descriptor:{schema:'saam-shell-geometry/1',parameters,
     nativeForm:'authored solid, curves and points',vertices,faces,labels,features:[...features,...preview.curves.map(c=>({id:c.id,kind:'curve'})),...preview.points.map(p=>({id:p.id,kind:'point'}))],boundsMm:bounds,...preview}};
 }
 
@@ -118,13 +179,22 @@ function proxyMesh(shell) {
   return { vertices, faces, labels };
 }
 
-// A native mesh is stored as indexed triangles. Mixed assemblies retain the
-// source spline recipes too; each component still uses its own query backend.
+// Indexed mesh coordinates belong to the recipe. Mixed assemblies retain their
+// source spline recipes; each component still uses its own query backend.
 // A boolean shows its selected operand or Manifold mesh, one selectable body.
 async function createMeshGeometry(r,parameters) {
-  const shell=buildShell(r,parameters),vertices=[],faces=[],labels=[],features=[];
-  const append=async(geometry,id,translation=[0,0,0])=>{
-    const component=buildShell(r,displayGeometry(geometry)),display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+  if(directMesh(parameters)){
+    const shell=buildShell(r,parameters,{native:false}),mesh=directMesh(parameters);
+    return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,nativeForm:'indexed manufacturing mesh',
+      features:[{id:'mesh'}],boundsMm:shell.bounds,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh')}};
+  }
+  // A nested assembly shows its components, outer/inner, as generation slices them.
+  const parts=parameters.shape==='assembly'?assemblyComponents(parameters.parts):[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
+  const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))]);
+  const vertices=[],faces=[],labels=[],features=[],notes=[];
+  const append=async(component,id,translation)=>{
+    const display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    for(const note of display?.notes??[])notes.push(id?`${id}: ${note}`:note);
     const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
       :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
     const offset=vertices.length;
@@ -134,9 +204,7 @@ async function createMeshGeometry(r,parameters) {
     // STL supplies no semantic CAD faces. Select the imported component as a whole.
     features.push({id:id||'mesh'});
   };
-  if(parameters.shape==='assembly')for(const part of parameters.parts)await append(part.geometry,part.id,[part.xMm,part.yMm,part.zMm]);
-  else await append(parameters,'');
-  const bytes=Buffer.from(JSON.stringify({schema:'saam-native-geometry/1',units:'mm',geometry:parameters}));
-  return {bytes,descriptor:{schema:'saam-shell-geometry/1',nativeFile:'model.mesh.json',parameters,
-    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels}};
+  for(const [index,part] of parts.entries())await append(components[index],part.id,[part.xMm,part.yMm,part.zMm]);
+  return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,
+    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels,...(notes.length?{notes}:{})}};
 }

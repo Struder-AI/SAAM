@@ -12,6 +12,7 @@ export async function loadStudioImportRepair(directory){
   const distance=Math.max(report.sampledDistanceMm.sourceToResult,report.sampledDistanceMm.resultToSource);
   const changes=[removed?`${removed} duplicate or degenerate faces removed`:null,
     report.changedSourceFaces?`${report.changedSourceFaces} source faces changed`:null,
+    report.holesFilled?`${report.holesFilled} holes filled with ${report.holeTrianglesAdded} faces`:null,
     report.newOutputFaces?`${report.newOutputFaces} output faces added`:null,
     report.reconstruction?.interiorTriangles?`${report.reconstruction.interiorTriangles} interior faces removed`:null].filter(Boolean);
   return `Mesh repaired${changes.length?': '+changes.join(','):'. Face orientation or connections corrected'}. `+

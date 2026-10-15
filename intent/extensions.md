@@ -23,11 +23,11 @@ Sources: Codex 01a0f8f8, 01a0fa1c 05:24-05:27; [0.3.1 "Retained behavior and ext
 ## Extensions do their own work and deliver to Bundle
 > "If an extension is putting work in bundle - that makes no sense. Extensions do their own work and deliver to bundle." — owner, 2026-10-01 (Codex 01a0f729 11:17)
 >
-> "I was thinking that extensions would all share a fixed set of interfaces, thus all would be represented inside map 4, whether they are currently packaged with the install or not." — owner, 2026-10-04 (Claude 28ca77c4 17:56, queued)
+> "The support ribbon should accept **curves only**, with the generalized direction. Surface operations should keep their distinct interfaces." — owner, 2026-10-13 (Codex 01a1324b)
 
 Summary: an extension is ordinary local code that composes the public Geometry and Toolpath operations through a fixed set of interfaces and hands its result to Bundle; it has no direct access to Bundle internals, Studio, private engine code or Export.
 
-Sources: Codex 01a0f729; Claude 28ca77c4 17:56; [0.3.1 component 4 and extension paragraphs](../plans/0.3.1.md) (agent wording); [dev-maps Scope](../plans/dev-maps.md#scope).
+Sources: Codex 01a0f729; Codex 01a1324b, 2026-10-13; Claude 28ca77c4 17:56; [0.3.1 component 4 and extension paragraphs](../plans/0.3.1.md) (agent wording); [dev-maps Scope](../plans/dev-maps.md#scope).
 
 ## Local copies, one selection
 Agent wording, no specific owner agreement found: extensions live outside bundles; a builder's local copy overrides the release default and survives updates; one selection drives manuals, calls and regeneration; exchange carries manifest, guidance, scripts, assets, provenance and licence without executing on import; no sandbox is promised.
@@ -36,12 +36,10 @@ Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [skills/
 
 ## Features become extensions
 > "Regarding the website reference discussion items: yes we should include hole supports, and *single* line text packaging as plugins (parallel bead construction should require edit to the extension by a local builder agent - so can be done easily, but doesn't ship that way)." — owner, 2026-10-01 (Codex 01a0f8f8 20:27)
->
-> "We should keep the gridfinity template"; "You can remove the rimming skills" — owner, 2026-09-28 ([D-040](../DECISIONS.md#d-040--geometry-is-authored-spline-patches-meshes-and-blob-fields))
 
-Summary: text, heat-set inserts, Thingi10K, hole supports and single-line text (one bead per centerline) are extensions; gridfinity stays; the rimming skills are gone.
+Summary: text, heat-set inserts, Thingi10K, breakaway supports and single-stroke text, including connected cursive, are extensions. Light-switch covers and their gallery share one workspace. Keep the existing model with optional credits/support status. Gridfinity stays; rimming skills are gone.
 
-Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [0.3.1 discussion items](../plans/0.3.1-discussion.md); Codex 01a0f65b 08:16 ("Yeah I approve migration for all of those"); [D-040](../DECISIONS.md#d-040--geometry-is-authored-spline-patches-meshes-and-blob-fields) ("we need a new 'hybrid' skill category").
+Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [0.3.1 discussion items](../plans/0.3.1-discussion.md); owner, Codex 01a1324b, 2026-10-12/13 (selected TK imports, shared covers workspace and metadata); Codex 01a0f65b 08:16 ("Yeah I approve migration for all of those"); [D-040](../DECISIONS.md#d-040--geometry-is-authored-spline-patches-meshes-and-blob-fields) ("we need a new 'hybrid' skill category").
 
 ## Advanced vase is an extension
 > "Advanced vase now becomes an extension, and sleeve mapper/etc gets moved to that extension's scripts. The script can just make repeated trace calls." — owner, 2026-10-01 (Codex 01a0f65b 07:52)

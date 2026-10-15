@@ -1,4 +1,4 @@
-import {rotation,mm,mv,rotatePointZ as bedPoint,rotateZ,interpolateDirectionPair} from '../geom/frame.mjs';
+import {rotation,mm,mv,interpolateDirectionPair} from '../geom/frame.mjs';
 // One path-time evaluator for playback and machine presentation.
 
 export function frameAtTime(moves, seconds) {
@@ -19,21 +19,12 @@ export function frameAtTime(moves, seconds) {
   }
   const result={completed:before?0:index+(fraction>=1?1:0),active:before?-1:index,fraction,point:move.from.map((v,i)=>v+(move.to[i]-v)*fraction)};
   if(Number.isInteger(move.tool))Object.assign(result,{tool:move.tool,filament:move.filament,nozzleMm:move.nozzleMm});
-  if(Number.isFinite(move.rotaryFromDeg)){
-    result.rotaryDeg=move.rotaryFromDeg+(move.rotaryToDeg-move.rotaryFromDeg)*fraction;
-    const center=move.rotaryCenterMm,from=bedPoint(move.from,move.rotaryFromDeg,center),to=bedPoint(move.to,move.rotaryToDeg,center);
-    result.point=bedPoint(from.map((v,i)=>v+(to[i]-v)*fraction),result.rotaryDeg,center,true);
-    const [axis,up]=interpolateDirectionPair([rotateZ(move.toolAxisFrom,move.rotaryFromDeg),rotateZ(move.toolUpFrom,move.rotaryFromDeg)],
-      [rotateZ(move.toolAxisTo,move.rotaryToDeg),rotateZ(move.toolUpTo,move.rotaryToDeg)],fraction);
-    result.toolAxis=rotateZ(axis,-result.rotaryDeg);
-    result.toolUp=rotateZ(up,-result.rotaryDeg);
-  }
   if(move.controllerFrom)result.controllerPoint=move.controllerFrom.map((v,i)=>v+(move.controllerTo[i]-v)*fraction);
   if(move.anglesFrom){
     const a=move.anglesFrom.map((v,i)=>(v+(move.anglesTo[i]-v)*fraction)*Math.PI/180);
     result.rotation=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
     result.toolAxis=mv(result.rotation,[0,0,-1]);result.toolUp=mv(result.rotation,[0,1,0]);
-  }else if(move.toolAxisFrom&&!Number.isFinite(move.rotaryFromDeg))
+  }else if(move.toolAxisFrom)
     [result.toolAxis,result.toolUp]=interpolateDirectionPair([move.toolAxisFrom,move.toolUpFrom],[move.toolAxisTo,move.toolUpTo],fraction);
   return result;
 }

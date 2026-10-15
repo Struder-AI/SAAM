@@ -10,11 +10,14 @@ const PLATES={
 };
 const FLAGS={bedLeveling:'g29_before_print_flag',flowCalibration:'extrude_cali_flag',plateDetection:'build_plate_detect_flag',toolOffsetCalibration:'auto_cali_toolhead_offset_flag'};
 const round=(value,digits)=>Number(value.toFixed(digits));
+const HEX_COLOUR=/^#[0-9a-f]{6}$/i;
 
 export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setup.filament]}={}){
   const s=plan.setup,b=s.bambu;
-  requireThat(b&&Object.keys(b).every(k=>['plate','otherNozzleMm','startup','amsConnections','fast_start'].includes(k)),
-    'Bambu setup needs plate, otherNozzleMm and startup fields; recreate an older setup before export.');
+  requireThat(b&&typeof b==='object'&&!Array.isArray(b),'Bambu setup needs plate, otherNozzleMm and startup fields.');
+  // Fields this SAAM does not read are ignored and named.
+  const ignored=Object.keys(b).filter(k=>!['plate','otherNozzleMm','startup','amsConnections','fast_start'].includes(k));
+  const notes=ignored.length?[`Bambu setup fields ignored, not read by this SAAM: ${ignored.join(', ')}.`]:[];
   const plate=PLATES[b.plate];
   requireThat(plate&&output.constraints.plates.includes(b.plate),'Unsupported Bambu build plate.');
   requireThat(s.core===`Hardened steel ${s.nozzleMm}`,'Bambu core and selected nozzle diameter disagree.');
@@ -24,12 +27,19 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
     requireThat(t.nozzleDiametersMm.includes(diameter),'Declare the other installed Bambu nozzle diameter in setup.bambu.otherNozzleMm.');
     return String(diameter);
   });
-  if(machine.tools.length===1)requireThat(b.otherNozzleMm===null,'A single-nozzle Bambu has no other nozzle.');
-  const color=s.filamentColor??output.defaultFilamentColor;
-  const filaments=s.filaments??[{id:'GFA00',colour:color}];
-  requireThat(Array.isArray(filaments)&&filaments.length>0&&filaments.length<=16&&filaments.every(f=>
-    f&&Object.keys(f).every(k=>['id','colour','tool','source','nozzleC','process'].includes(k))&&typeof f.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(f.id)&&typeof f.colour==='string'&&/^#[0-9a-f]{6}$/i.test(f.colour)),
-    'Bambu logical filaments need a material preset id and six-digit hex colour; they are not an AMS inventory.');
+  // The package carries only six-digit hex colours: one that is not falls back
+  // to setup.filamentColor or the profile default, and the selected filament's
+  // own colour wins over setup.filamentColor. notes say which.
+  const stated=s.filamentColor==null||HEX_COLOUR.test(s.filamentColor)?s.filamentColor:null;
+  if(s.filamentColor!=null&&stated===null)notes.push(`setup.filamentColor ${JSON.stringify(s.filamentColor)} is not a six-digit hex colour; it is not used.`);
+  const color=stated??output.defaultFilamentColor;
+  const declared=s.filaments??[{id:'GFA00',colour:color}];
+  requireThat(Array.isArray(declared)&&declared.length>0&&declared.every(f=>
+    f&&Object.keys(f).every(k=>['id','colour','tool','source','nozzleC','process'].includes(k))&&typeof f.id==='string'&&/^[A-Za-z0-9_-]{1,40}$/.test(f.id)),
+    'Bambu logical filaments need a material preset id; they are not an AMS inventory.');
+  const miscoloured=declared.flatMap((f,i)=>HEX_COLOUR.test(f.colour)?[]:[i+1]);
+  if(miscoloured.length)notes.push(`Filament ${miscoloured.join(', ')} colour is not six-digit hex; the package uses ${color}.`);
+  const filaments=declared.map(f=>HEX_COLOUR.test(f.colour)?f:{...f,colour:color});
   const used=s.filament;
   requireThat(Number.isInteger(used)&&used>=0&&used<filaments.length,'Bambu filament index is outside the declared logical filament list.');
   const filamentTools=filaments.map(f=>f.tool??tool);
@@ -48,8 +58,8 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
     calibration['calibrationFilament'+side]=first;
     calibration['calibrationTemperature'+side]=selections[first].setup.nozzleC;
   }
-  requireThat(s.filamentColor==null||filaments[used].colour.toUpperCase()===s.filamentColor.toUpperCase(),
-    'Selected logical filament colour disagrees with setup.filamentColor.');
+  if(stated&&filaments[used].colour.toUpperCase()!==stated.toUpperCase())
+    notes.push(`setup.filamentColor ${stated} differs from filament ${used+1}'s colour ${filaments[used].colour}; the package uses ${filaments[used].colour}.`);
   const selectedSource=selections[used].setup.ams;
   const requestedTray=selectedSource==null?null:{...selectedSource,index:feederSelector(selections[used],machine)};
   const connections=b.amsConnections;
@@ -107,10 +117,14 @@ export function resolveBambuJob(plan,machine,output,{filamentSequence=[plan.setu
     flushFeed:round(k.startupPurgeFlowMm3S/2.4053*60,3),
     reducedFlushFeed:round(k.startupPurgeFlowMm3S/2.4053*60*0.8,3),
     calibrationFeed:round(k.startupPurgeFlowMm3S/2.4,4),bodyAcceleration:k.bodyAcceleration};
-  return {tool,map,physicalTool,fastStart,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
+  // TK-DEV f4c84235 (2026-10-03): an AMS-fed H2D start followed by a nozzle
+  // change stalled with the startup prime/wipe and completed without them.
+  // The external-spool DUAL-20 pass retained both; each physical trial ran once.
+  const amsNozzleChange=filamentSequence.some(i=>filamentTools[i]!==tool)&&(filaments[used].source?.type??'auto')!=='external';
+  return {tool,map,physicalTool,fastStart,amsNozzleChange,nozzle:s.nozzleMm,nozzles,plate:{id:b.plate,...plate},
     materialChange:k.materialChangeMode==='single-nozzle-ams'?{mode:k.materialChangeMode,flushMm3:k.materialChangeFlushMm3}:null,
     filaments:filaments.map(f=>({...f})),selections,used,count,color:filaments[used].colour,material:s.material,
     filamentMm:s.filamentMm,density,volumeType,nozzleType,requestedTray,amsConnections:connections===null?null:connections.map(c=>({...c})),settings,
     projectSettings:resolveBambuProject(plan,machine,output,settings,selections),values,
-    declaredMaps:settings.filament_map.join(' '),limitMaps:perFilament(0).join(' '),toolZeros:perTool(0).join(' ')};
+    declaredMaps:settings.filament_map.join(' '),limitMaps:perFilament(0).join(' '),toolZeros:perTool(0).join(' '),notes};
 }

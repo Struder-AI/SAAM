@@ -1,15 +1,13 @@
 # Geometry and numerical contracts
 
-## Repair worker and native process boundary
+## Repair worker boundary
 
 `core/print/mesh-repair-job.mjs` owns a worker per repair/import, running inline when already in that worker.
 It settles after worker termination, allowing scratch cleanup. Progress callback errors abort;
 geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
 acknowledgements; missing results and results arriving after cancellation cannot become success.
 `mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
-The native executable uses files, stderr progress and stdout reports. [Native repair](./native/README.md)
-owns build instructions, limits and provenance, including geometry-owned C++, CMake, dependency hashes
-and licenses outside the JavaScript scanner. Keep those resources consistent with the wrapper protocol.
+Repair uses SAAM's JavaScript implementation.
 [Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
 ## Planar line/region clipping
@@ -30,9 +28,9 @@ polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topolo
 
 ## Geometry interoperability for skill authors
 
-Heat-set and text retain editable feature recipes. Heat-set [slice assignments](../../skills/heat-set-inserts/scripts/slices.mjs)
-own local deposition volumes; the [manual](../../skills/heat-set-inserts/SKILL.md) owns feature constraints.
-Skills share geometry queries with the explicit numerical and representation limits below.
+Heat-set and text own editable features; [reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs) owns deposition.
+Every host supplies the [canonical CAD operations](operations.mjs); `await Geometry.buildGeometry(...)` returns numerical values; core calls the same implementations.
+Geometry owns construction, conversion, queries and native lifetime; callers own feature/process decisions.
 
 ### Shared numerical foundations
 
@@ -41,12 +39,10 @@ Prefer a pinned, attributable upstream implementation behind one shared SAAM
 interface over handwritten approximations or skill-local copies. Preserve the
 upstream topology logic, tolerance semantics and required preconditions; an
 algorithm's reputation does not automatically transfer to a port or adaptation.
-Record source/version, intentional adaptations, supported geometry, precision,
-reference comparisons, known failures and measured cost. Claims such as
-"proven", "reliable" or "fast" must state the scope and supporting evidence.
+Record source/version, adaptations, supported geometry, precision, reference comparisons,
+known failures and measured cost. Claims of reliability or speed name their scope and evidence.
 
-All skills must call the shared functions when offsetting or intersecting.
-Extend the shared interface when a capability is missing; do not add an inline
+All skills share offset/intersection operations. Extend the interface for missing capabilities; avoid inline
 copy, fallback kernel or private tolerance variant. Geometry-specific algorithms
 can live behind the same boundary with explicit capabilities and limitations.
 This aspiration applies to numerical geometry and toolpath operations generally,
@@ -55,7 +51,7 @@ algorithms or selecting a new general intersection engine.
 
 Use source comparisons, adversarial fixtures, convergence tests and benchmarks
 in development. Keep those expensive comparisons out of the production hot path.
-Runtime checks must earn their cost under [the existing guidance](../../BUILDERS.md#avoid-check-spirals).
+Runtime checks must earn their cost under [the existing guidance](../../DEVELOPER-CONTEXT.md#avoid-check-spirals).
 Numerical integration/subdivision needed to construct a result to its requested
 tolerance is algorithm work; an additional independent verification pass needs
 its own justification. Preserve parameter/point correspondence and cache useful
@@ -67,7 +63,7 @@ Tolerance classes and values belong to [Dimensions and tolerances](../README.md#
 Within Geometry, keep separate budgets for coordinate quantization (Clipper2 grids, a planar offset's
 `precisionMm`: kernel arithmetic; use a local origin), shape approximation (chord error from the source
 curve, independent of coordinate storage; coverage expansion and its predicates must agree), sampling
-steps (not a certified surface-error bound) and predicate slack (numeric conditioning only). A determinant of two
+steps (not a certified surface-error bound) and predicate slack (rounding guards only). A determinant of two
 length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
 in U and V; a normal dot product is dimensionless.
 
@@ -81,8 +77,10 @@ physical-invariant failures rather than loosening checks.
 
 ### Geometry query boundary
 
+Plane sections accept `side:'negative'|'positive'` for one-sided limits along their normal, propagated through Boolean operands; outside-side extrema are empty. Default sections retain their existing numerical displacement. Curved sections do not accept this option.
+
 [section](../region/section.mjs) returns oriented loops on planes, patches or height charts, retaining Boolean topology, holes, disconnected components and nudge/edge diagnostics.
-[sliceFamily](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
+[sliceStack](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
 [query](query.mjs) supplies native-shell and mesh top/containment queries.
 
 | Operation | Current consumers and contract |
@@ -90,12 +88,11 @@ physical-invariant failures rather than loosening checks.
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
-| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes (null for empty material). Feature rules and editable records remain with extensions. |
-| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; faces need nonzero XY projection and vertices above the plane. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
-| [planarRegionLayers](planar-region-layers.mjs) | Given a height range, numeric process, authored `regionsAt(z)` polygons, optional shells and XY clearance, return merged planar Slice layers and family. Geometry checks shell intersections at the sampled layer heights and throws on a positive clearance overlap; it never invents source regions. |
-| [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice family. Extensions choose those values; Geometry checks and maps the sections. |
+| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes with `notes` (a refinement kept short of its tolerance), or null for empty material. Feature rules and editable records remain with extensions. |
+| [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes `{solid, notes}`, a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; vertical or degenerate faces and faces reaching the plane are skipped and noted. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
+| [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice stack. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
-| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes, invalid shells/meshes and empty Boolean bounds retain construction errors. No recipe placement or Bundle mutation. |
+| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes and invalid shells/meshes retain construction errors; an empty intersection has flat bounds. No recipe placement or Bundle mutation. |
 | [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
 | [prepareBlobField / evaluateBlobField](blob-field.mjs) | Preparation turns finite weighted points or a periodic bump lattice into a plain record once; queries sample that record. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
 | [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
@@ -103,20 +100,19 @@ physical-invariant failures rather than loosening checks.
 | [extractLevelSet](level-set.mjs) | Sampled scalar fields yield bounded high-side region loops (default) or genuine `{points,closed}` contours (`output: 'curves'`). Roof reservations and chart predicates use regions; gyroid uses curves. |
 
 Level extraction retains high-side equality, ordered ambiguous-cell pairing, sentinel refinement,
-`1e-7` chart endpoint matching and `TOLERANCE.point` cleanup. Only regions add domain edges; curves
+chart endpoint matching and point cleanup at print resolution. Only regions add domain edges; curves
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
-Geodesic region offsets retain their C2/domain limits; piecewise roofs/sleeves
+Geodesic region offsets keep their C2 limit, and growth its domain limit; piecewise roofs/sleeves
 keep explicit crease transitions. No trimmed-surface capability is introduced.
-Native geometry and explicit manufacturing meshes remain authoritative; display
-approximations never replace them. Saved/native/display artifacts retain their
-existing geometry identity. Deposited-material contact remains in Toolpath.
+Native/manufacturing geometry is authoritative; display approximations keep its identity.
+Toolpath interprets contacts; Geometry owns [containment and ray queries](extruded-segments.mjs).
 
-Native mesh assets use `geometry/model.mesh.json` with `saam-native-geometry/1`,
-millimeter indexed triangles, original source provenance and shape parameters.
-Mixed assemblies retain spline recipes for spline components. Existing spline
-bundles continue using `geometry/model.3dm`.
+Indexed meshes live once in recipe geometry; display uses those manufacturing arrays.
+Geometry owns derived views and worker preparation reuse. Mixed assemblies retain
+spline recipes; spline native 3DM data remains stored. Older native mesh assets
+remain readable through Bundle's geometry descriptor hydration.
 STL import accepts ASCII and binary with explicit mm/inch units, indexes exact
 shared vertices, records translation onto the bed, and retains `geometry/source.stl`
 and its hash. File changes invalidate review. STL does not supply semantic CAD
@@ -124,17 +120,17 @@ faces, so Studio selects the imported component as a whole. ASCII STL uses the
 line-oriented format: the `solid` header ends before facet records, and `endsolid`
 closes the file. Leading whitespace, CRLF and a closing solid name are accepted.
 
-`core/geom/mesh.mjs` rejects invalid indices/nonfinite coordinates, degenerate or
-duplicate triangles, open edges, inconsistent winding, nonmanifold vertices and
-intersecting nonadjacent triangles. It does not repair geometry. Checks are
+`core/geom/mesh.mjs` rejects invalid indices, nonfinite coordinates and repeated
+triangles. It counts, without refusing, nonadjacent triangles that cross or touch within
+the rounding guard (`contacts`) and, in `topology`, open, nonmanifold and inconsistently
+wound edges, sheets meeting at a vertex, unused vertices and slivers (a sliver keeps its
+raw normal). It does not repair geometry. Checks are
 controlled by a configurable memory estimate and a spatial hierarchy. The number
 of candidate pairs tested is whatever the mesh's own overlapping bounds and
 shared vertices produce; there is no work allowance on it. Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
-a complete solid-kernel validity proof. Explicit [mesh repair](#explicit-mesh-repair)
-adds an adjacent-contact check to its own output validation. Mesh sections preserve holes/islands and
-report nudged boundary cuts. Normals at equal-height creases use the steeper
-facet. Drape requires a continuous accessible roof; discontinuities or sampled
+a complete solid-kernel validity proof. [Mesh repair](#explicit-mesh-repair) also
+reports adjacent faces folded onto each other. Normals at equal-height creases use the steeper facet. Drape requires a continuous accessible roof; discontinuities or sampled
 segments above its angle limit are rejected. Sampling and bead-width limits remain.
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
@@ -246,14 +242,12 @@ whole-period copy; each chain continues itself and reports its `wraps`. Loose ac
 spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
 from its bottom).
 
-[Ribbons](./curve-ribbon.mjs) displace a 3D curve horizontally with Z kept:
-`prepareCurveRibbon({curve, closed}).ribbon(depth)`. Where the displaced curve
-runs backwards in plan view, the fold is cut at the plan-view crossing that
-closes it within half a turn of the source, leaving a small Z step; when nothing
-closes it, only the backwards part is cut. A closed curve's fold may straddle its
-seam (the search runs on three copies). `foldCuts(moved, source, closed)`
-returns the cut intervals for other callers. Crossings between distant parts stay.
-Reversals are found from 32 samples per knot span.
+[Curve ribbons](./curve-ribbon.mjs) accept curves only:
+`prepareRibbon({curve, closed, vertical:[0,0,1]}).ribbon(depth)` offsets across the
+projected tangent and preserves height along any reference direction. A fold is
+cut at its closing crossing within half a turn, or only its backwards interval.
+Closed seams use three copies; distant crossings stay. `foldCuts` returns these
+intervals to other callers. Reversals use 32 samples per knot span.
 
 `prepareSleeveContours` in [sleeve-frame.mjs](sleeve/sleeve-frame.mjs) offsets horizontal native NURBS
 isocurves of periodic patches whose V chart reproduces actual Z. Crossings
@@ -263,7 +257,7 @@ The caller chooses centerline offset; optional fitted mesh contact is unilateral
 
 ### Geometry contract
 
-The **spline backend** accepts a closed shell of untrimmed bivariate spline
+The **spline backend** accepts a shell of untrimmed bivariate spline
 patches. Mesh input uses the [shared geometry interface](#geometry-interoperability-for-skill-authors).
 Every spline face is
 a full rectangular (u,v) patch, which is what makes sectioning tractable without
@@ -274,11 +268,11 @@ booleans, no brep meshing and no surface intersection, its `BrepTrim` carries
 topology indices with no parameter-space curve, and `BrepFace.loops` is unbound
 in this build. A trimmed face therefore cannot be classified, and is rejected.
 
-Closure is verified numerically: every non-degenerate patch boundary must be
-matched by another patch's boundary, compared geometrically by closest point
-rather than by parameter, since a ruled surface reparameterises its source
-iso-curve. A degenerate boundary (a pole, as at a cap centre) closes by
-itself. A trimmed or missing face fails this check.
+Closure is measured numerically: each patch boundary is matched to another by
+closest point rather than by parameter, since a ruled surface reparameterises its
+source iso-curve; a pole closes by itself. An open shell builds, saves, shows and
+slices what closes on each layer; [target tessellation](./tessellate.mjs) names
+its open edges to solid operations.
 
 ### Sectioning untrimmed spline shells
 
@@ -306,11 +300,11 @@ chord follows the surface within tolerance, with each inserted point projected
 back onto the contour. What can still be missed is a component smaller than the
 final cell, bounded by `minFeatureMm`, whose default is the bead width.
 
-A plane through a critical point of the surface (a saddle, where the contour
-self-touches) or flush with a whole face is genuinely ambiguous. Both are
-resolved the way slicers resolve them, by displacing the plane by up to 0.1 um
-and re-cutting; the displacement is reported. A section that still will not
-close raises rather than returning a part with a gap in it.
+A plane through a saddle of the surface (where the contour self-touches) or flush
+with a whole face is ambiguous; like other slicers, SAAM displaces it by up to 10 um,
+re-cuts and reports the displacement. A section that still does not close, or meets
+an open or nonmanifold mesh edge, joins gaps up to the caller's `gapMm` (the line
+width), keeps every closed loop and lists the gaps and left-out pieces in `open`.
 
 ## Mesh sleeves
 
@@ -369,17 +363,16 @@ word to fill the circle. Bezier arc length uses a subdivided chord table with
 continuous curve/tangent evaluation; it is approximate. Existing UV references
 and saved compiled meshes retain their semantics.
 
-[Target tessellation](./tessellate.mjs) samples supported closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
-Its dyadic grid doubles until sampled chord deviation meets tolerance, rejecting unmatched seams and mesh-validation failures.
-There is no triangle budget; refinement that no longer lowers deviation reports an unreachable tolerance.
-The 1e-7 mm welding grid differs from the 0.02 mm default approximation target. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
+[Target tessellation](./tessellate.mjs) samples closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
+Its dyadic grid doubles, with no triangle budget, until sampled chord deviation meets tolerance; once a doubling no longer lowers it, the closer grid is kept with a note.
+Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
 The text result is a `shape: text` recipe inside the existing native mesh bundle:
 original base, editable features, quality controls and output vertices/triangles.
 The persisted mesh is the reviewed and sliced geometry; reopening uses it without
 rerunning font shaping or booleans. Text edits rebuild through
-[the preparation entry](../print/text.mjs), then the normal bundle update leaves
+[the preparation entry](../../skills/text/scripts/text.mjs), then the normal bundle update leaves
 the program stale. Assembly edits retain the selected component id and other
 components' representations.
 
@@ -398,7 +391,7 @@ consumers, prefixing their names with the assembly component id where present.
 The final merged mesh remains the default whole-solid selection and review model.
 Changing the selected material or toolpath skill leaves the geometry record
 unchanged. The [region contract](../region/README.md#material-ownership-and-surface-contact)
-owns assignment and overlap rules.
+owns assignment rules.
 
 Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
 [Manifold](https://manifoldcad.org/docs/jsapi/documents/Using_Manifold.html).
@@ -424,30 +417,66 @@ complete Rhino computation engine.
 
 The [mesh-tools manual](../../skills/mesh-tools/BUILDER.md) owns command use and
 review of changes. [The repair entry](../print/repair-stl.mjs) preserves the
-source, runs exact cleanup, and uses the [native CGAL adapter](./mesh-native.mjs)
-when cleanup alone does not yield a valid mesh. Studio and agent imports
+source, normalizes close vertices, and repairs the solid when cleanup alone does not
+yield a valid mesh. Studio and agent imports
 attempt it for recognized defects, then present geometry for review. Invalid
-formats retain their diagnostics; repair never fills holes without explicit bounds.
+formats retain their diagnostics; repair never fills holes without explicit bounds,
+and imports pass their own (`IMPORT_HOLE_DIAMETER_MM`, `IMPORT_HOLE_EDGES` in
+[import-stl.mjs](./import-stl.mjs)).
 
-[Cleanup](./mesh-repair.mjs) removes degenerate faces and unused vertices; coincident
-faces keep one copy facing their net orientation (an opposed pair cancels).
-`cleanTriangleSoup(input,{mergeToleranceMm:0})` defaults to identical coordinates.
-An explicit positive tolerance snaps each point to its nearest retained vertex
-within that Euclidean distance in mm; input order breaks ties. Representatives
-never move, repeated coordinates share a decision, and neighbours do not chain.
-Spatial buckets only find candidates; they never round accepted coordinates.
-Collapsed-face stitching uses existing collinear boundary vertices (numeric
-conditioning), without guessing branches or filling holes. Ordinary imports remain
-exact-only. Reports include merge counts and maximum displacement; shape-change
-evidence includes the merge. [CGAL](./native/README.md) orients/stitches, fills holes
-only within explicit limits, closes opposed sheets within print resolution and
-replaces a self-crossing surface by its solid's boundary; reports give the closing,
-cancelled area and inward/outward shells before and after (fewer inward shells:
-cavities opened).
+[Source admission](./mesh-source.mjs) and explicit repair share `prepareMesh` in
+[mesh-repair.mjs](./mesh-repair.mjs): units resolve to millimetres first, then one
+[bounded coordinate weld](./mesh-vertices.mjs) precedes solid repair and publication checks.
+Unchanged admitted geometry retains its exact source arrays. Cleanup removes degenerate faces
+and unused vertices, keeps coincident faces in their net orientation (an opposed
+pair cancels), and stitches complete boundary chains within print resolution.
+`mergeToleranceMm` sets the effective weld to the greater of it and print resolution,
+measured against original coordinates. Reports retain requested/effective distances,
+displacement and removed-source provenance. An empty result becomes spatial geometry
+without a solid; exact zero-facet STL carries explicit repair's empty output.
+[Solid repair](./mesh-repair.mjs) orients faces across
+two-face edges (each component keeps the orientation of most of its area), refuses
+unorientable edges, fills holes within both explicit bounds and refuses any other open
+edge, reverses an inside-out solid and replaces a self-crossing
+surface by its solid's boundary ([reconstruction](./mesh-autorefine.mjs)). Opposed
+sheets within print resolution close: faces near each seeded opposed pair's fitted
+plane join it, regions that share a vertex or a seeded pair become one sheet, and
+every vertex of a sheet moves onto that sheet's one plane, whose points on its lattice
+are exact doubles, so each seeded pair ends exactly coplanar and cancels. Exact
+arrangement splits faces along every crossing; a face stays where the winding number
+is positive on one side only. New points round to the rounding guard, except that a
+point constructed in a sheet's plane rounds on that plane's lattice, as closing places
+the vertices it moves, so sheets stay exact planes through every rounding pass (and
+pairs of faces on one sheet are coplanar without orientation tests); source points stay.
+Rounding that still crosses after six passes keeps its surface and reports it. Cleanup then
+removes slivers (triangles below the rounding guard) with three local edits: a flip of a flat
+corner's long edge, a split that puts a point on that edge beneath the corner and collapses the
+corner into it, and a collapse of a short edge or of vertex pairs closer than print resolution,
+closest first, into the end that stays (a source vertex, else a sheet vertex). Each face carries
+how far it may lie from the surface before cleanup; an edit adds its own distance (a collapse
+the smaller of the edge length and twice a flat star's distance from its plane) and stays below
+print resolution at that place. An edit keeps the manifold and adds no contact (crossing or
+rounding-guard). Rounds repeat around the last round's edits until nothing changes. Pairs and
+slivers that stay are reported. Reports give the closing, cancelled area, the
+merge and inward/outward shells before and after (fewer inward shells: cavities opened).
 
-Final checks use shared mesh topology/intersection checks, adjacent-contact checks
-and reimport of the exact decimal ASCII STL. Non-intersection is certified at the
-numeric conditioning margin, not proved exactly. Reports count unchanged/changed/new
+Hole filling follows each hole's boundary from face to face around each vertex, as a
+halfedge mesh links borders, and splits a boundary that meets a vertex twice, so
+holes touching at a vertex fill apart. A hole fills only when its edge count is at
+most `maxHoleEdges` and its boundary's bounding-box diagonal at most
+`maxHoleDiameterMm`; other holes, and edges that cannot be oriented alike, stay open and are
+reported, and reconstruction then does not run. Each hole is triangulated without new vertices by Liepa's dynamic programme
+(P. Liepa, "Filling Holes in Meshes", SGP 2003) with the weight CGAL's
+`triangulate_hole` uses: the largest dihedral angle between adjacent faces, then
+area. A patch never repeats an existing edge and uses slivers only when no fill avoids them,
+then the shortest; sliver cleanup removes them (a flat crack zips this way) and a patch
+that crosses the surface is resolved by reconstruction. Time grows as
+the cube of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at
+2,000 on the development machine) and memory as its square (about 170 MB at 2,000).
+Reports give `holesFilled` and `holeTrianglesAdded`.
+
+Final checks use shared mesh topology checks and reimport of the exact decimal ASCII
+STL; remaining contacts and topology are reported in `remaining`. Reports count unchanged/changed/new
 faces and sample at most 10,000 vertices/centroids per direction, without claiming
 a certified surface-error bound. Identical geometry needs no sampling. The optional
 sampled-distance limit rejects measured excess; geometry still needs review.
@@ -461,7 +490,7 @@ have one owner. The wrapper computes the source hash and reports progress while
 reading; the parser retains only indexed geometry, an 84-byte format prefix and
 the current record/token remainder. The public import
 and repair file entries accept paths so callers need not allocate the entire
-source buffer. Output STL is written in bounded text chunks. Native temporary
+source buffer. Output STL is written in bounded text chunks. Repair temporary
 files are private to each request and deleted on success, failure or cancellation;
 file results are staged and validated before publishing a new destination.
 
@@ -476,20 +505,14 @@ triangles). A real allocation failure is reported as it happens, naming the stag
 and the mesh size, and never changes geometry. When the Node heap itself is
 exhausted inside the repair worker the supervisor reports that the mesh exceeded
 available memory rather than an anonymous worker failure. The source indexed mesh,
-CGAL mesh and final result still require memory. Neither native repair nor
+the arrangement and the final result still require memory. Neither repair nor
 downstream bundle serialization is out-of-core; a mesh larger than the machine can
 hold fails on the allocation that actually failed, not on a prediction.
 
-Repair runs in a worker thread, with CGAL in a child process. Async repair accepts `signal`, `progress` and `onGeometry`.
-Countable stages report completed/total and percentage within that stage. CGAL
-patch work is indeterminate; no fabricated global percentage is reported.
-Elapsed time never refuses a repair. The child process ends when it finishes,
-when it fails, or when the caller cancels through `signal`; nothing kills it for
-running long, because the pinned helper reports only when it enters a stage and
-its self-intersection and hole-triangulation work can run for a long time in one
-stage. Silence is therefore not evidence of a stalled child, and no interval of
-silence is treated as one. The helper's stdout report is a single line of counts;
-anything larger is rejected as output that did not come from this helper.
+Repair runs in a worker thread, including hole filling. Async repair accepts `signal`,
+`progress` and `onGeometry`. Countable stages report completed/total and percentage
+within that stage; reconstruction stages report entry only. Elapsed time never
+refuses a repair; cancellation terminates the worker. No global percentage is inferred.
 After final validation, `onGeometry` receives at most 4,096 full-quality triangles
 per chunk, with local vertices/indices, first-triangle offset and completion
 percentage. Each callback is awaited, allowing the consumer to release a chunk

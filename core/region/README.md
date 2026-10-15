@@ -106,8 +106,7 @@ closed-loop canonicalizer. Parameter-preserving line spans and boundary contacts
 for wing, scanline and travel queries use the separate shared Geometry
 [line/region query](../geom/README.md#planar-lineregion-clipping); it explicitly
 preserves their parity, winding and boundary policies. There is no XOR, UV surface adapter, mesh booleans,
-NURBS intersections or backend-selection framework. Use Clipper2; consider CGAL
-only if tests show an unmet requirement.
+NURBS intersections or backend-selection framework. Use Clipper2.
 
 Operations are synchronous and need no network at runtime.
 
@@ -153,25 +152,16 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 
 ## Material ownership and surface contact
 
-`plan.slices.assignments` owns surface, stack and material selection.
-[allocateChartClaims](ownership.mjs) rejects competing positive material claims;
-a default owner retains the remainder after explicit regions and reservations.
-Shared ownership and connected mixed-family overlap are deferred to [0.3.0](../../plans/0.3.0.md).
-Diagnostics identify assignments/components. Planar polygon contact uses the
-shared `TOLERANCE.point` (`1e-6` mm), not bead dimensions; spline section evidence
-also accounts for `TOLERANCE.chord` (`1e-3` mm). Bounds and control-hull separating
-directions can prove disjointness, never overlap. Boundary-interval probes catch
-thin claims between print layers. Uncertifiable curved, rotated or concave pairs
-report that exclusivity cannot be established; touching is not universally certified.
-Matching reference charts compare regions/depth directly. See the
-[slice manual](../../skills/slice/SKILL.md); assembly components are not implicitly unioned.
-Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
-component ID in an assembly. [Geometry selections](../geom/selections.mjs)
-resolves these with their component placement without changing saved geometry.
+[prepareMaterialRegions](./shared-material/prepare.mjs) takes ordered native claims
+and nominal stacks, returning owned layers, adjusted references and findings.
+Settings stay per region; defaults retain unclaimed material and separate parts.
+An explicit `substrate:{origin,normal}` plane clips stack advance in its frame.
+Shared cadence/nonplanar transitions remain in development; see the [slice manual](../../skills/slice/SKILL.md).
+Text selections are `base` and `text/<feature-id>`, prefixed by assembly component;
+[geometry selections](../geom/selections.mjs) applies placement without changing saved geometry.
 
-[assignmentPlan](../print/assignment-process.mjs) resolves filament defaults then
-assignment process overrides. Explicit stack gaps govern slice-family geometry;
-process values supply deposition defaults.
+[assignmentPlan](../print/assignment-process.mjs) resolves filament defaults and assignment overrides.
+Stack gaps define layers; process values supply deposition defaults.
 
 [reservation.mjs](./reservation.mjs) removes temporary process cavities from
 owned material. A plastic-weld reservation supplies a
@@ -190,9 +180,9 @@ error. Only actual exporters enforce machine orientation compatibility.
 
 A skin's `supportFrom` selects a finalized source and prerequisites.
 Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
-reference gaps without final-bead queries. ON selects nominal predecessor courses
-per chart column and measures actual bead gaps; missing required substrate and
-invalid contact rejects; exporters enforce machine limits. This changes volume, not authored slice XYZ.
+reference gaps without final-bead queries. ON selects nominal predecessor slices per chart column and measures actual bead gaps;
+missing required substrate rejects; exporters enforce machine limits. A course with no material below keeps its nominal bead, one
+running into material deposits nothing there, and `limitations` lists each span. This changes volume, not authored slice XYZ.
 3D-printing support assignment is a separate judgment. Absent named sources and
 dependency cycles remain invalid in either mode.
 

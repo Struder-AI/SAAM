@@ -2,6 +2,7 @@
 // spline evaluation or an explicitly mapped triangle strip; no inverse mapping.
 import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 export function validateSurfaceSelection(s){
   requireThat(s&&['spline','mesh-strip'].includes(s.kind)&&typeof s.periodicU==='boolean'&&[1,-1].includes(s.normalSide),'Invalid cladding surface selection.');
@@ -55,7 +56,9 @@ export function surfaceRegion(shell,spec){
   const sample=(u,v)=>{requireThat(u>=0&&u<=1&&v>=0&&v<=1,'Surface sample outside selected region.');return chart.at(u,v);};
   if(spec.periodicU)for(let j=0;j<=16;j++){
     const a=sample(0,j/16),b=sample(1,j/16);
-    requireThat(distance(a.point,b.point)<1e-6&&distance(a.normal,b.normal)<1e-4,'Periodic surface seam must match in position and normal.');
+    // Same point at print resolution; the normal match is a direction judgement whose value
+    // predates the classes (mesh-strip normals are interpolated, so a stricter bound is deferred).
+    requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<1e-4,'Periodic surface seam must match in position and normal.');
   }
   return {at:sample,breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind};
 }

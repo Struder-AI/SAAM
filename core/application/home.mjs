@@ -2,12 +2,19 @@
 import {homedir} from 'node:os';
 import {resolve} from 'node:path';
 
-export function saamHome(){
-  // Isolated installation trials and tests explicitly supply their disposable home.
-  if(process.env.SAAM_DATA)return resolve(process.env.SAAM_DATA);
-  if(process.env.NODE_TEST_CONTEXT||process.execArgv.includes('--test'))
-    throw Error('Tests never use the person\'s SAAM home: import core/tests/temporary-home.mjs (sets SAAM_DATA) or pass explicit paths.');
+// Every runtime uses the installed library; choosing source code changes no home.
+export function canonicalHome(){
   return process.platform==='win32'?resolve('C:/SAAM'):resolve(homedir(),'SAAM');
+}
+export function pathIdentity(path){const absolute=resolve(path);return process.platform==='win32'?absolute.toLowerCase():absolute;}
+export function saamHome(){
+  // Only Node's internal test processes may inject a disposable home. Production
+  // commands and runtime children ignore ambient SAAM_DATA.
+  if(process.env.NODE_TEST_CONTEXT||process.execArgv.includes('--test')){
+    if(process.env.SAAM_DATA)return resolve(process.env.SAAM_DATA);
+    throw Error('Tests need core/tests/temporary-home.mjs or explicit paths.');
+  }
+  return canonicalHome();
 }
 export function homePaths(root=saamHome()){
   const home=resolve(root),local=resolve(home,'local');

@@ -1,8 +1,8 @@
-import {compileGridfinity} from './gridfinity.mjs';
+import {compileGridfinity,editedGridfinityParameters} from './gridfinity.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
-export async function editGridfinity(source,parameters,{part,buildGeometry,constructSolids,mappedTextMaterial,compileText}){
+export async function editGridfinity(source,parameters,{part,buildGeometry,constructSolids,textOutlines,textLayout,mappedRegionMaterial,compileText}){
   const plan=structuredClone(source);
   const owner=part?plan.geometry.parts?.find(p=>p.id===part):plan;
   requireThat(owner,'Unknown gridfinity part.');
@@ -10,11 +10,10 @@ export async function editGridfinity(source,parameters,{part,buildGeometry,const
   const original=text?text.base:owner.geometry;
   requireThat(original?.shape==='gridfinity','Select an existing gridfinity part.');
   requireThat(parameters&&typeof parameters==='object'&&!Array.isArray(parameters),'Gridfinity parameters must be an object.');
-  requireThat(parameters.kind===undefined||parameters.kind===original.parameters.kind,'Create another print to change gridfinity kind.');
-  const geometry=await compileGridfinity({...original.parameters,...parameters},{constructSolids});
-  if(text){
-    requireThat(typeof compileText==='function','Gridfinity text needs the selected text extension compiler.');
-    owner.geometry=await compileText(geometry,text.features,{buildGeometry,constructSolids,mappedTextMaterial,toleranceMm:text.toleranceMm,maxEdgeMm:text.maxEdgeMm});
-  }else owner.geometry=geometry;
-  return {geometry:plan.geometry};
+  const bin=await compileGridfinity(editedGridfinityParameters(original.parameters,parameters),{constructSolids});
+  if(text)requireThat(typeof compileText==='function','Gridfinity text needs the selected text extension compiler.');
+  const lettered=text?await compileText(bin.geometry,text.features,{buildGeometry,constructSolids,textOutlines,textLayout,mappedRegionMaterial,toleranceMm:text.toleranceMm,maxEdgeMm:text.maxEdgeMm}):null;
+  owner.geometry=lettered?lettered.geometry:bin.geometry;
+  const notes=[...bin.notes,...(lettered?.notes??[])];
+  return {geometry:plan.geometry,...(notes.length?{report:{notes}}:{})};
 }

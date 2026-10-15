@@ -1,4 +1,4 @@
-// Agent import commands coordinate Geometry and Bundle; persistence accepts completed artifacts.
+// Agent import commands coordinate Geometry and Bundle through one admitted shape.
 import {initBundle,loadBundle,updatePlan} from './bundle.mjs';
 import {bundleInstance,requireBundleInstance} from './studio-ownership.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
@@ -20,7 +20,7 @@ export async function commitSTLImport(directory,candidate,options={}){
     if(!owned||saved){error.importDestinationExists=true;throw error;}await requireBundleInstance(target);}
   try{
     await initBundle(target,{...recipeDefaults(),geometry:candidate.geometry},{machineId:null,
-      sourcePath:candidate.sourcePath,preparedGeometry:candidate.artifact,attachments:candidate.attachments});
+      sourcePath:candidate.sourcePath,attachments:candidate.attachments});
     options.signal?.throwIfAborted();
     if(options.machineId)await changeMachine(target,options.machineId,{machineSetups:options.machineSetups});
     options.signal?.throwIfAborted();

@@ -2,7 +2,8 @@
 // including helper calls and actual T/EX/TIME/IO fields. Annotations supply only
 // process intent and labels, never playback coordinates or rotary motion.
 
-import {requireThat,distance,validateDensoConfiguration,DENSO_LIMITATIONS} from '../denso.mjs';
+import {requireThat,distance,validateDensoConfiguration} from '../denso.mjs';
+import {heldTableDeg} from '../kinematics.mjs';
 import {createHash} from 'node:crypto';
 // Debug-only machine verification (machine-verify): executes the written
 // PacScript subset. Generation, reopen, Studio and delivery never load it;
@@ -13,7 +14,7 @@ export function verify(bytes,plan,machine,Export){
   const m=JSON.parse(entries.get('manifest.json').toString('utf8'));
   requireThat(m.schema==='saam-denso-program/1'&&m.entry==='main.pcs'&&m.machineHash===digest(machine)&&m.setupHash===digest(plan.setup),'DENSO setup/machine identity differs.');
   requireThat(Array.isArray(m.sourceFiles)&&[...entries.keys()].filter(k=>k!=='manifest.json').sort().join()===m.sourceFiles.slice().sort().join(),'DENSO source inventory differs.');
-  return interpretDensoFiles(Object.fromEntries(m.sourceFiles.map(n=>[n,entries.get(n).toString('utf8')])),plan,machine,Export.frame);
+  return {...interpretDensoFiles(Object.fromEntries(m.sourceFiles.map(n=>[n,entries.get(n).toString('utf8')])),plan,machine,Export.frame),limitations:m.limitations??[]};
 }
 function interpretDensoFiles(files,plan,machine,frame,moves=[]){
   const {rotateZ,rotatePointZ:bedPoint,interpolateDirectionPair,validateDirectionPair}=frame;
@@ -39,11 +40,11 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
     requireThat(!body,'Unclosed Sub in '+file);
   }
   load('main.pcs');requireThat(visited.size===Object.keys(files).length,'Unreferenced source in PacScript package.');
-  let rotary=c.initialPose.rotaryDeg,room=bedPoint(c.initialPositionMm,rotary,c.rotaryCenterMm),
+  let rotary=heldTableDeg(c),room=bedPoint(c.initialPositionMm,rotary,c.rotaryCenterMm),
     orientation={toolAxis:rotateZ(c.initialPose.toolAxis,rotary),toolUp:rotateZ(c.initialPose.toolUp,rotary)},
-    seconds=0,relay=null,taken=false,tool=null,work=null,volume=0,estimate=0;
-  const events=[],active=new Set(),numberPattern='[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?';
-  const movePattern=new RegExp('^Move L,\\s*@0 T\\(([^)]+)\\) EX\\(\\((\\d+),\\s*('+numberPattern+')\\)\\),\\s*Time\\s*=\\s*('+numberPattern+')$','i');
+    seconds=0,relay=null,taken=false,tool=null,work=null,volume=0,estimate=0,untimedRelay=0;
+  const events=[],active=new Set(),estimated=Number.isFinite(c.extrusionRateMm3S)&&c.extrusionRateMm3S>0,numberPattern='[-+]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][-+]?\\d+)?';
+  const movePattern=new RegExp('^Move L,\\s*@0 T\\(([^)]+)\\) EX\\(\\((\\d+),\\s*('+numberPattern+')\\)\\)(?:,\\s*Time\\s*=\\s*('+numberPattern+'))?$','i');
   function execute(name){
     const body=functions.get(name);requireThat(body&&!active.has(name),'Unknown/recursive PacScript call '+name);active.add(name);
     for(const site of body){
@@ -59,8 +60,10 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
         need(taken&&tool!==null&&work!==null&&relay!==null,'Motion needs explicit arm, frames and relay state.');
         const raw=m[1].split(',').map(x=>x.trim());need(raw.length===10&&raw.every(x=>new RegExp('^'+numberPattern+'$').test(x)),'T requires ten numeric components.');
         const v=raw.map(Number);need(v.every(Number.isFinite)&&v[9]===c.figure&&Number(m[2])===c.rotaryAxis,'Unexpected figure/external axis.');
-        const duration=Number(m[4])/1000,nextRotary=rotary+Number(m[3])/c.rotarySign;
-        need(Number.isFinite(duration)&&duration>0&&Number.isFinite(nextRotary),'Invalid requested motion time/angle.');
+        // No Time: the controller's own speed, as for a reorientation in place.
+        const duration=m[4]===undefined?0:Number(m[4])/1000,nextRotary=rotary+Number(m[3])/c.rotarySign;
+        if(m[4]===undefined&&relay)untimedRelay++;
+        need(Number.isFinite(duration)&&(duration>0||m[4]===undefined)&&Number.isFinite(nextRotary),'Invalid requested motion time/angle.');
         const nextRoom=fromWork(v.slice(0,3),c),nextOrientation={toolUp:rotateZ(v.slice(3,6),-c.workYawDeg),toolAxis:rotateZ(v.slice(6,9),-c.workYawDeg)};
         validateDirectionPair(nextOrientation.toolAxis,nextOrientation.toolUp);
         need(site.annotation,'Missing process-intent annotation.');const label=JSON.parse(site.annotation);
@@ -71,14 +74,14 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
         // index is refused.
         const n=Math.max(1,Math.ceil(Math.abs(nextRotary-rotary)),Math.ceil(distance(room,nextRoom)/2));
         need(Number.isSafeInteger(n),'Requested rotary sweep or travel is too large to subdivide.');
-        let from=bedPoint(room,rotary,c.rotaryCenterMm,true),oldAngle=rotary,oldAxis=rotateZ(orientation.toolAxis,-rotary),oldUp=rotateZ(orientation.toolUp,-rotary);
+        let from=bedPoint(room,rotary,c.rotaryCenterMm,true),oldAxis=rotateZ(orientation.toolAxis,-rotary),oldUp=rotateZ(orientation.toolUp,-rotary);
         for(let i=1;i<=n;i++){
           const t=i/n,a=rotary+(nextRotary-rotary)*t,world=room.map((x,k)=>x+(nextRoom[k]-x)*t),[axisRoom,upRoom]=interpolateDirectionPair([orientation.toolAxis,orientation.toolUp],[nextOrientation.toolAxis,nextOrientation.toolUp],t),
-            to=bedPoint(world,a,c.rotaryCenterMm,true),axis=rotateZ(axisRoom,-a),up=rotateZ(upRoom,-a),intent=label.volumeMm3/n,estimated=relay?c.extrusionRateMm3S*duration/n:0;
-          moves.push({line:site.line,file:site.file,from,to,extruding:relay,volumeMm3:intent,commandedVolumeMm3:intent,estimatedRelayVolumeMm3:estimated,
-            phase:label.phase,layer:label.layer,operation:label.operation??null,fan:0,speedMmS:distance(from,to)/(duration/n),startSeconds:seconds+(i-1)*duration/n,durationSeconds:duration/n,
-            rotaryFromDeg:oldAngle,rotaryToDeg:a,toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,rotaryCenterMm:c.rotaryCenterMm,interpolation:'nominal-cartesian-rotary'});
-          from=to;oldAngle=a;oldAxis=axis;oldUp=up;estimate+=estimated;
+            to=bedPoint(world,a,c.rotaryCenterMm,true),axis=rotateZ(axisRoom,-a),up=rotateZ(upRoom,-a),intent=label.volumeMm3/n,estimatePart=estimated&&m[4]!==undefined?(relay?c.extrusionRateMm3S*duration/n:0):null;
+          moves.push({line:site.line,file:site.file,from,to,extruding:relay,volumeMm3:intent,commandedVolumeMm3:intent,estimatedRelayVolumeMm3:estimatePart,
+            phase:label.phase,layer:label.layer,operation:label.operation??null,fan:0,speedMmS:duration>0?distance(from,to)/(duration/n):0,startSeconds:seconds+(i-1)*duration/n,durationSeconds:duration/n,
+            toolAxisFrom:oldAxis,toolAxisTo:axis,toolUpFrom:oldUp,toolUpTo:up,interpolation:'nominal-cartesian-rotary'});
+          from=to;oldAxis=axis;oldUp=up;if(estimatePart!==null)estimate+=estimatePart;
         }
         volume+=label.volumeMm3;seconds+=duration;room=nextRoom;orientation=nextOrientation;rotary=nextRotary;
       }else need(false,'Unsupported PacScript statement: '+text);
@@ -86,9 +89,10 @@ function interpretDensoFiles(files,plan,machine,frame,moves=[]){
     active.delete(name);
   }
   execute('main');
-  const summary={moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,volumeMm3:volume,commandedVolumeMm3:volume,estimatedRelayVolumeMm3:estimate,relayEstimateDifferenceMm3:estimate-volume,
-    materialModel:'relay-estimate',filamentMm:null,motionSeconds:seconds,timing:'Requested TIME at 100% external speed; nominal synchronized progress only.',coordinateFrame:'part-relative deposition; rotating bed in fixed-room view'};
+  const available=estimated&&!untimedRelay;
+  const summary={moves:moves.length,extrusionMoves:moves.filter(m=>m.extruding).length,volumeMm3:volume,commandedVolumeMm3:volume,estimatedRelayVolumeMm3:available?estimate:null,relayEstimateDifferenceMm3:available?estimate-volume:null,
+    materialModel:available?'relay-estimate':'relay-estimate-unavailable',filamentMm:null,motionSeconds:seconds,timing:'Written TIME at 100% external speed; controller-selected untimed duration excluded.',coordinateFrame:'part-relative deposition; rotating bed in fixed-room view'};
   return {moves,events,seconds,volumeMm3:volume,summary,language:'denso-pacscript',sources:files,finalPosition:bedPoint(room,rotary,c.rotaryCenterMm,true),
-    checks:['strict-pacscript-subset','tool-work-frame-identity','relative-rotary-commands','requested-time','relay-state','commanded-volume-intent'],limitations:DENSO_LIMITATIONS,
+    checks:['strict-pacscript-subset','tool-work-frame-identity','relative-rotary-commands','requested-time','relay-state','commanded-volume-intent'],
     notice:'Experimental RC8A command preview. Nominal timing/rotary interpolation; reach, joint limits, collisions and physical deposition unchecked.'};
 }

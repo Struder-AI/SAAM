@@ -46,7 +46,7 @@ Open the `visualCheck` image each geometry change and generation returns; correc
 1. **First preview.** Create a print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.
    Ask first only when an essential feature has no reasonable default.
-2. **Geometry.** Invite changes; generate whenever a toolpath helps, first naming the proposed printer and material.
+2. **Geometry.** Invite changes; generate whenever a toolpath helps. Generation needs no printer; the printer can be chosen at any time and only its program waits for it.
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
 4. **Export.** The person exports from Studio; that Export is the one

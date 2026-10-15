@@ -13,7 +13,7 @@
 | Non-literal dynamic `import()` | 2 | Model as the declared extension boundary |
 | Callee expressions (`(await f())()`, `(a??b)()`, `(c?f:g)()`, `f()()`) and computed callees | 20 | Already modelled; drop the notes |
 | JSON module import | 1 | Modelled (done) |
-| In-scope code importing `examples/` | 10 | Scope decision |
+| In-scope code importing `examples/` | 1 (was 10; rechecked 2026-10-06) | Scope decision |
 | `arguments`, `with`, `eval`, `Function` | 0 | SAAM code uses named parameters and static code; not modelled |
 | Platform APIs without a model | 58 APIs, 141 sites | Imprecision, not code to rewrite (below) |
 
@@ -33,7 +33,7 @@
 
 **JSON module import.** `machines/bambu/bambu-project.mjs:2` imports `bambu-project-fields.json`; it is now a value of the plain-data family.
 
-**Imports of `examples/` from in-scope code (10 sites).** `core/print/cli.mjs:12`, `studio/tour.mjs:8,43` (the tour runs example recipes in use), `skills/text/scripts/draped-demo.mjs:5`. The scope excludes `examples/`, so these calls reach nothing. Decision for the owner: bring the tour's examples into scope (they run when Studio is used), or make the tour load them through a declared boundary.
+**Imports of `examples/` from in-scope code (1 site, rechecked 2026-10-06).** `studio/tour.mjs:12` (the tour's dynamic import of the starter recipe, `examples/prints/starter/recipe.mjs`, which it runs in use); the other sites' files are gone. The scope excludes `examples/`, so this call reaches nothing. Decision for the owner: bring the tour's examples into scope (they run when Studio is used), or make the tour load them through a declared boundary.
 
 ## Platform APIs
 

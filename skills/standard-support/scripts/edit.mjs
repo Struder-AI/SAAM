@@ -1,44 +1,51 @@
+import {STANDARD_SUPPORT,footprintRoofs,treeSolids,supportSolid,supportSlice,skinSlice,withSupportOperand} from './support-geometry.mjs';
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+const SOURCES=['roof','triangleIndices','footprint','tree'];
 
-// Source stays an ordinary Boolean operand; support claims are ordinary Slice
-// volumes. Each authored contribution has no private reconstruction lifecycle.
-export async function editStandardSupport(source,request,{buildGeometry,constructSolids,closeMeshPatchToPlane}){
+// One support source becomes one closed solid: a selected or copied roof, or a
+// flat footprint, lowered by the gap and closed to the bed; or a tree skeleton.
+// A roof source also returns its roofs raised by skinMm for the part's skin.
+function sourceSolid(request,original,{gapMm,chordMm,bedZMm,skinMm},closeMeshPatchToPlane){
+  if(request.tree!==undefined)return {...treeSolids(request.tree,{gapMm,chordMm,bedZMm}),raised:[]};
+  if(request.footprint!==undefined)requireThat(request.footprint&&Object.keys(request.footprint).sort().join()==='loops,zMm','A footprint is {loops, zMm}.');
+  const {roof,triangleIndices}=request;
+  if(roof!==undefined)requireThat(roof&&Object.keys(roof).sort().join()==='triangles,vertices'&&Array.isArray(roof.triangles),'Supply an explicit roof mesh with vertices and triangles.');
+  else if(triangleIndices!==undefined)requireThat(Array.isArray(original?.vertices)&&Array.isArray(original?.triangles),'The current component is not an indexed manufacturing mesh; supply an explicit copied roof.');
+  const footprint=request.footprint&&footprintRoofs(request.footprint.loops,request.footprint.zMm);
+  const patches=footprint?footprint.roofs.map(patch=>[patch,patch.triangles.map((_,i)=>i)]):[[roof??original,triangleIndices??roof.triangles.map((_,i)=>i)]];
+  const close=offsetMm=>patches.map(([patch,selection])=>closeMeshPatchToPlane(patch,{triangleIndices:selection,planeZMm:bedZMm,offsetMm}));
+  const closed=close(-gapMm);
+  return {solids:closed.map(c=>c.solid),raised:skinMm>0?close(skinMm).map(c=>c.solid):[],notes:[...(footprint?.notes??[]),...closed.flatMap(c=>c.notes)]};
+}
+
+// The support is a hidden union operand of its part and an ordinary Slice claim;
+// saved geometry and Slice settings regenerate without this extension.
+export function editStandardSupport(source,request,{closeMeshPatchToPlane}){
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Standard support needs a request.');
-  requireThat(Object.keys(request).every(key=>['id','part','roof','triangleIndices','gapMm','fillDensity','angleDeg','baseLayers','reason'].includes(key)),'Unknown standard-support request field.');
-  const {id,part=null,roof,triangleIndices,gapMm=.15,fillDensity=.2,angleDeg=0,baseLayers=2,reason='Authored underside support.'}=request;
-  requireThat(typeof id==='string'&&/^[a-z][a-z0-9-]*$/.test(id),'Standard support needs a stable assignment id.');
-  requireThat(typeof reason==='string'&&reason.trim().length>0,'Record why these underside patches need support.');
+  requireThat(Object.keys(request).every(key=>['id','part',...SOURCES,'gapMm','fillDensity','angleDeg','baseLayers','skinLayers','chordMm','description'].includes(key)),'Unknown standard-support request field.');
+  const {id,part=null,gapMm,fillDensity,angleDeg,baseLayers,skinLayers,chordMm,description}={...STANDARD_SUPPORT,...request};
+  requireThat(typeof id==='string'&&/^[a-z][a-z0-9-]*$/.test(id),'Standard support needs a lowercase hyphenated assignment id.');
+  requireThat(typeof description==='string','Support description must be text.');
   const geometry=structuredClone(source.geometry),assignments=structuredClone(source.slices?.assignments??[]);
-  requireThat(!assignments.some(a=>a.id===id),'The assignment id already exists; edit its ordinary geometry and Slice settings or use another id.');
+  requireThat(!assignments.some(a=>a.id===id||a.id===`${id}-skin`),'The assignment id or its -skin already exists; edit its ordinary geometry and Slice settings or use another id.');
   const component=geometry?.shape==='assembly'?geometry.parts.find(p=>p.id===part):null;
-  requireThat(geometry?.shape==='assembly'?!!component:part===null,'Select the mesh component for an assembly, or leave part null for a single part.');
-  const original=component?component.geometry:geometry;
-  requireThat((roof===undefined)!==(triangleIndices===undefined),'Supply either explicit roof geometry or triangleIndices from the current manufacturing mesh.');
-  if(roof!==undefined)requireThat(roof&&Object.keys(roof).sort().join()==='triangles,vertices'&&Array.isArray(roof.triangles),'Supply an explicit selected roof mesh with vertices and triangles.');
-  else requireThat(Array.isArray(original?.vertices)&&Array.isArray(original?.triangles),'The current component is not an indexed manufacturing mesh; supply an explicit copied roof.');
-  const patch=roof??original,selection=triangleIndices??roof.triangles.map((_,i)=>i);
+  requireThat(geometry?.shape==='assembly'?!!component:part===null,'Select the component for an assembly, or leave part null for a single part.');
+  requireThat(SOURCES.filter(key=>request[key]!==undefined).length===1,'Supply one support source: roof, triangleIndices, footprint or tree.');
   requireThat(Number.isFinite(gapMm)&&gapMm>=0,'Support gapMm must be nonnegative.');
   requireThat(Number.isFinite(fillDensity)&&fillDensity>=0&&fillDensity<=1,'Support fillDensity must be between zero and one, inclusive.');
   requireThat(Number.isFinite(angleDeg),'Support angleDeg must be finite.');
-  requireThat(Number.isSafeInteger(baseLayers)&&baseLayers>=0,'Support baseLayers must be a nonnegative whole number; zero explicitly omits the adhesion base.');
-  // Recipe Z is already above the build plate; only an assembly component has
-  // a local Z origin. Raised parts still need supports reaching the real bed.
-  const bedZMm=-(component?.zMm??0);
-  const support=closeMeshPatchToPlane(patch,{triangleIndices:selection,planeZMm:bedZMm,offsetMm:-gapMm});
-  const supportShell=buildGeometry(support);
-  const placedSupport=component?{operation:'translate',geometry:supportShell,offset:[component.xMm,component.yMm,component.zMm]}:supportShell;
-  const sourceSolids=geometry.shape==='assembly'?geometry.parts.map(p=>({operation:'translate',geometry:buildGeometry(p.geometry),offset:[p.xMm,p.yMm,p.zMm]})):[buildGeometry(original)];
-  const obstacles=sourceSolids.length===1?sourceSolids[0]:{operation:'union',operands:sourceSolids};
-  const [occlusion]=await constructSolids([{operation:'intersection',operands:[placedSupport,obstacles]}]);
-  requireThat(!occlusion,'The vertical support volume crosses part material below the selected underside. Select accessible patches or explicitly author a cutout; no supports were saved.');
-  // assignmentRequests accepts ordinary Slice settings at the existing engine
-  // boundary, so no extension-specific deposition configuration is introduced.
-  const supportRequest={id,part,loops:0,fillDensity,fillPattern:'rectilinear',fillAnglesDeg:[angleDeg],rotateFill:false,connectNearby:false,
-    solidTop:0,solidBottom:baseLayers,process:{liftMm:0,retractMm:0},within:[{kind:'geometry',geometry:support}],description:reason};
-  const assignmentRequests=[supportRequest,...assignments];
-  const replacement={shape:'boolean',operation:'union',operands:[original,support],displayOperand:0};
+  requireThat([baseLayers,skinLayers].every(n=>Number.isSafeInteger(n)&&n>=0),'Support baseLayers and skinLayers must be nonnegative whole numbers.');
+  requireThat(Number.isFinite(chordMm)&&chordMm>0,'Support chordMm must be positive.');
+  // Recipe Z is above the build plate; only an assembly component has a local
+  // Z origin, and a raised part's support still reaches the real bed.
+  const original=component?component.geometry:geometry,bedZMm=-(component?.zMm??0),layerMm=source.process?.layerMm;
+  const skinMm=Number.isFinite(layerMm)&&layerMm>0?skinLayers*layerMm:0;
+  const {solids,raised,notes}=sourceSolid(request,original,{gapMm,chordMm,bedZMm,skinMm},closeMeshPatchToPlane),solid=supportSolid(solids);
+  const replacement=withSupportOperand(original,solid);
   if(component)component.geometry=replacement;
-  return {geometry:component?geometry:replacement,assignmentRequests,report:{id,part,roofTriangles:selection.length,gapMm,fillDensity,angleDeg,baseLayers,
-    adhesion:baseLayers?'Dense bottom courses provide the support base.':'No adhesion base requested; review bed adhesion.',
-    separation:'Geometric roof gap; actual Slice gap also depends on layer sampling.',physicalValidation:'provisional'}};
+  return {geometry:component?geometry:replacement,
+    assignmentRequests:[supportSlice({id,part,solid,fillDensity,angleDeg,baseLayers,description}),
+      ...(raised.length?[skinSlice({id,part,raised,solid,angleDeg})]:[]),...assignments],
+    report:{id,part,source:SOURCES.find(key=>request[key]!==undefined),solids:solids.length,skin:raised.length?`${id}-skin`:null,
+      notes:[...notes,...(baseLayers?[]:['No dense base slices; review bed adhesion or add a brim.'])]}};
 }

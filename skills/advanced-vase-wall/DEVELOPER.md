@@ -17,7 +17,7 @@ does not certify every intermediate section; the fitter/source queries keep
 checking newly encountered heights. The returned `rangeMm` is absolute Z;
 `report` includes the source range, excluded bottom/top heights, margin, sample
 count, source section count and secondary-feature areas. Set the accepted range
-explicitly in the authored recipe and derive a complete course count for it.
+explicitly in the authored recipe and derive a complete pattern repetition count for it.
 Never call this detector to silently shorten an already requested/generated
 path. A valid flat-ended cylinder therefore loses no height, whereas a mesh with
 collapsed extreme caps receives an explicit cap-exclusion proposal.

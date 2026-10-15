@@ -13,6 +13,7 @@ export function leastSquares(matrix){
   let scale=0;for(const row of a)for(const value of row)scale=Math.max(scale,Math.abs(value));
   for(let k=0;k<n;k++){
     let norm=0;for(let i=k;i<m;i++)norm=Math.hypot(norm,a[i][k]);
+    // Standard QR rank test: machine epsilon times the matrix size and scale (float rounding).
     requireThat(norm>Number.EPSILON*Math.max(m,n)*scale,'Reference fit is rank deficient; use fewer controls or more distinct samples.');
     const v=Float64Array.from({length:m-k},(_,i)=>a[i+k][k]);
     v[0]+=v[0]>=0?norm:-norm;

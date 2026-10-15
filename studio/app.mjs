@@ -8,11 +8,11 @@ import {hasConstruction,sliceSummary,recipeRows,materialGrams,nextExportName,dep
 import {sourceSession,machineCameras} from './studio/machine-session.mjs';
 import {machineFitBounds,boundsCorners,machinePalette} from './machine-view.mjs';
 import {createViewerRenderer} from './viewer-renderer.mjs';
+import {DEFAULT_CAMERA} from './camera.mjs';
 import {planRefreshNavigation,outputView} from './refresh-plan.mjs';
 import {completedOutputState} from '../core/print/review-state.mjs';
 import {prepareStudioState,withoutPreviewMaterial} from './studio-state.mjs';
 import {studioControls} from './studio-controls.mjs';
-import {loadSavedPath} from './path-preview.mjs';
 import {viewerConnected} from './viewer-session.mjs';
 import {createServicePanel} from './service-panel.mjs';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
@@ -28,9 +28,9 @@ const exportKey=()=>printSync.state?.printId+':'+printSync.state?.outputId;
 // Page state, one record per owner: the print and its server sync, Studio-run
 // work, what the view shows, the orbit camera, playback, and the machine pose.
 const printSync={state:undefined,stateTag:null,stateUpdate:0,loadedUpdate:0,polling:false,reconnecting:false,changeTimer:undefined,stateFallbackTimer:undefined,progressFallbackTimer:undefined,progressPolling:false};
-const studioWork={busy:false,generating:false,generationTarget:null,acknowledging:false,importElapsedTimer:null,episodeWorking:false,tourUI:undefined};
+const studioWork={busy:false,generating:false,generationTarget:null,acknowledging:false,presentationPending:null,importElapsedTimer:null,episodeWorking:false,tourUI:undefined};
 const viewState={tab:'geometry',selected:null,activePresentation:null,exportNameState:null,machineColors:machinePalette,waveBoundsMoves:null,waveDisplayBounds:null};
-const orbitView={yaw:-0.78,tilt:0.62,zoom:1,pan:[0,0],fitBounds:null,drag:null,moved:false};
+const orbitView={...DEFAULT_CAMERA,zoom:1,pan:[0,0],fitBounds:null,drag:null,moved:false};
 const playState={playing:false,frame:0,seconds:0,lastFrame:0,playbackEpoch:0,movieController:null,movieUrl:null};
 const machinePose={machineSession:null,requestingPose:null,manualValues:null,manualJog:null,manualDescriptor:null};
 import {TOUR_LESSONS as L} from './tour-catalog.mjs';
@@ -40,7 +40,7 @@ function initializeAgentInterface(){return createAgentUI({onActivity:active=>stu
   if(!printSync.state?.work)return;
   printSync.state.work.requests=requests;
   if(needsTourToolpath(printSync.state))scheduleChange();
-},onPresentation:failure=>{if(!studioWork.busy)void acknowledgeDisplayedView(failure).catch(error=>message(error.message,true));},getStage:()=>viewState.tab});}
+},onPresentation:failure=>acknowledgeDisplayedView(failure).catch(error=>{message(error.message,true);throw error;}),getStage:()=>viewState.tab});}
 const canvas=$('#canvas');
 // View bursts go to the server for agents; failures never reach the person.
 // Material detail drops while the view moves and the measured frame cost is
@@ -86,7 +86,7 @@ function updateManualControls(sample){
 function machineTheme(){const style=getComputedStyle(canvas);return Object.fromEntries(Object.keys(machinePalette).map(role=>[role,style.getPropertyValue('--machine-'+role).trim()||machinePalette[role]]));}
 function updateMachineStatus(sample=machineSample()){
   const scene=machinePose.machineSession?.scene,pose=sample?.pose;
-  $('#machine-control').hidden=viewState.tab!=='toolpath'||!printSync.state?.program;
+  $('#machine-control').hidden=viewState.tab!=='toolpath'||!presentedState()?.program||!presentedState()?.machine;
   $('#machine-view').checked=cameras.mode==='machine';$('#machine-view').disabled=studioWork.busy||(!pose&&cameras.mode!=='machine');
   $('#machine-info').hidden=viewState.tab!=='toolpath'||(!scene&&!machinePose.machineSession?.error);
   const diagnostic=sample?.snapshot?.diagnostics.map(d=>d.message).join(' · ');
@@ -111,7 +111,7 @@ function saveView(){
   try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({outputId:printSync.state.outputId,yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds,seconds:playState.seconds,tab:viewState.tab,
     speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
-function restoreView(){
+function restoreView(restoreTab=true){
   try{
     const saved=JSON.parse(sessionStorage.getItem(viewStorageKey()));if(!saved)return;
     if([saved.yaw,saved.tilt,saved.zoom].every(Number.isFinite)){orbitView.yaw=saved.yaw;orbitView.tilt=saved.tilt;orbitView.zoom=saved.zoom;}
@@ -124,7 +124,7 @@ function restoreView(){
     if(saved.outputId===printSync.state.outputId){
       if(Number.isFinite(saved.seconds))playState.seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))orbitView.fitBounds=saved.fitBounds;
-      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||printSync.state.program||printSync.state.neutralProgram))viewState.tab=saved.tab;
+      if(restoreTab&&['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||printSync.state.program||printSync.state.neutralProgram))viewState.tab=saved.tab;
       if(machinePose.machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=orbitView.fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -148,7 +148,7 @@ const presentedState=()=>viewState.activePresentation?.presentedState??printSync
 // geometry action should return to it rather than start a fresh calculation.
 const generationPending=()=>studioWork.generating||printSync.state?.outputGenerating===true;
 // The toolpath pane never goes empty. Without a current program it shows a faded
-// placeholder — the previous toolpath when one is retained, otherwise the part
+// placeholder — the previous toolpath when one exists, otherwise the part
 // being sliced — through first generation, regeneration, reload and failure.
 const showingGeometry=()=>viewState.tab!=='toolpath'||!presentedState()?.program;
 const duration=()=>presentedState()?.program?.summary.motionSeconds??0;
@@ -156,6 +156,7 @@ const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 const round2=v=>Number(v).toFixed(2);
 const materialFact=program=>program.materialModel==='relay-estimate'
   ? ['Material estimate',round2(materialGrams(program.estimatedRelayVolumeMm3))+' g from relay timing; unverified']
+  : program.materialModel==='relay-estimate-unavailable' ? ['Material estimate','Unavailable; external extrusion rate is not configured']
   : [program.envelope?'Part material estimate':'Material estimate',round2(materialGrams(program.volumeMm3))+' g'];
 // A relay-extrusion machine feeds material by external control; it has no filament, bed or fan settings.
 const relay=state=>state.machine?.capabilities?.includes('relay-extrusion');
@@ -241,13 +242,13 @@ const views={
       const limit=state.pathSummary?.surfaceDomain;
       const rows=[...depositionFamilyRows(state.pathSummary?.inspection),
         [state.program.envelope?'Printing motion':'Estimated motion',Math.round((state.program.seconds??duration())/60)+' min'],materialFact(state.program)];
-      for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.courses+' courses']);
-      if(state.program.materialModel==='relay-estimate')rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
+      for(const c of state.pathSummary?.curves??[])rows.push([c.id,c.strokes+' strokes · '+c.repetitions+' repetitions']);
+      if(['relay-estimate','relay-estimate-unavailable'].includes(state.program.materialModel))rows.push(['Material intent',round2(materialGrams(state.program.volumeMm3))+' g; not metered']);
       if(hasConstruction(state.plan,'sleeve')){
         const selections=state.plan.slices.assignments.filter(a=>a.construction==='sleeve');
         rows.push(['Wall paths',selections.some(s=>s.pathMode==='segmented')?'Includes segmented paths with travel':selections.some(s=>s.pattern)?'Continuous pattern wrapped around the sleeve':'Continuous spiral within its assigned region']);
       }
-      for(const family of state.pathSummary?.referenceFamilies?.normal??[])rows.push([family.owner+' · Normal surface courses',String(family.normalOwnership?.courseCount??family.courses??'')]);
+      for(const stack of state.pathSummary?.referenceStacks?.normal??[])rows.push([stack.owner+' · Normal-offset slices',String(stack.layers??'')]);
       for(const instance of state.pathSummary?.slices?.instances??[])if(instance.fillOrder){const f=instance.fillOrder;rows.push(['Surface fronts · '+instance.id,(f.waves??0)+' fronts · '+(f.continuity?.passes??'unverified')+' pass(es) · '+(f.residualsUv?.length??0)+' residual region(s)']);}
       if(limit) {
         rows.push(['Surface not skinned',limit.excludedAreaPercent+'% steeper than '+limit.maxSlopeDeg+'°']);
@@ -352,7 +353,7 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
   if(presentationChanged)clearManual();
   const scenes=viewer.sceneState();
   const adopted=await prepareStudioState(fetched,{previous,follow,presentation:viewState.activePresentation,
-    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:loadSavedPath,
+    pathMoves:scenes.pathMoves,materialMoves:scenes.materialMoves,decode:decodeInWorker,decodeNeutral:decodeSavedPathInWorker,
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   printSync.state=adopted.state;printSync.stateTag=fetchedTag;chatUI.reflect();
@@ -361,8 +362,8 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
   // Metadata can change while the exact same source/move buffers are reused.
   const outputState=outputView(printSync.state);
-  $('#kind-label').textContent=printSync.state.neutralProgram?'Saved SAAMpath · '+(printSync.state.machine?.name??'No printer selected')
-    :(completedOutputState(printSync.state).previous?'Previous toolpath · ':outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
+  $('#kind-label').textContent=(completedOutputState(printSync.state).previous?'Previous toolpath · ':printSync.state.neutralProgram?'Saved SAAMpath · '
+    :outputState.review.generation?.mode==='development'?'Development preview · ':'')+(outputState.machine?.name??'No printer selected');
   document.title=studioTitle(printSync.state.printName);
   $('#open-print').title='Open print: '+printSync.state.printName;
   // Geometry keys off the previously loaded state's geometry id (none on a
@@ -381,7 +382,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
     await machinePose.machineSession.sample(playState.seconds,{manual:machinePose.manualValues,jog:machinePose.manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
-  await acknowledgeDisplayedView();
+  await acknowledgeDisplayedView(navigation.inspectionFailure);
 }
 async function ensureTourGeneration(follow=false){
   if(needsTourToolpath(printSync.state)){
@@ -402,7 +403,6 @@ async function applyProgramPresentation(decision,next){
   let publication=null;
   if(decision.effects.buildPath||decision.effects.buildMaterial){
     const shown=outputView(next),visible=shown.program??next.neutralProgram;
-    if(visible.neutral)viewer.clearProgram();
     publication=await viewer.publishProgram({moves:visible.moves,plan:shown.plan,geometry:shown.geometry,previewMaterial:visible.previewMaterial,
       buildPath:decision.effects.buildPath,buildMaterial:decision.effects.buildMaterial,onProgress:progress=>activity('Preparing material view…',progress)});}
   const state=publication?.previewMaterialConsumed?withoutPreviewMaterial(next):next;
@@ -419,19 +419,25 @@ function applyRefreshNavigation(decision){
   }
   viewState.tab=decision.tab;
   if(decision.notice)message(decision.notice);
-  if(decision.restoreSavedView)restoreView();
+  if(decision.restoreSavedView)restoreView(decision.restoreSavedTab);
   if(decision.resetSelection)selectFeature(null);
 }
-async function acknowledgeDisplayedView(failure){
-  if(studioWork.acknowledging)return;
-  studioWork.acknowledging=true;
+function acknowledgeDisplayedView(failure){
+  studioWork.presentationPending={failure};
+  if(studioWork.acknowledging)return studioWork.acknowledging;
+  studioWork.acknowledging=(async()=>{
   try{
-  await painted();
-  if(failure||agentUI.presentState(printSync.state,viewState.tab,{requiresToolpath:needsTourToolpath(printSync.state)})){
-    const presented=await studioWork.tourUI?.acknowledgeView(printSync.state,viewState.tab,failure);
-    if(presented)agentUI.updated(presented);
-  }
+    do{
+      const pending=studioWork.presentationPending;studioWork.presentationPending=null;
+      await painted();
+      if(pending.failure||agentUI.presentState(printSync.state,viewState.tab,{requiresToolpath:needsTourToolpath(printSync.state)})){
+        const presented=await studioWork.tourUI?.acknowledgeView(printSync.state,viewState.tab,pending.failure);
+        if(presented)agentUI.updated(presented);
+      }
+    }while(studioWork.presentationPending);
   }finally{studioWork.acknowledging=false;}
+  })();
+  return studioWork.acknowledging;
 }
 async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');
@@ -441,6 +447,10 @@ async function decodeInWorker(snapshot){
     plan:snapshot.plan,machine:snapshot.machine,inspection:snapshot.pathSummary?.inspection});
 }
 function bindCachedProgram(snapshot){return machinePose.machineSession?.bind(snapshot);}
+async function decodeSavedPathInWorker(snapshot){
+  const program=await decodeInWorker({...snapshot,outputId:snapshot.review.path.id});
+  return {...program,neutral:true,notice:snapshot.outputAvailability??'Generate to write its machine program before exporting.'};
+}
 function table(entries) {
   const dl=document.createElement('dl');
   for(const [key,value]of entries){const row=document.createElement('div'),dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=value;row.append(dt,dd);dl.append(row);}
@@ -451,7 +461,7 @@ function selectStudioPresentation(state,tab,{facts,settings}){
     guidance:'Inspect the saved, machine-independent path.',facts:[['Moves',String(state.neutralProgram.summary.moves)],
       ['Deposited volume',round2(state.neutralProgram.summary.volumeMm3)+' mm³']],settings:[],
     reviewNote:[state.programError,state.neutralProgram.notice].filter(Boolean).join(' ')};
-  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
+  if(!state.machine||!state.plan.slices||!state.plan.process)return {stage:null,title:'Your geometry',guidance:state.plan.slices?'Generate the toolpath; ask the agent to select a printer for its program.':'Ask the agent to add printing settings and a toolpath recipe.',facts:views.shell.facts(state,'geometry'),settings:[],reviewNote:state.neutralPathError??state.outputAvailability??''};
   const inspection=state.inspection;
   if(inspection)return {stage:'DEVELOPMENT INSPECTION',title:inspection.title,guidance:inspection.description,
     facts:inspection.facts,settings:inspection.settings,reviewNote:inspection.note};
@@ -467,10 +477,14 @@ function render() {
   const presentation=selectStudioPresentation(shown,viewState.tab,{facts:()=>view().facts(shown,viewState.tab),
     settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan)]});
   if(viewState.tab==='toolpath'&&output.previous)presentation.reviewNote='Previous toolpath — recent edits are not included. '+(presentation.reviewNote??'');
-  if(output.phase==='generating')presentation.guidance='Preparing your toolpath…';
-  if(!studioWork.busy)activity(output.phase==='generating'?'Preparing your toolpath…':'');
+  if(output.generating)presentation.guidance='Preparing your toolpath…';
+  if(!studioWork.busy)activity(output.generating?'Preparing your toolpath…':'');
   $('#repair-review').hidden=viewState.tab!=='geometry'||!printSync.state.importRepair;
   $('#repair-summary').textContent=printSync.state.importRepair??'';
+  // Limitations, including the recipe notes of the current recipe.
+  const notes=printSync.state.limitations??[];
+  $('#print-notes').hidden=!notes.length;
+  $('#print-notes-list').replaceChildren(...notes.map(text=>{const li=document.createElement('li');li.textContent=text;return li;}));
   $('#stage-label').textContent=presentation.stage??'';$('#stage-label').hidden=!presentation.stage;
   $('#view-title').textContent=presentation.title;
   $('#guidance').textContent=presentation.guidance;$('#guidance').hidden=!presentation.guidance;
@@ -509,7 +523,7 @@ function render() {
     samples.append(button);
   }
   $('#skin-label').textContent=hasConstruction(printSync.state.plan,'cladding')?'Surface cladding':hasConstruction(printSync.state.plan,'fronts')?'Wave fronts':view().skinLabel;
-  const reviewed=$('#reviewed-download'),controls=studioControls(printSync.state,{tab:viewState.tab,busy:studioWork.busy,generating:studioWork.generating,pending:generationPending(),staleProgram:Boolean(viewState.activePresentation?.retained&&viewState.activePresentation.program),
+  const reviewed=$('#reviewed-download'),controls=studioControls(printSync.state,{tab:viewState.tab,busy:studioWork.busy,generating:studioWork.generating,pending:generationPending(),
     exported:exportedThisSession.has(exportKey()),currentExportKey:exportKey(),inspection:printSync.state.inspection,
     machineView:cameras.mode==='machine',reviewedExportKey:reviewed?.dataset.exportKey});
   exportNameInput.disabled=controls.exportName.disabled;$('#export-name-row').hidden=controls.exportName.hidden;
@@ -522,7 +536,7 @@ function render() {
   $('#selection').hidden=controls.selection.hidden;
   canvas.setAttribute('aria-label',controls.canvas.label);canvas.classList.toggle('stale-toolpath',controls.canvas.stale);
   $('#scrub').max=duration();$('#scrub').value=playState.seconds;
-  $('#rotary-view').hidden=!machinePose.machineSession?.scene&&!printSync.state.machine?.capabilities?.includes('coordinated-rotary');
+  $('#rotary-view').hidden=!machinePose.machineSession?.scene;
   $('#fit-program').hidden=controls.fitProgram.hidden;
   updateMachineStatus();
   // Keep the tabs live during a toolpath generation: the geometry pane stays
@@ -531,11 +545,16 @@ function render() {
   $$('[data-tab]').forEach(b=>{const policy=controls.tabs[b.dataset.tab];b.classList.toggle('active',b.dataset.tab===viewState.tab);b.classList.toggle('done',Boolean(policy.done));b.disabled=policy.disabled;});
   studioWork.tourUI?.render(printSync.state);
   // A work episode spans intermediate saves and both inspection panes.
-  canvas.classList.toggle('work-faded',studioWork.episodeWorking||viewState.tab==='toolpath'&&output.phase==='generating');
+  canvas.classList.toggle('work-faded',studioWork.episodeWorking||viewState.tab==='toolpath'&&output.generating);
   requestDraw();
 }
 function selectFeature(id){viewState.selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
-function setTab(next){if(!printSync.state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));viewState.tab=next;stop();layerFade.reset();render();}
+function setTab(next){
+  if(!printSync.state)return;
+  clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
+  viewState.tab=next;stop();layerFade.reset();render();
+  void acknowledgeDisplayedView().catch(error=>message(error.message,true));
+}
 
 function readViewerSnapshot(options={}) {
   if(!printSync.state)return {state:null,target:options.target??canvas,updateUI:options.updateUI??true};
@@ -570,6 +589,7 @@ function planCanvasDrag(current,point){
   return {drag:{...current.drag,x:point.x,y:point.y},
     moved:current.moved||Math.hypot(point.x-current.drag.startX,point.y-current.drag.startY)>2,
     pan:current.drag.pan?[current.pan[0]+dx,current.pan[1]+dy]:[...current.pan],
+    // Display only: orbit radians per dragged pixel.
     yaw:current.drag.pan?current.yaw:current.yaw+dx*.008,
     tilt:current.drag.pan?current.tilt:Math.max(-1.5,Math.min(1.5,current.tilt+dy*.008))};
 }
@@ -604,10 +624,11 @@ function connectCanvasPointerEvents(){
   canvas.oncontextmenu=suppressCanvasContextMenu;
 }
 connectCanvasPointerEvents();
+// Display only: zoom per wheel delta unit.
 canvas.addEventListener('wheel',e=>{e.preventDefault();viewer.noteMotion('zoom');orbitView.zoom=Math.max(.08,Math.min(4,orbitView.zoom*Math.exp(-e.deltaY*.001)));requestDraw();},{passive:false});
 canvas.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;if(e.shiftKey){orbitView.pan[0]+=e.key==='ArrowLeft'?-20:e.key==='ArrowRight'?20:0;orbitView.pan[1]+=e.key==='ArrowUp'?-20:e.key==='ArrowDown'?20:0;}else{if(e.key==='ArrowLeft')orbitView.yaw-=.1;else if(e.key==='ArrowRight')orbitView.yaw+=.1;else if(e.key==='ArrowUp')orbitView.tilt-=.1;else orbitView.tilt+=.1;}e.preventDefault();viewer.noteMotion(e.shiftKey?'pan':'orbit');requestDraw();};
 new ResizeObserver(requestDraw).observe(canvas);
-$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){orbitView.yaw=-.78;orbitView.tilt=.62;}if(mode==='side'){orbitView.yaw=0;orbitView.tilt=0;}if(mode==='top'){orbitView.yaw=0;orbitView.tilt=Math.PI/2;}requestDraw();});
+$$('[data-view]').forEach(b=>b.onclick=()=>{const mode=b.dataset.view;if(mode==='iso'){orbitView.yaw=DEFAULT_CAMERA.yaw;orbitView.tilt=DEFAULT_CAMERA.tilt;}if(mode==='side'){orbitView.yaw=0;orbitView.tilt=0;}if(mode==='top'){orbitView.yaw=0;orbitView.tilt=Math.PI/2;}requestDraw();});
 function worldToDisplay(p,pose=machineSample()?.pose){const plan=(presentedState()??printSync.state).plan,q=$('#follow-plate').checked&&pose?point(invert(pose.part),p):p;return [q[0]-(plan.placement?.xMm??0),q[1]-(plan.placement?.yMm??0),q[2]];}
 function fitMachine(){return machinePose.machineSession?.scene?machineFitBounds(machinePose.machineSession.scene,machineSample()?.pose,p=>worldToDisplay(p)):null;}
 function fitDisplayedPart(bounds=partBounds()){
@@ -621,7 +642,7 @@ $('#machine-view').onchange=()=>{
   useCamera(cameras.switch(next,cameraState(),{yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:1,pan:[0,0],fitBounds:fitMachine()}));
   $('#fit-program').hidden=next==='machine';$('#fit-program').textContent=orbitView.fitBounds?.allMoves?'Fit part':'Fit all moves';updateMachineStatus();saveView();requestDraw();
 };
-$('#reset-view').onclick=()=>{orbitView.zoom=1;orbitView.pan=[0,0];orbitView.yaw=-.78;orbitView.tilt=.62;orbitView.fitBounds=cameras.mode==='machine'?fitMachine():fitDisplayedPart();$('#fit-program').textContent='Fit all moves';requestDraw();};
+$('#reset-view').onclick=()=>{orbitView.zoom=1;orbitView.pan=[0,0];orbitView.yaw=DEFAULT_CAMERA.yaw;orbitView.tilt=DEFAULT_CAMERA.tilt;orbitView.fitBounds=cameras.mode==='machine'?fitMachine():fitDisplayedPart();$('#fit-program').textContent='Fit all moves';requestDraw();};
 $('#fit-program').onclick=()=>{
   if(orbitView.fitBounds?.allMoves){orbitView.fitBounds=fitDisplayedPart();$('#fit-program').textContent='Fit all moves';}
   else {
@@ -639,7 +660,8 @@ $('#fit-program').onclick=()=>{
 };
 $$('[data-tab]').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 async function download(){
-  const name=$('#export-name').value.trim();if(!name)throw Error('Enter a print name before exporting.');
+  // A blank name exports under the print's own name (the server's choice).
+  const name=$('#export-name').value.trim();
   const key=exportKey(),response=await api('export',{exportSnapshot:printSync.state.exportSnapshot,name,downloadLink:true});
   if(!response.ok){const error=await response.json();throw new Error(error.error??'Export failed.');}
   const attachment=await response.json();
@@ -650,7 +672,7 @@ async function download(){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
-  const nextName=nextExportName(name);
+  const nextName=name?nextExportName(name):name;
   if(nextName!==name){
     $('#export-name').value=nextName;
     Object.assign(viewState.exportNameState,{value:nextName,dirty:true});
@@ -820,14 +842,13 @@ function scheduleChange(){
     else void poll();
   },75);
 }
-// Pushed changes drive conditional state checks. Request activity only changes
-// the state identity through tour gating. A dropped or reopened viewer stream,
-// a page becoming visible and a slow heartbeat cover what pushes cannot.
+// Pushed requests also carry hand-back presentation targets. Refresh navigation
+// and acknowledge the displayed result even when the saved print is unchanged.
 function studioUpdate(event){
   if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
   const {kinds=[]}=event.detail;
   if(kinds.includes('print')){printSync.stateUpdate++;if(printSync.state)render();}
-  if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests')&&printSync.state?.tour?.active)scheduleChange();
+  if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests'))scheduleChange();
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
 function stopFallbackPolling(){clearInterval(printSync.stateFallbackTimer);clearInterval(printSync.progressFallbackTimer);printSync.stateFallbackTimer=printSync.progressFallbackTimer=null;}

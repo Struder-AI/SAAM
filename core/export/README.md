@@ -3,15 +3,16 @@
 [Machines](../../machines/README.md) lists each machine extension, its output contract
 and [how to add one](../../machines/README.md#adding-a-machine).
 [Print lifecycle](../print/README.md) owns review and delivery of the checked output.
-X1 Carbon shares the H2D adapter with its own pinned envelope. Declared output
-limitations are reported at export; catalog presence is not export support.
+X1 Carbon shares the H2D adapter with its own pinned envelope. Each output's standing
+limitations are in its manual; an export reports only what concerns the print.
+Catalog presence is not export support.
 
 ## Machine interoperability design
 
 ### Short-travel advisory
 
 Export attaches `shortTravel` to every program's report, computed on the
-prepared path Studio draws. A travel is a maximal sequence of
+prepared program path. Studio draws the neutral SAAMpath. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
 The check flags straight-line XYZ distance
@@ -48,30 +49,24 @@ can vary either enabled output. Missing orientation implies ordinary print-Z ali
 [Export preparation](./prepare-path.mjs) adds installation startup and priming,
 material-change clearance and axis-feed limits without mutating the authored path.
 Only adapters enforce installed nozzle/material compatibility and required setup.
-Studio draws the prepared path; the adapter's report states what it does not show.
+Studio draws the neutral SAAMpath; the program report names added startup travel,
+priming and machine service, with estimates scoped to the commands written.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |
 |---|---|
 | XYZ deposition, dwell | Griffin, Bambu, Dobot, DENSO |
-| Filament retraction, fan, stationary extrusion, nozzle temperature | Griffin, Bambu; relay outputs reject controls they cannot express |
+| Filament retraction and fan | Griffin, Bambu; relay outputs omit them with a named limitation |
+| Stationary extrusion | Griffin, Bambu; relay outputs name unsupported stationary extrusion at export |
+| Requested nozzle-temperature changes | Griffin, Bambu; relay outputs name externally arranged requests in limitations |
 | Logical material/nozzle change | Bambu's declared service contracts |
 | Derived orientation | Upright works on every output; non-upright poses need DENSO |
 
-Robot setup is mandatory at export; software review does not establish controller feasibility,
-actual extrusion or collision clearance.
+Only installation values needed to write the selected program block export.
+Software review does not establish controller feasibility or physical extrusion.
 
-The user selected H2D left 0.4 mm nozzle, 1.75 mm PLA and experimental 15°
-non-planar limit. The profile records official hardware/slicer sources, separate
-nozzle work areas and conservative PLA settings. The inherited left-tool height
-is 320 mm; the advertised overall height is 325 mm. The supplied left/right
-Bambu Studio exports establish the bounded [H2D output contract](../../machines/bambu/SKILL.md#h2d-output-contract).
-Ordinary generated H2D v13 AMS-19 and DUAL-20 physically passed same-nozzle
-AMS colours and left 0.4/right 0.8/left nozzle changes, with PLA, Textured PEI
-and fast startup. X1 AMS remains unresolved; the H2D passes do not validate
-every nozzle, plate or feed configuration. The Bambu contract
-owns the startup duplication inventory, actual installed-nozzle declarations and
-the distinction between logical filament IDs and physical AMS tray intent.
+The [Bambu contract](../../machines/bambu/SKILL.md#h2d-output-contract) owns its
+installed-nozzle declarations, firmware service and physical evidence.
 
 Preserve units, transforms, feature and material identity at every output boundary.
 
@@ -79,5 +74,7 @@ Preserve units, transforms, feature and material identity at every output bounda
 
 Optional `extrude` actions specify positive stationary volume and volumetric
 flow; `temperature` actions specify a locked-recipe nozzle target up to 350 °C.
-No generic flow cap applies. Griffin and H2D support these actions; relay robot
-outputs reject them. Thermal wait duration and actual temperature are not simulated.
+Griffin and Bambu write these actions without a generic flow cap. Relay outputs
+reject stationary extrusion and name requested temperature changes for external
+arrangement. Preheating alone does not execute a mid-print change; thermal waits
+and actual temperatures are not simulated.

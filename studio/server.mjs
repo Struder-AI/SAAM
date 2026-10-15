@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
+import {machineEntrySource} from '../core/extensions/library.mjs';
 
 
 const here=dirname(fileURLToPath(import.meta.url));
@@ -65,10 +66,9 @@ export function reportedMessage(error){const note=skewNotes.get(error);return no
 const playerModules=new Set(['core/private/studio/numeric.mjs','core/geom/frame.mjs',
   'studio/path-preview.mjs','studio/source-worker.mjs','studio/move-store.mjs',
   'studio/machine-session.mjs','studio/machine-view.mjs','core/machine/path-time.mjs',
-  'core/machine/presentation.mjs','core/machine/jog.mjs',
-  'core/machine/dobot-kinematics.mjs','core/machine/denso-kinematics.mjs',
+  'core/machine/presentation.mjs','core/machine/jog.mjs','core/machine/kinematics.mjs',
   'core/print/review-state.mjs','core/print/phase-colours.mjs',
-  'core/path/pose.mjs','core/path/action-context.mjs','core/geom/tolerance.mjs']);
+  'core/path/pose.mjs','core/path/action-context.mjs','core/geom/tolerance.mjs','core/dimensions.mjs']);
 
 // A selected plan, export or delivery file reopens its owning print bundle.
 // Standalone foreign programs need an interpreter contract before review.
@@ -115,6 +115,8 @@ const printFreeRoutes=new Set(['/api/open','/api/tour','/api/view-performance','
 export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColours=async()=>null,resolveBundle=bundleFor,chat:binding,relay,instanceId=randomBytes(16).toString('hex'),sessionToken,restoring=false,runtimeId,runtimeLabel,studioTitle='SAAM Studio',fingerprint,routeStudio}) {
   const attachedTo=next=>({binding:next,tour:createTour(libraryRoot,{studioId:instanceId,chat:next})});
   const chat={current:attachedTo(binding),stopRequestFeed:null};
+  // The tour is this Studio's while it runs here; elsewhere this Studio stays an ordinary one.
+  const tourHere=guide=>Boolean(guide.active&&guide.studioOwner?.instanceId===instanceId);
   const geometryOnly=guide=>guide.active&&guide.directory===dir&&guide.step<L.playback;
   const viewFingerprint=(id,fingerprint,guide)=>id+fingerprint+(geometryOnly(guide)?':geometry':':program');
   let dir=directory?resolve(directory):null;
@@ -166,19 +168,19 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
     editTail=run.catch(()=>{});
     return run;
   };
-  const runBundleCreation=(target,action,{fresh=true}={})=>{
+  const runBundleCreation=(target,action)=>{
     const selected=resolve(target);
     const run=editTail.then(async()=>{
       await opened;
       // A reused window leaves its print for the bundle being created.
       if(dir&&dir!==selected){
-        if(operations.active||(await chat.current.tour.info()).active)throw Error('The Studio changed before bundle creation.');
+        if(operations.active||tourHere(await chat.current.tour.info()))throw Error('The Studio changed before bundle creation.');
         if(reservation&&reservedDirectory===dir){await releaseBundleInstance(dir,reservation);reservation=null;reservedDirectory=null;}
         dir=null;opened=Promise.resolve(null);lifetime.notify('studio-update',{kind:'state',kinds:['print']});
       }
       const previous=reservation&&reservedDirectory===selected?await bundleInstance(selected):null;
       if(previous?.token!==reservation?.token){reservation=null;reservedDirectory=null;}
-      if(!reservation&&fresh){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
+      if(!reservation){await mkdir(dirname(selected),{recursive:true});await mkdir(selected);}
       const claim=reservation??await claimBundleInstance(selected,{instanceId,ownerId:chat.current.binding.ownerId,restoring,runtimeId,runtimeLabel});
       reservation=claim;reservedDirectory=selected;operations.active++;operations.creating=true;
       try{return await withBundleInstance(selected,claim,()=>action(claim));}
@@ -235,10 +237,16 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   const activeCalculationStatus=()=>{const status=calculationStatus();return ['generating','importing'].includes(status.status)?status:null;};
   const generationStatus=()=>{const status=activeCalculationStatus();return status?{...status,printId:workIdFor(status.directory)}:null;};
   const publishProgress=(status=activeCalculationStatus())=>lifetime.notify('studio-update',{kind:'progress',status});
+  // The person opening, importing or adopting another print in the tour's Studio leaves
+  // the tour first, as its Exit does; an agent's import there still waits for the tour.
+  const leaveTour=async reason=>{
+    const result=await chat.current.tour.action('exit');if(dir)await useExample(dir);
+    note('tour-exited',{action:'exit',reason,step:result.data.step,runId:result.data.runId,active:result.data.active,completed:result.data.completed});
+  };
   const runImport=async(source,{name,units,directory,signal}={})=>{
     signal?.throwIfAborted();
     if(closed)throw Error('Studio is closing. Reopen it before importing.');
-    if((await chat.current.tour.info()).active)throw Error('Import STL is available after you finish or exit the tour.');
+    if(tourHere(await chat.current.tour.info()))throw Error('This Studio is running the tour; import after the tour ends.');
     signal?.throwIfAborted();
     importController=new AbortController();
     const controller=importController,abort=()=>controller.abort(signal.reason);
@@ -275,7 +283,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       try{const record=trigger==='agent'?null:await chat.current.binding.ask({directory:generationDir,studioInstanceId:instanceId,
         key:'generation-failure:'+generationDir+':'+state.editRevision+':'+reported,
         instruction:(error.stage==='export'?'SAAMpath construction succeeded; machine export failed. Inspect the selected exporter and its representation requirements. Error: ':'Toolpath generation failed for this print. Inspect the current recipe and deposition inputs. Error: ')+reported+
-          '\nDiagnose the cause before regenerating. Do not blindly retry unchanged inputs or relax quality limits to hide the failure. Explain material process changes to the maker, then verify the current result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
+          '\nFix the cause, or leave out only what cannot be made and say what was left out; unchanged inputs fail again. Explain material process changes to the maker, then verify the result is displayed in Studio. Resolve this request after recovery, or report the concrete blocker.'});
         note('generation-failed',{editRevision:state.editRevision,trigger,error:reported,stage:error.stage??'generation',...(record?{requestId:record.id}:{})});}
       finally{throw error;} // A notification failure must not hide the generation error.
   };
@@ -367,6 +375,14 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       if(req.method==='GET'&&url.pathname==='/struder-logo.png'){
         res.writeHead(200,{'Content-Type':'image/png'});res.end(await readFile(resolve(here,'struder-logo.png')));return;
       }
+      // A machine's kinematics plug for the machine view: the default export is
+      // its createKinematics, or null when its extension supplies none.
+      if(req.method==='GET'&&url.pathname.startsWith('/machine-kinematics/')){
+        const [name,file]=decodeURIComponent(url.pathname.slice('/machine-kinematics/'.length)).split('/'),machineId=name.replace(/\.mjs$/,'');
+        const entry=await machineEntrySource(machineId,'machine-kinematics');
+        res.writeHead(200,{'Content-Type':'text/javascript'});
+        res.end(!entry?'export default null;\n':file===undefined?`export {${entry.exportName} as default} from './${encodeURIComponent(machineId)}/entry.mjs';\n`:entry.bytes);return;
+      }
       if(req.method==='GET'&&playerModules.has(url.pathname.slice(1))){
         res.writeHead(200,{'Content-Type':'text/javascript'});res.end(await readFile(resolve(root,url.pathname.slice(1))));return;
       }
@@ -377,10 +393,11 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const action=req.method==='POST'?url.pathname.slice('/api/service/'.length):null;
         if(!relay||!reading&&!['activate','dismiss','check-update','update','quit','report'].includes(action)){send({error:'Not found'},404);return;}
         if(req.headers['x-saam-token']!==token||(reading?req.headers.origin&&req.headers.origin!==origin:req.headers.origin!==origin)){send({error:'Invalid local session'},403);return;}
-        if(reading){send(await relay.status());return;}
+        const serviceStatus=()=>relay.status({studioInstanceId:instanceId});
+        if(reading){send(await serviceStatus());return;}
         if(action==='activate'){
           const {invite}=await serviceInput(req);
-          try{send(await relay.activate(String(invite??'')));}catch(error){send({error:error.message},400);}
+          try{await relay.activate(String(invite??''));send(await serviceStatus());}catch(error){send({error:error.message},400);}
           return;
         }
         if(action==='report'){
@@ -390,10 +407,10 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           try{send(await relay.report({description:String(description??''),context}));}catch(error){send({error:error.message},400);}
           return;
         }
-        if(action==='dismiss'){try{send(await relay.dismissFirstRun());}catch(error){send({error:error.message},500);}return;}
-        if(action==='check-update'){try{await relay.checkUpdate();send(await relay.status());}catch(error){send({error:error.message},502);}return;}
+        if(action==='dismiss'){try{await relay.dismissFirstRun();send(await serviceStatus());}catch(error){send({error:error.message},500);}return;}
+        if(action==='check-update'){try{await relay.checkUpdate();send(await serviceStatus());}catch(error){send({error:error.message},502);}return;}
         if(action==='update'){try{send(await relay.update(await serviceInput(req)));}catch(error){send({error:'SAAM could not update: '+error.message},502);}return;}
-        if(action==='quit'){try{send(await relay.quit(await serviceInput(req)));}catch(error){send({error:error.message},400);}return;}
+        if(action==='quit'){try{send(await relay.quit({...await serviceInput(req),studioInstanceId:instanceId}));}catch(error){send({error:error.message},400);}return;}
         return;
       }
       if(req.method==='GET'&&url.pathname==='/api/chat'){
@@ -408,7 +425,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         send(calculationStatus());return;
       }
       if(req.method==='GET'&&url.pathname==='/api/prints'){
-        const p=await chat.current.tour.info(),prints=p.active
+        const p=await chat.current.tour.info(),prints=tourHere(p)
           ?(await Promise.all(Object.values(p.copies).map(name=>listPrints(resolve(libraryRoot,'tour',name),resolveBundle)))).flat()
           :await listPrints(libraryRoot,resolveBundle);
         send({prints});return;
@@ -421,7 +438,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       }
       const readDir=dir,readId=dir&&printId();
       const bundle=await opened;
-      // The drawn path: a completed output's prepared path, else the saved SAAMpath.
+      // The drawn path: a completed output's SAAMpath, else the saved SAAMpath.
       if(req.method==='GET'&&url.pathname==='/api/path'){
         const {state}=await bundle.loadBundleSnapshot(readDir,{program:true}),output=state.completedOutput;
         if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==(output?output.id:String(state.revision))
@@ -495,6 +512,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const current=await opened;
         const progress=await chat.current.tour.info();
         if(importing){
+          if(tourHere(progress))await leaveTour('import-stl');
           await runImport(body,{name:data.name,units:data.units});
           send({ok:true});return;
         }
@@ -502,12 +520,13 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           let presentedRequests=[];
           const stage=data.stage??(progress.step===L.geometry?'geometry':'toolpath');
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
+          const observedRequests=Object.fromEntries((await chat.current.binding.requestsFor(dir,instanceId)).map(record=>[record.id,record.updatedAt]));
           const state=(await current.loadBundleSnapshot(dir,{program:stage!=='geometry'})).state;
           const receiptable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).receipt;
-          const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).available;
+          const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).inspectable;
           const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
           if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.outputId===state.outputId)){
-            presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
+            presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,observedRequests,deliverable:receiptable&&!renderError,renderError});
             note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,outputId:stage==='toolpath'?state.outputId??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
             for(const record of presentedRequests)if(!record.inspectionFailed)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.shortTravel;
@@ -547,24 +566,23 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           }
         }
         else if(url.pathname==='/api/use-example'){
-          if(progress.active)throw Error('Exit the tour first.');
-          if(!await tourExample(dir))throw Error('This print is already using the normal workflow.');
-          await useExample(dir);note('example-adopted',{});
+          if(tourHere(progress))await leaveTour('use-example');
+          else if(await tourExample(dir)){await useExample(dir);note('example-adopted',{});}
         }
         else if(url.pathname==='/api/open'){
-          if(progress.active)throw Error('Exit the tour to open another print.');
           const selected=await printDirectory(data.path,resolveBundle);
+          if(tourHere(progress)&&selected!==dir)await leaveTour('open');
           // Another runtime's print reopens this window in that runtime.
           const routed=await routeStudio?.(selected);
           if(routed)note('print-opened',{runtime:routed.runtime});
           else{
             await openPrint(selected);
             const adapter=await opened,state=(await adapter.loadBundleSnapshot(dir,{program:true})).state;
-            note('print-opened',{name:await printName(dir,state.plan),tour:progress.active,revision:state.revision});
+            note('print-opened',{name:await printName(dir,state.plan),tour:tourHere(await chat.current.tour.info()),revision:state.revision});
           }
         }
         else if(url.pathname==='/api/history'){
-          if(progress.active)throw Error('Exit the tour before restoring edits.');
+          if(tourHere(progress))throw Error('Exit the tour before restoring edits.');
           const updated=await runBundleEdit(dir,()=>current.restoreRevision(dir,{direction:data.direction,expectedRevision:data.revision}));
           note('plan-updated',{revision:updated.revision,history:data.direction});
         }

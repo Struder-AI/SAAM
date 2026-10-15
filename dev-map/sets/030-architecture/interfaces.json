@@ -3,15 +3,15 @@
   "policy": "Entry bindings name exact callable targets and access kind; they do not approve all operations/effects between connected buckets.",
   "bindings": [
     {
-      "contract": "dispatch-slice",
-      "target": "core/print/slice-deposition.mjs::finalizedSliceResults",
+      "contract": "slice-finalize",
+      "target": "core/print/slices.mjs::sliceContextResult",
       "kinds": [
         "call"
       ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
+      "evidence": "Actual Slice construction entry; the former entry orchestrates construction and scheduling and now belongs downstream."
     },
     {
-      "contract": "dispatch-trace",
+      "contract": "trace-finalize",
       "target": "core/print/curves.mjs::curveAssignmentResult",
       "kinds": [
         "call"
@@ -19,7 +19,7 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "dispatch-trace",
+      "contract": "trace-finalize",
       "target": "core/path/deposition.mjs::depositCurves",
       "kinds": [
         "call"
@@ -27,7 +27,7 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "dispatch-inject",
+      "contract": "inject-finalize",
       "target": "core/print/injection.mjs::injectionResult",
       "kinds": [
         "call"
@@ -35,7 +35,7 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "dispatch-inject",
+      "contract": "inject-finalize",
       "target": "core/path/injection.mjs::pointInjectionOperation",
       "kinds": [
         "call"
@@ -53,14 +53,6 @@
     {
       "contract": "build-field-preparation",
       "target": "core/print/modulation-fields.mjs::prepareModulationFields",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "recipe-path",
-      "target": "core/print/generate.mjs::generatePath",
       "kinds": [
         "call"
       ],
@@ -163,7 +155,7 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "compose-finalize",
+      "contract": "toolpath-bundle-deposition",
       "target": "core/print/finalize.mjs::finalizeDepositionResult",
       "kinds": [
         "call"
@@ -171,7 +163,7 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "compose-finalize",
+      "contract": "toolpath-bundle-deposition",
       "target": "core/print/finalize.mjs::combineFinalizedResults",
       "kinds": [
         "call"
@@ -420,7 +412,7 @@
     },
     {
       "contract": "evaluate-geometry-21285af9fc73",
-      "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+      "target": "core/extensions/geometry-edits.mjs::prepareExtensionGeometry",
       "kinds": [
         "call"
       ],
@@ -540,7 +532,7 @@
     },
     {
       "contract": "geometry-bundle-21285af9fc73",
-      "target": "core/geom/extension-edit.mjs::prepareExtensionGeometry",
+      "target": "core/extensions/geometry-edits.mjs::prepareExtensionGeometry",
       "kinds": [
         "call"
       ],
@@ -657,30 +649,6 @@
       ]
     },
     {
-      "contract": "extension-planar-region-layers",
-      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
-    },
-    {
-      "contract": "slice-planar-region-layers",
-      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
-    },
-    {
-      "contract": "extension-toolpath",
-      "target": "core/print/slice-region-context.mjs::prepareSliceRegionContext",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Public typed preset Slice construction context; no private-engine bag or machine selection."
-    },
-    {
       "contract": "extension-contour-sleeve",
       "target": "core/geom/sleeve/contour-sleeve.mjs::prepareContourSleeve",
       "kinds": [
@@ -714,7 +682,7 @@
     },
     {
       "contract": "extension-mapped-text-material",
-      "target": "core/geom/mapped-text-material.mjs::mappedTextMaterial",
+      "target": "core/geom/mapped-region-material.mjs::mappedRegionMaterial",
       "kinds": [
         "call"
       ],
@@ -737,7 +705,7 @@
       "evidence": "Exact public operation; runtime-supplied callable propagation remains an analysis limit, not certified by this binding."
     },
     {
-      "contract": "extension-toolpath",
+      "contract": "extension-slice",
       "target": "core/print/assignment-records.mjs::depositionAssignment",
       "kinds": [
         "call"
@@ -1137,7 +1105,7 @@
         "call"
       ],
       "callers": [
-        "core/print/geometry-tools.mjs::intersectDraftFamilies"
+        "core/print/geometry-tools.mjs::intersectDraftStacks"
       ],
       "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
     },
@@ -1221,28 +1189,6 @@
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
     {
-      "contract": "channel-studio-requests",
-      "target": "studio/agent-requests.mjs::createAgentRequests",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "studio/server.mjs::createStudio"
-      ],
-      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
-    },
-    {
-      "contract": "channel-studio-events",
-      "target": "studio/studio-events.mjs::createStudioEvents",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "studio/server.mjs::createStudio"
-      ],
-      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
-    },
-    {
       "contract": "channel-studio-tour-state",
       "target": "studio/tour.mjs::createTour",
       "kinds": [
@@ -1250,39 +1196,6 @@
       ],
       "callers": [
         "studio/server.mjs::createStudio"
-      ],
-      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
-    },
-    {
-      "contract": "tour-requests",
-      "target": "studio/agent-requests.mjs::createAgentRequests",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "studio/tour.mjs::createTour"
-      ],
-      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
-    },
-    {
-      "contract": "agent-studio-events-lifecycle",
-      "target": "studio/studio-events.mjs::createStudioEvents",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "core/application/runtime.mjs::createLocalRuntime::createChat"
-      ],
-      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
-    },
-    {
-      "contract": "agent-studio-requests-lifecycle",
-      "target": "studio/agent-requests.mjs::createAgentRequests",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "core/application/runtime.mjs::createLocalRuntime::createChat"
       ],
       "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
     },
@@ -1530,24 +1443,16 @@
       "evidence": "Relocated authoring command explicitly selects Settings before submitting supplied geometry/settings to Bundle."
     },
     {
-      "contract": "extension-toolpath",
-      "target": "core/print/slices.mjs::prepareSliceBoundaryFamily",
+      "contract": "extension-slice",
+      "target": "core/print/slice-material.mjs::prepareSliceBoundaryStack",
       "kinds": [
         "call"
       ],
       "evidence": "Vase extension generates reference curves and invokes the same Trace operation; no injected Slice producer."
     },
     {
-      "contract": "extension-toolpath",
+      "contract": "extension-trace",
       "target": "core/print/curves.mjs::traceResult",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Vase extension generates reference curves and invokes the same Trace operation; no injected Slice producer."
-    },
-    {
-      "contract": "extension-toolpath",
-      "target": "core/path/family-curves.mjs::spiralFamilyCurve",
       "kinds": [
         "call"
       ],
@@ -1560,7 +1465,7 @@
         "call"
       ],
       "callers": [
-        "core/print/slice-families.mjs::resolveSliceFamily"
+        "core/print/slice-stacks.mjs::prepareReferenceSliceStack"
       ],
       "evidence": "Geometry resolves an ambient offset reference independently of Slice fill and stack lifecycle."
     },
@@ -1747,6 +1652,324 @@
         "call"
       ],
       "evidence": "Application anonymous operation registration uses the published manual provider; runtime file evidence identifies the operation without inventing a callback declaration. This does not certify all operation effects."
+    },
+    {
+      "contract": "recipe-path",
+      "target": "core/print/slice-deposition.mjs::constructDepositionResults",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "recipe-path",
+      "target": "core/path/construction-path.mjs::constructionPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "toolpath-bundle-deposition",
+      "target": "core/path/construction-path.mjs::constructionPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "scheduling-bundle",
+      "target": "core/path/schedule.mjs::schedulePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "bundle-scheduling-path",
+      "target": "core/print/workflow.mjs::readConstructedPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "bundle-toolpath-path",
+      "target": "core/path/saampath.mjs::saamPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Implemented data-only Toolpath / saved Bundle / downstream Scheduling boundary, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-extension-run",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-recipe",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-canonical-application",
+      "target": "core/geom/operations.mjs::geometryOperations",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::extrudedSegmentBounds",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::extrudedSegmentsContain",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::raycastExtrudedSegments",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "geometry-extruded-toolpath-queries",
+      "target": "core/geom/extruded-segments.mjs::prepareExtrudedSegmentQuery",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::validatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-path-finalize",
+      "target": "core/path/pose.mjs::interpolatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::validatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-scheduling",
+      "target": "core/path/pose.mjs::interpolatePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-export",
+      "target": "core/path/pose.mjs::uprightPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "bundle-pose-export",
+      "target": "core/path/pose.mjs::samePose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "prepared-work-slice-layout",
+      "target": "core/print/slice-preparation.mjs::prepareSliceLayer",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "application-prepared-toolpath",
+      "target": "core/print/deposition-work.mjs::prepareDepositionWork",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact implemented operation, 2026-10-13."
+    },
+    {
+      "contract": "slice-surface-patterns",
+      "target": "core/region/surface-patterns.mjs::surfacePatternStrokes",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "slice-surface-measures",
+      "target": "core/geom/surface-region-measure.mjs::measureSurfaceRegion",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "prepared-material-surface-rays",
+      "target": "core/geom/surface-ray.mjs::prepareSurfaceRay",
+      "kinds": [
+        "call"
+      ]
+    },
+    {
+      "contract": "prepared-material-surface-rays",
+      "target": "core/geom/surface-ray.mjs::surfaceRayIntersections",
+      "kinds": [
+        "call"
+      ]
+    }
+  ],
+  "retiredBindings": [
+    {
+      "contract": "extension-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "slice-planar-region-layers",
+      "target": "core/geom/planar-region-layers.mjs::planarRegionLayers",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Geometry region-layer entry; synchronous callback effects remain visible."
+    },
+    {
+      "contract": "extension-toolpath",
+      "target": "core/print/slice-region-context.mjs::prepareSliceRegionContext",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public typed preset Slice construction context; no private-engine bag or machine selection."
+    },
+    {
+      "contract": "channel-studio-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "channel-studio-events",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/server.mjs::createStudio"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "tour-requests",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "studio/tour.mjs::createTour"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-events-lifecycle",
+      "target": "studio/studio-events.mjs::createStudioEvents",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/application/runtime.mjs::createLocalRuntime::createChat"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "agent-studio-requests-lifecycle",
+      "target": "studio/agent-requests.mjs::createAgentRequests",
+      "kinds": [
+        "call"
+      ],
+      "callers": [
+        "core/application/runtime.mjs::createLocalRuntime::createChat"
+      ],
+      "evidence": "Reviewed exact source calls and operation responsibility; raw state/resource/callback observations remain visible."
+    },
+    {
+      "contract": "recipe-path",
+      "target": "core/print/generate.mjs::generatePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked.",
+      "reason": "generatePath now orchestrates construction only; scheduling reads saved Bundle data."
     }
   ]
 }

@@ -120,7 +120,6 @@
     "ironing_type": "no ironing",
     "is_infill_first": "0",
     "layer_change_gcode": "",
-    "layer_height": "0.4",
     "line_width": "0.82",
     "locked_skeleton_infill_pattern": "zigzag",
     "locked_skin_infill_pattern": "crosszag",

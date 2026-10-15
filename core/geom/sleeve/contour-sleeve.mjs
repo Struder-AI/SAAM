@@ -1,4 +1,5 @@
 import {requireThat} from '../tolerance.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM} from '../../dimensions.mjs';
 // Vase reference construction: section offsets, seam correspondence and mapping.
 // The build caller also supplies this prepared boundary to standard spiral Slice.
 import {createSectionQuery} from '../../geom/query.mjs';
@@ -9,8 +10,9 @@ import {offsetRegion} from '../../region/offset.mjs';
 import {contourPath} from '../../geom/contour-path.mjs';
 import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 import {createFittedSleeveReference,createAutomaticSleeveReference} from './sleeve-reference.mjs';
-const OFFSET_PRECISION_MM=.00001;
-// The family uses horizontal cutting slices. Their chart is
+// Section offsets snap to program resolution: below print resolution, and what a program writes.
+const OFFSET_PRECISION_MM=PROGRAM_STEP_MM;
+// The stack uses horizontal cutting slices. Their chart is
 // world XY even when a fitted sleeve supplies the section boundary.
 const sliceFrame=p=>({point:[p[0],p[1],0],u:[1,0,0],v:[0,1,0],normal:[0,0,1]});
 function patternContour(outer,toleranceMm){
@@ -27,13 +29,6 @@ function patternContour(outer,toleranceMm){
   return cleanPlanarLoop(gridded,toleranceMm);
 }
 const pointInLoop=(p,loop)=>pointInRegion(p,[loop]);
-function outerLoop(loops) {
-  const outers=loops.filter(loop=>loopArea(loop)>0);
-  requireThat(outers.length===1&&loops.length<=2,'Vase wall requires one outer section of a solid or closed sleeve, without multiple islands or multiple bores.');
-  const loop=dedupe(outers[0]);
-  requireThat(loop.length>=3,'Vase wall section collapsed.');
-  return loop;
-}
 
 export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,pitchMm:pitch,
   firstHeightMm:firstHeight,centerlineOffsetMm:centerlineOffset,standoffMm,
@@ -42,8 +37,8 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   const settings={sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm,sleeveToleranceMm,meshSleeve,phaseStableContours};
   requireThat([base,start,end,pitch,firstHeight,centerlineOffset,standoffMm,sampleStepMm,toleranceMm,boundaryToleranceMm,minFeatureMm].every(Number.isFinite)
     &&pitch>0&&firstHeight>0&&standoffMm>0&&sampleStepMm>0&&toleranceMm>0&&boundaryToleranceMm>0&&minFeatureMm>0,
-    'Contour family needs finite positive spacing and tolerances.');
-  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+1e-9&&end>start+1e-9,'Contour family needs its base, first section and end inside the geometry.');
+    'Contour stack needs finite positive spacing and tolerances.');
+  requireThat(base>=shell.bounds.min[2]&&end<=shell.bounds.max[2]+PRINT_RESOLUTION_MM&&end>start+PRINT_RESOLUTION_MM,'Contour stack needs its base, first section and end inside the geometry.');
   requireThat(settings.boundaryToleranceMm<standoffMm/2,'Contour boundary tolerance must be smaller than half the selected standoff.');
   // The wall takes as many points and section queries as its geometry, pitch
   // and tolerances require: turns are finite and each interval subdivides until
@@ -62,6 +57,10 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   const reference=fitMode==='mesh'?createFittedSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress})
     :fitMode==='automatic'?createAutomaticSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress}):null;
   const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
+  // The wall follows a section with one outer boundary whose inset is one loop
+  // ({outer,loop,curve,holes}). Any other section (islands, or an inset that
+  // splits or collapses) is plain ({islands}): each inset island is a closed
+  // layer boundary of its own, and the spiral joins only followed layers.
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
     sectionQueries++;
@@ -85,17 +84,17 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
     // re-anchor and grid-round for phase stability through patternContour; the
     // standard wall only needs the seam removed. Fitted-sleeve and native spline
     // cuts are already chord-controlled and keep their exact contour.
-    const rawOuter=outerLoop(cut.loops),seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4;
-    const meshCut=!reference&&shell.kind==='triangle-mesh';
-    const outer=settings.phaseStableContours&&!reference?patternContour(rawOuter,seamTolerance):meshCut?cleanPlanarLoop(rawOuter,seamTolerance):rawOuter;
-    const offsetLoops=offsetRegion([outer],centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
-    // A pattern follows only the outer boundary. Interior offset holes do not
-    // supply another wall; multiple outer components still cannot be mapped.
-    const inset=settings.phaseStableContours?offsetLoops.filter(loop=>loopArea(loop)>0):offsetLoops;
-    requireThat(inset.length===1&&loopArea(inset[0])>0,`Contour ${centerlineOffset<0?'inward':'outward'} offset is empty, split or collapsed at Z ${z} mm for standoff ${standoffMm} mm.`);
-    const loop=dedupe(inset[0]);
-    requireThat(loop.length>=3,'Vase wall section collapsed.');
-    const curve=contourPath(loop,seam);
+    const seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4,meshCut=!reference&&shell.kind==='triangle-mesh';
+    const prepare=raw=>settings.phaseStableContours&&!reference?patternContour(raw,seamTolerance):meshCut?cleanPlanarLoop(raw,seamTolerance):raw;
+    const outers=cut.loops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3).map(prepare);
+    const offsetLoops=offsetRegion(outers,centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
+    const islands=offsetLoops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3);
+    // A pattern follows only the outer boundary: interior offset holes do not
+    // supply another wall. The standard wall follows an inset without holes.
+    if(outers.length!==1||islands.length!==1||!settings.phaseStableContours&&offsetLoops.length!==1){
+      const value={islands};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
+    }
+    const outer=outers[0],loop=islands[0],curve=contourPath(loop,seam);
     // Keep the projection anchor outside every section. The first seam itself
     // can lie inside later, expanding contours, where its nearest projection
     // switches between opposite edges of a corner and makes phase discontinuous.
@@ -107,8 +106,14 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   }
   if(!reference)section(start);
   const offsetCurves=new WeakMap();
+  // A spiral or pattern point needs a followed section.
+  function followedSection(z) {
+    const frame=section(z);
+    requireThat(frame.curve,`The vase section at Z ${z} mm has ${frame.islands?.length} inset island(s); a spiral or pattern follows one outer boundary.`);
+    return frame;
+  }
   function mappedPoint(u,z,offsetMm=0) {
-    const frame=section(z),{curve,outer,holes}=frame,xy=curve.at(u);
+    const frame=followedSection(z),{curve,outer,holes}=frame,xy=curve.at(u);
     const standoff=outer.reduce((best,p,i)=>Math.min(best,pointSegmentDistance(xy,p,outer[(i+1)%outer.length])),Infinity);
     requireThat(Math.abs(standoff-standoffMm)<=settings.boundaryToleranceMm,'Contour centerline does not preserve the selected standoff within boundary tolerance.');
     for(const hole of holes)requireThat(!pointInLoop(xy,hole)&&hole.every((p,i)=>pointSegmentDistance(xy,p,hole[(i+1)%hole.length])>=standoffMm-settings.boundaryToleranceMm),'Section material is too thin for the selected standoff.');
@@ -126,21 +131,22 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
     }
     return [...xy,z];
   }
-  const boundaryFamily=()=>{
-    const levels=[start];for(let z=start+pitch;z<end-1e-9;z+=pitch)levels.push(z);levels.push(end);
-    const layers=levels.map((z,index)=>{
-      let points;
-      if(reference){const count=Math.max(16,Math.ceil(reference.referenceLengthMm/settings.sampleStepMm));points=Array.from({length:count},(_,i)=>reference.map(reference.pointAt(i/count,z,0)));}
-      else {const curve=section(z).curve;points=curve.breakpoints().slice(0,-1).map(n=>[...n.p,z]);}
-      const normal=[0,0,1],frameSamples=points.map(sliceFrame);
-      return {index,heightMm:index?z-levels[index-1]:firstHeight,offsetMm:z-start,slice:{kind:'plane',origin:[0,0,z],normal,xAxis:[1,0,0],yAxis:[0,1,0]},curves:[{closed:true,points,frameSamples}]};
+  const boundaryStack=()=>{
+    const levels=[start];for(let z=start+pitch;z<end-PRINT_RESOLUTION_MM;z+=pitch)levels.push(z);levels.push(end);
+    const plain=[],layers=levels.map((z,index)=>{
+      let loops;
+      if(reference){const count=Math.max(16,Math.ceil(reference.referenceLengthMm/settings.sampleStepMm));loops=[Array.from({length:count},(_,i)=>reference.map(reference.pointAt(i/count,z,0)))];}
+      else {const frame=section(z);if(!frame.curve)plain.push(index);loops=frame.curve?[frame.curve.breakpoints().slice(0,-1).map(n=>[...n.p,z])]:frame.islands.map(loop=>loop.map(p=>[...p,z]));}
+      const normal=[0,0,1];
+      return {index,heightMm:index?z-levels[index-1]:firstHeight,offsetMm:z-start,slice:{kind:'plane',origin:[0,0,z],normal,xAxis:[1,0,0],yAxis:[0,1,0]},
+        curves:loops.map(points=>({closed:true,points,frameSamples:points.map(sliceFrame)}))};
     });
-    return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers};
+    return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers,plain};
   };
   const mappingErrorMm=reference?.mappingErrorMm??Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
   const validatedFrames=new WeakSet();
   const curveAt=(z,offset)=>{
-    const frame=section(z);
+    const frame=followedSection(z);
     if(!validatedFrames.has(frame)){
       for(const u of frame.curve.knots())mappedPoint(u,z,0);
       validatedFrames.add(frame);
@@ -150,13 +156,16 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   };
   const contours=!reference&&settings.phaseStableContours?prepareContourFamily({curveAt,startMm:start,endMm:end,stepMm:settings.minFeatureMm,toleranceMm:mappingErrorMm}):null;
   const mapping=reference?{reference}:contours?{contours}:null;
-  // Exact section evaluation remains available between the displayed family
+  // Exact section evaluation remains available between the displayed stack
   // layers; interpolation must not flatten native/curved wall geometry.
   const boundary={at(u,z){
     const point=reference?reference.map(reference.pointAt(u,z,0)):mappedPoint(u,z);
     return {point,normal:[0,0,1],frame:sliceFrame(point)};
   }};
-  return {base,start,end,firstHeight,referenceLengthMm:reference?.referenceLengthMm??section(start).curve.length,mapping,mappingErrorMm,
-    family(){return {...boundaryFamily(),boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
+  // With plain layers there is no one wall to evaluate between layers: the
+  // stack carries layer boundaries only, and the spiral joins its followed run
+  // through their chart while plain layers print as closed loops (spiralStackCurve).
+  return {base,start,end,firstHeight,referenceLengthMm:reference?.referenceLengthMm??section(start).curve?.length??null,mapping,mappingErrorMm,
+    referenceStack(){const {plain,...stack}=boundaryStack();return plain.length?stack:{...stack,boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
     report(){return {sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...reference?.report(),...contours?.report()};}};
 }

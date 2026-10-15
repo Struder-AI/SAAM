@@ -10,9 +10,6 @@ metadata:
 SAAM authors its job description, G-code configuration comments and sliced-3MF
 metadata. [resolveBambuJob](bambu-job.mjs) resolves that description once for each
 export or import; [bambu.mjs](bambu.mjs) projects it into every repeated field.
-Machine files own bounded firmware service sequences. Reference exports are
-comparison evidence, never package/header/thumbnail templates to copy into a job.
-
 The ordinary H2D v13 exporter has physically passed both maker workflows:
 
 | Workflow | Physical acceptance | Maker instructions |
@@ -35,28 +32,27 @@ model. Nonplanar clearance and firmware service motion are not simulated.
 Material/colour matching is a proposal for the printer's confirmation screen.
 Review the actual feed selection there, including external spools; the exporter
 does not force physical slots. Earlier failed formats showed why screen mapping
-and valid executable commands alone are insufficient evidence. The accepted
-generated project and executable are now both protected by regression hashes.
+and valid executable commands alone are insufficient evidence.
 The [development log](../../DEVLOG.md#2026-09-21--generated-h2d-dual-20-passes-closing-dual-nozzle-exporter-work)
 owns that investigation and the exact delivered-file evidence.
 
 ## Maker setup
 
-The current user's installation is a test case, not a shared machine default:
-H2D left 0.4 mm fed by an external spool, right 0.8 mm fed by a four-slot AMS.
-The development goal covers every feed combination supported by each machine.
-Keep logical filaments, nozzle assignments, installed diameters, feed devices,
-their connections and physical slot choices independent. Discover or ask for
-installation facts for each job; never infer them from this example or its colours.
-Machine capabilities constrain valid combinations; an unimplemented adapter must
-report its limit instead of silently routing through a different source. Physical
-dispatch remains delegated to the printer; declared capacities are described below.
+The tested installation (H2D left 0.4 mm external spool, right 0.8 mm four-slot
+AMS) is an example, not a default; development covers every supported feed
+combination. Keep logical filaments, nozzle assignments, installed diameters,
+feed devices, their connections and physical slot choices independent; never
+infer them from this example or its colours. Machine capabilities constrain valid
+combinations; an unimplemented adapter reports its limit instead of silently
+routing through a different source.
 
-Before generation, establish the selected nozzle, **both installed diameters** on
-H2D, plate, PLA identity/colour, temperatures and intended spool. Profile defaults
-are editable assumptions, not observations of the printer. In particular,
-`otherNozzleMm: 0.4` and the default filament colour must not be represented as
-confirmed hardware or spool identity.
+Generate with what is known, including [local agent notes](../../core/application/README.md#local-agent-notes),
+and profile defaults otherwise, stated beside the preview; `otherNozzleMm: 0.4` or
+the default filament colour is an assumption, not confirmed hardware or spool.
+The SAAMpath depends on nozzle temperature and process values; diameters, plate,
+colour and spool apply only to the machine program ([dependencies](../../core/path/dependencies.mjs)).
+Line width and layer height suit the diameter, so ask with the first preview when
+it is unknown. Confirm diameters, plate, filament, temperatures and spool before Export.
 
 Example: H2D right 0.8 mm, left 0.4 mm, textured plate, one brown PLA filament:
 
@@ -88,8 +84,9 @@ These are setup fields to merge into a complete recipe with normal print tools,
 not a complete plan. `GFA01` is an example preset identity, not a universal brown
 PLA ID. Use the actual material identity and colour. `filaments: null` declares
 one PLA Basic (`GFA00`) logical filament using `setup.filamentColor` or the profile
-placeholder. It does not discover spools. An explicit list and an explicit
-`setup.filamentColor` must agree on the selected entry or export is rejected.
+placeholder. It does not discover spools. The selected entry's colour wins over a
+differing `setup.filamentColor`; a colour that is not six-digit hex falls back to
+`setup.filamentColor` or the placeholder. Each is noted.
 
 `setup.nozzleMm` is the selected diameter; `core` must name that same diameter.
 `otherNozzleMm` names the **unselected** H2D nozzle; update it when switching
@@ -349,22 +346,15 @@ it does not establish physical priming quality or clearance on the actual printe
 
 ## Making an H2D dual-nozzle print
 
-The physical DUAL-12 control passed with left 0.4/right 0.8 and a return to the
-left nozzle. The shared planner and executable writer can express this job.
-**Fresh generated DUAL-20 physically passed:** left 0.4 external PLA at the
-centre, right 0.8 blue AMS PLA at the offset pad, then left again, with correct
-deposition heights. It uses the ordinary v13 exporter, fast startup and Textured
-PEI; no reference project is substituted. Makers use the normal workflow below
-without editing exported metadata or choosing stored templates. The hardware
-regression preserves both the successful executable and generated project.
-This installation is evidence for the workflow, not a fixed required feed layout
-or certification of other untested installations.
+The physical DUAL-12 control passed with left 0.4/right 0.8 and a return left. **Fresh generated DUAL-20 physically passed:** left 0.4 external PLA at the centre, right 0.8 blue AMS PLA at the offset pad,
+then left again, at the correct heights. It used the ordinary v13 exporter, fast startup and Textured PEI, with no reference
+project substitution. Makers use the normal workflow below without editing exported metadata or selecting stored templates.
+These results establish the recorded workflow and installation; they neither require that feed layout nor certify others.
 
-1. Establish the machine and installation: left and right diameters, plate,
-   materials, nozzle temperatures, feed devices and which nozzle each device
-   connects to. `tool: 0` is left and `tool: 1` is right. These are not physical
-   heater selectors or AMS slots. The tested external-left/AMS-right combination
-   is an example, not a required topology.
+1. Take the known or assumed installation ([Maker setup](#maker-setup)): left and
+   right diameters, plate, materials, nozzle temperatures, feed devices and which
+   nozzle each device connects to. `tool: 0` is left and `tool: 1` is right; these
+   are not physical heater selectors or AMS slots.
 2. Set the starting filament's `setup.tool`, `nozzleMm`, matching `core`,
    `nozzleC` and global process. `bambu.otherNozzleMm` describes the other side.
    Declare each logical filament once, with its `tool`, material ID, colour and
@@ -385,8 +375,8 @@ or certification of other untested installations.
    select left external PLA and map right blue to its actual AMS filament;
    the printer's initial left suggestion may be incorrect. Automatic matching
    needs material/colour, not an invented physical slot number. Observe actual
-   nozzle selection and deposition height, including a return switch. Record
-   the archive hash and human result; playback verifies commands, not firmware.
+   nozzle selection and deposition height, including a return switch; record
+   the human result. Playback verifies commands, not firmware.
 
 Example filament settings for a **left-first** recipe (merge with the complete
 plan, keeping `setup.tool: 0`, `nozzleMm: 0.4`, `core: "Hardened steel 0.4"`,
@@ -434,9 +424,9 @@ values, not defaults to substitute for a user's material or installation.
 }
 ```
 
-1. Establish the actual installed diameters, selected nozzle, plate, PLA identities
-   and colours. Set `setup.tool`, `nozzleMm`, matching `core`, temperature and
-   `bambu.otherNozzleMm`; do not substitute equal diameters to match a reference.
+1. From the known or assumed installation ([Maker setup](#maker-setup)), set
+   `setup.tool`, `nozzleMm`, matching `core`, temperature, plate and
+   `bambu.otherNozzleMm`, not a reference's diameters.
 2. Declare two `setup.filaments` entries with the **same tool**, their actual
    material IDs/colours and `source: {"type":"auto"}`. Leave `setup.ams` null for
    automatic matching. Declare known AMS connections independently. A colour is
@@ -455,8 +445,7 @@ values, not defaults to substitute for a user's material or installation.
    No prime tower is generated.
 5. Deliver the reviewed archive unchanged. Confirm the printer's material/colour
    mapping, then observe actual A → B → A switching and first-layer contact.
-   An on-screen mapping alone does not prove physical switching. Record the
-   exact archive hash and observation before reporting hardware acceptance.
+   Record physical switching before reporting hardware acceptance.
 
 Do not transplant a Studio project entry or hand-edit exported metadata. The
 exporter derives job declarations from the plan and rejects package overrides.
@@ -477,9 +466,8 @@ one canonical job, with format-specific CONFIG and project serializers.
 
 Machine `package.projectSettings` must be empty; it cannot override generated job
 fields. Shared profiles carry no installation-specific AMS inventory
-or topology. No raw startup G-code override is supported. Envelope hashes bind
-start, end **and constraints**, so changing a fixed service recipe requires an
-intentional new contract.
+or topology. Startup/shutdown service definitions and their provenance belong
+to the machine profile; runtime export uses their declared commands.
 
 Import checks ZIP structure and CRCs, the body boundary and the saved context
 against the plan, then decodes the body; it does not re-render the envelope.
@@ -487,7 +475,7 @@ The same-file review/delivery lifecycle remains unchanged.
 
 ## H2D output contract
 
-`h2d-saam-startup-v13`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
+`h2d-saam-startup-v14`: one or both standard hardened 0.4, 0.6 or 0.8 mm nozzles,
 including unequal diameters;
 1.75 mm PLA; Textured or Smooth PEI; no chamber heating. Startup establishes
 [100,100,20]. Shutdown clears geometry by 10 mm and parks at or below 320 mm.
@@ -524,6 +512,11 @@ are excluded from body totals. The planner/player establish the incoming
 filament's retraction debt afresh after each material change, including reuse
 of a previously selected logical filament. Dual-nozzle changes retain zero
 colour-flush length and do not increment the same-nozzle flush count.
+
+Revision v14 omits the 45 mm startup prime and nozzle wipe for an AMS-fed start followed by a nozzle change. The 2026-10-03
+TK-DEV demo used AMS HT left and four-slot AMS right, both 0.4 mm: it stalled with those stages and completed without them,
+one trial each; the mechanism and responsible stage remain unknown. External starts and jobs without a nozzle change keep
+both; v13 archives remain readable. Source: `f4c84235735a645d80b36b4a179554b0b27913d1`, DEVLOG and dual test.
 
 Revision v13 adds authored stored startup and shutdown to the project writer.
 `sections()` renders each once from the canonical job and print bounds, then
@@ -618,6 +611,10 @@ separately. The earlier loader failure with a SAAM-formatted client version and
 the manual-AMS-mapping warning are recorded in the
 [devlog](../../DEVLOG.md#2026-09-18--x1-carbon-output-through-the-shared-bambu-exporter).
 Changing a mapping-mode string has not been proven to resolve the warning.
+On the owner’s X1 Carbon, an archive the printer rejects freezes its screen for
+minutes without an error (owner, 2026-09-30). Physical trials start from a file
+known to load and change one thing; batch files per trip and identify those that
+might freeze. This advice follows that X1 evidence.
 
 ### X1 colour changes through one nozzle
 

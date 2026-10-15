@@ -1,5 +1,5 @@
 // Bounded Bambu output (H2D, X1 Carbon). Firmware service commands come from
-// the pinned envelope in the machine file, which also owns every model-specific fact.
+// the service definition in the machine file, which owns every model-specific fact.
 import {createHash} from 'node:crypto';
 import {exportBambuBody} from './bambu-body.mjs';
 import {requireThat,startupPosition,feederSelector,validateBambuConnections} from './filaments.mjs';
@@ -11,20 +11,14 @@ const json=value=>JSON.stringify(value)+'\n';
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
 const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}" value="${xml(v)}"/>`).join('\n');
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
-// Updated only after reviewing changes to the firmware service contract.
-const ENVELOPE_HASHES={
-  "h2d-saam-startup-v13": "9ed2f343095f6cf0331ad6359fee1cc637bb7a707f9cea3da538a33fa70779f9",
-  "x1c-saam-startup-v5": "1efa6f410cdd5628d11cda4dc8732cf7555921f4e409c9246ea74e1d3911067e"
-};
 function configuration(plan,machine){
   const output=machine.outputs.find(o=>o.id===plan.output),s=plan.setup,k=output?.constraints;
-  requireThat(plan.output==='bambu-gcode'&&Object.hasOwn(ENVELOPE_HASHES,output?.program?.contract),'Unsupported Bambu output contract.');
-  requireThat(digest(JSON.stringify([output.program.start,output.program.end,output.constraints]))===ENVELOPE_HASHES[output.program.contract],'Unknown Bambu firmware envelope; an interpreter update is required.');
+  requireThat(plan.output==='bambu-gcode'&&typeof output?.program?.contract==='string'&&Array.isArray(output.program.start)&&Array.isArray(output.program.end),'Unsupported Bambu output contract.');
   requireThat(s.material===k.material&&k.nozzleMm.includes(s.nozzleMm)&&s.filamentMm===k.filamentMm&&s.buildVolumeC===k.chamberC,
     `${machine.name} output requires a declared ${k.nozzleMm.join(', ')} mm ${k.material} setup, ${k.filamentMm} mm filament and no chamber heating.`);
   // An envelope sliced on one side of a bed-temperature branch covers only that side.
   if(k.bedC)requireThat(s.bedC>=k.bedC[0]&&s.bedC<=k.bedC[1],`${machine.name} output requires a bed temperature of ${k.bedC[0]}–${k.bedC[1]} C.`);
-  // The pinned startup ends by moving to the body's declared origin.
+  // Startup ends by moving to the body's declared origin.
   const [x,y,z]=startupPosition(machine,plan),extruders=machine.tools.map(t=>t.physicalExtruder);
   requireThat(extruders.every(Number.isInteger)&&new Set(extruders).size===extruders.length
     &&output.program.start.slice(-3).join('\n')===`G1 Z${z} F300\nG1 X${x} Y${y} F3600\nM400`,'Bambu tool/startup contract mismatch.');
@@ -61,7 +55,9 @@ function sections(c,job,output,number){
     endClearanceZ,parkZ,parkSettleZ:number(Math.max(endClearanceZ,parkZ-k.parkSettleMm))};
   const render=lines=>lines.flatMap(line=>{
     if(typeof line==='object'){
-      requireThat(Object.keys(line).length===1&&Array.isArray(line.fullStartOnly),'Invalid optional Bambu startup block.');
+      const keys=Object.keys(line);
+      requireThat(keys.length===1&&['fullStartOnly','exceptAmsNozzleChange'].includes(keys[0])&&Array.isArray(line[keys[0]]),'Invalid optional Bambu startup block.');
+      if(keys[0]==='exceptAmsNozzleChange')return job.amsNozzleChange?[]:line.exceptAmsNozzleChange;
       return job.fastStart?[]:line.fullStartOnly;
     }
     return [line];
@@ -137,21 +133,22 @@ function exportBambu(path,plan,machine,release,Export){
   const filamentSequence=[plan.setup.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const {body,segments}=exportBambuBody(path,plan,machine,Export);
-  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0;
+  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0,untimedMoves=0;
   for(const {filament,tool,tally} of segments){
-    volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;
+    volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;untimedMoves+=tally.untimedMoves;
     usage.set(filament,{filament,tool,volumeMm3:(usage.get(filament)?.volumeMm3??0)+tally.volumeMm3});
     for(const key of tally.layers){if(!layerUse.has(key))layerUse.set(key,new Set());layerUse.get(key).add(filament);}
   }
-  const written={filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,layerUse,
+  const unwrittenNotes=segments.filter(({tally})=>tally.terminalUnwrittenVolumeMm3>tally.filamentStepVolumeMm3).map(({filament,tally})=>`Filament ${filament+1}: ${tally.collapsedDepositMoves} depositing move(s) collapsed at written XYZ precision; ${Number(tally.terminalUnwrittenVolumeMm3.toPrecision(6))} mm³ remained without a later writable deposition.`);
+  const written={unwrittenNotes,collapsedDepositMoves:segments.reduce((sum,{tally})=>sum+tally.collapsedDepositMoves,0),terminalUnwrittenVolumeMm3:segments.reduce((sum,{tally})=>sum+tally.terminalUnwrittenVolumeMm3,0),filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,untimedMoves,layerUse,
     strokes:segments.flatMap(segment=>segment.tally.strokes)};
-  const c=contextFor(path,plan,machine,release),s=sections(c,job,output,Export.number);
+  const c=contextFor(path,plan,machine,release),s=sections(c,job,output,value=>Export.number(value,'xyz'));
   const code=header(c,written,job,Export.number)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
   return {bytes:Export.packZip(packageEntries(code,c,written,plan,output,job,s,Export.encodePng)),report:report(written,c,s,job)};
 }
 // What the person confirms beyond the drawn path: firmware service, feed mapping, estimates.
 function report(written,c,s,job){
-  const notice='Firmware probing, wiping, calibration, purge, tool changes and unload follow bounded service recipes; they are not simulated. Playback and timing cover body motion only.';
+  const notice='Time and material totals cover written body motion, including prepared startup travel and priming. Firmware probing, wiping, calibration, purge, tool changes and unload are excluded. Studio shows the neutral SAAMpath.';
   const tray=job.requestedTray;
   const mapping=tray?`Requested AMS ${tray.unit}, slot ${tray.slot}: confirm the printer maps this job's filament to that tray before starting.`:
     'Material and colour are supplied for automatic matching; review the printer’s proposed feed mapping before starting.';
@@ -165,8 +162,7 @@ function report(written,c,s,job){
       ...(materialChanges?{materialChanges}:{})}};
   const startup=(job.fastStart?'Fast startup: optional calibration, scans and vibration tests skipped. Homing, temperature waits, loading, wiping and priming remain. ':'')+notice+' '+mapping
     +(materialChanges?` Each same-nozzle AMS change requests ${job.materialChange.flushMm3} mm³ of chute flushing${job.nozzles.length===1?' plus 2 mm of filament for priming':''}; firmware loading/priming and service material/time are additional to the part totals.`:'');
-  return {notice:startup,seconds:written.seconds,volumeMm3:written.volumeMm3,
-    limitations:['Deposited-height travel checked; physical head clearance is not modeled.'],envelope};
+  return {notice:startup,seconds:written.seconds,untimedMoves:written.untimedMoves,volumeMm3:written.volumeMm3,collapsedDepositMoves:written.collapsedDepositMoves,terminalUnwrittenVolumeMm3:written.terminalUnwrittenVolumeMm3,limitations:[...job.notes,...written.unwrittenNotes],envelope};
 }
 
 function packageEntries(code,c,program,plan,output,job,s,encodePng){

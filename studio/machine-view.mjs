@@ -5,6 +5,8 @@ const roles=new Set(['structure','rail','link','carriage','joint','bed','tool'])
 const vector=v=>Array.isArray(v)&&v.length===3&&v.every(Number.isFinite);
 export const bindingKey=b=>JSON.stringify([b?.printId,b?.revision,b?.outputId,b?.modelKey]);
 function require(value,message){if(!value)throw Error('Machine presentation: '+message);}
+// Display only: presentation frames are rotations and the source world is identity
+// to within a millionth, a rendering check that never reaches geometry or programs.
 function validatePresentationRigid(t){
   require(t&&vector(t.translationMm)&&Array.isArray(t.rotation)&&t.rotation.length===3&&t.rotation.every(vector),'invalid rigid frame');
   const r=t.rotation;

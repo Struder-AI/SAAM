@@ -1,29 +1,29 @@
 // The visual check: after an operation commits new geometry or a new toolpath,
-// its result names a PNG the agent opens. A software rasterizer draws two
-// orthographic panels, isometric from front-right-above and top (+X right, +Y
-// up), over a 10 mm grid on the bed: shaded z-buffered triangles for geometry,
+// its result names a transient PNG the agent opens. A software rasterizer uses
+// Studio's default above-part camera, fitted to all displayed content, over a
+// 10 mm grid on the bed: shaded z-buffered triangles for geometry,
 // the saved SAAMpath's extrusion coloured by phase for a toolpath. No window.
-import {writeFile,readdir,rm} from 'node:fs/promises';
+import {writeFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {createHash} from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {encodePng} from '../export/png.mjs';
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
 import {bundleFor} from '../../studio/adapter-resolution.mjs';
 import {resolvePhaseColours,phaseColour} from '../print/phase-colours.mjs';
 import {readLocalPhaseColours} from './local-agent-notes.mjs';
 import {createTemporaryWorkspace} from './temporary-workspace.mjs';
+import {DEFAULT_CAMERA} from '../../studio/camera.mjs';
 
 // Display budget: panel pixels, supersampling, margin, grid pitch and colours.
 const PANEL=512,SAMPLES=2,MARGIN=0.06,GRID_MM=10,EDGE_PX=4;
 // Beads draw at this share of their width, so gaps show neighbouring tracks.
 const BEAD=0.6;
-const BACKGROUND=[246,247,249],GRID=[214,219,226],GRID_MAJOR=[188,195,205],PART=[132,170,208],OUTLINE=[46,58,72],CURVE=[52,84,120];
-const SQRT2=Math.SQRT2,SQRT6=Math.sqrt(6),SQRT3=Math.sqrt(3);
+const BACKGROUND=[246,247,249],GRID=[214,219,226],GRID_MAJOR=[188,195,205],PART=[132,170,208],OUTLINE=[46,58,72],CURVE=[38,63,83],POINT=[195,222,239];
+const COS_YAW=Math.cos(DEFAULT_CAMERA.yaw),SIN_YAW=Math.sin(DEFAULT_CAMERA.yaw),COS_TILT=Math.cos(DEFAULT_CAMERA.tilt),SIN_TILT=Math.sin(DEFAULT_CAMERA.tilt);
 // right, up and toward-eye unit vectors of each panel.
 const VIEWS=Object.freeze([
-  {right:[1/SQRT2,1/SQRT2,0],up:[-1/SQRT6,1/SQRT6,2/SQRT6],toward:[1/SQRT3,-1/SQRT3,1/SQRT3]},
-  {right:[1,0,0],up:[0,1,0],toward:[0,0,1]}
+  {right:[COS_YAW,-SIN_YAW,0],up:[SIN_YAW*SIN_TILT,COS_YAW*SIN_TILT,COS_TILT],toward:[-SIN_YAW*COS_TILT,-COS_YAW*COS_TILT,SIN_TILT]}
 ]);
 const dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
@@ -125,7 +125,7 @@ export function geometryImage(geometry){
   for(const p of vertices)extend(bounds,p);
   for(const curve of curves)for(const p of curve.points)extend(bounds,p);
   for(const {point} of points)extend(bounds,point);
-  if(bounds.min[0]===Infinity)return null;
+  if(bounds.min[0]===Infinity)extend(bounds,[0,0,0]);
   const canvas=createCanvas();
   for(const frame of frames(bounds)){
     drawGrid(canvas,frame,bounds);
@@ -135,33 +135,35 @@ export function geometryImage(geometry){
     for(const face of faces)for(let k=1;k+1<face.length;k++){
       const a=vertices[face[0]],b=vertices[face[k]],c=vertices[face[k+1]];
       const ux=b[0]-a[0],uy=b[1]-a[1],uz=b[2]-a[2],vx=c[0]-a[0],vy=c[1]-a[1],vz=c[2]-a[2];
-      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,size=Math.sqrt(nx*nx+ny*ny+nz*nz);if(size<NUMERIC_MM)continue;
+      const nx=uy*vz-uz*vy,ny=uz*vx-ux*vz,nz=ux*vy-uy*vx,size=Math.sqrt(nx*nx+ny*ny+nz*nz);if(size<ROUNDING_MM**2)continue;
       const shade=Math.min(1.08,0.42+0.64*Math.abs(nx*light[0]+ny*light[1]+nz*light[2])/size);
       fillTriangle(canvas,frame,projected,face[0]*3,face[k]*3,face[k+1]*3,Math.min(255,Math.round(PART[0]*shade)),Math.min(255,Math.round(PART[1]*shade)),Math.min(255,Math.round(PART[2]*shade)));
     }
     outline(canvas,frame);
     const a=new Float64Array(3),b=new Float64Array(3);
-    for(const curve of curves)for(let k=1;k<curve.points.length;k++){project(frame,curve.points[k-1],a,0);project(frame,curve.points[k],b,0);drawSegment(canvas,frame,a,b,SAMPLES*2,...CURVE);}
-    for(const {point} of points){project(frame,point,a,0);drawSegment(canvas,frame,a,a,SAMPLES*5,...CURVE);}
+    for(const curve of curves)for(let k=1;k<curve.points.length;k++){project(frame,curve.points[k-1],a,0);project(frame,curve.points[k],b,0);drawSegment(canvas,frame,a,b,SAMPLES*1.25,...CURVE);}
+    for(const {point} of points){project(frame,point,a,0);drawSegment(canvas,frame,a,a,SAMPLES*3,...POINT);}
   }
   return encode(canvas);
 }
 
 // A SAAMpath read through pathPreview as Studio reads it, streamed twice: once
-// to frame the part's extrusion (the sacrificial prime line may fall outside),
+// to frame every move (including the sacrificial prime line and travels),
 // once to draw. Returns the PNG and the colour of each phase drawn. Callers pass
 // the saved SAAMpath, not the prepared path: machine startup motion says nothing
 // about the part, and preparing a large path costs seconds.
 export function pathImage(path,{plan,palette,inspection}){
-  const bounds=emptyBounds(),all=emptyBounds();
-  pathPreview(path,{plan,moves:{push(move){if(!move.extruding)return;extend(all,move.from);extend(all,move.to);if(move.phase!=='prime'){extend(bounds,move.from);extend(bounds,move.to);}}}});
-  const framed=bounds.min[0]===Infinity?all:bounds;
-  if(framed.min[0]===Infinity)return null;
+  const framed=emptyBounds(),head={point:path.initialPosition,axis:path.initialPose?.toolAxis??[0,0,-1]};
+  pathPreview(path,{plan,moves:{push(move){extend(framed,move.from);extend(framed,move.to);head.point=move.to;head.axis=move.toolAxisTo??head.axis;}}});
+  const toolEnd=head.point.map((v,i)=>v-head.axis[i]*6);
+  extend(framed,head.point);extend(framed,toolEnd);
   const canvas=createCanvas(),frameList=frames(framed),phases={},colours=new Map(),a=new Float64Array(3),b=new Float64Array(3);
   for(const frame of frameList)drawGrid(canvas,frame,framed);
-  pathPreview(path,{plan,moves:{push(move){
-    if(!move.extruding)return;
-    move.modulated=Boolean(inspection?.operations?.[move.operation]?.modifiers?.length);
+  pathPreview(path,{plan,inspection,moves:{push(move){
+    if(!move.extruding){
+      for(const frame of frameList){project(frame,move.from,a,0);project(frame,move.to,b,0);drawSegment(canvas,frame,a,b,SAMPLES,...GRID_MAJOR);}
+      return;
+    }
     const hex=phaseColour(palette,move);phases[move.modulated?'modulated':move.phase]=hex;
     if(!colours.has(hex))colours.set(hex,rgb(hex));
     const base=colours.get(hex),injection=move.from===move.to;
@@ -175,45 +177,60 @@ export function pathImage(path,{plan,palette,inspection}){
       drawSegment(canvas,frame,a,b,size,...base.map(value=>Math.min(255,Math.round(value*cue))));
     }
   }}});
+  for(const frame of frameList){project(frame,head.point,a,0);project(frame,toolEnd,b,0);drawSegment(canvas,frame,a,b,SAMPLES*3,...CURVE);drawSegment(canvas,frame,a,a,SAMPLES*3,...CURVE);}
   return {png:encode(canvas),phases};
 }
 
-// One runtime's images, kept in its own temporary workspace (tmp/jobs) until the
-// runtime closes; a crash leaves it to the next start's workspace cleanup. Each
-// bundle keeps its newest geometry and toolpath image.
+// One runtime's images use its temporary workspace (tmp/jobs); a crash leaves
+// that workspace to the next start's cleanup. Each
+// returned path is immutable. JSON CLI transport needs a local image path:
+// each chat/bundle/stage keeps its current capture only during active work.
+// Hand-back expires it; replacement, chat closure and shutdown also clean up.
 export function createResultImages(paths){
-  const owned={workspace:null};
+  const owned={workspace:null,current:new Map(),retired:new Set()};
   async function folder(){return (owned.workspace??=createTemporaryWorkspace('visual-check')).then(workspace=>workspace.directory);}
-  async function write(bundleId,kind,key,png){
-    const directory=await folder(),stem=String(bundleId).replace(/[^A-Za-z0-9_-]+/g,'_').slice(-48)+'-'+createHash('sha256').update(String(bundleId)).digest('hex').slice(0,6)+'-'+kind;
-    for(const name of await readdir(directory))if(name.startsWith(stem+'-'))await rm(resolve(directory,name),{force:true});
-    const file=resolve(directory,`${stem}-${String(key).replace(/[^A-Za-z0-9]/g,'').slice(0,12)}.png`);
-    await writeFile(file,png);return file;
+  async function retire(){
+    for(const file of owned.retired)try{await rm(file,{force:true});owned.retired.delete(file);}catch(error){if(!['EBUSY','EPERM','EACCES'].includes(error.code))throw error;}
+  }
+  async function write(ownerId,bundleId,kind,png){
+    const directory=await folder(),stem=String(bundleId).replace(/[^A-Za-z0-9_-]+/g,'_').slice(-48)+'-'+kind;
+    const file=resolve(directory,`${stem}-${randomUUID()}.png`),key=JSON.stringify([ownerId,bundleId,kind]);
+    await writeFile(file,png,{flag:'wx'});
+    const previous=owned.current.get(key);
+    owned.current.set(key,{ownerId,bundleId,file});
+    if(previous)owned.retired.add(previous.file);
+    await retire();
+    return file;
   }
   return {
     // The images an operation's result carries: geometry when its geometry
-    // identity changed, toolpath when its generation did; null when neither.
-    async capture(directory,bundleId,before,after){
-      const geometry=Boolean(after?.geometryKey)&&after.geometryKey!==before?.geometryKey;
-      const toolpath=Boolean(after?.generationKey)&&after.generationKey!==before?.generationKey;
+    // identity changed, and after explicit generation even when its result is reused.
+    async capture(directory,bundleId,before,after,resultStage,ownerId='local'){
+      const geometry=Boolean(after?.geometryKey)&&(resultStage==='geometry'||after.geometryKey!==before?.geometryKey);
+      const toolpath=Boolean(after?.generationKey)&&(resultStage==='toolpath'||after.generationKey!==before?.generationKey);
       if(!geometry&&!toolpath)return null;
       const result={};
       try{
         const adapter=await bundleFor(directory),{state}=await adapter.loadBundleSnapshot(directory,{program:false});
         if(geometry){
-          try{const png=geometryImage(state.geometry);if(png)result.geometry=await write(bundleId,'geometry',after.geometryKey,png);}
+          try{const png=geometryImage(state.geometry);result.geometry=await write(ownerId,bundleId,'geometry',png);}
           catch(error){result.geometryError=error.message;}
         }
         if(toolpath){
           try{
             const local=await readLocalPhaseColours(paths).catch(error=>{result.phaseColoursProblem='Local phase colours ignored: '+error.message;return null;});
-            const drawn=pathImage(JSON.parse(await adapter.readToolpath(state)),{plan:state.plan,
+            const drawn=pathImage(JSON.parse(await adapter.readDrawnPath(state)),{plan:state.plan,
               palette:resolvePhaseColours(state.phaseColours,local),inspection:state.review.generation?.summary?.inspection});
-            if(drawn){result.toolpath=await write(bundleId,'toolpath',after.generationKey,drawn.png);result.phases=drawn.phases;}
+            result.toolpath=await write(ownerId,bundleId,'toolpath',drawn.png);result.phases=drawn.phases;
           }catch(error){result.toolpathError=error.message;}
         }
       }catch(error){result.error=error.message;}
+      if(result.geometry||result.toolpath)result.lifetime='Read each PNG before handing this bundle back. Hand-back expires its paths; replacement, chat closure and runtime shutdown also remove them.';
       return Object.keys(result).length?result:null;
+    },
+    async release(ownerId,bundleId){
+      for(const [key,current] of owned.current)if(current.ownerId===ownerId&&(bundleId===undefined||current.bundleId===bundleId)){owned.current.delete(key);owned.retired.add(current.file);}
+      await retire();
     },
     async close(){const workspace=await owned.workspace?.catch(()=>null);await workspace?.release();}
   };

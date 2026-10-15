@@ -1,5 +1,6 @@
 // Freeze the camera transform for one frame. Bounds and layout reads belong
 // outside the endpoint loop; each segment still uses the same projection.
+export const DEFAULT_CAMERA=Object.freeze({yaw:-0.78,tilt:0.62});
 export function createProjection(bounds,width,height,yaw,tilt,zoom,pan=[0,0],fitProjected=false) {
   const size=bounds.max.map((v,i)=>Math.max(1,v-bounds.min[i]));
   const center=bounds.min.map((v,i)=>(v+bounds.max[i])/2);

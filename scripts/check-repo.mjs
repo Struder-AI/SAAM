@@ -86,7 +86,9 @@ const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging|ma
   && !/(^|\/)tests?\/|\.test\.mjs$/.test(path) && path !== 'core/dimensions.mjs');
 const toleranceCounts = {};
 for (const path of toleranceFiles) {
-  const code = (await readFile(resolve(root, path), 'utf8')).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+  // A tracked file removed by the current change is absent until checkpoint.
+  const source=await readFile(resolve(root,path),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;});
+  const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
   const count = code.match(toleranceLiteral)?.length ?? 0;
   if (count) toleranceCounts[path] = count;
 }

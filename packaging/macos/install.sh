@@ -133,10 +133,7 @@ AUTHORIZATION
   esac
 }
 
-data_folder() {
-  if [ "${SAAM_DATA:-}" = "$HOME/Library/Application Support/SAAM" ]; then printf '%s' "${SAAM_INSTALL_TEST_ROOT:-$HOME/SAAM}"
-  else printf '%s' "${SAAM_INSTALL_TEST_ROOT:-${SAAM_DATA:-$HOME/SAAM}}"; fi
-}
+data_folder() { printf '%s' "${SAAM_INSTALL_TEST_ROOT:-$HOME/SAAM}"; }
 
 # True while SAAM runs: an instance record names a live node process, or node
 # runs an installation's launch.mjs. Other node processes from the installation

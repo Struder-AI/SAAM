@@ -4,6 +4,8 @@ import createClipper from 'clipper2-wasm';
 import { requireThat } from '../geom/tolerance.mjs';
 const clipper=await createClipper();
 
+// Boolean coordinate grid, a rounding quantity. Deferred value: by class it is
+// ROUNDING_MM, kept until every region boolean and its fixtures are rerun on that grid.
 export const CLIPPER_PRECISION = 1e-9;
 const LIMIT = 2 ** 50; // headroom within exactly representable JS integer coordinates
 const round=value=>value<0?-Math.round(-value):Math.round(value);

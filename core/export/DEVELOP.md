@@ -8,12 +8,25 @@ output semantics; each machine's `SKILL.md` owns its dialect and evidence.
   the selected output's adapter from the machine extension shipping the profile
   (`machineCatalog`, `core/extensions/library.mjs`); `exportProgram` prepares the path
   once, calls `export` and completes the report (move count, path totals as fallback
-  estimates, short-travel advisory); `preparePath` gives Studio the same prepared path;
-  `settingsRows` gives Studio the adapter's rows.
-- `prepare-path.mjs`: `validateSetup` (common setup, logical materials, then the
+  estimates, short-travel advisory); `programReadiness` names what writing still needs;
+  `settingsRows` gives Studio the adapter's rows. Adapters translate the SAAMpath into
+  programs and draw nothing: Studio draws the SAAMpath.
+- `prepare-path.mjs`: placement offset, `validateSetup` (common setup, logical materials, then the
   adapter's `validate`), pose refusal by the adapter's `poses`, startup, priming,
   material changes by the output's `materialChangeMode`, axis-feed limits.
 - `gcode-motion.mjs`, `zip.mjs`, `travel-advisory.mjs`: shared writer, archive codec and advisory.
+
+## Kinematics plug
+
+The SAAMpath states only toolhead position and orientation in the part frame; every
+other machine axis, including a redundant table, comes from the extension entry
+`machine-kinematics` (gantries need none). `createKinematics(Kinematics)` receives
+[frame math and dimension classes](../machine/kinematics.mjs) and returns forward and
+inverse kinematics plus `view({machine, setup, config})` → `{limitations,
+partFrame(at), arm}`; `arm` is null or `{worldFromBase, linkLengthsMm, baseSizeMm,
+rotationControls, coordinateBounds, angularLeverMm, inverse(tcpInBase), reachMargins?}`.
+The adapter builds it from `Export.kinematics`; Studio serves it at
+`/machine-kinematics/<machine id>.mjs`.
 
 `core/print/workflow.mjs` reaches adapters only through the registry. Tests are
 `core/tests/<dialect>*.test.mjs`, with `export.test.mjs` and `modal-export.test.mjs` across dialects.

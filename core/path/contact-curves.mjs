@@ -1,62 +1,71 @@
 import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
-import {beadContactAlong,depositedBeadBounds} from './deposited-curves.mjs';
+import {prepareExtrudedSegmentQuery} from '../geom/extruded-segments.mjs';
 
 // A geometric query over final beads, shared by contact gaps and contact charts.
 // The outward ray starts beyond the actual material bounds, not at a nominal
 // CAD surface that may now lie inside or behind displaced material.
 export function depositedContact(segments,{toleranceMm=0}={}){
   requireThat(segments.length>0,'Deposited contact needs actual material.');
-  const bounds=depositedBeadBounds(segments);
-  // Dependency-local bounding hierarchy indexes the existing fragments; it is
-  // not a reconstructed surface and carries no new material representation.
-  const entries=segments.map((segment,index)=>({segment,index,bounds:depositedBeadBounds([segment])}));
-  const build=items=>{
-    const box=items.reduce((b,e)=>({min:b.min.map((v,k)=>Math.min(v,e.bounds.min[k])),max:b.max.map((v,k)=>Math.max(v,e.bounds.max[k]))}),{min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
-    if(items.length<=8)return {bounds:box,items};
-    const axis=[0,1,2].sort((a,b)=>(box.max[b]-box.min[b])-(box.max[a]-box.min[a]))[0];
-    const ordered=[...items].sort((a,b)=>(a.bounds.min[axis]+a.bounds.max[axis])-(b.bounds.min[axis]+b.bounds.max[axis])),mid=Math.floor(items.length/2);
-    return {bounds:box,left:build(ordered.slice(0,mid)),right:build(ordered.slice(mid))};
-  };
-  const tree=build(entries);
-  const intersects=(box,point,normal)=>{
-    let low=0,high=Infinity;
-    for(let k=0;k<3;k++){
-      const epsilon=64*Number.EPSILON*Math.max(1,Math.abs(point[k]),Math.abs(box.min[k]),Math.abs(box.max[k]))+toleranceMm;
-      if(Math.abs(normal[k])<1e-14){if(point[k]<box.min[k]-epsilon||point[k]>box.max[k]+epsilon)return false;continue;}
-      const a=(point[k]-box.max[k]-epsilon)/normal[k],b=(point[k]-box.min[k]+epsilon)/normal[k];
-      low=Math.max(low,Math.min(a,b));high=Math.min(high,Math.max(a,b));if(high<low)return false;
-    }
-    return true;
-  };
+  const query=prepareExtrudedSegmentQuery(segments,{toleranceMm}),bounds=query.bounds;
   return {bounds,at(point,direction){
     const normal=normalize(direction),ceiling=normal.reduce((sum,n,i)=>sum+n*(n>=0?bounds.max[i]:bounds.min[i]),0)+toleranceMm;
     const start=point.map((p,i)=>p+normal[i]*(ceiling-dot(point,normal)));
-    const candidates=[],pending=[tree];
-    while(pending.length){const node=pending.pop();if(!intersects(node.bounds,start,normal))continue;if(node.items)candidates.push(...node.items.filter(entry=>intersects(entry.bounds,start,normal)));else pending.push(node.left,node.right);}
-    const hit=beadContactAlong(candidates.map(e=>e.segment),start,normal,{toleranceMm});
-    return hit?{...hit,segmentIndex:candidates[hit.segmentIndex].index}:null;
+    const hit=query.cast(start,normal.map(value=>-value));
+    return hit?{...hit,operationId:segments[hit.segmentIndex].operationId}:null;
   }};
+}
+
+// Spans of one sampled course whose contact is not ordinary: 'unsupported' (no
+// deposited material below; the authored height and nominal bead stand) or
+// 'penetrating' (the course runs into existing material; nothing is deposited
+// there). samples: [{point,status}] in course order, status null where ordinary.
+// A span ends halfway to its ordinary neighbours.
+export function contactSpans(samples){
+  const along=[0],spans=[];
+  for(let i=1;i<samples.length;i++)along.push(along[i-1]+distance(samples[i-1].point,samples[i].point));
+  const edge=(i,j)=>samples[j]?{point:samples[i].point.map((v,k)=>(v+samples[j].point[k])/2),alongMm:(along[i]+along[j])/2}:{point:samples[i].point,alongMm:along[i]};
+  samples.forEach(({status},i)=>{
+    if(!status||samples[i-1]?.status===status)return;
+    const next=samples.findIndex((sample,k)=>k>i&&sample.status!==status),last=(next<0?samples.length:next)-1;
+    const from=edge(i,i-1),to=edge(last,last+1);
+    spans.push({kind:status,fromMm:from.point,toMm:to.point,lengthMm:to.alongMm-from.alongMm});
+  });
+  return spans;
+}
+
+const SPAN_OUTCOME={unsupported:'has no deposited material below; it prints at its authored height with the nominal bead',
+  penetrating:'runs into existing material; nothing is deposited there'};
+export function contactSpanNote(id,{kind,fromMm,toMm,lengthMm}){
+  const at=point=>`(${point.map(v=>v.toFixed(2)).join(', ')})`;
+  return `${id}: ${lengthMm.toFixed(2)} mm from ${at(fromMm)} to ${at(toMm)} mm ${SPAN_OUTCOME[kind]}.`;
 }
 
 // Evaluated substrate chart: its points and metric both come from final beads.
 // Finite differences shrink until their physical change meets the authored
-// tolerance. Missing material is a real hole, never bridged by interpolation.
-export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
+// tolerance. Where no material lies below, the nominal reference sample and
+// frame stand; interpolation never bridges a hole.
+// Process scale: default contact chord tolerance, a fortieth of a 0.4 mm line.
+const CONTACT_CHORD_MM=.01;
+export function depositedContactChart(chart,segments,{toleranceMm=CONTACT_CHORD_MM}={}){
   requireThat(toleranceMm>0,'Contact chart needs positive tolerance.');
   const contact=depositedContact(segments),positions=new Map(),frames=new Map();
   const position=(u,v)=>{
     const key=`${u},${v}`;if(positions.has(key))return positions.get(key);
     const reference=chart.at(u,v),hit=contact.at(reference.point,reference.normal);
-    requireThat(hit,`Deposited substrate has no contact at chart (${u}, ${v}), reference ${reference.point.join(', ')} within deposited bounds ${JSON.stringify(contact.bounds)}.`);
-    const sample={...reference,...hit,normal:reference.normal,contactNormal:hit.normal};positions.set(key,sample);return sample;
+    const sample=hit?{deposited:true,frame:{...reference,...hit,normal:reference.normal,contactNormal:hit.normal}}:{deposited:false,frame:reference};
+    positions.set(key,sample);return sample;
   };
   const at=(u,v)=>{
     const key=`${u},${v}`;if(frames.has(key))return frames.get(key);
-    const center=position(u,v);
+    const {deposited,frame:center}=position(u,v);
+    if(!deposited){frames.set(key,center);return center;}
     const derivative=axis=>{
       const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
+      // Finite-difference step: square root of the tolerance over the chart scale, capped.
       let h=Math.min(.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
+      // A probe beyond the deposited material has no deposited difference: null.
       const estimate=step=>{
         // A periodic seam is interior to the surface. Keep the differentiation
         // interval unwrapped and wrap only its probes, so both seam sides use
@@ -65,19 +74,21 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
         const a=periodic?coordinate-step:Math.max(0,coordinate-step),b=periodic?coordinate+step:Math.min(1,coordinate+step);
         requireThat(b>a,'Contact chart derivative cannot progress.');
         const probeA=periodic?a-Math.floor(a):a,probeB=periodic?b-Math.floor(b):b;
-        const pa=position(axis===0?probeA:u,axis===1?probeA:v).point,pb=position(axis===0?probeB:u,axis===1?probeB:v).point;
-        return pb.map((p,i)=>(p-pa[i])/(b-a));
+        const pa=position(axis===0?probeA:u,axis===1?probeA:v),pb=position(axis===0?probeB:u,axis===1?probeB:v);
+        return pa.deposited&&pb.deposited?pb.frame.point.map((p,i)=>(p-pa.frame.point[i])/(b-a)):null;
       };
       let previous=estimate(h);
+      if(!previous)return nominal;
       for(;;){
         const next=estimate(h/2);
+        if(!next)return previous;
         if(distance(previous,next)*h<=toleranceMm)return next;
         requireThat(coordinate+h/2!==coordinate,'Deposited contact chart has an unresolved discontinuity.');
         h/=2;previous=next;
       }
     };
     const du=derivative(0),dv=derivative(1),oriented=cross(du,dv);
-    requireThat(Math.hypot(...oriented)>1e-12,'Deposited contact chart is locally singular.');
+    requireThat(Math.hypot(...oriented)>ROUNDING_MM**2,'Deposited contact chart is locally singular.');
     const normal=normalize(oriented),side=dot(normal,center.normal)<0?-1:1;
     const frame={...center,du,dv,normal:normal.map(n=>n*side)};frames.set(key,frame);return frame;
   };
@@ -87,24 +98,25 @@ export function depositedContactChart(chart,segments,{toleranceMm=.01}={}){
 // Keep authored positions; only marked contact segments acquire their actual
 // normal gap. Contact-field integration refines independently of the geometry
 // chord, preserving authored positions and every existing per-segment channel.
-export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=.001,contactRole='foundation'}){
+// Without material below, a sample keeps its nominal height; where the course
+// runs into material, its gap is zero. heightMm: the nominal height of curves
+// without their own. -> {curves, spans} (contactSpans).
+export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=PRINT_RESOLUTION_MM,contactRole='foundation',heightMm}){
   requireThat(toleranceMm>0&&Number.isFinite(toleranceMm),'Foundation contact needs a positive physical tolerance.');
-  const contact=depositedContact(segments);
+  const contact=depositedContact(segments),spans=[];
   const stepMm=segments.reduce((smallest,s)=>Math.min(smallest,s.radius),Infinity);
-  return curves.map(curve=>{
-    const heightsMm=curve.heightsMm?[...curve.heightsMm]:curve.points.slice(1).map(()=>curve.heightMm);
+  const adapted=curves.map(curve=>{
+    const heightsMm=curve.heightsMm?[...curve.heightsMm]:curve.points.slice(1).map(()=>curve.heightMm??heightMm),course=[];
     const segmentMetadata=curve.points.slice(1).map((b,i)=>{
       const metadata=curve.segmentMetadata?.[i]??{};
-      if(contactRole!==null&&metadata.contactRole!==contactRole)return {...metadata};
-      const a=curve.points[i],normal=normalize(metadata.surfaceNormal??direction);
+      if(contactRole!==null&&metadata.contactRole!==contactRole){course.push({point:curve.points[i],status:null},{point:b,status:null});return {...metadata};}
+      const a=curve.points[i],normal=normalize(metadata.surfaceNormal??direction),nominal=heightsMm[i];
       const samples=new Map();
       const gap=t=>{
-        if(samples.has(t))return samples.get(t);
-        const p=a.map((v,k)=>v+(b[k]-v)*t),hit=contact.at(p,normal);
-        requireThat(hit,'Authored foundation curve has no final deposited support.');
-        const h=dot(p.map((v,k)=>v-hit.point[k]),normal);
-        requireThat(h>0,`Foundation normal gap ${h} mm is not positive; revise the authored course or supporting deposition.`);
-        samples.set(t,h);return h;
+        if(samples.has(t))return samples.get(t).gapMm;
+        const p=a.map((v,k)=>v+(b[k]-v)*t),hit=contact.at(p,normal),h=hit?dot(p.map((v,k)=>v-hit.point[k]),normal):null;
+        const sample=!hit?{point:p,gapMm:nominal,status:'unsupported'}:h>0?{point:p,gapMm:h,status:null}:{point:p,gapMm:0,status:'penetrating'};
+        samples.set(t,sample);return sample.gapMm;
       };
       const length=distance(a,b),pending=[[0,1,gap(0),gap(.5),gap(1)]],integrals=[];
       while(pending.length){
@@ -121,37 +133,44 @@ export function contactCurveGaps(curves,{segments,direction=[0,0,1],toleranceMm=
         pending.push([mid,hi,middle,q3,right],[lo,mid,left,q1,middle]);
       }
       heightsMm[i]=integrals.reduce((sum,h)=>sum+h,0);
+      course.push(...[...samples].sort(([s],[t])=>s-t).map(([,sample])=>sample));
       return {...metadata,surfaceNormal:normal,beadHeightMm:heightsMm[i]};
     });
+    spans.push(...contactSpans(course));
     return {...curve,heightsMm,segmentMetadata};
   });
+  return {curves:adapted,spans};
 }
 
 // Curves on an existing deposition: retain lateral coordinates, find the final
 // supporting bead surface, and raise each sample by the declared normal gap.
-export function contactCurveCourses(curves,{segments,direction=[0,0,1],gapMm,ceilingMm,sampleStepMm=.2,toleranceMm=.01,footprintRadiusMm=0}){
+// Without material below, a sample keeps its authored position. A step in the
+// supporting surface, or its edge, is located to the tolerance and crossed.
+// -> {curves, spans} (contactSpans).
+export function contactCurveCourses(curves,{segments,direction=[0,0,1],gapMm,ceilingMm,sampleStepMm=.2,toleranceMm=CONTACT_CHORD_MM,footprintRadiusMm=0}){ // process-scale defaults
   requireThat(gapMm>0&&sampleStepMm>0&&toleranceMm>0&&Number.isFinite(ceilingMm),'Contact curves need positive gap/sampling and a finite ceiling.');
-  const normal=normalize(direction);
+  const normal=normalize(direction),spans=[];
   const contact=p=>{
     const along=p.reduce((sum,v,i)=>sum+v*normal[i],0),start=p.map((v,i)=>v+normal[i]*(ceilingMm-along)),hit=beadContactAlong(segments,start,normal,{toleranceMm:footprintRadiusMm+toleranceMm});
-    requireThat(hit,'A requested curve leaves finalized deposited support; reduce the offset or add an explicit supporting course.');
-    return hit.point.map((v,i)=>v+normal[i]*gapMm);
+    return hit?{point:hit.point.map((v,i)=>v+normal[i]*gapMm),status:null}:{point:p,status:'unsupported'};
   };
-  return curves.map(curve=>{
-    const source=curve.closed?[...curve.points,curve.points[0]]:curve.points,points=[contact(source[0])];
+  const placed=curves.map(curve=>{
+    const source=curve.closed?[...curve.points,curve.points[0]]:curve.points,samples=[contact(source[0])];
     for(let i=1;i<source.length;i++){
-      const stack=[[source[i-1],source[i],points.at(-1),contact(source[i])]];
+      const stack=[[source[i-1],source[i],samples.at(-1),contact(source[i])]];
       while(stack.length){
-        const [a,b,pa,pb]=stack.pop(),mid=a.map((v,k)=>(v+b[k])/2),pm=contact(mid),error=distance(pm,pa.map((v,k)=>(v+pb[k])/2));
-        if(distance(pa,pb)<=sampleStepMm&&error<=toleranceMm){points.push(pb);continue;}
-        requireThat(mid.some((v,k)=>v!==a[k])&&mid.some((v,k)=>v!==b[k]),'Deposited contact curve cannot resolve a support discontinuity at requested tolerance.');
+        const [a,b,pa,pb]=stack.pop(),mid=a.map((v,k)=>(v+b[k])/2),pm=contact(mid),error=distance(pm.point,pa.point.map((v,k)=>(v+pb.point[k])/2));
+        if(distance(pa.point,pb.point)<=sampleStepMm&&error<=toleranceMm||distance(a,b)<=toleranceMm){samples.push(pb);continue;}
         stack.push([mid,b,pm,pb],[a,mid,pa,pm]);
       }
     }
+    spans.push(...contactSpans(samples));
+    const points=samples.map(sample=>sample.point);
     // Contact validation may sample densely without changing a flat curve's
     // authored seam candidates or connector choices in the composer.
-    const planar=normal[0]===0&&normal[1]===0&&points.every(p=>Math.abs(p[2]-points[0][2])<1e-9);
+    const planar=normal[0]===0&&normal[1]===0&&points.every(p=>Math.abs(p[2]-points[0][2])<PRINT_RESOLUTION_MM);
     const mapped=planar?source.map(p=>[p[0],p[1],points[0][2]]):points;
     return {...curve,closed:curve.closed,points:curve.closed?mapped.slice(0,-1):mapped,heightMm:gapMm,segmentMetadata:mapped.slice(1).map(()=>({surfaceNormal:normal,beadHeightMm:gapMm}))};
   });
+  return {curves:placed,spans};
 }

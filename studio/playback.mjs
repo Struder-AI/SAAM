@@ -1,9 +1,7 @@
-import {rotatePointZ as bedPoint} from '../core/geom/frame.mjs';
 export function advancePlayback(seconds, elapsedMs, speed, duration) {
   return Math.min(duration, Math.max(0, seconds + Math.max(0, elapsedMs) / 1000 * speed));
 }
 export {frameAtTime} from '../core/machine/path-time.mjs';
-export function displayPoint(point,rotaryDeg,center,followPlate){return followPlate?point:bedPoint(point,rotaryDeg,center);}
 
 // Video time is independent of encoding speed. Include the complete final pose,
 // then a two-second final hold, including the outgoing layer's fade.

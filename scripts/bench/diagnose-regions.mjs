@@ -3,11 +3,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseSTL, makeMesh } from '../../core/geom/mesh.mjs';
-import {horizontalSlice, sliceFamily } from '../../core/geom/slice.mjs';
+import {horizontalSlice, sliceStack } from '../../core/geom/slice.mjs';
 import {section} from '../../core/region/section.mjs';
 import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
-import { sliceAssignment } from '../../core/print/slices.mjs';
+import {sliceAssignment} from "../../core/print/slice-records.mjs";
 import { layerStrokes } from '../../core/region/layer-strokes.mjs';
 import { SegmentIndex } from '../../core/region/region2d.mjs';
 import { intersect, difference, union } from '../../core/region/intersection.mjs';
@@ -18,7 +18,7 @@ fs.mkdirSync(destination, { recursive: true });
 const save = (name, value) => fs.writeFileSync(path.join(destination, name + '.json'), JSON.stringify(value, null, 2) + '\n');
 const parsed = parseSTL(fs.readFileSync(input), { units: 'mm' }), shell = translateShell(makeMesh(parsed.vertices, parsed.triangles), 100, 100);
 const plan = defaults(), settings = sliceAssignment({ id: 'diagnosis' });
-const heights = sliceFamily({ base: horizontalSlice(0), pitchMm: plan.process.layerMm, firstLayerMm: plan.process.firstLayerMm },
+const heights = sliceStack({ base: horizontalSlice(0), pitchMm: plan.process.layerMm, firstLayerMm: plan.process.firstLayerMm },
   { min: [0, 0, 0], max: [0, 0, shell.bounds.max[2]] }).layers.map(layer => layer.slice.origin[2]);
 const report = { source: path.resolve(input), triangles: parsed.triangles.length, findings: [] };
 const original = SegmentIndex.prototype.add;

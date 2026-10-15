@@ -24,7 +24,7 @@ node scripts/agent-toolkit.mjs context-budget
 Skill reads default to maker; `--maker`, `--builder`, `--developer` select roles.
 Missing optional manuals are reported. `ID#heading` reads a complete maker section;
 `--machine` opens applicable advanced sections and `--all` opens everything.
-The reader returns published links and omitted headings/gates. Local extensions
+The reader returns published links, omitted headings/gates and unreadable markers. Local extensions
 use the selected catalog; their source remains outside the app.
 
 Map reads follow the [read contract](../../dev-map/README.md#commands): map 0,

@@ -6,8 +6,10 @@ What the person sees and does: the viewer, windows, dimming, export, the Connect
 > "The toolpath viewer ... needs to run the same machine file the machine will get." — owner, 2026-09-08 ([D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-files))
 >
 > "Ok decision: viewer shows the saampath. Adapters are responsible for making sure they accurately translate saampath into their machine format" — owner, 2026-10-06 (Claude 14d40329 03:37, queued)
+>
+> "We should always show the SAAMpath as the animated preview, not machine output, because that reduces the complexity needed for each individual export module, and we are now treating export modules as extensions that can be authored by builder agents." "Too complicated, just show saampath in viewer, without priming/etc." — owner, 2026-10-11, on audit items G41/G42
 
-Summary: Studio draws the SAAMpath, not a decoded machine program; the 10-06 decision overrides D-009. **Owner question pending**: the build draws the adapter's *prepared* path (adapter design A3, an agent recommendation) rather than the saved SAAMpath.
+Summary: Studio and the agent's result image draw the saved SAAMpath at its placement, timed by its own speeds; the adapter's stored report is shown as program facts. Startup, priming and material-change motion exist only inside the program writer. The 10-06 decision overrides D-009; the 10-11 words close the question of the adapter's prepared path.
 
 Sources: [D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-files); [0.3.6 "Machine adapters for builders"](../plans/0.3.6.md); Claude 14d40329 03:31 ("I wonder if we need to move away from displaying gcode or whatever output in the viewer, show saampath instead"); `.local/team/questions-036.md` A3.
 
@@ -15,8 +17,10 @@ Sources: [D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-fi
 > "You aren't getting it. You don't have to confirm they are current. That's extra complexity. The button captures an instantaneous moment. You don't have to confirm it's currency." — owner, 2026-10-01 (Codex 01a0f706 11:15)
 >
 > "If recipe changes, but no toolpath regen started, export still works, no viewer preview changes. If toolpath is regen, studio goes into "waiting" mode and export is unavailable and previous viewer results are still there, but dimmed. If geometry changes, toolpath is GONE from viewer and must be regenerated, nothing can be exported, geometry viewer shows the new geometry. We need all this in one tight, simple flow, NOT a clusterfuck of special cases." — owner, 2026-10-03 (Codex 01a102ba 18:16)
+>
+> "These should just present identically to the user. They should be the the same code wiring too, right? Both should keep showing the last toolpath, and warn that it's not current. One concept here, not two, don't give the user extra things to know about or give us extra code to maintain." — owner, 2026-10-11 (refusals audit item G17, overriding the 2026-10-03 geometry case)
 
-Summary: the person's one Export click confirms the current settings and the exact program on screen and saves it, with no re-check, regeneration or extra ceremony; a recipe edit leaves the last program exportable until regeneration starts, regeneration hides Export, and a geometry edit clears the toolpath.
+Summary: the person's one Export click confirms the current settings and the exact program on screen and saves it, with no re-check, regeneration or extra ceremony; after any edit, geometry included, the last toolpath stays shown and exportable, marked not current, until regeneration starts; regeneration hides Export.
 
 Sources: Codex 01a0f706 10:52 ("There shouldn't really be any special cases here."); Codex 01a102a0 17:33; [0.3.1 Export bullet](../plans/0.3.1.md); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) ("the person confirms settings and exact toolpath"); owner's guidance prompt 2026-10-02 (three-approval ceremony removed; supersedes [D-011](../DECISIONS.md#d-011--three-human-approval-stages)); [Bundle](bundle.md#bundle-state-no-fingerprints-or-approvals).
 
@@ -34,9 +38,9 @@ Sources: [0.3.3 "One route: everything through Application"](../plans/0.3.3.md);
 >
 > "Dim status should be about whether the agent intends to keep working without a 2-way interaction with the user (keep dimmed), or whether the agent intends to perform a 2-way interaction with the user before the next operation (or is currently performing one). The tricky part is that IF the user interrupts, dim status should END after the current operation finishes (unless the agent has queued another one in the meantime)." — owner, 2026-10-05 (Claude 98e25b54 03:33)
 >
-> "Dimmed means "the agent is working over at the saam desk" in other words, not interacting with the user right now. Un-dim means "agent is interacting with you" (or that it has interacted with you and nothing has changed since then)." — owner, 2026-10-06 (Claude 14d40329 03:22, queued); "There are two ways to bring the agent from the saam desk (dimmed) to the interaction counter … one is if the agent finishes something (easy case), the other is if the user interjects a chat" (03:26); "Dim stuff looks good, green light." (03:43)
+> "Dimmed means "the agent is working over at the saam desk" in other words, not interacting with the user right now. Un-dim means "agent is interacting with you" (or that it has interacted with you and nothing has changed since then)." — owner, 2026-10-06 (Claude 14d40329 03:22, queued); "There are two ways to bring the agent from the saam desk (dimmed) to the interaction counter … one is if the agent finishes something (easy case), the other is if the user interjects a chat" (03:26); "Dim stuff looks good, green light." (03:43); "Dimming - my intent is clear, so this shouldn't still be a discussion item. Unless believe you are unable to follow my intent." — owner, 2026-10-12
 
-Summary: Studio is dimmed while the agent works without talking to the person and un-dims when it finishes something or the person interjects (after the current operation), on both Claude Code and Codex, without flicker during a run of edits. **Owner questions pending**: (a) whether incomplete work stays dimmed after hand-back (10-05 01:38 "(right?)"); (b) the approved design's D4 accepts re-dimming flicker when a background subagent edits after the turn ends.
+Summary: autonomous SAAM work stays dimmed across edits. Hand-back, turn end or the person’s interjection un-dims after underway work settles and its saved revision is displayed, including unfinished work. Subagent lifecycle events are ignored; later actual SAAM edits begin work again. These semantics are settled; observing client hook delivery is implementation evidence.
 
 Sources: [0.3.5 "Dimming by client turn-end signal"](../plans/0.3.5.md); [0.3.6 "Dimming means the agent is at the SAAM desk"](../plans/0.3.6.md); `.local/team/dimming-design.md`; `.local/team/questions-036.md` 1-2; `.local/team/questions.md` R1(a); Claude e6f170be 10-05 18:22 ("I've fully clarified this intent multiple times").
 
@@ -75,8 +79,10 @@ Sources: [0.3.3 "Tray Quit feedback in Studio"](../plans/0.3.3.md).
 > "The bug report was supposed to be an agent-activated command. Let's keep the user-activated option on the connect page, but remove "links and file paths are removed" from the text (any of that should be in the collapsible consent section)." — owner, 2026-10-06 (Claude 14d40329 18:23)
 >
 > "Add a donate button to the 0.3.3 plan. Not sure what the target url will be yet." — owner, 2026-10-03 (Codex 01a0fec9 01:23)
+>
+> "Make the user-facing bug report thing a separate button rather than being on the connections pane." — owner, 2026-10-12 (Claude c58e0202)
 
-Summary: Connect offers Report a bug beside the agent's command, with privacy details only in the consent section; a Donate button waits for the owner's destination.
+Summary: a Report a bug button opens its own form beside the agent's command; privacy details stay in Connect's consent section; Donate waits for a destination.
 
 Sources: [0.3.4 "Bug report button"](../plans/0.3.4.md); [0.3.5 "Donate button"](../plans/0.3.5.md); [Application](application.md#bug-reports).
 
@@ -117,7 +123,7 @@ Sources: Codex 01a102ba; [0.3.1 component 6](../plans/0.3.1.md).
 
 > "Prepare a tour policy proposal for review" — owner, 2026-10-01 (Codex 01a0f8f8 20:27)
 
-Agent wording; the policy file says it was approved by the owner's 2026-10-01 request for a worker to design a better tour using its own judgment, while the owner's message asked for a proposal for review (**owner question pending**): the core tour follows one editable part through a visible geometry change, playback, a visible printing change, printer/material review and checked export; Studio sets the task, gates follow visible results, and tour content is Studio-owned.
+Owner, 2026-10-12: "Tour is fine as it is now." Agent summary: the current tour follows one editable part through geometry, playback, printing changes, machine/material review and export. Studio owns its content and visible results; the earlier policy-approval question is closed.
 
 Sources: [0.3.1 tour policy](../plans/0.3.1-tour-policy.md); [0.3.2 "Next stays disabled…"](../plans/0.3.2.md#installed-031-tour-bugs) (Codex 01a0fa1c 01:33); [0.3.3 "Skill demos and examples"](../plans/0.3.3.md) ("Tour lessons remain Studio-owned tour content"); [examples/prints](../examples/prints/README.md).
 

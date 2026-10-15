@@ -4,7 +4,7 @@
 // whole. (A planar region consuming the roof's published lower surface waits
 // for height-field slices.)
 import {defaults} from '../../print/plan.mjs';
-import {sliceAssignment} from '../../print/slices.mjs';
+import {sliceAssignment} from "../../print/slice-records.mjs";
 import {depositionAssignment} from '../../print/assignment-records.mjs';
 import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';

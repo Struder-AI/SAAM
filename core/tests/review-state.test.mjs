@@ -12,7 +12,7 @@ const state=(overrides={})=>({
   review:{generation:null},program:undefined,programError:undefined,
   outputAvailability:null,...overrides
 });
-const ui={tab:'toolpath',busy:false,generating:false,staleProgram:null,tourActive:false,
+const ui={tab:'toolpath',busy:false,generating:false,tourActive:false,
   exported:false,currentExportKey:null,inspection:null,machineView:null,pending:false};
 
 test('review projection covers unchecked, unavailable, development, production and failed output',()=>{

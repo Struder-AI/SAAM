@@ -64,11 +64,11 @@ change both together.
 2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
 3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
 4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
-5. Admitting a component or method from outside SAAM, or from superseded work, needs explicit human approval.
+5. Adding or restoring a third-party package or dependency (such as CGAL or Manifold) needs explicit human approval. This requirement does not apply to methods or to using, adapting or copying algorithms.
 6. Record approvals as given, without widening their scope. Report software and physical results separately.
 7. Work enters a release intent only on the owner's request or approval.
 8. Preserve exact decision quotations, approval events, approved wording, and license, third-party or fixture provenance notices, with their dates.
-9. A cap is never replaced by silent truncation: partial output must not pass as a complete result.
+9. A cap is never replaced by silent truncation: degrade and label partial output.
 
 ## Code shape
 
@@ -79,9 +79,36 @@ The code itself must show the scanner and human reviewer the influence between o
 3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data; earlier stages and other consumers must not retain access to the changing value. No hidden lookbacks to shared mutable sources. Bundle owns shared part state; private UI/session/job controllers own theirs. Copy only where ownership branches or a snapshot must survive.
 4. A callable answers or acts: a query returns a value and has no effect another callable can observe; a command has effects and returns only its outcome (completed or failed, and the identity of what it created). Private caches and a leaf's own working state are not effects. Larger boxes relate both ways; [notation](plans/dev-maps.md#notation).
 5. Avoid passthrough wires — generic code that routes values by keys known only at run time — without good reason; they increase complexity and reduce visibility.
-6. Every tolerance names its class from [dimensions and tolerances](core/README.md#dimensions-and-tolerances) (print resolution, process scale, program resolution, numeric conditioning, display) or derives from the print's line width or layer height. Numeric conditioning guards robustness and never judges shape; a feature far below print resolution that an operation produces is closed and reported, not rejected. `check-repo` holds raw literals per file to a falling baseline.
+6. Every tolerance names its class from [dimensions and tolerances](core/README.md#dimensions-and-tolerances) (print resolution, process scale, program resolution, rounding guards, display) or derives from the print's line width or layer height. Rounding guards derive from functional tolerances and absorb rounding error; shape judgements use functional tolerances. A feature far below print resolution that an operation produces is closed and reported, not rejected. `check-repo` holds raw literals per file to a falling baseline.
 
 Give conceptual stages and callbacks code names so clusters survive line edits. Apply the architectural discipline above before choosing scanner work; improve syntax resolution where an abstraction earns its place. Authorized architecture work includes these rewrites; an unrelated map read grants no extra scope.
+
+## Avoid check spirals
+
+Choose verification for the behavior being changed and a concrete failure it
+could introduce. Use [existing coverage](core/tests/README.md) first. Once the
+applicable checks resolve the uncertainty, continue toward completion. Run or
+broaden checks again only when relevant inputs change, a failure appears, or a
+specific uncertainty remains. Reuse valid results across tasks and contributors.
+
+Checkpointing, publication, rereading guidance and task completion do not
+invalidate results or create a verification pass. Prose-only edits and read-only
+work need no software tests. Use the full suite only for broad integration risk
+or a user request; skill manuals add no second gate. Setup belongs to first use
+of an environment, with reuse governed by [SETUP.md](SETUP.md).
+
+A check in production, CI or an agent workflow must earn its cost through a
+concrete failure it detects. Choose each check by the failure it would catch;
+a check with no such failure, or one whose record shows it never catching
+anything, is dropped. Account for compute, maintenance, false rejections
+and interruptions. Reuse the owning result for unchanged inputs. Reconsider an
+ineffective heuristic before adding a user-facing bypass. When a proposed
+geometry, toolpathing or extrusion gate has ambiguous value or placement, discuss
+its failure case, evidence, cost and alternatives within existing authorization.
+A maker's judgment about a print does not itself change general product policy.
+A failure states its real cause and what the person can change, leaving
+geometry and quality choices explicit. For count, size and elapsed-time limits, see
+[limits that adapt, and limits that are kept](core/README.md#limits-that-adapt-and-limits-that-are-kept).
 
 ## References and evidence
 Open component manuals as needed: skills, [application](core/application/README.md), [exporters](core/export/DEVELOP.md) and [toolkit](core/agent/README.md) keep their own contracts. [Packaging](packaging/README.md) owns installation/publication; verify the checkout includes released source and the current publishing branch before deriving backlog from old notes. [DEVLOG](DEVLOG.md) owns release evidence; [checkpoint and publication guidance](CONTRIBUTING-AGENTS.md) covers committing.

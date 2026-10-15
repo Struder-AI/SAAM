@@ -6,16 +6,22 @@ import {validatePlan} from './plan.mjs';
 // it or preventing the next dependency/assignment edit. No artifact is written.
 export async function diagnoseDepositionPlan(plan){
   validatePlan(plan);
+  return depositionFinding(plan);
+}
+
+// What generation makes of a saved recipe, reported rather than refused.
+export async function depositionFinding(plan){
   try{
     const path=await generatePreparedPath(plan);
     const summary=path.summary;
     return {status:'checked',scope:'deposition generation; no export, review or physical approval',
       sampledMoves:path.actions.filter(action=>action.kind==='move').length,
-      slices:summary.slices??null,ownership:summary.slices?.ownership??null,
+      slices:summary.slices??null,
       constructions:Object.fromEntries(['vaseWall','curves'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
-      modulationGeometry:summary.modulationGeometry??[],referenceFamilies:summary.referenceFamilies??{},surfaceDomain:summary.surfaceDomain??null};
+      modulationGeometry:summary.modulationGeometry??[],referenceStacks:summary.referenceStacks??{},surfaceDomain:summary.surfaceDomain??null,
+      limitations:summary.limitations??[]};
   }catch(error){
     return {status:'blocked',scope:'deposition generation',message:error.message,
-      implication:'Recipe is structurally valid and saved for further authoring; this finding must be resolved before generation can succeed.'};
+      implication:'The recipe is saved for further authoring; resolve this finding for generation to succeed.'};
   }
 }

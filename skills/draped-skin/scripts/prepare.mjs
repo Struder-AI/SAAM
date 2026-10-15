@@ -9,5 +9,5 @@ export function skinAssignment({id,...options}){
     spacingFactor:a.spacingFactor,sampleStepMm:a.sampleStepMm,fillAnglesDeg:[a.strokeAngleDeg],rotateFill:false,
     surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:a.pitchMm,layerMm:a.pitchMm},
     within:[{kind:'surface-domain',loopsUv:null,fromLayer:-a.layers,toLayer:0,maxSlopeDeg:a.maxAngleDegOverride??90,sampleStepMm:a.surveyStepMm}],
-    contact:{source:a.supportFrom},dependencies:{afterParts:[],beforeParts:[],after:a.after},description:'Roof courses with a target mean normal gap.'});
+    contact:{source:a.supportFrom},dependencies:{afterParts:[],beforeParts:[],after:a.after},description:'Roof slices with a target mean normal gap.'});
 }

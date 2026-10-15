@@ -18,12 +18,12 @@ import {randomUUID} from 'node:crypto';
 import {runPortableBundleJob} from './portable-bundle-job.mjs';
 import {changeMachine,adjustSettings,recordExtensionDependency} from '../machine/bundle-settings.mjs';
 import {SETTINGS_FIELDS} from '../machine/settings.mjs';
-import { machineIds, loadMachine } from '../machine/profile.mjs';
+import { loadMachine } from '../machine/profile.mjs';
 import { createStudio, listPrints } from '../../studio/server.mjs';
 import { bundleFor } from '../../studio/adapter-resolution.mjs';
 import {tourStatus,tourExample} from '../../studio/tour.mjs';
 import {createChatChannel,requestPrintId,workEvidence} from './chat-requests.mjs';
-import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension,machineCatalog} from '../extensions/library.mjs';
+import {listExtensions,loadExtensionEntry,readExtension,checkoutExtension,exportExtension,importExtension,machineProfiles} from '../extensions/library.mjs';
 import {createBlobFieldBundle,updateBlobFieldBundle} from '../agent/blob-field.mjs';
 import {applySlice} from '../print/slice-edit.mjs';
 import {applyModulation} from '../print/modulation.mjs';
@@ -34,7 +34,9 @@ import { readGuidance, readManual } from '../agent/manuals.mjs';
 import { onboardingSources, machineHint } from '../agent/layers.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS, skillMetadata } from '../../skills/catalog.mjs';
 import {geometryTree,COMPILED_GEOMETRY_TOOLS} from '../../skills/records.mjs';
-import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftFamilySchema} from './deposition-schemas.mjs';
+import {resolvePlanPatch} from '../print/resolve-plan.mjs';
+import {canonicalJson} from '../canonical-json.mjs';
+import {slicePatchSchema,modulationPatchSchema,geometrySchema,patchSchema,draftStackSchema} from './deposition-schemas.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const installedExtension=await loadLocalExtension(root);
@@ -53,14 +55,48 @@ const kindSchema = z.enum(['shell']).default('shell');
 const objectSchema = z.record(z.string(), z.unknown());
 const editIdentitySchema={expectedRevision:z.string().min(1).optional(),expectedEditRevision:z.string().min(1).optional()};
 async function bundleModule(){return import('../print/bundle.mjs');}
-async function recipeModule(){return import('../print/plan.mjs');}
+// The first compiled geometry record the patch would change.
+async function changedCompiledGeometry(plan,patch){
+  const {geometryTemplate}=await import('../print/plan.mjs'),compiled=geometry=>geometryTree(geometry).filter(node=>COMPILED_GEOMETRY_TOOLS[node.shape]);
+  const saved=new Set(compiled(plan.geometry).map(canonicalJson));
+  return compiled(resolvePlanPatch(plan,patch,{geometryTemplate}).geometry).find(node=>!saved.has(canonicalJson(node)));
+}
 
-function noApprovalFields(value) {
-  if (!value || typeof value !== 'object') return;
-  for (const [key, child] of Object.entries(value)) {
-    if (/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i.test(key))
-      throw new Error(`Field ${key} is not an agent-editable recipe setting; review state belongs to Bundle and the person exports from Studio.`);
-    noApprovalFields(child);
+// Review state belongs to Bundle and the person exports from Studio: a review
+// field anywhere in a recipe or request is removed, and its path returned.
+const REVIEW_FIELD=/approval|approved|^review$|^actor$|^generation$|^history$|^__proto__$|^constructor$|^prototype$/i;
+const REVIEW_ARGUMENTS=['plan','patch','request','parameters','assignment','modifier'];
+function noApprovalFields(value,at=[]) {
+  if (!value || typeof value !== 'object') return [];
+  return Object.keys(value).flatMap(key=>{
+    if(!REVIEW_FIELD.test(key))return noApprovalFields(value[key],[...at,key]);
+    delete value[key];return [[...at,key].join('.')];
+  });
+}
+// Arguments an operation does not read, misspelled ones included, are removed
+// and named; a known argument of the wrong type still fails. A union follows
+// the branch whose only objection is unknown keys.
+function unknownArgumentPaths(issues,at=[]){
+  return issues.flatMap(issue=>{
+    const path=[...at,...issue.path];
+    if(issue.code==='unrecognized_keys')return issue.keys.map(key=>[...path,key]);
+    const branch=issue.code==='invalid_union'?issue.errors.find(errors=>errors.length&&errors.every(error=>error.code==='unrecognized_keys')):null;
+    return branch?unknownArgumentPaths(branch,path):[];
+  });
+}
+function parseArguments(schema,args){
+  const input=structuredClone(args),ignored=[];
+  for(;;){
+    const parsed=schema.safeParse(input);
+    const removed=parsed.success?[]:unknownArgumentPaths(parsed.error.issues).filter(path=>{
+      const parent=path.slice(0,-1).reduce((value,key)=>value?.[key],input);
+      return parent&&typeof parent==='object'&&Object.hasOwn(parent,path.at(-1))&&delete parent[path.at(-1)];
+    });
+    ignored.push(...removed.map(path=>path.join('.')+' (not an input of this operation)'));
+    if(removed.length)continue;
+    if(!parsed.success)return {parsed,ignored};
+    for(const name of REVIEW_ARGUMENTS)ignored.push(...noApprovalFields(parsed.data[name],[name]).map(path=>path+' (review state belongs to Bundle; the person exports from Studio)'));
+    return {parsed,ignored};
   }
 }
 
@@ -105,7 +141,7 @@ export function summary(bundleId, state) {
     programError: state.programError ?? null, outputId: state.outputId ?? null,
     shortTravel: state.program?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !state.machine?'Supply the machine, material and recipe components needed for the requested operation.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
+    nextStep: !state.machine?'Generate the toolpath from the recipe; select a machine to write its program.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
       : 'Review settings and the exact toolpath together in Studio; the person exports from Studio.'
   };
@@ -114,7 +150,7 @@ export function summary(bundleId, state) {
 export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=30*60*1000;
 const CLAUDE_LISTEN=Object.freeze({defaultMs:LISTEN_LIMIT_MS,maxMs:LISTEN_LIMIT_MS});
 // Why a client event put the agent with the person: the hand-back message for each reason.
-const counterMessages=Object.freeze({turn:'The agent ended its turn.',message:'The person sent a message.',interrupt:'The person interrupted the agent.',closed:'The chat closed.'});
+const counterMessages=Object.freeze({turn:'The agent ended its turn.',message:'The person sent a message.',interrupt:'The person interrupted the agent.',input:'The agent is waiting for your input.',closed:'The chat closed.'});
 const expectedStudioSchema=z.object({studioInstanceId:z.string(),bundleId:bundleIdSchema.nullable()}).strict();
 
 export const instructions = 'Use saam help for operations and saam help OP for complete input schemas. Call saam call OP with --input FILE, --stdin or named flags. Result-changing work establishes Studio context automatically. Hand back once with respond_to_studio_request using workRequest.id, including when a new user message interrupts work. Start tours with saam start-tour. Use maker_onboarding once per chat and read individual manuals as needed. A person confirms exact settings and toolpath together in Studio before export. Commands and waits do not own application lifetime. Claude Code may monitor the Studio queue with saam wait for 30 minutes; quiet expiry is normal, renew while work or tour participation continues or let an idle monitor lapse. Codex reads the queue explicitly; automatic wakeup is unverified. Carry the expected Studio/bundle association on the first necessary operation; a stale target is rejected before effects. Return chatId with --chat-id if the command environment has no session ID. No operation grants hardware operation or final approval.';
@@ -123,15 +159,15 @@ export const instructions = 'Use saam help for operations and saam help OP for c
 // stateRoot; the optional service supplies Studio's release and diagnostics controls.
 export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SAAM_NO_AUTO_OPEN !== '1',localExtension=installedExtension,thingi10kClient,relay,application={} }) {
   const libraryRoot = resolve(paths.prints);
-  async function showStudio(url){
-    if(application.showStudio)return application.showStudio(url);
+  async function showStudio(url,visibility){
+    if(application.showStudio)return application.showStudio(url,visibility);
     return openBrowser(url);
   }
   // A window opened for a viewer counts as present while the browser starts, so no second one opens.
   const present=session=>session.server.viewerCount()>0||Date.now()-(session.shownAt??0)<60000;
   async function show(session,url=session.url){
-    if(!autoOpen||session.server.viewerCount())return false;
-    const opened=await showStudio(url);if(opened)session.shownAt=Date.now();return opened;
+    if(!autoOpen||session.visibility==='hidden'||session.server.viewerCount())return false;
+    const opened=await showStudio(url,session.visibility);if(opened)session.shownAt=Date.now();return opened;
   }
   let resourceClient;
   const getResourceClient=async()=>resourceClient??=loadExtensionEntry('thingi10k','resource-client').then(create=>create());
@@ -145,11 +181,18 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // A request belongs to the chat attached to its Studio, else to the chat that wrote it.
   const requestOwner=record=>allStudios.get(record.studioInstanceId)?.ownerId??record.ownerId;
   function observeEvent(event){for(const observer of eventObservers)try{observer(agentEvent(structuredClone(event)));}catch{/* Diagnostics never fail work. */}}
-  function createChat(ownerId,{name=ownerId,client=null,lobby=false}={}){
+  function createChat(ownerId,{name=ownerId,client=null,lobby=false,visibility='visible'}={}){
+  const presentation={visibility};
   const {requests:agentRequests,events:studioEvents,binding}=createChatChannel(libraryRoot,{ownerId,folder:resolve(stateRoot,'.studio-requests'),ownerOf:requestOwner,
-    attachment:lobby?null:Object.freeze({ownerId,name,client})});
+    attachment:lobby?null:Object.freeze({ownerId,name,client}),onHandBack:releaseHandbackImages});
+  async function releaseHandbackImages(record){
+    if(!record?.printId)return;
+    const active=await agentRequests.query({printId:record.printId});
+    if(active.some(request=>request.workActive||request.handbackPending))return;
+    await resultImages.release(ownerId,record.printId);
+  }
   studioEvents.observe(observeEvent);
-  const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0};
+  const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0,pendingWork:new Set()};
   const generationStatus=()=>[...[...calculations.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),...[...studioSessions.values()].map(({server:studio})=>agentStudioJob(studio.generationStatus())).filter(Boolean),
     ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null}))];
   async function calculateGeometry(bundleId,action){
@@ -220,7 +263,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }finally{imports.delete(jobId);}
   }
   // Every runtime-owned Studio instance starts here, showing dir or no print.
-  async function startStudio(dir,{instanceId,sessionToken,restoring=false}={}){
+  async function startStudio(dir,{instanceId,sessionToken,restoring=false,visibility=presentation.visibility}={}){
     if(app.closing)throw Error('The SAAM application is quitting.');
     const studio = createStudio(dir, { libraryRoot,machineSetups:paths.machineSetups,localPhaseColours:()=>readLocalPhaseColours(paths),chat:binding,relay,instanceId,sessionToken,restoring,runtimeId:application.runtime?.id,runtimeLabel:application.runtime?.label,studioTitle:application.runtime?.studioTitle,fingerprint:application.fingerprint,
       routeStudio:target=>routeWindow(allStudios.get(studio.agentSession().instanceId),target) });
@@ -229,10 +272,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const upstreamUrl=`http://127.0.0.1:${studio.address().port}`,studioInstanceId=studio.agentSession().instanceId;
     const registration={visible:null};
-    try{registration.visible=application.registerStudio?await application.registerStudio({instanceId:studioInstanceId,upstreamUrl,sessionToken:studio.sessionToken()}):{url:upstreamUrl};}
+    try{registration.visible=application.registerStudio?await application.registerStudio({instanceId:studioInstanceId,upstreamUrl,visibility,chatVisibility:presentation.visibility,sessionToken:studio.sessionToken()}):{url:upstreamUrl};}
     catch(error){await studio.shutdown().catch(()=>{});throw error;}
     const visible=registration.visible;
-    const session={server:studio,url:visible.url};
+    const session={server:studio,url:visible.url,visibility};
     session.ownerId=ownerId;allStudios.set(studioInstanceId,session);studioSessions.set(studioInstanceId, session);
 
     studio.once('close',()=>{
@@ -247,8 +290,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // window) in another runtime; its own window; a new one. dir: the saved print to show, if any.
   async function viewStudio(dir){
     const own=[...studioSessions.values()].filter(session=>session.server.listening&&!session.server.creationTarget());
-    const session=own.filter(present).at(-1)??await adoptWindow(chats.get(ownerId));
-    const moved=session?null:await application.adoptWindow?.({chatId:ownerId});
+    const session=own.filter(present).at(-1)??(presentation.visibility==='hidden'?null:await adoptWindow(chats.get(ownerId)));
+    const moved=session||presentation.visibility==='hidden'?null:await application.adoptWindow?.({chatId:ownerId});
     // The moved window's viewer is reconnecting to it.
     if(moved)return Object.assign(await startStudio(dir,moved),{shownAt:Date.now()});
     const reused=session??own.at(-1);
@@ -299,7 +342,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {dir,bundle,state:await bundle.loadBundle(dir,{program})};
   }
   async function applyExtension(bundleId,extensionId,request,options={},kindError='Extensions modify shared shell/mesh prints.'){
-    noApprovalFields(request);
     const {dir,state}=await read(bundleId,{program:false});
     if(state.kind!=='shell')throw new Error(kindError);
     const updated=await applyExtensionEdit(dir,extensionId,request,options);
@@ -318,34 +360,34 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         found.push({ ...skillMetadata(id, manual), manualTool: 'read_skill' });
       } catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
-    for(const extension of (await listExtensions({appRoot:root})).filter(extension=>extension.manifest.kind!=='machine')){
+    const {extensions,skipped}=await listExtensions({appRoot:root});
+    for(const extension of extensions.filter(extension=>extension.manifest.kind!=='machine')){
       const {text:manual}=await readGuidance(root,`extensions/${extension.id}/SKILL.md`);
       found.push({...skillMetadata(extension.id,manual),...(extension.manifest.kind&&extension.manifest.kind!=='skill'?{kind:extension.manifest.kind}:{}),layer:'extension',origin:extension.origin,
         digest:extension.digest,manualTool:'read_skill'});
     }
     found.push(...await localExtension.skills?.()??[]);
-    return found.sort((a, b) => a.id.localeCompare(b.id));
+    return {skills:found.sort((a, b) => a.id.localeCompare(b.id)),...(skipped.length?{skipped}:{})};
   }
   const immediateTools=new Set(['begin_studio_work','respond_to_studio_request','wait_for_studio_request','get_studio_requests','get_studio_events','get_studio_sessions','cancel_studio_calculation','get_tour','get_workspace','capture_bundle','get_bundle_instance','recover_bundle_instance','repair_stl']);
   const diagnosticFields=(value,keys)=>Object.fromEntries(keys.filter(key=>value&&Object.hasOwn(value,key)).map(key=>[key,value[key]]));
   const reportOperation=event=>{for(const observer of operationObservers)try{observer(event);}catch{/* Diagnostics never fail an operation. */}};
   // The registry holds each operation's definition (help, validation, scope);
   // perform() below names the entry that runs it.
-  function operation(name, description, shape, readOnly = true, openWorld = false) {
+  function operation(name, description, shape, readOnly = true, openWorld = false, resultStage = null) {
     extensionActions.delete(name);
     const tracked=Boolean(shape.bundleId)&&!immediateTools.has(name);
     const resultChanging=tracked&&!readOnly&&!['request_review','set_deferred_setup_save','set_phase_colours'].includes(name);
-    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle','migrate_bundle'].includes(name);
-    // The full strict schema makes unexpected top-level approval data an error
-    // instead of letting Zod silently discard it.
+    const instanceScope=tracked&&!readOnly&&!['request_review','create_bundle','import_bundle','import_stl_bundle','import_thingi10k_bundle'].includes(name);
+    // The strict schema names unexpected arguments, which invoke removes and reports.
     const schema=z.object({...shape,expectedStudio:expectedStudioSchema.optional(),...(tracked?{requestIds:z.array(z.string()).optional(),studioInstanceId:z.string().optional()}: {})}).strict();
-    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,immediate:immediateTools.has(name)});
+    operations.set(name,{name,description,schema,readOnly,openWorld,tracked,instanceScope,resultChanging,resultStage,immediate:immediateTools.has(name)});
   }
   // A local extension registers operations with its own entries; they run at
   // the extension boundary, and a later registration of a name replaces it.
   const extensionActions=new Map();
-  function tool(name, description, shape, action, readOnly, openWorld) {
-    operation(name,description,shape,readOnly,openWorld);
+  function tool(name, description, shape, action, readOnly, openWorld, resultStage) {
+    operation(name,description,shape,readOnly,openWorld,resultStage);
     extensionActions.set(name,action);
   }
   // Validate the caller's remembered association before claims, activity or edits.
@@ -397,16 +439,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {dir,server:session.server};
   }
 
-  async function visibleBundle(bundleId,{studioInstanceId,requestIds,migrating=false}={}){
+  async function visibleBundle(bundleId,{studioInstanceId,requestIds}={}){
     const dir=await directory(bundleId,{create:true,exclusive:false});
     const saved=await access(resolve(dir,'plan.json')).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
     const retained=[...studioSessions.values()].find(session=>session.server.creationTarget()===dir);
-    const existing=saved&&!migrating?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
-    if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,migrating,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
+    const existing=saved?await associatedStudio(bundleId,studioInstanceId,requestIds):null;
+    if(retained){const view={dir,server:retained.server,url:retained.url,pending:true,opening:null,stopWatching:null,browserOpenRequested:false};view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});return view;}
     if(existing){const session=allStudios.get(existing.server.agentSession().instanceId);return {...existing,url:session.url,pending:false,browserOpenRequested:false};}
-    const studio=await viewStudio(saved&&!migrating?dir:null);
+    const studio=await viewStudio(saved?dir:null);
     const browserOpenRequested=await show(studio);
-    const view={dir,server:studio.server,url:studio.url,pending:!saved||migrating,browserOpenRequested,migrating,opening:null,stopWatching:null};
+    const view={dir,server:studio.server,url:studio.url,pending:!saved,browserOpenRequested,opening:null,stopWatching:null};
     if(view.pending)view.stopWatching=watchStudioChanges(libraryRoot,()=>{void revealSavedBundle(view,true).catch(()=>{});});
     return view;
   }
@@ -423,6 +465,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // hands back as the agent's own waiting hand-back would.
   async function endTurn(reason){
     const message=counterMessages[reason];if(!message)throw Error('Unknown turn end reason '+reason+'.');
+    // Include calls still validating or queued: their episode may not exist yet.
+    // Calls accepted after this contact remain autonomous work of their own.
+    for(const call of activity.pendingWork)call.handback={status:'waiting',message};
     const episodes=new Set((await agentRequests.query()).filter(r=>r.ownerId===ownerId&&r.workActive).map(r=>r.episodeId??r.id));
     await Promise.all([...episodes].map(id=>agentRequests.handBack(id,{status:'waiting',message})));
     return {handedBack:episodes.size};
@@ -433,12 +478,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   function invoke(name,args={},session){
     const definition=operations.get(name);
     if(!definition)return Promise.reject(Error(`Unknown SAAM operation ${name}.`));
-    const parsed=definition.schema.safeParse(args);
+    const {parsed,ignored}=parseArguments(definition.schema,args);
     const execute=async()=>{
       if(app.closing)throw Error('The SAAM application is quitting.');
       const started=operationObservers.size?Date.now():null;
       try{
-        if(!parsed.success)throw parsed.error;
+        if(!parsed.success)throw ignored.length?Object.assign(Error(parsed.error.message+' Ignored arguments: '+ignored.join('; ')+'.',{cause:parsed.error}),{ignoredArguments:ignored}):parsed.error;
         await validateTarget(name,parsed.data);
         const {requestIds,expectedStudio,...input}=parsed.data;
         if(definition.schema.shape.expectedEditRevision&&input.action!=='create'&&!input.expectedEditRevision&&!input.expectedRevision)
@@ -448,7 +493,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           if(existing&&transferringStudios.has(existing.server.agentSession().instanceId))throw Error('This Studio is transferring to another chat. Retry after the capture finishes.');
           if(existing&&existing.ownerId!==ownerId)throw Error('This bundle is attached to another chat. Explicitly capture it before editing.');
         }
-        const view=input.bundleId&&!definition.immediate&&!['capture_bundle','request_review'].includes(name)?await visibleBundle(input.bundleId,{studioInstanceId:input.studioInstanceId,requestIds,migrating:name==='migrate_bundle'}):null;
+        const view=input.bundleId&&!definition.immediate&&!['capture_bundle','request_review'].includes(name)?await visibleBundle(input.bundleId,{studioInstanceId:input.studioInstanceId,requestIds}):null;
         const associated=definition.instanceScope&&input.action!=='create'&&!view?.pending?view??await associatedStudio(input.bundleId,input.studioInstanceId,requestIds):null;
         const touch=async()=>{for(const id of requestIds??[])await agentRequests.activity(id,{directory:await directory(input.bundleId)});};
         if(input.studioInstanceId&&!studioSessions.has(input.studioInstanceId))throw Error('That Studio is no longer attached to this chat.');
@@ -458,6 +503,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           const dir=await directory(input.bundleId,{create:true,exclusive:false});
           const matches=[...studioSessions.values()].filter(s=>s.server.currentPrint()===dir);
           episode=await agentRequests.beginOperation({directory:dir,requestIds,studioInstanceId:input.studioInstanceId??view?.server.agentSession().instanceId??(matches.length===1?matches[0].server.agentSession().instanceId:undefined),instruction:'Working on '+name+'.'});
+          if(session?.workCall?.handback)void agentRequests.handBack(episode.records[0].episodeId??episode.records[0].id,session.workCall.handback)
+            .catch(error=>studioEvents.record('handback-failed',{requestId:episode.records[0].id,message:error.message}));
         }
         // The bundle's work evidence before this operation: the episode's last save, else its baseline.
         const before=episode?episode.saved??episode.records[0]?.baseline??null:null,workRecords=episode?.records??[];
@@ -472,7 +519,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
         if(definition.tracked)await touch();
         if(view?.pending&&definition.resultChanging){
           creationViews.add(view.dir);
-          try{call.result=await view.server.runBundleCreation(view.dir,instance=>performAndCapture(input,instance),{fresh:!view.migrating});}
+          try{call.result=await view.server.runBundleCreation(view.dir,instance=>performAndCapture(input,instance));}
           finally{creationViews.delete(view.dir);view.stopWatching?.();}
         }else if(definition.instanceScope&&input.action!=='create'){
           const {studioInstanceId,...fields}=input;
@@ -492,16 +539,20 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           if(workError&&workRecords.length)workError.workRequest={id:workRecords[0].episodeId??workRecords[0].id,
             ...(bookkeepingError?{bookkeepingError:bookkeepingError.message}:{}),
             reminder:'This operation failed; the work episode remains active for repair. Hand back once with respond_to_studio_request when the sequence stops.'};
-          if(episode)agentRequests.settle(episode,{error:workError});
-          activeOperations.delete(callId);
+          try{
+            if(!workError&&episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
+              const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage,ownerId);
+              if(visualCheck)call.result={...call.result,visualCheck};
+            }
+          }finally{
+            if(episode)agentRequests.settle(episode,{error:workError});
+            activeOperations.delete(callId);
+          }
         }
         if(bookkeepingError&&!originalError)throw bookkeepingError;
       }
         if(workRecords.length&&call.result&&typeof call.result==='object')call.result={...call.result,workRequest:{id:workRecords[0].episodeId??workRecords[0].id,requestIds:workRecords.map(r=>r.id),reminder:'Keep working across intermediate saves. When intent is achieved, a decision is needed, or a new user message interrupts you, call respond_to_studio_request once with this id and completed or waiting status.'}};
-        if(episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
-          const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved);
-          if(visualCheck)call.result={...call.result,visualCheck};
-        }
+        if(ignored.length&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,ignoredArguments:ignored};
         if(view&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result))call.result={...call.result,studio:{studioInstanceId:view.server.agentSession().instanceId,bundleId:view.server.agentSession().printId,url:view.url,browserOpenRequested:view.browserOpenRequested}};
         const result=call.result;
         if(started!==null)reportOperation({kind:'operation',name,status:'completed',durationMs:Date.now()-started,readOnly:definition.readOnly,
@@ -554,14 +605,17 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     if(!relay)throw Error('Bug reports travel through the SAAM application.');
     return relay.report({description,context:{reporter:'agent',client,printId:printId??null,runtimeId:application.runtime?.id??null,runtimeLabel:application.runtime?.label??null}});
   }
-  operation('list_machines','List installed machine profiles, the machine extension providing each (its contract: read_skill with that id) and declared outputs. Catalog presence is not proof that a particular recipe is supported.',{});
-  async function listMachines(){const catalog=machineCatalog();return machineIds().map(id => {
-    const m = loadMachine(id);
-    return { id, name: m.name, extension: catalog.get(id).extension, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
-      outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
-      defaultSetup: m.defaultSetup };
-  });}
-  operation('list_skills','List core skills, guidance and skill/workspace extension manuals. Catalog membership does not establish recipe compatibility.',{});
+  operation('list_machines','List installed machine profiles, the machine extension providing each (its contract: read_skill with that id) and declared outputs; skipped names unreadable extensions and profiles. Catalog presence is not proof that a particular recipe is supported.',{});
+  // A machine extension or profile that cannot be read is named in skipped; the others list.
+  async function listMachines(){const {profiles,skipped}=machineProfiles(),machines=[];
+    for(const [id,{extension}] of profiles){
+      try{const m=loadMachine(id);machines.push({ id, name: m.name, extension, capabilities: m.capabilities, tools: m.tools, materials: m.materials,
+        outputs: m.outputs.map(({ id, extension, flavor, implemented, experimental, constraints, reason }) => ({ id, extension, flavor, implemented: implemented !== false, experimental, constraints, reason })),
+        defaultSetup: m.defaultSetup });}
+      catch(error){skipped.push({extension,profile:id,reason:error.message});}
+    }
+    return {machines,...(skipped.length?{skipped}:{})};}
+  operation('list_skills','List core skills, guidance and skill/workspace extension manuals; skipped names unreadable extensions. Catalog membership does not establish recipe compatibility.',{});
   operation('list_workspaces','Discover selected workspace extensions and their manuals. Workspace designs create new print bundles for ordinary Studio review.',{});
   async function listWorkspacesOperation(){
     const {listWorkspaces}=await import('../extensions/workspaces.mjs');
@@ -603,9 +657,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('read_guidance','Read published repository Markdown, or a skill example recipe (create_bundle input), by relative path, optionally with #heading for one section whatever its gate. Results list the headings with their gates and the gated sections omitted; bundleId uses the saved printer snapshot; machineId selects a reusable profile before bundle selection. Short IDs: makers, geometry, development, glossary, application, print-tools. This reader does not expose private files, source code or register capabilities.',{ guidanceId: z.string().min(1), machineId: machineIdSchema,bundleId:bundleIdSchema.optional() });
   async function readGuidanceOperation({ guidanceId, machineId,bundleId }){return readManual(root, guidanceId, {...await manualContext({machineId,bundleId}),headings:true});}
-  operation('get_recipe_defaults','Get process, setup and common assignment defaults, including remembered setup. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',{ kind: kindSchema, machineId: z.string() });
-  async function getRecipeDefaults({ kind, machineId }){return { kind, machineId,
-      plan: await (await bundleModule()).proposedPlan(machineId, { machineSetups: await machineSetupStore() }) };}
+  operation('get_recipe_defaults','Get process, setup and common assignment defaults, including remembered setup; without machineId, generic defaults. Supply geometry or standalone Trace/Inject assignments before create_bundle. Defaults never confer job approval.',{ kind: kindSchema, machineId: z.string().optional() });
+  async function getRecipeDefaults({ kind, machineId }){
+    const {plan,notes}=await (await bundleModule()).proposedPlan(machineId, { machineSetups: await machineSetupStore() });
+    return { kind, machineId, plan, ...(notes.length?{limitations:notes}:{}) };}
   operation('list_bundles','Discover saved print names, machines and modification times. Export status is unchecked; use get_bundle or check_bundle for validated status.',{});
   async function listBundles(){
     const result = [];
@@ -629,17 +684,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   }
-  operation('create_bundle','Create a bundle with authored/imported geometry or standalone Trace/Inject assignments. Defaults alone are incomplete. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string(), plan: objectSchema },false);
+  operation('create_bundle','Create and show a bundle with authored/imported geometry or standalone Trace/Inject assignments; an unfinished recipe is saved as it is. Missing fields take current defaults (generic without machineId; a machine can be selected later) and unread fields are ignored, both named in limitations; deposition reports what generation makes of it. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string().optional(), plan: objectSchema },false,false,'geometry');
   async function createBundle({ bundleId, kind, machineId, plan }){
-      noApprovalFields(plan);
-      const machine = loadMachine(machineId), recipe = await recipeModule();
-      recipe.validatePlan(plan);
+      if(machineId)loadMachine(machineId);
       const dir = await directory(bundleId, { create: true }), bundle = await bundleModule();
       await bundle.initBundle(dir, plan, { machineId });
-      return withMachineHint(bundleId, await bundle.loadBundle(dir), machine);
+      const state = await bundle.loadBundle(dir), {depositionFinding} = await import('../print/deposition-diagnostics.mjs');
+      return {...await withMachineHint(bundleId, state, machineId), deposition: await depositionFinding(state.plan)};
     }
 
-  operation('migrate_bundle','Explicitly migrate a legacy split-file bundle into the current saved manifest, retaining original sidecars. Shows the migrated bundle in Studio; no implicit read-time migration.',{bundleId:bundleIdSchema},false);
+  operation('migrate_bundle','Tidy a bundle: save its recipe as SAAM reads it (defaults filled, unread fields removed, legacy assignment forms rewritten), clearing its field notes. Generation never requires it; regenerate afterwards. Shows the bundle in Studio.',{bundleId:bundleIdSchema},false);
   async function migrateBundleOperation({bundleId}){
     const dir=await directory(bundleId),bundle=await bundleModule();return {bundleId,...await bundle.migrateBundle(dir)};
   }
@@ -652,9 +706,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('recover_bundle_instance','Maintenance: release a Studio reservation whose process has exited, after a crash. A running instance keeps its bundle.',{bundleId:bundleIdSchema},false);
   async function recoverBundleInstanceOperation({bundleId}){return {bundleId,...await recoverBundleInstance(await directory(bundleId))};}
-  operation('repair_stl','Maintenance: repair a local STL into a new absolute outputDirectory (original.stl, repaired.stl in mm, repair.json) with explicit vertex merging, hole filling and shape-change limits. Ordinary imports already repair recognized defects. Import repaired.stl with units mm for review. get_studio_events reports its jobId and progress; cancel_studio_calculation cancels it.',{sourcePath:z.string().min(1),outputDirectory:z.string().min(1),units:z.enum(['mm','inch']),mergeToleranceMm:z.number().min(0).optional(),maxHoleEdges:z.number().int().min(0).optional(),maxHoleDiameterMm:z.number().min(0).optional(),maxSampledDistanceMm:z.number().min(0).optional()},false);
+  operation('repair_stl','Maintenance: normalize source vertices below print resolution and repair a local STL into a new absolute outputDirectory (original.stl, repaired.stl in mm, repair.json). Optional vertex tolerance adds a larger merge; hole limits use boundary edge count and bounding-box diagonal in mm. Ordinary imports repair recognized defects and fill holes within 500 edges and 2 mm. Import repaired.stl with units mm for review. get_studio_events reports its jobId and progress; cancel_studio_calculation cancels it.',{sourcePath:z.string().min(1),outputDirectory:z.string().min(1),units:z.enum(['mm','inch']),mergeToleranceMm:z.number().min(0).optional(),maxHoleEdges:z.number().int().min(0).optional(),maxHoleDiameterMm:z.number().min(0).optional(),maxSampledDistanceMm:z.number().min(0).optional()},false);
   async function repairStl({sourcePath,outputDirectory,units,...limits}){
-    if(!isAbsolute(sourcePath)||!/\.stl$/i.test(sourcePath))throw Error('Choose an absolute path to a local .stl source file.');
+    // The source is read as an STL whatever its name, here and in import_stl_bundle.
+    if(!isAbsolute(sourcePath))throw Error('Choose an absolute path to a local .stl source file.');
     if(!isAbsolute(outputDirectory))throw Error('Choose an absolute path for the new repair directory.');
     const jobId=randomUUID(),controller=new AbortController();
     const job={ownerId,jobId,printId:null,studioInstanceId:null,kind:'stl-repair',status:'repairing',startedAt:Date.now(),controller,progress:{stage:'read-source'}};
@@ -674,18 +729,20 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   operation('share_bundle','Package current editable bundle inputs and selected extensions into a new portable ZIP. Toolpaths, programs and history are excluded; recipient imports, edits and regenerates. Existing package files are never overwritten.',{bundleId:bundleIdSchema,packageFile:z.string()},true,true);
   async function shareBundle({bundleId,packageFile}){
-      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path for a new .zip package.');
-      return exchangeBundle('share',bundleId,await directory(bundleId),packageFile);
+      // A name without the .zip suffix gains it; the result names the file written.
+      if(!isAbsolute(packageFile))throw Error('Choose an absolute path for a new .zip package.');
+      return exchangeBundle('share',bundleId,await directory(bundleId),/\.zip$/i.test(packageFile)?packageFile:packageFile+'.zip');
     }
-  operation('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',{bundleId:bundleIdSchema,packageFile:z.string()},false,true);
+  operation('import_bundle','Import a portable editable ZIP into a new bundle. Validates inputs and selected extensions without executing imported scripts. Never overwrites an existing bundle or changed local extension. Open/request_review using the returned bundleId; regenerate before export.',{bundleId:bundleIdSchema,packageFile:z.string()},false,true,'geometry');
   async function importBundle({bundleId,packageFile},instance){
-      if(!isAbsolute(packageFile)||!/\.zip$/i.test(packageFile))throw Error('Choose an absolute path to a .zip package.');
+      // The package is read as a ZIP whatever its name.
+      if(!isAbsolute(packageFile))throw Error('Choose an absolute path to a .zip package.');
       return exchangeBundle('import',bundleId,await directory(bundleId,{create:true}),packageFile,instance);
     }
-  operation('import_stl_bundle','Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',{ bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },false);
+  operation('import_stl_bundle','Import a local STL into a new named bundle. Default units auto chooses a reasonable mm/inch assumption from model size and printer bounds, without interrupting the person; honor explicit units when supplied. Preserves source bytes and hash and reuses remembered setup. Show geometry dimensions; units can be corrected with set_stl_units.',{ bundleId: bundleIdSchema, sourcePath: z.string().min(1), units: z.enum(['auto','mm', 'inch']).default('auto'), machineId: z.string() },false,false,'geometry');
   async function importStlBundle({ bundleId, sourcePath, units, machineId }){
       loadMachine(machineId);
-      if (!isAbsolute(sourcePath) || !/\.stl$/i.test(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
+      if (!isAbsolute(sourcePath)) throw new Error('Choose an absolute path to a local .stl source file.');
       const source = await stat(sourcePath);
       if (!source.isFile()) throw new Error('STL source must be a regular file.');
       const dir = await directory(bundleId, { create: true });
@@ -695,7 +752,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('search_thingi10k','Find meshes by descriptive keywords (such as bunny), numeric file ID or a Thingiverse thing URL. Reads the Thingi10K mirror index; returns per-file source and license links. Prefer making tailored geometry when attractive. Read the thingi10k skill manual.',{query:z.string().min(1),limit:z.number().int().min(1).default(10),offset:z.number().int().min(0).default(0)},true,true);
   async function searchThingi10k(args){return meshLibrary.search(args);}
-  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import it as a print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true);
+  operation('import_thingi10k_bundle','Download a selected Thingi10K STL file ID on the SAAM host and import it as a print. ALWAYS give its license link in chat and briefly identify the source unless obvious. Recognized defects receive automatic repair; returns attribution even if import fails, with the failed download kept as diagnostics evidence. Review geometry with request_review after successful import.',{bundleId:bundleIdSchema,fileId:z.string().regex(/^[1-9][0-9]{0,11}$/),machineId:z.string(),units:z.enum(['auto','mm','inch']).default('auto')},false,true,'geometry');
   async function importThingi10kBundle({bundleId,fileId,machineId,units}){
       const dir=await directory(bundleId,{create:true});
       loadMachine(machineId);const machineSetups=await machineSetupStore();
@@ -703,17 +760,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       return {...result,...(result.imported?summary(bundleId,await (await bundleModule()).loadBundle(dir)):{bundleId})};
     }
   localExtension.registerOperations?.({tool,z,bundleIdSchema,objectSchema,idSchema,read,noApprovalFields});
-  operation('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',{bundleId:bundleIdSchema,units:z.enum(['mm','inch']),...editIdentitySchema},false);
+  operation('set_stl_units','Correct an imported mesh to mm or inch units, rescaling its current geometry and preserving the original STL bytes and printing settings. Invalidates geometry/toolpath confirmations; show the corrected size for geometry review.',{bundleId:bundleIdSchema,units:z.enum(['mm','inch']),...editIdentitySchema},false,false,'geometry');
   async function setStlUnits({bundleId,units,expectedRevision,expectedEditRevision}){
       const {setSTLUnits}=await import('../print/import-stl.mjs');
       const dir=await directory(bundleId);return summary(bundleId,await setSTLUnits(dir,units,{expectedRevision,expectedEditRevision}));
     }
-  operation('blob_field','Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',{bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false);
+  operation('blob_field','Create or rebuild a blob-field part: freely placed points, each with positionMm, reachMm and strength, whose smooth falloffs add up; material is where the sum exceeds the threshold (default 0.25, where a lone strength-1 point is a ball of radius reach/2), cut flat at Z = 0. Negative strength carves. Request {points, threshold?, edgeMm?}; GEOMETRY.md#blob-field describes it. Extracted to a mesh for shared slicing and Studio review.',{bundleId:bundleIdSchema,action:z.enum(['create','update']),request:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function blobField({bundleId,action,request,machineId,expectedRevision,expectedEditRevision,part}){
-      noApprovalFields(request);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
-        loadMachine(machineId);
+        // A machine can be selected later; revision and part apply only to updates.
+        if(machineId)loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
         const machineSetups=await machineSetupStore();
         return summary(bundleId,await calculateGeometry(bundleId,options=>createBlobFieldBundle(dir,request,{machineId,machineSetups,...options})));
@@ -723,12 +779,11 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(state.kind!=='shell')throw new Error('Select a shared shell/mesh print.');
       return summary(bundleId,await calculateGeometry(bundleId,options=>updateBlobFieldBundle(dir,request,{expectedRevision,expectedEditRevision,part,...options})));
     }
-  operation('gridfinity','gridfinity',{bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false);
+  operation('gridfinity','gridfinity',{bundleId:bundleIdSchema,action:z.enum(['create','update']),parameters:objectSchema,machineId:z.string().optional(),...editIdentitySchema,part:idSchema.optional()},false,false,'geometry');
   async function gridfinity({bundleId,action,parameters,machineId,expectedRevision,expectedEditRevision,part}){
-      noApprovalFields(parameters);
       if(action==='create'){
-        if(!machineId||expectedRevision!==undefined||expectedEditRevision!==undefined||part!==undefined)throw new Error('Creation requires machineId; revision and part apply to updates.');
-        loadMachine(machineId);
+        // A machine can be selected later; revision and part apply only to updates.
+        if(machineId)loadMachine(machineId);
         const dir=await directory(bundleId,{create:true});
         return summary(bundleId,await createExtensionBundle(dir,'gridfinity',parameters,{machineId,machineSetups:await machineSetupStore()}));
       }
@@ -736,43 +791,40 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(!expectedRevision&&!expectedEditRevision)throw Error('Gridfinity edits require expectedRevision from the current print.');
       return applyExtension(bundleId,'gridfinity',parameters,{expectedRevision,expectedEditRevision,part},'Select a shared shell/mesh print.');
     }
-  operation('apply_extension','Apply an installed extension to the current recipe. Read its manual for request fields. Geometry and deposition assignments commit together; return the saved revision and construction report.',{bundleId:bundleIdSchema,extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/),...editIdentitySchema,request:objectSchema,part:idSchema.optional()},false);
+  operation('apply_extension','Apply an installed extension to the current recipe. Read its manual for request fields. Geometry and deposition assignments commit together; return the saved revision and construction report.',{bundleId:bundleIdSchema,extensionId:z.string().regex(/^[a-z][a-z0-9-]*$/),...editIdentitySchema,request:objectSchema,part:idSchema.optional()},false,false,'geometry');
   async function applyExtensionOperation({bundleId,extensionId,expectedRevision,expectedEditRevision,request,part}){return applyExtension(bundleId,extensionId,request,{expectedRevision,expectedEditRevision,part});}
-  operation('apply_text','Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('apply_text','Add, edit or remove raised/recessed text using a local font and a part or independent spline reference. Read text for request fields; assignments can replace the common plan.slices list atomically with geometry. Rebuilds actual geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function applyText({bundleId,expectedRevision,expectedEditRevision,request},session){
       return applyExtension(bundleId,'text',request,{expectedRevision,expectedEditRevision},'Text modifies shared shell/mesh prints.');
     }
-  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; its reinforcement (a six-loop annulus and connecting fins) is written as slice assignments ahead of the others. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('apply_heat_set','Add, edit or remove a heat-set insert hole; a source Trace adds walls and continuous star fins on each inherited Slice layer, intentionally overlapping its infill. Select the exact insertId from the heat-set-inserts manual size/profile table; read its request and geometry limits. Rebuilds geometry; use request_review afterward.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function applyHeatSet({bundleId,expectedRevision,expectedEditRevision,request}){
       return applyExtension(bundleId,'heat-set-inserts',request,{expectedRevision,expectedEditRevision},'Heat-set inserts modify shared shell/mesh prints.');
     }
-  operation('intersect_geometry','Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice families. Families report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points.',{bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),families:z.array(draftFamilySchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()});
+  operation('intersect_geometry','Query saved or draft geometry before placement: horizontal sections, vertical top crossings, spline surface cuts, or draft slice stacks. Stacks report layer counts, ownership, full-crossing findings and sampled local thickness; no recipe is saved. includeLoops adds chart/world points.',{bundleId:bundleIdSchema.optional(),request:z.object({geometry:geometrySchema.optional(),part:z.string().optional(),sectionsAtZ:z.array(z.number()).optional(),topsAtXY:z.array(z.tuple([z.number(),z.number()])).optional(),surfaces:z.array(patchSchema.omit({name:true}).extend({offsetMm:z.tuple([z.number(),z.number(),z.number()]).optional()})).optional(),stacks:z.array(draftStackSchema).describe('Ordinary assignment patches; default first/pitch 0.2mm and width0.4mm, override stack/process explicitly. Geometry belongs to outer request; part null inside drafts.').optional(),includeLoops:z.boolean().optional()}).strict()});
   async function intersectGeometry({bundleId,request}){return intersectRequest(bundleId===undefined?null:(await read(bundleId,{program:false})).dir,request);}
-  operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false);
+  operation('combine_geometry','Combine a print’s geometry (or one part) with a new operand: request {operation: union|difference|intersection, operand, part?}. The result is a boolean solid; repeating an operation appends to it, and a difference subtracts every later operand. Operands are spline, mesh, blob-field or boolean geometry in the same coordinates. Spline operands stay native: each layer combines their exact sections. Use request_review afterward. GEOMETRY.md#booleans.',{bundleId:bundleIdSchema,...editIdentitySchema,request:objectSchema},false,false,'geometry');
   async function combineGeometryOperation({bundleId,expectedRevision,expectedEditRevision,request}){
-      noApprovalFields(request);
       const {dir,state}=await read(bundleId,{program:false});
       if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
       return summary(bundleId,await combineGeometry(dir,request,{expectedRevision,expectedEditRevision}));
     }
   operation('slice','Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns saved settings and immediate deposition diagnostics; blocked findings leave valid intermediate recipes editable. No export or confirmation is created.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},false);
   async function slice({bundleId,expectedRevision,expectedEditRevision,...request}){
-      noApprovalFields(request.assignment);
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
   operation('modulate','Add, edit or remove a field modifier in plan.modulations. Select world/slice/curve frame, assignment/role and layer scope. Runs before final support publication; changes invalidate dependent output and confirmation. Add requires channel, amplitude, field and direction for displacement/tilt; edit patches saved settings. Read slice#contact-poses-and-extensions.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),modifier:modulationPatchSchema.optional()},false);
   async function modulate({bundleId,expectedRevision,expectedEditRevision,...request}){
-      noApprovalFields(request.modifier);
       const {dir}=await locate(bundleId),result=await applyModulation(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};
     }
-  operation('adjust_recipe','Apply a validated recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Edits invalidate final confirmation; read fresh state if stale.',{ bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() },false);
+  operation('adjust_recipe','Apply a recipe patch at expectedEditRevision (or strict legacy expectedRevision). experimental.substrateAdaptation is boolean, default false: on adapts gap/volume and surface-following placement to deposited substrate. Unread fields are ignored and named in limitations. Edits invalidate final confirmation; read fresh state if stale.',{ bundleId: bundleIdSchema, ...editIdentitySchema, patch: z.object({experimental:z.object({substrateAdaptation:z.boolean().describe('Experimental deposited-substrate adaptation; default false.').optional()}).strict().optional()}).passthrough() },false);
   async function adjustRecipe({ bundleId, expectedRevision,expectedEditRevision, patch }){
-      noApprovalFields(patch);
       const { dir, bundle, state } = await read(bundleId,{program:false});
-      // A patch may replace compiled geometry with another shape, not edit it.
-      const compiled=patch.geometry&&(patch.geometry.shape??state.plan.geometry?.shape)===state.plan.geometry?.shape&&geometryTree(state.plan.geometry).find(geometry=>COMPILED_GEOMETRY_TOOLS[geometry.shape]);
+      // A patch may replace compiled geometry with another shape or carry it unchanged, as an
+      // assembly's parts list does; changing it is the compiling tool's work, which this cannot do.
+      const compiled=patch.geometry&&(patch.geometry.shape??state.plan.geometry?.shape)===state.plan.geometry?.shape&&await changedCompiledGeometry(state.plan,patch);
       if(compiled)throw new Error(`This print's ${compiled.shape} geometry changes only through ${COMPILED_GEOMETRY_TOOLS[compiled.shape]}.`);
       const options={expectedRevision,expectedEditRevision};
       const next=Object.keys(patch).every(key=>SETTINGS_FIELDS.includes(key))
@@ -781,8 +833,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     }
   operation('check_bundle','Validate saved native geometry, recipe and any exact generated export using the shared bundle checks. Does not generate.',{ bundleId: bundleIdSchema });
   async function checkBundle({ bundleId }){
+    // A program that cannot be read is reported in programError, beside what was checked.
     const { state } = await read(bundleId);
-    if (state.programError) throw new Error(state.programError);
     return { ...summary(bundleId, state), checked: [...(state.geometry?['geometry']:[]),'plan',...(state.program?['exact-export']:[])], physicalValidation: 'not performed' };
   }
   operation('restore_revision','Undo or redo a saved print edit at its current revision. Restoring history invalidates affected confirmation; show the resulting print in Studio.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),direction:z.enum(['undo','redo'])},false);
@@ -797,7 +849,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',{bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),...editIdentitySchema},false);
   async function recordExtensionDependencyOperation({bundleId,extensionId,configuration,expectedRevision,expectedEditRevision}){return summary(bundleId,
       await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision,expectedEditRevision}));}
-  operation('set_deferred_setup_save','Defer remembering the exact exported setup for this bundle (defer:true), or resume normal remembering (false). Persists across sessions; edits and existing remembered defaults are unchanged.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),defer:z.boolean()},false);
+  operation('set_deferred_setup_save','Set (defer:true) or clear (false) this bundle\'s optional flag that skips remembering its exported setup; clearing removes the flag. Persists across sessions; edits and remembered defaults are unchanged.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),defer:z.boolean()},false);
   async function setDeferredSetupSaveOperation({bundleId,expectedRevision,defer}){
     const {dir,bundle}=await locate(bundleId);return {bundleId,...await bundle.setDeferredSetupSave(dir,{defer,expectedRevision})};
   }
@@ -812,7 +864,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const session=studioInstanceId?studioSessions.get(studioInstanceId):null;
       if(studioInstanceId&&!session)throw Error('That Studio instance is not owned by this agent.');
       if(!bundleId&&record)bundleId=record.printId;
-      if(!bundleId){const guide=await tourStatus(libraryRoot,binding),selected=guide.active?guide.directory:session?.server.currentPrint()??(studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null);if(!selected)throw Error('Specify bundleId or studioInstanceId when no single active Studio instance is available.');bundleId=requestPrintId(libraryRoot,selected);}
+      if(!bundleId){const guide=await tourStatus(libraryRoot,binding),selected=guide.active&&studioSessions.has(guide.studioOwner?.instanceId)?guide.directory:session?.server.currentPrint()??(studioSessions.size===1?[...studioSessions.values()][0].server.currentPrint():null);if(!selected)throw Error('Specify bundleId or studioInstanceId when no single active Studio instance is available.');bundleId=requestPrintId(libraryRoot,selected);}
       const dir=await directory(bundleId);
       if(!studioInstanceId){
         const matches=[...studioSessions.values()].filter(candidate=>candidate.server.currentPrint()===dir);
@@ -850,7 +902,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   operation('get_studio_requests','Read outstanding work and the latest edit outcome per print. Set history for all resolved records; optionally restrict to one print.',{bundleId:bundleIdSchema.optional(),history:z.boolean().default(false)});
   async function getStudioRequests({bundleId,...options}){return {requests:(await agentRequests.query({...options,printId:bundleId})).map(agentRequest)};}
   operation('get_studio_sessions','List live Studio instances owned exclusively by this agent. One agent may own several instances; print bundles remain shareable across agents.',{});
-  async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url})=>({...agentStudioSession(studio.agentSession()),url}))};}
+  async function getStudioSessions(){return {sessions:[...studioSessions.values()].map(({server:studio,url,visibility})=>({...agentStudioSession(studio.agentSession()),url,visibility}))};}
   operation('cancel_studio_calculation','Cancel a live geometry, import/automatic repair or toolpath calculation. Supply studioInstanceId for Studio work, including toolpath generation; omit it for a tool geometry calculation or import. First read get_studio_events for its identity, elapsedMs and actual progress; pass the geometry/import jobId or the toolpath editRevision. Repairs have no reliable remaining-time estimate and continue unless cancelled. Explain your decision to the person. Cancellation interrupts work and cleans incomplete imports; it does not change the previously open print.',{studioInstanceId:z.string().optional(),jobId:z.string().optional(),editRevision:z.string().optional()},false);
   async function cancelStudioCalculation({studioInstanceId,...identity}){
       if(!studioInstanceId){
@@ -933,12 +985,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...agentStudioSession(result),connected:false};
   }
-  operation('generate_toolpath','Generate and check the declared export from the current geometry and complete settings, including during the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false);
+  operation('generate_toolpath','Generate the SAAMpath from the recipe and, when the selected machine, its exporter and installation are supplied, check its program; otherwise the result names what the program still needs. Includes the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
   // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
   async function generateToolpath({ bundleId }){
     const { dir, bundle } = await locate(bundleId);
+    // The operation established the displaying Studio before running.
     const studio=[...studioSessions.values()].find(session=>session.server.currentPrint()===dir);
-    if(!studio)throw Error('Show the bundle in Studio before generating.');
     const checks=await studio.server.generate({trigger:'agent'});
     return { ...summary(bundleId, await bundle.loadBundle(dir)), checks };
   }
@@ -1017,9 +1069,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function sessionInvoke(operation,args={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     activity.calls++;
-
-    try{return await invoke(operation,args,{listen:client==='claude'?CLAUDE_LISTEN:LOCAL_LISTEN});}
-    finally{activity.calls--;}
+    const workCall=operations.get(operation)?.resultChanging?{handback:null}:null;
+    if(workCall)activity.pendingWork.add(workCall);
+    try{return await invoke(operation,args,{listen:client==='claude'?CLAUDE_LISTEN:LOCAL_LISTEN,workCall});}
+    finally{activity.calls--;if(workCall)activity.pendingWork.delete(workCall);}
   }
   // dispatch:false: the caller shows the window itself (the person's own launch).
   async function openStudio({dispatch=true}={}){
@@ -1062,10 +1115,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       workspaceSessions.set(workspaceInstanceId,session);
       session.server.once('close',()=>{if(workspaceSessions.get(workspaceInstanceId)===session)workspaceSessions.delete(workspaceInstanceId);});
     }
-    const browserOpenRequested=autoOpen&&!session.server.viewerCount?.()?await showStudio(session.url):false;
+    const browserOpenRequested=autoOpen&&presentation.visibility!=='hidden'&&!session.server.viewerCount?.()?await showStudio(session.url):false;
     return {workspaceInstanceId:session.workspaceInstanceId,url:session.url,directory:session.directory,extension:session.extension,browserOpenRequested};
   }
   return {id:ownerId,name,client,requests:agentRequests,binding,
+    visibility:()=>presentation.visibility,
+    setVisibility(value){if(!['hidden','visible'].includes(value))throw Error('Studio visibility must be hidden or visible.');presentation.visibility=value;for(const session of studioSessions.values())session.visibility=value;},
     operations:[...operations.values()].map(({action,...definition})=>definition),
     invoke:sessionInvoke,endTurn,validateTarget,openStudio,startStudio,
     releaseStudio(id){studioSessions.delete(id);for(const [bundle,idValue] of preferredStudioByPrint)if(idValue===id)preferredStudioByPrint.delete(bundle);},
@@ -1075,10 +1130,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     close(){agentRequests.close();studioEvents.close();}
   };
   }
-  function beginSession({id=randomUUID(),name,client,lobby=false}={}){
+  function beginSession({id=randomUUID(),name,client,lobby=false,visibility='visible'}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     if(typeof id!=='string'||!id.trim()||id.length>256||/[\x00-\x1f]/.test(id))throw Error('Invalid chat session ID.');
-    if(!chats.has(id))chats.set(id,createChat(id,{name,client,lobby}));
+    if(!chats.has(id))chats.set(id,createChat(id,{name,client,lobby,visibility}));
     return chats.get(id);
   }
   const lobby=beginSession({id:'studio:'+randomUUID(),name:null,lobby:true}),connectedChats=new Set();
@@ -1089,8 +1144,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     chats.get(session.ownerId)?.releaseStudio(session.server.agentSession().instanceId);
     session.ownerId=chat.id;chat.ownStudio(session.server.agentSession().instanceId,session);
   }
-  async function connectChat({id,name,client,bundleId,operation,args}={}){
-    const known=connectedChats.has(id),chat=beginSession({id,name,client});
+  async function connectChat({id,name,client,bundleId,operation,args,visibility}={}){
+    const known=connectedChats.has(id),chat=beginSession({id,name,client,visibility});
+    if(visibility!==undefined)chat.setVisibility(visibility);
     if(bundleId)bundleIdSchema.parse(bundleId);
     if(operation)await chat.validateTarget(operation,args,true);
     // Explicit capture owns its transfer; ordinary connection must not preempt it.
@@ -1099,8 +1155,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const targetInstance=args?.expectedStudio?.studioInstanceId??args?.studioInstanceId;
     const selected=targetInstance?allStudios.get(targetInstance):directory?[...allStudios.values()].find(session=>session.server.currentPrint()===directory):null;
     if(selected&&selected.ownerId!==chat.id){await transferStudio(chat,selected,false);}
-    else if(!known){
-      const available=[...allStudios.values()].find(session=>session.ownerId===lobby.id&&!session.server.currentPrint());
+    else if(!known&&chat.visibility()!=='hidden'){
+      const available=[...allStudios.values()].find(session=>session.visibility!=='hidden'&&session.ownerId===lobby.id&&!session.server.currentPrint());
       if(available)await transferStudio(chat,available,false);
     }
     connectedChats.add(chat.id);return chat;
@@ -1114,7 +1170,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return !requests.some(request=>request.studioInstanceId===instanceId&&['queued','working','waiting'].includes(request.status));
   }
   async function adoptWindow(chat){
-    const candidates=[...allStudios.values()].filter(session=>session.ownerId!==chat.id&&session.server.listening&&!session.server.creationTarget()&&present(session))
+    const candidates=[...allStudios.values()].filter(session=>session.visibility!=='hidden'&&session.ownerId!==chat.id&&session.server.listening&&!session.server.creationTarget()&&present(session))
       .sort((a,b)=>(b.ownerId===lobby.id)-(a.ownerId===lobby.id));
     for(const session of candidates){
       if(!await idleWindow(session))continue;
@@ -1135,7 +1191,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function cancelOldRequests(session){
     const chat=chats.get(session.ownerId),instanceId=session.server.agentSession().instanceId;
     for(const request of await chat.requests.query())if(request.studioInstanceId===instanceId&&['queued','working','waiting'].includes(request.status))
-      await chat.requests.update(request.id,{status:'cancelled',message:'The Studio was explicitly transferred to another chat.'});
+      await chat.requests.handBack(request.id,{status:'cancelled',message:'The Studio was explicitly transferred to another chat.'});
   }
   const attachments={tail:Promise.resolve()};
   function transferStudio(chat,session,capture){
@@ -1180,7 +1236,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   async function requireOwnRuntime(bundleId){
     const owner=await printRuntime(bundleId);
-    if(owner)throw Object.assign(Error('Print '+bundleId+' belongs to SAAM runtime '+owner.label+'. Use '+owner.command+' for it, or take it over in this runtime ('+application.runtime.label+') with: '+application.runtime.command+' call capture_bundle --bundle-id '+bundleId),
+    if(owner)throw Object.assign(Error('Print '+bundleId+' was last saved by SAAM runtime '+owner.label+'. Use '+owner.command+' for it, or take it over in this runtime ('+application.runtime.label+') with: '+application.runtime.command+' call capture_bundle --bundle-id '+bundleId),
       {code:'BUNDLE_OTHER_RUNTIME',bundleRuntime:owner});
   }
   // The person opened another runtime's print in Studio: the orchestrator moves this window to that runtime.
@@ -1194,12 +1250,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     try{return await application.routeWindow({instanceId:session.server.agentSession().instanceId,printId:bundleId,owner});}
     catch(error){if(error.code==='BUNDLE_INSTANCE_BUSY')throw error;throw Error(fallback+', which SAAM cannot start ('+error.message+'). '+agent);}
   }
-  async function openStudio({studioInstanceId,newInstance=false,dispatch=true}={}){
+  async function openStudio({studioInstanceId,newInstance=false,dispatch=true,visibility='visible'}={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     if(newInstance&&studioInstanceId)throw Error('Choose an existing Studio or create a new instance.');
-    const session=newInstance?await lobby.startStudio(null):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(({server})=>server.listening).at(-1);
+    const session=newInstance?await lobby.startStudio(null,{visibility}):studioInstanceId?allStudios.get(studioInstanceId):[...allStudios.values()].filter(session=>session.server.listening&&session.visibility===visibility).at(-1)??await lobby.startStudio(null,{visibility});
     if(studioInstanceId&&!session?.server.listening)throw Error('That Studio is no longer running.');
-    if(!session)return lobby.openStudio({dispatch});
+    session.visibility=visibility;
     const browserOpenRequested=dispatch?await show(session):false;
     return {studioInstanceId:session.server.agentSession().instanceId,url:session.url,browserOpenRequested};
   }
@@ -1231,8 +1287,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function restoreStudios(windows){
     for(const window of windows){
       const attachment=window.attachment;
-      const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client}):lobby;
-      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true});
+      const recovering=Boolean(attachment&&!chats.has(attachment.ownerId));
+      const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client,visibility:window.chatVisibility??window.visibility??'visible'}):lobby;
+      if(recovering)await chat.requests.recover();
+      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true,visibility:window.visibility??'visible'});
       if(attachment)connectedChats.add(chat.id);
     }
   }
@@ -1248,12 +1306,16 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     return {completed:true};
   }
   // A turn end reaches only a chat this runtime holds; it never starts or attaches one.
-  async function endTurn(chatId,reason){const chat=chats.get(chatId);return chat&&chat!==lobby?chat.endTurn(reason):{handedBack:0};}
+  async function endTurn(chatId,reason){
+    const chat=chats.get(chatId),result=chat&&chat!==lobby?await chat.endTurn(reason):{handedBack:0};
+    if(reason==='closed')await resultImages.release(chatId);
+    return result;
+  }
   return {beginSession,connectChat,endTurn,openStudio,notifyStopping,runningJobs,close,restoreStudios,releaseStudio,activeCount:()=>activeOperations.size+work.pending.size+transferringStudios.size,
     operations:lobby.operations,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);},
-    studios:()=>[...allStudios.values()].map(({server,url})=>({...server.agentSession(),url})),
+    studios:()=>[...allStudios.values()].map(({server,url,visibility})=>({...server.agentSession(),url,visibility,chatVisibility:chats.get(server.agentSession().attachment?.ownerId)?.visibility()??visibility})),
     chatIds:()=>[...chats.keys()].filter(id=>id!==lobby.id)
   };
 }

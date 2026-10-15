@@ -4,12 +4,14 @@
 // hole/island merges and collapse. No heuristic standoff pruning or area cutoff.
 import { requireThat } from '../geom/tolerance.mjs';
 import { clipperContext, normalizedOffsetPaths } from './clipper.mjs';
+import { PROGRAM_STEP_MM } from '../dimensions.mjs';
 
-// Offset coordinates need guard digits, not picometres. This 10 nm grid
-// stays below our 1 um curve tolerance. Boolean precision and shape
+// Offset coordinates need guard digits, not picometres. A grid of one program
+// step stays below print resolution. Boolean precision and shape
 // approximation remain separate quantities from this coordinate grid.
-export const OFFSET_PRECISION_MM=1e-5;
+export const OFFSET_PRECISION_MM=PROGRAM_STEP_MM;
 
+// Process scale: arcToleranceMm defaults to a twentieth of a 0.4 mm line.
 export function offsetRegion(loops, delta, {
   arcToleranceMm = 0.02, precisionMm = OFFSET_PRECISION_MM, join = 'round', miterLimit = 2
 } = {}) {

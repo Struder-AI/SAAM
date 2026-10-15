@@ -11,6 +11,9 @@
 //   arithmetic, `++`, Math.*, Number(), parseInt, other numeric variables), never destructured
 //   into or looped over;
 // - strings: a const string, or a loop variable over a literal list of strings, never assigned;
+//   or a parameter, never assigned, of a function bound once and only ever called by name in
+//   this module (never exported, passed on or read otherwise) where every call passes a string
+//   there: only those strings can reach it;
 // - a plain parameter (and a variable computed from one) is numeric only if every
 //   invocation of its function passes a number there (an array method's index): the engine
 //   decides that while solving (constraints.mjs paramKey), and widens the key when it does not.
@@ -47,7 +50,7 @@ const isFunction=n=>n.type==='FunctionDeclaration'||n.type==='FunctionExpression
 const children=n=>{const out=[];for(const k in n){if(k==='loc')continue;const v=n[k];if(Array.isArray(v)){for(const x of v)if(x&&typeof x.type==='string')out.push(x);}else if(v&&typeof v.type==='string')out.push(v);}return out;};
 
 export function keyInfo(ast) {
-  const scopeOf=new Map(),recordOf=new Map(),records=[];
+  const scopeOf=new Map(),recordOf=new Map(),records=[],exported=[];
   const rec=(kind,extra={})=>{const r={kind,inits:[],writes:[],...extra};records.push(r);return r;};
   // `var` declarations of a function body (not inside nested functions).
   const hoistVars=(body,scope)=>{
@@ -63,8 +66,9 @@ export function keyInfo(ast) {
     for(const s0 of statements) {
       const s=s0.type==='ExportNamedDeclaration'||s0.type==='ExportDefaultDeclaration'?s0.declaration:s0;
       if(!s)continue;
+      if(s!==s0)exported.push(s);
       if(s.type==='VariableDeclaration'&&s.kind!=='var')for(const d of s.declarations)for(const id of patternIds(d.id))scope.declare(id.name,rec(s.kind));
-      if(s.type==='FunctionDeclaration'&&s.id)scope.declare(s.id.name,rec('function'));
+      if(s.type==='FunctionDeclaration'&&s.id)(scope.declare(s.id.name,rec('function')).fnNodes??=[]).push(s);
       if(s.type==='ClassDeclaration'&&s.id)scope.declare(s.id.name,rec('class'));
       if(s.type==='ImportDeclaration')for(const sp of s.specifiers)scope.declare(sp.local.name,rec('import'));
     }
@@ -106,6 +110,11 @@ export function keyInfo(ast) {
     for(const c of children(n))build(c,scope);
   };
   build(ast,null);
+  // An exported binding is used by modules this one cannot see.
+  for(const s of exported) {
+    const ids=s.type==='VariableDeclaration'?s.declarations.flatMap(d=>patternIds(d.id)):s.id?[s.id]:[];
+    for(const id of ids){const r=scopeOf.get(ast).lookup(id.name);if(r)r.escapes=true;}
+  }
 
   // Pass B: resolve identifiers; record initial values and writes.
   const resolve=(id,scope)=>{const r=scope.lookup(id.name);if(r)recordOf.set(id,r);return r;};
@@ -120,7 +129,11 @@ export function keyInfo(ast) {
           ||(parent.type==='LabeledStatement'||parent.type==='BreakStatement'||parent.type==='ContinueStatement')&&key==='label'
           ||parent.type==='ImportSpecifier'&&key==='imported'||parent.type==='ExportSpecifier'&&key==='exported'
           ||parent.type==='MetaProperty'))return;
-        resolve(n,s);return;
+        {const r=resolve(n,s);
+          // A use is a call by name, or anything else (the binding escapes); a function's own name is neither.
+          if(r&&parent?.type==='CallExpression'&&key==='callee')(r.calls??=[]).push(parent);
+          else if(r&&!(parent&&isFunction(parent)&&key==='id'))r.escapes=true;}
+        return;
       case 'VariableDeclarator':{
         const ids=patternIds(n.id);
         for(const id of ids)resolve(id,s);
@@ -131,7 +144,8 @@ export function keyInfo(ast) {
               r.loop=parent.loop;
               if(parent.loop==='of'&&parent.right.type==='ArrayExpression'&&parent.right.elements.every(x=>x?.type==='Literal'&&typeof x.value==='string'))r.loopStrings=parent.right.elements.map(x=>literalKey(x.value));
               if(parent.loop==='of'&&numberList(parent.right))r.numberElements=true;
-            } else if(n.init)r.inits.push(n.init);
+            } else if(n.init){r.inits.push(n.init);
+              if(n.init.type==='ArrowFunctionExpression'||n.init.type==='FunctionExpression'&&!n.init.id)(r.fnNodes??=[]).push(n.init);}
             else r.uninitialised=true;
           }
         } else for(const id of ids){const r=recordOf.get(id);if(r)r.writes.push({other:true});}
@@ -232,6 +246,29 @@ export function keyInfo(ast) {
       const e=r.inits[0];
       if(e.type==='Literal'&&typeof e.value==='string')r.strings=[literalKey(e.value)];
       else if(e.type==='TemplateLiteral'&&!e.expressions.length)r.strings=[literalKey(e.quasis[0].value.cooked)];
+    }
+  }
+  // Parameters that only strings reach. A function's calls are all known when its binding is
+  // bound once, never reassigned, and used only as a callee; a non-arrow function's `arguments`
+  // must be unused, as it could alias a script's parameters. A parameter passed on as another
+  // call's argument is settled once that parameter is.
+  const calledOnly=new Map();
+  for(const r of records)if((r.kind==='const'||r.kind==='function')&&r.fnNodes?.length===1&&r.calls&&!r.escapes&&!r.writes.length)calledOnly.set(r.fnNodes[0],r);
+  const argStrings=(call,index)=>{
+    if(call.arguments.slice(0,index+1).some(a=>a.type==='SpreadElement'))return null;
+    const a=call.arguments[index];
+    if(a?.type==='Literal'&&typeof a.value==='string')return [literalKey(a.value)];
+    if(a?.type==='TemplateLiteral'&&!a.expressions.length)return [literalKey(a.quasis[0].value.cooked)];
+    return a?.type==='Identifier'?recordOf.get(a)?.strings??null:null;
+  };
+  for(let changed=true;changed;) {
+    changed=false;
+    for(const r of records) {
+      const f=r.kind==='param'&&!r.strings&&!r.writes.length?calledOnly.get(r.fn):undefined;if(!f)continue;
+      const args=scopeOf.get(r.fn).names.get('arguments');if(args&&(args.calls||args.escapes))continue;
+      const lists=f.calls.map(call=>argStrings(call,r.index));
+      if(lists.some(l=>l===null))continue;
+      r.strings=[...new Set(lists.flat())];changed=true;
     }
   }
 

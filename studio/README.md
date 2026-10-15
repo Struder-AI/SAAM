@@ -16,7 +16,8 @@ permissions are independent; open the returned loopback URL in the client's
 browser and retain that tab while the person reviews.
 
 Closing tabs, ending a command, a chat pause and elapsed idle time do not shut down
-SAAM or fail work. Quit or Update ends the application. Keep the print, Studio
+SAAM or fail work. Tray Quit or Update ends the application; Studio's Quit stops its
+window's runtime, or SAAM when no other runtime runs. Keep the print, Studio
 instance and chat identity together; a chat may own several windows, each window
 has at most one attached chat. Mention SAAM in your chat client; name the bundle
 when attaching or using `capture_bundle`. Never borrow another chat's ID.
@@ -79,9 +80,10 @@ A matching toolpath view queues one [short-travel advisory](../core/export/READM
 per export. Acknowledge it and describe the findings; it neither blocks review
 nor requests repair. Reopening an acknowledged export does not resend it.
 
-The toolpath view draws the completed output's prepared path; the adapter's stored
-report supplies notice, estimates and limitations, and its settings rows follow the
-common settings. Development preview supplies no confirmation or authority to deliver.
+The toolpath view draws the SAAMpath, the completed output's or else the saved one, at its
+placement; the adapter's stored report supplies notice, estimates and limitations, and its
+settings rows follow the common settings. Next generates without a machine; Export waits
+for the program, whose missing machine, exporter or installation the review note names. Development preview supplies no confirmation or authority to deliver.
 
 ## Opening local prints in Studio
 
@@ -91,9 +93,9 @@ is not implemented. One Studio owns each open bundle. Changing the selected
 bundle changes all tabs of that Studio; mutation requests carry print identity
 so an old tab cannot export a newly selected print.
 
-Opening checks saved artifacts without regenerating current files. A current
-saved SAAMpath with no checked machine program is labeled as neutral source and
-cannot export. A tour starts with geometry and generates when its toolpath
+Opening checks saved artifacts without regenerating current files. A saved
+SAAMpath with no checked machine program is labeled as neutral source and cannot
+export. A tour starts with geometry and generates when its toolpath
 lesson opens. Outside tours, a fresh bundle starts in geometry view.
 
 An obsolete calculation is cancelled when its inputs change. While replacing a
@@ -106,7 +108,7 @@ and the participant-requested printing change at their respective lessons.
 Automatic generation and earlier lesson work cannot satisfy an edit gate.
 Settings/toolpath lessons accept requested geometry edits as well as process
 edits once the current result is rendered. Another unfinished edit can hold Next.
-Exit retains the print; a fresh tour creates a fresh copy. Resuming saved lessons
+Exit retains the print; opening or importing another print in the tour's Studio exits first, and other Studios stay ordinary. A fresh tour creates a fresh copy. Resuming saved lessons
 uses current request authority. [Tour participation](../examples/prints/README.md#maker-agent-participation)
 owns when the maker offers guidance.
 
@@ -118,16 +120,13 @@ renderable revision reaches Studio immediately; neither checks nor further edits
 require withholding it. Working dots and the affected view's 28% fade persist
 through the agent's uninterrupted editing sequence, including between commands.
 
-Hand-back means ready for inspection or discussion. It captures
-the operation already underway and binds its resulting saved revision after it
-settles. Studio undims when that revision is displayed; a failure shows the last
-usable result with the error. Future work has a new identity, so delayed replies
-and display acknowledgements cannot end it. Guidance and other bundles stay quiet.
-No activity lease, timer or chat disconnection invents completion.
+Hand-back covers underway and queued calls, then presents the saved revision in
+the requested usable pane; missing output shows geometry and the failure. Cancellation
+and restart settle the same ledger. Presentation survives busy views and retries
+transport failures. Later work has a new identity; idle time never completes it.
 
-Inspection and tour receipts are separate: inspecting a previous eligible
-toolpath can finish hand-back without satisfying a lesson requiring new output.
-The viewer reports actual rendering; the agent never manufactures that receipt.
+Inspection receipts record the actual view. A server-verified newer saved view can
+settle a superseded inspection, preserving the original delivery target and tour gates.
 
 ### Carrying a maker request
 
@@ -146,16 +145,16 @@ identity with edits; an unchecked program summary is not a failed check.
 | Geometry-only work | No generation solely to finish or undim. |
 | Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
-Hand-back needs no `resultStage` unless a particular view is required. Studio
-requests initiate it directly. Client hooks (`saam client-event`) hand the chat's
-active work back as `waiting` when its turn ends, the person writes or interrupts,
-or the chat closes; the agent still hands back on an interjection.
+Omit `resultStage` unless a particular view is required. Studio requests and client
+hooks (`saam client-event`) hand work back on turn end, interjection, input or closure.
+Codex hooks require user trust in `/hooks`. Claude questions/permissions pause directly;
+Esc has no immediate hook: the next prompt or idle notification supplies the signal.
 
 Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
 after acknowledging completed work; quiet expiry preserves attachment and work.
 A generation failure supplies exact error/input evidence; claim it, fix the cause
-within maker scope and show the corrected result. Do not retry unchanged inputs
-without addressing the failure.
+within maker scope or leave out only what cannot be made, saying so, and show the
+result. Unchanged inputs fail again.
 
 ## Studio event queue
 
@@ -180,7 +179,7 @@ reads; no reliable repair ETA is inferred.
 
 Import uses the [shared lifecycle](../core/print/USAGE.md#import-an-stl) and current
 printer/setup. Browser uploads have a 64 MiB HTTP input boundary; local paths
-stream. Finish or exit the tour before another import. A worker validates,
+stream. An agent import waits for the tour to end. A worker validates,
 repairs recognized defects and creates geometry, retaining repair
 evidence. Cancel interrupts it and cleans only the incomplete new bundle.
 
@@ -227,7 +226,7 @@ download bytes. Reopening separately validates stored artifacts.
 `at()` returns an independent row (rows have no index properties; readers use `at()`,
 which plain move arrays share); `reader()` reuses scratch values which must be
 copied if retained. `push()` passes each row through the store's `annotate` stage,
-which path loading uses to add Slice family, index and modulation identity. Snapshots are transport storage, not manufacturing data.
+which path loading uses to add Slice stack, index and modulation identity. Snapshots are transport storage, not manufacturing data.
 [playback.mjs](playback.mjs) closes encoded frames, uses deterministic 30 fps source
 time with a final hold, bounds encoder backlog and supports cancellation. Its
 WebM writer has one VP8/VP9 track without audio.

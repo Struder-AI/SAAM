@@ -69,7 +69,7 @@ test('Studio reopens saved exports without rewriting them',async t=>{
   // two authored centerlines remains a short same-layer travel to report.
   const gapped=boxPlan(loadMachine('bambu-h2d'));
   for(const settings of Object.values(gapped.skills))settings.enabled=false;
-  gapped.slices.assignments=[{id:'dashes',construction:'curves',part:null,filament:null,process:null,after:[],repeat:null,sequence:false,courseIds:null,maxExcursionMm:null,curves:[
+  gapped.slices.assignments=[{id:'dashes',construction:'curves',part:null,filament:null,process:null,after:[],repeat:null,sequence:false,repetitionIds:null,maxExcursionMm:null,curves:[
     {closed:false,points:[[0,0,gapped.process.firstLayerMm],[10,0,gapped.process.firstLayerMm]]},
     {closed:false,points:[[11,0,gapped.process.firstLayerMm],[20,0,gapped.process.firstLayerMm]]}]}];
   await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});

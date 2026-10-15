@@ -375,7 +375,7 @@ export const MODELS={
     'slice subarray':{out:['this']},'copy':{mutates:['arg0']}
   }),
   ...group('process.',{
-    'cwd uptime memoryUsage cpuUsage hrtime':{reads:'process'},
+    'cwd uptime memoryUsage availableMemory constrainedMemory cpuUsage hrtime':{reads:'process'},
     'kill':{effect:'process'},'exit abort chdir':{effect:'process'},'emitWarning':{effect:'log'},
     'nextTick':{calls:[{fn:'arg0',params:[['args1+']],when:'later'}],effect:'timers'}
   }),

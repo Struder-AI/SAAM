@@ -8,8 +8,8 @@ metadata:
 # Bridging
 
 Author the span and attachment centerlines as ordinary [Trace](../trace/SKILL.md)
-curves. Set `sequence:true` for ordered courses, use `courses:[index]` to choose
-curves per repeat, and optionally name each course in `courseIds`. A curve's
+curves. Set `sequence:true` for ordered repetitions, use `repetitions:[index]` to choose
+curves per repeat, and optionally name each repetition in `repetitionIds`. A curve's
 `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` requires
 support one resolved bead height below; a source assignment or operation ID
 selects particular prior material. A press is an explicit down-and-up curve
@@ -17,7 +17,7 @@ with `depositionAction:{kind:'press',depthMm}`.
 
 The [authoring helper](scripts/prepare.mjs) converts the rail controls below into
 that explicit Trace data. It is guidance tooling; no bridge record reaches the
-generator. Legacy bridge records require explicit migration.
+generator; a legacy bridge record is read as this Trace data.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
 or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable

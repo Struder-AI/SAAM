@@ -85,10 +85,9 @@ coordination timers and display budgets. These limits are kept:
 | `KERNEL_TRIANGLE_CAPACITY`, the solid kernel's 32-bit address space | [solid.mjs](./geom/solid.mjs) | Manifold WASM, whose abort is unrecoverable | The largest count the kernel can hold, published by the kernel |
 | 64 MiB STL upload | [import-stl.mjs](../studio/import-stl.mjs) | The Studio HTTP boundary | Input safety on a network boundary; about 1,342,000 binary triangles, and not a geometry budget |
 | 64,000 byte request body (64 MiB on the import route) | [server.mjs](../studio/server.mjs) | The Studio HTTP boundary | The same input-safety rule for request bodies |
-| 64 KiB native repair report | [mesh-native.mjs](./geom/mesh-native.mjs) | The helper's single JSON line of counts | The report's size does not grow with the mesh, so 64 KiB means malformed output |
-| One-turn angular conditioning, `prefix[samples] < TAU` | [directional-contour.mjs](./geom/directional-contour.mjs) | Regularized contour sampling | Geometry: the angular room the source needs must fit in one revolution |
+| One-turn angular conditioning, `prefix[samples] < TAU` | [directional-contour.mjs](./geom/sleeve/directional-contour.mjs) | Regularized contour sampling | Geometry: the angular room the source needs must fit in one revolution |
 | ZIP32 entry and member sizes | [zip.mjs](./export/zip.mjs) | The container format | The format cannot represent more; the message says ZIP64 is unsupported |
-| Malformed-file guards: STL header and token length, non-finite values, OFF header shape | [stl-file.mjs](./geom/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs), [mesh-native.mjs](./geom/mesh-native.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
+| Malformed-file guards: STL header and token length, non-finite values | [stl-file.mjs](./geom/stl-file.mjs), [mesh.mjs](./geom/mesh.mjs) | The parsers | They detect a file that is not what it claims to be, before any work is attempted |
 | Download size, timeout and redirect count | [library.mjs](../skills/thingi10k/scripts/library.mjs) | An external HTTP boundary | Input safety on somebody else's server, the same class as the upload limit |
 
 ## Dimensions and tolerances
@@ -100,16 +99,15 @@ or derives from the print's own dimensions, and says which:
 
 | Class | Value | What it protects |
 |---|---|---|
-| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Shape judgements (coincident, touching, too thin, closed) use it. |
+| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Every shape judgement (same point, joined, touching, on a plane, overlapping, too thin, collinear) uses it. |
 | Process scale | the print's `lineWidthMm`, `layerMm`, or an operation's chord or sampling tolerance chosen from them | Construction accuracy that matters to one print: chord error, sampling steps, wall merging (`planarWallToleranceMm`). |
-| Program resolution, `PROGRAM_DECIMALS` | 5 decimals (1e-5 mm) | What an exporter can express; it stays below print resolution, so rounding the program never changes the print. |
-| Numeric conditioning, `NUMERIC_MM`, `NUMERIC_RELATIVE` | 1e-9 mm, 1e-12 | float64 safety at `BUILD_SCALE_MM` (1000 mm, where one ulp is 1.1e-13 mm): degeneracy guards and predicate certification. Never used to judge shape. |
+| Construction/admission, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM`; written XYZ, `XYZ_PROGRAM_DECIMALS` | Fine 5 decimals; XYZ 3 decimals | Geometry and saved SAAMpath retain fine precision; writers use 0.001 mm XYZ and five-decimal filament amounts with residual carry. Other commanded quantities use precision appropriate to their units and positional effect ([standards](../machines/README.md)). |
+| Rounding guards, `ROUNDING_MM`, `ROUNDING_RELATIVE` | print resolution / 1000; / `BUILD_SCALE_MM` | Slack that absorbs floating-point rounding in a predicate or division. Never judges shape. |
 
-Display budgets are visual and never reach geometry or programs. Areas compare to
-areas; dimensionless quantities use `NUMERIC_RELATIVE` or their own scale. A feature
-far below print resolution that an operation produces is closed and reported, not
-rejected. `scripts/check-repo.mjs` fails a file whose raw tolerance literals exceed
-[its baseline](../scripts/tolerance-literals.json).
+Display budgets never reach geometry or programs. Compare areas to areas; dimensionless
+quantities use `ROUNDING_RELATIVE` or their own scale. Mesh admission merges vertices
+below print resolution and reports constrained exceptions; produced features far below
+resolution are closed and reported. Raw literals cannot exceed [their baseline](../scripts/tolerance-literals.json).
 
 Developer experiments use these same components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
 is a scoped example. A proposed parallel pipeline needs a reason the shared

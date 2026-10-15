@@ -52,8 +52,9 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     $('tour-next').textContent='Next';
     $('tour-finish-view').hidden=!active||progress.step!==L.export;
     $('tour-finish-view').disabled=isBusy()||pendingEdit||!progress.gates?.[L.export];
-    $('import-stl').disabled=isBusy()||active;
-    $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy()||active;
+    // Opening or importing another print leaves the tour (the server exits it first).
+    $('import-stl').disabled=isBusy();
+    $('tour-toggle').disabled=isBusy();$('open-print').disabled=isBusy();
     const highlights=active&&step.highlight?[step.highlight]:[];
     if(active&&[L.geometry,L.settings].includes(progress.step)&&progress.gates?.[progress.step]&&!$('tour-next').disabled)highlights.push('tour-next');
     if(highlights.includes('play')&&progress.step===L.playback&&playStarted)highlights.splice(highlights.indexOf('play'),1);

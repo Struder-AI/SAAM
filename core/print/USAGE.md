@@ -18,14 +18,9 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 `get_recipe_defaults` returns process/setup defaults and one common [slice](../../skills/slice/SKILL.md)
 assignment, without automatic skin. Bundles always retain [geometry](../../GEOMETRY.md), including empty drafts; inline [Trace](../../skills/trace/SKILL.md)/[Inject](../../skills/inject/SKILL.md) inputs become curve/point geometry with recipe references.
 
-`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe.
-Objects merge, arrays replace, unknown fields reject; omit `bundle`.
-`experimental.substrateAdaptation` defaults false. OFF uses nominal references
-without final-material contact/remapping; ON uses finalized deposition for
-gap/volume adjustment or surface-following placement and retains required-contact
-and gap rejection. Existing recipes need explicit migration for missing fields;
-loading never rewrites them. Dependencies and bridge-anchor checks apply in both
-modes.
+`slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe; objects merge, arrays replace; omit `bundle`.
+Missing fields take defaults, unread ones are ignored, and an assignment without positive layer/line steps, or a prime pass or modulation without its numbers, produces nothing; `limitations` notes each. Old names and assignment forms read as current (Slice `courses` → `sliceOverrides`; Trace `courses` → `repetitions`, `courseIds` → `repetitionIds`, `repeat.family` → `repeat.stack`); the next save or `migrate_bundle` records the read recipe.
+`experimental.substrateAdaptation` defaults false. OFF uses nominal references without final-material contact/remapping; ON uses finalized deposition for gap/volume adjustment or surface-following placement and retains required-contact and gap rejection. Dependencies and bridge-anchor checks apply in both modes.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
@@ -34,14 +29,13 @@ choices, rejects an incompatible recipe, and names any gated guidance it opens.
 
 Print setup selects the default nozzle/material for every producer. For Bambu,
 `composition.filaments: [{part:"body",filament:1}]` overrides a component, including
-its Slice, Trace, Inject and rivet work. `{assignment:"supports",filament:1}` routes
-tree supports; any authored assignment ID or `plastic-weld:SITE_ID` can be targeted.
+its Slice, Trace, Inject and rivet work. An authored support Slice id or
+`plastic-weld:SITE_ID` can be targeted with an assignment route.
 Priority: print assignment route, assignment's explicit filament, exact part route,
 parent component route, print setup. `part:null` names the single geometry part.
-Trace/Inject `part` associates material ownership; XYZ still uses print placement.
+Trace/Inject `part` associates material ownership; XYZ is in the part's frame, moved by print placement.
 Filament entries own nozzle/process mapping ([Bambu](../../machines/bambu/SKILL.md)); every
-route uses the same generation/export/review. Existing recipes need explicit
-migration for `composition.filaments` and Trace/Inject `part`, then regeneration.
+route uses the same generation/export/review.
 
 ### Import an STL
 
@@ -49,9 +43,9 @@ Units default to `auto`: SAAM assumes mm unless the raw size only fits the
 printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
 and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
-Studio and agent imports first validate the source, then attempt repair only
-for recognized geometric defects, without hole filling. A repair retains both
-STLs and its change report in `repair/`; review changed geometry. Malformed input
+Studio and agent imports normalize vertices below print resolution, validate, then repair
+recognized defects; holes fill within 500 edges and a 2 mm boundary bounding-box diagonal.
+Both STLs and the report stay in `repair/`; review changed geometry. Malformed input
 and failed repair keep their diagnostic. Failed or cancelled imports remove only
 the new print. Local paths stream; only browser uploads have the 64 MiB bound.
 Progress and elapsed time are visible to makers; there is no reliable repair ETA.
@@ -64,7 +58,7 @@ then explain the decision. Direct repair commands belong to
 A `slice` edit with `assignment:{spacingFactor:3}` triples spacing without
 widening the bead (default 1). Loop/fill, skin and cladding constructions support
 it; per-assignment `process.lineWidthMm` controls bead width separately.
-Single-wall sleeve spirals use their course pitch instead.
+Single-wall sleeve spirals use their rise per turn instead.
 
 ## Check, generate and deliver
 
@@ -82,19 +76,19 @@ lessons Studio generates, so don't start another. A check reports
 
 ## Remember machine setup
 
-A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged.
-`set_deferred_setup_save` takes `bundleId`, current `expectedRevision` and `defer:true` to skip saves for that bundle until cleared with `false`; it changes no manufacturing identity.
+A successful export remembers its exact artifact's setup in `<SAAM home>/local/machine-setups/`; new prints on that machine reuse it. Edits leave defaults unchanged. A file that can't be read (not JSON, or for another machine or format) gives the profile's defaults and a note in `limitations`; the next export replaces it.
+`set_deferred_setup_save` (`bundleId`, current `expectedRevision`, `defer`) sets or clears the bundle's optional flag that skips these saves; no manufacturing identity changes.
 Only setup is remembered; existing prints keep their snapshots. Bambu needs its [maker setup](../../machines/bambu/SKILL.md#maker-setup); each [machine contract](../export/README.md) owns setup questions.
 
 ## Phase colours
 
 Studio colours each move by its SAAMpath phase, the label the generator or exporter
-gives it (`planar`, `curves`, `supports`, `prime`, ...); `travel` is every
+gives it (`planar`, `curves`, `prime`, ...); `travel` is every
 non-depositing move. `set_phase_colours` takes `bundleId`, current `expectedRevision`
 and `phaseColours` (`{phase:"#rrggbb"}`, null clears); it is display only. The
 person's `<SAAM home>/local/phase-colours.json`, same shape, is the local preference.
 Print choice overrides local preference, which overrides the [defaults](phase-colours.mjs);
-unknown phases are rejected. Multi-material moves show their filament colour.
+an entry that is not `#rrggbb` is dropped. Multi-material moves show their filament colour.
 
 ## Command line
 

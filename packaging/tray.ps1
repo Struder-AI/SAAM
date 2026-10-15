@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='',[string]$Display='') {
-  $body = @{command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
+  $body = @{contract=2;command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
   # Without -TimeoutSec the request waits while SAAM works on it, such as an open that
   # starts a runtime. A failure throws SAAM's error (its 400 body), else the HTTP error.
   try { Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body }
@@ -57,9 +57,12 @@ function Build-Menu($Status) {
     foreach ($studio in $studios) {
       $label = if ($studio.printId) { $studio.printId } else { 'Empty Studio' }
       if ($studio.attachment) { $label += " - $($studio.attachment.name)" }
-      Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem $label) $studio.instanceId { param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } }
+      $label += if ($studio.visibility -eq 'hidden') { ' (Hidden)' } else { ' (Visible)' }
+      if ($studio.dormant) { $label += ' - Not running' }
+      Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Open $label") $studio.instanceId { param($sender,$eventArgs) try { Show-Studio 'open' $sender.Tag } catch { Show-Problem $_.Exception.Message } }
+      Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Stop $label") $studio.instanceId { param($sender,$eventArgs) try { Invoke-Control 'stop-session' $false $sender.Tag | Out-Null } catch { Show-Problem $_.Exception.Message } }
     }
-    if ($source) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Stop $($runtime.label)") $runtime.id { param($sender,$eventArgs) try {
+    if ($source -and -not $runtime.dormant) { Add-Entry (New-Object System.Windows.Forms.ToolStripMenuItem "Stop $($runtime.label)") $runtime.id { param($sender,$eventArgs) try {
       $result = Invoke-Control 'stop-runtime' $false '' $sender.Tag
       if ($result.confirmationRequired) {
         $answer = [System.Windows.Forms.MessageBox]::Show("$($result.message)`nContinue?",'SAAM',[System.Windows.Forms.MessageBoxButtons]::YesNo)

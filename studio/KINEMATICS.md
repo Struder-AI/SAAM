@@ -135,7 +135,7 @@ not depend on loaded motion. Values within those scalar ranges are not necessari
 jointly reachable. `sample` accepts optional `manual: number[]` in that order and
 `jog: {axis, from}` to prioritize one coordinate from a previous valid pose. It returns
 the accepted `controlValues`, which may differ from the requested coordinates. A manual
-snapshot echoes `manual`; its `seconds` anchors the frozen source/rotary state,
+snapshot echoes `manual`; its `seconds` anchors the frozen source state,
 not a claim that the pose came from that source. The same solver and diagnostics
 apply. Consumers distinguish manual requests in their cache and request identity.
 
@@ -234,10 +234,11 @@ type Provider = {
 ```
 
 The creation boundary is
-`createMachinePresentation({ program, machine, setup, sourceIdentity, signal })`.
-It returns `Promise<Provider | null>`; `null` means no registered model.
-`program` is the drawn path's preview with its move/event access and, when posed,
-its declared `rotaryCenterMm`. Explicitly read-only
+`createMachinePresentation({ program, machine, setup, kinematics, sourceIdentity, signal })`.
+It returns `Promise<Provider | null>`; `null` means a non-gantry machine without a
+[kinematics plug](../core/export/DEVELOP.md#kinematics-plug), which the source worker
+loads from `/machine-kinematics/<machine id>.mjs`.
+`program` is the drawn path's preview with its move/event access. Explicitly read-only
 [machine studies](../tools/kinematics/README.md) supply authored
 motion; these are labeled simulation and
 cannot authorize machine delivery. `machine` and `setup` are
@@ -274,7 +275,7 @@ and mounting transforms, including ceiling-mounted robots. It supplies:
 
 - `world`: identity.
 - `part`: world transform of the exact coordinate frame used by drawn
-  toolpath points, including configured placement/rotary motion exactly once.
+  toolpath points, including configured placement and the plug's table exactly once.
   Do not reinterpret these points as raw CAD coordinates or reapply placement.
 - `tcp`: nozzle-tip origin. For this **presentation** frame, local -Z points
   toward extrusion and +Y is `toolUp`; +X completes the right-handed basis.
@@ -309,7 +310,7 @@ and request ID match the request exactly. A snapshot contains a complete set of
 currently available frame transforms, not deltas from a prior call.
 
 The provider consumes the same command-time interpolation as source playback,
-including rotary motion, dwell and supported acceleration semantics. Factor or
+including tool orientation, dwell and supported acceleration semantics. Factor or
 extend that shared evaluator when needed; do not copy interpolation into the
 new renderer or approximate it by linearly interpolating solved joint endpoints.
 Any cached sampling/interpolation error policy belongs to the model provider.

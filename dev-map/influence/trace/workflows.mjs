@@ -1,7 +1,7 @@
 // Representative SAAM runs for influence traces, driven without manual steps:
 //   node dev-map/influence/trace/workflows.mjs NAME HOME
-// HOME is a disposable directory (trace.mjs makes one and sets SAAM_DATA inside it); nothing
-// touches the user's prints or SAAM home.
+// HOME is a disposable directory in the installed home's tmp (trace.mjs makes and removes
+// it); workflows pass it explicitly, so nothing touches the user's prints or setups.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {pathToFileURL} from 'node:url';
@@ -42,11 +42,11 @@ export const workflows={
     const {directory}=await createSTLBundle(join(home,'Prints','box'),source,{units:'mm',machineId:'bambu-h2d'});
     return generateAndExport(directory);
   },
-  // The wavy DENSO example on the Denso arm: static recipe, toolpath, robot program export.
+  // The pipe-cladding DENSO tube example on the Denso arm: static recipe, toolpath, robot program export.
   async 'denso-cladding'(home) {
     const {initBundle}=await core('print/bundle.mjs');
-    const {machineId,plan}=JSON.parse(await readFile(new URL('../../../examples/prints/wavy-denso/recipe.json',import.meta.url),'utf8'));
-    const directory=join(home,'Prints','wavy');
+    const {machineId,plan}=JSON.parse(await readFile(new URL('../../../skills/pipe-cladding/examples/denso-tube.json',import.meta.url),'utf8'));
+    const directory=join(home,'Prints','denso-tube');
     await initBundle(directory,plan,{machineId});
     return generateAndExport(directory);
   },

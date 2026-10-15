@@ -2,7 +2,8 @@ import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadMachine} from '../../core/machine/profile.mjs';
-import {densoGeometry,densoForward} from '../../core/machine/denso-kinematics.mjs';
+import {createKinematics} from '../../machines/denso/kinematics.mjs';
+import {Kinematics} from '../../core/machine/kinematics.mjs';
 import {rigid} from '../../core/geom/frame.mjs';
 import {studyPreview} from '../../studio/path-preview.mjs';
 
@@ -16,7 +17,7 @@ export async function createStudy(directory,machineId='ultimaker-s5',{source,mod
   if(machineId==='dobot-mg400'){
     center=[250,0,150];setup.kinematicModel={worldFromBase:rigid(),toolLengthMm:100,basis:'Synthetic base/design alignment for a nominal mechanism study.'};
   }else if(machineId==='denso-vs068a4-rc8a'){
-    const pose=densoForward(densoGeometry(),seed);center=pose.tcp;angles=euler(pose.rotation);
+    const denso=createKinematics(Kinematics),pose=denso.forward(denso.geometry(),seed);center=pose.tcp;angles=euler(pose.rotation);
     setup.kinematicModel={worldFromBase:rigid(),toolLengthMm:70,modelSeedDeg:seed,basis:'Synthetic floor installation; drawing-based model angles, not RC8A FIG or calibration.'};
   }else if(['ultimaker-s5','bambu-h2d'].includes(machineId))center=[150,110,25];
   machine.kinematicModel={...machine.kinematicModel,...model};setup.kinematicModel={...setup.kinematicModel,...model};

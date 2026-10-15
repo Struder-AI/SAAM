@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {defaults,validatePlan} from '../../../core/print/plan.mjs';
 import {buildShell,translateShell} from '../../../core/geom/build.mjs';
 import {generatePath} from '../../../core/print/generate.mjs';
+import {schedulePath} from '../../../core/path/schedule.mjs';
 import {rhino} from '../../../core/geom/runtime.mjs';
 import {loadMachine} from '../../../core/machine/profile.mjs';
 import {sectionGeometry} from '../../../core/geom/query.mjs';
@@ -15,11 +16,11 @@ import {depositionAssignment} from '../../../core/print/assignment-records.mjs';
 import {prepareContourSleeve} from '../../../core/geom/sleeve/contour-sleeve.mjs';
 import {prepareSleeveGeometry} from '../scripts/runtime.mjs';
 import {vaseWallRuntime} from '../scripts/runtime.mjs';
-import {spiralFamilyCurve} from '../../../core/path/family-curves.mjs';
+import {spiralStackCurve} from '../../../core/path/stack-curves.mjs';
 import {traceResult} from '../../../core/print/curves.mjs';
 import {maximumPathAngle,strokeRange} from '../../../core/path/deposition.mjs';
 import {publishFinishedBoundary} from '../../../core/path/finished-surface.mjs';
-const {standardVaseResult}=vaseWallRuntime({Toolpath:{spiralFamilyCurve,traceResult,maximumPathAngle,strokeRange,publishFinishedBoundary}});
+const {standardVaseResult}=vaseWallRuntime({Toolpath:{spiralStackCurve,traceResult,maximumPathAngle,strokeRange,publishFinishedBoundary}});
 
 function vasePlan(machine=loadMachine(),geometry=boxMesh(8,6,1)) {
   const plan=defaults(machine);plan.geometry=geometry;
@@ -63,7 +64,7 @@ function seamPinchMesh(height=8) {
 }
 
 test('expanding polygonal cup keeps continuous phase when the first seam enters later sections',async()=>{
-  // Nudge Cup's 120-sided frustum. The previous nearest-point anchor flipped
+  // A 120-sided frustum. The previous nearest-point anchor flipped
   // between the two edges at its +X corner around Z=3.119693 and could not
   // converge, despite the actual surface being a straight conical wall.
   const n=120,height=17.8,vertices=[],triangles=[];
@@ -116,12 +117,12 @@ test('convex wall retains the near-straight corner regression across offset kern
   for(let i=0;i<n;i++){const j=(i+1)%n;triangles.push([i,j,j+n],[i,j+n,i+n]);}
   for(let i=1;i<n-1;i++)triangles.push([0,i+1,i],[n,n+i,n+i+1]);
   const machine=loadMachine(),plan=vasePlan(machine,{shape:'mesh',vertices,triangles,source:null});
-  const path=await generatePath(plan,machine);
+  const path=schedulePath(await generatePath(plan,machine));
   assert.equal(path.summary.vaseWall.offsetPrecisionMm,.00001);
   const wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall').map(({action})=>action);
   assert.ok(wall.length>100);assert.equal(wall.at(-1).to[2],.6);
   for(const action of wall) {
-    const xy=action.to.map((v,k)=>v-(k===0?plan.placement.xMm:k===1?plan.placement.yMm:0));
+    const xy=action.to;// the SAAMpath is in the part's frame
     const standoff=Math.min(...loop.map((p,i)=>pointSegmentDistance(xy,p,loop[(i+1)%n])));
     assert.ok(Math.abs(standoff-.2)<.00003,'emitted centerline stays within the measured rounding allowance');
   }
@@ -140,10 +141,10 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   const rawInset=offsetRegion([dedupe(seamPinchSection)],-0.2,{precisionMm:0.00001,arcToleranceMm:0.005});
   assert.ok(rawInset.length>1&&rawInset.filter(loop=>loopArea(loop)>0).length===1,'the raw seam-stepped section splits a sliver off the inward offset');
   const plan=vasePlan(machine,seamPinchMesh());plan.slices.assignments[0].zEndMm=7.5;
-  const path=await generatePath(plan,machine),wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall');
+  const path=schedulePath(await generatePath(plan,machine)),wall=[...contextualActions(path)].filter(({context})=>context.role==='vase-wall');
   assert.ok(wall.length>100,'the exact wall completes over the seam-stepped section');
   assert.equal(new Set(wall.map(({context})=>context.operation)).size,1,'one uninterrupted stroke');
-  const shell=translateShell(buildShell(r,plan.geometry),plan.placement.xMm,plan.placement.yMm);
+  const shell=buildShell(r,plan.geometry);// the SAAMpath is in the part's frame
   for(const {action} of wall) {
     const loop=sectionGeometry(shell,action.to[2]).loops[0];
     const gap=Math.min(...loop.map((p,i)=>pointSegmentDistance(action.to,p,loop[(i+1)%loop.length])));
@@ -151,7 +152,7 @@ test('a healthy section with tessellation seam steps still offsets to one contin
   }
 });
 
-test('a wall takes the points its geometry requires, and a retired point budget is rejected',async()=>{
+test('a wall takes the points its geometry requires',async()=>{
   const machine=loadMachine(),r=await rhino();
   // Well past the former 100000-point default on the exact per-section path.
   const tall=vasePlan(machine,boxMesh(8,6,90));tall.slices.assignments[0].sampleStepMm=0.1;
@@ -160,7 +161,4 @@ test('a wall takes the points its geometry requires, and a retired point budget 
   assert.equal(result.operations[0].strokes[0].points.length,result.report.points);
   assert.equal('maxPoints' in result.report,false);
   assert.equal('maxSectionQueries' in result.report,false);
-  // The retired budget is no longer accepted anywhere in a recipe.
-  const retired=vasePlan();retired.slices.assignments[0].maxPoints=100;
-  assert.throws(()=>validatePlan(retired,machine),/Invalid sleeve assignment fields/);
 });

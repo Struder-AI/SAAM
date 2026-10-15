@@ -3,42 +3,37 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Shared seeded fronts: constrained surface-distance propagation, chart
 // clipping, physical mapping and short in-domain connections. Original SAAM
 // implementation; research provenance: skills/wave-overhangs/BUILDER.md.
-import {surfaceDerivatives} from '../geom/surface-derivatives.mjs';
-import {patchSlice,sliceChartStep} from '../geom/slice.mjs';
-import {sampledChartRegion} from '../geom/height-slice.mjs';
-import {beadContactAlong} from '../path/deposited-curves.mjs';
-import {offsetSurfaceRegion} from './surface-offset.mjs';
+import {surfaceDerivatives as nativeDerivatives} from '../geom/surface-derivatives.mjs';
+import {evaluatedSurfaceDerivatives} from '../geom/evaluated-surface.mjs';
+import {surfaceChartBounds} from './surface-operations.mjs';
+import {offsetSurfaceRegion,UV_ROUNDING,UV_GRID} from './surface-offset.mjs'; // uv rounding and boolean grid
 import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
 import {mapSliceStroke} from './layer-strokes.mjs';
 
 
-// Front order is a region-to-chart-curves construction on any patch layer.
-// An authored seed can be supplied; otherwise the seed is the actual footprint
-// of finalized predecessor beads within one translation step below the layer.
-export function frontLayerStrokes(layer,{seedUv=null,lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm,lineWidthMm,supportSegments=[]}){
-  requireThat(layer.slice.kind==='patch','Seeded front order needs a native patch chart.');
-  const patch=layer.slice.patch,domain=layer.region;
+// Front order consumes an explicit authored/prepared seed on any regular chart.
+export function frontLayerStrokes(layer,{seedUv,lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm,lineWidthMm}){
+  requireThat(Array.isArray(seedUv),'Front order needs a prepared seed region.');
+  const domains=surfaceChartBounds(layer.slice,layer.region.flat());
+  const patch=layer.slice.patch??{...layer.slice,domainU:domains[0],domainV:domains[1]},domain=layer.region;
   const settings={lineSpacingMm,propagationStepMm,sampleStepMm,toleranceMm};
-  const bounds={min:[patch.domainU[0],patch.domainV[0]],max:[patch.domainU[1],patch.domainV[1]]};
-  const seed=seedUv??sampledChartRegion(bounds,sliceChartStep(layer.slice,sampleStepMm),uv=>{
-    if(!pointInRegion(uv,domain))return false;
-    return beadContactAlong(supportSegments,evaluateSurface(layer.slice,uv).point,layer.direction,{maxDistanceMm:layer.heightMm+toleranceMm})!==null;
-  });
-  requireThat(seed.length,`Front layer ${layer.index} has no supporting seed; supply an authored seed or preceding deposited material.`);
+  const seed=seedUv;
   const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);
   const connected=connectSurfacePasses(patch,generated.waves,domain,settings,lineWidthMm);
-  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:seedUv?'authored':'deposited'},seed};
+  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:layer.seedSource??'authored'},seed};
 }
+
+const surfaceDerivatives=(surface,u,v)=>surface.cp?nativeDerivatives(surface,u,v):evaluatedSurfaceDerivatives(surface,u,v);
 
 // Build continuous meanders using short surface connections. A connector must
 // lie wholly in the assigned domain; proximity alone cannot authorize crossing
 // a hole. Surface refinement measures its actual curved length.
 export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
   const budget={evaluations:0,points:0},passes=[];
-  const epsilon=1e-9,limit=Math.max(settings.lineSpacingMm,lineWidthMm)+settings.toleranceMm;
-  const options={precisionMm:1e-10,origin:[patch.domainU[0],patch.domainV[0]]};
+  const epsilon=UV_ROUNDING,limit=Math.max(settings.lineSpacingMm,lineWidthMm)+settings.toleranceMm;
+  const options={precisionMm:UV_GRID,origin:[patch.domainU[0],patch.domainV[0]]};
   const inside=(a,b)=>{
     if(distance(a,b)<=epsilon)return true;
     if(domain.some(loop=>loop.some((p,i)=>[a,b].every(q=>pointSegmentDistance(q,p,loop[(i+1)%loop.length])<=epsilon))))return true;
@@ -92,7 +87,7 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
 // Shared physical mapping retains chart samples and surface normals for
 // connection diagnostics; it does not assign a machine tool pose.
 function mapFrontPath(patch,path,settings) {
-  const mapped=mapSliceStroke({points:path,closed:false},patchSlice(patch),{sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,frames:true});
+  const mapped=mapSliceStroke({points:path,closed:false},patch,{sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,frames:true});
   return {points:mapped.points,normals:mapped.normals,chartPoints:mapped.chartPoints,frameSamples:mapped.frameSamples,report:mapped.mappingReport};
 }
 
@@ -126,8 +121,8 @@ function frontPaths(covered,seed,domain,epsilon){
 function sliverWidth(path,domain){
   // Only closed residual contours or a cap returning to the SAME domain edge
   // can be a collapsed band artefact. An ordinary straight front is retained.
-  const uv=path.uv,closed=distance(uv[0],uv.at(-1))<1e-9;
-  const cap=domain.some(loop=>loop.some((a,i)=>[uv[0],uv.at(-1)].every(p=>pointSegmentDistance(p,a,loop[(i+1)%loop.length])<1e-9)));
+  const uv=path.uv,closed=distance(uv[0],uv.at(-1))<UV_ROUNDING;
+  const cap=domain.some(loop=>loop.some((a,i)=>[uv[0],uv.at(-1)].every(p=>pointSegmentDistance(p,a,loop[(i+1)%loop.length])<UV_ROUNDING)));
   if(!closed&&!cap)return Infinity;
   const points=path.points;
   const furthest=a=>points.reduce((best,p)=>distance(a,p)>distance(a,best)?p:best,points[0]);
@@ -140,11 +135,11 @@ function sliverWidth(path,domain){
 }
 
 export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
-  const precisionUv=1e-10,options={precisionMm:precisionUv,origin:[patch.domainU[0],patch.domainV[0]]};
+  const precisionUv=UV_GRID,options={precisionMm:precisionUv,origin:[patch.domainU[0],patch.domainV[0]]};
   requireThat(domainUv.flat().every(p=>p.every((x,k)=>x>=[patch.domainU,patch.domainV][k][0]&&x<=[patch.domainU,patch.domainV][k][1])),
     'Wave slice domain exceeds its native spline chart.');
   const domain=union(domainUv,[],options),seed=intersect(seedUv,domain,options);
-  requireThat(regionArea(seed)>0,'Wave seed has no material area inside the assigned slice.');
+  if(!regionArea(seed))return {waves:[],report:{notes:['Front fill has no seed inside the assigned slice; fill was omitted.'],residualsUv:domain}};
   const budget={evaluations:0,points:0},waves=[],sliverContours=[];
   let covered=seed,steps=0,boundaryStops=0,residualsUv=[],residualMaxSampleDiameterMm=0,residualRoundingBandUv=0;
   const stepCount=Math.max(1,Math.ceil(settings.lineSpacingMm/settings.propagationStepMm));
@@ -154,7 +149,8 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
     // Integer intersection rounding can leave long, microscopic strips along
     // a curved rim. Accept only a residual wholly covered by a tiny expansion
     // of the reached region, and retain it as unresolved geometry in the report.
-    // The area test only avoids this extra work during ordinary wave growth.
+    // The area test only avoids this extra work during ordinary wave growth; its
+    // thousandth of the domain is a work-skipping fraction, not a tolerance.
     if(!remaining.length||regionArea(remaining)>regionArea(domain)*1e-3)return false;
     let stretch=0,maxDiameter=0;
     for(const loop of [...covered,...remaining]){
@@ -203,7 +199,9 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
       covered=grown.loopsUv;
       if(!difference(domain,covered,options).length)break;
     }
-    requireThat(regionArea(covered)>startArea+precisionUv*precisionUv,'Wave propagation cannot reach remaining material from the supplied seed; assign a seed on each disconnected island or revise the region.');
+    if(regionArea(covered)<=startArea+precisionUv*precisionUv){
+      residualsUv=difference(domain,covered,options);break;
+    }
     // A completed advance has only the stationary rim left. Resolve numerical
     // residue before extracting fronts, so its strips never become toolpaths.
     if(roundingResiduals(difference(domain,covered,options)))break;
@@ -216,6 +214,6 @@ export function seededSurfaceFronts(patch,domainUv,seedUv,settings){
     if(sampled.length)waves.push({index:n,paths:sampled});
   }
   return {waves,report:{status:'experimental',waves:waves.length,propagationSteps:steps,...budget,boundaryStops,
-    residualsUv,residualMaxSampleDiameterMm,residualRoundingBandUv,sliverContours,lineSpacingMm:settings.lineSpacingMm,method:'constrained-geodesic-wavefronts',physicalValidation:'not performed'}};
+    residualsUv,...(residualsUv.length?{notes:['Front fill stopped before reaching remaining material; reached fronts were retained.']}:{}),residualMaxSampleDiameterMm,residualRoundingBandUv,sliverContours,lineSpacingMm:settings.lineSpacingMm,method:'constrained-geodesic-wavefronts',physicalValidation:'not performed'}};
 }
 

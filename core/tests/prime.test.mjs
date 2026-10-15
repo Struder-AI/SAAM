@@ -5,6 +5,8 @@ import {loadMachine} from '../machine/profile.mjs';
 import {startupPosition,startupRetracted,toolBounds} from '../machine/rules.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
+import {schedulePath} from '../path/schedule.mjs';
+import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
@@ -15,7 +17,7 @@ test('S5 prepared paths recover, sacrificial strokes, then the part on either no
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
-    const path=await generatePath(plan,machine);
+    const path=schedulePath(await generatePath(plan,machine));
     const prepared=(await preparePath(path,plan,machine)),program={moves:pathPreview(prepared,{plan}).moves,
       events:prepared.actions.map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');
@@ -55,8 +57,12 @@ test('priming avoids generated support extents and finds space away from occupie
   assert.ok(deposition.every(a=>a.to[0]>=.2&&a.to[0]<=329.8&&a.to[1]<=239.8));
   const full=fixture();full.geometry={min:[0,0,0],max:[330,240,2]};
   const unchanged=structuredClone(full.motion);
-  assert.throws(()=>machinePriming(full.motion,full.machine,full.bounds,full.geometry),/No room for machine priming strokes/);
-  assert.deepEqual(structuredClone(full.motion),unchanged,'rejection leaves incoming preparation state unchanged');
+  assert.match(machinePriming(full.motion,full.machine,full.bounds,full.geometry),/starts without it/);
+  assert.deepEqual(structuredClone(full.motion),unchanged,'no lane leaves incoming preparation state unchanged');
+  const small=fixture();
+  assert.equal(machinePriming(small.motion,small.machine,{min:[0,0,0],max:[60,60,300]},{min:[30,30,0],max:[40,40,2]}),'The machine priming lane is 59.6 of 100 mm, the length of the selected tool bounds.');
+  const lane=small.motion.actions.filter(a=>a.volumeMm3>0);
+  assert.equal(lane.length,3);assert.ok(lane.every(a=>a.to.every((v,i)=>i===2||v<=59.8)),'a shortened lane stays inside the bounds');
 });
 
 test('profiles without explicit priming and empty deposition preserve their paths',async()=>{
@@ -66,6 +72,6 @@ test('profiles without explicit priming and empty deposition preserve their path
     assert.equal(f.motion.actions.length,0,'old snapshots and other machines retain their startup');
   }
   const f=fixture(),start=startupPosition(f.machine,f.plan);
-  const prepared=(await preparePath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:'saam-neutral-motion/1',inputHash:'test'}},f.plan,f.machine));
+  const prepared=(await preparePath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:'test'}},f.plan,f.machine));
   assert.equal(prepared.actions.filter(a=>a.phase==='prime').length,0,'priming cannot disguise an empty part');
 });

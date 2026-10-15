@@ -1,9 +1,8 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 
-export function curveLength(points) {
-  return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
-}
+export {curveLength} from '../geom/spatial-curve.mjs';
 
 // A flat foundation turn, constant vertical pitch, then an optional level
 // finishing turn. The chart is data; geometric mapping belongs to its surface.
@@ -27,12 +26,12 @@ export function spiralBeadCurve({profile,points,turns,role='spiral',speedMmS,min
   for(let i=0;i<lengths.length;i++){
     const turn=Math.floor((turns[i]+turns[i+1])/2);turnLengths.set(turn,(turnLengths.get(turn)??0)+lengths[i]);
   }
-  const complete=[...turnLengths].filter(([turn])=>turn+1<=profile.turns+1e-9).map(([,length])=>length);
+  const complete=[...turnLengths].filter(([turn])=>turn+1<=profile.turns+ROUNDING_RELATIVE).map(([,length])=>length);
   const speed=Math.min(speedMmS,minimumTurnSeconds>0?Math.min(...complete)/minimumTurnSeconds:Infinity);
   const heightsMm=lengths.map((length,i)=>{
     const mid=(turns[i]+turns[i+1])/2;
-    return turns[i+1]<=1+1e-9?profile.firstHeightMm:spiralHeight(profile,mid)-spiralHeight(profile,mid-1);
+    return turns[i+1]<=1+ROUNDING_RELATIVE?profile.firstHeightMm:spiralHeight(profile,mid)-spiralHeight(profile,mid-1);
   });
   return {role,closed:false,points,heightsMm,speedMmS:speed,
-    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(t<=1+1e-9?{contactRole:'foundation'}:{}),...(profile.levelEnd&&turns[i]>=profile.risingTurns-1e-9?{boundaryRole:'rim'}:{})}))};
+    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(t<=1+ROUNDING_RELATIVE?{contactRole:'foundation'}:{}),...(profile.levelEnd&&turns[i]>=profile.risingTurns-ROUNDING_RELATIVE?{boundaryRole:'rim'}:{})}))};
 }

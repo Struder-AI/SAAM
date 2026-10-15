@@ -43,39 +43,58 @@ export function resolveSettingsPatch(previous,patch){
   return settings;
 }
 
+// The XY offset that puts the part on the selected tool's bed: the bed's centre,
+// with the part's footprint centred there when its bounds are known. Without a
+// machine the part stays at its own origin.
+export function defaultPlacement(machine,tool,boundsMm){
+  if(!machine)return {xMm:0,yMm:0};
+  const plate=machine.tools.find(t=>t.index===tool)?.bounds??machine.bounds,part=i=>boundsMm?(boundsMm.min[i]+boundsMm.max[i])/2:0;
+  return {xMm:(plate.min[0]+plate.max[0])/2-part(0),yMm:(plate.min[1]+plate.max[1])/2-part(1)};
+}
+
+// Without a machine: generic process values and a PLA material intent at the
+// nozzle temperature the bundled printer profiles share; no output.
+const GENERIC_SETUP=Object.freeze({material:'PLA',nozzleC:215});
 export function settingsDefaults(machine){
-  const tool=machine.tools.find(t=>t.index===machine.defaultSetup.tool);
-  const bounds=tool?.bounds??machine.bounds;
   return {
-    placement:machine.kinematics?.startsWith('cartesian')
-      ?{xMm:(bounds.min[0]+bounds.max[0])/2,yMm:(bounds.min[1]+bounds.max[1])/2}
-      :{xMm:140,yMm:100},
-    setup:structuredClone(machine.defaultSetup),
+    placement:defaultPlacement(machine,machine?.defaultSetup.tool),
+    setup:structuredClone(machine?.defaultSetup??GENERIC_SETUP),
     process:{
-      firstLayerMm:0.2,layerMm:0.2,lineWidthMm:0.4,
-      planarWallToleranceMm:machine.planarWallToleranceMm??0.01,
+      lineWidthMm:0.4,
+      planarWallToleranceMm:machine?.planarWallToleranceMm??0.01,
       planarSpeedMmS:20,skinSpeedMmS:10,firstLayerSpeedMmS:12,travelSpeedMmS:60,zSpeedMmS:5,
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
       fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,
       experimentalDeposition:false,primeLine:null,clearanceResponsibility:'operator',
       clearanceNote:'No collision model is implemented; the operator owns physical clearance.',
-      ...structuredClone(machine.defaultProcess??{})
+      ...structuredClone(machine?.defaultProcess??{}),firstLayerMm:0.2,layerMm:0.2
     },
-    output:machine.outputs[0].id
+    output:machine?.outputs[0].id??null
   };
 }
 
+// The machine's remembered setup record, or null; unreadable when the file is
+// not JSON or is recorded for another machine or format.
+async function rememberedSetup(machineSetups,machine){
+  const text=machineSetups?await readFile(setupFor(machineSetups,machine),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;}):null;
+  if(text===null)return {saved:null,unreadable:false};
+  try{
+    const saved=JSON.parse(text);
+    if(saved?.schema==='saam-machine-setup/1'&&saved.machineId===machine.id)return {saved,unreadable:false};
+  }catch(error){if(!(error instanceof SyntaxError))throw error;}
+  return {saved:null,unreadable:true};
+}
+
+// An unreadable remembered setup leaves the profile's defaults and a note; the
+// file stays for the next successful export to replace.
 export async function selectSettings(machineId,{machineSetups}={}){
-  const machine=loadMachine(machineId),settings=settingsDefaults(machine);
-  let saved;
-  if(machineSetups)try{saved=JSON.parse(await readFile(setupFor(machineSetups,machine),'utf8'));}
-  catch(error){if(error.code!=='ENOENT')throw error;}
+  const machine=loadMachine(machineId),settings=settingsDefaults(machine),{saved,unreadable}=await rememberedSetup(machineSetups,machine);
+  const notes=unreadable?[`Remembered setup for ${machine.name} couldn't be read; using defaults.`]:[];
   if(saved){
-    requireThat(saved.schema==='saam-machine-setup/1'&&saved.machineId===machine.id,'Saved machine setup is incompatible.');
     const remembered=Object.fromEntries(Object.entries(neutralMaterials(saved.setup)??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
     settings.setup={...settings.setup,...remembered,materialGuid:remembered.materialGuid||settings.setup.materialGuid};
   }
-  return {machine,settings};
+  return {machine,settings,notes};
 }
 
 export async function saveSetup(machine,setup,{machineSetups,source='Last successful export',exportReceipt}={}){
@@ -108,18 +127,19 @@ export async function withMachineSetupExport(machineSetups,machine,action){
   finally{await writer.handle.close();await rm(lock);}
 }
 
+// Material is not machine: the print's material settings stay across a machine change.
+const MATERIAL_FIELDS=['material','nozzleC','filament','filaments'];
+// A machine change selects setup and output; authored process and material
+// values stay, so the SAAMpath stays current. A remembered setup or the new
+// machine's defaults fill only what the print lacks. A placement left at the
+// previous default moves to the new bed's centre; a chosen one keeps its position.
 export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){
-  const selectedTool=!previousMachine?previous.setup?.tool??settings.setup.tool:settings.setup.tool;
-  const tool=machine.tools.find(t=>t.index===selectedTool),plate=tool?.bounds??machine.bounds;
-  const placement=boundsMm&&machine.kinematics?.startsWith('cartesian')
-    ?{xMm:(plate.min[0]+plate.max[0]-boundsMm.min[0]-boundsMm.max[0])/2,
-      yMm:(plate.min[1]+plate.max[1]-boundsMm.min[1]-boundsMm.max[1])/2}
-    :settings.placement;
-  if(!previousMachine)return {...settings,setup:{...settings.setup,...previous.setup},
-    process:{...settings.process,...previous.process},output:previous.output??settings.output,
-    placement:previous.placement??placement};
-  const process={...previous.process};
-  for(const key of new Set([...Object.keys(previousMachine.defaultProcess??{}),...Object.keys(machine.defaultProcess??{})]))
-    process[key]=settings.process[key];
-  return {setup:settings.setup,output:settings.output,process};
+  const material=Object.fromEntries(MATERIAL_FIELDS.filter(key=>previous.setup?.[key]!==undefined).map(key=>[key,structuredClone(previous.setup[key])]));
+  const setup=previousMachine?{...settings.setup,...material}:{...settings.setup,...previous.setup};
+  const same=(a,b)=>a?.xMm===b.xMm&&a?.yMm===b.yMm,tool=previous.setup?.tool??previousMachine?.defaultSetup.tool;
+  const defaulted=!previous.placement||same(previous.placement,defaultPlacement(previousMachine,tool,boundsMm))
+    ||same(previous.placement,defaultPlacement(previousMachine,tool));
+  return {setup,output:!previousMachine&&machine.outputs.some(output=>output.id===previous.output)?previous.output:settings.output,
+    process:{...settings.process,...previous.process},
+    placement:defaulted?defaultPlacement(machine,setup.tool,boundsMm):previous.placement};
 }

@@ -8,6 +8,21 @@ import {basisFunctions,findSpan,evaluate} from '../../geom/nurbs.mjs';
 import {leastSquares} from '../../geom/least-squares.mjs';
 import {loopArea,pointInRegion} from '../../region/region2d.mjs';
 import {union} from '../../region/intersection.mjs';
+import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
+
+// Process scale default: sleeve section tolerance (twenty times print resolution).
+const SECTION_TOLERANCE_MM=.02;
+// A secondary outer or bore below this fraction of the outer area is a pore (a
+// classification fraction, not a length tolerance).
+const SECONDARY_AREA_FRACTION=.001;
+// A sampled section is one simple counterclockwise loop when a union on a fine grid
+// keeps its area. The grid and the area slack serve that union's integer arithmetic;
+// their values predate the tolerance classes (deferred).
+const UNION_GRID_MM=1e-7;
+export function keepsAreaAsSimpleLoop(loop,area){
+  const normalized=union([loop],[],{precisionMm:UNION_GRID_MM});
+  return normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max(1e-5,area*1e-8);
+}
 
 
 const wrap=u=>((u%1)+1)%1;
@@ -35,7 +50,7 @@ function sleeveCut(cut,z,{toleranceMm,maxSecondaryAreaFraction},allowCollapsed=f
 // Authoring-time proposal only. Generation must use the returned interval as
 // explicit recipe bounds; this function never changes an existing toolpath.
 export function detectMeshSleeveInterval(mesh,{
-  marginMm=.4,toleranceMm=.02,sampleCount=25,maxSecondaryAreaFraction=.001,
+  marginMm=.4,toleranceMm=SECTION_TOLERANCE_MM,sampleCount=25,maxSecondaryAreaFraction=SECONDARY_AREA_FRACTION,
   zMinMm=mesh?.bounds?.min[2],zMaxMm=mesh?.bounds?.max[2]
 }={}){
   requireThat(mesh?.kind==='triangle-mesh','Mesh sleeve detection requires validated triangle-mesh geometry.');
@@ -80,7 +95,7 @@ export function detectMeshSleeveInterval(mesh,{
 export function fitMeshSleeve(mesh,{
   zMinMm=mesh?.bounds?.min[2],zMaxMm=mesh?.bounds?.max[2],
   circumferentialControls=12,heightControls=6,circumferentialSamples=96,heightSamples=25,
-  toleranceMm=0.02,maxSecondaryAreaFraction=0.001
+  toleranceMm=SECTION_TOLERANCE_MM,maxSecondaryAreaFraction=SECONDARY_AREA_FRACTION
 }={}){
   const settings={zMinMm,zMaxMm,circumferentialControls,heightControls,circumferentialSamples,heightSamples,toleranceMm,maxSecondaryAreaFraction};
   validateSleeveFit(mesh,settings);
@@ -123,7 +138,7 @@ function prepareSleeveSource(mesh,{zMinMm,zMaxMm,toleranceMm,maxSecondaryAreaFra
   const anchor=[mesh.bounds.max[0]+Math.max(1,mesh.bounds.max[0]-mesh.bounds.min[0]),(mesh.bounds.min[1]+mesh.bounds.max[1])/2];
   let sourceQueries=0,seenSolid=false,seenHollow=false,maxSecondaryAreaMm2=0,maxSecondaryLoops=0,maxPoreAreaMm2=0;
   function sourceSectionAt(z){
-    requireThat(Number.isFinite(z)&&z>=zMinMm-1e-9&&z<=zMaxMm+1e-9,'Sleeve section height is outside the fitted interval.');
+    requireThat(Number.isFinite(z)&&z>=zMinMm-PRINT_RESOLUTION_MM&&z<=zMaxMm+PRINT_RESOLUTION_MM,'Sleeve section height is outside the fitted interval.');
     z=Math.max(zMinMm,Math.min(zMaxMm,z));
     if(sourceCache.has(z))return sourceCache.get(z);
     const cut=section(prepared,horizontalSlice(z)),{outer,holes,bores,secondaryOuters,secondaryArea,poreArea}=sleeveCut(cut,z,{toleranceMm,maxSecondaryAreaFraction});
@@ -176,7 +191,7 @@ function assembleSleevePatch(controlXY,{n,nu,nv,knotsU,knotsV},{zMinMm,zMaxMm}){
 function sleevePointQuery(patch,{zMinMm,zMaxMm}){
   const spanMm=zMaxMm-zMinMm;
   return (u,z)=>{
-    requireThat(Number.isFinite(u)&&Number.isFinite(z)&&z>=zMinMm-1e-9&&z<=zMaxMm+1e-9,'Sleeve point parameters must be finite and within the fitted height interval.');
+    requireThat(Number.isFinite(u)&&Number.isFinite(z)&&z>=zMinMm-PRINT_RESOLUTION_MM&&z<=zMaxMm+PRINT_RESOLUTION_MM,'Sleeve point parameters must be finite and within the fitted height interval.');
     const p=evaluate(patch,wrap(u),Math.max(0,Math.min(1,(z-zMinMm)/spanMm)),false).point;
     p[2]=z;return p;
   };
@@ -211,8 +226,8 @@ function prepareFittedSections(pointAt,anchor,{sectionSegments},{toleranceMm}){
   return function sectionAt(z){
     if(fittedCache.has(z))return fittedCache.get(z);
     const loop=Array.from({length:sectionSegments},(_,i)=>pointAt(i/sectionSegments,z).slice(0,2));
-    const area=loopArea(loop),normalized=union([loop],[],{precisionMm:1e-7});
-    requireThat(area>toleranceMm*toleranceMm&&normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max(1e-5,area*1e-8),
+    const area=loopArea(loop);
+    requireThat(area>toleranceMm*toleranceMm&&keepsAreaAsSimpleLoop(loop,area),
       'Fitted mesh sleeve collapsed, crossed itself or reversed; use more fit controls or a simpler nonbranching sleeve interval.');
     const value={loops:[loop],requestedZ:z,zMm:z,nudgedByMm:0,outer:loop,holes:[],curve:contourPath(loop,anchor)};
     if(fittedCache.size>=64)fittedCache.delete(fittedCache.keys().next().value);

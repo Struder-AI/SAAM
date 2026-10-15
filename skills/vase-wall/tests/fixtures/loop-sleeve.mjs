@@ -1,4 +1,4 @@
-// A normal rising vase course decorated with overlapping, gently tilted circles.
+// A rising vase spiral decorated with overlapping, gently tilted circles.
 import {defaults} from '../../../../core/print/plan.mjs';
 import {circlePoints} from '../../../../core/geom/cylinder.mjs';
 import {depositionAssignment} from '../../../../core/print/assignment-records.mjs';
@@ -34,14 +34,14 @@ function loopHost({radius,heightMm,waveDepthMm=0,rows=25}){
   return {shape:'mesh',vertices,triangles,source:null};
 }
 
-export function loopSleevePlan({courses=24,loopsPerTurn=20,samplesPerLoop=64,
+export function loopSleevePlan({turns=24,loopsPerTurn=20,samplesPerLoop=64,
   radius=14,tileDepthMm=4.8,tileWidthMm=5.6,exterior='smooth',waveDepthMm=0}={}){
   const plan=defaults();
   const perimeter=2*Math.PI*(radius-plan.process.lineWidthMm/2),rise=plan.process.layerMm;
   const pattern={paths:[loopPath({loops:loopsPerTurn,widthCells:tileWidthMm*loopsPerTurn/perimeter,depthMm:tileDepthMm,
-    samples:samplesPerLoop,beadHeightMm:rise,riseMm:rise,exterior})],advance:[1,rise],repeats:courses};
+    samples:samplesPerLoop,beadHeightMm:rise,riseMm:rise,exterior})],advance:[1,rise],repeats:turns};
   const {points}=pattern.paths[0];
-  const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(courses-1)*rise;
+  const top=plan.process.firstLayerMm+Math.max(...points.map(p=>p[1]))+(turns-1)*rise;
   plan.geometry=loopHost({radius,heightMm:top,waveDepthMm});
   plan.placement={xMm:125,yMm:105};
   for(const settings of Object.values(plan.skills))settings.enabled=false;

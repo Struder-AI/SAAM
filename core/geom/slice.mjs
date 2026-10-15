@@ -15,7 +15,7 @@ import {evaluateSurface} from './surface-evaluation.mjs';
 //  height-field {reference, offsetMm, normalDepthMm}: native roof/spline
 //         evaluation in world XY; sampled topology with refined boundaries.
 //
-// A family stacks one base slice: layer k is the base translated along a
+// A stack repeats one base surface: layer k is the base translated along a
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
@@ -24,7 +24,9 @@ import { evaluate } from './nurbs.mjs';
 import {projectToPatch} from './field.mjs';
 import { regionArea } from '../region/region2d.mjs';
 import { intersect } from '../region/intersection.mjs';
-import { requireThat, add, scale, dot, cross, normalize } from './tolerance.mjs';
+import { requireThat, add, scale, dot, cross, normalize, TOLERANCE } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
+import { DIRECTION_TOLERANCE } from './frame.mjs';
 
 const vector = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
 
@@ -44,11 +46,11 @@ export function sliceRayIntersections(prepared,point){
     return projectToPatch(prepared.patch,p[0],p[1]).map(hit=>({distanceMm:p[2]-hit.point[2],chartPoint:[hit.u,hit.v]}));
   }
   if(slice.kind==='height-field'){
-    requireThat(Math.hypot(d[0],d[1])<1e-8,'A height-field nominal-course query requires its vertical stack direction.');
+    requireThat(Math.hypot(d[0],d[1])<DIRECTION_TOLERANCE,'A height-field nominal-slice query requires its vertical stack direction.');
     const chartPoint=point.slice(0,2),surface=heightSlicePoint(slice,chartPoint);
     return [{distanceMm:(point[2]-surface[2])/d[2],chartPoint}];
   }
-  const denominator=dot(slice.normal,d);if(Math.abs(denominator)<1e-9)return [];
+  const denominator=dot(slice.normal,d);if(Math.abs(denominator)<ROUNDING_RELATIVE)return [];
   const distanceMm=dot(slice.normal,point.map((v,k)=>v-slice.origin[k]))/denominator,p=point.map((v,k)=>v-distanceMm*d[k]-slice.origin[k]);
   return [{distanceMm,chartPoint:[dot(p,slice.xAxis),dot(p,slice.yAxis)]}];
 }
@@ -79,7 +81,7 @@ export function translateSlice(slice, v) {
   requireThat(vector(v), 'A slice translation is a 3D vector.');
   if (slice.kind === 'plane') return { ...slice, origin: add(slice.origin, v) };
   if (slice.kind === 'height-field') {
-    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference families currently translate along Z only.');
+    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference stacks currently translate along Z only.');
     return { ...slice, offsetMm: slice.offsetMm + v[2] };
   }
   requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
@@ -108,7 +110,8 @@ export function touchesSliceEdge(slice, loops) {
 export function sliceBoundaryEdges(slice,loops) {
   if (slice.kind !== 'patch') return [];
   const { domainU: [u0, u1], domainV: [v0, v1] } = slice.patch;
-  const eu = 1e-7 * (u1 - u0) + 1e-9, ev = 1e-7 * (v1 - v0) + 1e-9;
+  // Touching the patch edge: the share of the domain worth print resolution.
+  const eu = TOLERANCE.domainFraction * (u1 - u0), ev = TOLERANCE.domainFraction * (v1 - v0);
   const tests=[['u-min',([u])=>u-u0<=eu],['u-max',([u])=>u1-u<=eu],['v-min',([,v])=>v-v0<=ev],['v-max',([,v])=>v1-v<=ev]];
   return tests.filter(([,test])=>loops.some(loop=>loop.some(test))).map(([edge])=>edge);
 }
@@ -137,8 +140,12 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
     for(let k=0;k<3;k++)sum[k]+=area[k]*weight;
     areaMm2+=Math.hypot(...area)*weight;
   }
-  requireThat(areaMm2>0&&Math.hypot(...sum)>areaMm2*1e-9,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
-  return {normal:normalize(sum),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
+  // A region with no area at print resolution has nothing to print: it answers
+  // no area and no normal, like an empty one. The whole reference needs a normal.
+  if(region&&areaMm2<=PRINT_RESOLUTION_MM*PRINT_RESOLUTION_MM)return {normal:null,meanNormal:null,areaMm2:0,sampleStepMm};
+  const length=Math.hypot(...sum);
+  requireThat(areaMm2>0&&length>areaMm2*ROUNDING_RELATIVE,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
+  return {normal:sum.map(v=>v/length),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
 }
 
 // A stack of one base slice: layer k is the base translated along the unit
@@ -146,27 +153,27 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
 // last and the first one first-layer height above the base. Direction defaults
 // to a plane's normal and must advance a plane (d·n > 0). Only layers that
 // reach into bounds (the owned volume's box) past its low side are listed,
-// numbered from the base, so a family confined to a band keeps the layer
+// numbered from the base, so a stack confined to a band keeps the layer
 // numbers of the whole stack. heightMm is the layer's thickness: along the
 // normal for a plane, along the direction for a patch.
 //
 // {base, direction?, pitchMm, firstLayerMm}, {min, max} ->
 // {base, direction, pitchMm, firstLayerMm, layers: [{index, offsetMm, heightMm, slice}]}
-export function sliceFamily({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
-  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice family needs a plane, patch or height reference.');
+export function sliceStack({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
+  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice stack needs a plane, patch or height reference.');
   requireThat(Number.isFinite(pitchMm) && pitchMm > 0 && Number.isFinite(firstLayerMm) && firstLayerMm > 0,
-    'A slice family needs a positive pitch and first-layer height; it would never advance.');
-  requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice family needs the owned volume bounds.');
+    'A slice stack needs a positive pitch and first-layer height; it would never advance.');
+  requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice stack needs the owned volume bounds.');
   if(base.kind==='height-field') {
-    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference families translate along positive Z.');
-    requireThat(!base.normalDepthMm,'Translated height families do not imply normal-offset stacks.');
+    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference stacks translate along positive Z.');
+    requireThat(!base.normalDepthMm,'Translated height stacks do not imply normal-offset stacks.');
     const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
-    const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+1e-9)+1);
-    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-family indices exceed exact integer representation.');
+    const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+ROUNDING_RELATIVE)+1);
+    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-stack indices exceed exact integer representation.');
     for(let referenceIndex=firstIndex;;referenceIndex++) {
       const index=referenceIndex-firstIndex,offsetMm=firstTranslationMm+referenceIndex*translationStepMm;
-      if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+1e-9)break;
-      if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+1e-9)continue;
+      if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+PRINT_RESOLUTION_MM)break;
+      if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+PRINT_RESOLUTION_MM)continue;
       const translationMm=referenceIndex===0?firstTranslationMm:translationStepMm;
       layers.push({index,referenceIndex,offsetMm,targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm,heightMm:translationMm,direction:[0,0,1],thicknessMetric:'normal-projection',slice:translateSlice(base,[0,0,offsetMm])});
     }
@@ -176,9 +183,9 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
   const d = normalize(direction ?? (metric?metric.normal:base.normal));
   const range=metric?patchMeanNormal(base.patch,null,{direction:d}):null;
   const advance = base.kind === 'plane' ? dot(d, base.normal) : 1;
-  requireThat(advance > 1e-9, 'The stacking direction must advance the plane along its normal.');
+  requireThat(advance > ROUNDING_RELATIVE, 'The stacking direction must advance the plane along its normal.');
   const meanProjection=metric?dot(metric.meanNormal,d):advance;
-  requireThat(meanProjection>1e-9,'The stacking direction has no positive mean normal advance.');
+  requireThat(meanProjection>ROUNDING_RELATIVE,'The stacking direction has no positive mean normal advance.');
   const translationStepMm=pitchMm/meanProjection,firstTranslationMm=firstLayerMm/meanProjection;
   const corners = [0, 1, 2, 3, 4, 5, 6, 7].map(i => [0, 1, 2].map(k => (i >> k) & 1 ? bounds.max[k] : bounds.min[k]));
   const along = base.kind === 'plane' ? base.normal : d;
@@ -186,17 +193,17 @@ export function sliceFamily({ base, direction = null, normalRegion = null, pitch
   // A patch's own extent along the direction, before translation.
   const [low, high] = base.kind === 'patch' ? patchExtent(base.patch, d) : [0, 0];
   // Translating by the first layer, then by whole pitches, keeps a horizontal
-  // family's heights bit-identical to base + first + k·pitch.
+  // stack's heights bit-identical to base + first + k·pitch.
   const start = translateSlice(base, scale(d, firstTranslationMm)), layers = [];
   const baseHigh=base.kind==='plane'?dot(base.normal,base.origin):high;
-  const firstIndex=Math.min(0,Math.floor(((lo-baseHigh)/advance-firstTranslationMm)/translationStepMm+1e-9)+1);
-  requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil(((hi-baseHigh)/advance-firstTranslationMm)/translationStepMm)),'Slice-family indices exceed exact integer representation.');
+  const firstIndex=Math.min(0,Math.floor(((lo-baseHigh)/advance-firstTranslationMm)/translationStepMm+ROUNDING_RELATIVE)+1);
+  requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil(((hi-baseHigh)/advance-firstTranslationMm)/translationStepMm)),'Slice-stack indices exceed exact integer representation.');
   for (let referenceIndex = firstIndex; ; referenceIndex++) {
     const slice = referenceIndex ? translateSlice(start, scale(d, referenceIndex * translationStepMm)) : start;
     const t = firstTranslationMm + referenceIndex * translationStepMm;
     const [bottom, top] = base.kind === 'plane' ? [dot(base.normal, slice.origin), dot(base.normal, slice.origin)] : [low + t, high + t];
-    if (bottom > hi + 1e-9) break;
-    if (top <= lo + 1e-9) continue;
+    if (bottom > hi + PRINT_RESOLUTION_MM) break;
+    if (top <= lo + PRINT_RESOLUTION_MM) continue;
     const index=referenceIndex-firstIndex,stepMm=referenceIndex===0?firstTranslationMm:translationStepMm;
     layers.push({ index, referenceIndex, offsetMm:t, targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm:stepMm,heightMm: stepMm * advance, direction:d, slice });
   }
@@ -212,3 +219,8 @@ function patchExtent(patch, d) {
   }
   return [low, high];
 }
+
+// Shared coordinate identity, independent of material ownership or deposition.
+export const horizontal = slice => slice.kind === 'plane' && slice.normal[0] === 0 && slice.normal[1] === 0 && slice.normal[2] === 1
+  && slice.xAxis[0] === 1 && slice.xAxis[1] === 0 && slice.yAxis[0] === 0 && slice.yAxis[1] === 1 && slice.origin[0] === 0 && slice.origin[1] === 0;
+export const sliceKey = slice => slice.kind==='patch'?JSON.stringify([slice.kind,slice.patch]):slice.kind==='height-field'?JSON.stringify([slice.kind,slice.reference,slice.offsetMm,slice.normalDepthMm,slice.sampleStepMm]):JSON.stringify([slice.kind, slice.origin, slice.normal, slice.xAxis]);

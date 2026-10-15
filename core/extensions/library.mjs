@@ -29,6 +29,20 @@ export function relativeExtensionFile(name){
 
 const relativeFile=relativeExtensionFile;
 
+function validateAttribution(raw,id){
+  const credits=raw.credits??[];
+  if(!Array.isArray(credits)||credits.some(credit=>!credit||typeof credit!=='object'
+    ||Object.keys(credit).some(key=>!['name','role'].includes(key))
+    ||typeof credit.name!=='string'||!credit.name.trim()||typeof credit.role!=='string'||!credit.role.trim()))
+    throw Error(`Extension ${id} credits need named contributors and roles.`);
+  const support=raw.support??null;
+  if(support!==null&&(!support||typeof support!=='object'||Array.isArray(support)
+    ||Object.keys(support).some(key=>!['status','maintainer','scope'].includes(key))
+    ||!['community','supported','unsupported','unspecified'].includes(support.status)
+    ||support.maintainer!==null&&typeof support.maintainer!=='string'
+    ||typeof support.scope!=='string'))throw Error(`Extension ${id} support needs status, maintainer and scope.`);
+}
+
 function manifestValue(raw,id){
   if(!raw||raw.schema!==MANIFEST_SCHEMA||raw.id!==id||!ID.test(id))throw Error(`Invalid extension manifest for ${id}.`);
   const dependencies=raw.dependencies??[];
@@ -54,7 +68,7 @@ function manifestValue(raw,id){
     if(!entries['machine-adapter']||!Array.isArray(raw.machines)||!raw.machines.length
       ||raw.machines.some(name=>!/^[a-z][a-z0-9-]*\.json$/.test(relativeFile(name).split('/').at(-1))))
       throw Error(`Machine extension ${id} needs a machine-adapter entry and its profile files.`);
-  }else if(raw.machines||entries['machine-adapter'])throw Error(`Extension ${id} must declare kind machine.`);
+  }else if(raw.machines||entries['machine-adapter']||entries['machine-kinematics'])throw Error(`Extension ${id} must declare kind machine.`);
   if(kind==='workspace'){
     if(!entries['workspace-runtime'])throw Error(`Workspace ${id} needs a workspace-runtime entry.`);
     if(!raw.workspace||Object.keys(raw.workspace).join()!=='ui')throw Error(`Workspace ${id} needs a UI directory.`);
@@ -62,7 +76,13 @@ function manifestValue(raw,id){
   }else if(raw.workspace||entries['workspace-runtime'])throw Error(`Extension ${id} must declare kind workspace.`);
   if(raw.license!==undefined&&raw.license!==null&&typeof raw.license!=='string')throw Error(`Invalid license in ${id}.`);
   if(raw.provenance!==undefined&&raw.provenance!==null&&typeof raw.provenance!=='string')throw Error(`Invalid provenance in ${id}.`);
+  validateAttribution(raw,id);
   return {...raw,dependencies,entries};
+}
+
+function manifestText(text,id){
+  try{return manifestValue(JSON.parse(text),id);}
+  catch(error){throw error instanceof SyntaxError?Error(`Extension ${id} extension.json is not valid JSON: ${error.message}`):error;}
 }
 
 async function filesIn(directory,at=directory){
@@ -80,7 +100,7 @@ async function filesIn(directory,at=directory){
 }
 
 async function extensionAt(directory,id){
-  const manifest=manifestValue(JSON.parse(await readFile(resolve(directory,'extension.json'),'utf8')),id);
+  const manifest=manifestText(await readFile(resolve(directory,'extension.json'),'utf8'),id);
   const names=await filesIn(directory);
   if(!names.includes('SKILL.md'))throw Error(`Extension ${id} has no SKILL.md guidance.`);
   for(const entry of Object.values(manifest.entries))if(!names.includes(entry.file))
@@ -106,35 +126,59 @@ export async function readExtension(id,options={}){
   return null;
 }
 
-// Profile id -> the machine extension shipping it. Profiles are chosen by
-// synchronous callers, so this reads manifests only; a local copy wins.
-export function machineCatalog(options={}){
-  const roots=extensionRoots(options),profiles=new Map(),seen=new Set();
-  for(const folder of [roots.local,roots.machines]){
+// The selected copy of each extension in the given folders, first folder first,
+// then name order. A copy that cannot be read is skipped with its reason and the
+// others load; using the skipped one still fails with that reason.
+const skippedCopy=(extension,origin,error)=>({extension,origin,reason:error.message});
+function selectedManifests(folders){
+  const selected=[],skipped=[],seen=new Set();
+  for(const [origin,folder] of folders){
     if(!existsSync(folder))continue;
     for(const item of readdirSync(folder,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0)){
-      const file=resolve(folder,item.name,'extension.json');
+      const directory=resolve(folder,item.name),file=resolve(directory,'extension.json');
       if(!item.isDirectory()||!ID.test(item.name)||seen.has(item.name)||!existsSync(file))continue;
       seen.add(item.name);
-      const manifest=manifestValue(JSON.parse(readFileSync(file,'utf8')),item.name);
-      for(const name of manifest.kind==='machine'?manifest.machines:[]){
-        const id=name.split('/').at(-1).slice(0,-'.json'.length);
-        if(profiles.has(id))throw Error(`Machine profile ${id} is declared by ${profiles.get(id).extension} and ${item.name}.`);
-        profiles.set(id,{extension:item.name,file:resolve(folder,item.name,name)});
-      }
+      try{selected.push({id:item.name,origin,directory,manifest:manifestText(readFileSync(file,'utf8'),item.name)});}
+      catch(error){skipped.push(skippedCopy(item.name,origin,error));}
     }
   }
-  return profiles;
+  return {selected,skipped};
 }
 
-export async function listExtensions(options={}){
-  const roots=extensionRoots(options),ids=new Set();
-  for(const folder of Object.values(roots)){
-    if(!await exists(folder))continue;
-    for(const item of await readdir(folder,{withFileTypes:true}))
-      if(item.isDirectory()&&ID.test(item.name)&&await exists(resolve(folder,item.name,'extension.json')))ids.add(item.name);
+// Profile id -> the machine extension shipping it. Profiles are chosen by
+// synchronous callers, so this reads manifests only; a local copy wins, and a
+// profile id declared again is skipped in favour of the first.
+export function machineProfiles(options={}){
+  const roots=extensionRoots(options),profiles=new Map();
+  const {selected,skipped}=selectedManifests([['local',roots.local],['bundled',roots.machines]]);
+  for(const {id:extension,origin,directory,manifest} of selected)for(const name of manifest.machines??[]){
+    const id=name.split('/').at(-1).slice(0,-'.json'.length);
+    if(profiles.has(id))skipped.push({...skippedCopy(extension,origin,Error(`Machine profile ${id} is already declared by ${profiles.get(id).extension}.`)),profile:id});
+    else profiles.set(id,{extension,file:resolve(directory,name)});
   }
-  return Promise.all([...ids].sort().map(id=>readExtension(id,options).then(({files,...entry})=>entry)));
+  return {profiles,skipped};
+}
+export const machineCatalog=(options={})=>machineProfiles(options).profiles;
+
+// A machine profile's extension entry as module source, or null when that
+// extension has none: Studio serves the machine-kinematics entry to its viewer.
+export async function machineEntrySource(machineId,name,options={}){
+  const id=machineCatalog(options).get(machineId)?.extension,selected=id?await readExtension(id,options):null,entry=selected?.manifest.entries[name];
+  return entry?{exportName:entry.export,bytes:selected.files.find(file=>file.path===entry.file).bytes}:null;
+}
+
+// Every selected extension that reads whole, in id order, and each one skipped with its reason.
+export async function listExtensions(options={}){
+  const roots=extensionRoots(options),extensions=[];
+  const {selected,skipped}=selectedManifests([['local',roots.local],['bundled',roots.bundled],['bundled',roots.machines]]);
+  const reads=await Promise.allSettled(selected.map(({id,directory})=>extensionAt(directory,id)));
+  reads.forEach((read,index)=>{
+    const {id,origin}=selected[index];
+    if(read.status==='fulfilled'){const {files,...entry}=read.value;extensions.push({...entry,origin});}
+    else skipped.push(skippedCopy(id,origin,read.reason));
+  });
+  const order=key=>(a,b)=>a[key]<b[key]?-1:a[key]>b[key]?1:0;
+  return {extensions:extensions.sort(order('id')),skipped:skipped.sort(order('extension'))};
 }
 
 // Exactly one selected copy exists per id: local wins over release defaults.
@@ -157,13 +201,21 @@ export async function resolveExtensions(ids,options={}){
   return resolved;
 }
 
+// The running module graph and its declared source must agree. A restart
+// clears this owned state and makes the changed extension available.
+export function extensionRuntimeSourceError(resolved){
+  for(const item of resolved){
+    const loaded=loadedDigests.get(item.directory);
+    if(loaded&&loaded!==item.digest)return {code:'EXTENSION_RELOAD_REQUIRED',message:`Extension ${item.id} changed while SAAM is running; its new scripts load after \`saam reload-runtime\`.`};
+  }
+  return null;
+}
+
 export async function loadExtensionEntry(id,name,options={}){
   const resolved=await resolveExtensions([id],options),selected=resolved.at(-1),entry=selected.manifest.entries[name];
   if(!entry)throw Error(`Extension ${id} has no ${name} entry.`);
-  for(const item of resolved){
-    const loaded=loadedDigests.get(item.directory);
-    if(loaded&&loaded!==item.digest)throw Error(`Extension ${item.id} changed while SAAM is running. Restart SAAM to use its new scripts.`);
-  }
+  const unavailable=extensionRuntimeSourceError(resolved);
+  if(unavailable)throw Object.assign(Error(unavailable.message),{code:unavailable.code});
   const module=await import(pathToFileURL(resolve(selected.directory,entry.file)).href);
   if(typeof module[entry.export]!=='function')throw Error(`Extension ${id} entry ${entry.file} does not export ${entry.export}.`);
   loadedDigests.set(selected.directory,selected.digest);
@@ -221,7 +273,7 @@ export async function importExtension(packageFile,options={}){
   }
   files.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
   if(!names.has('SKILL.md')||!names.has('extension.json')
-    ||canonicalJson(manifestValue(JSON.parse(files.find(file=>file.path==='extension.json').bytes.toString('utf8')),id))!==canonicalJson(manifest))
+    ||canonicalJson(manifestText(files.find(file=>file.path==='extension.json').bytes.toString('utf8'),id))!==canonicalJson(manifest))
     throw Error(`Extension ${id} package manifest or guidance is missing.`);
   for(const entry of Object.values(manifest.entries))if(!names.has(entry.file))throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.has(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);

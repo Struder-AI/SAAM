@@ -53,14 +53,12 @@ Cavity classification is cached per saved candidate and uses its undeformed grid
 open recesses and through holes retain displacement colors. Disable **Reveal
 enclosed cavities** to return to the opaque displacement view.
 
-Studio uses a right-handed orthographic camera: top view shows +X right and
-+Y up (toward the back of the bed), with +Z toward the viewer. Orbit, side and
-top views share this projection without perspective scaling. Playback has a
-1×–30× slider, initially 10×; inactive toolpath layers draw at 50% opacity with
-one-third of the original color lightening by default. **Previous layer opacity**
-adjusts completed layers from that 50% default to 100%, where opacity and color
-strength match the active layer. It updates the paused or playing view immediately,
-is retained with same-tab view settings, and also applies to exported movies.
+The right-handed orthographic camera shows top +X right, +Y back/up, +Z toward
+the viewer; orbit/side/top share it without perspective. Playback spans 1×–30×,
+starting 10×. Layer emphasis uses inspection identity or motion's `layerId`/index;
+legacy paths use distinct chronological runs. Inactive layers default 50% opacity
+with one-third color lightening. **Previous layer opacity** spans 50%–100%; 100% matches active color/opacity.
+Changes apply immediately, persist in same-tab settings and affect exported movies.
 Current material uses shaded oval
 beads in WebGL2, with physical dimensions that scale with viewport zoom. Width
 comes from commanded volume per distance divided by the nominal layer thickness,
@@ -73,12 +71,12 @@ This is a nominal display cross-section, not measured filament spread.
 
 The [guided tour](../examples/prints/README.md) uses this same renderer and machine
 presentation. Its fin block initializes from its source recipe and shows
-geometry before toolpath generation. At toolpath review, the normal worker and
-source interpreter supply playback and material instances. Generated display
+geometry before toolpath generation. At toolpath review, the normal worker
+supplies playback and material instances from the SAAMpath. Generated display
 caches and machine programs are not bundled in the repository.
 The browser owns one presentation model keyed by `printId`, `geometryId`,
 `editRevision`, `outputId` and path id. `planPresentation(previous, response)` returns
-that model plus explicit program effects: replace, retain or clear. A tour may
+that model plus explicit program effects: replace or clear. A tour may
 therefore return to geometry-only lessons while retaining one decoded playback
 and material scene, then reuse those buffers when the identity matches. Changed
 identity replaces or clears them; metadata-only changes rebind the machine
@@ -87,10 +85,10 @@ data during an initial geometry lesson.
 
 ### Phase colours
 
-Lines, material, partial moves, movies, legend and pipe-view sample buttons draw
-the Studio state's resolved `phasePalette` ([choice and precedence](../core/print/USAGE.md#phase-colours));
-multi-material moves show their filament colour. [`phase-colours.mjs`](../core/print/phase-colours.mjs)
-owns the defaults.
+Lines, beads, movies, legend and sample buttons use the resolved `phasePalette`
+([precedence](../core/print/USAGE.md#phase-colours)); [phase-colours.mjs](../core/print/phase-colours.mjs)
+owns defaults. Multi-material moves use filament colour. Inspection/modulation
+comes from the drawn path's summary; shaded beads do not require a machine program.
 
 ### Material geometry and playback
 
@@ -107,27 +105,26 @@ internal surfaces cannot accumulate opacity; the ghost machine composites
 underneath afterwards. Bead templates are indexed and wound outward, back faces
 are culled, and a layer/operation group whose projected bounds miss the viewport
 is skipped. These match the earlier two-pass image to rounding (DEVLOG 2026-09-18).
-Draped skin and wave overhangs currently lack source surface normals and retain
-an explicitly labeled line fallback. Browsers without WebGL2 also use lines.
-Fallback line width scales with the same camera, with a 0.04 mm current-layer
-inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space
+Material frames and bead dimensions shade paths independently of machine selection
+or tool tilt. Legacy unframed paths and browsers without WebGL2 use lines, scaled
+with the same camera and a 0.04 mm current-layer inset. Canvas device-pixel scaling applies once; travel stays a thin screen-space
 guide. Display geometry does not modify deposition spacing, volume or export.
 
 Studio displays material estimates in grams using a fixed 1.2 g/cm³ density
 for all materials. Robot relay estimates and commanded material intent remain
 separate and labeled; internal volumes and machine flow rates retain their units.
 Inspection reads `report.depositionFamily`; operation plus exported `layer` selects
-the course ordinal. Continuous Slice keeps its geometric turn identity without
-splitting deposition. Trace keeps authored courses and its reference sleeve name;
+the slice or Trace repetition index. Spiral paths retain turn identity without
+splitting deposition. Trace retains repetition groups and its reference sleeve name;
 Inject numbers points independently of height. Reference geometry is not drawn.
 Substrate adaptation is agent-controlled through the recipe/API; settings only
 report its current value.
 Outgoing layers fade over two wall-clock seconds, shortened when the next layer
 arrives sooner. A transition completes the previous fade; pausing/changing speed
 never reverses it. Scrubbing, replay and opening a print reset fade history.
-**Export movie** renders the whole interpreted program into a separate canvas
+**Export movie** renders the whole SAAMpath into a separate canvas
 with the same renderer, selected speed, camera/zoom/framing, travel visibility,
-rotary view, display detail and layer fade. The viewer stays paused at its current
+followed plate, display detail and layer fade. The viewer stays paused at its current
 position. Export uses 30 fps and a deterministic video clock, including two final
 seconds to finish fades; it does not wait through real-time playback. WebCodecs
 encodes VP9 with VP8 fallback into a seekable, silent WebM download. The browser
@@ -169,25 +166,17 @@ deposition layer. Source geometry and output are unchanged.
 
 Studio uses the shared [bundle identity and reuse contract](../core/print/README.md#print-bundle-and-current-formats).
 
-Studio's state response contains geometry, review records and a small program
-summary/source manifest, never move/event arrays. It fetches the checked machine
-source separately: plain Griffin G-code, the exact G-code member of an H2D 3MF,
-or each actual Dobot Lua file (global, definitions and entry). Requests bind the
-print, review revision and export hash; the browser checks each source digest.
-Archive and H2D firmware-envelope checks remain on the server. Delivery retains
-the original archive bytes, not a repacked or regenerated program.
-
-A browser worker runs the same modal G-code interpreter or bounded Lua runtime
-as export checks. Lua helpers and entry code are executed; annotations cannot
-substitute for actual motion commands. H2D playback retains its checked print-body
-scope, with firmware service motion explicitly not simulated. The worker stores
-decoded moves in chunked typed arrays and transfers their ownership inside the
-browser. These are local drawing/timeline data, not another persisted path or
-server transport format. No motion JSON is sent to the browser. Timeline, layer,
-travel and robot acceleration controls share the existing renderer. Browsers
-still decode all moves before playback; fully paged playback is not implemented.
-Machine profile loading stays in the Node wrapper; pure machine rules and source
-interpreters are shared with the browser through an explicit module allowlist.
+Studio's state response contains geometry, review records and the adapter's
+stored report, never move/event arrays. Studio draws the SAAMpath, not the machine
+program (owner, 2026-10-11: "just show saampath in viewer, without priming/etc."):
+`/api/path` returns the completed output's SAAMpath, else the saved one, at its
+placement, bound to print, revision and path id. Playback times are the path's
+own speeds; startup, priming and material-change motion exist only in the
+program. Delivery retains the checked program bytes. A browser worker decodes
+the path into chunked typed arrays it owns; these are local drawing data, not a
+persisted path. Browsers decode all moves before playback; paged playback is not
+implemented. Pure machine rules are shared with the browser through an explicit
+module allowlist.
 
 Studio computes bounds/layout/camera transforms once per frame and coalesces
 redraw requests. It preserves segment order, colour and transparency. The

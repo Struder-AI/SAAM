@@ -1,9 +1,9 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-// Native roof survey for reserved material and supported surface courses.
+// Native roof survey for reserved material and supported surface slices.
 import {topAt} from '../geom/query.mjs';
 import {regionArea} from './region2d.mjs';
 import {extractLevelSet,SENTINEL} from '../geom/level-set.mjs';
-import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PROGRAM_STEP_MM} from '../dimensions.mjs';
 
 // Survey the top surface once: the reserve height the body must stay under, and
 // the area the angle limit allows to be skinned.
@@ -58,7 +58,7 @@ export function surveyRoofRegion(shell, { layers, pitchMm, translationStepMm=pit
   };
   const refine = (inside, outside) => {
     let a = inside, b = outside;
-    while(Math.hypot(a[0]-b[0],a[1]-b[1])>TOLERANCE.point) {
+    while(Math.hypot(a[0]-b[0],a[1]-b[1])>PROGRAM_STEP_MM) {
       const middle = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
       requireThat(middle.some((v,k)=>v!==a[k])&&middle.some((v,k)=>v!==b[k]),'Roof boundary refinement cannot progress at floating-point precision.');
       if (skinnable(...middle)) a = middle; else b = middle;

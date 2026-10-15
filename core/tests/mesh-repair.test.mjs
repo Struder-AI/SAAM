@@ -5,13 +5,12 @@ import {mkdtemp,readFile,writeFile,rm,access} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {boxMesh,ringMesh,subdividedBox} from './fixtures/mesh.mjs';
-import {existsSync} from 'node:fs';
-import {nativeMeshExecutable} from '../geom/mesh-native.mjs';
 import {makeMesh,parseSTL} from '../geom/mesh.mjs';
 import {cleanTriangleSoup,encodeRepairSTL,validateRepair} from '../geom/mesh-repair.mjs';
 import {repairSTL,repairSTLFiles} from '../print/repair-stl.mjs';
 import {triangleIndex,trianglesContact} from '../geom/mesh-spatial.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 import {importSTLBundle} from '../print/import-stl.mjs';
 import {loadBundle} from '../print/bundle.mjs';
 const volume=m=>Math.abs(m.triangles.reduce((sum,t)=>{const [a,b,c]=t.map(i=>m.vertices[i]);return sum+(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;},0));
@@ -19,7 +18,7 @@ test('valid input keeps exact geometry and repair cleanup is explicit',async()=>
   const box=boxMesh(),bytes=encodeRepairSTL(box),result=await repairSTL(bytes,{units:'mm'});
   assert.equal(result.report.method,'exact-cleanup/1');assert.equal(result.report.sampledDistanceMm.sourceToResult,0);assert.equal(result.report.outputTriangles,12);
   const dirty=Buffer.from(bytes.toString().replace('endsolid saam_repaired','facet normal 0 0 0\nouter loop\nvertex 0 0 0\nvertex 0 0 0\nvertex 1 1 1\nendloop\nendfacet\nendsolid saam_repaired'));
-  assert.equal((await repairSTL(dirty,{units:'mm'})).report.removed.degenerate,1);
+  assert.equal((await repairSTL(dirty,{units:'mm'})).report.resolutionMerge.collapsedTriangles,1);
   await assert.rejects(repairSTL(bytes,{}),/explicit/);
 });
 
@@ -41,11 +40,11 @@ test('collapsed-face cleanup stitches a long edge to its subdivided opposite wit
   const result=await repairSTL(bytes,{units:'mm'});
   assert.equal(result.report.method,'edge-stitch-cleanup/1');assert.equal(result.report.stitching.edges,1);
   assert.ok(Math.abs(volume(parseSTL(result.repairedBytes,{units:'mm'}))-1/6)<1e-12);
-  assert.equal(result.report.sampledDistanceMm.sourceToResult,0);
+  assert.ok(result.report.sampledDistanceMm.sourceToResult<=ROUNDING_MM);
   // An actual missing surface is not a collinear seam to stitch closed.
   const open={...source,triangles:source.triangles.filter((_,i)=>i!==2)};
   const cleanedOpen=cleanTriangleSoup(open);assert.equal(cleanedOpen.stitching.edges,0);
-  assert.throws(()=>validateRepair(cleanedOpen),/closed/);
+  assert.ok(makeMesh(cleanedOpen.vertices,cleanedOpen.triangles).topology.openEdges>0,'the missing surface stays open and is reported');
 });
 
 test('nearest surface queries agree with an analytical box',()=>{
@@ -65,38 +64,36 @@ test('contact checks distinguish valid adjacency from folded overlapping faces',
   assert.equal(trianglesContact(left,right,[[0,0,0]]),false);
 });
 
-const native={skip:existsSync(nativeMeshExecutable)?false:'Build the CGAL helper with npm run setup:mesh to run native repair tests.'};
-test('native repair closes only holes within both explicit bounds',native,async()=>{
+test('repair closes only holes within both explicit bounds',async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);const bytes=encodeRepairSTL(source);
-  await assert.rejects(repairSTL(bytes,{units:'mm'}),/Open boundaries/);
-  await assert.rejects(repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:1}),/Open boundaries/);
+  // A hole outside the bounds stays open and is reported, not refused.
+  for(const bounds of [{},{maxHoleEdges:3,maxHoleDiameterMm:1}]){const {report}=await repairSTL(bytes,{units:'mm',...bounds});assert.equal(report.holesLeftOpen,1);assert.equal(report.holesFilled,0);assert.equal(report.remaining.topology.openEdges,3);}
   const {repairedBytes,report}=await repairSTL(bytes,{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3});
-  assert.equal(report.method,'cgal-solid-repair/3');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
+  assert.equal(report.method,'saam-solid-repair/2');assert.equal(report.holesFilled,1);assert.equal(report.holeTrianglesAdded,1);
   assert.equal(report.unchangedSourceFaces,11);assert.ok(Math.abs(volume(parseSTL(repairedBytes,{units:'mm'}))-8)<1e-12);
 });
-test('native solid repair resolves a penetrating fold and retains remote facets',native,async()=>{
+test('solid repair resolves a penetrating fold and retains remote facets',async()=>{
   const source=subdividedBox();source.vertices.find(p=>p[0]===2&&p[1]===2&&p[2]===4)[2]=-1;
-  assert.throws(()=>makeMesh(source.vertices,source.triangles),/Intersecting/);
+  assert.ok(makeMesh(source.vertices,source.triangles).contacts.count>0,'the fold is reported, not refused');
   const {repairedBytes,report}=await repairSTL(encodeRepairSTL(source),{units:'mm'}),fixed=parseSTL(repairedBytes,{units:'mm'});
   validateRepair(fixed);assert.equal(report.selfIntersectionsRepaired,true);assert.ok(report.unchangedSourceFaces>700);assert.ok(report.outputTriangles<1000);
   const faceKey=points=>points.map(p=>p.join(',')).sort().join(';'),resultFaces=new Set(fixed.triangles.map(t=>faceKey(t.map(v=>fixed.vertices[v]))));
   for(const t of source.triangles){const points=t.map(v=>source.vertices[v]);if(points.every(p=>p[0]===0))assert.ok(resultFaces.has(faceKey(points)),'unaffected side faces must retain exact geometry');}
 });
-test('native repair fixes orientation without changing the face geometry',native,async()=>{
+test('repair fixes orientation without changing the face geometry',async()=>{
   const source=boxMesh();source.triangles[0].reverse();const result=await repairSTL(encodeRepairSTL(source),{units:'mm'});
   assert.equal(result.report.unchangedSourceFaces,12);assert.equal(result.report.changedSourceFaces,0);validateRepair(parseSTL(result.repairedBytes,{units:'mm'}));
 });
-test('repair stops on cancellation or native failure, never on elapsed time',native,async t=>{
+test('repair stops on cancellation or failure, never on elapsed time',async t=>{
   const root=await mkdtemp(join(tmpdir(),'saam-repair-test-'));t.after(()=>rm(root,{recursive:true,force:true}));
   const source=boxMesh();source.triangles[0].reverse();const bytes=encodeRepairSTL(source);
   await assert.rejects(repairSTL(bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});
   await assert.rejects(repairSTLFiles(join(root,'cancelled'),bytes,{units:'mm',signal:AbortSignal.abort()}),{name:'AbortError'});await assert.rejects(access(join(root,'cancelled')));
-  const open=boxMesh(2,2,2);open.triangles=open.triangles.slice(1);
-  await assert.rejects(repairSTLFiles(join(root,'failed'),encodeRepairSTL(open),{units:'mm'}),/Open boundaries/);await assert.rejects(access(join(root,'failed')));
+  await assert.rejects(repairSTLFiles(join(root,'failed'),Buffer.from('not an STL'),{units:'mm'}));await assert.rejects(access(join(root,'failed')));
   // The retired timeoutMs is inert; a repair is never refused for taking long.
   assert.equal((await repairSTLFiles(join(root,'kept'),bytes,{units:'mm',timeoutMs:1})).outputTriangles,12);
 });
-test('repair shape threshold rejects a changed patch even when output vertices lie on the source',native,async()=>{
+test('repair shape threshold rejects a changed patch even when output vertices lie on the source',async()=>{
   const source=boxMesh(2,2,2);source.triangles=source.triangles.slice(1);
   await assert.rejects(repairSTL(encodeRepairSTL(source),{units:'mm',maxHoleEdges:3,maxHoleDiameterMm:3,maxSampledDistanceMm:0.01}),{code:'MESH_SHAPE_CHANGE'});
 });

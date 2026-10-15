@@ -30,11 +30,12 @@ export function preciseSolidMesh(solid){
   }finally{encoded.delete();}
 }
 
+// An empty mesh (a Boolean leaving no material) is the empty solid.
 export function solidFromMesh(kernel,mesh){
   const input=new kernel.Mesh({numProp:3,vertProperties:Float32Array.from(mesh.vertices.flat()),triVerts:Uint32Array.from(mesh.triangles.flat())});
   const solid=new kernel.Manifold(input);
   if(solid.status()!=='NoError'){const status=solid.status();solid.delete();throw new Error('Solid input: '+status);}
-  if(solid.volume()<=0){solid.delete();throw new Error('Solid input must enclose positive material volume with outward winding.');}
+  if(mesh.triangles.length&&solid.volume()<=0){solid.delete();throw new Error('Solid input must enclose positive material volume with outward winding.');}
   return solid;
 }
 export function meshFromSolid(solid){

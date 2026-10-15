@@ -12,18 +12,23 @@ export const BUILD_SCALE_MM = 1000;
 // (coincident, touching, thin, closed) use it.
 export const PRINT_RESOLUTION_MM = 1e-3;
 
-// Numeric conditioning: float64 safety at build scale. One ulp at 1000 mm is
-// 1.1e-13 mm, so this leaves about 1e4 ulps for accumulated rounding. Robustness
-// only (degeneracy guards, certifying a predicate); never to judge shape.
-export const NUMERIC_MM = 1e-9;
-// The same conditioning for dimensionless quantities: cosines, unit vectors,
-// fractions of a span.
-export const NUMERIC_RELATIVE = NUMERIC_MM / BUILD_SCALE_MM;
+// Rounding guards: the slack that absorbs floating-point rounding in a predicate
+// or a division, derived from the functional tolerance it protects. A thousandth
+// of print resolution (agent-determined, 2026-10-06): float64 rounding at build
+// scale (1.1e-13 mm per operation) sits seven orders below it, and it sits three
+// orders below every shape judgement, so a guard never decides shape.
+export const ROUNDING_MM = PRINT_RESOLUTION_MM / 1000;
+// The same guard for dimensionless quantities (cosines, unit vectors, fractions of
+// a span): a rounding guard across the build scale.
+export const ROUNDING_RELATIVE = ROUNDING_MM / BUILD_SCALE_MM;
 
-// Program resolution: G-code exporters write coordinates and filament length with
-// this many decimals (1e-5 mm), 100x below print resolution, so rounding the
-// program never changes the print.
+// Fine program/geometry resolution: filament length and internal construction
+// keep five decimals (1e-5 mm). Written XYZ commands use their approved coarser
+// precision below; rates, time and orientation use their own units/effect.
 export const PROGRAM_DECIMALS = 5;
+// Written XYZ command positions, approved 2026-10-12; filament amounts keep
+// five decimals with their rounding remainder. Geometry/admission stay finer.
+export const XYZ_PROGRAM_DECIMALS = 3;
 // One step of program resolution, and the slack for a value that passed through a
 // few rounded program numbers (a retraction and its recovery, a written bound).
 export const PROGRAM_STEP_MM = 10 ** -PROGRAM_DECIMALS;

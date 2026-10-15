@@ -1,6 +1,6 @@
 // Geometry converts acquired STL bytes and provenance into an authored geometry record.
 import {canonicalHash} from '../canonical-json.mjs';
-import {parseSTL,makeMesh} from './mesh.mjs';
+import {decodeSTL} from './mesh.mjs';
 import {decodeSTLFile} from './stl-file.mjs';
 import {createGeometry} from '../print/geometry.mjs';
 import {repairSTLFiles} from '../print/repair-stl.mjs';
@@ -10,8 +10,18 @@ import {join} from 'node:path';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 
 const importScratch=new Map();
-const repairable=error=>error.meshDiagnostic?.kind==='triangle-intersection'
-  ||/^(?:Degenerate mesh triangle\.|Duplicate mesh triangle\.|Invalid mesh triangle indices\.|Mesh must be closed, manifold and consistently wound;|Unused or nonmanifold mesh vertex\.|Nonmanifold mesh vertex\.)/.test(error.message);
+// Import repair closes small openings and refuses larger ones. A hole fills only
+// when it is at most this wide (bounding-box diagonal of its boundary) and has at
+// most IMPORT_HOLE_EDGES edges. Owner, 2026-10-06: "I'd like our mesh repair to
+// have BOTH an edge limit and a size limit (2mm? unless the size check is too
+// costly, then let me know)", and on filling ordinary imports automatically
+// within those limits: "Yeah I think A."
+export const IMPORT_HOLE_DIAMETER_MM=2;
+// Owner approved 500 edges and 2 mm on 2026-10-07. Filling time grows as the cube
+// of a hole's edge count (about 0.4 s at 500 edges, 3.5 s at 1,000, 28 s at 2,000);
+// 500 edges around a 2 mm opening are already about 13 um long.
+export const IMPORT_HOLE_EDGES=500;
+const repairable=error=>/^(?:Duplicate mesh triangle.|Invalid mesh triangle indices.)/.test(error.message);
 
 // Import owns scratch, decoding, explicit repair and completed native geometry.
 // No bundle directory or persistence callback crosses this boundary.
@@ -35,7 +45,7 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
     try{
       const decoded=await decodeSTLFile(sourcePath,{units:'mm',signal,progress});
       if(!importDiagnostic.repaired){importDiagnostic.sourceSha256=decoded.sha256;importDiagnostic.sourceBytes=decoded.bytes;
-        importDiagnostic.inputVertices=decoded.vertices.length;importDiagnostic.inputTriangles=decoded.triangles.length;}
+        importDiagnostic.inputVertices=decoded.vertices.length;importDiagnostic.inputTriangles=decoded.triangles.length;importDiagnostic.merge=decoded.merge??null;}
       return decoded;
     }catch(error){
       if(!importDiagnostic.repaired&&error.stlSource){importDiagnostic.sourceSha256=error.stlSource.sha256;
@@ -46,7 +56,10 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
   const prepare=async()=>{
     const decodedSource=await decode();
     const result=await prepareImportedGeometry(undefined,{units,bounds,decodedSource,attribution,repairReport});
-    return {...result,artifact:await createGeometry(result.geometry)};
+    if(!importDiagnostic.repaired)importDiagnostic.merge=result.merge??null;
+    const normalization=result.merge;
+    if(normalization)importDiagnostic.meshNormalization=normalization;
+    return result;
   };
   progress?.({stage:'import'});
   let result,repaired=false,attachments=[];
@@ -58,11 +71,11 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
       importDiagnostic.repairAttempted=true;importDiagnostic.stage='repair';
       if(units==='auto')units=inferSTLUnits(await decode(),bounds);
       const directory=join(scratch,'repair');progress?.({stage:'repair'});
-      repairReport=await repairSTLFiles(directory,sourcePath,{...options,units,maxHoleEdges:0,maxHoleDiameterMm:0,signal,
+      repairReport=await repairSTLFiles(directory,sourcePath,{...options,units,maxHoleEdges:IMPORT_HOLE_EDGES,maxHoleDiameterMm:IMPORT_HOLE_DIAMETER_MM,signal,
         progress:event=>{importDiagnostic.repairStage=event.stage;progress?.({...event,stage:'repair',step:event.stage});}});
       importDiagnostic.repairedSha256=repairReport.repairedSha256;importDiagnostic.repaired=true;
       importDiagnostic.repair={method:repairReport.method,inputTriangles:repairReport.inputTriangles,outputTriangles:repairReport.outputTriangles,
-        removed:repairReport.removed,shells:repairReport.shells,stitching:repairReport.stitching,reconstruction:repairReport.reconstruction??null,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces,
+        resolutionMerge:repairReport.resolutionMerge??null,removed:repairReport.removed,shells:repairReport.shells,stitching:repairReport.stitching,holesFilled:repairReport.holesFilled??0,holeTrianglesAdded:repairReport.holeTrianglesAdded??0,reconstruction:repairReport.reconstruction??null,changedSourceFaces:repairReport.changedSourceFaces,newOutputFaces:repairReport.newOutputFaces,
         sampledDistanceMm:repairReport.sampledDistanceMm};
       sourcePath=join(directory,'repaired.stl');units='mm';repaired=true;
       attachments=['original.stl','repaired.stl','repair.json'].map(name=>({file:'repair/'+name,sourcePath:join(directory,name)}));
@@ -74,7 +87,6 @@ export async function prepareSTLImportInWorker(scratch,source,{units='auto',boun
     return {...result,placement,sourcePath,attachments,repaired,importDiagnostic};
   }catch(error){
     importDiagnostic.failure={name:error.name,code:error.code??null,message:error.message,meshDiagnostic:error.meshDiagnostic??null};
-    if(error.nativeDiagnostic)importDiagnostic.native=error.nativeDiagnostic;
     throw Object.assign(error,{importDiagnostic});
   }
 }
@@ -89,14 +101,13 @@ export function inferSTLUnits(mesh,bounds){
 }
 function geometryFromSTL(sourceHash,units,mesh,inferred=false){
   const factor=units==='inch'?25.4:1;
-  const translationMm=[0,1,2].map(k=>-mesh.vertices.reduce((minimum,p)=>Math.min(minimum,p[k]*factor),Infinity));
+  const translationMm=mesh.vertices.length?[0,1,2].map(k=>-mesh.vertices.reduce((minimum,p)=>Math.min(minimum,p[k]*factor),Infinity)):[0,0,0];
   return {shape:'mesh',vertices:mesh.vertices.map(p=>p.map((v,k)=>v*factor+translationMm[k])),triangles:mesh.triangles,source:{format:'stl',sha256:sourceHash,units,scale:1,unitsInferred:inferred,translationMm}};
 }
 
 export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,decodedSource,attribution,repairReport}={}){
   let geometry;
-  const file=Boolean(decodedSource),mesh=decodedSource??parseSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
-  if(file)makeMesh(mesh.vertices,mesh.triangles);
+  const file=Boolean(decodedSource),mesh=decodedSource??decodeSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
   if(inferred)units=inferSTLUnits(mesh,bounds);
   geometry=geometryFromSTL(file?mesh.sha256:canonicalHash(sourceBytes),units,mesh,inferred);
   if(attribution){
@@ -104,8 +115,11 @@ export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,d
     geometry.source.attribution=structuredClone(attribution);
     if(repairReport)geometry.source.repair={sourceSha256:repairReport.sourceSha256,repairedSha256:repairReport.repairedSha256};
   }
+  // Geometry owns admission and preparation, in physical millimetres; Bundle reuses it.
+  const artifact=await createGeometry(geometry);
+  geometry=artifact.descriptor.parameters;
   // Centre the imported mesh on the plate. Its vertices were translated to put
   // the minimum XY at the origin, so the footprint size is the vertex span.
-  const footprint=[0,1].map(k=>{let mn=Infinity,mx=-Infinity;for(const p of geometry.vertices){mn=Math.min(mn,p[k]);mx=Math.max(mx,p[k]);}return mx-mn;});
-  return {geometry,footprint};
+  const footprint=[0,1].map(k=>artifact.descriptor.boundsMm.max[k]-artifact.descriptor.boundsMm.min[k]);
+  return {geometry,footprint,...(artifact.descriptor.meshNormalization?.length?{merge:artifact.descriptor.meshNormalization[0]}:{})};
 }

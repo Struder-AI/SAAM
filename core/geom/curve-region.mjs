@@ -1,6 +1,7 @@
 // Parameter-space clipping of a planar line p(t) = origin + t * direction.
 // One edge sweep serves parity chords, winding fill and material contact queries.
 import {requireThat} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infinity],fillRule='nonzero'}={}){
   requireThat([origin,direction].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),
@@ -56,4 +57,51 @@ export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infini
     else merged.push(span);
   }
   return {spans,contacts:merged};
+}
+
+// Clip an authored planar centerline to material, retaining its traversal and
+// closed seam. Native region operations keep geometry responsibility here;
+// callers choose the region (including any bead/exterior standoff) themselves.
+export function clipPlanarCurveToRegion(curve,loops,{toleranceMm=PRINT_RESOLUTION_MM}={}){
+  return clipRegionCurve(curve,loops,toleranceMm);
+}
+
+// Chart units carry no physical distance; use their dimensionless rounding grid.
+export function clipChartCurveToRegion(curve,loops,{precisionUv=ROUNDING_RELATIVE}={}){
+  return clipRegionCurve(curve,loops,precisionUv);
+}
+
+function clipRegionCurve(curve,loops,precision){
+  requireThat(curve&&typeof curve.closed==='boolean'&&Array.isArray(curve.points)&&curve.points.length>=(curve.closed?3:2),
+    'Planar curve clipping needs points and closed true or false.');
+  requireThat(curve.points.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),
+    'Planar curve clipping needs finite 2D points.');
+  requireThat(Number.isFinite(precision)&&precision>0,'Curve clipping tolerance must be positive.');
+  const near=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])<=precision;
+  const pieces=[],state={current:null};
+  const segmentCount=curve.points.length-(curve.closed?0:1);
+  for(let i=0;i<segmentCount;i++){
+    const a=curve.points[i],b=curve.points[(i+1)%curve.points.length],direction=b.map((v,k)=>v-a[k]);
+    if(Math.hypot(...direction)<=precision)continue;
+    const clipped=clipLineToRegion(a,direction,loops,{range:[0,1]});
+    const spans=[...clipped.spans,...clipped.contacts].filter(([from,to])=>to>from).sort((p,q)=>p[0]-q[0]),merged=[];
+    for(const span of spans){
+      const last=merged.at(-1);
+      if(last&&span[0]<=last[1])last[1]=Math.max(last[1],span[1]);else merged.push([...span]);
+    }
+    for(const [from,to] of merged){
+      const first=a.map((v,k)=>v+from*direction[k]),last=a.map((v,k)=>v+to*direction[k]);
+      if(near(first,last))continue;
+      if(state.current&&near(state.current.at(-1),first))state.current.push(last);
+      else{const points=[first,last];pieces.push(points);state.current=points;}
+    }
+  }
+  // A clipped closed path can straddle the authored start; join that one seam.
+  if(curve.closed&&pieces.length>1&&near(pieces.at(-1).at(-1),pieces[0][0])){
+    const tail=pieces.pop();pieces[0]=[...tail,...pieces[0].slice(1)];
+  }
+  return pieces.map(points=>{
+    const closed=curve.closed&&points.length>3&&near(points[0],points.at(-1));
+    return {closed,points:closed?points.slice(0,-1):points};
+  });
 }

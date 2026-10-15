@@ -4,7 +4,9 @@ export const VIEWER_POINT_CAP=40_000;
 export const VIEWER_TOLERANCE_MM=0.02;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
-export const layerKey=move=>move?(move.sliceFamily?`${move.sliceFamily}\0${move.sliceIndex}`:`${move.phase}\0${move.layer}`):null;
+// Inspection owns repetition identity; motion retains its geometric layer
+// reference. Older paths use chronological display runs, never parsed names.
+export const layerKey=move=>move?(move.sliceStack?`stack\0${move.sliceStack}\0${move.sliceIndex}`:move.layerId?`layer\0${move.layerId}\0${move.layer}`:move.legacyRun!==undefined?`run\0${move.legacyRun}`:`operation\0${move.operation??''}\0${move.phase}\0${move.layer}`):null;
 // Keep the normal two-second fade unless the next layer arrives sooner.
 export function createLayerFade() {
   let previous=null;
@@ -73,7 +75,7 @@ function simplify(moves,first,last) {
 }
 export function buildToolpathView(moves) {
   const groups=[];
-  const read=moves.reader?.(['sliceFamily','sliceIndex','phase','layer'])??(i=>moves.at(i));
+  const read=moves.reader?.(['sliceStack','sliceIndex','layerId','legacyRun','phase','operation','layer'])??(i=>moves.at(i));
   const keyAt=i=>layerKey(read(i));
   for(let i=0;i<moves.length;){
     const first=i,key=keyAt(i);
@@ -126,6 +128,7 @@ export function layerEndSeconds(view,index){
   const clamped=Math.max(0,Math.min(index,view.groups.length-1));
   const group=view.groups[clamped],move=view.moves.at(group.last),end=move.startSeconds+move.durationSeconds;
   const next=view.groups[clamped+1];
+  // Display only: a microsecond before the next group starts.
   return next?Math.min(end,view.moves.at(next.first).startSeconds-1e-6):end;
 }
 export function stepLayerIndex(view,seconds,direction){
@@ -166,6 +169,7 @@ export function representativeLayer(view,{feature='contour'}={}){
       const move=view.moves.at(i);
       if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
       first??=move;walls++;
+      // Display only: consecutive wall moves that share an end are drawn as one.
       if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
         const a=previous.to.map((v,k)=>v-previous.from[k]),b=move.to.map((v,k)=>v-move.from[k]);
         const lengths=Math.hypot(...a)*Math.hypot(...b);

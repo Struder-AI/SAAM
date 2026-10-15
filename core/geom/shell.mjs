@@ -1,4 +1,4 @@
-// A closed shell of untrimmed bivariate spline patches.
+// A shell of untrimmed bivariate spline patches.
 //
 // This is the geometry contract the pattern skills accept. Every face is a full
 // rectangular (u,v) patch, so a face's section is the zero contour of g over the
@@ -6,37 +6,31 @@
 // rhino3dm exposes no parameter-space trim curves (BrepTrim carries topology
 // indices only, and BrepFace.loops is unbound in this build).
 //
-// Closure is therefore verified numerically: every non-degenerate patch boundary
-// must be matched, point for point, by a boundary of some patch. A trimmed face
-// fails that test rather than silently producing an open section.
+// Closure is therefore measured numerically: a non-degenerate patch boundary
+// matched by no other boundary is open. An open shell builds, shows and slices
+// what closes on each layer; solid operations name its open edges (tessellate.mjs).
 
 import { evaluate } from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 
 const BOUNDARY_SAMPLES = 16;
-const JOIN_TOLERANCE = 1e-5;
+// Section pieces whose ends lie within print resolution join.
+const JOIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 export function makeShell(patches, { name = 'shell' } = {}) {
   // Closure, not a patch count, decides whether a shell is solid: one
   // revolved patch closing on its own seam and poles is a whole sphere.
-  requireThat(patches.length >= 1, `${name} needs at least one patch.`);
-  const shell = { name, patches, bounds: shellBounds(patches) };
+  const shell = { name, patches, empty:patches.length===0, bounds: shellBounds(patches) };
   shell.closure = verifyClosure(patches);
-  return shell;
-}
-
-export function assertClosed(shell) {
-  const open = shell.closure.unmatched;
-  requireThat(open.length === 0,
-    `${shell.name} is not closed: ${open.length} unmatched patch boundary/boundaries (${open.slice(0, 3).map(o => `${o.patch}:${o.edge}`).join(', ')}). ` +
-    'This core accepts closed shells of untrimmed patches; a trimmed face reports here.');
   return shell;
 }
 
 // Conservative bounds from the control net: the surface lies inside its hull.
 function shellBounds(patches) {
+  if(!patches.length)return {min:[0,0,0],max:[0,0,0]};
   const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
   for (const patch of patches)
     for (let i = 0; i < patch.nu * patch.nv; i++) {
@@ -62,7 +56,7 @@ function verifyClosure(patches) {
       const curve = surfaceIsoCurve(patch,axis,value);
       const samples = [];
       for (let i = 0; i <= BOUNDARY_SAMPLES; i++) samples.push(curvePoint(curve,i / BOUNDARY_SAMPLES));
-      const degenerate = samples.every(p => distance(p, samples[0]) <= TOLERANCE.point);
+      const degenerate = samples.every(p => distance(p, samples[0]) <= PRINT_RESOLUTION_MM);
       edges.push({ patch: patch.name, edge, curve, samples, degenerate, matched: degenerate });
     }
   for (let i = 0; i < edges.length; i++) {
@@ -97,7 +91,7 @@ function distanceToCurve(point, curve, scan = 32) {
   let lo = Math.max(0, bestT - 1 / scan), hi = Math.min(1, bestT + 1 / scan);
   let c = hi - phi * (hi - lo), d = lo + phi * (hi - lo);
   let fc = distance(point, curvePoint(curve,c)), fd = distance(point, curvePoint(curve,d));
-  for (let i = 0; i < 60 && hi - lo > 1e-12; i++) {
+  for (let i = 0; i < 60 && hi - lo > TOLERANCE.parameter; i++) {
     if (fc < fd) { hi = d; d = c; fd = fc; c = hi - phi * (hi - lo); fc = distance(point, curvePoint(curve,c)); }
     else { lo = c; c = d; fc = fd; d = lo + phi * (hi - lo); fd = distance(point, curvePoint(curve,d)); }
   }
@@ -110,44 +104,84 @@ function distanceToCurve(point, curve, scan = 32) {
 // A plane through a critical point of the surface (a saddle, where the contour
 // self-touches) or flush with a whole face is genuinely ambiguous: the contour
 // there is not a set of disjoint curves. Both cases are resolved the way
-// slicers resolve them, by displacing the plane along its normal far below
-// process resolution and re-cutting. The displacement is reported, and a
-// section that still will not close raises rather than returning a part with a
-// gap in it.
-const NUDGES = [0, 1e-6, -1e-6, 1e-5, -1e-5, 1e-4, -1e-4];
+// slicers resolve them, by displacing the plane along its normal and
+// re-cutting: twice print resolution clears a face judged flush at print
+// resolution, ten times a saddle that still pinches; both stay far below a layer. The displacement is reported.
+// A section that still does not close keeps the nudge leaving the fewest open
+// pieces and closes them as closeOpenChains does, reporting each gap.
+const NUDGES = [0, 2, -2, 10, -10].map(k => k * PRINT_RESOLUTION_MM);
 
+// -> {loops, nudgedByMm, open}: open lists the gaps joined and pieces dropped.
+// gapMm is the widest gap joined, the print's line width (Code shape 6).
 export function sectionShell(shell, slice, options = {}) {
-  let first = null;
-  for (const nudge of NUDGES) {
+  const side=options.side??null;
+  requireThat(side===null||side==='negative'||side==='positive','Section side is negative or positive.');
+  const nudges=side===null?NUDGES:NUDGES.filter(nudge=>side==='negative'?nudge<0:nudge>0);
+  const tried = [];
+  for (const nudge of nudges) {
     const result = sectionShellAt(shell, slice, nudge, options);
-    first ??= result;
-    const clean = result.openChains.length === 0 && result.coincidentPatches.length === 0;
     // A displacement must not be accepted just because it produced a tidy empty
     // answer: nudging past the top of the part would silently drop the layer.
-    if (clean && result.loops.length > 0) return { loops: result.loops, nudgedByMm: nudge };
+    if (!result.open.length && !result.coincident && result.loops.length > 0) return { loops: result.loops, nudgedByMm: nudge, open: [] };
+    if(side!==null&&!result.open.length&&!result.coincident)return {loops:[],nudgedByMm:nudge,open:[]};
+    tried.push({ ...result, nudge });
   }
+  const found = tried.filter(result => result.loops.length || result.open.length);
   // Genuinely nothing there: the plane misses the part.
-  if (first.openChains.length === 0 && first.loops.length === 0) return { loops: [], nudgedByMm: 0 };
-  requireThat(first.openChains.length === 0,
-    `Section through ${slice.origin.map(v => +v.toFixed(4)).join(', ')} did not close: ${first.openChains.length} open chain(s) after nudging. ` +
-    'This is a degenerate cut (a critical point or a coincident face); move the layer rather than printing an open contour.');
-  return { loops: first.loops, nudgedByMm: 0 };
+  if (!found.length) return { loops: [], nudgedByMm: 0, open: [] };
+  const dropped = result => result.open.filter(item => item.kind === 'dropped').length;
+  const best = found.reduce((a, b) => dropped(b) < dropped(a) || dropped(b) === dropped(a) && b.coincident < a.coincident ? b : a);
+  return { loops: best.loops, nudgedByMm: best.nudge, open: best.open };
 }
 
 // Closed loops of the plane displaced by nudge along its normal, in the slice's
 // chart, oriented so outer loops run counter-clockwise and enclosed holes
 // clockwise (seen from the normal).
-function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4 } = {}) {
+function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4, gapMm = 0 } = {}) {
   const plane = { normal: slice.normal, offset: dot(slice.normal, slice.origin) + nudge };
-  const chains = [], coincident = [];
-  for (const patch of shell.patches) {
-    const result = sectionPatch(patch, plane, { minFeatureMm });
-    if (result.coincident) { coincident.push(patch.name); continue; }
-    for (const chain of result.chains) if (chain.length > 1) chains.push(chain.map(p => p.point));
-  }
+  const cuts = shell.patches.map(patch => sectionPatch(patch, plane, { minFeatureMm }));
+  const coincident = cuts.filter(cut => cut.coincident).length;
+  const chains = cuts.flatMap(cut => cut.coincident ? [] : cut.chains.filter(chain => chain.length > 1).map(chain => chain.map(p => p.point)));
   const { loops, open } = joinChains(chains);
-  return { loops: orientLoops(loops.map(loop => toChart(loop, slice))), openChains: open, coincidentPatches: coincident };
+  const closed = closeOpenChains(open.map(chain => toChart(chain, slice)), gapMm);
+  return { loops: orientLoops([...loops.map(loop => toChart(loop, slice)), ...closed.loops]), open: closed.open, coincident };
 }
+
+// Open section pieces (chart polylines) whose ends lie within gapMm join,
+// nearest ends first, into closed loops; what still does not close is dropped.
+// A join below print resolution is ordinary closure and is not reported.
+// -> {loops, open: [{kind: 'joined', point, sizeMm: gap} | {kind: 'dropped', point, sizeMm: length}]}.
+export function closeOpenChains(chains, gapMm) {
+  const pool = chains.filter(chain => chain.length > 1).map(chain => [...chain]), loops = [], open = [];
+  for (;;) {
+    let best = null;
+    for (let i = 0; i < pool.length; i++) {
+      const a = pool[i];
+      const self = a.length > 2 ? distance2(a[0], a[a.length - 1]) : Infinity;
+      if (self <= gapMm && (!best || self < best.gap)) best = { gap: self, i, j: i };
+      for (let j = i + 1; j < pool.length; j++)
+        for (const [ai, bj] of [[1, 0], [1, 1], [0, 0], [0, 1]]) {
+          const gap = distance2(ai ? a[a.length - 1] : a[0], bj ? pool[j][pool[j].length - 1] : pool[j][0]);
+          if (gap <= gapMm && (!best || gap < best.gap)) best = { gap, i, j, ai, bj };
+        }
+    }
+    if (!best) break;
+    const a = pool[best.i];
+    if (best.i === best.j) {
+      pool.splice(best.i, 1); loops.push(a);
+      if (best.gap >= PRINT_RESOLUTION_MM) open.push({ kind: 'joined', point: midpoint(a[a.length - 1], a[0]), sizeMm: best.gap });
+      continue;
+    }
+    // Orient a to end, and b to start, at the joined ends (j > i keeps i's place).
+    const b = pool[best.j], head = best.ai ? a : [...a].reverse(), tail = best.bj ? [...b].reverse() : b;
+    pool.splice(best.j, 1); pool[best.i] = [...head, ...tail];
+    if (best.gap >= PRINT_RESOLUTION_MM) open.push({ kind: 'joined', point: midpoint(head[head.length - 1], tail[0]), sizeMm: best.gap });
+  }
+  for (const chain of pool) open.push({ kind: 'dropped', point: chain[chain.length >> 1], sizeMm: chain.slice(1).reduce((sum, p, i) => sum + distance2(chain[i], p), 0) });
+  return { loops, open };
+}
+
+const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 // Join per-patch chains into closed loops using 3D endpoint proximity. Adjacent
 // patches share the boundary geometrically, so their chain ends coincide.
@@ -180,8 +214,8 @@ const toChart = (points, { origin: o, xAxis: x, yAxis: y }) => {
   const loop = points.map(p => horizontal ? [p[0] - o[0], p[1] - o[1]] : [dot(subtract(p, o), x), dot(subtract(p, o), y)]);
   // Drop the duplicated closing point and any repeats introduced by joining.
   const out = [];
-  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > TOLERANCE.point) out.push(point);
-  if (out.length > 1 && distance2(out[0], out[out.length - 1]) <= TOLERANCE.point) out.pop();
+  for (const point of loop) if (!out.length || distance2(out[out.length - 1], point) > PRINT_RESOLUTION_MM) out.push(point);
+  if (out.length > 1 && distance2(out[0], out[out.length - 1]) <= PRINT_RESOLUTION_MM) out.pop();
   return out;
 };
 

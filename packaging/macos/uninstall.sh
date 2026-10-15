@@ -10,7 +10,7 @@ set -euo pipefail
 
 fail() { printf '\n%s\n' "$1" >&2; exit 1; }
 
-data_folder() { printf '%s' "${SAAM_DATA:-$HOME/SAAM}"; }
+data_folder() { printf '%s' "$HOME/SAAM"; }
 
 # Same check as install.sh: a live instance record, or node running the installation's launch.mjs.
 saam_running() {

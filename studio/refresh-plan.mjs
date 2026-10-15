@@ -1,4 +1,5 @@
 import {completedOutputState} from '../core/print/review-state.mjs';
+import {summarizeWork} from './work-state.mjs';
 
 export function outputView(state){
   if(!state?.completedOutput)return state;
@@ -12,19 +13,28 @@ export function planPresentation(previous,next,{follow,pathMoves,materialMoves})
   const identity=presentationIdentity(next);
   const output=completedOutputState(next);
   const visible=output.available?next.program:!next.completedOutput?next.neutralProgram:null;
-  if(visible)return {model:{identity,presentedState:next.program?outputView(next):{...next,program:visible},program:visible,retained:false},
-    effects:{program:'replace',buildPath:pathMoves!==visible.moves,buildMaterial:!visible.neutral&&materialMoves!==visible.moves}};
-  return {model:{identity,presentedState:outputView(next),program:null,retained:false},
+  if(visible)return {model:{identity,presentedState:next.program?outputView(next):{...next,program:visible},program:visible},
+    effects:{program:'replace',buildPath:pathMoves!==visible.moves,buildMaterial:materialMoves!==visible.moves}};
+  return {model:{identity,presentedState:outputView(next),program:null},
     effects:{program:'clear',buildPath:false,buildMaterial:false}};
 }
 
 export function planRefreshNavigation(previous,next,{follow,tab,seconds,duration,selected,hasSelectedEdge,tourInitialTab}){
   const resetExport=previous?.outputId!==next.outputId||previous?.completedOutput?.id!==next.completedOutput?.id,resetView=!previous;
-  let nextTab=tab,notice=null;
+  let nextTab=tab,notice=null,inspectionFailure=null;
   if(resetView)nextTab=next.tourExample?(tourInitialTab??'geometry'):next.program||next.neutralProgram?'toolpath':'geometry';
   else if(follow&&previous.editRevision!==next.editRevision){nextTab=previous.geometryInputId!==next.geometryInputId?'geometry':'toolpath';notice='Updated from chat.';}
   if(next.completedOutput&& !completedOutputState(next).available)nextTab='geometry';
+  const {inspectionTarget}=summarizeWork(next.work?.requests,{view:{printId:next.work?.printId}});
+  const inspecting=Boolean(inspectionTarget),targetCurrent=inspectionTarget?.revision===next.work?.snapshot?.revision;
+  if(inspecting)
+    nextTab=(targetCurrent?inspectionTarget.stage:null)??(nextTab==='toolpath'&&!completedOutputState(next).inspectable?'geometry':nextTab);
+  if(inspecting&&targetCurrent&&nextTab==='toolpath'&&!completedOutputState(next).inspectable&&!next.outputGenerating){
+    nextTab='geometry';notice=next.generationError??next.programError??next.programViewError??next.neutralPathError
+      ??(next.generationCancelled?'Toolpath calculation cancelled. Review the saved geometry.':'No saved toolpath is available. Review the saved geometry.');
+    inspectionFailure={revision:inspectionTarget.revision,stage:'toolpath',renderError:notice};
+  }
   const resetSelection=resetView||!selected||!next.geometry?.labels?.includes(selected)&&!next.geometry?.features?.some(feature=>feature.id===selected)&&(!hasSelectedEdge||previous?.geometryId!==next.geometryId);
   return {resetExport,resetView,tab:nextTab,seconds:resetExport||resetView?duration:seconds,resetSelection,
-    restoreSavedView:resetView&&!next.tourExample,notice};
+    restoreSavedView:resetView&&!next.tourExample,restoreSavedTab:!inspecting,notice,inspectionFailure};
 }

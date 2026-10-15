@@ -1,74 +1,75 @@
 ---
 name: heat-set-inserts
-description: Bores for SPIROL Series 19/29 heat-set inserts, metric and imperial, with local wall loops and fins; insertion faces must be flat and face up.
+description: Catalog heat-set bores with reinforcement following actual Slice layers.
 metadata:
   saam-kind: extension
 ---
 
 # Heat-set inserts
 
-Prepare blind holes for heat or ultrasonic inserts in a closed part. The
-[catalog](CATALOG.md) covers 60 unheaded SPIROL Series 19/29 short and long
-selections, M2–M8 and 2-56–5/16-18 where offered. These are receiving-hole
-dimensions, not thread diameters or copies of the knurl.
+Prepare blind/through seats for heat or ultrasonic inserts. The [catalog](CATALOG.md)
+covers 86 manufacturer profiles: 60 SPIROL Series 19/29, 25 CNC Kitchen and McMaster
+94459A743 (1/2-13). Printed fit and strength need physical evidence.
 
-Use the [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
-Feature edits keep omitted settings; a new named hole inherits the previous
-hole's insert and fin choices in that component. Placement is explicit or the
-stated example default, never an invented remembered position.
+Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits
+keep omitted settings; new holes inherit insert, bore and fin choices in their
+component, with explicit placement or the stated example default.
 
-## Tools
-
-Choose the exact size and profile from [the manual table](CATALOG.md#size-and-profile-choices),
-then use an existing bundle. `apply_heat_set` takes `bundleId`, the current `expectedRevision` and `request`:
+Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
+`apply_heat_set` with `bundleId`, current `expectedRevision` and `request`:
 
 ```json
-{
-  "feature": {
-    "id": "mount", "insertId": "spirol-29-m3-long", "positionMm": [15, 15, 12],
-    "finCount": 6, "finLengthMm": 4, "finWidthMm": 0.8
-  }
-}
+{"feature":{"id":"mount","insertId":"spirol-29-m3-long","positionMm":[15,15,12],"axis":[0,0,-1],"chamferDepthMm":0.5}}
 ```
 
-`positionMm` is the mouth centre in component coordinates; the bore points down
-Z from its flat insertion face. For an assembly add `part` with the component id.
-Edit with the same feature id and only changed fields; remove with
-`{"remove":"mount"}` (plus `part`). Changes follow the normal revision and
-confirmation workflow.
+`positionMm` is the mouth centre; `axis` points inward, including side/angled
+faces. Assembly requests add `part`. Edit by id with changed fields; remove with
+`{"remove":"mount"}` (plus `part`). Review the saved revision in Studio; Export
+is the normal confirmation. Fit, tool access and printable support need review.
 
 | Field | Default and meaning |
 |---|---|
 | `id` | `insert`; unique within its feature group |
 | `insertId` | Required for the first feature; exact manual-listed size/profile |
 | `positionMm` | `[15,15,12]`; propose a suitable position for the actual part |
-| `depthMm` | `null`: insert length plus two thread pitches; an explicit depth must fit the insert |
-| `diameterAdjustmentMm` | `0`; signed printer/material hole calibration; resulting bore diameter must stay positive |
-| `finCount` | `6`; nonnegative count of radial ribs |
-| `finLengthMm` | `4`; maximum extension beyond the bore wall, at the insertion face |
-| `finWidthMm` | `0.8` at the outer tip, twice that at the bore wall; at least one bead |
-| `finAngleDeg` | `0`; rotates the fin pattern around the bore |
+| `axis` | `[0,0,-1]`; direction into the part; never inherited |
+| `depthMm` | `null`: length plus catalog blind clearance; through seat length alone. Explicit depth must fit the insert |
+| `throughHole` | `false`; `true` cuts along `axis` through the host, independently of seat depth |
+| `chamferDepthMm` | `0`; axial depth of a mouth lead-in, less than seat depth |
+| `chamferAngleDeg` | `45`; angle from the bore axis, greater than 0 and less than 90 |
+| `diameterAdjustmentMm` | `0`; signed hole calibration; resulting diameter must be positive |
+| `finCount` | `null`: automatic count `ceil(π × bore diameter / 2)`; nonnegative integer overrides it |
+| `finLengthMm` | `4`; fixed radial sheet reach beyond the bore edge, throughout the seat |
+| `finWidthMm` | `null`; legacy positive values remain readable; star fins use two touching beads at the source layer width |
+| `finAngleDeg` | `0`; rotates the pattern around the bore |
 
-The request can also set `toleranceMm` (default 0.01, positive) for the hole
-geometry. Regeneration makes no physical fit claim.
+Request `toleranceMm` defaults to 0.01 mm and must be positive. CNC Kitchen normally
+needs no mouth chamfer; the catalog keeps its 1 mm blind clearance and wall advice.
 
 ## Deposition and composition
 
-The reinforcement is [slice](../slice/SKILL.md) data: `apply_heat_set` writes,
-ahead of the other assignments, an annulus owner whose **six contiguous loops**
-follow the bore on every layer, and one solid owner per fin. The fins are triangular gussets in vertical section: no reach at
-the bore floor, growing to `finLengthMm` at the insertion face, tapering from
-twice `finWidthMm` at the bore wall to `finWidthMm` at the tip. Layers with less
-than one bead of reach keep the bore wall alone, and the part's solid top layers
-supply the face. The part's other owners wall and fill around the
-reinforcement.
+The bore remains part of the main geometry; the main Slice keeps its walls and
+infill. A generated [Trace](../trace/SKILL.md) follows each prepared source layer.
+For N main loops it adds max(4,N+1)-N walls: one main loop becomes four total;
+eight become nine. The final added wall travels out and back along the fins.
+Added walls and fins intentionally overlap the unchanged main infill.
 
-It works with meshes, supported spline hosts, named assembly parts and planar
-material regions, and lettering over the result keeps the holes. A vase or
-nonplanar-only region does not acquire the loops. The bore axis is Z and the
-insertion face flat: reorient side-entry parts first. Blind floors need remaining
-material, and the loops and fins need room inside the exterior walls; the tool
-reports insufficient room or conflicting reservations so placement, fin length,
-host size or process can be revised. Intersecting holes and fins are not merged.
-Manufacturer dimensions are a starting point: printed fit and strength need
-physical evidence.
+Fixed zero-thickness fin sheets intersect the inherited layer surface; Geometry
+computes physical bead offsets there. Fin tips stay fixed; large main wall counts
+can leave little fin beyond the added wall. Settings, reference surface, width,
+pitch, gaps and tool pose inherit the prepared main layer, including nonplanar layers.
+
+The pattern clears main wall bands at every boundary, including neighboring holes
+and exterior edges. Clipped curves stay open; gaps are travel, with fragments
+reported. The nominal loop target cannot promise loops the host cannot contain.
+
+Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
+omitted source selection, and an explicit override affects only the named hole.
+Vase-only deposition has no source Slice. Coincident fin/layer sheets have no
+unique intersection curve; skipped fins and singular charts are reported.
+
+Meshes, supported spline hosts and assemblies retain editable holes alongside
+text/curves. Reports note obstructed mouths, uneven rims, blind-floor breakout and
+short through seats. Blind-floor pad depth is max(solidTop,solidBottom) × layer
+gap, excluding existing dense coverage; oblique pads may cross more layers. Fit,
+adhesion, strength, AMS behavior and unsupported orientations need print evidence.

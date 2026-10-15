@@ -1,4 +1,4 @@
-import {airfoilProfile,airfoilSection} from './airfoils.mjs';
+import {airfoilProfile,airfoilSection,PRINT_RESOLUTION_MM,ROUNDING_MM} from './airfoils.mjs';
 
 export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,sweepDeg:0,airfoil:'naca2412',camber:0.02,thickness:0.12,wingletHeightMm:90,maxSectionHeightMm:180,maxChordMm:250,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
 
@@ -35,7 +35,7 @@ export function wingSections(input){
     const from=cuts[i-1],to=cuts[i],control=d.flaps&&(from+to)/2>half*d.flapStart&&(from+to)/2<half*d.flapEnd;
     const id=`${hand<0?'left':'right'}-${String(i).padStart(2,'0')}`;
     pieces.push({id,kind:'wing',hand,fromMm:from,toMm:to,control,integratedTip:i===cuts.length-1});
-    if(control)pieces.push({id:id+'-flap',kind:'flap',hand,fromMm:from+(Math.abs(from-half*d.flapStart)<1e-6?d.gapMm/2:0),toMm:to-(Math.abs(to-half*d.flapEnd)<1e-6?d.gapMm/2:0),control:true,integratedTip:false});
+    if(control)pieces.push({id:id+'-flap',kind:'flap',hand,fromMm:from+(Math.abs(from-half*d.flapStart)<PRINT_RESOLUTION_MM?d.gapMm/2:0),toMm:to-(Math.abs(to-half*d.flapEnd)<PRINT_RESOLUTION_MM?d.gapMm/2:0),control:true,integratedTip:false});
   }
   const rodEndMm=half-wingletThickness(d)-4;
   return {design:d,cuts,pieces,rods:[{id:'front',xMm:d.chordMm*.28,diameterMm:d.rodDiameterMm,fromMm:0,toMm:rodEndMm},{id:'rear',xMm:d.chordMm*.5,diameterMm:d.rodDiameterMm,fromMm:0,toMm:rodEndMm},...(d.flaps?[{id:'pivot',xMm:d.chordMm*(1-d.flapChord)+d.pivotDiameterMm/2+d.clearanceMm+d.beadWidthMm,diameterMm:d.pivotDiameterMm,fromMm:half*d.flapStart+d.gapMm/2,toMm:half*d.flapEnd-d.gapMm/2}]:[])]};
@@ -79,7 +79,7 @@ export function sectionRoute(d,piece,span,{webs=true}={}){
     skin(previous,rodX-neck,1);push(rodX-neck,top);
     // A horizontal slice of a cylindrical passage on a swept rod is elliptical.
     // The long radius is in the chord direction, normal to the rod's slanted axis.
-    const a=Math.acos(-Math.min(.95,neck/Math.max(rx,1e-9))),b=2*Math.PI+Math.acos(Math.min(.95,neck/Math.max(rx,1e-9)));
+    const a=Math.acos(-Math.min(.95,neck/Math.max(rx,ROUNDING_MM))),b=2*Math.PI+Math.acos(Math.min(.95,neck/Math.max(rx,ROUNDING_MM)));
     const routeTop=top+(cy+r-top)*fade,center=routeTop-r;
     const n=32;
     for(let j=0;j<=n;j++){const angle=a+(b-a)*j/n;push(rodX+rx*Math.cos(angle),center+r*Math.sin(angle));}

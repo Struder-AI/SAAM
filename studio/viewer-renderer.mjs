@@ -1,10 +1,10 @@
 import {point} from '../core/geom/frame.mjs';
-import {frameAtTime,displayPoint} from './playback.mjs';
+import {frameAtTime} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
 import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
 const GEOMETRY_COLOR='#5b9fd3';
-import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments} from './mesh-view.mjs';
+import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments,geometryAnnotationView} from './mesh-view.mjs';
 import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 
@@ -88,26 +88,27 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       annotations.selectionText=selected?selectionLabel:geometryError||'Click a surface or edge to see its name';
     }
     if(snapshot.showGeometry&&geometryScene){
-      for(const curve of geometryScene.geometry.curves??[])for(let i=1;i<curve.points.length;i++)segment(project(curve.points[i-1]),project(curve.points[i]),curve.id===selected?'#eb591f':'#397da8',2);
-      for(const record of geometryScene.geometry.points??[]){
-        const p=project(record.point);ctx.beginPath();ctx.arc(p[0],p[1],5,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#397da8';ctx.fill();
+      const authored=geometryAnnotationView(geometryScene,project,width,height);
+      for(const curve of authored.curves){ctx.globalAlpha=curve.opacity;segment(curve.from,curve.to,curve.id===selected?'#eb591f':'#263f53',1.25);}
+      for(const record of authored.points){
+        const p=record.point;ctx.globalAlpha=record.opacity;ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#c3deef';ctx.fill();
       }
+      ctx.globalAlpha=1;
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
-      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`)+' · '+at.nozzleMm+' mm';
-      const rotary=shown.machine?.capabilities?.includes('coordinated-rotary'),center=shown.program.rotaryCenterMm??[0,0,0],angle=at.rotaryDeg??0,machine=machineState?.pose,follow=settings.followPlate;
-      const local=p=>{const q=machine?(follow?p:point(machine.part,p)):displayPoint(p,angle,center,!rotary||follow);return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
-      if(rotary&&!machine?.hasBed){const radius=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1])*.65;let prior=null;
-        for(let i=0;i<=80;i++){const a=i*Math.PI/40,q=project(local([center[0]+radius*Math.cos(a),center[1]+radius*Math.sin(a),center[2]]));if(prior)segment(prior,q,'#718d91',1);prior=q;}
-        segment(project(local(center)),project(local([center[0]+radius,center[1],center[2]])),'#507b89',2);}
+      if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`);
+      if(Number.isFinite(at.nozzleMm))annotations.layerText+=' · '+at.nozzleMm+' mm';
+      // The part moves with the machine pose's part frame (a rotary table), never with the path.
+      const machine=machineState?.pose,follow=settings.followPlate;
+      const local=p=>{const q=machine&&!follow?point(machine.part,p):p;return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
       const solid=!!materialScene&&!!materialRenderer;if(solid)motionQuality??=createMotionQuality();quality=updateUI&&solid?pinnedQuality??(moving?motionQuality.level:0):0;
       const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
       if(machine&&!solid)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameraMode,palette:machineColors,filter:c=>c.role!=='tool'});
       const detail=!solid||showTravel||materialScene.unsupported.length?toolpathFrame(pathView,count,showTravel):{segments:[]};
       annotations.detailText=solid?(materialScene.unsupported.length?'Line view for '+materialScene.unsupported.join(', ')+': surface frames unavailable.':''):materialError||(detail.overview?'Layer overview · detail follows playback. Export keeps every point.':detail.reduced?'Curves simplified for display (0.02 mm). Export keeps every point.':'');
       const {displayed,current,currentLayer}=toolpathPresentation(moves,at,detail),fade=fadeState.frame(currentLayer,frameNow,remainingLayerMs(pathView,at.active,position,playbackSpeed)),styles=new Map();
-      const inspection=shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
+      const inspection=shown.program.summary?.inspection??shown.pathSummary?.inspection,info=inspection?.operations?.[currentLayer?.operation],reference=info?.layers?.[currentLayer?.layer];
       if(info&&reference){
         annotations.layerText=`${info.family} · ${depositionUnit(info.kind)} ${reference.index+1} · step ${layerIndexAt(pathView,position)+1}/${pathView.groups.length}`;
         annotations.detailText=[annotations.detailText,`Roles: ${info.roles.join(', ')}`,...(info.modifiers.length?[`Modulation: ${info.modifiers.join(', ')}`]:[]),

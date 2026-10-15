@@ -16,7 +16,7 @@ export async function readLocalAgentNotes(paths){return readNotesFile(notesIdent
 // The notes are prose; Studio phase colours are the one machine-readable preference beside them.
 export async function readLocalPhaseColours(paths){
   const text=await readFile(paths.phaseColours,'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;});
-  return text===null?null:checkedPhaseColours(JSON.parse(text),paths.phaseColours);
+  return text===null?null:checkedPhaseColours(JSON.parse(text));
 }
 export async function updateLocalAgentNotes(paths,{home,expectedRevision,text}){
   const identity=notesIdentity(paths);

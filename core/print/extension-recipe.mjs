@@ -1,19 +1,15 @@
-// Toolpath combines geometry and deposition contributions into one proposed
+// The extension host combines geometry and deposition contributions into one proposed
 // recipe. It has no bundle directory, persistence or revision ownership.
 import {loadExtensionEntry} from '../extensions/library.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {curveAssignment} from './curves.mjs';
-import {defaultSlices} from './slices.mjs';
+import {defaultSlices} from "./slice-records.mjs";
 import {depositionAssignment} from './assignment-records.mjs';
-import {makeMesh} from '../geom/mesh.mjs';
-import {detectMeshSleeveInterval} from '../geom/sleeve/mesh-sleeve.mjs';
-import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
-import {strokeTopology} from '../geom/stroke-topology.mjs';
+import {geometryOperations} from '../geom/operations.mjs';
 import {resolveSpatialPlan} from './spatial-inputs.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';
 
-const editEngines={Geometry:{makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceFamily,strokeTopology},
-  Toolpath:{defaultSlices,curveAssignment,depositionAssignment}};
+const Toolpath=Object.freeze({defaultSlices,curveAssignment,depositionAssignment});
 
 export async function prepareExtensionRecipe(source,extension,request,{geometryContribution,...options}={}){
   if(geometryContribution){
@@ -27,7 +23,8 @@ export async function prepareExtensionRecipe(source,extension,request,{geometryC
     process:source.process,composition:source.composition,skills:source.skills});
   requireThat(!options.create,`No deposition creator for extension ${extension}.`);
   const editor=await loadExtensionEntry(extension,'deposition-edit');
-  const contribution=await editor(input,request,{...options,...editEngines});
+  const Geometry=await geometryOperations();
+  const contribution=await editor(input,request,{...options,Geometry,Toolpath});
   const {geometry,assignments,placement,report}=contribution;
   // Only the declared engine outputs can alter the proposal. Setup, output,
   // versions and other bundle fields never come back from extension code.

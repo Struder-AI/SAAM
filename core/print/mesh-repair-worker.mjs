@@ -1,6 +1,7 @@
 import {parentPort,workerData} from 'node:worker_threads';
 import {repairSTL,repairSTLFiles} from './repair-stl.mjs';
 import {prepareSTLImportInWorker} from '../geom/import-stl.mjs';
+import {transferGeometry} from './geometry.mjs';
 await runMeshRepairWorker();
 
 async function runMeshRepairWorker(){
@@ -8,10 +9,10 @@ async function runMeshRepairWorker(){
   const options={...workerData.options,...channel};
   try{
     const result=await executeRepairWorkerJob(workerData,options);
-    const response=prepareRepairWorkerResponse(result);
+    const response=await prepareRepairWorkerResponse(result,workerData.mode);
     parentPort.postMessage(response.message,response.transfer);
   }catch(error){
-    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic,nativeDiagnostic:error.nativeDiagnostic}});
+    parentPort.postMessage({type:'error',error:{message:error.message,name:error.name,code:error.code,changes:error.changes,meshDiagnostic:error.meshDiagnostic,cleanupError:error.cleanupError,importDiagnostic:error.importDiagnostic}});
   }finally{
     parentPort.close();
   }
@@ -20,12 +21,11 @@ async function runMeshRepairWorker(){
 function initializeRepairWorkerChannel(geometry){
   const controller=new AbortController(),pending=new Map();let sequence=0;
   function receiveMessage(message){
-    if(message.type==='native-progress'){pending.get(message.id)?.progress?.(message.event);return;}
     if(message.type==='abort'){
       controller.abort();
       for(const entry of pending.values())entry.reject(controller.signal.reason);
       pending.clear();
-    }else if(message.type==='geometry-ack'||message.type==='native-ack'||message.type==='native-result'){
+    }else if(message.type==='geometry-ack'){
       const entry=pending.get(message.id);
       if(entry){
         pending.delete(message.id);
@@ -34,18 +34,6 @@ function initializeRepairWorkerChannel(geometry){
     }
   }
   function progress(event){parentPort.postMessage({type:'progress',event});}
-  function nativeReady(){
-    controller.signal.throwIfAborted();
-    return new Promise((resolve,reject)=>{
-      const id=sequence++;pending.set(id,{resolve,reject});parentPort.postMessage({type:'native-start',id});
-    });
-  }
-  function nativeRun(input,output,{maxHoleEdges,maxHoleDiameterMm,progress}){
-    controller.signal.throwIfAborted();
-    return new Promise((resolve,reject)=>{
-      const id=sequence++;pending.set(id,{resolve,reject,progress});parentPort.postMessage({type:'native-run',id,input,output,maxHoleEdges,maxHoleDiameterMm});
-    });
-  }
   function onGeometry(event){
     return new Promise((resolve,reject)=>{
       const id=sequence++;
@@ -54,7 +42,7 @@ function initializeRepairWorkerChannel(geometry){
     });
   }
   parentPort.on('message',receiveMessage);
-  return {signal:controller.signal,progress,nativeReady,nativeRun,...(geometry?{onGeometry}:{})};
+  return {signal:controller.signal,progress,...(geometry?{onGeometry}:{})};
 }
 
 async function executeRepairWorkerJob(job,options){
@@ -68,7 +56,8 @@ async function executeRepairWorkerJob(job,options){
   }
 }
 
-function prepareRepairWorkerResponse(result){
+async function prepareRepairWorkerResponse(result,mode){
+  if(mode==='import')return {message:{type:'result',result:{...result,geometry:await transferGeometry(result.geometry)}},transfer:[]};
   if(result.repairedBytes){
     const bytes=new Uint8Array(result.repairedBytes.length);
     bytes.set(result.repairedBytes);

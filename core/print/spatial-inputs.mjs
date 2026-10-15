@@ -27,7 +27,8 @@ export function normalizeSpatialPlan(plan){
     return a;
   });
   if(original&&original.shape!=='spatial'&&!curves.size&&!points.size)return plan;
-  const geometry={...spatial,curves:[...curves.values()],points:[...points.values()]};validateSpatial(geometry);
+  const unchanged=(entries,previous)=>entries.size===previous.length&&[...entries.values()].every((entry,index)=>entry===previous[index]);
+  const geometry=unchanged(curves,spatial.curves)&&unchanged(points,spatial.points)?spatial:{...spatial,curves:[...curves.values()],points:[...points.values()]};validateSpatial(geometry);
   return {...plan,geometry,...(assignments?{slices:{...plan.slices,assignments}}:{})};
 }
 
@@ -72,10 +73,9 @@ function manufacturingVolume(volume){
   return volume.kind==='geometry'?{...volume,geometry:manufacturingGeometry(volume.geometry)}:structuredClone(volume);
 }
 
-// The recipe values besides geometry that change the placed manufacturing geometry.
-export function placementInput(plan){
-  return {placement:plan.placement??null,
-    spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
+// The recipe values besides geometry that change the manufacturing geometry.
+export function manufacturingInput(plan){
+  return {spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
       ...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:a.within.map(manufacturingVolume)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
 }
 

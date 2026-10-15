@@ -1,47 +1,28 @@
 ---
 name: hole-supports
-description: Experimental support options for a detected bed-facing circular counterbore under a smaller through bore.
+description: Experimental. Downward-hole printing with removable supports, a drill-through membrane, stepped reduction or wave fronts.
 metadata:
-  saam-kind: extension
+  saam-kind: guidance
 ---
 
-# Hole supports
+# Downward-facing holes
 
-[Call `hole-supports`](../../core/print/USAGE.md#command-line) with
-`{"mode":"discover"}` first. The report gives candidate centres, large/small
-radii and shoulder height in component millimetres; discovery changes nothing.
-Choose the hole, orientation, removal/drilling access and required bore finish
-with the person before requesting a support mode. Supply `centerMm` when several
-candidates exist. Detection does not establish that support is needed.
+For a recess narrowing into a bore above air, choose the construction in chat.
+Review removal access, bridge span, material and cooling; all four are physically unqualified.
 
-Only circular, concentric, bed-facing counterbores in one upright component at
-Z=0 with whole-component planar slices are supported. Existing Trace assignments
-are retained. Rotate the geometry first when needed; this is a section query,
-not general overhang analysis.
-
-| Mode | Construction | Removal/review |
+| Construction | Treatment and finishing | Reference scope |
 |---|---|---|
-| `membrane` | Parallel spans on the last lower-cavity layer, attached to the rim | Drill through; check access, drill size and wall damage risk. |
-| `tangent-bridge` | Last three cavity layers: two tangents, two perpendicular tangents, four bore-perimeter arcs | Experimental interpretation; inspect contact and clear the hole afterward. |
-| `sleeve` | Annular Trace walls from bed to below shoulder | Confirm clearance and a reachable grip for removal. |
+| [Removable landing support](../bridge-supports/SKILL.md) | Trace stacks join selected base and landing curves; bridge from the printed edge and remove it later. | General XYZ/NURBS curves, open or closed; no horizontal/planar-curve restriction. The bed-base exception uses Z=0. |
+| Drill-through membrane | Additional dense, zero-loop, single-direction Slice below the first overhang course; anchor into the rim, then drill through. | Ordinary Slice can use planes or regular spline references; the worked layer placement below is horizontal. |
+| [Stepped reduction](../hole-transitions/SKILL.md) | Slot → square → octagon over three bridge courses at 0/90/45°; the fourth resumes the round bore. Enlarges the bore locally; retains an open passage. | Planar source layers, including tilted planes and oblique stack translations; curved slices unsupported. |
+| [Wave shoulder](../hole-transitions/SKILL.md) | Seeded fronts grow inward from the supported rim, retaining the bore. Inspect residuals and the next bore layer's contact. | Regular injective spline charts and translated stacks, including curved references and non-Z directions; no normal-offset or multi-chart stacks. |
 
-Membrane/tangent free spans stay in the measured cavity; only short endpoint
-attachments intentionally overlap model material. Tangent arcs are separate:
-continuous support is not proved and physical contact remains unqualified.
-Inspect the whole SAAMpath in Studio, including model slices, span lengths, gaps,
-bead placement and removal. Sag, adhesion, head clearance and strength are not
-validated. General support design remains with [supports](../supports/SKILL.md).
-
-Requests accept `id` (lowercase hyphenated), `centerMm`, `after` (operation ids),
-and `toleranceMm` (default 0.08, maximum 0.25). Dimensions are millimetres:
-
-| Mode | Settings |
-|---|---|
-| `membrane` | `pitchMm`: default one bead width, allowed 0.75–1.5 widths; `anchorMm`: default 1.5 widths |
-| `tangent-bridge` | `tangentOffsetMm`: default small radius plus half a bead; `anchorMm`: default 1.5 widths |
-| `sleeve` | `xyGapMm`: 0.3; `topGapMm`: 0.2; `sleeveInnerRadiusMm`: small radius minus one bead |
-
-Choose settings for the actual machine/material. A mode appends one ordinary
-Trace assignment; use a fresh `id` or remove its prior assignment first.
-Saved curves regenerate without the extension. Calling it again requires the
-installed code; modifying that code is builder work.
+Membranes need a thin filled guide solid/footprint: slicing empty air cannot create one.
+With a shoulder at Z6.0 and 0.2mm layers, its course tops at Z6.0 (material 5.8–6.0),
+and the first model overhang course tops at Z6.2. Order lower body, membrane and
+upper body on the same grid, preserving model geometry and ordinary wall/fill settings.
+Anchor overlap is intentional. This earlier membrane is the owner's adaptation of
+TKeller's idea; the [original exemplar](references/README.md) prints it in the overhang course.
+For other references author the corresponding earlier surface and supported anchors;
+this is an available Slice construction, not a verified curved-membrane example.
+Use normal Bundle revisions and the [shared review workflow](../../core/print/USAGE.md).

@@ -1,5 +1,6 @@
 import {distance,requireThat} from '../private/toolpath/numeric.mjs';
-// Deposition geometry contains no travel. The composer connects these strokes.
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+// Toolpath finalizes deposited connections before downstream travel.
 
 
 // Curves enter in world coordinates. Mapping and ordering belong to earlier
@@ -11,13 +12,15 @@ export function depositCurves(curves,{widthMm,heightMm,speedMmS,flowMultiplier=1
     const {heightMm:localHeight,heightsMm,widthsMm,flowMultipliers,flowMultiplier:localFlow,...stroke}=curve;
     const width=curve.beadWidthMm??widthMm,height=localHeight??heightMm,flow=localFlow??flowMultiplier;
     const speed=curve.speedMmS??speedMmS;
-    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>0&&Number.isFinite(speed)&&speed>0,
-      'Curve deposition needs positive bead width, flow and speed.');
+    // Speed passes through; zero flow moves along the curve without depositing.
+    // Negative material cannot enter SAAMpath; its assignment reports the failure.
+    requireThat(Number.isFinite(width)&&width>0&&Number.isFinite(flow)&&flow>=0&&Number.isFinite(speed),
+      'Curve deposition needs a positive bead width, a nonnegative flow and a speed.');
     requireThat(curve.points.length>=2&&curve.points.every(p=>p.length===3&&p.every(Number.isFinite)),
       'Curve deposition needs at least two finite XYZ points.');
     if(heightsMm||widthsMm||flowMultipliers){
       const explicit=strokeRange(stroke),points=explicit.points;
-      if(flowMultipliers)requireThat(flowMultipliers.length===points.length-1&&flowMultipliers.every(f=>Number.isFinite(f)&&f>0),'Curve flow needs one positive multiplier per segment.');
+      if(flowMultipliers)requireThat(flowMultipliers.length===points.length-1&&flowMultipliers.every(f=>Number.isFinite(f)&&f>=0),'Curve flow needs one nonnegative multiplier per segment.');
       if(widthsMm)requireThat(widthsMm.length===points.length-1&&widthsMm.every(w=>Number.isFinite(w)&&w>=0),'Curve deposition needs one finite nonnegative width per segment.');
       const segmentMetadata=points.slice(1).map((_,i)=>({...curve.segmentMetadata?.[i],...(widthsMm?{beadWidthMm:widthsMm[i]}:{}),beadHeightMm:(heightsMm?.[i]??height)*flow*(flowMultipliers?.[i]??1)}));
       const deposited=depositionStroke({points,heightsMm:heightsMm??points.slice(1).map(()=>height),widthMm:width*flow,
@@ -48,7 +51,7 @@ export function depositionStroke({points,heightsMm,widthMm,widthsMm,speedMmS,rol
 // An unrotated circuit retains its seam sample (native t=1 when implicit);
 // rotated circuits retain the parameters of their original source vertices.
 export function strokeRange(stroke,from=0,to){
-  const count=stroke.points.length-(stroke.closed&&distance(stroke.points[0],stroke.points.at(-1))<1e-12?1:0);
+  const count=stroke.points.length-(stroke.closed&&distance(stroke.points[0],stroke.points.at(-1))<PRINT_RESOLUTION_MM?1:0);
   if(stroke.closed&&to===undefined)from%=count;
   to??=stroke.closed?from+count:count-1;
   requireThat(Number.isInteger(from)&&Number.isInteger(to)&&from>=0&&to>=0&&from!==to&&
@@ -71,7 +74,11 @@ export function strokeRange(stroke,from=0,to){
 // A bead that tapers to nothing ends where its remaining material is no longer
 // writable: a machine program can only express those last moves as travel.
 // Return shortened arrays while preserving the producer's stroke.
-export function trimVanishingEnd(stroke,minimumMm3=1e-3) {
+// Process scale, deferred: the default should be the print's lineWidthMm*layerMm*
+// PRINT_RESOLUTION_MM (a bead shorter than print resolution cannot change the print);
+// kept until vase and Bambu change curves, which trim, are regression-checked.
+const VANISHING_BEAD_MM3=1e-3;
+export function trimVanishingEnd(stroke,minimumMm3=VANISHING_BEAD_MM3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];
   return strokeRange(stroke,0,keep);

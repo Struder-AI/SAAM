@@ -1,0 +1,917 @@
+{
+  "schemaVersion": 1,
+  "researchedOn": "2026-10-01",
+  "units": "mm",
+  "defaultCountry": "US",
+  "status": "research-reference-not-manufacturing-templates",
+  "sources": {
+    "leviton-sizes": {
+      "title": "Leviton Wallplate Size Guide",
+      "url": "https://leviton.com/content/dam/leviton/commercial-industrial/product_documents/solution_sheets/Wallplate%20Size%20Guide%20-%20Q-1289.pdf"
+    },
+    "leviton-configurations": {
+      "title": "Leviton wallplate buying guide",
+      "url": "https://leviton.com/content/dam/leviton/residential/product_documents/brochure/buying-guide_wallplates.pdf"
+    },
+    "leviton-screwless": {
+      "title": "Leviton Decora Plus dimensional bulletin",
+      "url": "https://leviton.com/content/dam/leviton/residential/product_documents/product_bulletin/NM-012820%20Update%20Decora%20Plus%20Screwless%20Wallplate%20PB.pdf"
+    },
+    "raco-square": {
+      "title": "RACO exposed-work 915C specification",
+      "url": "https://hubbellcdn.com/specsheet/RA_915C_Spec.pdf"
+    },
+    "raco-large": {
+      "title": "RACO 878 specification",
+      "url": "https://hubbellcdn.com/specsheet/RACO-878-SPEC-EN.pdf"
+    },
+    "raco-handy": {
+      "title": "RACO 865 handy-box cover",
+      "url": "https://www.hubbell.com/hubbellcanada/en/products/4-in-x-2-in-handy-box-cover-toggle-switch/p/4596553"
+    },
+    "mk": {
+      "title": "MK Electric Catalogue 49",
+      "url": "https://ws.buildings.honeywell.com/content/dam/hbtbt/en/documents/document-lists/mk-electric/catalogues/MK-Electric-N0-49_Catalogue_UKMK003-0116-EN.pdf"
+    },
+    "bg": {
+      "title": "BG moulded accessories catalogue",
+      "url": "https://www.bgelectrical.uk/media/404fs3jg/bg-cataglogue_moulded-2023.pdf"
+    },
+    "clipsal": {
+      "title": "Clipsal Standard Series technical data",
+      "url": "https://updates.clipsal.com/ClipsalOnline/Files/Brochures/A0000108.pdf"
+    },
+    "clipsal-large": {
+      "title": "Clipsal 31/2V current specifications",
+      "url": "https://www.clipsal.com/products/power-points-switches/standard-series/flush-plate-1-gang-115mmsq-large-format-31-2v?itemno=31%2F2V-WE"
+    },
+    "gira": {
+      "title": "Gira System 55",
+      "url": "https://www4.gira.com/es_ES/systeme/system55.html"
+    },
+    "kaiser": {
+      "title": "KAISER installation catalogue 2024/2025",
+      "url": "https://assets.kaiser-elektro.de/media/18/18911/KAISER_EIK_2024_2025_DE_web.pdf"
+    },
+    "jung": {
+      "title": "JUNG LS range",
+      "url": "https://www.jung-group.com/en-DE/Products/Switch-Ranges/60-years-LS/"
+    },
+    "niko": {
+      "title": "Niko twofold frame, 71 mm centres",
+      "url": "https://www.niko.eu/en/article/226-76800"
+    },
+    "mosaic": {
+      "title": "Legrand Mosaic surface boxes and adaptors",
+      "url": "https://assets.legrand.com/general/legrand-exp/pc/ex218001_903.pdf"
+    },
+    "bticino": {
+      "title": "BTicino flush box technical sheet",
+      "url": "https://dar.bticino.com/asset/Documents/BT00261-a-UK.pdf"
+    },
+    "bticino-current": {
+      "title": "BTicino 503E current product sheet",
+      "url": "https://catalogue.bticino.com/pdf/scheda-prodotto/BTI-503E"
+    },
+    "vimar": {
+      "title": "Vimar Plana installation and cover selection",
+      "url": "https://www.vimar.com/en/int/catalog/document/download/code/B.C25034"
+    },
+    "feller": {
+      "title": "Feller technical catalogue",
+      "url": "https://mam.feller.ch/Kataloge/67.FK_09-TECHNIK-F.pdf"
+    },
+    "fuga": {
+      "title": "LK FUGA system description; includes discontinued products",
+      "url": "https://www.lk.dk/globalassets/support/information/systembeskrivelser/fuga.pdf"
+    },
+    "panasonic": {
+      "title": "Panasonic Parito WXG7201HX specification drawing",
+      "url": "https://electricworks.panasonic.com/th/system/files/media/files/WXG7201HX_DR.PDF"
+    },
+    "panasonic-families": {
+      "title": "Panasonic Full Color Wide/Refina catalogue",
+      "url": "https://ecm.mea.panasonic.com/wp-content/uploads/2024/01/Full-Color-Wide-Series-Refina-American-Standard-Catalogue.pdf"
+    },
+    "livia": {
+      "title": "Schneider Livia P0708",
+      "url": "https://www.se.com/in/en/product/P0708/cover-frame-livia-8-grid-8-module-linear-white/"
+    },
+    "pial": {
+      "title": "Legrand Pial Plus+ 618512BC",
+      "url": "https://www.legrand.com.br/pt-pt/catalogo/produtos/placa-22-postos-4x4-branca-pial-plus-618512bc"
+    },
+    "pial-range": {
+      "title": "Legrand Pial Plus+ catalogue",
+      "url": "https://www.legrand.com.br/sites/default/files/arquivos/20473q-cat_pial_plus.pdf"
+    },
+    "south-africa": {
+      "title": "Legrand South Africa Arteor catalogue",
+      "url": "https://www.legrand.co.za/download/residential/arteor.pdf"
+    },
+    "adorne": {
+      "title": "Legrand adorne wallplate range",
+      "url": "https://www.legrand.us/wiring-devices/adorne-collection/wall-plates/c/lgnd030109"
+    },
+    "avatar": {
+      "title": "Schneider AvatarOn 2G switch",
+      "url": "https://eshop.se.com/in/avataron-16ax-2g-2way-switch-we.html"
+    },
+    "simon": {
+      "title": "Simon 82 Detail Original frame",
+      "url": "https://www.simonelectric.com/es-es/8200610-130-marco-1-elemento-blanco-mate-simon-82-detail-original"
+    }
+  },
+  "families": [
+    {
+      "id": "na-wallplate",
+      "regionHints": [
+        "US",
+        "CA",
+        "MX"
+      ],
+      "name": "North American screw-fastened wallplate",
+      "installation": [
+        "flush",
+        "surface-device-box"
+      ],
+      "referenceDimensionsMm": {
+        "standardOuter": [
+          69.85,
+          114.3
+        ],
+        "midwayOuter": [
+          79.4,
+          123.8
+        ],
+        "oversizeOuter": [
+          88.9,
+          133.4
+        ],
+        "additionalGangWidth": 46.0,
+        "togglePlateScrewSeparation": 60.3,
+        "decoratorPlateScrewSeparation": 96.8
+      },
+      "sources": [
+        "leviton-sizes",
+        "leviton-configurations"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Toggle, decorator/rocker/GFCI, duplex, blank and mixed combinations. Published rounded dimensions; do not equate plate screw spacing with device-to-box spacing. Gang width increment is a manufacturer guide, not a universal exact pitch."
+    },
+    {
+      "id": "na-screwless",
+      "regionHints": [
+        "US",
+        "CA"
+      ],
+      "name": "Decora Plus screwless cover and subplate",
+      "installation": [
+        "flush",
+        "surface-device-box"
+      ],
+      "referenceDimensionsMm": {
+        "oneGangOuter": [
+          69.85,
+          117.0686
+        ],
+        "decoratorOpening": [
+          33.274,
+          66.802
+        ],
+        "twoGangOuter": [
+          115.8748,
+          117.0686
+        ]
+      },
+      "sources": [
+        "leviton-screwless"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "A separate proprietary subplate and ratchet attachment; rectangular opening alone does not establish clip compatibility. Outer dimensions converted from bulletin ordering table."
+    },
+    {
+      "id": "na-adorne",
+      "regionHints": [
+        "US",
+        "CA"
+      ],
+      "name": "Legrand adorne proprietary modular plates",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [
+        "adorne"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "1–4 gangs with selected finishes up to 6; distinguish half-size devices and proprietary carrier from decorator apertures."
+    },
+    {
+      "id": "na-square-4",
+      "regionHints": [
+        "US",
+        "CA"
+      ],
+      "name": "4-inch square exposed-work covers",
+      "installation": [
+        "surface-square"
+      ],
+      "referenceDimensionsMm": {
+        "nominalBoxSide": 101.6
+      },
+      "sources": [
+        "raco-square"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Box-mount cover, often raised, with one/two device or mixed apertures. Exact perimeter holes, rise and device fastening depend on SKU. 915C PDF search-index evidence; direct fetch returned 403."
+    },
+    {
+      "id": "na-square-4-11-16",
+      "regionHints": [
+        "US",
+        "CA"
+      ],
+      "name": "4-11/16-inch square exposed-work covers",
+      "installation": [
+        "surface-square"
+      ],
+      "referenceDimensionsMm": {
+        "nominalBoxSide": 119.0625,
+        "example878Outer": [
+          119.126,
+          119.126
+        ],
+        "example878OverallProjection": 14.3002,
+        "example878CircularOpeningDiameter": 54.3814
+      },
+      "sources": [
+        "raco-large"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "878 is a large round receptacle example, not a switch template. Nominal box designation and published cover size differ slightly."
+    },
+    {
+      "id": "na-handy",
+      "regionHints": [
+        "US",
+        "CA"
+      ],
+      "name": "Handy/utility box covers",
+      "installation": [
+        "surface-handy"
+      ],
+      "referenceDimensionsMm": {
+        "example865Outer": [
+          58.7502,
+          106.3752
+        ],
+        "example865OverallProjection": 12.446
+      },
+      "sources": [
+        "raco-handy"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Nominal 4 x 2 box does not mean a 101.6 x 50.8 cover. Match contour, captive screws and SKU; projection is not wall thickness."
+    },
+    {
+      "id": "uk-86",
+      "regionHints": [
+        "GB",
+        "IE"
+      ],
+      "name": "UK-format single box accessory",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          86,
+          86
+        ],
+        "boxFixingSeparation": 60.3
+      },
+      "sources": [
+        "mk"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "One box can contain several switches; switch count is independent of box count. Includes rocker, dimmer, blank and grid accessories; full accessory faces may be integral to electrical mechanisms."
+    },
+    {
+      "id": "uk-146",
+      "regionHints": [
+        "GB",
+        "IE"
+      ],
+      "name": "UK-format double box accessory",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          146,
+          86
+        ],
+        "boxFixingSeparation": 120.6
+      },
+      "sources": [
+        "mk"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Separate grid/module layout and carrier; do not infer switch aperture width from face width."
+    },
+    {
+      "id": "uk-architrave",
+      "regionHints": [
+        "GB",
+        "IE"
+      ],
+      "name": "UK narrow architrave plates",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [
+        "bg"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Narrow single/double architrave products; dimensions and mechanism retention require specific drawings."
+    },
+    {
+      "id": "au-standard",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal Standard rectangular plates",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          73,
+          115
+        ],
+        "fixingSeparation": 84
+      },
+      "sources": [
+        "clipsal"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Vertical/horizontal variants and multiple mechanisms; do not apply this envelope to all Australian brands or series."
+    },
+    {
+      "id": "au-architrave",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal narrow architrave plates",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "oneGangOuter": [
+          32,
+          75
+        ],
+        "oneGangFixingSeparation": 55,
+        "twoGangOuter": [
+          32,
+          86
+        ],
+        "twoGangFixingSeparation": 70
+      },
+      "sources": [
+        "clipsal"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Historical catalogue dimensions; current SKU must be checked. More switches need distinct plate lengths and fixings."
+    },
+    {
+      "id": "au-mini-architrave",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal miniature architrave",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "oneGangOuter": [
+          27,
+          54
+        ],
+        "oneGangFixingSeparation": 40
+      },
+      "sources": [
+        "clipsal"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Distinct smaller family; not a scaled standard cover."
+    },
+    {
+      "id": "au-intermediate",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal intermediate narrow plate",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          48,
+          95
+        ],
+        "fixingSeparation": 55,
+        "largeCentreVariantSeparation": 78
+      },
+      "sources": [
+        "clipsal"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Same outer dimensions can have different screw positions."
+    },
+    {
+      "id": "au-large-square",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal large square plate",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          116,
+          116
+        ],
+        "fixingCentrePair": [
+          84,
+          46
+        ]
+      },
+      "sources": [
+        "clipsal-large"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Current specifications say 116 square despite product title saying 115 square; preserve discrepancy. Confirm actual fixing point coordinates."
+    },
+    {
+      "id": "au-round",
+      "regionHints": [
+        "AU",
+        "NZ"
+      ],
+      "name": "Clipsal junction-box round plate",
+      "installation": [
+        "junction-box"
+      ],
+      "referenceDimensionsMm": {
+        "outerDiameter": 70,
+        "fixingSeparation": 50
+      },
+      "sources": [
+        "clipsal"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Round 31VR family; not an ordinary rectangular wallplate."
+    },
+    {
+      "id": "eu-system55",
+      "regionHints": [
+        "DE",
+        "AT",
+        "NL",
+        "EU"
+      ],
+      "name": "Gira System 55 frame",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "functionalModuleFace": [
+          55,
+          55
+        ]
+      },
+      "sources": [
+        "gira"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "55 mm is a functional module size, not a universal cutout or outside frame dimension. Retain actual compatible carrier."
+    },
+    {
+      "id": "eu-round-box",
+      "regionHints": [
+        "DE",
+        "AT",
+        "EU"
+      ],
+      "name": "Continental linked device-box layout",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "exampleBoxFixingSeparation": 60,
+        "exampleLinkedBoxPitch": 71
+      },
+      "sources": [
+        "kaiser"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Box mounting and combination pitch are different dimensions; region is only a hint. Verify box family and orientation."
+    },
+    {
+      "id": "eu-jung-ls",
+      "regionHints": [
+        "DE",
+        "AT",
+        "EU"
+      ],
+      "name": "JUNG LS 990 frame",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "rockerFace": [
+          70,
+          70
+        ],
+        "onePositionFrameOuter": [
+          81,
+          81
+        ]
+      },
+      "sources": [
+        "jung"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "70 mm rocker is not a ready-to-use opening definition or proof of shared clips with System 55."
+    },
+    {
+      "id": "eu-niko",
+      "regionHints": [
+        "BE",
+        "EU"
+      ],
+      "name": "Niko multi-position frames",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "exampleCombinationPitch": 71
+      },
+      "sources": [
+        "niko"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Carrier and frame range remain model-specific."
+    },
+    {
+      "id": "eu-simon",
+      "regionHints": [
+        "ES",
+        "EU"
+      ],
+      "name": "Simon 82 family frames",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [
+        "simon"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Identify exact series and SKU; faceplate name does not supply a complete mounting interface."
+    },
+    {
+      "id": "mosaic45",
+      "regionHints": [
+        "FR",
+        "EU",
+        "international"
+      ],
+      "name": "Legrand Mosaic modular plates",
+      "installation": [
+        "flush",
+        "surface-carrier",
+        "trunking"
+      ],
+      "referenceDimensionsMm": {
+        "oneModuleFace": [
+          22.5,
+          45
+        ],
+        "twoModuleFace": [
+          45,
+          45
+        ]
+      },
+      "sources": [
+        "mosaic"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Module widths are not cutout tolerances. Includes older 50 mm carrier adaptors and dedicated surface boxes; keep series/version distinct."
+    },
+    {
+      "id": "italy-modular",
+      "regionHints": [
+        "IT",
+        "international"
+      ],
+      "name": "BTicino rectangular modular boxes/carriers",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "historical503EBox": [
+          107,
+          74,
+          51.3
+        ],
+        "historical503EFixingSeparation": 83.5,
+        "historical504EFixingSeparation": 108.5,
+        "historical506EFixingCentrePair": [
+          83.5,
+          46
+        ],
+        "current503EBox": [
+          108,
+          74,
+          53.5
+        ]
+      },
+      "sources": [
+        "bticino",
+        "bticino-current"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "3/4/6 and other module layouts; box dimensions are not plate dimensions. Historical/current 503E dimensions differ: require revision-specific template."
+    },
+    {
+      "id": "italy-vimar-plana",
+      "regionHints": [
+        "IT",
+        "international"
+      ],
+      "name": "Vimar Plana covers",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "oneTwoModuleOuter": [
+          80,
+          80
+        ],
+        "threeModuleOuter": [
+          119.5,
+          80
+        ],
+        "fourModuleOuter": [
+          142,
+          80
+        ]
+      },
+      "sources": [
+        "vimar"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Also 7/8 and multiple-row formats; mounting frames are distinct from decorative covers. Exact frame/clip geometry remains unset."
+    },
+    {
+      "id": "swiss-feller",
+      "regionHints": [
+        "CH"
+      ],
+      "name": "Feller EDIZIOdue",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOnePositionOuter": [
+          88,
+          88
+        ]
+      },
+      "sources": [
+        "feller"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Bayonet attachment; Swiss-specific carrier rather than a universal EU frame. Check exact model and catalogue revision."
+    },
+    {
+      "id": "denmark-fuga",
+      "regionHints": [
+        "DK"
+      ],
+      "name": "LK FUGA frames",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "frameDesignDimensions": [
+          50,
+          63
+        ]
+      },
+      "sources": [
+        "fuga"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Fractional module system (including 1 and 1.5 modules); 50/63 denote frame families, not interchangeable openings. Source warns of discontinued products."
+    },
+    {
+      "id": "asia-panasonic-a",
+      "regionHints": [
+        "JP",
+        "TH",
+        "international"
+      ],
+      "name": "Panasonic rectangular A-type / Parito reference",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {
+        "exampleParitoOuter": [
+          70,
+          120
+        ],
+        "exampleMountingSeparation": 83.5
+      },
+      "sources": [
+        "panasonic",
+        "panasonic-families"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Published drawing is a data-jack plate example. Japanese-market switch frames need their own SKU drawing; do not claim this is universal Japanese geometry."
+    },
+    {
+      "id": "asia-panasonic-bs",
+      "regionHints": [
+        "international"
+      ],
+      "name": "Panasonic BS-type square accessories",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleOuter": [
+          86,
+          86
+        ],
+        "exampleMountingSeparation": 60.3
+      },
+      "sources": [
+        "panasonic-families"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Manufacturer-specific BS-type example, not proof of interchangeability with every UK accessory."
+    },
+    {
+      "id": "asia-avataron",
+      "regionHints": [
+        "CN",
+        "international"
+      ],
+      "name": "Schneider AvatarOn square family",
+      "installation": [
+        "flush",
+        "surface-box"
+      ],
+      "referenceDimensionsMm": {
+        "exampleWidth": 86
+      },
+      "sources": [
+        "avatar"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "A sourced product width only; height, cutout and attachment left unset. Country selection cannot automatically resolve 86/118/120 naming families."
+    },
+    {
+      "id": "india-livia",
+      "regionHints": [
+        "IN"
+      ],
+      "name": "Schneider Livia modular grids/frames",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [
+        "livia"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Module and row choices include 8-module linear and multiple rows. Exact grid, outer envelope and front-loading clips depend on SKU."
+    },
+    {
+      "id": "brazil-pial",
+      "regionHints": [
+        "BR"
+      ],
+      "name": "Legrand Pial Plus+ 4x2/4x4 modular plates",
+      "installation": [
+        "flush"
+      ],
+      "referenceDimensionsMm": {
+        "example618512Outer": [
+          132.4,
+          121
+        ],
+        "example618512Depth": 8
+      },
+      "sources": [
+        "pial",
+        "pial-range"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "4x2 and 4x4 are box family designations. Example 4x4 uses 2+2 positions and snap attachment; not interchangeable with US square exposed-work covers."
+    },
+    {
+      "id": "south-africa-arteor",
+      "regionHints": [
+        "ZA"
+      ],
+      "name": "Legrand Arteor regional box/carrier choices",
+      "installation": [
+        "flush",
+        "surface-carrier"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [
+        "south-africa"
+      ],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "Resolve local box and exact support/cover combination; no universal 100 x 100 plate or module pitch assumed."
+    },
+    {
+      "id": "custom-measured",
+      "regionHints": [
+        "international"
+      ],
+      "name": "Measured/custom/legacy format",
+      "installation": [
+        "flush",
+        "surface-box",
+        "surface-square",
+        "surface-handy",
+        "surface-carrier",
+        "junction-box"
+      ],
+      "referenceDimensionsMm": {},
+      "sources": [],
+      "fitStatus": "reference-only",
+      "generationReady": false,
+      "notes": "For unsupported local, historic or proprietary types. Require measured aperture profiles, fastener coordinates, rear envelope and attachment details."
+    }
+  ]
+}

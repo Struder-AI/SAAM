@@ -10,7 +10,8 @@
 //   * Knot vectors omit the first and last superfluous knot, so their length is
 //     cpCount + order - 2. We restore the full vector on extraction.
 
-import { requireThat, cross, length } from './tolerance.mjs';
+import { requireThat, cross, length, TOLERANCE } from './tolerance.mjs';
+import { ROUNDING_MM } from '../dimensions.mjs';
 
 export function patchFromSurface(surface, name = 'patch') {
   const ns = surface.toNurbsSurface();
@@ -161,7 +162,7 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
   const normalVector = cross(dU, dV);
   const normalLength = length(normalVector);
   // A pole (a degenerate patch edge, as at a cap centre) has no unique normal.
-  const normal = normalLength > 1e-12 ? normalVector.map(c => c / normalLength) : null;
+  const normal = normalLength > ROUNDING_MM ** 2 ? normalVector.map(c => c / normalLength) : null;
   return { point, du: dU, dv: dV, normal, degenerate: normal === null };
 }
 
@@ -232,11 +233,11 @@ export function gradientBound(patch, coefficients, span) {
     for (let j = v0; j <= v1; j++) {
       if (i < u1) {
         const width = knotsU[i + orderU] - knotsU[i + 1];
-        if (width > 1e-12) boundU = Math.max(boundU, degreeU * Math.abs(coefficients[(i + 1) * nv + j] - coefficients[i * nv + j]) / width);
+        if (width > TOLERANCE.parameter) boundU = Math.max(boundU, degreeU * Math.abs(coefficients[(i + 1) * nv + j] - coefficients[i * nv + j]) / width);
       }
       if (j < v1) {
         const width = knotsV[j + orderV] - knotsV[j + 1];
-        if (width > 1e-12) boundV = Math.max(boundV, degreeV * Math.abs(coefficients[i * nv + j + 1] - coefficients[i * nv + j]) / width);
+        if (width > TOLERANCE.parameter) boundV = Math.max(boundV, degreeV * Math.abs(coefficients[i * nv + j + 1] - coefficients[i * nv + j]) / width);
       }
     }
   return { u: boundU, v: boundV };
@@ -247,9 +248,9 @@ export function gradientBound(patch, coefficients, span) {
 export function candidateSpans(patch, coefficients) {
   const { nu, nv, orderU, orderV, knotsU, knotsV } = patch, spans = [];
   for (let su = orderU - 1; su < nu; su++) {
-    if (knotsU[su + 1] - knotsU[su] < 1e-12) continue;
+    if (knotsU[su + 1] - knotsU[su] < TOLERANCE.parameter) continue;
     for (let sv = orderV - 1; sv < nv; sv++) {
-      if (knotsV[sv + 1] - knotsV[sv] < 1e-12) continue;
+      if (knotsV[sv + 1] - knotsV[sv] < TOLERANCE.parameter) continue;
       let min = Infinity, max = -Infinity;
       for (let i = su - orderU + 1; i <= su; i++) {
         for (let j = sv - orderV + 1; j <= sv; j++) {

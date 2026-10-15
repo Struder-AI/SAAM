@@ -33,19 +33,15 @@ async function legacy(f,{unknown=true}={}){
   return {bundle,plan,oldGeometry,oldExport,state};
 }
 
-test('legacy reads are effect-free and explicit migration retains sidecars and the current program',async t=>{
-  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f),before=await snapshot(f.directory);
-  await assert.rejects(f.api.loadBundle(f.directory),/migrate_bundle/);
-  assert.deepEqual(await snapshot(f.directory),before);
-
-  const report=await f.api.migrateBundle(f.directory);
-  assert.equal(report.status,'migrated');assert.deepEqual(report.removed,[]);assert.deepEqual(report.updated,['plan.json']);
-  assert.ok(report.created.some(name=>name.startsWith('geometry/')));assert.ok(report.created.some(name=>name.startsWith('exports/')));
+test('the first read converts a legacy bundle, retaining sidecars and the current program',async t=>{
+  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
+  const converted=await f.api.loadBundle(f.directory,{program:'source'});
+  assert.ok(converted.limitations.includes('Converted from the old bundle format; originals kept.'));
+  const {retained}=JSON.parse(await f.read('plan.json')).bundle.review.history.at(-1);
   for(const name of ['machine.json','review.json','checks.json','geometry/model.json',old.oldGeometry,old.oldExport,'keep-me.txt']){
-    assert.ok(report.retained.includes(name),name);await access(join(f.directory,name));
+    if(name!=='keep-me.txt')assert.ok(retained.includes(name),name);await access(join(f.directory,name));
   }
-  const reopened=await f.api.loadBundle(f.directory,{program:'source'});
-  assert.equal(reopened.programError,undefined);assert.equal(reopened.artifacts.program,'current');
+  assert.equal(converted.programError,undefined);assert.equal(converted.artifacts.program,'current');
 });
 
 test('current migration is an idempotent no-op',async t=>{
@@ -73,7 +69,7 @@ test('migration rejects a checks file that appears after an absent preflight',as
 
 test('migrated bundle cold-reopens in a fresh process',async t=>{
   const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
-  await f.api.migrateBundle(f.directory);
+  await f.api.loadBundle(f.directory,{program:false});
   const script=`import {generationWorkflow} from './core/tests/workflow-generation-fixture.mjs';\nconst state=await generationWorkflow().api.loadBundle(process.argv[1],{program:'source'});\nconsole.log(JSON.stringify({outputId:state.outputId,error:state.programError??null}));`;
   const result=JSON.parse((await exec(process.execPath,['--input-type=module','-e',script,f.directory],{cwd:process.cwd()})).stdout);
   const manifest=JSON.parse(await readFile(join(f.directory,'plan.json'),'utf8'));

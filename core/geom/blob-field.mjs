@@ -26,7 +26,7 @@ export function validateBlobField(field){
     requireThat(p&&typeof p==='object'&&Object.keys(p).sort().join()===POINT_FIELDS,`Blob point ${i} has positionMm, reachMm and strength.`);
     requireThat(Array.isArray(p.positionMm)&&p.positionMm.length===3&&p.positionMm.every(Number.isFinite),`Blob point ${i} positionMm needs three finite millimetre values.`);
     requireThat(Number.isFinite(p.reachMm)&&p.reachMm>0,`Blob point ${i} reachMm must be positive.`);
-    requireThat(Number.isFinite(p.strength)&&p.strength!==0,`Blob point ${i} strength must be a nonzero number; negative strength removes material.`);
+    requireThat(Number.isFinite(p.strength),`Blob point ${i} strength must be a finite number; negative strength removes material and 0 contributes nothing.`);
   });
   requireThat(field.points.some(p=>p.strength>0),'A blob field needs at least one point of positive strength to make material.');
   return field;

@@ -3,6 +3,7 @@ import {curvePoint} from './surface-curves.mjs';
 import {evaluate} from './nurbs.mjs';
 import {makeMesh} from './mesh.mjs';
 import {requireThat,distance} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 
 function closest(curve,p){
   let best=0,score=Infinity;
@@ -13,24 +14,29 @@ function closest(curve,p){
   return distance(curvePoint(curve,best),p)<distance(curvePoint(curve,t),p)?best:t;
 }
 
+// -> a closed mesh with {tessellation, notes}. Solid operations (Booleans,
+// text, heat-set, distance fields) need a closed solid; an open shell names its
+// open patch edges here, at the point of use.
 export function tessellateShell(shell,{toleranceMm=0.02}={}){
   if(shell.kind==='triangle-mesh')return shell;
-  requireThat(shell.patches&&shell.closure?.unmatched.length===0,'Text target requires a closed mesh or supported spline shell.');
+  requireThat(shell.patches,'Solid operations take a mesh or spline shell.');
+  const open=shell.closure.unmatched;
+  requireThat(!open.length,`The ${shell.name} shell is open at ${open.length} patch edge(s) (${open.slice(0,3).map(o=>`${o.patch}:${o.edge}`).join(', ')}); Booleans and other solid operations need a closed solid.`);
   const edges=shell.closure.edges;
   // The grid doubles until the sampled chord error meets the tolerance. A
-  // doubling that no longer reduces that error will never reach it.
-  let previousError=Infinity;
-  for(let count=2;;count*=2){
-    const boundarySamples=sampleSharedBoundaries(edges,count);
-    const candidate=sampleTessellationCandidate(shell.patches,edges,boundarySamples,count);
-    if(candidate.sampledErrorMm>toleranceMm){
-      requireThat(candidate.sampledErrorMm<previousError*0.9,'Spline tessellation stops improving before it reaches toleranceMm; the shell needs a coarser tolerance or simpler patches.');
-      previousError=candidate.sampledErrorMm;
-    }else{
-      const orientedTriangles=orientTriangles(candidate.vertices,candidate.triangles);
-      return {...makeMesh(candidate.vertices,orientedTriangles),tessellation:{toleranceMm,sampledErrorMm:candidate.sampledErrorMm,steps:count}};
-    }
+  // doubling that no longer reduces that error will never reach it, so the
+  // closer of the last two grids is kept and its error noted.
+  for(let count=2,previous=null;;count*=2){
+    const candidate={...sampleTessellationCandidate(shell.patches,edges,sampleSharedBoundaries(edges,count),count),steps:count};
+    if(candidate.sampledErrorMm<=toleranceMm)return tessellationMesh(candidate,toleranceMm);
+    if(previous&&candidate.sampledErrorMm>=previous.sampledErrorMm*0.9)return tessellationMesh(candidate.sampledErrorMm<previous.sampledErrorMm?candidate:previous,toleranceMm);
+    previous=candidate;
   }
+}
+
+function tessellationMesh({vertices,triangles,sampledErrorMm,steps},toleranceMm){
+  const notes=sampledErrorMm>toleranceMm?[`Spline tessellation stopped improving at ${sampledErrorMm.toFixed(6)} mm against a ${toleranceMm} mm tolerance; the closest mesh is used.`]:[];
+  return {...makeMesh(vertices,orientTriangles(vertices,triangles)),tessellation:{toleranceMm,sampledErrorMm,steps},notes};
 }
 
 function sampleSharedBoundaries(edges,count){
@@ -41,11 +47,11 @@ function sampleSharedBoundaries(edges,count){
     curves.set(edge,{points,parameters:points.map((_,i)=>i/count)});paired.add(edge);
     if(edge.degenerate)continue;
     const partner=edges.find(other=>other!==edge&&!paired.has(other)&&!other.degenerate&&
-      [0,0.25,0.5,0.75,1].every(t=>distance(curvePoint(other.curve,closest(other.curve,curvePoint(edge.curve,t))),curvePoint(edge.curve,t))<1e-5));
-    requireThat(partner,'Could not match spline boundaries for text tessellation.');
+      [0,0.25,0.5,0.75,1].every(t=>distance(curvePoint(other.curve,closest(other.curve,curvePoint(edge.curve,t))),curvePoint(edge.curve,t))<PRINT_RESOLUTION_MM));
+    requireThat(partner,'Could not match spline boundaries for tessellation.');
     // Both ends of a closed curve are one point, so a point just past the start
     // decides whether the partner runs the same way.
-    const closed=distance(curvePoint(partner.curve,0),curvePoint(partner.curve,1))<1e-7;
+    const closed=distance(curvePoint(partner.curve,0),curvePoint(partner.curve,1))<PRINT_RESOLUTION_MM;
     const forward=closed?closest(partner.curve,curvePoint(edge.curve,0.1))<0.5:distance(points[0],curvePoint(partner.curve,0))<distance(points.at(-1),curvePoint(partner.curve,0));
     const ordered=forward?points:[...points].reverse(),parameters=ordered.map(p=>closest(partner.curve,p));
     if(closed){parameters[0]=0;parameters[count]=1;}
@@ -57,7 +63,8 @@ function sampleSharedBoundaries(edges,count){
 function sampleTessellationCandidate(patches,edges,boundarySamples,count){
   const vertices=[],triangles=[],index=new Map();let error=0;
   const vertex=p=>{
-    const key=p.map(v=>Math.round(v/1e-7)).join(',');
+    // Welds one point computed twice (shared boundary samples): a rounding grid.
+    const key=p.map(v=>Math.round(v/ROUNDING_MM)).join(',');
     if(!index.has(key)){index.set(key,vertices.length);vertices.push(p);}
     return index.get(key);
   };
@@ -97,7 +104,7 @@ function orientTriangles(vertices,sourceTriangles){
   const triangles=sourceTriangles.map(triangle=>[...triangle]);
   const edges=new Map();
   triangles.forEach((t,i)=>t.forEach((a,j)=>{const b=t[(j+1)%3],key=[Math.min(a,b),Math.max(a,b)].join(':');if(!edges.has(key))edges.set(key,[]);edges.get(key).push({i,sign:a<b?1:-1});}));
-  requireThat([...edges.values()].every(e=>e.length===2),'Spline tessellation has unmatched edges; this shell needs a conforming mesh before text modification.');
+  requireThat([...edges.values()].every(e=>e.length===2),'Spline tessellation has unmatched edges; solid operations need a conforming mesh.');
   const adjacent=triangles.map(()=>[]);
   for(const [a,b] of edges.values()){adjacent[a.i].push([b.i,-a.sign*b.sign]);adjacent[b.i].push([a.i,-a.sign*b.sign]);}
   const signs=new Map();

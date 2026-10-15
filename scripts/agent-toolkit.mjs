@@ -45,7 +45,7 @@ export async function runCLI(args=process.argv.slice(2),{write=value=>console.lo
     if(command.endsWith('-onboarding'))output.result=await onboarding({role:command.replace('-onboarding',''),areas:v.area,machine:v.machine,set:v.set});
     else if(command==='context-budget')output.result=await contextBudget(root,v.machine?{machineIds:v.machine}:{});
     else if(command==='read-skill')output.result=await readSkill(positionals[0],v);
-    else if(command==='read-guidance')output.result=await contextPacket([positionals[0]],{machineId:v.machine,all:v.all,headings:true});
+    else if(command==='read-guidance')output.result=await contextPacket([positionals[0]],{machineId:v.machine,all:v.all,headings:true,markers:true});
     else if(command==='read-map')output.result={maps:await readMaps([positionals[0]],v)};
     else if(command==='regenerate')output.result=await regenerateMap(positionals[0],v);
     write({ok:true,event:'result',command,...output.result});

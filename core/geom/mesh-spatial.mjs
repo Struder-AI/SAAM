@@ -1,7 +1,8 @@
 // Geometry-only triangle index shared by explicit mesh repair and its checks.
 import {subtract as sub,dot,cross} from './tolerance.mjs';
-import {separatedTriangles} from './mesh.mjs';
-import {NUMERIC_MM} from '../dimensions.mjs';
+import {separatedTriangles,MESH_DEGENERATE_MM2} from './mesh.mjs';
+import {nearestBoxQuery,triangleBoxes} from './triangle-bvh.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 export function closestTrianglePoint(p,a,b,c) {
   const ab=sub(b,a),ac=sub(c,a),ap=sub(p,a),d1=dot(ab,ap),d2=dot(ac,ap);
@@ -22,11 +23,14 @@ export function closestTrianglePoint(p,a,b,c) {
 }
 
 // Closed triangle intersection, excluding only the actual shared vertex/edge.
-// Coplanar overlap uses projected segment and containment tests.
+// Coplanar overlap uses projected segment and containment tests. Like the mesh contract
+// (mesh.mjs) it certifies with rounding guards: a distance (mm) for coplanar, touching
+// and inside, and a dimensionless one for the segment crossing solve of noncoplanar
+// pairs.
 export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(!sharedPoints.length)return !separatedTriangles(pa,pb);
-  const eps=NUMERIC_MM,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
-  if(length<1e-12)return true;
+  const eps=ROUNDING_MM,slack=ROUNDING_RELATIVE,n=cross(sub(pa[1],pa[0]),sub(pa[2],pa[0])),length=Math.hypot(...n);
+  if(length<MESH_DEGENERATE_MM2)return true;
   const normal=n.map(v=>v/length),dist=pb.map(p=>dot(sub(p,pa[0]),normal));
   if(dist.every(d=>d>eps)||dist.every(d=>d< -eps))return false;
   const allowed=p=>sharedPoints.some(q=>Math.hypot(...sub(p,q))<=eps);
@@ -40,7 +44,8 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
   if(sharedPoints.length===1){const other=dist.filter((_,i)=>!allowed(pb[i]));if(other.every(d=>d>eps)||other.every(d=>d< -eps))return false;}
   if(coplanar){
     const axis=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),project=p=>p.filter((_,k)=>k!==axis),a=pa.map(project),b=pb.map(project);
-    const orient=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
+    // Signed distance (mm) of c from the projected line ab.
+    const orient=(a,b,c)=>((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))/(Math.hypot(b[0]-a[0],b[1]-a[1])||1);
     const strictInside=(p,t)=>{const s=t.map((a,i)=>orient(a,t[(i+1)%3],p));return s.every(v=>v>eps)||s.every(v=>v< -eps);};
     if(a.some(p=>strictInside(p,b))||b.some(p=>strictInside(p,a)))return true;
     // Centroids cover identical triangles and coincident edges on the same side.
@@ -60,10 +65,11 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
     // reach an opposite edge. Testing incident edges merely rediscovers the
     // shared endpoint with ill-conditioned barycentrics near parallel planes.
     if(sharedPoints.length===1&&(allowed(p)||allowed(q)))return false;
-    const e1=sub(t[1],t[0]),e2=sub(t[2],t[0]),d=sub(q,p),h=cross(d,e2),det=dot(e1,h);if(Math.abs(det)<1e-12)return false;
-    const s=sub(p,t[0]),u=dot(s,h)/det;if(u< -eps||u>1+eps)return false;
-    const r=cross(s,e1),v=dot(d,r)/det;if(v< -eps||u+v>1+eps)return false;
-    const f=dot(e2,r)/det;if(f< -eps||f>1+eps)return false;
+    // Rounding guard: a segment within this sine of the triangle plane runs parallel to it.
+    const e1=sub(t[1],t[0]),e2=sub(t[2],t[0]),d=sub(q,p),h=cross(d,e2),det=dot(e1,h);if(Math.abs(det)<=slack*Math.hypot(...e1)*Math.hypot(...e2)*Math.hypot(...d))return false;
+    const s=sub(p,t[0]),u=dot(s,h)/det;if(u< -slack||u>1+slack)return false;
+    const r=cross(s,e1),v=dot(d,r)/det;if(v< -slack||u+v>1+slack)return false;
+    const f=dot(e2,r)/det;if(f< -slack||f>1+slack)return false;
     const hit=p.map((x,k)=>x+f*d[k]);
     // In a noncoplanar pair sharing an edge, the planes meet only on that edge.
     if(sharedPoints.length===2)return false;
@@ -72,34 +78,43 @@ export function trianglesContact(pa,pb,sharedPoints=[]) {
   return pa.some((p,i)=>edgeHit(p,pa[(i+1)%3],pb))||pb.some((p,i)=>edgeHit(p,pb[(i+1)%3],pa));
 }
 
-export function checkAdjacentContacts({vertices,triangles}) {
-  const incident=vertices.map(()=>[]);triangles.forEach((t,i)=>t.forEach(v=>incident[v].push(i)));
+// Adjacent triangles that fold onto each other beyond their shared vertex or edge are
+// reported, not refused: a section absorbs the zero-width fold.
+export function adjacentContacts({vertices,triangles}) {
+  const incident=vertices.map(()=>[]),contacts={count:0,pairs:[]};triangles.forEach((t,i)=>t.forEach(v=>incident[v].push(i)));
   for(const [i,t]of triangles.entries())for(const j of new Set(t.flatMap(v=>incident[v]))){
     if(j<=i)continue;const other=triangles[j],shared=t.filter(v=>other.includes(v)).map(v=>vertices[v]);
-    if(trianglesContact(t.map(v=>vertices[v]),other.map(v=>vertices[v]),shared))throw new Error('Repair has intersecting adjacent triangles beyond their shared vertex or edge.');
+    if(trianglesContact(t.map(v=>vertices[v]),other.map(v=>vertices[v]),shared)){contacts.count++;if(contacts.pairs.length<20)contacts.pairs.push([i,j]);}
   }
+  return contacts;
 }
 
+// Nearest surface point queries over triangles given as index triples.
 export function triangleIndex(vertices,triangles) {
-  const boxes=triangles.map((t,i)=>({i,min:[0,1,2].map(k=>Math.min(...t.map(v=>vertices[v][k]))),max:[0,1,2].map(k=>Math.max(...t.map(v=>vertices[v][k])))}));
-  function build(items) {
-    const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
-    for(const b of items)for(let k=0;k<3;k++){min[k]=Math.min(min[k],b.min[k]);max[k]=Math.max(max[k],b.max[k]);}
-    if(items.length<=12)return {min,max,items};
-    const spans=max.map((v,k)=>v-min[k]),axis=spans.indexOf(Math.max(...spans));
-    items.sort((a,b)=>a.min[axis]+a.max[axis]-b.min[axis]-b.max[axis]);
-    const middle=items.length>>1;return {min,max,left:build(items.slice(0,middle)),right:build(items.slice(middle))};
-  }
-  const root=build(boxes);
-  const boxDistance=(p,b)=>p.reduce((s,v,k)=>s+Math.max(b.min[k]-v,0,v-b.max[k])**2,0);
+  const boxes=triangleBoxes(vertices,triangles),query=nearestBoxQuery(boxes),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+  for(let i=0;i<triangles.length;i++)for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],boxes[6*i+k]);bounds.max[k]=Math.max(bounds.max[k],boxes[6*i+3+k]);}
   function nearest(p) {
-    let distance2=Infinity,point=null;
-    function visit(b){
-      if(boxDistance(p,b)>distance2)return;
-      if(b.items){for(const item of b.items){if(boxDistance(p,item)>distance2)continue;const q=closestTrianglePoint(p,...triangles[item.i].map(i=>vertices[i]));const d=dot(sub(p,q),sub(p,q));if(d<distance2){distance2=d;point=q;}}}
-      else {const first=boxDistance(p,b.left)<boxDistance(p,b.right)?b.left:b.right;visit(first);visit(first===b.left?b.right:b.left);}
-    }
-    visit(root);return {point,distance:Math.sqrt(distance2)};
+    let point=null,best=Infinity;
+    query(p,i=>{const q=closestTrianglePoint(p,...triangles[i].map(v=>vertices[v])),d=dot(sub(p,q),sub(p,q));if(d<best){best=d;point=q;}return d;});
+    return {point,distance:Math.sqrt(best)};
   }
-  return {nearest,bounds:{min:root.min,max:root.max}};
+  return {nearest,bounds};
+}
+
+// A convex quadrilateral is split by its old/new diagonal, projected along both
+// faces' normals summed so a flat sliver projects through its neighbour. A sliver
+// corner exactly on the old diagonal is the limit case. Their projected intersection induces four paired affine triangles. Only the two lifted centre
+// points differ, so their distance bounds the entire old/new patch. Comparing its
+// square to the remaining reference allowance is exact; the displayed value rounds
+// upward before subsequent edits consume it, so it cannot reset the budget.
+export function diagonalPatchBound(xyz,exact,h,t,v,w,allowanceMm){
+  if(!(allowanceMm>0))return null;
+  const subtractExact=(a,b)=>a.map((x,k)=>x-b[k]),normSquaredExact=v=>v.reduce((s,x)=>s+x*x,0n),exactRatio=(a,b)=>{if(a===0n)return 0;const sa=Math.max(0,a.toString(2).length-53),sb=Math.max(0,b.toString(2).length-53);return Number(a>>BigInt(sa))/Number(b>>BigInt(sb))*2**(sa-sb);};
+  const [H,T,V,W]=[h,t,v,w].map(exact.vertex),u=subtractExact(T,H),z=subtractExact(W,V),r=subtractExact(V,H),A=3*h,B=3*t,C=3*v,D=3*w,ux=xyz[B]-xyz[A],uy=xyz[B+1]-xyz[A+1],uz=xyz[B+2]-xyz[A+2],vx=xyz[C]-xyz[A],vy=xyz[C+1]-xyz[A+1],vz=xyz[C+2]-xyz[A+2],wx=xyz[D]-xyz[A],wy=xyz[D+1]-xyz[A+1],wz=xyz[D+2]-xyz[A+2],normal=[uy*vz-uz*vy+wy*uz-wz*uy,uz*vx-ux*vz+wz*ux-wx*uz,ux*vy-uy*vx+wx*uy-wy*ux],drop=normal.map(Math.abs).indexOf(Math.max(...normal.map(Math.abs))),i=(drop+1)%3,j=(drop+2)%3;
+  const cross=(a,b)=>a[i]*b[j]-a[j]*b[i];let d=cross(u,z),a=cross(r,z),b=cross(r,u);
+  if(d<0n){d=-d;a=-a;b=-b;}if(d===0n||a<=0n||a>=d||b<0n||b>d)return null;
+  const delta=H.map((x,k)=>(x-V[k])*d+u[k]*a-z[k]*b),square=normSquaredExact(delta),allowance=exact.number(allowanceMm),bound=allowance*allowance*d*d;
+  if(square>=bound)return null;
+  const distance=allowanceMm*Math.sqrt(exactRatio(square,bound));
+  return square===0n?0:distance+Math.max(Number.MIN_VALUE,Math.abs(distance)*2**-48);
 }

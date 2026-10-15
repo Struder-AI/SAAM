@@ -1,26 +1,30 @@
 // Workspace factories receive construction operations, never Bundle/Studio/export authority.
 import {listExtensions,resolveExtensions,loadExtensionEntry} from './library.mjs';
-import {loftPolygons} from '../geom/loft.mjs';
-import {clipLineToRegion} from '../geom/curve-region.mjs';
+import {geometryOperations} from '../geom/operations.mjs';
 import {recipeDefaults} from '../print/plan.mjs';
 import {curveAssignment} from '../print/curves.mjs';
 
 export const workspaceIdentity=resolved=>{
   const selected=resolved.at(-1);
   return {id:selected.id,digest:selected.digest,origin:selected.origin,
+    credits:structuredClone(selected.manifest.credits??[]),support:structuredClone(selected.manifest.support??null),
     dependencies:resolved.slice(0,-1).map(({id,digest})=>({id,digest}))};
 };
 export async function listWorkspaces(options={}){
-  return (await listExtensions(options)).filter(item=>item.manifest.kind==='workspace')
+  return (await listExtensions(options)).extensions.filter(item=>item.manifest.kind==='workspace')
     .map(({id,digest,origin,manifest})=>({id,digest,origin,kind:'workspace',workspace:manifest.workspace,dependencies:manifest.dependencies,manual:`extensions/${id}/SKILL.md`}));
 }
 export async function loadWorkspaceRuntime(extensionId,options={}){
   const resolved=await resolveExtensions([extensionId],options),selected=resolved.at(-1);
   if(selected.manifest.kind!=='workspace')throw Error(`Extension ${extensionId} is not a workspace.`);
   const create=await loadExtensionEntry(extensionId,'workspace-runtime',options);
+  const Geometry=await geometryOperations();
+  const compileText=selected.manifest.dependencies.some(dependency=>dependency.id==='text')
+    ?await loadExtensionEntry('text','geometry-compile',options):null;
   const definition=await create(Object.freeze({
-    Geometry:Object.freeze({loftPolygons,clipLineToRegion}),
-    Toolpath:Object.freeze({recipeDefaults,curveAssignment})
+    Geometry,
+    Toolpath:Object.freeze({recipeDefaults,curveAssignment}),
+    Extensions:Object.freeze(compileText?{text:Object.freeze({compileText})}:{})
   }));
   for(const name of ['normalize','preview','pieces','construct'])
     if(typeof definition?.[name]!=='function')throw Error(`Workspace ${extensionId} needs ${name}.`);
@@ -30,7 +34,7 @@ export async function loadWorkspaceRuntime(extensionId,options={}){
 }
 export async function requireWorkspaceCurrent(extension,options={}){
   const current=workspaceIdentity(await resolveExtensions([extension.id],options));
-  if(JSON.stringify(current)!==JSON.stringify(extension))throw Error(`Workspace ${extension.id} changed while open. Restart SAAM to use the selected extension.`);
+  if(JSON.stringify(current)!==JSON.stringify(extension))throw Error(`Workspace ${extension.id} changed while open; its new scripts load after \`saam reload-runtime\`.`);
 }
 export function workspacePieces(value){
   if(!Array.isArray(value)||!value.length)throw Error('A workspace must supply at least one printable piece.');

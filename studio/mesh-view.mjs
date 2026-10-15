@@ -1,9 +1,13 @@
 import {add,subtract,scale,dot,normalize} from '../core/private/studio/numeric.mjs';
 import {length} from '../core/private/studio/numeric.mjs';
 import {materialProjection} from './material-view.mjs';
+// Projected-depth bias (not millimetres): a mark on a face counts as in front of it.
+const DEPTH_BIAS=1e-7;
 
 // Display creases, not tessellation. Weld coincident proxy vertices for edge
 // adjacency without changing the source mesh or the geometry used for slicing.
+// Display only: the guards and depth slacks in this file serve shading, picking
+// and hidden-edge drawing in screen units; they never reach geometry or programs.
 export function buildMeshView({vertices,faces},creaseDeg=3) {
   const ids=new Map(),weld=vertices.map(p=>{
     const key=p.map(v=>Math.round(v*1e7)).join(',');
@@ -115,10 +119,43 @@ function faceAt(view,points,x,y){
   }
   return {id:hit,depth:closest};
 }
+// Screen-space visibility for authored curves and points. The same triangle-depth
+// interpolation as picking decides occlusion; bins keep curve samples local.
+export function geometryAnnotationView(view,project,width,height){
+  if(!view.geometry.curves?.length&&!view.geometry.points?.length)return {curves:[],points:[]};
+  const vertices=view.geometry.vertices.map(project),tile=32,columns=Math.max(1,Math.ceil(width/tile)),rows=Math.max(1,Math.ceil(height/tile)),bins=new Map();
+  for(const triangle of view.triangles){
+    const points=triangle.indices.map(i=>vertices[i]);
+    const x0=Math.max(0,Math.floor(Math.min(...points.map(p=>p[0]))/tile)),x1=Math.min(columns-1,Math.floor(Math.max(...points.map(p=>p[0]))/tile));
+    const y0=Math.max(0,Math.floor(Math.min(...points.map(p=>p[1]))/tile)),y1=Math.min(rows-1,Math.floor(Math.max(...points.map(p=>p[1]))/tile));
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const key=y*columns+x,list=bins.get(key);if(list)list.push(triangle);else bins.set(key,[triangle]);}
+  }
+  const opacity=p=>{
+    if(p[0]<0||p[0]>=width||p[1]<0||p[1]>=height)return 1;
+    const triangles=bins.get(Math.floor(p[1]/tile)*columns+Math.floor(p[0]/tile))??[];
+    return p[2]+DEPTH_BIAS<faceAt({triangles},vertices,p[0],p[1]).depth?0.25:1;
+  };
+  const curves=[];
+  for(const curve of view.geometry.curves??[])for(let i=1;i<curve.points.length;i++){
+    const a=project(curve.points[i-1]),b=project(curve.points[i]),delta=b.map((v,k)=>v-a[k]);let lo=0,hi=1;
+    for(const [axis,extent]of [[0,width],[1,height]]){
+      if(delta[axis]===0){if(a[axis]<0||a[axis]>extent)hi=-1;continue;}
+      const t0=-a[axis]/delta[axis],t1=(extent-a[axis])/delta[axis];lo=Math.max(lo,Math.min(t0,t1));hi=Math.min(hi,Math.max(t0,t1));
+    }
+    if(hi<lo)continue;
+    const at=t=>a.map((v,k)=>v+t*delta[k]),count=Math.max(1,Math.ceil(Math.hypot(delta[0],delta[1])*(hi-lo)/4));let run=null;
+    for(let j=0;j<count;j++){
+      const from=at(lo+(hi-lo)*j/count),to=at(lo+(hi-lo)*(j+1)/count),alpha=opacity(at(lo+(hi-lo)*(j+.5)/count));
+      if(run&&run.opacity===alpha)run.to=to;else{run={id:curve.id,from,to,opacity:alpha};curves.push(run);}
+    }
+  }
+  return {curves,points:(view.geometry.points??[]).map(record=>{const point=project(record.point);return {...record,point,opacity:opacity(point)};})};
+}
+
 export function pickGeometry(view,project,x,y,{edges=false,radius=6}={}){
   const points=view.geometry.vertices.map(project);
   const face=faceAt(view,points,x,y),spatial={distance:radius*radius,depth:face.depth,id:null};
-  const consider=(p,id,distance)=>{if(distance<=spatial.distance&&p[2]>=face.depth-1e-7){spatial.distance=distance;spatial.depth=p[2];spatial.id=id;}};
+  const consider=(p,id,distance)=>{if(distance<=spatial.distance&&p[2]>=face.depth-DEPTH_BIAS){spatial.distance=distance;spatial.depth=p[2];spatial.id=id;}};
   for(const entry of view.geometry.points??[]){const p=project(entry.point);consider(p,entry.id,(p[0]-x)**2+(p[1]-y)**2);}
   for(const curve of view.geometry.curves??[])for(let i=1;i<curve.points.length;i++){
     const a=project(curve.points[i-1]),b=project(curve.points[i]),dx=b[0]-a[0],dy=b[1]-a[1],d=dx*dx+dy*dy;
@@ -133,7 +170,7 @@ export function pickGeometry(view,project,x,y,{edges=false,radius=6}={}){
       if(squared<1e-10)continue;
       const t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/squared)),px=a[0]+t*dx,py=a[1]+t*dy,distance=(px-x)**2+(py-y)**2,depth=a[2]+t*(b[2]-a[2]);
       if(distance>nearest+1e-8||distance>=nearest-1e-8&&depth<front)continue;
-      if(depth+1e-7<faceAt(view,points,px,py).depth)continue;
+      if(depth+DEPTH_BIAS<faceAt(view,points,px,py).depth)continue;
       nearest=distance;front=depth;hit=edge.id;
     }
     if(hit)return hit;
@@ -146,7 +183,7 @@ export function visibleGeometryEdgeSegments(view,project,id){
   for(const pair of edge.segments){
     const [a,b]=pair.map(i=>points[i]),count=Math.max(1,Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/6));
     const point=t=>a.map((v,k)=>v+t*(b[k]-v));
-    for(let i=0;i<count;i++){const middle=point((i+.5)/count);if(middle[2]+1e-7>=faceAt(view,points,middle[0],middle[1]).depth)visible.push([point(i/count),point((i+1)/count)]);}
+    for(let i=0;i<count;i++){const middle=point((i+.5)/count);if(middle[2]+DEPTH_BIAS>=faceAt(view,points,middle[0],middle[1]).depth)visible.push([point(i/count),point((i+1)/count)]);}
   }
   return visible;
 }

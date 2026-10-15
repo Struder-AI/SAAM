@@ -3,10 +3,10 @@
 Mesh repair is preparation work; accepted geometry returns to the
 [import and review workflow](../../core/print/USAGE.md#import-an-stl).
 
-Ordinary imports validate first, then repair recognized defects without proximity
-merging or hole filling. They retain original/repaired STL and a report. Imports
-are cancellable; progress names stages, not an ETA. Use explicit repair below to
-request tolerance-based vertex merging, diagnosis or bounded hole filling.
+Ordinary imports normalize source vertices below print resolution, then validate and repair recognized defects.
+Approved hole limits are a 2 mm boundary bounding-box diagonal and 500 edges; larger openings are refused.
+Original/repaired STL and reports are retained. Imports are cancellable; progress names stages, not an ETA.
+Explicit repair adds a larger vertex-merge tolerance, diagnosis or chosen hole bounds.
 
 | Finding | Operation |
 |---|---|
@@ -27,13 +27,13 @@ accept a partial result.
 `outputDirectory` whose parent exists, `units` (`mm` or `inch`) and the limits
 below. Success writes
 `original.stl` (the source bytes), `repaired.stl` (validated, in millimetres) and
-`repair.json` (hashes, bounds, cleanup and native results, unchanged and changed
+`repair.json` (hashes, bounds, cleanup and repair results, unchanged and changed
 face counts, merge displacement and sampled shape evidence). Failure publishes
-nothing; source bytes stay unchanged. Only native fallback needs [CGAL setup](../../core/geom/native/README.md).
+nothing; source bytes stay unchanged.
 
 | Option | Meaning |
 |---|---|
-| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 means exact duplicates only. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
+| `mergeToleranceMm` | Opt-in nearest-retained vertex merging in mm, such as 0.01; default 0 merges only vertices closer than print resolution, as every import does. See [merge semantics](../../core/geom/README.md#explicit-mesh-repair). |
 | `maxHoleEdges` | Maximum edges in a boundary to fill; default 0 disables filling. |
 | `maxHoleDiameterMm` | Maximum boundary bounding-box diagonal in mm; default 0. Both limits must be positive to fill. |
 | `maxSampledDistanceMm` | Reject results exceeding this sampled two-way shape change; sampling is not a certified bound. |
@@ -47,7 +47,7 @@ units **mm** and review it.
 
 [The repair entry](../../core/print/repair-stl.mjs) owns orchestration and files;
 [the geometry reference](../../core/geom/README.md#explicit-mesh-repair) owns the
-cleanup, stitching, CGAL 6.2.1 solid reconstruction and sheet closing
+cleanup, stitching, solid reconstruction and sheet closing
 and the [memory contract](../../core/geom/README.md#memory-files-and-progress).
 
 `repairSTLFiles(directory, source, options)` takes an STL path or bytes; prefer

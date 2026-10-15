@@ -25,24 +25,21 @@ than extensions in the home's extensions folder, needs a source checkout.
 | Author extensions, guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
+| Update SAAM | Tell the person that **Update** in Studio or the tray menu is the supported way; reinstall only if they still ask |
 
 Onboarding supplies the whole starting context, once per session. Without commands,
 read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md).
 
 ## Using the saam command
 
-The installed `saam` command makes parts, opens Studio and starts the tour;
-[application commands](core/application/README.md) own chat attachment, tours,
-Studio, waits, jobs and the SAAM home. `saam help` lists operations and
-`saam help OPERATION` describes one. Pass JSON through stdin or `--input FILE`,
-because Windows PowerShell 5.1 changes quoted JSON arguments.
+Use `saam` directly, one command per call; never `dev-instance.mjs` or a shell wrapper.
+[Application commands](core/application/README.md) own Studio, chat, tours and jobs; `saam help OPERATION` owns schemas.
+Prefer workspace `--input FILE` or directly supplied stdin; remember the `saam` prefix, not operations, filenames or bundle IDs.
 
-The command sends the client's session ID when available. If a response supplies
-a chat ID, retain it for this chat and pass `--chat-id ID` on every later command.
-Naming an existing print attaches to its open Studio when available. Respect
-Bundle reservations and request IDs. Show intermediate edits; use the returned
-`workRequest` to hand work back when finished, needing discussion, or receiving
-a user interjection.
+The command sends the client's session ID when available. Retain a returned chat
+ID and pass `--chat-id ID` on later commands. Naming a print attaches to its open
+Studio when available. Respect Bundle reservations and request IDs; show edits
+and hand back the returned `workRequest` when finished, needing discussion or interrupted.
 
 Follow [client queue monitoring](core/application/README.md#client-queue-monitoring)
 and a tour's returned participation context. Commands ending and browser tabs

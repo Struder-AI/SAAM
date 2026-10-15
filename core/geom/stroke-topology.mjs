@@ -1,6 +1,7 @@
 import {offsetPaths} from '../region/clipper.mjs';
 import {cross,dot,requireThat} from './tolerance.mjs';
 import {validateDirectionPair} from './frame.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 // One footprint construction for topology queries and physical planar strokes.
 // Keep source order and Math.round's grid convention; do not canonicalize loops.
@@ -13,7 +14,7 @@ function strokeFootprint(strokes,radius,scale,arcTolerance){
 }
 
 // Round-capped, round-joined footprints of coplanar XYZ centerlines, in mm.
-// The supplied unit frame sets the fixed 0.001 mm rounding grid. Native handles
+// The supplied unit frame sets the fixed rounding grid at print resolution. Native handles
 // stay inside Clipper; output keeps its contour order and includes no bead data.
 export function widenPlanarStrokes(strokes,radiusMm,{origin,xAxis,normal,arcToleranceMm}){
   requireThat(Array.isArray(origin)&&origin.length===3&&origin.every(Number.isFinite),'Stroke origin must be a finite XYZ point.');
@@ -22,7 +23,7 @@ export function widenPlanarStrokes(strokes,radiusMm,{origin,xAxis,normal,arcTole
   requireThat(Array.isArray(strokes)&&strokes.every(stroke=>Array.isArray(stroke.points)&&stroke.points.length>=2&&stroke.points.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite))),'Planar strokes need finite XYZ centerlines.');
   const yAxis=cross(normal,xAxis),local=strokes.map(stroke=>({closed:stroke.closed,points:stroke.points.map(p=>{
     const v=p.map((n,i)=>n-origin[i]);
-    requireThat(Math.abs(dot(v,normal))<=1e-6,'Curved parallel strokes need physical surface offsets.');
+    requireThat(Math.abs(dot(v,normal))<=PRINT_RESOLUTION_MM,'Curved parallel strokes need physical surface offsets.');
     return [dot(v,xAxis),dot(v,yAxis)];
   })}));
   return strokeFootprint(local,radiusMm,1000,arcToleranceMm).filter(loop=>loop.length>=3)

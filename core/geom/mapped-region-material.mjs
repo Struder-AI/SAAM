@@ -1,0 +1,51 @@
+// Map bounded planar groups through an explicit layout and surface reference.
+// The caller chooses the groups, depth interval and mapping orientation.
+import {requireThat,distance,cross,normalize} from './tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {referenceSurface} from './reference-surface.mjs';
+import {union} from '../region/intersection.mjs';
+
+// Differencing step of an anchor frame: a tenth of print resolution, so the frame is the
+// tangent at the anchor itself, while far above rounding in the differenced direction.
+const FRAME_STEP_MM=PRINT_RESOLUTION_MM/10;
+
+// The layout's tangent frame at the anchor, applied rigidly to the whole group.
+function anchoredLayout(layout,a,anchor,mirror){
+  const h=FRAME_STEP_MM,dx=layout(a[0]+h,a[1]).map((v,i)=>(v-anchor[i])/h),length=Math.hypot(...dx);
+  const x=dx.map(v=>v/length),y=[-x[1],x[0]].map(v=>v*(mirror?-1:1));
+  return (u,v)=>anchor.map((p,i)=>p+(u-a[0])*x[i]+(v-a[1])*y[i]);
+}
+
+function layoutGroup(group,layout,mirror,toleranceMm){
+  const anchor=group.anchor?layout(...group.anchor):null;
+  const map=group.anchor?anchoredLayout(layout,group.anchor,anchor,mirror):layout;
+  const refine=(a,b,pa,pb,out)=>{
+    const m=a.map((v,i)=>(v+b[i])/2),pm=map(...m),chord=pa.map((v,i)=>(v+pb[i])/2);
+    requireThat(pm.every(Number.isFinite),'Baseline layout produced a non-finite point.');
+    if(distance(pm,chord)<=toleranceMm){out.push(pb);return;}
+    requireThat(m.some((v,i)=>v!==a[i])&&m.some((v,i)=>v!==b[i]),'Baseline layout reached the smallest representable step without meeting its chord tolerance.');
+    refine(a,m,pa,pm,out);refine(m,b,pm,pb,out);
+  };
+  const loops=group.loops.map(loop=>{const out=[];for(let i=0;i<loop.length;i++){const a=loop[i],b=loop[(i+1)%loop.length];refine(a,b,map(...a),map(...b),out);}return out;});
+  return {loops:union(loops,[]),anchor};
+}
+
+function mapper(reference,anchor){
+  if(anchor){
+    const e=reference(...anchor),h=FRAME_STEP_MM;
+    const right=reference(anchor[0]+h,anchor[1]),up=reference(anchor[0],anchor[1]+h);
+    const x=normalize(right.point.map((v,i)=>v-e.point[i])),n=e.normal;
+    let y=normalize(cross(n,x));if(y.reduce((sum,v,i)=>sum+v*(up.point[i]-e.point[i]),0)<0)y=y.map(v=>-v);
+    return ([a,b,z])=>e.point.map((v,i)=>v+(a-anchor[0])*x[i]+(b-anchor[1])*y[i]+z*n[i]);
+  }
+  return ([x,y,z])=>{const e=reference(x,y);return e.point.map((v,i)=>v+z*e.normal[i]);};
+}
+
+export function mappedRegionMaterial({groups,layout,mirror=false,reference:spec,lower,upper,normalSide=1},target,{toleranceMm,maxEdgeMm}){
+  const reference=referenceSurface(spec,target);
+  const solids=groups.map(group=>{
+    const placed=layoutGroup(group,layout,mirror,toleranceMm);
+    return {operation:'mapped-extrusion',loops:placed.loops,map:mapper(reference,placed.anchor),lower,upper,maxEdgeMm,toleranceMm,normalSide};
+  });
+  return solids.reduce((a,b)=>a?{operation:'union',operands:[a,b]}:b,null);
+}

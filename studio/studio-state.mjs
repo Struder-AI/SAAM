@@ -13,20 +13,23 @@ async function adoptProgramState(next,{presentation,decode,bind}){
       return {...next,program:presentation.program};
     }
     const decoded=await decode(shown);
-    // The drawn path supplies motion and playback time; the stored report the machine facts.
-    return {...next,program:{...decoded,...next.program,summary:decoded.summary}};
+    // The drawn path supplies motion and playback time; the stored report the machine facts
+    // (its moves is a count, never the drawn moves).
+    return {...next,program:{...decoded,...next.program,moves:decoded.moves,events:decoded.events,summary:decoded.summary}};
   }catch(error){
     const {program,...withoutProgram}=next;
     return {...withoutProgram,programViewError:'Could not load the saved toolpath view: '+error.message};
   }
 }
 
-async function adoptNeutralPath(next,{presentation,decodeNeutral}){
-  if(next.completedOutput||next.program||next.programViewError||next.artifacts?.path!=='current'||!next.review?.path)return next;
+async function adoptNeutralPath(next,{presentation,decodeNeutral,bind}){
+  if(next.completedOutput||next.program||next.programViewError||!next.review?.path)return next;
   const reusable=presentation?.identity.printId===next.printId
-    &&presentation.identity.pathId===next.review.path.id&&presentation.program?.neutral;
-  if(reusable)return {...next,neutralProgram:presentation.program};
-  try{return {...next,neutralProgram:await decodeNeutral(next)};}
+    &&presentation.identity.pathId===next.review.path.id&&presentation.identity.editRevision===next.editRevision&&presentation.program?.neutral;
+  try{
+    if(reusable){await bind?.({...next,outputId:next.review.path.id});return {...next,neutralProgram:presentation.program};}
+    return {...next,neutralProgram:await decodeNeutral(next)};
+  }
   catch(error){return {...next,neutralPathError:error.message};}
 }
 

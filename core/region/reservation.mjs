@@ -6,6 +6,7 @@ import {difference,intersect} from './intersection.mjs';
 import {levelSetCoverage,extractLevelSet} from '../geom/level-set.mjs';
 import {regionArea,pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {TOLERANCE} from '../geom/tolerance.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {sliceChartStep} from '../geom/slice.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
@@ -27,12 +28,12 @@ export function clipReservedSlice(region,slice,reserve,{sampleStepMm=.2}={}) {
 }
 
 function insideOrBoundary(point,region) {
-  return pointInRegion(point,region)||region.some(loop=>loop.some((a,i)=>pointSegmentDistance(point,a,loop[(i+1)%loop.length])<=TOLERANCE.point));
+  return pointInRegion(point,region)||region.some(loop=>loop.some((a,i)=>pointSegmentDistance(point,a,loop[(i+1)%loop.length])<=PRINT_RESOLUTION_MM));
 }
 
 function reservationFieldHeight({xs,ys,values},[x,y]) {
   const interval=(axis,value)=>{
-    if(!(value>=axis[0]-TOLERANCE.point&&value<=axis.at(-1)+TOLERANCE.point))throw Error('Reservation footprint extends beyond its sampled field.');
+    if(!(value>=axis[0]-PRINT_RESOLUTION_MM&&value<=axis.at(-1)+PRINT_RESOLUTION_MM))throw Error('Reservation footprint extends beyond its sampled field.');
     let low=0,high=axis.length-1;
     while(high-low>1){const mid=Math.floor((low+high)/2);if(axis[mid]<=value)low=mid;else high=mid;}
     return [low,Math.max(0,Math.min(1,(value-axis[low])/(axis[low+1]-axis[low])))];
@@ -56,7 +57,7 @@ function bounds(region){
 }
 function boundsOverlap(left,right){
   const a=bounds(left),b=bounds(right);
-  return [0,1].every(i=>Math.min(a.max[i],b.max[i])-Math.max(a.min[i],b.min[i])>TOLERANCE.point);
+  return [0,1].every(i=>Math.min(a.max[i],b.max[i])-Math.max(a.min[i],b.min[i])>PRINT_RESOLUTION_MM);
 }
 
 export function clipReservedRegion(region,z,reserve){
@@ -90,10 +91,10 @@ export function clipAboveSurface(region,z,surface){
   const uncovered=difference(region,footprint);
   let perimeter=0;
   for(const loop of region)for(let i=0;i<loop.length;i++)perimeter+=Math.hypot(loop[i][0]-loop[(i+1)%loop.length][0],loop[i][1]-loop[(i+1)%loop.length][1]);
-  if(!(Math.abs(regionArea(uncovered))<=TOLERANCE.point*Math.max(1,perimeter)))throw Error('Lower surface does not cover the consumer region; choose a covering deposited interface.');
+  if(!(Math.abs(regionArea(uncovered))<=PRINT_RESOLUTION_MM*Math.max(1,perimeter)))throw Error('Lower surface does not cover the consumer region; choose a covering deposited interface.');
   // Material must have a positive gap. At an exactly touching layer, floating
   // surface arithmetic must not create a near-zero sheet/offset contour.
-  const level=z-TOLERANCE.point;
+  const level=z-PRINT_RESOLUTION_MM;
   const covered=intersect(region,footprint),coverage=levelSetCoverage(surface.field,level);
   if(coverage==='all')return [];
   if(coverage==='none')return covered;
@@ -112,7 +113,7 @@ export function surfaceStroke({points2d,z,nominalHeightMm,widthMm,surface,closed
   requireThat(Number.isFinite(maxStepMm)&&maxStepMm>0&&Number.isFinite(toleranceMm)&&toleranceMm>0,'Invalid surface sampling limits.');
   requireThat(typeof surface?.topAt==='function','A lower surface needs a native topAt query.');
   const source=points2d.map(p=>p.slice(0,2));
-  if(closed&&Math.hypot(source[0][0]-source.at(-1)[0],source[0][1]-source.at(-1)[1])>TOLERANCE.point)source.push([...source[0]]);
+  if(closed&&Math.hypot(source[0][0]-source.at(-1)[0],source[0][1]-source.at(-1)[1])>PRINT_RESOLUTION_MM)source.push([...source[0]]);
   const sample=point=>{
     const raw=z-surfaceHeight(surface,...point);
     requireThat(raw>=-toleranceMm,'Horizontal stroke crosses above-surface clipping boundary; refine the surface sampling before generation.');
@@ -132,11 +133,11 @@ export function surfaceStroke({points2d,z,nominalHeightMm,widthMm,surface,closed
   // published surface, which no further subdivision can model.
   const split=(a,b)=>{
     const length=Math.hypot(b.point[0]-a.point[0],b.point[1]-a.point[1]);
-    if(length<=TOLERANCE.point)return;
+    if(length<=PRINT_RESOLUTION_MM)return;
     const probes=[0.25,0.5,0.75].map(t=>sample(a.point.map((v,i)=>v+(b.point[i]-v)*t)));
     const error=Math.max(...probes.map((p,i)=>Math.abs(p.gap-(a.gap+(b.gap-a.gap)*(i+1)/4))));
     if(length>maxStepMm||error>toleranceMm){
-      requireThat(length>2*TOLERANCE.point,'Lower-surface gap does not converge: the published surface steps within a coincident-point width of this stroke.');
+      requireThat(length>2*PRINT_RESOLUTION_MM,'Lower-surface gap does not converge: the published surface steps within a coincident-point width of this stroke.');
       split(a,probes[1]);split(probes[1],b);
     }
     else append(a,b,length,error);

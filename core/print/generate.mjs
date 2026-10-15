@@ -1,120 +1,113 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
-import {ASSIGNMENT_RECORDS,validateSelectedExtensionRecipe} from '../../skills/records.mjs';
-import {extensionDeposition,extensionResultDependencies,extensionSummary} from '../../skills/deposition.mjs';
+import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
+import {extensionDeposition,extensionSummary} from '../../skills/deposition.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
-// Ownership precedes construction; one dependency graph schedules shared courses
+// Ownership precedes construction; one dependency graph schedules shared deposition
 // and their finalized-material consumers.
 
-import {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
-import {saamPath} from '../path/saampath.mjs';
+import {PATH_CONTRACT} from '../path/dependencies.mjs';
+import {constructionPath} from '../path/construction-path.mjs';
 export {pathDependencies} from '../path/dependencies.mjs';
-import {planFinishing} from '../path/toolpath.mjs';
-import {createPlanningState,planFan,planningPath,planningResult} from '../path/planning.mjs';
-import {planOperation,validateOperationBatch,prepareOperationDependencies} from '../path/compose.mjs';
 import {filamentSelection,assignedFilaments} from '../machine/filaments.mjs';
-import {planarPolicy} from '../path/builder.mjs';
 import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
-import {planarRegionLayers} from '../geom/planar-region-layers.mjs';
-import {prepareContourSleeve} from '../geom/sleeve/contour-sleeve.mjs';
-import {difference,union,intersect} from '../region/intersection.mjs';
-import {regionArea,pointSegmentDistance} from '../region/region2d.mjs';
-import {horizontalSlice,sliceFamily} from '../geom/slice.mjs';
-import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {pointInjectionOperation} from '../path/injection.mjs';
-import {spiralFamilyCurve} from '../path/family-curves.mjs';
+import {geometryOperations} from '../geom/operations.mjs';
+import {injectionAssignment} from './injection.mjs';
+import {spiralStackCurve} from '../path/stack-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
-import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {traceResult} from './curves.mjs';
-import {contactCurveGaps} from '../path/contact-curves.mjs';
-import {depositedBeadSegments} from '../path/deposited-curves.mjs';
-import {prepareSliceRegionContext} from './slice-region-context.mjs';
-import {prepareSliceBoundaryFamily} from './slices.mjs';
+import {prepareSliceBoundaryStack} from "./slice-material.mjs";
+import {fillSliceRegion} from "./slices.mjs";
 import { compileRecipe, VERSION } from './plan.mjs';
 
-import {finalizedSliceResults} from './slice-deposition.mjs';
+import {finalizedSliceResults} from './construction.mjs';
 
-const extensionEngines={
-  Geometry:{planarRegionLayers,prepareContourSleeve,sampleCurveIntervals,difference,union,intersect,regionArea,pointSegmentDistance,horizontalSlice,sliceFamily,evaluateSurface},
-  Toolpath:{prepareSliceRegionContext,prepareSliceBoundaryFamily,pointInjectionOperation,assignmentFilament,
-    spiralFamilyCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult,contactCurveGaps,depositedBeadSegments}
-};
+async function extensionEngines(){return {
+  Geometry:await geometryOperations(),
+  MaterialRegions:{prepareSliceBoundaryStack},
+  Recipe:{assignmentFilament,injectionAssignment},
+  Toolpath:{fillSliceRegion,spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult}
+};}
 
 
+// A zero-length pass deposits nothing.
 function primeLineResult(plan){
   const p=plan.process.primeLine;if(p===null)return null;
-  const passes=p.passes??[p],region=[],strokes=[];
-  let lengthMm=0,volumeMm3=0,maxZ=0,maxWidth=0;
-  for(const pass of passes){
-    const [a,b]=[pass.startMm,pass.endMm],dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy),nx=-dy/length*pass.widthMm/2,ny=dx/length*pass.widthMm/2;
-    region.push([[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]]);
-    strokes.push({role:'prime-line',closed:false,points:[[...a,pass.zMm],[...b,pass.zMm]],speedMmS:pass.speedMmS,beadAreaMm2:pass.widthMm*pass.heightMm});
-    lengthMm+=length;volumeMm3+=length*pass.widthMm*pass.heightMm;maxZ=Math.max(maxZ,pass.zMm);maxWidth=Math.max(maxWidth,pass.widthMm);
-  }
-  return {id:'prime-line',report:{lengthMm,volumeMm3,passes:passes.length},operations:[{
-    // The sacrificial stroke is physically part of the first layer, so keep it
-    // in that layer's preview bucket instead of inventing an extra layer.
-    id:'prime-line:0',layerId:'planar:'+maxZ,phase:'prime',layer:0,rank:-1,after:[],order:'given',region,strokes,
-    travelPolicy:planarPolicy(region,{layerZ:maxZ,liftMm:plan.process.liftMm,maxCombMm:0,lineWidthMm:maxWidth}),clearanceZ:maxZ+plan.process.liftMm
-  }]};
+  const passes=(p.passes??[p]).filter(pass=>Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>0);
+  if(!passes.length)return null;
+  const region=passes.map(pass=>{
+    const [a,b]=[pass.startMm,pass.endMm],length=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])*pass.widthMm/length/2,ny=(b[0]-a[0])*pass.widthMm/length/2;
+    return [[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]];
+  });
+  const top=Math.max(...passes.map(pass=>pass.zMm));
+  return traceResult({id:'prime-line',filament:null,after:[]},{process:plan.process,report:{passes:passes.length},batches:[{
+    key:0,layerId:'planar:'+top,phase:'prime',layer:0,rank:-1,
+    curves:passes.map(pass=>({role:'prime-line',closed:false,points:[[...pass.startMm,pass.zMm],[...pass.endMm,pass.zMm]],beadWidthMm:pass.widthMm,heightMm:pass.heightMm,speedMmS:pass.speedMmS})),
+    widthMm:Math.max(...passes.map(pass=>pass.widthMm)),travel:{kind:'planar',region,zMm:top,maxCombMm:0}}]});
 }
 
 // Toolpath chooses which geometry its assignments need; Geometry resolves and
 // places those requests, including within-volumes in their owner's frame.
 export async function preparePathGeometry(plan) {
   plan=compileRecipe(plan).plan;
-  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map()};
+  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map(),geometryFailures:new Map()};
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
-  const named=[...new Set(plan.slices.assignments.filter(a=>a.part!==undefined&&a.preset!=='support').map(a=>a.part).filter(p=>p!==null&&!components.includes(p)))];
-  const assignments=plan.slices.assignments.filter(a=>!a.construction);
-  const requests=[{},...components.map(selection=>({selection})),...named.map(selection=>({selection}))];
-  const volumeSlots=new Map(assignments.map(assignment=>[assignment.id,assignment.within.map(volume=>{
-    if(volume.kind!=='geometry')return null;
-    const index=requests.length;requests.push({selection:assignment.part,geometry:volume.geometry});return index;
-  })]));
-  const values=await resolveGeometrySelections(plan.geometry,requests,{offset:[plan.placement.xMm,plan.placement.yMm,0]});
+  const requests=[{},...components.map(selection=>({selection}))];
+  const values=await resolveGeometrySelections(plan.geometry,requests);
   const placed=values[0],componentShells=plan.geometry.shape==='assembly'?new Map(components.map((id,i)=>[id,values[1+i]])):null;
-  const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true]),
-    ...named.map((part,i)=>[part,values[1+components.length+i],false])];
-  const volumes=new Map([...volumeSlots].map(([id,slots])=>[id,slots.map(index=>index===null?null:values[index])]));
-  return {placed,componentShells,shells,volumes};
+  const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true])],volumes=new Map(),geometryFailures=new Map();
+  // A selected component or within-volume belongs to its assignment. Resolve
+  // it at that boundary so the rest of the print retains its own geometry.
+  for(const assignment of plan.slices.assignments){
+    try{
+      if(assignment.part!==undefined&&assignment.part!==null&&!shells.some(([part])=>part===assignment.part)){
+        const [shell]=await resolveGeometrySelections(plan.geometry,[{selection:assignment.part}]);
+        shells.push([assignment.part,shell,false]);
+      }
+      if(assignment.construction)continue;
+      const selections=assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}));
+      const resolved=await resolveGeometrySelections(plan.geometry,selections),slots={index:0};
+      volumes.set(assignment.id,assignment.within.map(volume=>volume.kind==='geometry'?resolved[slots.index++]:null));
+    }catch(error){
+      if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
+      geometryFailures.set(assignment.id,error);
+    }
+  }
+  return {placed,componentShells,shells,volumes,geometryFailures};
 }
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export async function generateModelResults(plan,{placed,componentShells,shells,volumes,planningState,emittedIds=[]},onProgress) {
+export async function generateModelResults(plan,{placed,componentShells,shells,volumes,geometryFailures=new Map()},onProgress) {
+  if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  // An assembly construction with no component chosen uses the whole assembly.
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
-    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1],selected=assignmentPlan(plan,assignment);
-    if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent)requireThat(shell,'A surface family needs selected geometry.');
+    const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,onProgress,engines:extensionEngines,
+  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:await extensionEngines(),
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
-  const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction))];
-  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress,planningState,emittedIds});
+  const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source)];
+  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress});
   results.push(...sliced.results);
   if(sliced.summary)summary.slices=sliced.summary;
+  // Generation notes: what was not covered or failed, joining the print's limitations.
+  const notes=[...[...geometryFailures].map(([id,error])=>`${id} failed; it produces nothing. ${error.message}`),...extensions.notes,...sliced.notes];
+  if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
-  const families=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceFamily===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
-  if(Object.keys(families).length)summary.referenceFamilies=families;
-  if(families.roof){const roofs=families.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
+  const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
+  if(Object.keys(stacks).length)summary.referenceStacks=stacks;
+  if(stacks.roof){const roofs=stacks.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
   const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
-  return {results,summary,survey:null,shells,slicedSupports:sliced.supports,execution:sliced.execution};
-}
-
-export async function addComplementaryResults(plan,geometry,batch) {
-  const supports=batch.slicedSupports??[],results=[...batch.results],summary={...batch.summary};
-  if(supports.length)summary.supports=supports.map(r=>({id:r.id,...r.report}));
-  const completed=[...supports,...applyResultDependencies(results,await extensionResultDependencies(results,supports,extensionEngines))];
-  return {...batch,results:applyDeclaredDependencies(plan,completed),summary};
+  return {results,summary,survey:null,shells};
 }
 
 // The recipe's dependency declarations apply to every construction, including
-// ordinary slice families produced before their later-stage dependents.
+// ordinary slice stacks produced before their later-stage dependents.
 export function applyDeclaredDependencies(plan,results){
   const changes=[];
   for(const result of results){
@@ -161,7 +154,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.composition=null;
 
   summary.boundsMm = placed?.bounds??null;
-  summary.clearance = 'operator responsibility; no collision model implemented';
+  summary.clearance = 'Scheduler uses an effectively infinite 15 degree included-angle nozzle cone; carriage and machine mechanisms are unchecked.';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
     maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100
@@ -173,9 +166,9 @@ export const GENERATION_CONTRACT=PATH_CONTRACT;
 export function depositionInspection(results){
   const operations={};
   for(const result of results){
-    const family=result.familyId??result.report?.owner??result.id,kind=result.report?.depositionFamily??null;
+    const family=result.stackId??result.report?.owner??result.id,kind=result.report?.depositionFamily??null;
     if(!kind)continue;
-    const familyLayers=result.family?.layers??[];
+    const stackLayers=result.referenceStack?.layers??[];
     const traceLayers=kind==='trace'?[...new Set(result.operations.flatMap(operation=>{
       const layers=operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[]);
       return layers.length?layers:[operation.layer];
@@ -184,12 +177,12 @@ export function depositionInspection(results){
       const index=operation.layerIndex??operation.layer;
       const sourceLayers=new Set([operation.layer,...operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(segment=>segment.layer).filter(Number.isInteger)??[])]);
       const layers=Object.fromEntries([...sourceLayers].map(layer=>{
-        const ordinal=familyLayers.findIndex(reference=>reference.index===layer);
+        const ordinal=stackLayers.findIndex(reference=>reference.index===layer);
         const traceIndex=traceLayers.indexOf(layer);
         return [layer,{index:kind==='slice'&&ordinal>=0?ordinal:kind==='trace'&&operation.layerIndex===undefined?Math.max(0,traceIndex):index}];
       }));
       const changed=result.report?.modulation?.changedOperations?.includes(operation.id);
-      operations[operation.id]={family,kind,layers,referenceName:result.family?.name??null,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
+      operations[operation.id]={family,kind,layers,referenceName:result.referenceStack?.name??null,roles:[...new Set(operation.strokes.map(stroke=>stroke.role))],
         modifiers:changed?(result.report.modulation.operationModifiers?.[operation.id]??result.report.modulation.modifiers):[]};
     }
   }
@@ -199,19 +192,21 @@ export function depositionInspection(results){
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
   plan=compileRecipe(plan).plan;
   const authoredTemperatures=plannedNozzleTemperatures(plan);
-  await validateSelectedExtensionRecipe(plan,assignment=>assignmentPlan(plan,assignment).process);
-  const prepared=await preparePathGeometry(plan);
+  const validation=await validateSelectedExtensionRecipe(plan),failedIds=new Set(validation.failures.map(failure=>failure.assignment));
+  const usable=validation.failures.length?{...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!failedIds.has(assignment.id))},
+    skills:{...plan.skills,...(plan.skills?.['plastic-weld']?{'plastic-weld':{...plan.skills['plastic-weld'],sites:plan.skills['plastic-weld'].sites.filter(site=>!failedIds.has('plastic-weld:'+site.id))}}:{})}}:plan;
+  const geometry=await preparePathGeometry(usable);
+  const prepared={...geometry,geometryFailures:new Map([...validation.failures.map(failure=>[failure.assignment,Error(failure.message)]),...geometry.geometryFailures])};
+  plan=usable;
   const evaluated=modulations?{...plan,modulations}:plan;
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
-  const start=[plan.placement.xMm,plan.placement.yMm,(prepared.placed?.bounds.max[2]??0)+plan.process.liftMm];
-  const started=planFan(createPlanningState({start,process:plan.process,generatorVersion:VERSION,
-    selection:selections?.[defaultFilament]??null,selections}),0);
-  const prime=primeLineResult(plan),startup=prime?planOperation(started.state,prime.operations[0]):planningResult(started.state);
-  const model=await generateModelResults(evaluated,{...prepared,planningState:startup.state,emittedIds:prime?prime.operations.map(op=>op.id):[]},onProgress);
-  const complemented=await addComplementaryResults(evaluated,prepared,model);
-  const primed=prime?{...complemented,results:[prime,...complemented.results],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
+  const prime=primeLineResult(plan);
+  const model=await generateModelResults(evaluated,prepared,onProgress);
+  const complemented={...model,results:applyDeclaredDependencies(evaluated,model.results)};
+  const resultsWithPrime=prime?complemented.results.map(result=>({...result,operations:result.operations.map(operation=>({...operation,after:[...new Set([...prime.operations.map(op=>op.id),...(operation.after??[])])]}))})):complemented.results;
+  const primed=prime?{...complemented,results:[prime,...resultsWithPrime],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
   const {placed}=prepared,{results,survey}=primed,process=plan.process;
   const summary=summarizeGeneratedPath(placed,survey,primed.summary);
   summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
@@ -220,13 +215,8 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
     sliceMisses:results.reduce((sum,result)=>sum+(result.report.uncoveredContactSamples??0),0)};
   summary.inspection=depositionInspection(results);
   if(modulationPreparation.length)summary.modulationGeometry=modulationPreparation;
-  const execution=model.execution;
-  const order=[...(prime?prime.operations.map(op=>op.id):[]),...execution.summary.operationOrder],position=new Map(order.map((id,i)=>[id,i]));
-  const inventory=validateOperationBatch(results),prerequisites=prepareOperationDependencies(inventory.operations,inventory.byId,plan.composition);
-  for(const [id,after] of prerequisites)for(const predecessor of after)requireThat(position.has(predecessor)&&position.get(predecessor)<position.get(id),'Final dependency was not scheduled before '+id+': '+predecessor);
-  const finished=planFinishing(execution.state);
-  const path=planningPath(finished.state,[started.actions,startup.actions,execution.actions,finished.actions],{...summary,composition:{...execution.summary,operationOrder:order}});
-  for(const action of path.actions)if(action.kind==='temperature')
-    requireThat(authoredTemperatures.has(action.targetC),'Unplanned operation temperature.');
-  return saamPath({...path,completion:{contract:NEUTRAL_PATH_CONTRACT}});
+  for(const result of results)for(const operation of result.operations)for(const target of [operation.nozzleC,operation.restoreNozzleC])
+    if(target!==undefined)requireThat(authoredTemperatures.has(target),'Unplanned operation temperature.');
+  return constructionPath({results,planning:{process,selection:selections?.[defaultFilament]??null,selections},
+    composition:plan.composition,summary,generatorVersion:VERSION});
 }

@@ -13,6 +13,10 @@
 param([int]$WaitPid = 0, [switch]$NoLaunch, [switch]$PrepareHomeOnly,
   [string]$PreparationHome, [string]$PreparationReceipt, [string]$Workspace, [string]$WorkspaceToken)
 
+# Node/conhost can pass PowerShell 7 module paths into Windows PowerShell 5.1.
+# Resolve this process's built-in modules before inherited versions.
+$env:PSModulePath = (Join-Path $PSHOME 'Modules') + [IO.Path]::PathSeparator + $env:PSModulePath
+
 # The only elevated entry point. It never loads per-user paths or installs files.
 function Get-PreparationHome([string]$Path) {
   if ($Path -notmatch '^[A-Za-z]:[\\/]') { throw 'The SAAM home must be an absolute local path.' }

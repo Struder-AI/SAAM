@@ -2,6 +2,11 @@
 // evaluator as the rest of the geometry core; no Rhino modelling-kernel code.
 import { basisDerivatives, findSpan } from './nurbs.mjs';
 import { requireThat, cross, dot } from './tolerance.mjs';
+import { ROUNDING_RELATIVE } from '../dimensions.mjs';
+
+// Regular metric: the sine of the angle between the chart tangents stays above relative
+// rounding, so the first fundamental form can be inverted.
+const SINGULAR_METRIC = ROUNDING_RELATIVE ** 2;
 
 function baseSurfaceDerivatives(patch, u, v) {
   requireThat(u >= patch.domainU[0] && u <= patch.domainU[1] && v >= patch.domainV[0] && v <= patch.domainV[1],
@@ -23,7 +28,7 @@ function baseSurfaceDerivatives(patch, u, v) {
   const duv=point.map((p,k)=>(h[4][k]-du[k]*h[2][3]-dv[k]*h[1][3]-p*h[4][3])/w);
   const dvv=point.map((p,k)=>(h[5][k]-2*dv[k]*h[2][3]-p*h[5][3])/w);
   const normal=cross(du,dv), det=dot(normal,normal), E=dot(du,du), F=dot(du,dv), G=dot(dv,dv);
-  requireThat(Number.isFinite(det) && det > E*G*1e-14 && w>0, 'Surface offset requires a regular patch without poles or singular tangents.');
+  requireThat(Number.isFinite(det) && det > E*G*SINGULAR_METRIC && w>0, 'Surface offset requires a regular patch without poles or singular tangents.');
   const uvOf = vector => {const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/det,(E*b-F*a)/det];};
   return {point,du,dv,duu,duv,dvv,normal:normal.map(x=>x/Math.sqrt(det)),uvOf};
 }
@@ -64,7 +69,7 @@ export function surfaceDerivatives(patch,u,v,{normalMm=0}={}){
   const point=add(base.point,scale(N,normalMm)),du=add(U,scale(Nu,normalMm)),dv=add(V,scale(Nv,normalMm));
   const duu=add(UU,scale(Nuu,normalMm)),duv=add(UV,scale(Nuv,normalMm)),dvv=add(VV,scale(Nvv,normalMm));
   const normal=cross(du,dv),det=dot(normal,normal),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
-  requireThat(Number.isFinite(det)&&det>E*G*1e-14,'Normal-offset surface has a singular tangent or local focal collapse; reduce normalMm.');
+  requireThat(Number.isFinite(det)&&det>E*G*SINGULAR_METRIC,'Normal-offset surface has a singular tangent or local focal collapse; reduce normalMm.');
   const uvOf=vector=>{const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/det,(E*b-F*a)/det];};
   return {point,du,dv,duu,duv,dvv,normal:scale(normal,1/Math.sqrt(det)),uvOf,method:'analytic-rational-normal-offset'};
 }

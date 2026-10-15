@@ -1,21 +1,21 @@
-import {fontMetrics, kernUnits} from './strokefont.mjs';
+import {fontMetrics, kernUnits, PRINT_RESOLUTION_MM} from './strokefont.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Lay a string out as millimetre centerline strokes, y up, first baseline at y = 0.
 // `heightMm` is the measured capital height of the font, so "6 mm text" means the
-// same physical letter height in every font.
+// same physical letter height in every font. Characters the font lacks are left
+// out and listed in `missing`.
 export function layoutText(font, text, {heightMm, letterSpacingMm = 0, lineHeightFactor = 1.4, align = 'left', kerning = true} = {}) {
   requireThat(typeof text === 'string' && text.length > 0, 'Line text needs a non-empty string.');
   requireThat(Number.isFinite(heightMm) && heightMm > 0, 'Line text needs a positive heightMm.');
   const metrics = fontMetrics(font), scale = heightMm / metrics.capHeight;
   const lines = text.split('\n'), missing = new Set();
   for (const ch of text) if (ch !== '\n' && !font.glyphs.has(ch)) missing.add(ch);
-  requireThat(!missing.size, `Font ${font.id} has no glyph for ${[...missing].map(c => JSON.stringify(c)).join(', ')}; choose another font or text.`);
 
   const lineHeightMm = lineHeightFactor * heightMm, placed = [], lineInfo = [];
   lines.forEach((line, row) => {
-    const chars = [...line], baseline = -row * lineHeightMm;
+    const chars = [...line].filter(ch => !missing.has(ch)), baseline = -row * lineHeightMm;
     const x = [];
     let pen = 0;
     chars.forEach((ch, i) => {
@@ -36,7 +36,7 @@ export function layoutText(font, text, {heightMm, letterSpacingMm = 0, lineHeigh
     });
     lineInfo.push({text: line, baselineMm: baseline, widthMm: width, shiftMm: shift});
   });
-  return {strokes: placed, lines: lineInfo, scale, heightMm, metrics, bounds: strokeBounds(placed)};
+  return {strokes: placed, lines: lineInfo, scale, heightMm, metrics, bounds: strokeBounds(placed), missing: [...missing]};
 }
 
 export function strokeBounds(strokes) {
@@ -76,7 +76,7 @@ export function chainStrokes(strokes, toleranceMm) {
       if (best) {
         used.add(best.j);
         const next = best.reverse ? [...open[best.j].points].reverse() : open[best.j].points;
-        chain = [...chain, ...(best.join < 1e-9 ? next.slice(1) : next)];
+        chain = [...chain, ...(best.join < PRINT_RESOLUTION_MM ? next.slice(1) : next)];
         grew = true;
       }
     }

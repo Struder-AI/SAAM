@@ -49,7 +49,7 @@ test('shared STL importer and both recipe adapters resolve the same remembered s
   const machineSetups = scratch, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
   await writeFile(setupFile, JSON.stringify({ schema: 'saam-machine-setup/1', machineId: 'ultimaker-s5',
     setup: { ...shellDefaults().setup, bedC: 67 }, source: 'SYNTHETIC TEST ONLY' }));
-  assert.equal((await proposedPlan('ultimaker-s5', { machineSetups })).setup.bedC, 67);
+  assert.equal((await proposedPlan('ultimaker-s5', { machineSetups })).plan.setup.bedC, 67);
   const mesh = boxMesh(8, 6, 1);
   const bytes = Buffer.from('solid test\n' + mesh.triangles.map(triangle => 'facet normal 0 0 0\nouter loop\n'
     + triangle.map(i => 'vertex ' + mesh.vertices[i].join(' ')).join('\n') + '\nendloop\nendfacet').join('\n') + '\nendsolid test');

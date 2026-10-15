@@ -18,6 +18,11 @@ end callControl
 -- The request waits while SAAM works on it, such as an open that starts a runtime;
 -- SAAM's failure answer (ok false) or curl's connection error is raised to the caller.
 on sendControl(payload)
+  set payloadData to (current application's NSString's stringWithString:payload)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
+  set commandData to current application's NSJSONSerialization's JSONObjectWithData:payloadData options:(current application's NSJSONReadingMutableContainers) |error|:(missing value)
+  commandData's setObject:2 forKey:"contract"
+  set encodedData to current application's NSJSONSerialization's dataWithJSONObject:commandData options:0 |error|:(missing value)
+  set payload to (current application's NSString's alloc()'s initWithData:encodedData encoding:(current application's NSUTF8StringEncoding)) as text
   set resultText to do shell script "/usr/bin/curl --silent --show-error -H " & quoted form of ("X-SAAM-Control: " & controlToken) & " -H 'Content-Type: application/json' --data " & quoted form of payload & " " & quoted form of ("http://127.0.0.1:" & controlPort & "/control")
   set resultData to (current application's NSString's stringWithString:resultText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
   set controlReply to current application's NSJSONSerialization's JSONObjectWithData:resultData options:0 |error|:(missing value)
@@ -91,6 +96,13 @@ on stopSelectedRuntime_(sender)
     if errorNumber is not -128 then display alert "SAAM" message problem
   end try
 end stopSelectedRuntime_
+on stopSelectedStudio_(sender)
+  try
+    my sendControl("{\"command\":\"stop-session\",\"studioInstanceId\":\"" & (sender's representedObject() as text) & "\"}")
+  on error problem
+    display alert "SAAM" message problem
+  end try
+end stopSelectedStudio_
 -- Inserts an item before endItem; no action makes a separator.
 on addEntry(entryTitle, entryAction, identity)
   if entryAction is missing value then
@@ -140,6 +152,14 @@ on refreshMenu_(sender)
           set studioLabel to partName as text
           set chatAttachment to studio's objectForKey:"attachment"
           if chatAttachment is not missing value and chatAttachment is not current application's NSNull's |null|() then set studioLabel to studioLabel & " — " & ((chatAttachment's objectForKey:"name") as text)
+          set sessionVisibility to studio's objectForKey:"visibility"
+          if sessionVisibility is not missing value and sessionVisibility is not current application's NSNull's |null|() and sessionVisibility as text is "hidden" then
+            set studioLabel to studioLabel & " (Hidden)"
+          else
+            set studioLabel to studioLabel & " (Visible)"
+          end if
+          set isDormant to studio's objectForKey:"dormant"
+          if isDormant is not missing value and isDormant is not current application's NSNull's |null|() and isDormant's boolValue() then set studioLabel to studioLabel & " — Not running"
           set end of studioEntries to {studioLabel, (studio's objectForKey:"instanceId") as text}
         end if
       end repeat
@@ -147,9 +167,11 @@ on refreshMenu_(sender)
         my addEntry("", missing value, missing value)
         if isSource then my addEntry("Open Studio (" & runtimeLabel & ")", "openSelectedRuntime:", runtimeId)
         repeat with studioEntry in studioEntries
-          my addEntry(item 1 of studioEntry, "openRuntime:", item 2 of studioEntry)
+          my addEntry("Open " & item 1 of studioEntry, "openRuntime:", item 2 of studioEntry)
+          my addEntry("Stop " & item 1 of studioEntry, "stopSelectedStudio:", item 2 of studioEntry)
         end repeat
-        if isSource then my addEntry("Stop " & runtimeLabel, "stopSelectedRuntime:", runtimeId)
+        set runtimeDormant to runtime's objectForKey:"dormant"
+        if isSource and (runtimeDormant is missing value or runtimeDormant is current application's NSNull's |null|() or not (runtimeDormant's boolValue())) then my addEntry("Stop " & runtimeLabel, "stopSelectedRuntime:", runtimeId)
       end if
     end repeat
   on error

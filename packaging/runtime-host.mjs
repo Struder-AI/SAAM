@@ -22,7 +22,7 @@ async function newerCode(){
   return code.newer;
 }
 const relay={
-  status:async()=>({...await request('service',{method:'status'}),runtime:{label:processRuntime().label,newerCode:await newerCode()}}),
+  status:async options=>({...await request('service',{method:'status',studioInstanceId:options?.studioInstanceId}),runtime:{label:processRuntime().label,newerCode:await newerCode()}}),
   activate:async invite=>request('service',{method:'activate',invite}),
   dismissFirstRun:async()=>request('service',{method:'dismiss'}),
   checkUpdate:async()=>request('service',{method:'check-update'}),
@@ -52,7 +52,7 @@ async function command(message){
   for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
   if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
   definition.schema.parse(args);
-  const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,
+  const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
     bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
   return {ok:true,result:await chat.invoke(operationName,args)};
 }
@@ -72,14 +72,14 @@ async function start(args){
     application:{setupProblem:setup.problem,runtime,fingerprint:code.started,
       retryClients:async()=>request('clients'),
       registerStudio:async window=>request('window',window),
-      showStudio:async url=>request('show',{url}),
+      showStudio:async(url,visibility)=>request('show',{url,visibility}),
       releaseBundle:async bundleId=>request('release-bundle',{bundleId}),
       routeWindow:async args=>request('route',args),
       adoptWindow:async args=>request('adopt',args)}});
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
+  // A reload, or an open after this runtime exited unexpectedly, brings back its windows; every other Studio opens on request.
   await host.runtime.restoreStudios(args.windows??[]);
-  if(args.autoOpen&&args.openOnStart!==false&&!args.windows?.length)await host.runtime.openStudio();
   return {contract:orchestratorContract};
 }
 async function handle(message){

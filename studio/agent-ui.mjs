@@ -2,7 +2,7 @@ import {summarizeWork,requestReceiptState,inspectionReceipt,inspectionFailure} f
 export {summarizeWork} from './work-state.mjs';
 export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{},onPresentation=()=>{},getStage=()=>null}={}){
   const indicator=document.getElementById('agent-status'),dots=indicator.querySelector('.typing-dots'),notice=document.getElementById('agent-timeout');
-  let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation;const retired=new Map();
+  let running=false,refreshAgain=false,requests=[],view={},lastActivity,lastWork=false,askedPresentation,presentationRetry,retryDelay=1000;const retired=new Map();
   function merge(records,snapshot){
     const merged=new Map(requests.map(r=>[r.id,r]));let changed=false;
     for(const record of records){const previous=merged.get(record.id);
@@ -25,12 +25,19 @@ export function createAgentUI({onActivity=()=>{},onWork=()=>{},onRequests=()=>{}
     if(summary.active!==lastWork){lastWork=summary.active;onWork(summary.active);}
     // The server decides whether a drawn view actually receipts a request, and
     // may decline. Ask again only when the displayed view or the records moved,
-    // so a declined acknowledgement cannot become a standing retry.
+    // so a declined acknowledgement cannot become a standing retry. Transport
+    // failures retry with backoff; an HTTP failure is not a displayed receipt.
     const failed=requests.find(r=>inspectionFailure(r,view));
-    const receipting=requests.filter(r=>inspectionReceipt(r,view)||!r.presented&&['working','completed'].includes(r.status)&&requestReceiptState(r,{view}).receipt);
+    const receipting=requests.filter(r=>inspectionReceipt(r,view,{superseded:true})||!r.presented&&['working','completed'].includes(r.status)&&requestReceiptState(r,{view}).receipt);
     const asking=failed?JSON.stringify([failed.id,failed.updatedAt,view.errorAt]):view.ready&&!view.loading&&receipting.length
       ?JSON.stringify([view.printId,view.snapshot,receipting.map(r=>r.id+':'+r.updatedAt)]):null;
-    if(asking&&asking!==askedPresentation){askedPresentation=asking;onPresentation(failed?{renderError:view.error,revision:failed.inspectionTarget.revision}:undefined);}
+    if(asking&&asking!==askedPresentation){
+      askedPresentation=asking;
+      Promise.resolve(onPresentation(failed?{renderError:view.error,revision:failed.inspectionTarget.revision}:undefined))
+        .then(()=>{retryDelay=1000;})
+        .catch(()=>{if(askedPresentation!==asking)return;askedPresentation=null;clearTimeout(presentationRetry);
+          presentationRetry=setTimeout(()=>{void refresh();},retryDelay);retryDelay=Math.min(15_000,retryDelay*2);});
+    }
     else if(!asking)askedPresentation=null;
   }
   async function refresh(){

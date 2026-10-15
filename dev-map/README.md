@@ -20,13 +20,12 @@ An influence set is a folder holding `map.json`, solved by
 ```json
 {"mode": "influence", "title": "…", "authored": "dev-map/sets/030-architecture",
  "analysis": "dev-map/sets/030-influence/store/analysis/analysis.json",
- "analyse": {"maxHeapMB": 4096}, "sourceRoots": ["."], "preview": true, "jobs": 2}
+ "analyse": {}, "sourceRoots": ["."], "preview": true, "jobs": 2}
 ```
 
-`authored` names the design set whose map 0 and ownership are fixed. With `analyse`, `regenerate`
-makes `analysis` from the current source; without it, `analysis` is a
-[run.mjs](influence/run.mjs) `--out` result made elsewhere, and optional `missing` lists the files
-it did not cover. `sourceRoots` are checkouts holding the text the analysis read.
+`authored` fixes map 0 and ownership. `analyse` builds current source analysis with three quarters of
+available memory; solver jobs share that allowance. An explicit smaller `maxHeapMB` wins. Without
+`analyse`, supply [run.mjs](influence/run.mjs) `--out` and optionally `missing` files; `sourceRoots` names the checkouts read.
 
 Map 0 draws the authored nodes at their authored positions. Each node opens into clusters the
 middle-out solver groups its leaves into, nested down to leaves, which open as source. A cluster
@@ -71,7 +70,7 @@ Regenerate after each task. `regenerate --set 030-influence` runs:
 1. **Analyse** ([analyse.mjs](influence/analyse.mjs)): the scope ([scope.mjs](influence/scope.mjs))
    is split into import closures, each analysed soundly by `run.mjs --closure` in its own process,
    smallest first. A closure that fails at the heap cap gives way to the closures of the files it
-   imports; files no closure holds are listed as not analysed.
+   imports; files no closure holds are listed as not analysed, and `regenerate` names them and why.
 2. **Merge** the closures into `store/analysis/analysis.json`, each callable taking its leaf and
    role from the largest closure holding it.
 3. **Solve nesting** for each authored node whose slice changed ([solve-middle.mjs](influence/solve-middle.mjs)),
@@ -93,8 +92,8 @@ Warm starts from the kept solve, new leaves placed in their file's cluster, and 
 that lower the objective; cold anneals from flat and reshuffles clusters, so it is kept only when
 its energy is 3% lower (`COLD_MARGIN`) or the node is named by `--cold NODE` (repeatable or a comma
 list; solves it even unchanged). `regenerate` prints each node's `warm` and `cold` energy and which
-it `kept`, and under `relabel` the new clusters to label where cold won. With `"solve": "place"` in
-`map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
+it `kept`, the nodes it reused unchanged, and under `relabel` the new clusters to label where cold
+won. With `"solve": "place"` in `map.json` (or `--solve place`), a changed node is not solved: its new leaves are placed and read
 as `placement not solved` until a `"changed"` regenerate (the default) solves it. Timings
 (2026-10-04, 2 jobs): every node warm and cold 128 s (studio's cold solve); unchanged 8 s.
 

@@ -33,7 +33,6 @@ export function validateSetup(plan,machine,{required=false,adapter={}}={}) {
   const output=machine.outputs.find(o=>o.id===plan.output);
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
   requireThat(s.materialGuid===null||typeof s.materialGuid==='string','Invalid material identity.');
-  requireThat(s.filamentColor==null||/^#[0-9a-f]{6}$/i.test(s.filamentColor),'Filament color must be a six-digit hex color such as #28A090.');
   const list=s.filaments??null;
   requireThat(list===null||Array.isArray(list)&&list.length>0&&list.every(entry=>entry&&typeof entry==='object'&&!Array.isArray(entry)),'Logical filaments must be a non-empty list of records.');
   requireThat(s.filament===undefined||Number.isInteger(s.filament)&&s.filament>=0&&s.filament<(list?.length??1),'The filament index is outside the logical filament list.');

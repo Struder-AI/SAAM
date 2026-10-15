@@ -6,11 +6,10 @@
 //
 //   node packaging/build.mjs --version 0.1.0 --relay-url https://relay.example.com [--platform win-x64,darwin-arm64,darwin-x64]
 //   [--update-host https://github.com/Struder-AI/SAAM/releases/download] [--node-version v24.19.0 | --node <node binary for one platform>]
-//   [--mesh-repair DIR] [--modules DIR] [--out dist]
+//   [--modules DIR] [--out dist]
 //   [--review --review-file packaging/application.mjs --review-file packaging/release-service.mjs]
 // Each platform (all three by default) builds into <out>/<platform>/. --update-host is the release
 // folder this build accepts updates from (see packaging/update.mjs); without it the build never offers an update.
-// --mesh-repair applies to the platform its helper targets.
 //
 // Nothing is installed from the network. Dependencies come once per run from an installed
 // node_modules (--modules, default this checkout's), checked against package-lock.json; Node
@@ -34,7 +33,6 @@ import {resolve,dirname,join,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
-import {executablePlatform,packageNativeRepair} from './native-repair.mjs';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
@@ -43,6 +41,16 @@ const PLATFORMS={
   'darwin-arm64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']},
   'darwin-x64':{os:'macos',archive:'tar.gz',binary:'bin/node',scripts:['install.sh']}
 };
+function executablePlatform(bytes){
+  if(bytes.length>=64&&bytes.toString('ascii',0,2)==='MZ'){
+    const offset=bytes.readUInt32LE(60);
+    if(offset+6<=bytes.length&&bytes.readUInt32LE(offset)===0x4550&&bytes.readUInt16LE(offset+4)===0x8664)return 'win-x64';
+  }
+  if(bytes.length>=8&&bytes.readUInt32LE(0)===0xfeedfacf){
+    const cpu=bytes.readUInt32LE(4);return cpu===0x100000c?'darwin-arm64':cpu===0x1000007?'darwin-x64':null;
+  }
+  return null;
+}
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
 const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
@@ -200,7 +208,7 @@ async function nodeRuntime(version,platform,into){
 
 async function main(){
   const {values}=parseArgs({options:{platform:{type:'string',multiple:true},version:{type:'string'},'relay-url':{type:'string'},
-    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},'mesh-repair':{type:'string'},
+    'node-version':{type:'string',default:process.version},node:{type:'string'},out:{type:'string',default:'dist'},'update-host':{type:'string'},
     modules:{type:'string'},review:{type:'boolean',default:false},'review-file':{type:'string',multiple:true}}});
   const platforms=values.platform?.flatMap(value=>value.split(','))??Object.keys(PLATFORMS);
   for(const platform of platforms)if(!PLATFORMS[platform])throw Error(`Choose --platform from ${Object.keys(PLATFORMS).join(', ')}.`);
@@ -235,10 +243,6 @@ async function main(){
     return disk&&disk!==expected?[line.slice(line.indexOf('\t')+1)]:[];});
   if(stale.length)throw Error(`${stale.length} files on disk have line endings other than .gitattributes gives (e.g. ${stale.slice(0,3).join(', ')}); build from a fresh checkout.`);
   const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&!EXCLUDED.some(pattern=>pattern.test(file)));
-  const helper=values['mesh-repair']&&resolve(values['mesh-repair']);
-  const helperFor=platform=>helper&&existsSync(join(helper,'saam-mesh-repair'+(platform==='win-x64'?'.exe':'')))?helper:undefined;
-  if(helper&&!platforms.some(helperFor))throw Error(`${helper} holds no native helper for ${platforms.join(', ')}.`);
-
   const modules=resolve(out,'modules');
   await rm(modules,{recursive:true,force:true});
   const count=await dependencySet(await readJson(resolve(root,'package-lock.json')),resolve(values.modules??resolve(root,'node_modules')),modules);
@@ -252,8 +256,6 @@ async function main(){
     for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
     await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
     console.log(`${platform}: copied ${files.length} tracked files.`);
-    const nativeRepair=await packageNativeRepair({root,app,platform,artifact:helperFor(platform)});
-    console.log('Native mesh repair:',nativeRepair.available?'included for '+platform:nativeRepair.reason);
     await cp(modules,resolve(app,'node_modules'),{recursive:true});
     await checkImports(app,files);
 
@@ -269,16 +271,15 @@ async function main(){
     }
     else await nodeRuntime(values['node-version'],platform,runtime);
 
-    const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],nativeRepair,builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
+    const release={version:values.version,contract:orchestratorContract,relayUrl,platform,updateHost,node:values.node?'supplied':values['node-version'],builtAt:new Date().toISOString(),...(values.review?{reviewBuild:true}:{})};
     const releaseJson=JSON.stringify(release,null,2)+'\n';
     await writeFile(resolve(app,'release.json'),releaseJson);
     console.log(`Application: ${describe(await measure(app))}.`);
-    // The package is accepted only when its own modules pass the setup check in a disposable home,
+    // The package is accepted only when its own modules pass the setup check in an owned tmp workspace,
     // on its own Node when this host can run it.
-    const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch,home=resolve(base,'stage','home');
+    const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch;
     if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
-    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app,env:{...process.env,SAAM_DATA:home}});
-    await rm(home,{recursive:true,force:true});
+    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app});
     run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
 
     // What installation needs before app.tar is unpacked. macOS has no double-click

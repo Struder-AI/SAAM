@@ -52,6 +52,10 @@ export class STLDecoder {
     const words={0:'facet',1:'normal',5:'outer',6:'loop',7:'vertex',11:'vertex',15:'vertex',19:'endloop',20:'endfacet'};
     const index=this.tokens.length;
     if(words[index]){if(value.toLowerCase()!==words[index])throw invalid('Malformed ASCII STL.');}
+    // Facet normals are advisory, just as in binary STL. Geometry derives its
+    // normals from the retained vertices; a nonfinite supplied normal is not
+    // a nonfinite position. Still reject malformed normal tokens.
+    else if(index>=2&&index<=4){if(!Number.isFinite(Number(value))&&!/^[+-]?(?:nan|inf(?:inity)?)$/i.test(value))throw invalid('Malformed ASCII STL normal.');}
     else if(!Number.isFinite(Number(value)))throw invalid('Nonfinite STL coordinate.');
     this.tokens.push(value);
     if(this.tokens.length===21){this.#facet([8,12,16].map(i=>this.tokens.slice(i,i+3).map(Number)));this.tokens=[];}

@@ -20,13 +20,6 @@
         "flowMm3S": 0.5,
         "holdSeconds": 1,
         "nozzleC": null
-      },
-      "supports": {
-        "enabled": false,
-        "assignments": [],
-        "topGapMm": 0.2,
-        "xyGapMm": 0.3,
-        "treeChordMm": 0.02
       }
     },
     "slices": {
@@ -167,16 +160,15 @@
         "workOffsetMm": [0,0,0],
         "workYawDeg": 0,
         "initialPositionMm": [30,0,20],
+        "tableDeg": 0,
         "initialPose": {
-          "rotaryDeg": 0,
           "toolAxis": [0,0,-1],
           "toolUp": [0,1,0]
         },
         "extrusionOutput": 64,
         "extrusionRateMm3S": 0.64,
         "temperatureControl": "external-preheated",
-        "retreatMm": 5,
-        "transitionSeconds": 1
+        "retreatMm": 5
       }
     },
     "process": {

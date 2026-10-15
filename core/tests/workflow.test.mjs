@@ -151,7 +151,7 @@ test('remembered S5 setup carries into the next shell print without a firmware v
   assert.equal(saved.setup.startupVerified, false);
 
   const next = resolve(dir, 'next-print');
-  const nextPlan=await proposedPlan('ultimaker-s5',{machineSetups});nextPlan.geometry=smallPlan().geometry;
+  const {plan:nextPlan}=await proposedPlan('ultimaker-s5',{machineSetups});nextPlan.geometry=smallPlan().geometry;
   await initBundle(next, nextPlan, { machineId: 'ultimaker-s5' });
   const state = await loadBundle(next, { program: false });
   assert.equal(state.plan.setup.nozzleC, 205);
@@ -165,8 +165,8 @@ test('selecting one skill still produces one program from one plan', async t => 
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  const {pathPreview}=await import('../../studio/path-preview.mjs'),{readToolpath}=await import('../print/bundle.mjs');
-  assert.ok(!pathPreview(JSON.parse(await readToolpath(state))).moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
+  const {pathPreview}=await import('../../studio/path-preview.mjs'),{readDrawnPath}=await import('../print/bundle.mjs');
+  assert.ok(!pathPreview(JSON.parse(await readDrawnPath(state))).moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
   assert.equal(state.pathSummary.surfaceDomain, undefined);
 });
 
