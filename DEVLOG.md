@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-15 — Clarify shared-region character and collective interlocking
+
+- Updated 0.4.0 intent: subordinate stacks adopt principal layer heights while retaining their own alignment/phase and other region character; interlock cadence is calculated jointly from all claimants. Owner specifies shared-claim depth as the provisional 0.1 mm threshold for interlocking, with one adjustable code-level setting in the future implementation, independent of nozzle forgiveness. This changes intent only, not current allocation or scheduling. Pipeline placement and the division between cadence constraints and derived physical order remain design discussion.
+- Corrected the discussion's outdated overlap refusal: 0.3.7's October 11 instruction allows claims to coexist until shared ownership is implemented. Whitespace checked; plan stays 35 lines. No runtime code changed, so existing software/map validation is reused.
+
 ## 2026-10-15 — Prune geometric scheduling and bound rotating nozzles
 
 - Owner delegated ongoing speed and capability work while sharing CPU with spline Boolean development. Convex intersection queries stop on proved separation; course-partitioned indexes filter irrelevant groups and unprinted beads, with one witness per relationship. Scheduling skips nozzle relationships already implied by substrate or authored process precedence. Exact reachability uses a 16 MiB dense-cache ceiling and a per-source search fallback; known cycles reach the existing diagnostic before further nozzle scans.
