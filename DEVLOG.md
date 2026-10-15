@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-15 — Publish 0.3.8 and offer it through the relay
+
+- Published [SAAM 0.3.8](https://github.com/Struder-AI/SAAM/releases/tag/v0.3.8) from clean source `1e5c1dd201b676427a1ac93f7c810aa5db108a96`. All three package-builder checks pass; macOS package modules were checked on the Windows host. Official Node v24.19.0 runtimes were reused from cache and checked against nodejs.org SHASUMS256. All seven published asset hashes match their local files, and the tag matches the built source. Extra isolated trials and the whole suite were not run.
+- ZIP bytes / SHA-256: Windows x64 `42407108` / `2b4612998641a70adafb120104c5dd4f992dab631696bab76147094ec3559724`; macOS ARM64 `47656725` / `35fcce41afa7e66e38e550318514b4b10dfac172be706b38a48fa0ae8bcf5dd7`; macOS x64 `49005746` / `e515edf6110a38140fa24a26f16d4a421fccc717d7c502d4f1d900978db3f904`.
+- Deployed the three-platform relay manifest as Worker version `0bf2a3c8-1459-47c9-a3d8-0381b3d7b39b`. Authenticated `/device/release` confirms 0.3.8 and all three hashes. Existing installations can use Update in Studio or the tray menu. No installation was changed and no physical print was qualified.
+
 ## 2026-10-15 — Authorize 0.3.8 for hole-support testing
 
 - Owner: "Build and publish the release so tkeller can test the new hole supports. Keep turnaround low; skip the extra isolated trials." Publish the scheduler and hole-support source checkpoint as 0.3.8 for Windows x64 and both macOS architectures, using package-builder checks. Extra isolated install, generation, Studio, repair and Update trials are skipped as requested. Surface-Boolean work and the standalone lifecycle prototype remain excluded; paused shared-material construction remains experimental.
