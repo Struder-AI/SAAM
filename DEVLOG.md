@@ -1,5 +1,9 @@
 # Development log
 
+## 2026-10-15 — Authorize 0.3.8 for hole-support testing
+
+- Owner: "Build and publish the release so tkeller can test the new hole supports. Keep turnaround low; skip the extra isolated trials." Publish the scheduler and hole-support source checkpoint as 0.3.8 for Windows x64 and both macOS architectures, using package-builder checks. Extra isolated install, generation, Studio, repair and Update trials are skipped as requested. Surface-Boolean work and the standalone lifecycle prototype remain excluded; paused shared-material construction remains experimental.
+
 ## 2026-10-15 — Source checkpoint for scheduler and hole-support testing
 
 - Checkpoint the source checkout for the requested push, including earlier local commits, hole transitions, scheduler corrections, map positions and the paused shared-material construction prototype. The ongoing surface-Boolean worktree and ignored standalone lifecycle prototype remain separate. Earlier committed production Studio waiting fixes remain included.
