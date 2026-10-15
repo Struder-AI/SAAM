@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-15 — Studio presents paused work before clearing its activity
+
+- Fixed the display side of hand-back: request-only changes refresh navigation even outside tours; the latest settled episode selects its requested pane, or keeps a usable current pane; tab changes acknowledge the rendered view. Restoring a saved camera cannot override the hand-back pane. Pending operations and newer episodes retain their activity and identity checks.
+- Replayed the actual fat-pin pause record, checking geometry selection, presentation receipts, stale targets, newer work, previous toolpaths, saved-tab restoration and the actual request/tab callbacks. A background browser rendered the live pin and Studio persisted its inspection receipt; the working overlay was absent. Reloaded the idle source runtime, preserving its windows. The focused Studio scratch-resolver check passes 1/1; syntax, repository and whitespace checks pass. No stored tests, whole suite, export or physical print. Studio guidance shrinks 245→244 lines.
+- Full warm/cold map comparisons retain cold for Studio and warm elsewhere; the final analysis covers every source file, with zero unowned leaves. All 219 map drawings/readbacks agree. The broader code audit still reports 1,711 architecture findings; map consistency is not conformance certification. Checkpoint includes generated layout updates; no push or release.
+
 ## 2026-10-14 — Geometric scheduling in arbitrary orientations
 
 - Owner: the scheduler determines local substrate and which deposited lines block subsequent nozzle access, combining those constraints with explicit process dependencies. Independent strokes interleave; continuous courses and deposited connector chains retain order. Construction references no longer impose whole-body or previous-layer execution barriers. Ready courses favor nearby entries and compatible poses, without Z priority.

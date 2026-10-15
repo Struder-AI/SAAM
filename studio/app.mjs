@@ -111,7 +111,7 @@ function saveView(){
   try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({outputId:printSync.state.outputId,yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds,seconds:playState.seconds,tab:viewState.tab,
     speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
-function restoreView(){
+function restoreView(restoreTab=true){
   try{
     const saved=JSON.parse(sessionStorage.getItem(viewStorageKey()));if(!saved)return;
     if([saved.yaw,saved.tilt,saved.zoom].every(Number.isFinite)){orbitView.yaw=saved.yaw;orbitView.tilt=saved.tilt;orbitView.zoom=saved.zoom;}
@@ -124,7 +124,7 @@ function restoreView(){
     if(saved.outputId===printSync.state.outputId){
       if(Number.isFinite(saved.seconds))playState.seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))orbitView.fitBounds=saved.fitBounds;
-      if(['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||printSync.state.program||printSync.state.neutralProgram))viewState.tab=saved.tab;
+      if(restoreTab&&['geometry','toolpath'].includes(saved.tab)&&(saved.tab!=='toolpath'||printSync.state.program||printSync.state.neutralProgram))viewState.tab=saved.tab;
       if(machinePose.machineSession?.scene)useCamera(cameras.restore(saved.machineCameras));
     }
     $('#fit-program').textContent=orbitView.fitBounds?.allMoves?'Fit part':'Fit all moves';
@@ -419,7 +419,7 @@ function applyRefreshNavigation(decision){
   }
   viewState.tab=decision.tab;
   if(decision.notice)message(decision.notice);
-  if(decision.restoreSavedView)restoreView();
+  if(decision.restoreSavedView)restoreView(decision.restoreSavedTab);
   if(decision.resetSelection)selectFeature(null);
 }
 async function acknowledgeDisplayedView(failure){
@@ -543,7 +543,12 @@ function render() {
   requestDraw();
 }
 function selectFeature(id){viewState.selected=id;$('#selection').textContent=id?label(id):'Click a surface or edge to see its name';requestDraw();}
-function setTab(next){if(!printSync.state)return;clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));viewState.tab=next;stop();layerFade.reset();render();}
+function setTab(next){
+  if(!printSync.state)return;
+  clearManual();if(next!=='toolpath'&&cameras.mode==='machine')useCamera(cameras.switch('ghost',cameraState()));
+  viewState.tab=next;stop();layerFade.reset();render();
+  void acknowledgeDisplayedView().catch(error=>message(error.message,true));
+}
 
 function readViewerSnapshot(options={}) {
   if(!printSync.state)return {state:null,target:options.target??canvas,updateUI:options.updateUI??true};
@@ -831,14 +836,13 @@ function scheduleChange(){
     else void poll();
   },75);
 }
-// Pushed changes drive conditional state checks. Request activity only changes
-// the state identity through tour gating. A dropped or reopened viewer stream,
-// a page becoming visible and a slow heartbeat cover what pushes cannot.
+// Pushed requests also carry hand-back presentation targets. Refresh navigation
+// and acknowledge the displayed result even when the saved print is unchanged.
 function studioUpdate(event){
   if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
   const {kinds=[]}=event.detail;
   if(kinds.includes('print')){printSync.stateUpdate++;if(printSync.state)render();}
-  if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests')&&printSync.state?.tour?.active)scheduleChange();
+  if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests'))scheduleChange();
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
 function stopFallbackPolling(){clearInterval(printSync.stateFallbackTimer);clearInterval(printSync.progressFallbackTimer);printSync.stateFallbackTimer=printSync.progressFallbackTimer=null;}

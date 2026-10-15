@@ -120,12 +120,11 @@ renderable revision reaches Studio immediately; neither checks nor further edits
 require withholding it. Working dots and the affected view's 28% fade persist
 through the agent's uninterrupted editing sequence, including between commands.
 
-Hand-back means ready for inspection or discussion. It captures
-the operation already underway and binds its resulting saved revision after it
-settles. Studio undims when that revision is displayed; a failure shows the last
-usable result with the error. Future work has a new identity, so delayed replies
-and display acknowledgements cannot end it. Guidance and other bundles stay quiet.
-No activity lease, timer or chat disconnection invents completion.
+Hand-back captures underway work and presents its saved revision when it settles,
+in the requested pane or the current usable pane. Request updates and tab changes
+acknowledge that presentation; Studio undims, or shows the last usable result with
+the error. Future work has a new identity, so delayed replies cannot end it.
+Guidance and other bundles stay quiet; idle time does not invent completion.
 
 Inspection and tour receipts are separate: inspecting a previous eligible
 toolpath can finish hand-back without satisfying a lesson requiring new output.

@@ -72,5 +72,6 @@ export function summarizeWork(requests=[],{view}={}){
   const relevant=scoped.filter(r=>(r.episodeStartedAt??r.createdAt)===latest);
   const active=relevant.some(r=>r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!inspectionReceipt(r,view)&&!inspectionFailure(r,view));
   const failure=relevant.findLast(r=>['failed','cancelled'].includes(r.status)&&!r.workActive);
-  return {active:Boolean(view?.loading||active),message:relevant.findLast(r=>r.inspectionFailed)?.inspectionFailed??failure?.message??'',stage:active?'all':view?.loading?(view.loadingStage??'all'):null};
+  const inspectionTarget=relevant.findLast(r=>!r.workActive&&!r.handbackPending&&r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed)?.inspectionTarget??null;
+  return {active:Boolean(view?.loading||active),inspectionTarget,message:relevant.findLast(r=>r.inspectionFailed)?.inspectionFailed??failure?.message??'',stage:active?'all':view?.loading?(view.loadingStage??'all'):null};
 }
