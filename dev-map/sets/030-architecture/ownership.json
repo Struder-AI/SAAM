@@ -18033,6 +18033,34 @@
     "core/path/precedence.mjs::precedenceLookup::has": {
       "owner": "scheduling",
       "reason": "Scheduling owns physical course order and nozzle-clear motion over saved deposition."
+    },
+    "core/geom/convex-clearance.mjs::nozzleInterval": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/geom/convex-clearance.mjs::nozzleIntervalIntersects": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/geom/convex-clearance.mjs::nozzleSweepHits": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/geom/convex-clearance.mjs::nozzleSweepHits::confirm": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/geom/convex-clearance.mjs::convexSpatialIndex::selectedTree": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/geom/convex-clearance.mjs::convexSpatialIndex::selection": {
+      "owner": "geometry",
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+    },
+    "core/path/compose.mjs::solveCourseOrder": {
+      "owner": "scheduling",
+      "reason": "Solve physical and authored order at the current interruptible course granularity."
     }
   },
   "retiredAssignments": [

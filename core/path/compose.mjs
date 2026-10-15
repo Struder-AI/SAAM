@@ -15,7 +15,7 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
     const layerId=initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
     return {...op,layerId};
   });
-  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set()};
+  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set(),withinGroups:new Set()};
   const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),layers=new Set();
   const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
   let state=initialState,completed=0,last=null;
@@ -59,6 +59,7 @@ export function planPreparedOperation(initialState,op,{nozzleScene,finishLayer=f
     const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
     state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);
     for(const point of stroke.points)for(const i of nozzleScene.byStart.get(point)??[])if(nozzleScene.beads[i].operationId===op.id)nozzleScene.occupied.add(i);
+    if(!nozzleScene.withinGroups.has(op.id))nozzleScene.withinGroups=new Set([...nozzleScene.withinGroups,op.id]);
   }
   const restored=planOperationEnd(state,op),operationSeconds=restored.state.layerSeconds;
   const cooled=finishLayer?planLayerCooling(restored.state):planningResult(restored.state);
@@ -121,12 +122,29 @@ export function scheduleOperations(skillResults,rules={}) {
 
 function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
   const batch=validateOperationBatch(skillResults);
-  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),{courses,groups}=depositionCourses(batch.operations);
+  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set();
+  for(;;){
+    const partition=depositionCourses(batch.operations,{splitConnectors});
+    try{return solveCourseOrder(batch,declared,partition,{onProgress,start});}
+    catch(error){
+      if(!['PRINT_ORDER_CONFLICT','CONTINUOUS_NOZZLE_CONFLICT'].includes(error.code))throw error;
+      const affected=new Set(error.operations??[error.operation]);
+      const refinable=partition.courses.filter(course=>affected.has(course.id)&&!splitConnectors.has(course.sourceOperation)&&
+        course.strokes.length>1&&!course.continuous&&!course.strokes.some(stroke=>stroke.stationaryExtrusion));
+      if(!refinable.length)throw error;
+      for(const course of refinable)splitConnectors.add(course.sourceOperation);
+      onProgress?.({stage:'Refining interruptible connections',completed:splitConnectors.size,total:batch.operations.length});
+    }
+  }
+}
+
+function solveCourseOrder(batch,declared,{courses,groups,sequence},{onProgress,start}){
   const prerequisites=new Map(courses.map(course=>[course.id,new Set([...declared.get(course.sourceOperation)].flatMap(id=>groups.get(id)))]));
+  for(const edge of sequence)prerequisites.get(edge.after).add(edge.before);
   const physical=physicalOrdering(courses,{onProgress,prerequisites});
   for(const edge of physical.edges)prerequisites.get(edge.after).add(edge.before);
   const priorityById=prepareOperationPriorities(courses,batch.resultIndex);
-  const operations=orderReadyOperations(courses,priorityById,prerequisites,{start,physicalEdges:physical.edges});
+  const operations=orderReadyOperations(courses,priorityById,prerequisites,{start,physicalEdges:[...sequence,...physical.edges]});
   return {operations,physical};
 }
 

@@ -22,7 +22,10 @@ export function convexSupport(shape,direction){
 }
 export const convexBounds=shape=>({min:[0,1,2].map(i=>convexSupport(shape,[0,1,2].map(k=>k===i?-1:0))[i]),
   max:[0,1,2].map(i=>convexSupport(shape,[0,1,2].map(k=>k===i?1:0))[i])});
-export const boundsOverlap=(a,b,slack=PRINT_RESOLUTION_MM)=>a.min.every((v,i)=>v<=b.max[i]+slack&&a.max[i]>=b.min[i]-slack);
+export const boundsOverlap=(a,b,slack=PRINT_RESOLUTION_MM)=>
+  a.min[0]<=b.max[0]+slack&&a.max[0]>=b.min[0]-slack&&
+  a.min[1]<=b.max[1]+slack&&a.max[1]>=b.min[1]-slack&&
+  a.min[2]<=b.max[2]+slack&&a.max[2]>=b.min[2]-slack;
 
 // Closest point in a simplex, by its feasible affine faces. At most four
 // vertices, so this also handles degenerate/coplanar simplexes explicitly.
@@ -76,31 +79,46 @@ export const convexIntersects=(a,b,toleranceMm=PRINT_RESOLUTION_MM)=>convexSepar
 export function convexSpatialIndex(shapes,{groups=null}={}){
   requireThat(!groups||groups.length===shapes.length,'Spatial index groups must match its shapes.');
   const entries=shapes.map((shape,index)=>({shape,index,bounds:convexBounds(shape)}));
-  function build(items){
+  function build(items,partition={}){
     const bounds=items.reduce((box,item)=>({min:box.min.map((v,i)=>Math.min(v,item.bounds.min[i])),max:box.max.map((v,i)=>Math.max(v,item.bounds.max[i]))}),
       {min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
-    if(items.length<=8)return {bounds,items};
+    if(items.length<=8)return {...partition,bounds,items};
     const axis=[0,1,2].reduce((best,i)=>bounds.max[i]-bounds.min[i]>bounds.max[best]-bounds.min[best]?i:best,0);
     const ordered=[...items].sort((a,b)=>a.bounds.min[axis]+a.bounds.max[axis]-b.bounds.min[axis]-b.bounds.max[axis]),mid=Math.floor(items.length/2);
-    return {bounds,left:build(ordered.slice(0,mid)),right:build(ordered.slice(mid))};
+    return {...partition,bounds,left:build(ordered.slice(0,mid),partition),right:build(ordered.slice(mid),partition)};
   }
   const partitions=new Map();
   if(groups)for(const entry of entries){
     const group=groups[entry.index];if(!partitions.has(group))partitions.set(group,[]);partitions.get(group).push(entry);
   }
-  const tree=groups?build([...partitions].map(([group,items])=>{const tree=build(items);return {group,tree,bounds:tree.bounds};})):build(entries);
-  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false}={}){
-    const box=convexBounds(shape),pending=[{node:tree,grouped:false}],found=[],settled=new Set();
+  const tree=groups?build([...partitions].map(([group,items])=>{const tree=build(items,{group,grouped:true});return {group,tree,bounds:tree.bounds};})):build(entries);
+  const selected={allowed:null,tree:null};
+  // Reuse a filtered top-level tree across queries with the same immutable
+  // allowed-group set. Whole proven-irrelevant subtrees disappear before scans.
+  function selectedTree(node,allowed){
+    if(node.items){const items=node.items.filter(item=>allowed.has(item.group));return items.length===node.items.length?node:items.length?{...node,items}:null;}
+    const left=selectedTree(node.left,allowed),right=selectedTree(node.right,allowed);
+    if(!left)return right;if(!right)return left;
+    if(left===node.left&&right===node.right)return node;
+    return {left,right,bounds:{min:left.bounds.min.map((v,i)=>Math.min(v,right.bounds.min[i])),max:left.bounds.max.map((v,i)=>Math.max(v,right.bounds.max[i]))}};
+  }
+  function selection(allowed){
+    requireThat(groups,'Group selection needs a grouped spatial index.');
+    if(selected.allowed!==allowed){selected.allowed=allowed;selected.tree=selectedTree(tree,allowed)??build([]);}
+    return selected.tree;
+  }
+  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null}={}){
+    const box=convexBounds(shape),pending=[withinGroups?selection(withinGroups):tree],found=[],settled=new Set();
     while(pending.length){
-      const {node,group,grouped}=pending.pop();
+      const node=pending.pop(),{group,grouped}=node;
       if(firstPerGroup&&grouped&&settled.has(group)||!boundsOverlap(box,node.bounds,toleranceMm))continue;
       if(node.items){for(const item of node.items){
         if(!boundsOverlap(box,item.bounds,toleranceMm))continue;
-        if(item.tree){if(!acceptGroup||acceptGroup(item.group))pending.push({node:item.tree,group:item.group,grouped:true});}
-        else if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)){
+        if(item.tree){if(!acceptGroup||acceptGroup(item.group))pending.push(item.tree);}
+        else if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)&&(!confirm||confirm(item.shape))){
           found.push(item.index);if(firstPerGroup&&grouped){settled.add(group);break;}
         }
-      }}else pending.push({node:node.left,group,grouped},{node:node.right,group,grouped});
+      }}else pending.push(node.left,node.right);
     }
     return found;
   }};
@@ -117,13 +135,11 @@ export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INC
   return {a:start,b:add(start,scale(outward,lengthMm)),normal:outward,radius:0,endRadius:lengthMm*Math.tan(includedAngleDeg*Math.PI/360),depth:0};
 }
 
-// A fixed-pose sweep is exact. Changing poses subdivide until the cone's
-// rotational chord error is below the clearance allowance; endpoint hulls are enlarged
-// by that bound. This covers the entire motion, not just endpoint snapshots.
-export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG){
-  const pieces=[],pending=[{a:0,b:1}];
-  while(pending.length){
-    const interval=pending.pop(),poses=[interval.a,interval.b].map(t=>interpolateDirectionPair(
+// Bound one interval of the original rigid-frame interpolation, preserving its
+// parameterization through refinement. A fixed-axis translated cone is convex.
+function nozzleInterval(motion,a,b){
+    const {from,to,fromPose,toPose,lengthMm,includedAngleDeg}=motion;
+    const poses=[a,b].map(t=>interpolateDirectionPair(
       [fromPose.toolAxis,fromPose.toolUp],[toPose.toolAxis,toPose.toolUp],t));
     const axes=poses.map(p=>scale(p[0],-1)),axisChord=length(subtract(axes[0],axes[1]));
     const halfAngle=includedAngleDeg*Math.PI/360;
@@ -135,11 +151,48 @@ export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DE
       dot(cross(axes[0],poses[0][1]),cross(axes[1],poses[1][1]))-1)/2));
     const radiusBound=(lengthMm+NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle))/Math.cos(halfAngle);
     const error=radiusBound*Math.min(1-Math.sqrt((1+frameCosine)/2),2*axisChord);
-    if(error>NOZZLE_FORGIVENESS_MM/4){const mid=(interval.a+interval.b)/2;pending.push({a:interval.a,b:mid},{a:mid,b:interval.b});continue;}
-    const shapes=[interval.a,interval.b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg));
-    pieces.push({parts:shapes,margin:error});
+    const shapes=[a,b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg));
+    return {parts:shapes,margin:error,motion,a,b,fixed:axisChord===0};
+}
+
+// Coarse conservative envelopes for spatial rejection; a changing-pose hull
+// alone cannot prove collision, because it also fills clear space between poses.
+export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG){
+  const motion={from,to,fromPose,toPose,lengthMm,includedAngleDeg},pieces=[],pending=[{a:0,b:1}];
+  while(pending.length){
+    const {a,b}=pending.pop(),sweep=nozzleInterval(motion,a,b),mid=(a+b)/2;
+    if(sweep.margin>NOZZLE_FORGIVENESS_MM/4&&mid>a&&mid<b){pending.push({a,b:mid},{a:mid,b});continue;}
+    pieces.push(sweep);
   }
   return pieces;
+}
+
+// Refine only a spatial candidate. Exact cones witness a hit; separated hulls
+// prove clearance. This terminates at floating-point representability rather
+// than a subdivision budget or an extra physical forgiveness margin.
+function nozzleIntervalIntersects(sweep,shape,toleranceMm){
+  const pending=[sweep];
+  while(pending.length){
+    const interval=pending.pop();
+    if(!convexIntersects(interval,shape,toleranceMm))continue;
+    if(interval.fixed||interval.parts.some(cone=>convexIntersects(cone,shape,toleranceMm)))return true;
+    const mid=(interval.a+interval.b)/2;
+    if(mid<=interval.a||mid>=interval.b)return true;
+    const left=nozzleInterval(interval.motion,interval.a,mid),right=nozzleInterval(interval.motion,mid,interval.b);
+    if(convexIntersects(left.parts[1],shape,toleranceMm))return true;
+    pending.push(left,right);
+  }
+  return false;
+}
+
+export function nozzleSweepHits(index,from,to,fromPose,toPose,options={}){
+  const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose),hits=new Set();
+  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach)){
+    function confirm(shape){return nozzleIntervalIntersects(sweep,shape,ROUNDING_MM);}
+    if(sweep.fixed){for(const hit of index.query(sweep,ROUNDING_MM,options))hits.add(hit);}
+    else for(const hit of index.query(sweep,ROUNDING_MM,{...options,confirm}))hits.add(hit);
+  }
+  return [...hits];
 }
 
 export function nozzleSweepReach(bounds,from,to,fromPose,toPose){
@@ -153,12 +206,9 @@ export function nozzleSweepReach(bounds,from,to,fromPose,toPose){
   return Math.max(length(subtract(from,center)),length(subtract(to,center)))+length(subtract(bounds.max,bounds.min))+PRINT_RESOLUTION_MM;
 }
 
-export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose){
+export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null}={}){
   if(!occupied.size)return [];
-  const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose);
-  const hits=new Set();
-  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach))for(const hit of index.query(sweep,ROUNDING_MM,{accept:hit=>occupied.has(hit)}))hits.add(hit);
-  return [...hits];
+  return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups});
 }
 
 function radialPose(radial,up){
@@ -170,9 +220,9 @@ function radialPose(radial,up){
 // An effectively infinite cone cannot pass below stock. Transfer on an exterior
 // plane for a fixed orientation, or around the enclosing sphere for changing
 // orientation. Every returned continuous move uses the same swept-volume query.
-export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose){
-  if(!nozzleMotionHits(index,occupied,from,to,fromPose,toPose).length)return [{point:to,pose:toPose}];
-  const targetHits=nozzleMotionHits(index,occupied,to,to,toPose,toPose);
+export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose,options={}){
+  if(!nozzleMotionHits(index,occupied,from,to,fromPose,toPose,options).length)return [{point:to,pose:toPose}];
+  const targetHits=nozzleMotionHits(index,occupied,to,to,toPose,toPose,options);
   if(targetHits.length)return {blocked:targetHits};
   const center=index.bounds.min.map((v,i)=>(v+index.bounds.max[i])/2),radius=length(subtract(index.bounds.max,index.bounds.min))/2+PRINT_RESOLUTION_MM;
   const outwardA=scale(fromPose.toolAxis,-1),outwardB=scale(toPose.toolAxis,-1);
@@ -195,12 +245,12 @@ export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose){
       route.push({point:b,pose:route.at(-1).pose},{point:b,pose:toPose},{point:to,pose:toPose});
     }
     const cursor={point:from,pose:fromPose},blocked=new Set();
-    for(const next of route){for(const hit of nozzleMotionHits(index,occupied,cursor.point,next.point,cursor.pose,next.pose))blocked.add(hit);cursor.point=next.point;cursor.pose=next.pose;}
+    for(const next of route){for(const hit of nozzleMotionHits(index,occupied,cursor.point,next.point,cursor.pose,next.pose,options))blocked.add(hit);cursor.point=next.point;cursor.pose=next.pose;}
     if(!blocked.size)return route;
     // Increasing exterior clearance improves routing, rather than truncating a
     // valid job at a fixed iteration/distance budget. A blocked initial retreat
     // cannot be repaired by a larger exterior route.
-    const retreat=nozzleMotionHits(index,occupied,from,a,fromPose,fromPose);
+    const retreat=nozzleMotionHits(index,occupied,from,a,fromPose,fromPose,options);
     if(retreat.length)return {blocked:retreat};
     state.clearance*=2;
     requireThat(Number.isFinite(state.clearance),'Nozzle exterior route has no representable clearance.');

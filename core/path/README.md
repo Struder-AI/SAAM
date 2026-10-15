@@ -52,32 +52,31 @@ array order. The producer rejects geometry requiring disconnected passes.
 Material ownership is explicit; fronts do not publish a finished surface chart.
 
 `core/path/compose.mjs` schedules the saved deposition through one geometric
-ordering operation. Independent strokes can interleave; continuous courses and
-deposited connector chains retain their order. Original operation IDs still own
-motion context and explicit process dependencies; course IDs identify the solved
-sequence. Construction references remain separate from physical ordering.
+ordering operation. Independent strokes can interleave; continuous courses stay
+atomic. Connector chains retain order but split at stroke boundaries when grouping
+causes a conflict. Original IDs own motion context and process prerequisites;
+course IDs identify execution. Construction references remain separate.
 
 [physical-order.mjs](./physical-order.mjs) derives substrate and nozzle-access
 prerequisites. [precedence.mjs](./precedence.mjs) omits checks already implied by
 substrate or explicit process order; reported edges are sufficient constraints,
 not every contact. Its bounded dense cache falls back to exact per-source search.
 Geometry's [convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex queries,
-grouped indexing and continuous sweeps. Filters exclude irrelevant courses and
-unprinted beads before intersection tests; one witness proves each relationship.
+grouped indexing and continuous sweeps. Filters exclude irrelevant/unprinted beads;
+one confirmed witness proves each relationship. Rotating hull candidates refine
+until exact cones intersect or smaller hulls separate, without extra forgiveness.
 Bead normals and tool poses supply directions, with no world-Z ordering. Ready
 work favors nearby entries and small pose changes. Explicit `composition.order`,
 `composition.dependencies` and operation `after` remain prerequisites. Conflicts
 name affected courses and relationships; indivisible self-obstruction needs a path
 change or interruptible boundary. Known cycles are reported before nozzle scans.
 
-The temporary nozzle is an effectively infinite sharp cone with a 15-degree
-included angle (7.5 degrees from its axis). Its numerical length reaches beyond
-the query scene. A 0.1 mm nozzle-surface forgiveness margin allows small contact;
-overlapping deposited lines remain valid. Carriage,
-fixtures, machine joints, gravity, fusion and unsupported-span printability are
-outside this model. No support geometry is automatically added. Positive-volume
-moving beads supply occupancy; stationary injection needs authored occupied
-geometry before it can supply substrate or an obstacle volume.
+The temporary nozzle is an effectively infinite sharp cone: 15-degree included
+angle (7.5-degree half-angle), with numerical length beyond the scene. A 0.1 mm
+surface forgiveness permits small contact; deposited lines may overlap.
+Carriage, fixtures, joints, gravity, fusion and unsupported-span printability are
+outside this model; no supports are added. Moving beads supply occupancy; stationary injection needs authored occupied
+geometry to supply substrate or obstacle volume.
 
 Execution retains material selection, retraction and per-layer cooling debt across
 interleaving. Actual beads, including connectors and modulation, supply occupancy;
