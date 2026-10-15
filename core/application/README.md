@@ -29,11 +29,10 @@ Checkout development notes remain in `.local/AGENTS.md` and `.local/DEVELOPMENT.
 
 ## Client queue monitoring
 
-Claude Code may run `saam wait` in a managed background session for 30 minutes; requests or delivered events end it early. Silence/expiry need no chat message.
-Renew during bundle work/tours; let idle monitoring lapse. Lapse preserves attachment, queued work and SAAM. Follow tour participation context and hand back before monitoring.
+Claude Code may run `saam wait` in a managed background session for 30 minutes; requests or delivered events end it early. Quiet expiry needs no chat message. Renew during work/tours or let idle monitoring lapse, preserving attachment, queued work and SAAM. Follow tour participation context and hand back before monitoring.
 Codex reads `get_studio_requests` / `get_studio_events` explicitly; `saam wait` defaults to 25 seconds. Automatic wakeup after a chat turn remains unverified.
 
 Bundle switches preserve attachment and original request targets. Carry `studioInstanceId`, intended `bundleId` and originating `requestIds` on the first needed operation,
 or `expectedStudio: {studioInstanceId, bundleId}` on any operation (null bundle for an empty Studio). An unchanged association needs no refresh.
 A mismatch rejects before attachment, claims or edits with `STUDIO_TARGET_CHANGED` and `currentStudio` (null if closed); resolve the target explicitly.
-Hand-back can settle the original `workRequest.id` after a switch; resuming stale work rejects. Client events (turn end, the person's message or interrupt, chat close) hand back the chat's active work.
+Hand-back settles the original `workRequest.id` after a switch; stale resumes reject. [Client contact](../../studio/README.md#carrying-a-maker-request) pauses active and queued work.

@@ -123,7 +123,7 @@ function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
   const batch=validateOperationBatch(skillResults);
   const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),{courses,groups}=depositionCourses(batch.operations);
   const prerequisites=new Map(courses.map(course=>[course.id,new Set([...declared.get(course.sourceOperation)].flatMap(id=>groups.get(id)))]));
-  const physical=physicalOrdering(courses,{onProgress});
+  const physical=physicalOrdering(courses,{onProgress,prerequisites});
   for(const edge of physical.edges)prerequisites.get(edge.after).add(edge.before);
   const priorityById=prepareOperationPriorities(courses,batch.resultIndex);
   const operations=orderReadyOperations(courses,priorityById,prerequisites,{start,physicalEdges:physical.edges});

@@ -28,7 +28,7 @@ const exportKey=()=>printSync.state?.printId+':'+printSync.state?.outputId;
 // Page state, one record per owner: the print and its server sync, Studio-run
 // work, what the view shows, the orbit camera, playback, and the machine pose.
 const printSync={state:undefined,stateTag:null,stateUpdate:0,loadedUpdate:0,polling:false,reconnecting:false,changeTimer:undefined,stateFallbackTimer:undefined,progressFallbackTimer:undefined,progressPolling:false};
-const studioWork={busy:false,generating:false,generationTarget:null,acknowledging:false,importElapsedTimer:null,episodeWorking:false,tourUI:undefined};
+const studioWork={busy:false,generating:false,generationTarget:null,acknowledging:false,presentationPending:null,importElapsedTimer:null,episodeWorking:false,tourUI:undefined};
 const viewState={tab:'geometry',selected:null,activePresentation:null,exportNameState:null,machineColors:machinePalette,waveBoundsMoves:null,waveDisplayBounds:null};
 const orbitView={...DEFAULT_CAMERA,zoom:1,pan:[0,0],fitBounds:null,drag:null,moved:false};
 const playState={playing:false,frame:0,seconds:0,lastFrame:0,playbackEpoch:0,movieController:null,movieUrl:null};
@@ -40,7 +40,7 @@ function initializeAgentInterface(){return createAgentUI({onActivity:active=>stu
   if(!printSync.state?.work)return;
   printSync.state.work.requests=requests;
   if(needsTourToolpath(printSync.state))scheduleChange();
-},onPresentation:failure=>{if(!studioWork.busy)void acknowledgeDisplayedView(failure).catch(error=>message(error.message,true));},getStage:()=>viewState.tab});}
+},onPresentation:failure=>acknowledgeDisplayedView(failure).catch(error=>{message(error.message,true);throw error;}),getStage:()=>viewState.tab});}
 const canvas=$('#canvas');
 // View bursts go to the server for agents; failures never reach the person.
 // Material detail drops while the view moves and the measured frame cost is
@@ -382,7 +382,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
     await machinePose.machineSession.sample(playState.seconds,{manual:machinePose.manualValues,jog:machinePose.manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
-  await acknowledgeDisplayedView();
+  await acknowledgeDisplayedView(navigation.inspectionFailure);
 }
 async function ensureTourGeneration(follow=false){
   if(needsTourToolpath(printSync.state)){
@@ -422,16 +422,22 @@ function applyRefreshNavigation(decision){
   if(decision.restoreSavedView)restoreView(decision.restoreSavedTab);
   if(decision.resetSelection)selectFeature(null);
 }
-async function acknowledgeDisplayedView(failure){
-  if(studioWork.acknowledging)return;
-  studioWork.acknowledging=true;
+function acknowledgeDisplayedView(failure){
+  studioWork.presentationPending={failure};
+  if(studioWork.acknowledging)return studioWork.acknowledging;
+  studioWork.acknowledging=(async()=>{
   try{
-  await painted();
-  if(failure||agentUI.presentState(printSync.state,viewState.tab,{requiresToolpath:needsTourToolpath(printSync.state)})){
-    const presented=await studioWork.tourUI?.acknowledgeView(printSync.state,viewState.tab,failure);
-    if(presented)agentUI.updated(presented);
-  }
+    do{
+      const pending=studioWork.presentationPending;studioWork.presentationPending=null;
+      await painted();
+      if(pending.failure||agentUI.presentState(printSync.state,viewState.tab,{requiresToolpath:needsTourToolpath(printSync.state)})){
+        const presented=await studioWork.tourUI?.acknowledgeView(printSync.state,viewState.tab,pending.failure);
+        if(presented)agentUI.updated(presented);
+      }
+    }while(studioWork.presentationPending);
   }finally{studioWork.acknowledging=false;}
+  })();
+  return studioWork.acknowledging;
 }
 async function decodeInWorker(snapshot){
   activity('Loading your toolpath…');

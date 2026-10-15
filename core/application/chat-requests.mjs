@@ -88,7 +88,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     const currentId=printId(directory);
     return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?{...bundleState.workEvidence}:await workEvidence(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
   }
-  async function update(id,{status='completed',message='',resultStage}={}){
+  function update(id,{status='completed',message='',resultStage}={}){return transition(async()=>{
     if(lifetime.closed)throw Error('Request service closed.');
     if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
     const record=await get(id);
@@ -104,7 +104,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     const target=resultStage?{...(result??await workEvidence(resolve(root,record.printId))),stage:resultStage}:record.target
       ??(status==='completed'&&result?{...result,stage:result.geometryKey!==baseline?.geometryKey&&result.generationKey===baseline?.generationKey?'geometry':'toolpath'}:undefined);
     return save({...record,baseline,result,target,presented:resultStage?false:record.presented,ownerId,status,message:String(message),updatedAt:Math.max(now(),record.updatedAt+1)});
-  }
+  });}
   // A work episode joins the named requests, else this chat's working request on the
   // print, else begins one.
   function startWork({directory,requestIds=[],studioInstanceId,instruction}){return transition(async()=>{
@@ -130,38 +130,61 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     const record=await get(id);
     if(foreign(record))throw Error('That Studio request belongs to another agent.');
     if(!record.episode)return null;
-    if(record.handbackPending||!record.workActive)return record;
-    const members=(await query({printId:record.printId})).filter(r=>r.episodeId===(record.episodeId??record.id)&&r.workActive);
+    if(!record.workActive&&!record.handbackPending){
+      if(['completed','cancelled'].includes(record.status))return record;
+      const stage=response.resultStage;
+      const members=(await query({printId:record.printId})).filter(r=>(r.episodeId??r.id)===(record.episodeId??record.id));
+      const saved=[];
+      for(const member of members.length?members:[record]){
+        if(member.workActive||member.handbackPending||['completed','cancelled'].includes(member.status))continue;
+        saved.push(await save({...member,...response,...(stage&&member.inspectionTarget?{target:{...member.target,stage},inspectionTarget:{...member.inspectionTarget,stage},inspectionPresented:false,inspectionFailed:null}:{}),updatedAt:Math.max(now(),member.updatedAt+1)}));
+      }
+      return saved.find(r=>r.id===id)??record;
+    }
+    // A duplicate client event joins the same hand-back. An explicit completion
+    // or cancellation wins over an automatic waiting signal arriving alongside it.
+    if(record.handbackPending&&(response.status==='waiting'||record.status==='cancelled'))return record;
+    const members=(await query({printId:record.printId})).filter(r=>r.episodeId===(record.episodeId??record.id)&&(r.workActive||r.handbackPending));
     const group=members.length?members:[record],handbackIds=group.map(r=>r.id);
     const saved=[];for(const member of group)saved.push(await save({...member,...response,handbackIds,workActive:false,handbackPending:true,inspectionPresented:false,inspectionFailed:null,updatedAt:Math.max(now(),member.updatedAt+1)}));
     return {...saved.find(r=>r.id===id)??saved[0],handbackIds:saved.map(r=>r.id)};
   });}
-  async function finishHandback(id,response,target){
+  function finishHandback(id,error){return transition(async()=>{
     const record=await get(id);
     if(!record.handbackPending)return record;
-    const stage=response.resultStage;
-    const result=target===undefined?record.lastSaved??null:target;
-    return save({...record,...response,result,target:result?{...result,stage:stage??(result.geometryKey!==record.baseline?.geometryKey&&result.generationKey===(record.baseline?.generationKey??null)?'geometry':'toolpath')}:record.target,
+    const stage=record.resultStage,result=record.lastSaved??null;
+    return save({...record,...(error?{status:record.status==='cancelled'?'cancelled':'failed',message:error.message}:{}),result,target:result?{...result,stage:stage??(result.geometryKey!==record.baseline?.geometryKey&&result.generationKey===(record.baseline?.generationKey??null)?'geometry':'toolpath')}:record.target,
       inspectionTarget:result?{...result,...(stage?{stage}:{})}:null,handbackPending:false,
       inspectionPresented:!result,updatedAt:Math.max(now(),record.updatedAt+1)});
-  }
+  });}
   const underway=requestId=>[...operations].filter(op=>op.requestIds.includes(requestId)).map(op=>op.settled.promise);
   async function handBack(requestId,response){
+    if(!['working','waiting','completed','failed','cancelled'].includes(response.status))throw Error('Invalid agent response status.');
+    if(response.resultStage&&!['geometry','toolpath'].includes(response.resultStage))throw Error('Unknown result stage.');
     if(response.status==='working')return update(requestId,response);
     const running=underway(requestId);
     const pending=await startHandback(requestId,response);
     if(!pending){const record=await update(requestId,response);await onHandBack(record);return record;}
     if(!pending.handbackPending){await onHandBack(pending);return pending;}
     const completed=await Promise.all([...new Set([...running,...underway(requestId)])]),last=completed.at(-1);
-    if(last?.error)response={...response,status:response.status==='cancelled'?'cancelled':'failed',message:last.error.message};
-    const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,response,last?last.snapshot:pending.lastSaved));
+    const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,last?.error));
     const record=handed.find(r=>r.id===requestId)??handed[0];
     await onHandBack(record);
     return record;
   }
-  async function cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await update(r.id,{status:'cancelled'});}
-  async function cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await update(r.id,{status:'cancelled'});}
+  async function cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
+  async function cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
   return {list,query,get,ownerId,printIdOf:directory=>requestPrintId(root,directory,{optional:true}),begin,update,handBack,cancelScope,cancelFor,
+    // Startup only: refresh saves and finish hand-backs already requested before
+    // the old process died. Autonomous work stays active across a runtime reload.
+    async recover(){
+      const active=(await query()).filter(r=>r.ownerId===ownerId&&(r.workActive||r.handbackPending));
+      for(const candidate of active)await transition(async()=>{
+        const record=await get(candidate.id),lastSaved=await workEvidence(resolve(root,record.printId));
+        await save({...record,lastSaved,updatedAt:Math.max(now(),record.updatedAt+1)});
+      });
+      for(const id of new Set(active.filter(r=>r.handbackPending).map(r=>r.episodeId??r.id)))await handBack(id,{status:'waiting',message:'SAAM restarted. Review the last saved work before continuing.'});
+    },
     // One result-changing operation of this chat: it joins or begins the work
     // episode and reports its last saved evidence when it settles.
     async beginOperation(work){
@@ -185,7 +208,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       return()=>{listeners.delete(listener);release();};
     },
     close(){lifetime.closed=true;wake();listeners.clear();index.close();},
-    async activity(id,{directory}={}){
+    activity(id,{directory}={}){return transition(async()=>{
       if(lifetime.closed)throw Error('Request service closed.');
       const record=await get(id);
       if(directory&&record.printId!==printId(directory))throw Error('That activity belongs to another print.');
@@ -194,23 +217,23 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       // Activity is evidence of contact, never a claim/resume/result operation.
       if(record.status!=='working'||record.presented)return record;
       return save({...record,updatedAt:Math.max(now(),record.updatedAt+1)});
-    },
+    });},
     async presented(directory,shown){
       const id=requestPrintId(root,directory,{optional:true}),updated=[];if(!id)return updated;
+      const {observedRequests,...snapshot}=shown;
       for(const candidate of await query({printId:id})){
-        if(candidate.episode&&!candidate.handbackPending&&!candidate.inspectionPresented&&candidate.inspectionTarget
-          &&(!candidate.studioInstanceId||candidate.studioInstanceId===shown.studioInstanceId)
-          &&candidate.inspectionTarget.revision===shown.revision&&(!candidate.inspectionTarget.stage||candidate.inspectionTarget.stage===shown.stage)){
+        await transition(async()=>{
           const record=await get(candidate.id);
-          if(!record.handbackPending&&record.inspectionTarget?.revision===shown.revision)updated.push(await save({...record,...(shown.renderError?{inspectionFailed:shown.renderError}:{inspectionPresented:true}),updatedAt:Math.max(now(),record.updatedAt+1)}));
-        }
-        if(!shown.renderError&&shown.deliverable!==false&&['working','completed'].includes(candidate.status)
-        &&(!candidate.studioInstanceId||candidate.studioInstanceId===shown.studioInstanceId)
-        &&!candidate.presented&&requestReceiptState(candidate,{view:{ready:true,snapshot:shown}}).receipt){
-          const record=await get(candidate.id);
-          if(['working','completed'].includes(record.status)&&!record.presented&&requestReceiptState(record,{view:{ready:true,snapshot:shown}}).receipt)
-            updated.push(await save({...record,presented:true,updatedAt:Math.max(now(),record.updatedAt+1)}));
-        }
+          if(foreign(record)||record.studioInstanceId&&record.studioInstanceId!==shown.studioInstanceId)return;
+          const inspection=record.episode&&!record.workActive&&!record.handbackPending&&!record.inspectionPresented&&record.inspectionTarget
+            // The server read this request before loading the current bundle;
+            // a newer hand-back during that load cannot be superseded by it.
+            &&(record.inspectionTarget.revision===shown.revision?(!record.inspectionTarget.stage||record.inspectionTarget.stage===shown.stage):observedRequests?.[record.id]===record.updatedAt);
+          const delivered=!shown.renderError&&shown.deliverable!==false&&['working','completed'].includes(record.status)
+            &&!record.presented&&requestReceiptState(record,{view:{ready:true,snapshot:shown}}).receipt;
+          if(inspection||delivered)updated.push(await save({...record,...(inspection?{inspectionSnapshot:snapshot,...(shown.renderError?{inspectionFailed:shown.renderError}:{inspectionPresented:true})}:{}),
+            ...(delivered?{presented:true}:{}),updatedAt:Math.max(now(),record.updatedAt+1)}));
+        });
       }
       return updated;
     },

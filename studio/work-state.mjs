@@ -54,11 +54,12 @@ export function hasUnpreparedEdit(requests=[],snapshot){
     &&!request.presented&&request.target?.inputKey!==snapshot?.inputKey);
 }
 
-export function inspectionReceipt(request,view){
+export function inspectionReceipt(request,view,{superseded=false}={}){
   return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
     &&view?.ready&&!view.loading&&request.printId===view.printId&&request.inspectionTarget
-    &&request.inspectionTarget.revision===view.snapshot?.revision
-    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.snapshot?.stage));
+    &&(request.inspectionTarget.revision===view.snapshot?.revision
+      ?!request.inspectionTarget.stage||request.inspectionTarget.stage===view.snapshot?.stage
+      :superseded&&Boolean(view.snapshot?.revision)));
 }
 export function inspectionFailure(request,view){
   return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed

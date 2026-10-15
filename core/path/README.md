@@ -57,16 +57,18 @@ deposited connector chains retain their order. Original operation IDs still own
 motion context and explicit process dependencies; course IDs identify the solved
 sequence. Construction references remain separate from physical ordering.
 
-[physical-order.mjs](./physical-order.mjs) derives substrate prerequisites from
-oriented bead undersides and access prerequisites from nozzle sweeps. Geometry's
-[convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex distance, spatial
-indexing and swept-volume queries. Local bead normals define substrate direction;
-tool poses define nozzle direction. Neither dependency inference nor ready-course
-selection uses world Z. Ready work favors nearby entry points and small pose changes.
-Explicit `composition.order`, `composition.dependencies` and operation `after`
-constraints remain additional prerequisites. Conflicts name affected courses and
-the inferred relationship; an indivisible course that blocks itself needs a path
-change or an interruptible boundary.
+[physical-order.mjs](./physical-order.mjs) derives substrate and nozzle-access
+prerequisites. [precedence.mjs](./precedence.mjs) omits checks already implied by
+substrate or explicit process order; reported edges are sufficient constraints,
+not every contact. Its bounded dense cache falls back to exact per-source search.
+Geometry's [convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex queries,
+grouped indexing and continuous sweeps. Filters exclude irrelevant courses and
+unprinted beads before intersection tests; one witness proves each relationship.
+Bead normals and tool poses supply directions, with no world-Z ordering. Ready
+work favors nearby entries and small pose changes. Explicit `composition.order`,
+`composition.dependencies` and operation `after` remain prerequisites. Conflicts
+name affected courses and relationships; indivisible self-obstruction needs a path
+change or interruptible boundary. Known cycles are reported before nozzle scans.
 
 The temporary nozzle is an effectively infinite sharp cone with a 15-degree
 included angle (7.5 degrees from its axis). Its numerical length reaches beyond
@@ -77,10 +79,9 @@ outside this model. No support geometry is automatically added. Positive-volume
 moving beads supply occupancy; stationary injection needs authored occupied
 geometry before it can supply substrate or an obstacle volume.
 
-Execution retains material selection, retraction and cooling state. Cooling debt
-is local to the authored layer and survives interleaving. Scheduling indexes
-actual bead volumes, including connectors and modulated paths, without restoring
-filled envelopes between sparse strands or saving travel-height snapshots.
+Execution retains material selection, retraction and per-layer cooling debt across
+interleaving. Actual beads, including connectors and modulation, supply occupancy;
+sparse strands remain separate, with no saved travel-height snapshots.
 
 An assembly's `geometry.parts` holds named components with `geometry` and
 `xMm/yMm/zMm` translations; native geometry preserves each component's representation.
@@ -88,9 +89,6 @@ A slice assignment's `part` selects its component (`null` means all), producing
 one owner per component. A roof surface-domain assignment selects its assembly component through the same part field. Assemblies accept supported spline builders
 and validated meshes; they are not automatic boolean solids. Assign regions
 and geometry deliberately; component selection is part of the reviewed recipe.
-
-Dependent deposition trusts its declared material sources. All skills use the
-same operation/dependency interface and composer.
 
 [Standard vase](../../skills/vase-wall/SKILL.md) generates a sleeve curve for Trace; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
 mapped Trace batches. Both use shared bead construction and composition. Their

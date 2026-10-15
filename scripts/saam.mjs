@@ -47,10 +47,12 @@ export function commandInput(args,environment=process.env){
 // Client hooks (client setup registers them) report events as JSON on stdin. The agent is
 // with the person after a turn ends, the person writes or interrupts, or the chat closes;
 // a subagent's events (agent_id) and other notifications mean nothing here.
-const counterReasons={Stop:'turn',StopFailure:'turn',Interrupt:'interrupt',UserPromptSubmit:'message',SessionEnd:'closed'};
+const counterReasons={Stop:'turn',StopFailure:'turn',Interrupt:'interrupt',UserPromptSubmit:'message',SessionEnd:'closed',PermissionRequest:'input',Elicitation:'input'};
 function counterReason(event){
   if(event.agent_id)return null;
-  if(event.hook_event_name==='Notification')return event.notification_type==='idle_prompt'?'turn':null;
+  if(event.hook_event_name==='PreToolUse')return ['AskUserQuestion','ExitPlanMode'].includes(event.tool_name)?'input':null;
+  if(event.hook_event_name==='Notification')return event.notification_type==='idle_prompt'?'turn'
+    :['permission_prompt','elicitation_dialog','elicitation_url_dialog'].includes(event.notification_type)?'input':null;
   return counterReasons[event.hook_event_name]??null;
 }
 // Reaches only a running SAAM and prints nothing, because the client reads hook output.

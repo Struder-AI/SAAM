@@ -31,8 +31,9 @@ const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 // Codex runs Interrupt and SessionEnd synchronously within 3 s, and Claude Code's SessionEnd
 // runs before it exits; the other events run in the background.
 const script=join(programRoot,'scripts','saam.mjs'),foreground=new Set(['Interrupt','SessionEnd']);
-const claudeEvents={Stop:null,StopFailure:null,UserPromptSubmit:null,Notification:'idle_prompt',SessionEnd:null};
-const codexEvents=['Stop','Interrupt','UserPromptSubmit','SessionEnd'];
+const claudeEvents={Stop:null,StopFailure:null,UserPromptSubmit:null,Notification:'idle_prompt|permission_prompt|elicitation_dialog|elicitation_url_dialog',SessionEnd:null,
+  PermissionRequest:null,PreToolUse:'AskUserQuestion|ExitPlanMode',Elicitation:null};
+const codexEvents=['Stop','Interrupt','UserPromptSubmit','SessionEnd','PermissionRequest'];
 const isClaudeHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='client-event'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
 const isCodexHook=hook=>typeof hook?.command==='string'&&/saam\.mjs'? client-event$/.test(hook.command);
 function commandLine(windows){
@@ -94,7 +95,7 @@ async function registerCodex(clientHome,home,registered){
   const trustRequired=JSON.stringify(document.hooks)!==before;
   if(trustRequired)await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');
   return {skill:skill.path,permissions:previous||permissionChanged?rule:null,hooks:hooksFile,trustRequired,
-    ...(trustRequired&&{tellPerson:"In Codex, open /hooks and trust SAAM's four hooks; unchanged definitions retain trust across updates."}),
+    ...(trustRequired&&{tellPerson:"In Codex, open /hooks and trust SAAM's five hooks; unchanged definitions retain trust across updates."}),
     restartRequired:permissionChanged||trustRequired};
 }
 async function registerClaude(clientHome,home,registered){

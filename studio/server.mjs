@@ -520,12 +520,13 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
           let presentedRequests=[];
           const stage=data.stage??(progress.step===L.geometry?'geometry':'toolpath');
           if(!['geometry','toolpath'].includes(stage))throw Error('Unknown displayed stage.');
+          const observedRequests=Object.fromEntries((await chat.current.binding.requestsFor(dir,instanceId)).map(record=>[record.id,record.updatedAt]));
           const state=(await current.loadBundleSnapshot(dir,{program:stage!=='geometry'})).state;
           const receiptable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).receipt;
           const inspectable=stage==='geometry'||completedOutputState(state,{generating:outputGenerating()}).inspectable;
           const renderError=typeof data.renderError==='string'?data.renderError.slice(0,2000):null;
           if(data.revision===state.revision&&(inspectable||renderError)&&(stage==='geometry'||data.outputId===state.outputId)){
-            presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,deliverable:receiptable&&!renderError,renderError});
+            presentedRequests=await chat.current.binding.presented(dir,{...state.workEvidence,stage,studioInstanceId:instanceId,observedRequests,deliverable:receiptable&&!renderError,renderError});
             note(renderError?'view-failed':'view-presented',{...(renderError?{error:renderError}:{}),stage,revision:state.revision,outputId:stage==='toolpath'?state.outputId??null:null,presentedRequestIds:presentedRequests.map(record=>record.id)});
             for(const record of presentedRequests)if(!record.inspectionFailed)note('request-presented',{requestId:record.id,requestKind:record.kind,stage});
             const advisory=state.program?.shortTravel;

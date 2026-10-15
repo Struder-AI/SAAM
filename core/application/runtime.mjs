@@ -150,7 +150,7 @@ export function summary(bundleId, state) {
 export const LOCAL_LISTEN=Object.freeze({defaultMs:25000,maxMs:25000}),LISTEN_LIMIT_MS=30*60*1000;
 const CLAUDE_LISTEN=Object.freeze({defaultMs:LISTEN_LIMIT_MS,maxMs:LISTEN_LIMIT_MS});
 // Why a client event put the agent with the person: the hand-back message for each reason.
-const counterMessages=Object.freeze({turn:'The agent ended its turn.',message:'The person sent a message.',interrupt:'The person interrupted the agent.',closed:'The chat closed.'});
+const counterMessages=Object.freeze({turn:'The agent ended its turn.',message:'The person sent a message.',interrupt:'The person interrupted the agent.',input:'The agent is waiting for your input.',closed:'The chat closed.'});
 const expectedStudioSchema=z.object({studioInstanceId:z.string(),bundleId:bundleIdSchema.nullable()}).strict();
 
 export const instructions = 'Use saam help for operations and saam help OP for complete input schemas. Call saam call OP with --input FILE, --stdin or named flags. Result-changing work establishes Studio context automatically. Hand back once with respond_to_studio_request using workRequest.id, including when a new user message interrupts work. Start tours with saam start-tour. Use maker_onboarding once per chat and read individual manuals as needed. A person confirms exact settings and toolpath together in Studio before export. Commands and waits do not own application lifetime. Claude Code may monitor the Studio queue with saam wait for 30 minutes; quiet expiry is normal, renew while work or tour participation continues or let an idle monitor lapse. Codex reads the queue explicitly; automatic wakeup is unverified. Carry the expected Studio/bundle association on the first necessary operation; a stale target is rejected before effects. Return chatId with --chat-id if the command environment has no session ID. No operation grants hardware operation or final approval.';
@@ -192,7 +192,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     await resultImages.release(ownerId,record.printId);
   }
   studioEvents.observe(observeEvent);
-  const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0};
+  const studioSessions=new Map(),preferredStudioByPrint=new Map(),creationViews=new Set(),activity={calls:0,pendingWork:new Set()};
   const generationStatus=()=>[...[...calculations.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null})),...[...studioSessions.values()].map(({server:studio})=>agentStudioJob(studio.generationStatus())).filter(Boolean),
     ...[...imports.values()].filter(job=>job.ownerId===ownerId).map(({controller,printId,...job})=>({...job,bundleId:printId,cancellable:job.status!=='committing'&&!controller.signal.aborted,elapsedMs:Date.now()-job.startedAt,estimatedRemainingMs:null}))];
   async function calculateGeometry(bundleId,action){
@@ -465,6 +465,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   // hands back as the agent's own waiting hand-back would.
   async function endTurn(reason){
     const message=counterMessages[reason];if(!message)throw Error('Unknown turn end reason '+reason+'.');
+    // Include calls still validating or queued: their episode may not exist yet.
+    // Calls accepted after this contact remain autonomous work of their own.
+    for(const call of activity.pendingWork)call.handback={status:'waiting',message};
     const episodes=new Set((await agentRequests.query()).filter(r=>r.ownerId===ownerId&&r.workActive).map(r=>r.episodeId??r.id));
     await Promise.all([...episodes].map(id=>agentRequests.handBack(id,{status:'waiting',message})));
     return {handedBack:episodes.size};
@@ -500,6 +503,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           const dir=await directory(input.bundleId,{create:true,exclusive:false});
           const matches=[...studioSessions.values()].filter(s=>s.server.currentPrint()===dir);
           episode=await agentRequests.beginOperation({directory:dir,requestIds,studioInstanceId:input.studioInstanceId??view?.server.agentSession().instanceId??(matches.length===1?matches[0].server.agentSession().instanceId:undefined),instruction:'Working on '+name+'.'});
+          if(session?.workCall?.handback)void agentRequests.handBack(episode.records[0].episodeId??episode.records[0].id,session.workCall.handback)
+            .catch(error=>studioEvents.record('handback-failed',{requestId:episode.records[0].id,message:error.message}));
         }
         // The bundle's work evidence before this operation: the episode's last save, else its baseline.
         const before=episode?episode.saved??episode.records[0]?.baseline??null:null,workRecords=episode?.records??[];
@@ -1064,9 +1069,10 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function sessionInvoke(operation,args={}){
     if(app.closing)throw Error('The SAAM application is closing.');
     activity.calls++;
-
-    try{return await invoke(operation,args,{listen:client==='claude'?CLAUDE_LISTEN:LOCAL_LISTEN});}
-    finally{activity.calls--;}
+    const workCall=operations.get(operation)?.resultChanging?{handback:null}:null;
+    if(workCall)activity.pendingWork.add(workCall);
+    try{return await invoke(operation,args,{listen:client==='claude'?CLAUDE_LISTEN:LOCAL_LISTEN,workCall});}
+    finally{activity.calls--;if(workCall)activity.pendingWork.delete(workCall);}
   }
   // dispatch:false: the caller shows the window itself (the person's own launch).
   async function openStudio({dispatch=true}={}){
@@ -1185,7 +1191,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function cancelOldRequests(session){
     const chat=chats.get(session.ownerId),instanceId=session.server.agentSession().instanceId;
     for(const request of await chat.requests.query())if(request.studioInstanceId===instanceId&&['queued','working','waiting'].includes(request.status))
-      await chat.requests.update(request.id,{status:'cancelled',message:'The Studio was explicitly transferred to another chat.'});
+      await chat.requests.handBack(request.id,{status:'cancelled',message:'The Studio was explicitly transferred to another chat.'});
   }
   const attachments={tail:Promise.resolve()};
   function transferStudio(chat,session,capture){
@@ -1281,7 +1287,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function restoreStudios(windows){
     for(const window of windows){
       const attachment=window.attachment;
+      const recovering=Boolean(attachment&&!chats.has(attachment.ownerId));
       const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client,visibility:window.chatVisibility??window.visibility??'visible'}):lobby;
+      if(recovering)await chat.requests.recover();
       await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,restoring:true,visibility:window.visibility??'visible'});
       if(attachment)connectedChats.add(chat.id);
     }

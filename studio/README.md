@@ -120,15 +120,13 @@ renderable revision reaches Studio immediately; neither checks nor further edits
 require withholding it. Working dots and the affected view's 28% fade persist
 through the agent's uninterrupted editing sequence, including between commands.
 
-Hand-back captures underway work and presents its saved revision when it settles,
-in the requested pane or the current usable pane. Request updates and tab changes
-acknowledge that presentation; Studio undims, or shows the last usable result with
-the error. Future work has a new identity, so delayed replies cannot end it.
-Guidance and other bundles stay quiet; idle time does not invent completion.
+Hand-back covers underway and queued calls, then presents the saved revision in
+the requested usable pane; missing output shows geometry and the failure. Cancellation
+and restart settle the same ledger. Presentation survives busy views and retries
+transport failures. Later work has a new identity; idle time never completes it.
 
-Inspection and tour receipts are separate: inspecting a previous eligible
-toolpath can finish hand-back without satisfying a lesson requiring new output.
-The viewer reports actual rendering; the agent never manufactures that receipt.
+Inspection receipts record the actual view. A server-verified newer saved view can
+settle a superseded inspection, preserving the original delivery target and tour gates.
 
 ### Carrying a maker request
 
@@ -147,10 +145,10 @@ identity with edits; an unchecked program summary is not a failed check.
 | Geometry-only work | No generation solely to finish or undim. |
 | Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
-Hand-back needs no `resultStage` unless a particular view is required. Studio
-requests initiate it directly. Client hooks (`saam client-event`) hand the chat's
-active work back as `waiting` when its turn ends, the person writes or interrupts,
-or the chat closes; the agent still hands back on an interjection.
+Omit `resultStage` unless a particular view is required. Studio requests and client
+hooks (`saam client-event`) hand work back on turn end, interjection, input or closure.
+Codex hooks require user trust in `/hooks`. Claude questions/permissions pause directly;
+Esc has no immediate hook: the next prompt or idle notification supplies the signal.
 
 Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
 after acknowledging completed work; quiet expiry preserves attachment and work.

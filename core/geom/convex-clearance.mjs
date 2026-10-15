@@ -49,15 +49,17 @@ function simplexClosest(points){
   return best;
 }
 
-// GJK distance. Progress and duplicate support convergence use rounding guards;
-// the caller chooses its physical contact tolerance. No iteration truncation.
-export function convexDistance(a,b){
+// GJK separation. A finite threshold permits a proved separating-plane exit;
+// Infinity computes the distance. Rounding guards converge without truncation.
+function convexSeparation(a,b,thresholdMm=Infinity){
   const center=subtract(a.a??a.parts[0].a,b.a??b.parts[0].a),initial=length(center)>ROUNDING_MM?center:[1,0,0];
   const state={simplex:[subtract(convexSupport(a,initial),convexSupport(b,scale(initial,-1)))],distance:Infinity};
   for(;;){
     const closest=simplexClosest(state.simplex);
     if(closest.distance<=ROUNDING_MM)return 0;
     const direction=scale(closest.point,-1),next=subtract(convexSupport(a,direction),convexSupport(b,scale(direction,-1)));
+    const lowerBound=dot(closest.point,next)/closest.distance;
+    if(lowerBound>thresholdMm+ROUNDING_MM)return lowerBound;
     const improvement=closest.distance**2-dot(closest.point,next);
     if(improvement<=ROUNDING_MM*Math.max(1,closest.distance)||state.simplex.some(p=>length(subtract(p,next))<=ROUNDING_MM))return closest.distance;
     if(state.distance-closest.distance<=ROUNDING_MM)return closest.distance;
@@ -65,8 +67,14 @@ export function convexDistance(a,b){
   }
 }
 
-// Index immutable volumes once; each query returns source indices.
-export function convexSpatialIndex(shapes){
+export const convexDistance=(a,b)=>convexSeparation(a,b);
+export const convexIntersects=(a,b,toleranceMm=PRINT_RESOLUTION_MM)=>convexSeparation(a,b,toleranceMm)<=toleranceMm;
+
+// Index immutable volumes, optionally partitioned by opaque caller-owned groups.
+// Filter whole groups before traversing their beads. One witness per group is
+// sufficient when the caller is proving relationships rather than listing hits.
+export function convexSpatialIndex(shapes,{groups=null}={}){
+  requireThat(!groups||groups.length===shapes.length,'Spatial index groups must match its shapes.');
   const entries=shapes.map((shape,index)=>({shape,index,bounds:convexBounds(shape)}));
   function build(items){
     const bounds=items.reduce((box,item)=>({min:box.min.map((v,i)=>Math.min(v,item.bounds.min[i])),max:box.max.map((v,i)=>Math.max(v,item.bounds.max[i]))}),
@@ -76,13 +84,23 @@ export function convexSpatialIndex(shapes){
     const ordered=[...items].sort((a,b)=>a.bounds.min[axis]+a.bounds.max[axis]-b.bounds.min[axis]-b.bounds.max[axis]),mid=Math.floor(items.length/2);
     return {bounds,left:build(ordered.slice(0,mid)),right:build(ordered.slice(mid))};
   }
-  const tree=build(entries);
-  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM){
-    const box=convexBounds(shape),pending=[tree],found=[];
+  const partitions=new Map();
+  if(groups)for(const entry of entries){
+    const group=groups[entry.index];if(!partitions.has(group))partitions.set(group,[]);partitions.get(group).push(entry);
+  }
+  const tree=groups?build([...partitions].map(([group,items])=>{const tree=build(items);return {group,tree,bounds:tree.bounds};})):build(entries);
+  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false}={}){
+    const box=convexBounds(shape),pending=[{node:tree,grouped:false}],found=[],settled=new Set();
     while(pending.length){
-      const node=pending.pop();if(!boundsOverlap(box,node.bounds,toleranceMm))continue;
-      if(node.items){for(const item of node.items)if(boundsOverlap(box,item.bounds,toleranceMm)&&convexDistance(shape,item.shape)<=toleranceMm)found.push(item.index);}
-      else pending.push(node.left,node.right);
+      const {node,group,grouped}=pending.pop();
+      if(firstPerGroup&&grouped&&settled.has(group)||!boundsOverlap(box,node.bounds,toleranceMm))continue;
+      if(node.items){for(const item of node.items){
+        if(!boundsOverlap(box,item.bounds,toleranceMm))continue;
+        if(item.tree){if(!acceptGroup||acceptGroup(item.group))pending.push({node:item.tree,group:item.group,grouped:true});}
+        else if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)){
+          found.push(item.index);if(firstPerGroup&&grouped){settled.add(group);break;}
+        }
+      }}else pending.push({node:node.left,group,grouped},{node:node.right,group,grouped});
     }
     return found;
   }};
@@ -107,9 +125,16 @@ export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DE
   while(pending.length){
     const interval=pending.pop(),poses=[interval.a,interval.b].map(t=>interpolateDirectionPair(
       [fromPose.toolAxis,fromPose.toolUp],[toPose.toolAxis,toPose.toolUp],t));
-    const axes=poses.map(p=>scale(p[0],-1)),cosine=Math.max(-1,Math.min(1,dot(axes[0],axes[1])));
+    const axes=poses.map(p=>scale(p[0],-1)),axisChord=length(subtract(axes[0],axes[1]));
     const halfAngle=includedAngleDeg*Math.PI/360;
-    const error=(lengthMm+NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle))/Math.cos(halfAngle)*(1-Math.sqrt((1+cosine)/2));
+    // A frame may roll around an oblique axis: its cone axis then follows a
+    // small circle, not the great-circle arc between the endpoint axes. Use
+    // the full frame rotation for the rigid-point sagitta bound. The second
+    // bound follows from the axis chord and makes pure/near-pure roll cheap.
+    const frameCosine=axisChord===0?1:Math.max(-1,Math.min(1,(dot(axes[0],axes[1])+dot(poses[0][1],poses[1][1])+
+      dot(cross(axes[0],poses[0][1]),cross(axes[1],poses[1][1]))-1)/2));
+    const radiusBound=(lengthMm+NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle))/Math.cos(halfAngle);
+    const error=radiusBound*Math.min(1-Math.sqrt((1+frameCosine)/2),2*axisChord);
     if(error>NOZZLE_FORGIVENESS_MM/4){const mid=(interval.a+interval.b)/2;pending.push({a:interval.a,b:mid},{a:mid,b:interval.b});continue;}
     const shapes=[interval.a,interval.b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg));
     pieces.push({parts:shapes,margin:error});
@@ -132,7 +157,7 @@ export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose){
   if(!occupied.size)return [];
   const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose);
   const hits=new Set();
-  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach))for(const hit of index.query(sweep,ROUNDING_MM))if(occupied.has(hit))hits.add(hit);
+  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach))for(const hit of index.query(sweep,ROUNDING_MM,{accept:hit=>occupied.has(hit)}))hits.add(hit);
   return [...hits];
 }
 
