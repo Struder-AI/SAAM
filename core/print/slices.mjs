@@ -13,6 +13,7 @@ import {lineSpacing} from '../path/spacing.mjs';
 function evaluateRegionBatch({id,reference,strokes,gap,speedMmS,process,filament,sampleStepMm}){
   const mapped=mapSliceStrokes(strokes,reference,{frames:true,sampleStepMm});
   const curves=sliceGapCurves(mapped,reference,gap);
+  if(!curves.length)return null;
   return depositCurveBatches({id,batches:[{key:0,curves,speedMmS}],process,filament,sequential:false})[0];
 }
 
@@ -40,6 +41,7 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
       if(!found.length)continue;
       const roles=s.roles??settings.roles;
       const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
+      if(!deposited)continue;
       const lifted=deposited.strokes,heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planar=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
       const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;
       let covered;

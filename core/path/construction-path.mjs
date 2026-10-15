@@ -19,5 +19,6 @@ export function constructionPath({results,planning,composition,summary,generator
         poses:stroke.poses,normals:stroke.normals,stationaryExtrusion:stroke.stationaryExtrusion}))};
   }));
   return saamPath({schema:'saampath/1',generatorVersion,units:'mm',materialUnits:'mm3',
-    operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections},composition,summary});
+    operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
+      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary});
 }

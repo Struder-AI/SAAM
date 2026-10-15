@@ -12,7 +12,8 @@ import {topAt} from '../geom/query.mjs';
 import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {sliceAssignment,validateSlices} from "./slice-records.mjs";
-import {sliceOwners,ownedLayers} from "./slice-material.mjs";
+import {sliceOwners} from "./slice-material.mjs";
+import {prepareMaterialRegions} from "../region/shared-material/prepare.mjs";
 import {BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
@@ -60,7 +61,7 @@ export async function intersectDraftStacks(shell,drafts,{includeLoops=false}={})
   const materials=await resolveMaterialGeometry(geometries),byGeometry=new Map(geometries.map((geometry,i)=>[geometry,materials[i]]));
   const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?byGeometry.get(v.geometry):null)]));
   const owners=sliceOwners(assignments,{shells,processes,volumes});
-  return ownedLayers(owners).map(({owner,referenceStack,layers,notes})=>({
+  return prepareMaterialRegions(owners).map(({owner,referenceStack,layers,notes})=>({
     id:owner.assignment.id,owner:owner.id,direction:referenceStack.direction,layerCount:layers.length,targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,gapMetric:referenceStack.gapMetric,
     notes,layers:layers.map(layer=>{
       const samples=layer.region.flat(),normals=samples.map(p=>evaluateSurface(layer.slice,p).normal);

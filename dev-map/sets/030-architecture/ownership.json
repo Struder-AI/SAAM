@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Unified Slice construction, 2026-10-14: references/material masks/phase/seeds prepared before construction; no completed deposition reads; lip uses ordinary loops without contour expansion; translated/normal stacks derive local gaps. General trimmed normal offsets remain a Geometry limitation.",
+  "status": "Shared-material preparation prototype and local deposited-face scheduling, 2026-10-15. Non-edge-on joint construction and finer interruption remain open frontiers.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "dev-map/influence/position-documents.mjs": {
@@ -1658,6 +1658,18 @@
     "core/path/precedence.mjs": {
       "owner": "scheduling",
       "reason": "Exact course reachability, cycle detection and bounded acceleration storage for scheduling."
+    },
+    "core/region/shared-material/prepare.mjs": {
+      "owner": "material-regions",
+      "reason": "One upstream operation resolves native material claims and prepared layers before stroke construction; shared cadence and nonplanar transitions remain in development."
+    },
+    "core/region/shared-material/depth.mjs": {
+      "owner": "material-regions",
+      "reason": "One upstream operation resolves native material claims and prepared layers before stroke construction; shared cadence and nonplanar transitions remain in development."
+    },
+    "core/region/shared-material/caps.mjs": {
+      "owner": "material-regions",
+      "reason": "One upstream operation resolves native material claims and prepared layers before stroke construction; shared cadence and nonplanar transitions remain in development."
     }
   },
   "leaves": {
@@ -14682,10 +14694,6 @@
       "owner": "recipe",
       "reason": "Recipe owns explicit Slice records, defaults and validation."
     },
-    "core/print/slice-material.mjs::chartExtent": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
     "core/print/slice-records.mjs::defaultSlices": {
       "owner": "recipe",
       "reason": "Recipe owns explicit Slice records, defaults and validation."
@@ -14698,35 +14706,7 @@
       "owner": "recipe",
       "reason": "Recipe owns explicit Slice records, defaults and validation."
     },
-    "core/print/slice-material.mjs::ownedLayers": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::cached": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::claim": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::material": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::partSection": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::volume": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
     "core/print/slice-material.mjs::prepareSliceContexts": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::regionBox": {
       "owner": "material-regions",
       "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
     },
@@ -14777,26 +14757,6 @@
     "core/print/construction.mjs::failureNote": {
       "owner": "build-evaluate",
       "reason": "Application resolves material inputs and retries failed assignments before calling Toolpath."
-    },
-    "core/print/slice-material.mjs::ownedLayers::partCut": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::at": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::zOf": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::widest": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
     },
     "core/print/slice-deposition.mjs::sourceCurveResult": {
       "owner": "trace",
@@ -15121,30 +15081,6 @@
       "owner": "scheduling",
       "reason": "Scheduling reads saved Bundle operation data and prepares neutral travel, retraction and cooling."
     },
-    "core/print/slice-material.mjs::chartExtent::corners": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::chartExtent::points": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::chartExtent::box": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::regionBox::min": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::regionBox::max": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::regionBox::loop": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
     "core/print/slice-material.mjs::sliceOwners::owners": {
       "owner": "material-regions",
       "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
@@ -15281,145 +15217,10 @@
       "owner": "material-regions",
       "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
     },
-    "core/print/slice-material.mjs::ownedLayers::owners": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::cache": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::partCut::<callback@110:123>::prepared": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::material::<callback@115:125>::region": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::material::<callback@115:125>::band": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::material::<callback@115:125>::cut": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::material::<callback@115:125>::reserve": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::volume::<callback@124:90>::cuts": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::explicit": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::results": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::done": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::total": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::principal": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::referenceStack": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::layers": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::materialMasks": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::findings": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::layer": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::own": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::z": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::candidates": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::region": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::boundary": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::authoredBoundary": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::ownedLayers::notes": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::at::p": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::notes": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::open": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::edged": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::items": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::joined": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::dropped": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::first": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
-    "core/print/slice-material.mjs::sectionNotes::point": {
-      "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
-    },
     "core/print/slice-material.mjs::sliceRank::heights": {
       "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
+      "reason": "Upstream allocation prepares owned regions, claims and reference contexts.",
+      "retired": "Layer rank now evaluates native boundary points directly, 2026-10-15."
     },
     "core/print/slice-material.mjs::prepareSliceContexts::all": {
       "owner": "material-regions",
@@ -18061,6 +17862,98 @@
     "core/path/compose.mjs::solveCourseOrder": {
       "owner": "scheduling",
       "reason": "Solve physical and authored order at the current interruptible course granularity."
+    },
+    "core/region/shared-material/prepare.mjs::@module": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::@module": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/caps.mjs::@module": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::MIN_SHARED_CLAIM_DEPTH_MM": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::claimInterior": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::chartBounds": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::modulo": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::cadence": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::retimeLayers": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::sharedStack": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::prepareMaterialClaims": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::chartExtent": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::regionBox": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::failedSlicePreparation": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::prepareMaterialRegions": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/prepare.mjs::sectionNotes": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::boxDistance": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::ballQueries": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::solidBalls": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::patchBalls": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::buildSolidBalls": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/depth.mjs::prepareSharedInterior": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/region/shared-material/caps.mjs::boundaryCaps": {
+      "owner": "material-regions",
+      "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
     }
   },
   "retiredAssignments": [

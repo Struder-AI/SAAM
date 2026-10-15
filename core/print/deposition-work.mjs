@@ -63,7 +63,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     record.preparedLayers=new Map();
     for(const [ordinal,layer] of record.spec.layers.entries()){
       const onSubstrate=layer.onSubstrate??Boolean(record.contact);
-      const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,bedZMm:onSubstrate?null:record.context.shell?.bounds.min[2]??null}};
+      const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,substrate:onSubstrate?null:record.context.substrate??null}};
       const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
       if(nominal.settings.fillOrder?.kind==='fronts'&&nominal.settings.fillOrder.seedUv===null){
         const selected=record.contact?.source;
@@ -71,7 +71,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
         for(const other of supporting)resolve(other);
         const prior=record.spec.layers.filter(other=>other.index<layer.index);
         const predecessors=[...prior.slice(-1),...supporting.flatMap(other=>other.spec.layers)];
-        const seedUv=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareFrontSeed(input,{predecessors,bedZMm:record.contact?null:record.context.shell?.bounds.min[2]??null,sampleStepMm:nominal.settings.sampleStepMm,toleranceMm:nominal.settings.fillOrder.toleranceMm}));
+        const seedUv=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareFrontSeed(input,{predecessors,substrate:input.gap.substrate??null,sampleStepMm:nominal.settings.sampleStepMm,toleranceMm:nominal.settings.fillOrder.toleranceMm}));
         nominal.strokeSettings={...nominal.strokeSettings,fillOrder:{...nominal.settings.fillOrder,seedUv},layer:{...nominal.strokeSettings.layer,seedSource:'prepared-material'}};
       }
       const strokes=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>layerStrokes(layer.region,{...nominal.strokeSettings,preparedLayout:nominal.preparedLayout}));

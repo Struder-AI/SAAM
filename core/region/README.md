@@ -152,17 +152,16 @@ Material masks, fill patterns and actual deposited contact retain Toolpath polic
 
 ## Material ownership and surface contact
 
-`plan.slices.assignments` owns surface, stack and material selection.
-[allocateChartClaims](ownership.mjs) gives each explicit claimant its claimed region
-and a default owner the remainder after explicit regions and reservations. See the
-[slice manual](../../skills/slice/SKILL.md); assembly components are not implicitly unioned.
-Prepared text exposes `base` and `text/<feature-id>` selections, prefixed by the
-component ID in an assembly. [Geometry selections](../geom/selections.mjs)
-resolves these with their component placement without changing saved geometry.
+[prepareMaterialRegions](./shared-material/prepare.mjs) takes ordered native claims
+and nominal stacks, returning owned layers, adjusted references and findings.
+Settings stay per region; defaults retain unclaimed material and separate parts.
+An explicit `substrate:{origin,normal}` plane clips stack advance in its frame.
+Shared cadence/nonplanar transitions remain in development; see the [slice manual](../../skills/slice/SKILL.md).
+Text selections are `base` and `text/<feature-id>`, prefixed by assembly component;
+[geometry selections](../geom/selections.mjs) applies placement without changing saved geometry.
 
-[assignmentPlan](../print/assignment-process.mjs) resolves filament defaults then
-assignment process overrides. Explicit stack gaps govern slice-stack geometry;
-process values supply deposition defaults.
+[assignmentPlan](../print/assignment-process.mjs) resolves filament defaults and assignment overrides.
+Stack gaps define layers; process values supply deposition defaults.
 
 [reservation.mjs](./reservation.mjs) removes temporary process cavities from
 owned material. A plastic-weld reservation supplies a

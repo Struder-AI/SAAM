@@ -15,37 +15,37 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
     const layerId=initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
     return {...op,layerId};
   });
-  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set(),withinGroups:new Set()};
+  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set(),withinGroups:new Set(),groupPrefixes:new Map()};
   const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),layers=new Set();
   const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
   let state=initialState,completed=0,last=null;
   onProgress?.({stage:'Planning print moves',completed,total:operations.length});
   for(const op of operations){
     if(last&&last.layerId!==op.layerId&&!last.continuous){
-      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});
+      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);
       state=cooling.state;actions.add(cooling.actions);paid.set(last.layerId,(paid.get(last.layerId)??0)+(cooling.coolingSeconds??0));
     }
     const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{nozzleScene,layerSeconds:elapsed.get(op.layerId)??0});
     state=planned.state;actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layers.add(op.layerId);last=op;
     onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
   }
-  if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)});state=cooled.state;actions.add(cooled.actions);}
-  return planningResult({...state,operationId:undefined},actions.finish(),{summary:{operationOrder:operations.map(op=>op.id),layers:layers.size,
+  if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);state=cooled.state;actions.add(cooled.actions);}
+  return planningResult({...state,operationId:undefined},actions.finish(),{nozzleScene,summary:{operationOrder:operations.map(op=>op.id),layers:layers.size,
     physicalOrdering:{substrateDependencies:resolved.physical.substrateDependencies,nozzleDependencies:resolved.physical.nozzleDependencies,
       nozzle:'Effectively infinite sharp cone; 15 degree included angle; carriage unchecked.'}}});
 }
 
 export function planOperation(initialState,op,options={}) {
-  const entered=planOperationEntry(initialState,op,options.layerSeconds??0);
+  const entered=planOperationEntry(initialState,op,options);
   const deposited=planPreparedOperation(entered.state,op,options);
   return planningResult(deposited.state,{chunks:[entered.actions,deposited.actions]},{operationSeconds:deposited.operationSeconds});
 }
 
-export function planOperationEntry(initialState,op,layerSeconds=0) {
+export function planOperationEntry(initialState,op,{layerSeconds=0,nozzleScene}={}) {
   const contextual=planContext({...initialState,layerSeconds,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const configured=planProcess(selected.state,op.process);
-  const prepared=planOperationStart(configured.state,op);
+  const prepared=planOperationStart(configured.state,op,nozzleScene);
   return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
 }
 
@@ -58,25 +58,26 @@ export function planPreparedOperation(initialState,op,{nozzleScene,finishLayer=f
     const approached=planStrokeApproach(state,stroke,op,nozzleScene);
     const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
     state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);
-    for(const point of stroke.points)for(const i of nozzleScene.byStart.get(point)??[])if(nozzleScene.beads[i].operationId===op.id)nozzleScene.occupied.add(i);
+    for(const point of stroke.points)for(const i of nozzleScene.byStart.get(point)??[])if(nozzleScene.beads[i].operationId===op.id){
+      nozzleScene.occupied.add(i);nozzleScene.groupPrefixes.set(op.id,Math.max(nozzleScene.groupPrefixes.get(op.id)??-1,i));}
     if(!nozzleScene.withinGroups.has(op.id))nozzleScene.withinGroups=new Set([...nozzleScene.withinGroups,op.id]);
   }
-  const restored=planOperationEnd(state,op),operationSeconds=restored.state.layerSeconds;
-  const cooled=finishLayer?planLayerCooling(restored.state):planningResult(restored.state);
+  const restored=planOperationEnd(state,op,nozzleScene),operationSeconds=restored.state.layerSeconds;
+  const cooled=finishLayer?planLayerCooling(restored.state,nozzleScene):planningResult(restored.state);
   actions.add(restored.actions);actions.add(cooled.actions);
   return planningResult(planProcess(cooled.state).state,actions.finish(),{operationSeconds});
 }
 
-export function planOperationStart(state,op) {
+export function planOperationStart(state,op,nozzleScene) {
   const fan=op.fanPercent!==undefined?planFan(state,op.fanPercent):planningResult(state);
   if(op.nozzleC===undefined)return fan;
-  const parked=planPark(fan.state),heated=planNozzle(parked.state,op.nozzleC);
+  const parked=planPark(fan.state,nozzleScene),heated=planNozzle(parked.state,op.nozzleC);
   return planningResult(heated.state,{chunks:[fan.actions,parked.actions,heated.actions]});
 }
 
-export function planOperationEnd(state,op) {
+export function planOperationEnd(state,op,nozzleScene) {
   if(op.nozzleC===undefined)return planningResult(state);
-  const parked=planPark(state),restored=planNozzle(parked.state,op.restoreNozzleC);
+  const parked=planPark(state,nozzleScene),restored=planNozzle(parked.state,op.restoreNozzleC);
   return planningResult(restored.state,{chunks:[parked.actions,restored.actions]});
 }
 

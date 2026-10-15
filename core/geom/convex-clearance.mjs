@@ -5,6 +5,7 @@ import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.m
 import {interpolateDirectionPair,rotation,mv} from './frame.mjs';
 
 export function convexSupport(shape,direction){
+  if(shape.body){const point=convexSupport(shape.body,direction);return dot(shape.sweep,direction)>0?add(point,shape.sweep):point;}
   if(shape.parts){
     const points=shape.parts.map(part=>convexSupport(part,direction));
     const best=points.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
@@ -71,52 +72,75 @@ function convexSeparation(a,b,thresholdMm=Infinity){
 }
 
 export const convexDistance=(a,b)=>convexSeparation(a,b);
-export const convexIntersects=(a,b,toleranceMm=PRINT_RESOLUTION_MM)=>convexSeparation(a,b,toleranceMm)<=toleranceMm;
+// Separating axes retain zero-thickness faces and avoid simplex degeneracy at
+// local surface contact. side marks orthogonal rectangular bead prisms.
+function prismIntersects(a,b,toleranceMm){
+  const axesA=[normalize(subtract(a.b,a.a)),a.side,a.normal],axesB=[normalize(subtract(b.b,b.a)),b.side,b.normal];
+  const centerA=add(scale(add(a.a,a.b),.5),scale(a.normal,-a.depth/2)),centerB=add(scale(add(b.a,b.b),.5),scale(b.normal,-b.depth/2));
+  const spansA=[length(subtract(a.b,a.a))/2,a.radius,a.depth/2],spansB=[length(subtract(b.b,b.a))/2,b.radius,b.depth/2],offset=subtract(centerB,centerA);
+  for(const axis of [...axesA,...axesB,...axesA.flatMap(x=>axesB.map(y=>cross(x,y)))]){
+    const size=length(axis);if(size<=ROUNDING_RELATIVE)continue;
+    const radiusA=axesA.reduce((sum,v,k)=>sum+Math.abs(dot(v,axis))*spansA[k],0),radiusB=axesB.reduce((sum,v,k)=>sum+Math.abs(dot(v,axis))*spansB[k],0);
+    if(Math.abs(dot(offset,axis))>radiusA+radiusB+toleranceMm*size)return false;
+  }
+  return true;
+}
+export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
+  if(a.side&&b.side)return prismIntersects(a,b,toleranceMm);
+  return convexSeparation(a,b,toleranceMm)<=toleranceMm;
+}
 
-// Index immutable volumes, optionally partitioned by opaque caller-owned groups.
-// Filter whole groups before traversing their beads. One witness per group is
-// sufficient when the caller is proving relationships rather than listing hits.
-export function convexSpatialIndex(shapes,{groups=null}={}){
+// Index immutable volumes in caller-owned partitions and witness groups.
+// Proven partition admission precedes local spatial and group/ordinal filters.
+export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   requireThat(!groups||groups.length===shapes.length,'Spatial index groups must match its shapes.');
-  const entries=shapes.map((shape,index)=>({shape,index,bounds:convexBounds(shape)}));
-  function build(items,partition={}){
-    const bounds=items.reduce((box,item)=>({min:box.min.map((v,i)=>Math.min(v,item.bounds.min[i])),max:box.max.map((v,i)=>Math.max(v,item.bounds.max[i]))}),
-      {min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
-    if(items.length<=8)return {...partition,bounds,items};
+  requireThat(!partitions||partitions.length===shapes.length,'Spatial partitions must match their shapes.');
+  const members=new Map();
+  const entries=shapes.map((shape,index)=>{const group=groups?.[index];if(groups&&!members.has(group))members.set(group,{group,token:null,allowed:true,through:Infinity});
+    return {shape,tree:null,index,group,member:groups?members.get(group):null,bounds:convexBounds(shape)};});
+  function build(items,partition=null){
+    const node={bounds:{min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]},items:null,left:null,right:null,group:undefined,grouped:false,firstIndex:Infinity,partition,member:null},bounds=node.bounds;
+    for(const item of items){node.firstIndex=Math.min(node.firstIndex,item.index);for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],item.bounds.min[k]);bounds.max[k]=Math.max(bounds.max[k],item.bounds.max[k]);}}
+    if(items.length<=8){node.items=items;node.group=items[0]?.group;node.grouped=Boolean(groups)&&items.length>0&&items.every(item=>!item.tree&&item.group===node.group);node.member=node.grouped?items[0].member:null;return node;}
     const axis=[0,1,2].reduce((best,i)=>bounds.max[i]-bounds.min[i]>bounds.max[best]-bounds.min[best]?i:best,0);
     const ordered=[...items].sort((a,b)=>a.bounds.min[axis]+a.bounds.max[axis]-b.bounds.min[axis]-b.bounds.max[axis]),mid=Math.floor(items.length/2);
-    return {...partition,bounds,left:build(ordered.slice(0,mid),partition),right:build(ordered.slice(mid),partition)};
+    node.left=build(ordered.slice(0,mid),partition);node.right=build(ordered.slice(mid),partition);
+    node.grouped=node.left.grouped&&node.right.grouped&&node.left.group===node.right.group;
+    node.group=node.grouped?node.left.group:undefined;node.member=node.grouped?node.left.member:null;return node;
   }
-  const partitions=new Map();
-  if(groups)for(const entry of entries){
-    const group=groups[entry.index];if(!partitions.has(group))partitions.set(group,[]);partitions.get(group).push(entry);
+  const membership=partitions??groups,held=new Map();
+  if(membership)for(const item of entries){const key=membership[item.index];if(!held.has(key))held.set(key,[]);held.get(key).push(item);}
+  const roots=[...held.values()].map(items=>{const partition={members:[...new Set(items.map(item=>item.group))],token:null,status:1},tree=build(items,partition);return {shape:null,tree,index:tree.firstIndex,group:undefined,member:null,bounds:tree.bounds};});
+  const tree=membership?build(roots):build(entries),selection={allowed:null,token:{}};
+  // An entire partition can be excluded or admitted from proven group order.
+  // Only a partially selected partition needs member-level filtering. A single
+  // immutable selection owns this bounded memo; native slices are caller data.
+  function selected(partition,allowed){
+    if(!partition)return 1;
+    if(selection.allowed!==allowed){selection.allowed=allowed;selection.token={};}
+    if(partition.token===selection.token)return partition.status;
+    const count=partition.members.reduce((sum,group)=>sum+Number(allowed.has(group)),0),status=count===0?0:count===partition.members.length?2:1;
+    partition.token=selection.token;partition.status=status;return status;
   }
-  const tree=groups?build([...partitions].map(([group,items])=>{const tree=build(items,{group,grouped:true});return {group,tree,bounds:tree.bounds};})):build(entries);
-  const selected={allowed:null,tree:null};
-  // Reuse a filtered top-level tree across queries with the same immutable
-  // allowed-group set. Whole proven-irrelevant subtrees disappear before scans.
-  function selectedTree(node,allowed){
-    if(node.items){const items=node.items.filter(item=>allowed.has(item.group));return items.length===node.items.length?node:items.length?{...node,items}:null;}
-    const left=selectedTree(node.left,allowed),right=selectedTree(node.right,allowed);
-    if(!left)return right;if(!right)return left;
-    if(left===node.left&&right===node.right)return node;
-    return {left,right,bounds:{min:left.bounds.min.map((v,i)=>Math.min(v,right.bounds.min[i])),max:left.bounds.max.map((v,i)=>Math.max(v,right.bounds.max[i]))}};
-  }
-  function selection(allowed){
-    requireThat(groups,'Group selection needs a grouped spatial index.');
-    if(selected.allowed!==allowed){selected.allowed=allowed;selected.tree=selectedTree(tree,allowed)??build([]);}
-    return selected.tree;
-  }
-  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null}={}){
-    const box=convexBounds(shape),pending=[withinGroups?selection(withinGroups):tree],found=[],settled=new Set();
+  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null}={}){
+    if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
+    const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
+    function eligible(member){
+      if(member.token!==token){member.token=token;member.allowed=(!withinGroups||withinGroups.has(member.group))&&(!acceptGroup||acceptGroup(member.group));member.through=groupPrefixes?.get(member.group)??Infinity;}
+      return member.allowed;
+    }
     while(pending.length){
       const node=pending.pop(),{group,grouped}=node;
-      if(firstPerGroup&&grouped&&settled.has(group)||!boundsOverlap(box,node.bounds,toleranceMm))continue;
+      if(!boundsOverlap(box,node.bounds,toleranceMm))continue;
+      const status=withinGroups?selected(node.partition,withinGroups):2;if(!status)continue;
+      if(grouped&&(firstPerGroup&&settled.has(group)||!eligible(node.member)||node.firstIndex>node.member.through))continue;
       if(node.items){for(const item of node.items){
         if(!boundsOverlap(box,item.bounds,toleranceMm))continue;
-        if(item.tree){if(!acceptGroup||acceptGroup(item.group))pending.push(item.tree);}
-        else if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)&&(!confirm||confirm(item.shape))){
-          found.push(item.index);if(firstPerGroup&&grouped){settled.add(group);break;}
+        if(item.tree){pending.push(item.tree);continue;}
+        const group=item.group;
+        if(groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
+        if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)&&(!confirm||confirm(item.shape))){
+          found.push(item.index);if(firstPerGroup&&groups)settled.add(group);
         }
       }}else pending.push(node.left,node.right);
     }
@@ -152,7 +176,8 @@ function nozzleInterval(motion,a,b){
     const radiusBound=(lengthMm+NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle))/Math.cos(halfAngle);
     const error=radiusBound*Math.min(1-Math.sqrt((1+frameCosine)/2),2*axisChord);
     const shapes=[a,b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg));
-    return {parts:shapes,margin:error,motion,a,b,fixed:axisChord===0};
+    return {parts:shapes,margin:error,motion,t0:a,t1:b,fixed:axisChord===0,
+      ...(axisChord===0?{body:shapes[0],sweep:shapes[1].a.map((v,k)=>v-shapes[0].a[k])}:{})};
 }
 
 // Coarse conservative envelopes for spatial rejection; a changing-pose hull
@@ -176,9 +201,9 @@ function nozzleIntervalIntersects(sweep,shape,toleranceMm){
     const interval=pending.pop();
     if(!convexIntersects(interval,shape,toleranceMm))continue;
     if(interval.fixed||interval.parts.some(cone=>convexIntersects(cone,shape,toleranceMm)))return true;
-    const mid=(interval.a+interval.b)/2;
-    if(mid<=interval.a||mid>=interval.b)return true;
-    const left=nozzleInterval(interval.motion,interval.a,mid),right=nozzleInterval(interval.motion,mid,interval.b);
+    const mid=(interval.t0+interval.t1)/2;
+    if(mid<=interval.t0||mid>=interval.t1)return true;
+    const left=nozzleInterval(interval.motion,interval.t0,mid),right=nozzleInterval(interval.motion,mid,interval.t1);
     if(convexIntersects(left.parts[1],shape,toleranceMm))return true;
     pending.push(left,right);
   }
@@ -206,9 +231,9 @@ export function nozzleSweepReach(bounds,from,to,fromPose,toPose){
   return Math.max(length(subtract(from,center)),length(subtract(to,center)))+length(subtract(bounds.max,bounds.min))+PRINT_RESOLUTION_MM;
 }
 
-export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null}={}){
+export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null,groupPrefixes=null}={}){
   if(!occupied.size)return [];
-  return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups});
+  return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups,groupPrefixes});
 }
 
 function radialPose(radial,up){

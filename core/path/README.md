@@ -5,9 +5,6 @@ material. [Material regions](../region/README.md#material-ownership-and-surface-
 define ownership and interfaces; [print lifecycle](../print/README.md) owns plan
 locking, generation and review.
 
-The separate [collision-planning proposal](./collision-proposal.md) records
-an unimplemented design for evaluation.
-
 ## Skill-result composition
 
 Material regions resolves claims upstream; Application prepares work dependencies.
@@ -30,9 +27,10 @@ Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
 either baseline. Omitted pose output keeps ordinary three-axis motion. A pose is
 `{toolAxis, toolUp}` in the part frame, an internal result, not a recipe input
 (an older path's `rotaryDeg` is ignored); machine axes come from the machine's
-kinematics. Reorientation is ordinary travel: retreat along the tool axis, travel
-over the part to the approach point while orientation interpolates, approach; a
-turn in place is untimed (the machine's own rate).
+kinematics. Entry, reorientation, cooling, parking and finishing use the deposited
+scene and tool axis. The path's `planning` may supply `start` and
+`motion:{initialPose,retreatMm}`; default entry retreats from its first stroke.
+Axis speed limits belong downstream; turns in place use the machine's rate.
 
 Toolpath's private results contain operations and reports. Each saved operation
 has a unique `id`, `layerId`, numeric `rank`, exact `after` prerequisites,
@@ -57,12 +55,12 @@ atomic. Connector chains retain order but split at stroke boundaries when groupi
 causes a conflict. Original IDs own motion context and process prerequisites;
 course IDs identify execution. Construction references remain separate.
 
-[physical-order.mjs](./physical-order.mjs) derives substrate and nozzle-access
+[physical-order.mjs](./physical-order.mjs) derives local substrate contacts and swept-nozzle
 prerequisites. [precedence.mjs](./precedence.mjs) omits checks already implied by
 substrate or explicit process order; reported edges are sufficient constraints,
 not every contact. Its bounded dense cache falls back to exact per-source search.
 Geometry's [convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex queries,
-grouped indexing and continuous sweeps. Filters exclude irrelevant/unprinted beads;
+slice-partitioned spatial indexing and continuous sweeps. Proven order filters whole slices;
 one confirmed witness proves each relationship. Rotating hull candidates refine
 until exact cones intersect or smaller hulls separate, without extra forgiveness.
 Bead normals and tool poses supply directions, with no world-Z ordering. Ready

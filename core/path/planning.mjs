@@ -10,7 +10,7 @@ import {nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
   return {start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
-    pose:motion?.initialPose?structuredClone(motion.initialPose):null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,depositedMaxZ:0,
+    pose:motion?.initialPose?structuredClone(motion.initialPose):null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,parked:false,
     stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
 
@@ -76,14 +76,11 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
     requireThat(volumeMm3===0,'Stationary deposition needs an explicit extrusion action.');
     if(!pose||samePose(state.pose??uprightPose(),pose))return planningResult(input);
   }
-  let limited=speed;
-  const dz=Math.abs(to[2]-state.position[2]);
-  if(!pose&&dz>0)limited=Math.min(limited,state.process.zSpeedMmS*length/dz);
-  const seconds=pose?(extra.durationSeconds??moveSeconds(length,limited)):moveSeconds(length,limited);
+  const seconds=pose?(extra.durationSeconds??moveSeconds(length,speed)):moveSeconds(length,speed);
   // A reorientation at a fixed point is untimed: the machine turns at its own rate.
   requireThat(seconds>0||length===0,'Motion needs positive duration.');
   const {durationSeconds:requestedDuration,...properties}=extra;
-  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:limited,volumeMm3,phase:state.phase,layer:state.layer,layerId:state.layerId,
+  const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:speed,volumeMm3,phase:state.phase,layer:state.layer,layerId:state.layerId,
     ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0&&seconds>0?{durationSeconds:seconds}:{})}:{})};
   const run=state.moveRun;
   let emitted,shortenedMm=0;
@@ -99,9 +96,9 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
     state.lastAction=action;state.lastNonFan=action;emitted={append:[action]};
   }
   state.layerSeconds+=seconds;
-  if(volumeMm3>0){state.stats.printMm+=length-shortenedMm;state.depositedMaxZ=Math.max(state.depositedMaxZ,state.position[2],to[2]);}
+  if(volumeMm3>0)state.stats.printMm+=length-shortenedMm;
   else state.stats.travelMm+=length-shortenedMm;
-  state.position=[...to];state.pose=pose?structuredClone(pose):null;
+  state.position=[...to];state.pose=pose?structuredClone(pose):null;state.parked=false;
   return planningResult(state,emitted);
 }
 
@@ -126,8 +123,7 @@ export function planNozzle(state,targetC) {
 export function planExtrusion(state,volumeMm3,flowMm3S) {
   requireThat(!state.retraction&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
   const flow=flowMm3S;
-  return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,
-    depositedMaxZ:Math.max(state.depositedMaxZ,state.position[2]),moveRun:null},
+  return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,moveRun:null,parked:false},
   {kind:'extrude',volumeMm3,flowMm3S:flow,phase:state.phase,layer:state.layer,layerId:state.layerId,operation:state.operationId});
 }
 export function planDwell(state,seconds) {
@@ -135,32 +131,23 @@ export function planDwell(state,seconds) {
   return seconds>0?appendAction(state,{kind:'dwell',seconds,phase:state.phase,layer:state.layer}):planningResult(state);
 }
 
-export function travelClearance(state,target=state.position) {
-  const clearance=Math.max(state.depositedMaxZ+state.process.liftMm,state.position[2],target[2]);
-  requireThat(Number.isFinite(clearance),'Travel clearance must be finite.');
-  return clearance;
+export function planPark(state,scene) {
+  if(state.parked)return planRetraction(state);
+  const pose=state.pose??uprightPose(),target=state.position.map((v,i)=>v-pose.toolAxis[i]*state.motion.retreatMm);
+  const retracted=planRetraction(state),parked=planTravel(retracted.state,target,scene,pose,{recover:false});
+  return planningResult({...parked.state,parked:true},{chunks:[retracted.actions,parked.actions]});
 }
 
-export function planPark(state) {
-  if(state.pose&&!samePose(state.pose,uprightPose())){
-    const retracted=planRetraction(state),retreat=planMove(retracted.state,state.position.map((v,i)=>v-state.pose.toolAxis[i]*state.motion.retreatMm),state.process.travelSpeedMmS,0,{pose:state.pose,travel:'tool-retreat'});
-    return planningResult(retreat.state,{chunks:[retracted.actions,retreat.actions]});
-  }
-  const z=travelClearance(state),retracted=planRetraction(state);
-  const lifted=planMove(retracted.state,[state.position[0],state.position[1],z],state.process.zSpeedMmS);
-  return planningResult(lifted.state,{chunks:[retracted.actions,lifted.actions]});
-}
-
-export function planLayerCooling(state) {
+export function planLayerCooling(state,scene) {
   const remaining=state.process.minimumLayerSeconds-state.layerSeconds;
   if(!(remaining>0))return planningResult({...state,layerSeconds:0});
-  const parked=planPark(state),cooled=planDwell(parked.state,remaining);
+  const parked=planPark(state,scene),cooled=planDwell(parked.state,remaining);
   return planningResult({...cooled.state,layerSeconds:0},{chunks:[parked.actions,cooled.actions]},{coolingSeconds:remaining});
 }
 
-export function planTravel(state,target,scene,targetPose=uprightPose()){
+export function planTravel(state,target,scene,targetPose=uprightPose(),{recover=true}={}){
   requireThat(scene?.index&&scene.occupied,'Travel needs the scheduler-owned deposited material scene.');
-  const current=state.pose??uprightPose(),route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,current,targetPose,{withinGroups:scene.withinGroups});
+  const current=state.pose??uprightPose(),route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,current,targetPose,{withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes});
   if(route.blocked)throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+[...new Set(route.blocked.map(i=>scene.beads[i].operationId))].join(', ')),
     {code:'NOZZLE_ACCESS_BLOCKED',operations:[...new Set(route.blocked.map(i=>scene.beads[i].operationId))],target});
   const retracted=distance(state.position,target)>PRINT_RESOLUTION_MM?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
@@ -170,7 +157,7 @@ export function planTravel(state,target,scene,targetPose=uprightPose()){
     const moved=planMove(cursor.state,next.point,state.process.travelSpeedMmS,0,oriented?{pose:next.pose}:{});
     cursor.state=moved.state;actions.add(moved.actions);
   }
-  const recovered=planRecovery(cursor.state);actions.add(recovered.actions);
+  const recovered=recover?planRecovery(cursor.state):planningResult(cursor.state);actions.add(recovered.actions);
   return planningResult(recovered.state,actions.finish(),{travelKind:route.length>1?'routed':'direct'});
 }
 
