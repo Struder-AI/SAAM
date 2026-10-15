@@ -15,9 +15,9 @@ export async function depositionFinding(plan){
     const path=await generatePreparedPath(plan);
     const summary=path.summary;
     return {status:'checked',scope:'deposition generation; no export, review or physical approval',
-      sampledMoves:path.actions.filter(action=>action.kind==='move').length,
+      depositionOperations:path.operations.length,
       slices:summary.slices??null,
-      constructions:Object.fromEntries(['vaseWall','curves'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
+      constructions:Object.fromEntries(['vaseWall','curves','extensions'].filter(key=>summary[key]).map(key=>[key,summary[key]])),
       modulationGeometry:summary.modulationGeometry??[],referenceStacks:summary.referenceStacks??{},surfaceDomain:summary.surfaceDomain??null,
       limitations:summary.limitations??[]};
   }catch(error){

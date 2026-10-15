@@ -47,17 +47,9 @@ export const GEOMETRY_RECORDS=Object.freeze({
   'heat-set':{extension:'heat-set-inserts',template:heatSetTemplate,validate:record=>meshRecord(record,heatSetTemplate)}
 });
 
-const weldDefaults={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
-  basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
-export const extensionSettings=()=>({'plastic-weld':structuredClone(weldDefaults)});
-
 export function validateExtensionRecipe(plan){
-  if(plan.skills?.['plastic-weld']!==undefined)requireThat(sameFields(plan.skills['plastic-weld'],weldDefaults),'Invalid plastic-weld settings fields.');
-}
-
-export function extensionProducerIds(plan){
-  return plan.skills?.['plastic-weld']?.enabled&&Array.isArray(plan.skills['plastic-weld'].sites)
-    ?plan.skills['plastic-weld'].sites.map(site=>'plastic-weld:'+site.id):[];
+  requireThat(plan.skills&&typeof plan.skills==='object'&&!Array.isArray(plan.skills),'Extension settings must be named records.');
+  for(const [id,settings] of Object.entries(plan.skills))requireThat(/^[a-z][a-z0-9-]*$/.test(id)&&settings&&typeof settings==='object'&&!Array.isArray(settings),'Invalid extension settings record.');
 }
 
 export function validateExtensionAssignment(assignment,options){
@@ -71,25 +63,6 @@ export function validateExtensionAssignment(assignment,options){
 // geometry records use their stored meshes; their authors run only on edits.
 export async function validateSelectedExtensionRecipe(plan){
   const failures=[];
-  if(plan.skills?.['plastic-weld']?.enabled){
-    const settings=plan.skills['plastic-weld'],sites=settings.sites??[];
-    try{
-      const runtime=(await loadExtensionEntry('plastic-weld','record-runtime'))(),seen=new Set();
-      for(const site of sites){
-        const assignment='plastic-weld:'+site?.id;
-        try{
-          requireThat(!seen.has(site?.id),'Duplicate rivet site ID.');seen.add(site?.id);
-          runtime.validatePlasticWeld({...plan,skills:{...plan.skills,'plastic-weld':{...settings,sites:[site]}}});
-        }catch(error){
-          if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
-          failures.push({assignment,message:error.message});
-        }
-      }
-    }catch(error){
-      if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
-      for(const site of sites)failures.push({assignment:'plastic-weld:'+site?.id,message:error.message});
-    }
-  }
   const sleeves=plan.slices?.assignments?.filter(assignment=>assignment.construction==='sleeve')??[];
   if(sleeves.length){
     try{

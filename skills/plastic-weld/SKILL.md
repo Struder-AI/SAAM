@@ -7,9 +7,7 @@ metadata:
 
 # Plastic weld / injected rivets
 
-For maker work read [MAKERS](../../MAKERS.md); development starts at
-[developer orientation](../../DEVELOPER-CONTEXT.md). Use the
-[shared print tools](../../core/print/USAGE.md) and
+Use the [shared print tools](../../core/print/USAGE.md) and
 [standard parameter policy](../../MAKERS.md#standard-parameter-policy).
 
 The extension prepares a blind shaft with a wider bottom basin, then fills it
@@ -25,13 +23,9 @@ Studio shows the cavity in deposition and the stationary injection event.
 
 An ordinary solid-material volume supplies the surrounding walls and floor,
 including in sparse hosts. Slice uses its normal loops, fill and spacing settings;
-keep spacingFactor at 1 for a solid envelope. Prepared work describes enclosure
-before injection and covering work afterward. Producers must honor that material
-intent; the extension does not scan completed strokes or recheck their enclosure.
-
-Native mesh/spline components and translated assemblies use the same Geometry
-and Inject operations. Other constructions must respect the planned cavity.
-An atomic continuous path cannot interleave with injection mid-operation.
+keep spacingFactor at 1 for a solid envelope. A geometric requirement selects
+its enclosing beads before injection; the scheduler derives nozzle access and
+cover order from actual deposition. It does not certify sealing or fusion.
 
 ## Recipe
 
@@ -64,21 +58,23 @@ nozzle and 0.2 mm layers. Insertion is a position command, with depth remaining
 inside the cavity; it is not force control. Metered volume does not subtract
 nozzle displacement. Adjust volumeFactor when changing insertion depth.
 
-Temperature overrides use the selected machine's existing service/approach
-operations and restore its normal setpoint afterward. Robot outputs that cannot
-represent stationary extrusion or temperature changes reject them at export.
+Temperature overrides use machine service/approach operations and restore the
+normal setpoint. Outputs lacking stationary extrusion/temperature reject at export.
 
 ## Authoring and review
 
-Use create_bundle and adjust_recipe, then review and export normally from Studio.
-Inspect the cavity, solid host, injection position/amount and subsequent covers.
-Physical trials must establish fit, flow, fusion and strength.
+Use create_bundle/adjust_recipe and review/export from Studio. Inspect the cavity,
+solid host, injection position/amount and covers; trials must establish fit/fusion/strength.
 
 The staggeredWeldSites helper in [runtime.mjs](scripts/runtime.mjs) returns
 ordinary editable site records from columns, rows, levels, pitchMm, heightStepMm
 and depthMm, with optional coordinates and part. Alternate levels shift half
 a pitch in X; overlapping height intervals can remain spatially separate.
 
-Preparation returns Boolean cutters, ordinary solid volumes, Inject assignments
-and work-key prerequisites. Core translates those keys to emitted operation IDs;
-Scheduling handles execution through the same saved SAAMpath as other producers.
+## Builder boundary
+
+Checkout plastic-weld with `extension_library`; edit its local [runtime](scripts/runtime.mjs),
+manifest/manual and regenerate through the [process-source contract](../AUTHORING.md).
+It owns schema/defaults, validation, finite cavity/profile/volume, solid envelope and Inject.
+Enclosure requirements stop just inside the mouth to exclude touching cover beads;
+Scheduling owns access/order.

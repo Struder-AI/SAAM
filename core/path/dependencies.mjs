@@ -7,8 +7,8 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/20'; // Prepared material and explicit substrate planes before stroke construction.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/7'; // Directional entry/service routing and hierarchical geometric order.
+export const PATH_CONTRACT='saam-deposition/21'; // Process sources and geometric material prerequisites retained for scheduling.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/8'; // Geometric material prerequisites and unrelieved stationary nozzle access.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){
@@ -19,6 +19,6 @@ export function pathDependencies(plan){
   const materialIntent={nozzleC:setup?.nozzleC,
     defaultFilament:assigned.length?setup?.filament??assigned[0]:null,
     filaments:setup?.filaments?.map(entry=>entry?{nozzleC:entry.nozzleC??null,process:entry.process??{}}:null)??null};
-  const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([id,config])=>!['plastic-weld'].includes(id)||config?.enabled));
+  const skills=Object.fromEntries(Object.entries(plan.skills??{}).filter(([,config])=>config?.enabled));
   return {plan:{...authored,skills,materialIntent},contract:PATH_CONTRACT,completion:NEUTRAL_PATH_CONTRACT};
 }

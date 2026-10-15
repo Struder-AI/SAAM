@@ -40,7 +40,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
   const owner=record=>ownerOf(record)??null;
   const visible=record=>!owner(record)||owner(record)===ownerId;
   const foreign=record=>owner(record)&&owner(record)!==ownerId;
-  const unfinished=r=>r.episode&&(r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed)||['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
+  const unfinished=r=>r.episode&&(r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!r.inspectionSuperseded)||['queued','working','waiting'].includes(r.status)||r.status==='completed'&&!r.presented&&r.result
     &&requestReceiptState(r,{view:{ready:true,snapshot:{...r.result,stage:r.target?.stage??'toolpath'}}}).receipt;
   // One record per pending wait owns that wait's timer, event subscription and
   // resolver, so waking a waiter is a named step rather than a stored callback.
@@ -79,14 +79,14 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       .sort((a,b)=>a.createdAt-b.createdAt).map(r=>structuredClone(r));
   }
   const list=options=>query({...options,history:true});
-  async function begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId,bundleState}){
+  async function begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId,selectionVersion,bundleState}){
     if(lifetime.closed)throw Error('Request service closed.');
     if(typeof instruction!=='string'||!instruction.trim())throw Error('Describe the requested agent work.');
     const id=key?createHash('sha256').update(key).digest('hex'):randomUUID();
     if(key)try{return await get(id);}catch(e){if(e.code!=='ENOENT')throw e;}
     if(!['edit','guidance','advisory'].includes(kind))throw Error('Unknown Studio work kind.');
     const currentId=printId(directory);
-    return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?{...bundleState.workEvidence}:await workEvidence(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
+    return save({id,printId:currentId,instruction,source,kind,scope,...(studioInstanceId?{studioInstanceId}:{}),...(selectionVersion?{selectionVersion}:{}),...(kind==='advisory'?{evidence}:{}),baseline:bundleState?{...bundleState.workEvidence}:await workEvidence(directory),ownerId,status:source==='studio'?'queued':'working',createdAt:now(),updatedAt:now()});
   }
   function update(id,{status='completed',message='',resultStage}={}){return transition(async()=>{
     if(lifetime.closed)throw Error('Request service closed.');
@@ -107,7 +107,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
   });}
   // A work episode joins the named requests, else this chat's working request on the
   // print, else begins one.
-  function startWork({directory,requestIds=[],studioInstanceId,instruction}){return transition(async()=>{
+  function startWork({directory,requestIds=[],studioInstanceId,selectionVersion,nativeContext,instruction}){return transition(async()=>{
     let chosen=[];
     for(const id of requestIds){
       const record=await get(id);
@@ -118,10 +118,10 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     }
     if(!chosen.length&&!requestIds.length)chosen=(await query({printId:printId(directory)})).filter(r=>r.status==='working'&&!r.handbackPending&&(!r.episode||r.workActive)&&r.kind!=='advisory'&&(!r.studioInstanceId||r.studioInstanceId===studioInstanceId)).slice(-1);
     if(chosen[0]?.episodeId){const group=(await query({printId:printId(directory)})).filter(r=>r.episodeId===chosen[0].episodeId&&r.workActive);chosen=[...new Map([...group,...chosen].map(r=>[r.id,r])).values()];}
-    if(!chosen.length)chosen=[await begin({directory,instruction,studioInstanceId})];
+    if(!chosen.length)chosen=[await begin({directory,instruction,studioInstanceId,selectionVersion})];
     const current=chosen.some(record=>record.baseline&&record.baseline.schema!=='saam-work-evidence/1')?await workEvidence(directory):null;
     const result=[],episodeId=chosen[0].episodeId??chosen[0].id,episodeStartedAt=chosen[0].episodeStartedAt??[...records.values()].reduce((latest,r)=>Math.max(latest,(r.episodeStartedAt??0)+1),now());
-    for(const record of chosen)result.push(await save({...record,baseline:currentBaseline(record.baseline,current),episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
+    for(const record of chosen)result.push(await save({...record,baseline:currentBaseline(record.baseline,current),episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,nativeContext:nativeContext??null,selectionVersion:selectionVersion??record.selectionVersion,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
     return result;
   });}
   // Hand-back first marks the episode pending (Studio stays dimmed), waits for the
@@ -158,7 +158,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       inspectionPresented:!result,updatedAt:Math.max(now(),record.updatedAt+1)});
   });}
   const underway=requestId=>[...operations].filter(op=>op.requestIds.includes(requestId)).map(op=>op.settled.promise);
-  async function handBack(requestId,response){
+  async function handBack(requestId,response,{wait=true}={}){
     if(!['working','waiting','completed','failed','cancelled'].includes(response.status))throw Error('Invalid agent response status.');
     if(response.resultStage&&!['geometry','toolpath'].includes(response.resultStage))throw Error('Unknown result stage.');
     if(response.status==='working')return update(requestId,response);
@@ -166,15 +166,25 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     const pending=await startHandback(requestId,response);
     if(!pending){const record=await update(requestId,response);await onHandBack(record);return record;}
     if(!pending.handbackPending){await onHandBack(pending);return pending;}
-    const completed=await Promise.all([...new Set([...running,...underway(requestId)])]),last=completed.at(-1);
-    const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,last?.error));
-    const record=handed.find(r=>r.id===requestId)??handed[0];
-    await onHandBack(record);
-    return record;
+    const finishing=(async()=>{
+      const completed=await Promise.all([...new Set([...running,...underway(requestId)])]),last=completed.at(-1);
+      const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,last?.error));
+      const record=handed.find(r=>r.id===requestId)??handed[0];await onHandBack(record);return record;
+    })();
+    if(wait)return finishing;
+    void finishing.catch(error=>events.record('handback-failed',{requestId,studioInstanceId:pending.studioInstanceId,printId:pending.printId,error:error.message}));
+    return pending;
   }
   async function cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
   async function cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
-  return {list,query,get,ownerId,printIdOf:directory=>requestPrintId(root,directory,{optional:true}),begin,update,handBack,cancelScope,cancelFor,
+  async function retire({directory,studioInstanceId,message='Studio selected another bundle.'}){
+    const active=(await query()).filter(record=>record.studioInstanceId===studioInstanceId&&(!directory||record.printId===printId(directory)));
+    for(const record of active){
+      await transition(async()=>{const current=await get(record.id);return save({...current,inspectionSuperseded:message,updatedAt:Math.max(now(),current.updatedAt+1)});});
+      if(record.workActive||record.handbackPending||['queued','working','waiting'].includes(record.status))await handBack(record.id,{status:'cancelled',message},{wait:false});
+    }
+  }
+  return {list,query,get,ownerId,printIdOf:directory=>requestPrintId(root,directory,{optional:true}),begin,update,handBack,cancelScope,cancelFor,retire,
     // Startup only: refresh saves and finish hand-backs already requested before
     // the old process died. Autonomous work stays active across a runtime reload.
     async recover(){
@@ -192,9 +202,9 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       const op={requestIds:started.map(r=>r.id),records:started,saved:started[0]?.lastSaved??null,settled:Promise.withResolvers()};
       operations.add(op);return op;
     },
-    async saved(op,evidence){
+    async saved(op,evidence,{selectionVersion}={}){
       op.saved=evidence;
-      for(const id of op.requestIds)await transition(async()=>{const record=await get(id);return save({...record,lastSaved:op.saved,updatedAt:Math.max(now(),record.updatedAt+1)});});
+      for(const id of op.requestIds)await transition(async()=>{const record=await get(id);return save({...record,lastSaved:op.saved,...(selectionVersion?{selectionVersion}:{}),updatedAt:Math.max(now(),record.updatedAt+1)});});
     },
     settle(op,{error}={}){operations.delete(op);op.settled.resolve({snapshot:op.saved,error});},
     // The person asked for help in this Studio: its active episode hands back as waiting.
@@ -225,10 +235,10 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
         await transition(async()=>{
           const record=await get(candidate.id);
           if(foreign(record)||record.studioInstanceId&&record.studioInstanceId!==shown.studioInstanceId)return;
-          const inspection=record.episode&&!record.workActive&&!record.handbackPending&&!record.inspectionPresented&&record.inspectionTarget
+          const inspection=record.episode&&!record.workActive&&!record.handbackPending&&!record.inspectionPresented&&!record.inspectionSuperseded&&record.inspectionTarget
             // The server read this request before loading the current bundle;
             // a newer hand-back during that load cannot be superseded by it.
-            &&(record.inspectionTarget.revision===shown.revision?(!record.inspectionTarget.stage||record.inspectionTarget.stage===shown.stage):observedRequests?.[record.id]===record.updatedAt);
+            &&(record.inspectionTarget.revision===shown.revision?(shown.renderError||!record.inspectionTarget.stage||record.inspectionTarget.stage===shown.stage):observedRequests?.[record.id]===record.updatedAt);
           const delivered=!shown.renderError&&shown.deliverable!==false&&['working','completed'].includes(record.status)
             &&!record.presented&&requestReceiptState(record,{view:{ready:true,snapshot:shown}}).receipt;
           if(inspection||delivered)updated.push(await save({...record,...(inspection?{inspectionSnapshot:snapshot,...(shown.renderError?{inspectionFailed:shown.renderError}:{inspectionPresented:true})}:{}),
@@ -266,6 +276,8 @@ export function createChatChannel(libraryRoot,{ownerId,folder,ownerOf,attachment
 function chatBinding({requests,events,attachment}){
   return Object.freeze({ownerId:requests.ownerId,attachment,
     note:(kind,detail)=>events.record(kind,detail),
+    flush:()=>events.flush(),
+    retire:selection=>requests.retire(selection),
     async ask({directory,studioInstanceId,interrupt=false,...request}){
       if(interrupt)void requests.interrupt(directory,studioInstanceId).catch(error=>events.record('handback-failed',{studioInstanceId,directory,message:error.message}));
       return requests.begin({...request,directory,studioInstanceId,source:'studio'});

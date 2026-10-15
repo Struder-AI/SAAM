@@ -11,7 +11,7 @@ export function constructionPath({results,planning,composition,summary,generator
       rank:operation.rank,nominalRank:operation.nominalRank,order:operation.order,after:operation.after,
       process:operation.process,filament:operation.filament,fanPercent:operation.fanPercent,
       nozzleC:operation.nozzleC,restoreNozzleC:operation.restoreNozzleC,continuous:operation.continuous,
-      regionId:operation.regionId,part:operation.part,stackDirection:operation.stackDirection,
+      regionId:operation.regionId,part:operation.part,stackDirection:operation.stackDirection,requiredMaterial:operation.requiredMaterial,
       construction:result.id,constructionRank:resultIndex,
       strokes:operation.strokes.map(stroke=>({points:stroke.points,closed:stroke.closed,role:stroke.role,
         beadWidthMm:stroke.beadWidthMm,beadHeightMm:stroke.beadHeightMm,beadAreaMm2:stroke.beadAreaMm2,

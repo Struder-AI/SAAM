@@ -36,7 +36,7 @@ and regeneration after prerequisites exist; saved geometry needs no extension re
 [Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
 setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
 snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
-`recordExtensionDependency` records supplied plastic-weld configuration
+`recordExtensionDependency` records supplied named extension configuration
 in existing `plan.skills`; absence means unselected. No defaults or execution occur.
 Geometry/construction references retain their own dependencies. Reusable changes
 never refresh existing bundles; manuals use saved capabilities.

@@ -1,0 +1,124 @@
+// Contract only proven prerequisites: intact native slices execute together;
+// conflicting slice contractions expose the courses at their boundaries.
+import {distance} from '../private/toolpath/numeric.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+
+function components(nodes,parents){
+  const following=new Map(nodes.map(id=>[id,[]])),seen=new Set(),finished=[],result=[];
+  for(const [id,before] of parents)for(const parent of before)following.get(parent).push(id);
+  for(const root of nodes){
+    if(seen.has(root))continue;
+    seen.add(root);const pending=[{id:root,at:0}];
+    while(pending.length){
+      const frame=pending.at(-1),next=following.get(frame.id);
+      if(frame.at===next.length){finished.push(frame.id);pending.pop();continue;}
+      const id=next[frame.at++];if(!seen.has(id)){seen.add(id);pending.push({id,at:0});}
+    }
+  }
+  seen.clear();
+  for(const root of finished.toReversed()){
+    if(seen.has(root))continue;
+    const part=[],pending=[root];seen.add(root);
+    while(pending.length){const id=pending.pop();part.push(id);for(const parent of parents.get(id))if(!seen.has(parent)){seen.add(parent);pending.push(parent);}}
+    result.push(part);
+  }
+  return result;
+}
+
+function slicePartitions(operations,prerequisites){
+  const slices=new Map(),membership=new Map(),state={groups:[]};
+  for(const op of operations){
+    if(!slices.has(op.layerId))slices.set(op.layerId,[]);
+    slices.get(op.layerId).push(op.id);
+  }
+  for(const ids of slices.values()){state.groups.push(ids);for(const id of ids)membership.set(id,ids);}
+  for(;;){
+    const parents=new Map(state.groups.map(group=>[group,new Set()]));
+    for(const [id,before] of prerequisites)for(const parent of before){
+      const a=membership.get(id),b=membership.get(parent);if(a!==b)parents.get(a).add(b);
+    }
+    const cycles=components(state.groups,parents).filter(part=>part.length>1);
+    if(!cycles.length)break;
+    const exposed=new Set();
+    for(const cycle of cycles){
+      const inside=new Set(cycle);
+      for(const group of cycle)for(const id of group)for(const parent of prerequisites.get(id))
+        if(membership.get(parent)!==group&&inside.has(membership.get(parent))){exposed.add(id);exposed.add(parent);}
+    }
+    const next=[],change={split:false};
+    for(const group of state.groups){
+      if(group.length===1||!group.some(id=>exposed.has(id))){next.push(group);continue;}
+      change.split=true;
+      const rest=group.filter(id=>!exposed.has(id));if(rest.length)next.push(rest);
+      for(const id of group)if(exposed.has(id))next.push([id]);
+    }
+    if(!change.split)break; // A course-level cycle is reported by the ordinary solver.
+    state.groups=next;for(const group of next)for(const id of group)membership.set(id,group);
+  }
+  const refinedSlices=[...slices.values()].filter(ids=>ids.some(id=>membership.get(id)!==membership.get(ids[0]))).length;
+  return {groups:state.groups,summary:{slices:slices.size,wholeSlices:slices.size-refinedSlices,refinedSlices,executionUnits:state.groups.length,courses:operations.length}};
+}
+
+function nearest(ready,cursor){
+  const score=node=>{const stroke=node.op.strokes[0],point=stroke?.points[0]??cursor.point,axis=stroke?.poses?.[0]?.toolAxis;
+    return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
+  const best={index:0,cost:Infinity};
+  for(const [i,node] of ready.entries()){
+    const cost=score(node),previous=ready[best.index];
+    if(cost<best.cost-PRINT_RESOLUTION_MM||Math.abs(cost-best.cost)<=PRINT_RESOLUTION_MM&&
+      (node.result<previous.result||node.result===previous.result&&node.index<previous.index)){best.index=i;best.cost=cost;}
+  }
+  return best;
+}
+
+function dependencyCycle(operations,prerequisites){
+  const done=new Set();
+  for(const operation of operations){
+    if(done.has(operation.id))continue;
+    const stack=[{id:operation.id,parents:[...prerequisites.get(operation.id)],at:0}],positions=new Map([[operation.id,0]]);
+    while(stack.length){
+      const frame=stack.at(-1);
+      if(frame.at===frame.parents.length){done.add(frame.id);positions.delete(frame.id);stack.pop();continue;}
+      const next=frame.parents[frame.at++];
+      if(positions.has(next))return stack.slice(positions.get(next)).map(item=>item.id);
+      if(!done.has(next)){positions.set(next,stack.length);stack.push({id:next,parents:[...prerequisites.get(next)],at:0});}
+    }
+  }
+  return [];
+}
+
+export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null}={}){
+  const nodes=operations.map(op=>({op,...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
+  const byId=new Map(nodes.map(node=>[node.op.id,node]));
+  const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),parents:new Set(),following:[],remaining:0,ready:[]}));
+  for(const unit of units)for(const node of unit.nodes)node.unit=unit;
+  for(const node of nodes)for(const id of prerequisites.get(node.op.id)){
+    const parent=byId.get(id);parent.following.push(node);if(parent.unit!==node.unit)node.unit.parents.add(parent.unit);
+  }
+  for(const unit of units){unit.remaining=unit.parents.size;for(const parent of unit.parents)parent.following.push(unit);for(const node of unit.nodes)if(!node.remaining)unit.ready.push(node);}
+  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??operations[0]?.strokes[0]?.points[0]??[0,0,0],axis:null};
+  while(ready.length){
+    const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
+    if(!entries.length)break;
+    const unit=entries[nearest(entries,cursor).index].unit;ready.splice(ready.indexOf(unit),1);
+    while(unit.ready.length){
+      const next=unit.ready.splice(nearest(unit.ready,cursor).index,1)[0];scheduled.push(next.op);
+      cursor.point=next.op.strokes.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.strokes.at(-1)?.poses?.at(-1)?.toolAxis??null;
+      for(const node of next.following)if(!--node.remaining)node.unit.ready.push(node);
+    }
+    if(unit.nodes.some(node=>node.remaining))break;
+    for(const following of unit.following)if(!--following.remaining)ready.push(following);
+  }
+  if(scheduled.length!==operations.length){
+    const cycle=dependencyCycle(operations,prerequisites);
+    const ids=new Set(cycle),reasons=physicalEdges.filter(edge=>ids.has(edge.before)&&ids.has(edge.after));
+    const refinementCourses=components(operations.map(op=>op.id),prerequisites).filter(part=>part.length>1).flat();
+    throw Object.assign(Error('Print ordering contains a cycle: '+cycle.join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:cycle,physicalDependencies:reasons,refinementCourses});
+  }
+  return scheduled;
+}
+
+export function orderSliceCourses(operations,priorities,prerequisites,options={}){
+  const partition=slicePartitions(operations,prerequisites);
+  return {operations:orderReadyOperations(operations,priorities,prerequisites,{...options,partitions:partition.groups}),hierarchy:partition.summary};
+}

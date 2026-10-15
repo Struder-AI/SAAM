@@ -4,7 +4,18 @@ import {add,subtract,scale,dot,cross,length,normalize,requireThat} from './toler
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {interpolateDirectionPair,rotation,mv} from './frame.mjs';
 
+// Serializable convex hull; topology is unnecessary for support-map queries.
+export function convexVolume(vertices){
+  requireThat(Array.isArray(vertices)&&vertices.length>=4&&vertices.every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'A convex volume needs finite XYZ vertices.');
+  const origin=vertices[0],edges=vertices.slice(1).map(p=>subtract(p,origin));
+  const first=edges.find(edge=>length(edge)>ROUNDING_MM),second=first&&edges.find(edge=>length(cross(first,edge))>ROUNDING_MM*length(first));
+  const normal=second&&normalize(cross(first,second));
+  requireThat(normal&&edges.some(edge=>Math.abs(dot(normal,edge))>ROUNDING_MM),'A convex volume must have nonzero depth.');
+  return {vertices:vertices.map(p=>[...p])};
+}
+
 export function convexSupport(shape,direction){
+  if(shape.vertices)return shape.vertices.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
   if(shape.body){const point=convexSupport(shape.body,direction);return dot(shape.sweep,direction)>0?add(point,shape.sweep):point;}
   if(shape.parts){
     const points=shape.parts.map(part=>convexSupport(part,direction));
@@ -56,7 +67,7 @@ function simplexClosest(points){
 // GJK separation. A finite threshold permits a proved separating-plane exit;
 // Infinity computes the distance. Rounding guards converge without truncation.
 function convexSeparation(a,b,thresholdMm=Infinity){
-  const center=subtract(a.a??a.parts[0].a,b.a??b.parts[0].a),initial=length(center)>ROUNDING_MM?center:[1,0,0];
+  const center=subtract(convexSupport(a,[1,0,0]),convexSupport(b,[1,0,0])),initial=length(center)>ROUNDING_MM?center:[1,0,0];
   const state={simplex:[subtract(convexSupport(a,initial),convexSupport(b,scale(initial,-1)))],distance:Infinity};
   for(;;){
     const closest=simplexClosest(state.simplex);
@@ -65,8 +76,12 @@ function convexSeparation(a,b,thresholdMm=Infinity){
     const lowerBound=dot(closest.point,next)/closest.distance;
     if(lowerBound>thresholdMm+ROUNDING_MM)return lowerBound;
     const improvement=closest.distance**2-dot(closest.point,next);
-    if(improvement<=ROUNDING_MM*Math.max(1,closest.distance)||state.simplex.some(p=>length(subtract(p,next))<=ROUNDING_MM))return closest.distance;
-    if(state.distance-closest.distance<=ROUNDING_MM)return closest.distance;
+    // The simplex gives an upper distance bound; only a support plane gives
+    // a lower bound. Stopping with a small squared improvement used to report
+    // near-intersections as clear. Converge in distance units and retain the
+    // lower bound if floating-point progress stops.
+    if(improvement<=ROUNDING_MM*closest.distance||state.simplex.some(p=>length(subtract(p,next))<=ROUNDING_MM)||
+      closest.distance>=state.distance)return Math.max(0,lowerBound);
     state.distance=closest.distance;state.simplex=[...closest.points,next];
   }
 }
@@ -85,8 +100,51 @@ function prismIntersects(a,b,toleranceMm){
   }
   return true;
 }
+// A fixed-axis translated nozzle against a bead is a cone against a zonotope:
+// the bead's three edge generators plus the negative nozzle translation.
+// Off-axis minima of the cone side inequality continue to a hull edge along
+// a generator of the cone. Hypercube edges cover all zonotope hull edges.
+// On-axis minima come from clipping the axis against its facet slabs.
+function fixedConePrismIntersects(sweep,prism,toleranceMm){
+  const axis=sweep.body.normal,origin=subtract(add(prism.a,scale(prism.side,-prism.radius)),add(sweep.body.a,scale(prism.normal,prism.depth)));
+  const generators=[subtract(prism.b,prism.a),scale(prism.side,prism.radius*2),scale(prism.normal,prism.depth)];
+  if(length(sweep.sweep)>0)generators.push(scale(sweep.sweep,-1));
+  const halfAngle=sweep.motion.includedAngleDeg*Math.PI/360,c=Math.cos(halfAngle),s=Math.sin(halfAngle);
+  const projected=generators.map(v=>dot(v,axis)),z0=dot(origin,axis),low=z0+projected.reduce((n,z)=>n+Math.min(0,z),0),high=z0+projected.reduce((n,z)=>n+Math.max(0,z),0);
+  // The caller normally extends the cone past all indexed stock. A shorter
+  // finite cap needs the general convex predicate instead of this shortcut.
+  if(high>sweep.motion.lengthMm)return null;
+  const vertices=Array.from({length:2**generators.length},(_,mask)=>{
+    const point=generators.reduce((q,g,k)=>mask&(1<<k)?add(q,g):q,origin),z=dot(point,axis);
+    return {point,z,r2:Math.max(0,dot(point,point)-z*z)};
+  });
+  if(vertices.some(v=>c*Math.sqrt(v.r2)-s*v.z<=toleranceMm))return true;
+  for(const [k,g] of generators.entries()){
+    const dz=projected[k],a=Math.max(0,dot(g,g)-dz*dz),denominator=c*c*a-s*s*dz*dz;
+    if(a<=ROUNDING_MM**2||denominator<=0)continue;
+    for(const [i,v] of vertices.entries()){
+      if(i&(1<<k))continue;
+      const b=dot(v.point,g)-v.z*dz,k2=Math.max(0,a*v.r2-b*b),t=(s*dz*Math.sqrt(k2/denominator)-b)/a;
+      if(t<=0||t>=1)continue;
+      const r2=Math.max(0,v.r2+2*b*t+a*t*t);
+      if(c*Math.sqrt(r2)-s*(v.z+dz*t)<=toleranceMm)return true;
+    }
+  }
+  const interval={low,high};
+  for(let i=0;i<generators.length;i++)for(let j=i+1;j<generators.length;j++){
+    const normal=cross(generators[i],generators[j]),size=length(normal);if(size<=ROUNDING_MM**2)continue;
+    const base=dot(origin,normal),spans=generators.map(g=>dot(g,normal)),minimum=base+spans.reduce((n,v)=>n+Math.min(0,v),0),maximum=base+spans.reduce((n,v)=>n+Math.max(0,v),0),along=dot(axis,normal);
+    if(Math.abs(along)<=ROUNDING_RELATIVE*size){if(minimum>ROUNDING_MM*size||maximum< -ROUNDING_MM*size)return false;continue;}
+    const ends=[minimum/along,maximum/along];interval.low=Math.max(interval.low,Math.min(...ends));interval.high=Math.min(interval.high,Math.max(...ends));
+    if(interval.low>interval.high+ROUNDING_MM)return false;
+  }
+  return -s*interval.high<=toleranceMm;
+}
+
 export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
   if(a.side&&b.side)return prismIntersects(a,b,toleranceMm);
+  const sweep=a.fixed&&a.motion?a:b.fixed&&b.motion?b:null,prism=sweep===a?b:a;
+  if(sweep&&prism.side){const hit=fixedConePrismIntersects(sweep,prism,toleranceMm);if(hit!==null)return hit;}
   return convexSeparation(a,b,toleranceMm)<=toleranceMm;
 }
 
@@ -122,7 +180,7 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
     const count=partition.members.reduce((sum,group)=>sum+Number(allowed.has(group)),0),status=count===0?0:count===partition.members.length?2:1;
     partition.token=selection.token;partition.status=status;return status;
   }
-  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null}={}){
+  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null}={}){
     if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
     const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
     function eligible(member){
@@ -131,11 +189,11 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
     }
     while(pending.length){
       const node=pending.pop(),{group,grouped}=node;
-      if(!boundsOverlap(box,node.bounds,toleranceMm))continue;
+      if(!boundsOverlap(box,node.bounds,toleranceMm)||boundsTest&&!boundsTest(node.bounds))continue;
       const status=withinGroups?selected(node.partition,withinGroups):2;if(!status)continue;
       if(grouped&&(firstPerGroup&&settled.has(group)||!eligible(node.member)||node.firstIndex>node.member.through))continue;
       if(node.items){for(const item of node.items){
-        if(!boundsOverlap(box,item.bounds,toleranceMm))continue;
+        if(!boundsOverlap(box,item.bounds,toleranceMm)||boundsTest&&!boundsTest(item.bounds))continue;
         if(item.tree){pending.push(item.tree);continue;}
         const group=item.group;
         if(groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
@@ -151,18 +209,19 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
 export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=15;
 // Physical allowance on the nozzle surface; bead overlap is independent.
 export const NOZZLE_FORGIVENESS_MM=.1;
-export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG){
+export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM){
   const outward=normalize(axis);
   requireThat(Number.isFinite(includedAngleDeg)&&includedAngleDeg>0&&includedAngleDeg<180,'Nozzle cone included angle must be between 0 and 180 degrees.');
+  requireThat(Number.isFinite(forgivenessMm)&&forgivenessMm>=0,'Nozzle surface forgiveness must be finite and nonnegative.');
   // Eroding an infinite cone by this distance moves its apex along the axis.
-  const start=add(point,scale(outward,NOZZLE_FORGIVENESS_MM/Math.sin(includedAngleDeg*Math.PI/360)));
+  const start=add(point,scale(outward,forgivenessMm/Math.sin(includedAngleDeg*Math.PI/360)));
   return {a:start,b:add(start,scale(outward,lengthMm)),normal:outward,radius:0,endRadius:lengthMm*Math.tan(includedAngleDeg*Math.PI/360),depth:0};
 }
 
 // Bound one interval of the original rigid-frame interpolation, preserving its
 // parameterization through refinement. A fixed-axis translated cone is convex.
 function nozzleInterval(motion,a,b){
-    const {from,to,fromPose,toPose,lengthMm,includedAngleDeg}=motion;
+    const {from,to,fromPose,toPose,lengthMm,includedAngleDeg,forgivenessMm}=motion;
     const poses=[a,b].map(t=>interpolateDirectionPair(
       [fromPose.toolAxis,fromPose.toolUp],[toPose.toolAxis,toPose.toolUp],t));
     const axes=poses.map(p=>scale(p[0],-1)),axisChord=length(subtract(axes[0],axes[1]));
@@ -173,17 +232,17 @@ function nozzleInterval(motion,a,b){
     // bound follows from the axis chord and makes pure/near-pure roll cheap.
     const frameCosine=axisChord===0?1:Math.max(-1,Math.min(1,(dot(axes[0],axes[1])+dot(poses[0][1],poses[1][1])+
       dot(cross(axes[0],poses[0][1]),cross(axes[1],poses[1][1]))-1)/2));
-    const radiusBound=(lengthMm+NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle))/Math.cos(halfAngle);
+    const radiusBound=(lengthMm+forgivenessMm/Math.sin(halfAngle))/Math.cos(halfAngle);
     const error=radiusBound*Math.min(1-Math.sqrt((1+frameCosine)/2),2*axisChord);
-    const shapes=[a,b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg));
+    const shapes=[a,b].map((t,i)=>nozzleAt(from.map((v,k)=>v+(to[k]-v)*t),axes[i],lengthMm,includedAngleDeg,forgivenessMm));
     return {parts:shapes,margin:error,motion,t0:a,t1:b,fixed:axisChord===0,
       ...(axisChord===0?{body:shapes[0],sweep:shapes[1].a.map((v,k)=>v-shapes[0].a[k])}:{})};
 }
 
 // Coarse conservative envelopes for spatial rejection; a changing-pose hull
 // alone cannot prove collision, because it also fills clear space between poses.
-export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG){
-  const motion={from,to,fromPose,toPose,lengthMm,includedAngleDeg},pieces=[],pending=[{a:0,b:1}];
+export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM){
+  const motion={from,to,fromPose,toPose,lengthMm,includedAngleDeg,forgivenessMm},pieces=[],pending=[{a:0,b:1}];
   while(pending.length){
     const {a,b}=pending.pop(),sweep=nozzleInterval(motion,a,b),mid=(a+b)/2;
     if(sweep.margin>NOZZLE_FORGIVENESS_MM/4&&mid>a&&mid<b){pending.push({a,b:mid},{a:mid,b});continue;}
@@ -210,12 +269,27 @@ function nozzleIntervalIntersects(sweep,shape,toleranceMm){
   return false;
 }
 
+// The infinite cone's signed side inequality is convex. Its supporting
+// plane at a node's center gives a lower bound over the entire AABB and
+// translated tip segment. A positive bound proves separation before GJK.
+function fixedConeBounds(sweep){
+  const axis=sweep.body.normal,halfAngle=sweep.motion.includedAngleDeg*Math.PI/360,c=Math.cos(halfAngle),s=Math.sin(halfAngle);
+  const tip=add(sweep.body.a,scale(sweep.sweep,.5));
+  return bounds=>{
+    const q=bounds.min.map((v,k)=>(v+bounds.max[k])/2-tip[k]),z=dot(q,axis),radial=subtract(q,scale(axis,z)),r=length(radial);
+    const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
+    const lower=(r>ROUNDING_MM?c*r:0)-s*z-bounds.min.reduce((sum,v,k)=>sum+Math.abs(gradient[k])*(bounds.max[k]-v)/2,0)-Math.abs(dot(gradient,sweep.sweep))/2;
+    return lower<=ROUNDING_MM;
+  };
+}
+
 export function nozzleSweepHits(index,from,to,fromPose,toPose,options={}){
   const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose),hits=new Set();
-  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach)){
+  const {forgivenessMm=NOZZLE_FORGIVENESS_MM,...filters}=options;
+  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm)){
     function confirm(shape){return nozzleIntervalIntersects(sweep,shape,ROUNDING_MM);}
-    if(sweep.fixed){for(const hit of index.query(sweep,ROUNDING_MM,options))hits.add(hit);}
-    else for(const hit of index.query(sweep,ROUNDING_MM,{...options,confirm}))hits.add(hit);
+    if(sweep.fixed){for(const hit of index.query(sweep,ROUNDING_MM,{...filters,boundsTest:fixedConeBounds(sweep)}))hits.add(hit);}
+    else for(const hit of index.query(sweep,ROUNDING_MM,{...filters,confirm}))hits.add(hit);
   }
   return [...hits];
 }

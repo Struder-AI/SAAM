@@ -1,5 +1,5 @@
 import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
-import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds} from '../../skills/records.mjs';
+import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,validateExtensionRecipe} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
@@ -35,7 +35,7 @@ export function defaults(machine=loadMachine()) {
 export function recipeDefaults(){
   return {
     schema:'saam-shell-plan/1',generatorVersion:VERSION,
-    experimental:{substrateAdaptation:false},skills:extensionSettings(),
+    experimental:{substrateAdaptation:false},skills:{},
     slices:defaultSlices(),modulations:defaultModulations(),
     composition:{order:[],dependencies:[],filaments:[]}
   };
@@ -105,14 +105,12 @@ export function readRecipe(plan,machine=null){
 // (currentSupportForms). A setup is machine-specific: completed, never trimmed.
 function currentFields(plan,machine,fields){
   const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
-  const present=isRecord(plan.skills)?plan.skills:{},skillTemplate={'plastic-weld':skills['plastic-weld']};
+  const present=isRecord(plan.skills)?plan.skills:{};
   const geometry=isRecord(plan.geometry)?geometryTemplate(plan.geometry.shape,plan.geometry):null;
   noteFields(plan,{...defaults,...(Object.hasOwn(plan,'skills')?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})},'',fields,true);
   for(const name of ['process','placement','experimental','composition','slices','modulations'])
     if(isRecord(plan[name]))noteFields(plan[name],defaults[name],name+'.',fields,true);
   if(isRecord(plan.setup))for(const key of Object.keys(settings.setup))if(!Object.hasOwn(plan.setup,key))fields.filled.push('setup.'+key);
-  noteFields(present,{},'skills.',fields,false,skillTemplate);
-  if(isRecord(present['plastic-weld']))noteFields(present['plastic-weld'],skillTemplate['plastic-weld'],'skills.plastic-weld.',fields,true);
   if(geometry)noteFields(plan.geometry,geometry,'geometry.',fields,false);
   const experimental=section(plan.experimental,base.experimental);
   return {...defaults,...knownFields(plan,{...defaults,skills,geometry:null,workspace:null}),
@@ -121,8 +119,7 @@ function currentFields(plan,machine,fields){
     composition:currentComposition(section(plan.composition,base.composition)),
     slices:section(plan.slices,base.slices),modulations:section(plan.modulations,base.modulations),
     setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})},
-    ...(Object.hasOwn(plan,'skills')?{skills:{...knownFields(present,skillTemplate),
-      ...(isRecord(present['plastic-weld'])?{'plastic-weld':section(present['plastic-weld'],skills['plastic-weld'])}:{})}}:{}),
+    skills:structuredClone(present),
     ...(geometry?{geometry:knownFields(plan.geometry,geometry)}:{})};
 }
 const section=(value,defaults)=>({...structuredClone(defaults),...(isRecord(value)?knownFields(value,defaults):{})});
@@ -175,12 +172,12 @@ function generationRecipe(plan,unread=[]){
   const process={...plan.process,primeLine:usablePrimeLine(plan.process.primeLine,notes)};
   const modulations=readModulations(plan.modulations);
   const stepped={...plan,geometry,process};
-  const skills=producingSkills(stepped,solid,notes);
+  const skills=plan.skills;
   const assignments=Array.isArray(plan.slices?.assignments)
     ?plan.slices.assignments.filter(assignment=>!unread.includes(assignment?.id)&&producingAssignment(stepped,solid,assignment,notes)):plan.slices?.assignments;
   const generated={...stepped,...(skills?{skills}:{}),modulations:modulations.record,slices:{...plan.slices,assignments}};
   if(!geometry)delete generated.geometry;
-  if(Array.isArray(assignments)&&!assignments.length&&!extensionProducerIds(generated).length)
+  if(Array.isArray(assignments)&&!assignments.length&&!Object.values(generated.skills??{}).some(settings=>settings?.enabled))
     notes.push('Nothing to print: no slice, Trace or Inject assignment can produce material.');
   return {plan:generated,notes:[...notes,...modulations.notes]};
 }
@@ -224,18 +221,6 @@ function usablePrimeLine(primeLine,notes){
 const processOf=(plan,assignment)=>{try{return assignmentPlan(plan,assignment).process;}catch{return null;}};
 const unusableSteps=(process,fields)=>process?fields.filter(key=>!positive(process[key])):[];
 const stepNote=(id,process,bad)=>`${id}: ${bad.map(key=>`${key} ${JSON.stringify(process[key]??null)}`).join(', ')} must be a positive number; ${id} produces nothing.`;
-
-// Skills deposit on geometry; without it, or without layer and line steps, they produce nothing.
-function producingSkills(plan,solid,notes){
-  if(!isRecord(plan.skills))return plan.skills;
-  return Object.fromEntries(Object.entries(plan.skills).map(([id,settings])=>{
-    if(!settings?.enabled)return [id,settings];
-    if(!solid)return [id,{...settings,enabled:false}];
-    const process=processOf(plan,{id}),bad=unusableSteps(process,STEP_FIELDS);
-    if(bad.length)notes.push(stepNote(id,process,bad));
-    return [id,bad.length?{...settings,enabled:false}:settings];
-  }));
-}
 
 // Inject places points; every other construction steps layers and lines.
 function producingAssignment(plan,solid,assignment,notes){

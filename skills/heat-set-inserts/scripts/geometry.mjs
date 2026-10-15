@@ -3,10 +3,9 @@ import {heatSetFeature,dimensions,heatSetTemplate,borePoint} from './feature.mjs
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // -> {geometry, notes}. Each bore is ordinary geometry along its axis, cut as
-// placed; setting the insert is a later physical step. Notes say what would
-// affect it: material over the mouth within the insert length, a face below
-// the mouth, or a bore breaking out beyond its floor. No material is empty
-// geometry with a note.
+// placed, with its approach cleared outward; setting the insert is a later
+// physical step. Notes report cleared mouths, uneven rims and floor breakout.
+// No material is empty geometry with a note.
 export async function compileHeatSet(base,features,{buildGeometry,constructSolids,toleranceMm=0.01}={}){
   requireThat([buildGeometry,constructSolids].every(value=>typeof value==='function'),
     'Heat-set needs Geometry buildGeometry and constructSolids operations.');
@@ -21,19 +20,21 @@ export async function compileHeatSet(base,features,{buildGeometry,constructSolid
   };
   const t=toleranceMm,bores=[],checks=[];
   for(const f of normalized){
-    const {diameterMm,depthMm,lengthMm}=dimensions(f),r=diameterMm/2;
+    const {diameterMm,depthMm}=dimensions(f),r=diameterMm/2;
     // A through bore passes the furthest host-bounds corner along this axis.
     // depthMm remains the insert seat/reinforcement depth, never a Z span.
     const axis=f.axis.map(c=>c/Math.hypot(...f.axis));
     const reach=axis.reduce((sum,c,i)=>sum+c*((c<0?shell.bounds.min[i]:shell.bounds.max[i])-f.positionMm[i]),0);
+    const outwardReach=axis.reduce((sum,c,i)=>sum-c*((c>0?shell.bounds.min[i]:shell.bounds.max[i])-f.positionMm[i]),0);
+    const clearance=Math.max(2*t,outwardReach+2*t);
     const cutDepth=f.throughHole?Math.max(depthMm,reach+2*t):depthMm;
-    bores.push(prism(f,r,-cutDepth,2*t));
+    bores.push(prism(f,r,-cutDepth,clearance));
     if(f.chamferDepthMm>0){
-      const slope=Math.tan(f.chamferAngleDeg*Math.PI/180);
-      bores.push(prism(f,r,-f.chamferDepthMm,2*t,r+(f.chamferDepthMm+2*t)*slope));
+      const mouthRadius=r+f.chamferDepthMm*Math.tan(f.chamferAngleDeg*Math.PI/180);
+      bores.push(prism(f,r,-f.chamferDepthMm,0,mouthRadius),prism(f,mouthRadius,0,clearance));
     }
-    checks.push([f,'material lies over its mouth within the insert length; the bore is cut as placed.',{operation:'intersection',operands:[shell,prism(f,r,2*t,2*t+lengthMm)]}],
-      [f,'the face lies below the mouth at part of its rim; the bore is shallower there.',{operation:'difference',operands:[prism(f,r,-3*t,-t),shell]}],
+    if(clearance>2*t)checks.push([f,'material outside its mouth was cleared along the insertion axis.',{operation:'intersection',operands:[shell,prism(f,r,2*t,clearance)]}]);
+    checks.push([f,'the face lies below the mouth at part of its rim; the bore is shallower there.',{operation:'difference',operands:[prism(f,r,-3*t,-t),shell]}],
       [f,f.throughHole?'the host ends before the selected insert seat depth.':'the bore breaks out beyond its floor.',{operation:'difference',operands:[prism(f,r,-depthMm-3*t,-depthMm-t),shell]}]);
   }
   const [mesh,...found]=await constructSolids([{operation:'difference',operands:[shell,...bores]},...checks.map(([,,request])=>request)],{toleranceMm});

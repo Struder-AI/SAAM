@@ -29,10 +29,7 @@ Checkout development notes remain in `.local/AGENTS.md` and `.local/DEVELOPMENT.
 
 ## Client queue monitoring
 
-Claude Code may run `saam wait` in a managed background session for 30 minutes; requests or delivered events end it early. Quiet expiry needs no chat message. Renew during work/tours or let idle monitoring lapse, preserving attachment, queued work and SAAM. Follow tour participation context and hand back before monitoring.
-Codex reads `get_studio_requests` / `get_studio_events` explicitly; `saam wait` defaults to 25 seconds. Automatic wakeup after a chat turn remains unverified.
+Native adapters report root turn completion, human messages/Stop, approvals/questions/plans/MCP input and confirmed process closure to the orchestrator's authenticated local `/control`. Accepted evidence survives restarts; disconnect or inactivity never ends work. Contacts settle same or earlier work; new actual edits begin another episode. Hand-back waits for accepted operations and a displayed result or terminal view failure; failures grant no successful receipt or tour gate.
+The same durable pipe carries every Studio event. Delivered kinds bring held events too; stable IDs acknowledge admission and let agents ignore duplicates. Codex uses active `turn/steer` or idle `turn/start`; Claude appends context to native tool results or submits an idle prompt. During a response without another tool boundary Claude receives the change next turn. `get_studio_events` and `saam wait` remain explicit reads (25 seconds for Codex, 30 minutes for Claude).
 
-Bundle switches preserve attachment and original request targets. Carry `studioInstanceId`, intended `bundleId` and originating `requestIds` on the first needed operation,
-or `expectedStudio: {studioInstanceId, bundleId}` on any operation (null bundle for an empty Studio). An unchanged association needs no refresh.
-A mismatch rejects before attachment, claims or edits with `STUDIO_TARGET_CHANGED` and `currentStudio` (null if closed); resolve the target explicitly.
-Hand-back settles the original `workRequest.id` after a switch; stale resumes reject. [Client contact](../../studio/README.md#carrying-a-maker-request) pauses active and queued work.
+Open, successful Import, tours and capture commit the same Studio selection transition. A switch retires old presentation obligations without reporting them shown; underway work keeps its original bundle. Carry `expectedStudio: {studioInstanceId, bundleId, selectionVersion}` and originating `requestIds`; A→B→A and capture-back reject old authority with `STUDIO_TARGET_CHANGED`. Hand-back still settles the original `workRequest.id`. [Setup](../../packaging/INSTALL.md) registers adapters; no agent starts a relay or heartbeat.

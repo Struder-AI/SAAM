@@ -34,10 +34,11 @@ import {surfaceRegion} from './surface-region.mjs';
 import {prepareSolidDistance,solidDistance} from './solid-distance.mjs';
 import {extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery} from './extruded-segments.mjs';
 import {rodFrame,point} from './frame.mjs';
+import {convexVolume} from './convex-clearance.mjs';
 import {geometrySelections} from './selections.mjs';
 
 async function buildGeometry(geometry){return buildShell(await rhino(),geometry,{native:false});}
-const operations=Object.freeze({buildGeometry,combineSolids,constructSolids,makeMesh,rodFrame,point,geometrySelections,
+const operations=Object.freeze({buildGeometry,combineSolids,constructSolids,makeMesh,convexVolume,rodFrame,point,geometrySelections,
     resolveGeometrySelections,resolveMaterialGeometry,translateShell,mappedRegionMaterial,textOutlines,textLayout,
     matchCurveControls,ribbon,loftPolygons,topAt,createSectionQuery,containsPoint,
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,

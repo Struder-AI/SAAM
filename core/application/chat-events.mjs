@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 // One chat's queue of Studio observations, shared by that agent's Studio
 // instances. Held kinds wait until the agent reads; delivered kinds push at once
 // and carry everything held with them. Reads drain the queue; pushes do not, so
@@ -11,7 +12,7 @@ export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];
 const clone=({key,...event})=>structuredClone(event);
 
 export function createChatEvents({now=Date.now,limit=200,historyLimit=100}={}){
-  const queued=[],recent=[],listeners=new Set(),observers=new Set();let seq=0,closed=false;
+  const queued=[],recent=[],listeners=new Set(),observers=new Set(),pending=new Set();let seq=0,closed=false;
   const pendingDelivery=()=>queued.some(event=>event.delivery==='delivered');
   function record(kind,detail={}){
     if(closed)return null;
@@ -19,16 +20,25 @@ export function createChatEvents({now=Date.now,limit=200,historyLimit=100}={}){
     const key=JSON.stringify([kind,detail]),last=queued.at(-1);
     if(last&&last.key===key)return clone(last); // Repeated identical observations add nothing.
     // Detail never overrides the queue's own fields.
-    const event={...detail,seq:++seq,at:now(),kind,delivery:DELIVERED_KINDS.has(kind)?'delivered':'held',key};
+    const event={...detail,id:randomUUID(),seq:++seq,at:now(),kind,delivery:DELIVERED_KINDS.has(kind)?'delivered':'held',key};
     queued.push(event);
     if(queued.length>limit)recent.push(...queued.splice(0,queued.length-limit).map(clone));
     if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);
-    for(const observer of [...observers])observer(clone(event));
+    for(const observer of [...observers]){
+      const result=observer(clone(event));
+      if(result?.then){const delivery={observer,event:clone(event),promise:result};pending.add(delivery);void result.catch(()=>{});}
+    }
     if(event.delivery==='delivered'){const batch=queued.map(clone);for(const listener of [...listeners])listener(batch);}
     return clone(event);
   }
   return {
     record,pendingDelivery,
+    async flush(){
+      for(const delivery of [...pending]){
+        try{await delivery.promise;pending.delete(delivery);}
+        catch(error){delivery.promise=delivery.observer(delivery.event);void delivery.promise.catch(()=>{});throw error;}
+      }
+    },
     drain(){const batch=queued.splice(0).map(clone);recent.push(...batch);if(recent.length>historyLimit)recent.splice(0,recent.length-historyLimit);return batch;},
     history(){return recent.map(event=>structuredClone(event));},
     subscribe(listener){if(typeof listener!=='function')throw Error('Event listener must be a function.');listeners.add(listener);return()=>{listeners.delete(listener);};},

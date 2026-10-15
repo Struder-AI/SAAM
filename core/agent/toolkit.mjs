@@ -138,7 +138,7 @@ export async function onboarding({role, areas = [], machine: machineId, set = de
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...manuals(named)]
     : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...manuals(named.filter((_, k) => !owners[k].length))];
-  const mapKeys = role === 'maker' ? [] : [...new Set([...targets, ...owners.flat()])];
+  const mapKeys = role === 'maker' ? [] : [...new Set([...(role === 'developer' ? ['0'] : []), ...targets, ...owners.flat()])];
   const [context, environment, maps, notes, extensions, index] = await Promise.all([contextPacket(ids, role === 'maker' ? {machineId} : {all: true, markers: true}),
     environmentStatus(), mapKeys.length ? readMaps(mapKeys, {set}) : [],readLocalAgentNotes(homePaths()),
     extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'}), role === 'builder' ? gatedIndex(root) : {unreadable: []}]);

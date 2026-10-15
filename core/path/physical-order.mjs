@@ -6,25 +6,69 @@ import {add,scale,dot,subtract,length,cross,normalize} from '../geom/tolerance.m
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {uprightPose} from './pose.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
+import {strokeRange} from './deposition.mjs';
+import {interpolateDirectionPair} from '../geom/frame.mjs';
 
-export function depositionCourses(operations,{splitConnectors=new Set()}={}){
-  const groups=new Map(),courses=[],sequence=[];
+export function depositionCourses(operations,{splitConnectors=new Set(),splitStrokes=new Map()}={}){
+  const groups=new Map(),courses=[],sequence=[],sources=new Map();
   for(const operation of operations){
     const chunks=[];
     if(operation.continuous||operation.strokes.some(s=>s.stationaryExtrusion))chunks.push(operation.strokes);
-    else for(const stroke of operation.strokes){
+    else for(const original of operation.strokes)for(const stroke of splitStrokes.get(original)??[original]){
+      if(splitStrokes.has(original))sources.set(stroke,original);
       const previous=chunks.at(-1),connector=stroke.segmentMetadata?.some(m=>m.connector);
-      if(!splitConnectors.has(operation.id)&&previous&&(connector||previous.at(-1).segmentMetadata?.some(m=>m.connector)))previous.push(stroke);
+      if(!sources.has(stroke)&&!sources.has(previous?.at(-1))&&!splitConnectors.has(operation.id)&&previous&&
+        (connector||previous.at(-1).segmentMetadata?.some(m=>m.connector)))previous.push(stroke);
       else chunks.push([stroke]);
     }
     if(!chunks.length)chunks.push([]);
     const units=chunks.map((strokes,index)=>({...operation,id:chunks.length===1?operation.id:operation.id+'/course:'+index,
       sourceOperation:operation.id,strokes}));
-    for(let i=1;i<units.length;i++)if([chunks[i-1].at(-1),chunks[i][0]].some(stroke=>stroke.segmentMetadata?.some(m=>m.connector)))
-      sequence.push({before:units[i-1].id,after:units[i].id,kind:'connector-order'});
+    for(let i=1;i<units.length;i++){
+      const a=chunks[i-1].at(-1),b=chunks[i][0];
+      if([a,b].some(stroke=>stroke?.segmentMetadata?.some(m=>m.connector)))
+        sequence.push({before:units[i-1].id,after:units[i].id,kind:'connector-order'});
+    }
     groups.set(operation.id,units.map(unit=>unit.id));courses.push(...units);
   }
-  return {courses,groups,sequence};
+  return {courses,groups,sequence,sources};
+}
+
+// A straight depositing edge can cross both a prerequisite wall and a future
+// cover. Split it without changing its line, deposited volume or surface normal.
+function bisectEdge(stroke){
+  const [a,b]=stroke.points,middle=a.map((v,k)=>v+(b[k]-v)/2);
+  if(Math.min(length(subtract(middle,a)),length(subtract(b,middle)))<PRINT_RESOLUTION_MM+ROUNDING_MM)return null;
+  const midpoint=(a,b)=>typeof a==='number'&&typeof b==='number'?a+(b-a)/2:Array.isArray(a)&&Array.isArray(b)?a.map((v,k)=>midpoint(v,b[k])):
+    a&&b&&typeof a==='object'&&typeof b==='object'?Object.fromEntries(Object.keys(a).map(key=>[key,midpoint(a[key],b[key])])):a;
+  const expanded={...stroke,points:[a,middle,b]};
+  for(const key of ['normals','frameSamples','curveParameters','chartPoints','referenceAlong'])if(stroke[key])
+    expanded[key]=[stroke[key][0],midpoint(stroke[key][0],stroke[key][1]),stroke[key][1]];
+  if(stroke.poses){
+    const [toolAxis,toolUp]=interpolateDirectionPair([stroke.poses[0].toolAxis,stroke.poses[0].toolUp],[stroke.poses[1].toolAxis,stroke.poses[1].toolUp],.5);
+    expanded.poses=[stroke.poses[0],{toolAxis,toolUp},stroke.poses[1]];
+  }
+  for(const key of ['volumesMm3','segmentMetadata','heightsMm','widthsMm','flowMultipliers'])if(stroke[key])
+    expanded[key]=[stroke[key][0],stroke[key][0]].map(value=>key==='volumesMm3'?value/2:value);
+  const normal=stroke.segmentMetadata?.[0]?.surfaceNormal??stroke.frameSamples?.[0]?.normal??stroke.normals?.[0]??stroke.poses?.[0]?.toolAxis.map(v=>-v)??[0,0,1];
+  expanded.segmentMetadata=[0,1].map(()=>({...stroke.segmentMetadata?.[0],surfaceNormal:normal}));
+  return expanded;
+}
+
+export function refineCourseStrokes(partition,affected,splitStrokes){
+  const cuts=[];
+  for(const course of partition.courses){
+    if(!affected.has(course.id)||course.continuous||course.strokes.some(stroke=>stroke.stationaryExtrusion))continue;
+    for(const stroke of course.strokes){
+      let full=stroke.closed?strokeRange(stroke):stroke;
+      if(full.points.length===2){full=bisectEdge(full);if(!full)continue;}
+      const last=full.points.length-1;if(last<2)continue;
+      const middle=Math.floor(last/2),pieces=[strokeRange(full,0,middle),strokeRange(full,middle,last)];
+      const original=partition.sources.get(stroke)??stroke,previous=splitStrokes.get(original)??[stroke],at=previous.indexOf(stroke);
+      splitStrokes.set(original,[...previous.slice(0,at),...pieces,...previous.slice(at+1)]);cuts.push(original);
+    }
+  }
+  return cuts.length;
 }
 
 export function physicalOrdering(courses,{onProgress,prerequisites=new Map()}={}){
@@ -40,12 +84,18 @@ export function physicalOrdering(courses,{onProgress,prerequisites=new Map()}={}
   const contacts=new Map(courses.map(course=>[course.id,new Set()])),blockers=new Map(courses.map(course=>[course.id,new Set()]));
   const supportProofs=prerequisiteProofs(courses.map(course=>course.id));
   for(const [after,parents] of prerequisites)for(const before of parents)supportProofs.record(before,after);
-  const counts={substrateDependencies:0,nozzleDependencies:0};
+  const counts={substrateDependencies:0,nozzleDependencies:0,materialDependencies:0};
   function edge(before,after,kind){
     if(before===after)return;
-    const seen=kind==='substrate'?contacts.get(after):blockers.get(before),other=kind==='substrate'?before:after;
+    const material=kind!=='nozzle-access',seen=material?contacts.get(after):blockers.get(before),other=material?before:after;
     if(seen.has(other))return;seen.add(other);edges.push({before,after,kind});
-    if(kind==='substrate'){counts.substrateDependencies++;supportProofs.record(before,after);}else counts.nozzleDependencies++;
+    if(material){counts[kind==='substrate'?'substrateDependencies':'materialDependencies']++;supportProofs.record(before,after);}else counts.nozzleDependencies++;
+  }
+  const partOf=new Map(courses.map(course=>[course.id,course.part]));
+  for(const course of courses)for(const requirement of course.requiredMaterial??[]){
+    for(const hit of index.query(requirement.volume,ROUNDING_MM,{firstPerGroup:true,
+      acceptGroup:group=>group!==course.id&&partOf.get(group)===requirement.part}))
+      edge(beads[hit].operationId,course.id,'required-material');
   }
   for(const [i,bead] of beads.entries()){
     // Reporting cadence only; this does not bound the contact search.
@@ -87,6 +137,9 @@ export function physicalOrdering(courses,{onProgress,prerequisites=new Map()}={}
   if(supportedBefore.cyclic)return {beads,shapes,index,byStart,edges,...counts};
   for(const [completed,course] of courses.entries()){
     onProgress?.({stage:'Resolving physical print order',completed,total:courses.length});
+    // Stationary deposition has no moving bead to justify surface overlap.
+    // Keep its actual tip/opening clear, including a thin cover near the tip.
+    const forgivenessMm=course.strokes.some(stroke=>stroke.stationaryExtrusion)?0:undefined;
     const laid=new Set(),groupPrefixes=new Map([[course.id,-1]]),blocked=blockers.get(course.id),withinGroups=new Set(courses.filter(other=>!supportedBefore.has(course.id,other.id)).map(other=>other.id));
     for(const stroke of course.strokes){
       const points=stroke.points;
@@ -97,7 +150,7 @@ export function physicalOrdering(courses,{onProgress,prerequisites=new Map()}={}
           for(const j of nozzleSweepHits(index,points[a],points[b],from,to,{
             accept:j=>beads[j].operationId!==course.id||laid.has(j),
             acceptGroup:group=>group===course.id?laid.size>0:!blocked.has(group),
-            firstPerGroup:true,withinGroups,groupPrefixes
+            firstPerGroup:true,withinGroups,groupPrefixes,forgivenessMm
           })){
             if(laid.has(j))throw Object.assign(Error('Continuous course '+course.id+' blocks its own nozzle access; an interruptible boundary or different path is needed.'),
               {code:'CONTINUOUS_NOZZLE_CONFLICT',operation:course.id,segment:[points[a],points[b]],materialSegment:beads[j]});

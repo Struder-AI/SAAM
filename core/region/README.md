@@ -163,13 +163,11 @@ Text selections are `base` and `text/<feature-id>`, prefixed by assembly compone
 [assignmentPlan](../print/assignment-process.mjs) resolves filament defaults and assignment overrides.
 Stack gaps define layers; process values supply deposition defaults.
 
-[reservation.mjs](./reservation.mjs) removes temporary process cavities from
-owned material. A plastic-weld reservation supplies a
-footprint, `regionAt(z)` and a solid envelope `solidRegionAt(z)`. Height-field
-slices evaluate reservations in world space before returning chart regions.
-Reservations are rebuilt from the recipe; they do not claim deposited coverage.
-[Plastic weld](../../skills/plastic-weld/SKILL.md) owns cavity completion and
-operation dependencies.
+[Process sources](../../skills/AUTHORING.md) supply finite Boolean cutters and
+ordinary solid-material volumes before Slice resolves ownership. Geometry
+sections them on each reference; they do not claim deposited coverage.
+[Plastic weld](../../skills/plastic-weld/SKILL.md) declares its cavity/enclosure;
+Scheduling owns material prerequisites and nozzle access through the saved path.
 
 Skin survey, curve mapping and local gaps are shared stages in
 [roof-region.mjs](./roof-region.mjs), [layer-strokes.mjs](./layer-strokes.mjs)

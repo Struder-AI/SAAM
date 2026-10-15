@@ -86,6 +86,18 @@ function retimeLayers(owner,others,heightMm,claimAt,onProgress){
   return {referenceStack:{...stack,layers:layers.map((layer,index)=>({...layer,characterIndex:layer.characterIndex??layer.index,index}))},participating:participating.filter(Boolean).length,transitions};
 }
 
+// Shared and exclusive courses on the same native chart must become one
+// region before toolpath construction. Repeated pitch arithmetic can differ by
+// floating-point rounding; exact serialized slice keys are only a fast lookup.
+function sameLayerChart(a,b){
+  if(a.kind!==b.kind)return false;
+  const close=(x,y,tolerance)=>x.every((v,k)=>Math.abs(v-y[k])<=tolerance);
+  if(a.kind==='plane')return close(a.origin,b.origin,ROUNDING_MM)&&
+    close(a.normal,b.normal,ROUNDING_RELATIVE)&&close(a.xAxis,b.xAxis,ROUNDING_RELATIVE);
+  if(a.kind==='patch'&&a.referencePatch===b.referencePatch)return close(a.translation,b.translation,ROUNDING_MM);
+  return sliceKey(a)===sliceKey(b);
+}
+
 function sharedStack(source,pitchMm,bounds){
   const ratio=pitchMm/source.pitchMm,stride=Math.round(ratio),advance=pitchMm/source.meanProjection;
   if(stride>=1&&Math.abs(ratio-stride)<=ROUNDING_RELATIVE){
@@ -306,8 +318,10 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       }
       const same=new Map(record.layers.map(layer=>[sliceKey(layer.slice),layer]));
       for(const layer of added){
-        const existing=same.get(sliceKey(layer.slice));
-        if(existing&&Math.abs(existing.translationMm-layer.translationMm)<=ROUNDING_MM&&existing.characterIndex===layer.characterIndex)existing.region=union(existing.region,layer.region);
+        const compatible=candidate=>Math.abs(candidate.translationMm-layer.translationMm)<=ROUNDING_MM&&
+          candidate.characterIndex===layer.characterIndex&&sameLayerChart(candidate.slice,layer.slice);
+        const exact=same.get(sliceKey(layer.slice)),existing=exact&&compatible(exact)?exact:record.layers.find(compatible);
+        if(existing)existing.region=union(existing.region,layer.region);
         else record.layers.push(layer);
       }
       record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);

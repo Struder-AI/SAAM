@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Shared-material preparation prototype and local deposited-face scheduling, 2026-10-15. Non-edge-on joint construction and finer interruption remain open frontiers.",
+  "status": "Whole-slice scheduling and adaptive stroke interruption, 2026-10-15. Shared-material construction remains experimental; general non-edge-on construction is unfinished.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "dev-map/influence/position-documents.mjs": {
@@ -1670,6 +1670,46 @@
     "core/region/shared-material/caps.mjs": {
       "owner": "material-regions",
       "reason": "One upstream operation resolves native material claims and prepared layers before stroke construction; shared cadence and nonplanar transitions remain in development."
+    },
+    "core/path/course-order.mjs": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/extensions/process-sources.mjs": {
+      "owner": "extensions",
+      "reason": "Selected local extension resolution, code loading and package exchange; filesystem and module-cache effects remain explicit."
+    },
+    "core/application/client-lifecycle.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "packaging/client-adapters.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/codex-relay.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/codex-wire.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/codex-backend.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/transport.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/owner.mjs": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
+    },
+    "adapters/clients/claude/hooks/register.js": {
+      "owner": "application",
+      "reason": "Native client lifecycle and durable Studio delivery; the request ledger owns work state."
     }
   },
   "leaves": {
@@ -4042,7 +4082,8 @@
     },
     "core/path/compose.mjs::orderReadyOperations": {
       "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
+      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation.",
+      "retired": "Replaced by directional motion and hierarchical course scheduling, 2026-10-15."
     },
     "core/path/compose.mjs::orderReadyOperations::compare": {
       "owner": "scheduling",
@@ -4650,7 +4691,8 @@
     },
     "core/path/planning.mjs::travelClearance": {
       "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
+      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation.",
+      "retired": "Replaced by directional motion and hierarchical course scheduling, 2026-10-15."
     },
     "core/path/planning.mjs::planProcess": {
       "owner": "scheduling",
@@ -14720,7 +14762,8 @@
     },
     "core/print/slice-material.mjs::sliceRank": {
       "owner": "material-regions",
-      "reason": "Upstream allocation prepares owned regions, claims and reference contexts."
+      "reason": "Upstream allocation prepares owned regions, claims and reference contexts.",
+      "retired": "Replaced by directional motion and hierarchical course scheduling, 2026-10-15."
     },
     "core/print/slice-records.mjs::validateStackContact": {
       "owner": "recipe",
@@ -17853,7 +17896,8 @@
     },
     "core/geom/convex-clearance.mjs::convexSpatialIndex::selectedTree": {
       "owner": "geometry",
-      "reason": "Numerical swept-volume refinement and reusable spatial group selection."
+      "reason": "Numerical swept-volume refinement and reusable spatial group selection.",
+      "retired": "Replaced by directional motion and hierarchical course scheduling, 2026-10-15."
     },
     "core/geom/convex-clearance.mjs::convexSpatialIndex::selection": {
       "owner": "geometry",
@@ -17954,6 +17998,647 @@
     "core/region/shared-material/caps.mjs::boundaryCaps": {
       "owner": "material-regions",
       "reason": "Private implementation and entry of the one upstream native shared-material preparation operation; no deposition or execution policy."
+    },
+    "core/path/precedence.mjs::PRECEDENCE_CACHE_BYTES": {
+      "owner": "scheduling",
+      "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
+    },
+    "core/path/precedence.mjs::prerequisiteProofs": {
+      "owner": "scheduling",
+      "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
+    },
+    "core/path/physical-order.mjs::refineCourseStrokes": {
+      "owner": "scheduling",
+      "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
+    },
+    "core/geom/convex-clearance.mjs::prismIntersects": {
+      "owner": "geometry",
+      "reason": "Numerical separating-axis intersection for rectangular prisms and zero-thickness contact faces."
+    },
+    "core/path/course-order.mjs::@module": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::components": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::slicePartitions": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::nearest": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::dependencyCycle": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::orderReadyOperations": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/path/course-order.mjs::orderSliceCourses": {
+      "owner": "scheduling",
+      "reason": "Contract exact prerequisites into whole native slices; refine cyclic contractions and order ready courses without a world-axis convention."
+    },
+    "core/application/client-lifecycle.mjs::@module": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/transport.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/owner.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::@module": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::contactIncludes": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::file": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::state": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::queue": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::serial": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::serial::task": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::save": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::key": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::session": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::inflight": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::flush": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::flush::task": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::connection": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::current": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::epoch": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::turnKey": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::turn": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::context": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::event::<callback@35:18>::reason": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::record": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::record::<callback@65:59>::current": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::messageFor": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::messageFor::events": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::inbox": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::inbox::<callback@80:43>::message": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::acknowledge": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::acknowledge::<callback@84:67>::current": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::acknowledge::<callback@84:67>::ids": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::context": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::lastContact": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::contacts": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::timer": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::timer.<callback@93:27>::current": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::close": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::source": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::pluginId": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::optional": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::write": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::write::temporary": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::run": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::run::<callback@15:62>::child": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::run::<callback@15:62>::output": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::executable": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::files": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::contents": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::hash": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::bytes": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::version": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::folder": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::release": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::target": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::runtime": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::node": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::config": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::prepare::manifest": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::environment": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::environment::path": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::environment::previous": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::environment::xml": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::userOverride": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::prepared": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::recordFile": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::previous": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::launcher": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::override": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::backend": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::bundled": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::root": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::name": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::compiler": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::escaped": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::changed": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::claudeBinary": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::claudeBinary::name": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::marketplace": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::binary": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::env": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::installed": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::known": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::entries": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerClaudeAdapter::exists": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::removed": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::folder": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::recordFile": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::record": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::path": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::installed": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::unregisterAdapters::env": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::folder": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::config": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::args": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::connectionId": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::backend": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::native": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::outbox": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::spool": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::state": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::name": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::acknowledged": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::lines": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>::pending": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>::file": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>::offset": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>::acknowledged": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::drain::<callable@33:43>::temporary": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::record": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wire": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::decoder": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::buffer": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::boundary": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::line": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::forwarding": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::message": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::wake": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::observe::eventId": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::transform": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::tap::flush": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::child": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wake": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wake::sessionIds": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wake::id": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wake::turnId": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-relay.mjs::wakeTimer": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::state": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::publish": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::publish::event": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::publish::queue": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::classify": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::classify::id": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::classify::child": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::classify::event": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::client": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::client::p": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::server": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::server::p": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::server::request": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::server::id": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::ended": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::ended::id": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::roots": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::idle": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-wire.mjs::createCodexWire::activeTurn": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::root": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::entries": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::candidates": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::entry": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::@scope/block-1/forof-1/block-1::path": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::info": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-backend.mjs::codexBackend::@scope/forof-1::path": {
+      "owner": "application"
+    },
+    "adapters/clients/transport.mjs::control": {
+      "owner": "application"
+    },
+    "adapters/clients/transport.mjs::control::instance": {
+      "owner": "application"
+    },
+    "adapters/clients/transport.mjs::control::response": {
+      "owner": "application"
+    },
+    "adapters/clients/transport.mjs::control::result": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::observer": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::configuration": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::control": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::control::config": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::control::instance": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::control::result": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::control::value": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::send": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::report": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::report::sessionId": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::report::event": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::report::connected": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::inbox": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::acknowledge": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::config": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::owner": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::pid": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::event": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::<callback@38:23>::key": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::<callback@38:23>::pending": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@28:22>::<callback@38:23>::sessionId": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@56:44>::delivery": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@56:44>::sessionId": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@56:44>::first": {
+      "owner": "application"
+    },
+    "adapters/clients/claude/hooks/register.js::register::<callback@56:44>::result": {
+      "owner": "application"
     }
   },
   "retiredAssignments": [

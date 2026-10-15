@@ -14,11 +14,12 @@ const failureNote=({assignment,family,cause})=>`${family[0].toUpperCase()+family
 // summary, notes}: notes are the slice stacks' notes, each result's report
 // notes (such as its contact spans) and each failure.
 export function finalizedSliceResults(args){
-  const failures=[];
+  const failures=[...(args.geometryFailures??[])].map(([id,error])=>new AssignmentFailure({sourceId:args.assignmentOwners?.get(id)??id,kind:'slice'},error));
   for(;;){
     try{return finalizeAssignments(args,failures);}catch(error){
       if(error.name==='AbortError'||!error.assignment||failures.some(failure=>failure.assignment===error.assignment))throw error;
-      const failure=error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
+      const owner=args.assignmentOwners?.get(error.assignment)??error.assignment;
+      const failure=owner!==error.assignment?new AssignmentFailure({sourceId:owner,kind:error.family??'slice'},error.cause??error):error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
       args.onProgress?.({stage:'Deposition failed',assignment:failure.assignment,family:failure.family,error:{name:failure.cause.name,message:failure.cause.message,stack:failure.cause.stack}});
       failures.push(failure);
     }
@@ -26,11 +27,12 @@ export function finalizedSliceResults(args){
 }
 function finalizeAssignments(args,failures){
   const excluded=new Set(failures.map(failure=>failure.assignment));
-  const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(a.id))}};
+  const ownerOf=id=>args.assignmentOwners?.get(id)??id;
+  const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(ownerOf(a.id)))}};
   const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),
     geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded.has(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded.has(volume.sourceId))});
   const contexts=sliced.contexts;
-  const constructions=(args.constructions??[]).filter(context=>!excluded.has(context.assignment.id));
+  const constructions=(args.constructions??[]).filter(context=>!excluded.has(ownerOf(context.assignment.id)));
   const work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
   const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
   const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells});

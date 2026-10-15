@@ -17,7 +17,7 @@
   },
   "license": "Apache-2.0",
   "saam": {
-    "contract": 2
+    "contract": 3
   },
   "dependencies": {
     "clipper2-wasm": "0.4.0",

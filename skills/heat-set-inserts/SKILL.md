@@ -8,12 +8,10 @@ metadata:
 # Heat-set inserts
 
 Prepare blind/through seats for heat or ultrasonic inserts. The [catalog](CATALOG.md)
-covers 86 manufacturer profiles: 60 SPIROL Series 19/29, 25 CNC Kitchen and McMaster
-94459A743 (1/2-13). Printed fit and strength need physical evidence.
+covers 86 profiles: 60 SPIROL Series 19/29, 25 CNC Kitchen and McMaster 94459A743 (1/2-13).
 
-Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits
-keep omitted settings; new holes inherit insert, bore and fin choices in their
-component, with explicit placement or the stated example default.
+Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits retain settings;
+new holes inherit component insert, bore and fin choices, with explicit or example placement.
 
 Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
 `apply_heat_set` with `bundleId`, current `expectedRevision` and `request`:
@@ -23,7 +21,9 @@ Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
 ```
 
 `positionMm` is the mouth centre; `axis` points inward, including side/angled
-faces. Assembly requests add `part`. Edit by id with changed fields; remove with
+faces. The cut clears material outward beyond the host at the mouth diameter
+(including a chamfer); inward seat depth stays fixed. Reapply to update old holes.
+Assembly requests add `part`. Edit by id with changed fields; remove with
 `{"remove":"mount"}` (plus `part`). Review the saved revision in Studio; Export
 is the normal confirmation. Fit, tool access and printable support need review.
 
@@ -68,8 +68,7 @@ omitted source selection, and an explicit override affects only the named hole.
 Vase-only deposition has no source Slice. Coincident fin/layer sheets have no
 unique intersection curve; skipped fins and singular charts are reported.
 
-Meshes, supported spline hosts and assemblies retain editable holes alongside
-text/curves. Reports note obstructed mouths, uneven rims, blind-floor breakout and
-short through seats. Blind-floor pad depth is max(solidTop,solidBottom) × layer
-gap, excluding existing dense coverage; oblique pads may cross more layers. Fit,
-adhesion, strength, AMS behavior and unsupported orientations need print evidence.
+Meshes, supported spline hosts and assemblies retain editable holes alongside text/curves.
+Reports note cleared mouths, uneven rims, floor breakout and short through seats. Blind-floor pads
+use max(solidTop,solidBottom) × layer gap, excluding existing dense coverage; oblique pads may span
+more layers. Fit, adhesion, strength, AMS behavior and unsupported orientations need print evidence.

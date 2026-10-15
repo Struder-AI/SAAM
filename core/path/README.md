@@ -7,13 +7,12 @@ locking, generation and review.
 
 ## Skill-result composition
 
-Material regions resolves claims upstream; Application prepares work dependencies.
-Extensions read prepared geometry/material intent and name work prerequisites.
-Toolpath constructs Slice, Trace and Inject, applies Modulation, and freezes
-stroke order, poses and connections; core lowers work prerequisites to emitted IDs.
-Bundle saves this completed SAAMpath operation graph; Scheduling reads it to
-choose execution order and add travel, retraction, cooling and finishing.
-Exporters add machine startup and service motions.
+Material regions resolves claims; Application prepares construction prerequisites.
+Extensions define geometry, deposition intent and required physical conditions.
+Toolpath finalizes Slice/Trace/Inject strokes, poses, connections and Modulation.
+Bundle saves the operation graph, explicit dependencies and material requirements.
+Scheduling derives precedence and nozzle access from these and actual deposition,
+then adds travel, cooling and finishing; exporters add machine startup/service.
 
 `planOperationEntry` applies context, selection and the operation's resolved `process`;
 `planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
@@ -49,32 +48,33 @@ seed and successor dependencies bind through the same composer, with slices in
 array order. The producer rejects geometry requiring disconnected passes.
 Material ownership is explicit; fronts do not publish a finished surface chart.
 
-`core/path/compose.mjs` schedules the saved deposition through one geometric
-ordering operation. Independent strokes can interleave; continuous courses stay
-atomic. Connector chains retain order but split at stroke boundaries when grouping
-causes a conflict. Original IDs own motion context and process prerequisites;
-course IDs identify execution. Construction references remain separate.
+[course-order.mjs](./course-order.mjs) contracts the proven dependency graph into
+whole native slices. A contraction cycle exposes only its boundary courses;
+remaining courses stay grouped. [compose.mjs](./compose.mjs) refines actual course
+cycles by separating interruptible connector chains, then bisecting strokes at
+existing vertices. Pieces retain direction, material and aligned channels;
+explicit continuity and stationary Inject remain atomic. Original IDs own motion
+context and process prerequisites; course IDs identify execution.
 
-[physical-order.mjs](./physical-order.mjs) derives local substrate contacts and swept-nozzle
-prerequisites. [precedence.mjs](./precedence.mjs) omits checks already implied by
-substrate or explicit process order; reported edges are sufficient constraints,
-not every contact. Its bounded dense cache falls back to exact per-source search.
-Geometry's [convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex queries,
-slice-partitioned spatial indexing and continuous sweeps. Proven order filters whole slices;
-one confirmed witness proves each relationship. Rotating hull candidates refine
-until exact cones intersect or smaller hulls separate, without extra forgiveness.
-Bead normals and tool poses supply directions, with no world-Z ordering. Ready
-work favors nearby entries and small pose changes. Explicit `composition.order`,
-`composition.dependencies` and operation `after` remain prerequisites. Conflicts
-name affected courses and relationships; indivisible self-obstruction needs a path
-change or interruptible boundary. Known cycles are reported before nozzle scans.
+[physical-order.mjs](./physical-order.mjs) derives local substrate and swept-nozzle
+prerequisites. [precedence.mjs](./precedence.mjs) omits checks implied by known
+order; reported edges are sufficient constraints, not every contact. Its bounded
+dense cache falls back to exact per-source search. Geometry's
+[convex-clearance.mjs](../geom/convex-clearance.mjs) owns numerical queries,
+slice-partitioned spatial indexing and continuous sweeps. Proven order filters
+whole slices; one witness proves each relationship. Rotating candidates refine
+until exact cones intersect or smaller hulls separate. Bead normals and tool poses
+supply directions. Ready work favors nearby entries and small pose changes.
+Explicit process prerequisites remain; conflicts name affected courses.
+Known cycles stop unnecessary nozzle scans.
 
-The temporary nozzle is an effectively infinite sharp cone: 15-degree included
-angle (7.5-degree half-angle), with numerical length beyond the scene. A 0.1 mm
-surface forgiveness permits small contact; deposited lines may overlap.
-Carriage, fixtures, joints, gravity, fusion and unsupported-span printability are
-outside this model; no supports are added. Moving beads supply occupancy; stationary injection needs authored occupied
-geometry to supply substrate or obstacle volume.
+The nozzle is an effectively infinite sharp cone: 15-degree included angle.
+Moving deposition uses 0.1 mm surface forgiveness (apex retreat about 0.766 mm);
+stationary deposition uses the full cone, keeping thin covers away from its tip.
+Deposited lines may
+overlap. Carriage, fixtures, joints, gravity, fusion and unsupported-span
+printability are outside this model; no supports are added. Moving beads supply
+occupancy; stationary Inject needs authored occupied geometry.
 
 Execution retains material selection, retraction and per-layer cooling debt across
 interleaving. Actual beads, including connectors and modulation, supply occupancy;
@@ -112,10 +112,10 @@ validation; machine adapters own command semantics. Current
 filament-axis G-code outputs support these actions; relay outputs reject them.
 [Plastic weld](../../skills/plastic-weld/SKILL.md) is their first producer.
 
-Its cavity reservations remain open until all enclosing layers are complete.
-Injection prerequisites and cover-layer dependencies use the ordinary scheduler;
-explicit orders cannot bypass them. An atomic path that conflicts with that
-sequence needs a different region assignment or injection height.
+Operations may carry `requiredMaterial:[{part,volume}]` convex regions. Scheduling
+places intersecting beads before them and nozzle-obstructing beads afterward.
+These constraints survive Bundle storage without technique callbacks; explicit
+order cannot bypass them. Irreducible conflicts need different geometry/parameters.
 
 [finished-surface.mjs](./finished-surface.mjs) connects surface consumers to
 material producers without a skill-name allowlist in the consumer. A result's

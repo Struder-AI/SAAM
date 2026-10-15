@@ -35,7 +35,7 @@ export function resolvePlanPatch(previous,patch,{geometryTemplate}){
   if(record(previous.modulations)&&record(recipe.modulations))plan.modulations={...previous.modulations,...plan.modulations};
   if(record(previous.skills)&&record(recipe.skills)){
     plan.skills={...previous.skills,...plan.skills};
-    if(record(previous.skills['plastic-weld'])&&record(recipe.skills['plastic-weld']))plan.skills['plastic-weld']={...previous.skills['plastic-weld'],...plan.skills['plastic-weld']};
+    for(const [id,settings] of Object.entries(recipe.skills))if(record(previous.skills[id])&&record(settings))plan.skills[id]={...previous.skills[id],...settings};
   }
   if(Object.hasOwn(patch,'geometry')){
     if(previous.geometry?.shape==='spatial'&&(geometry===null||geometry.shape!=='spatial'&&!Object.hasOwn(geometry,'solid')&&!Object.hasOwn(geometry,'curves')&&!Object.hasOwn(geometry,'points'))){

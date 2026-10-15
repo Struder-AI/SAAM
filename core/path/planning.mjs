@@ -92,7 +92,7 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
     state.moveRun={...run,action:replacement};state.lastAction=replacement;state.lastNonFan=replacement;
     emitted={replaceLast:replacement,append:[]};
   } else {
-    state.moveRun=length>0?{action,from:[...state.position],direction:to.map((v,i)=>(v-state.position[i])/length),density:volumeMm3/length}:null;
+    state.moveRun=length>0?{action,from:[...state.position],fromPose:state.pose??uprightPose(),direction:to.map((v,i)=>(v-state.position[i])/length),density:volumeMm3/length}:null;
     state.lastAction=action;state.lastNonFan=action;emitted={append:[action]};
   }
   state.layerSeconds+=seconds;
@@ -178,6 +178,8 @@ export function planningPath(state,actionChunks,summary={},completion) {
 }
 
 function mergeableMove(run,next) {
+  // Merging across a reorientation changes the continuous pose trajectory.
+  if(!samePose(run.fromPose,run.action.pose??uprightPose()))return false;
   const previous=run.action,omitted=['to','volumeMm3','speedMmS','durationSeconds'],keys=Object.keys(previous).filter(k=>!omitted.includes(k));
   const close=(a,b)=>Math.abs(a-b)<=ROUNDING_RELATIVE*Math.max(1,Math.abs(a),Math.abs(b));
   const physical=['gapMm','normalHeightMm','slopeDeg','lowerSurfaceGapStartMm','lowerSurfaceGapEndMm','sampledGapErrorMm'];

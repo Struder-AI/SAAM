@@ -1,6 +1,7 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {depositionCourses,physicalOrdering} from './physical-order.mjs';
+import {orderSliceCourses} from './course-order.mjs';
+export {orderReadyOperations} from './course-order.mjs';
+import {depositionCourses,physicalOrdering,refineCourseStrokes} from './physical-order.mjs';
 // Skill results describe deposition operations. The composer advances explicit
 // planning state through scheduled operations and returns action chunks.
 
@@ -31,7 +32,7 @@ export function planComposition(initialState,skillResults,rules={},onProgress) {
   }
   if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);state=cooled.state;actions.add(cooled.actions);}
   return planningResult({...state,operationId:undefined},actions.finish(),{nozzleScene,summary:{operationOrder:operations.map(op=>op.id),layers:layers.size,
-    physicalOrdering:{substrateDependencies:resolved.physical.substrateDependencies,nozzleDependencies:resolved.physical.nozzleDependencies,
+    hierarchy:resolved.hierarchy,physicalOrdering:{substrateDependencies:resolved.physical.substrateDependencies,nozzleDependencies:resolved.physical.nozzleDependencies,materialDependencies:resolved.physical.materialDependencies,
       nozzle:'Effectively infinite sharp cone; 15 degree included angle; carriage unchecked.'}}});
 }
 
@@ -123,16 +124,19 @@ export function scheduleOperations(skillResults,rules={}) {
 
 function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
   const batch=validateOperationBatch(skillResults);
-  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set();
+  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set(),splitStrokes=new Map();
   for(;;){
-    const partition=depositionCourses(batch.operations,{splitConnectors});
+    const partition=depositionCourses(batch.operations,{splitConnectors,splitStrokes});
     try{return solveCourseOrder(batch,declared,partition,{onProgress,start});}
     catch(error){
       if(!['PRINT_ORDER_CONFLICT','CONTINUOUS_NOZZLE_CONFLICT'].includes(error.code))throw error;
-      const affected=new Set(error.operations??[error.operation]);
+      const affected=new Set(error.refinementCourses??error.operations??[error.operation]);
       const refinable=partition.courses.filter(course=>affected.has(course.id)&&!splitConnectors.has(course.sourceOperation)&&
         course.strokes.length>1&&!course.continuous&&!course.strokes.some(stroke=>stroke.stationaryExtrusion));
-      if(!refinable.length)throw error;
+      if(!refinable.length){
+        if(!refineCourseStrokes(partition,affected,splitStrokes))throw error;
+        onProgress?.({stage:'Refining interruptible strokes',completed:splitStrokes.size,total:batch.operations.reduce((count,operation)=>count+operation.strokes.length,0)});continue;
+      }
       for(const course of refinable)splitConnectors.add(course.sourceOperation);
       onProgress?.({stage:'Refining interruptible connections',completed:splitConnectors.size,total:batch.operations.length});
     }
@@ -145,8 +149,8 @@ function solveCourseOrder(batch,declared,{courses,groups,sequence},{onProgress,s
   const physical=physicalOrdering(courses,{onProgress,prerequisites});
   for(const edge of physical.edges)prerequisites.get(edge.after).add(edge.before);
   const priorityById=prepareOperationPriorities(courses,batch.resultIndex);
-  const operations=orderReadyOperations(courses,priorityById,prerequisites,{start,physicalEdges:[...sequence,...physical.edges]});
-  return {operations,physical};
+  const ordered=orderSliceCourses(courses,priorityById,prerequisites,{start,physicalEdges:[...sequence,...physical.edges]});
+  return {...ordered,physical};
 }
 
 export function validateOperationBatch(skillResults) {
@@ -181,41 +185,4 @@ export function prepareOperationDependencies(operations,byId,{order=[],dependenc
   // bypass geometry/support dependencies. Omitted operations remain schedulable.
   for (let i = 1; i < sequence.length; i++) prerequisites.get(sequence[i]).add(sequence[i - 1]);
   return prerequisites;
-}
-
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[]}={}) {
-  const nodes=operations.map(op=>({op,...priorityById.get(op.id),
-    remaining:prerequisites.get(op.id).size,following:[]}));
-  const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
-  for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
-  const ready=[],scheduled=[];
-  const cursor={point:start??operations[0]?.strokes[0]?.points[0]??[0,0,0],axis:null};
-  for(const node of nodes)if(node.remaining===0)ready.push(node);
-  while(ready.length){
-    const cost=node=>{const stroke=node.op.strokes[0],point=stroke?.points[0]??cursor.point,axis=stroke?.poses?.[0]?.toolAxis;
-      return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
-    const chosen=ready.reduce((best,node,i)=>cost(node)<cost(ready[best])-PRINT_RESOLUTION_MM?i:
-      Math.abs(cost(node)-cost(ready[best]))<=PRINT_RESOLUTION_MM&&(node.result<ready[best].result||node.result===ready[best].result&&node.index<ready[best].index)?i:best,0);
-    const next=ready.splice(chosen,1)[0];scheduled.push(next.op);
-    cursor.point=next.op.strokes.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.strokes.at(-1)?.poses?.at(-1)?.toolAxis??null;
-    for(const node of next.following)if(--node.remaining===0)ready.push(node);
-  }
-  if(scheduled.length!==operations.length){
-    const unresolved=new Set(nodes.filter(node=>node.remaining).map(node=>node.op.id));
-    const done=new Set(),found={ids:[]};
-    for(const root of unresolved){
-      if(done.has(root)||found.ids.length)continue;
-      const stack=[{id:root,after:[...prerequisites.get(root)].filter(id=>unresolved.has(id)),at:0}],positions=new Map([[root,0]]);
-      while(stack.length&&!found.ids.length){
-        const frame=stack.at(-1);
-        if(frame.at===frame.after.length){done.add(frame.id);positions.delete(frame.id);stack.pop();continue;}
-        const next=frame.after[frame.at++];
-        if(positions.has(next)){found.ids=stack.slice(positions.get(next)).map(item=>item.id);break;}
-        if(!done.has(next)){positions.set(next,stack.length);stack.push({id:next,after:[...prerequisites.get(next)].filter(id=>unresolved.has(id)),at:0});}
-      }
-    }
-    const cycle=new Set(found.ids),reasons=physicalEdges.filter(edge=>cycle.has(edge.before)&&cycle.has(edge.after));
-    throw Object.assign(Error('Print ordering contains a cycle: '+found.ids.join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:found.ids,physicalDependencies:reasons});
-  }
-  return scheduled;
 }

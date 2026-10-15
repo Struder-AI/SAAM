@@ -34,7 +34,7 @@ export function createStudioWindows({autoOpen=true}={}){
     return {url:'http://127.0.0.1:'+window.port};
   }
   function reconcile(runtimeId,studios){
-    for(const studio of studios){const window=windows.get(studio.instanceId);if(window&&window.runtimeId===runtimeId){window.printId=studio.printId;window.attachment=studio.attachment;window.visibility=studio.visibility??'visible';window.chatVisibility=studio.chatVisibility??window.visibility;}}
+    for(const studio of studios){const window=windows.get(studio.instanceId);if(window&&window.runtimeId===runtimeId){window.printId=studio.printId;window.selectionVersion=studio.selectionVersion;window.attachment=studio.attachment;window.visibility=studio.visibility??'visible';window.chatVisibility=studio.chatVisibility??window.visibility;}}
     for(const window of windows.values())if(window.runtimeId===runtimeId&&!studios.some(studio=>studio.instanceId===window.instanceId)){window.upstream=null;window.closed=true;}
   }
   const record=instanceId=>{const {server,upstream,upstreamUrl,viewers,...saved}=windows.get(instanceId)??{};if(!saved.instanceId||saved.closed)throw Error('That Studio window is closed.');return saved;};
@@ -79,5 +79,11 @@ export function createStudioWindows({autoOpen=true}={}){
   // A runtime stopped on purpose takes its windows with it: nothing lists or reopens them.
   function retireRuntime(runtimeId){for(const window of windows.values())if(window.runtimeId===runtimeId){window.closed=true;window.upstream=null;}}
   async function close(){lifetime.closing=true;await Promise.all([...windows.values()].map(async window=>{if(window.server.listening){const done=new Promise(resolve=>window.server.close(resolve));window.server.closeAllConnections();await done;}}));windows.clear();}
-  return {register,reconcile,detach,restore,show,display,retained,retire,retireRuntime,close,record,move,present:()=>[...windows.values()].filter(present),runtimeFor:instanceId=>{const window=windows.get(instanceId);return window&&!window.closed?window.runtimeId:undefined;}};
+  function observe(event){
+    if(!['print-opened','chat-attached','chat-detached','chat-captured'].includes(event.kind))return;
+    const window=windows.get(event.studioInstanceId);if(!window||window.closed)return;
+    window.printId=event.bundleId;window.selectionVersion=event.selectionVersion;
+    if(Object.hasOwn(event,'attachment'))window.attachment=event.attachment;
+  }
+  return {register,reconcile,observe,detach,restore,show,display,retained,retire,retireRuntime,close,record,move,present:()=>[...windows.values()].filter(present),runtimeFor:instanceId=>{const window=windows.get(instanceId);return window&&!window.closed?window.runtimeId:undefined;}};
 }

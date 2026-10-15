@@ -145,10 +145,8 @@ identity with edits; an unchecked program summary is not a failed check.
 | Geometry-only work | No generation solely to finish or undim. |
 | Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
-Omit `resultStage` unless a particular view is required. Studio requests and client
-hooks (`saam client-event`) hand work back on turn end, interjection, input or closure.
-Codex hooks require user trust in `/hooks`. Claude questions/permissions pause directly;
-Esc has no immediate hook: the next prompt or idle notification supplies the signal.
+Omit `resultStage` unless a particular view is required. [Native client events](../core/application/README.md#client-queue-monitoring)
+hand work back on turn end, interjection, input or closure, without command-hook trust.
 
 Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
 after acknowledging completed work; quiet expiry preserves attachment and work.
@@ -163,7 +161,7 @@ sequence, time, kind, delivery class, instance and print. Held events wait for a
 read; delivered events wake waits and include the held remainder. Reading drains
 the queue; notifications alone do not. `get_studio_events`, operation responses
 and `saam wait` carry observations plus live job progress. Act on the latest
-state and use sequence numbers to recognize repeats.
+state and stable event IDs to recognize repeats.
 
 | Delivered | Held |
 |---|---|

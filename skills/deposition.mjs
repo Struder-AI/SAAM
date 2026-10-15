@@ -1,6 +1,7 @@
 // Extension compositions prepare geometry, material intent and work dependencies.
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
+import {prepareProcessSources} from '../core/extensions/process-sources.mjs';
 
 async function depositionRuntime(id,engines,dependency){
   try{const create=await loadExtensionEntry(id,'deposition-runtime');return {runtime:await create(engines,dependency),error:null};}
@@ -8,10 +9,7 @@ async function depositionRuntime(id,engines,dependency){
 }
 
 export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
-  const weldLoaded=plan.skills?.['plastic-weld']?.enabled?await depositionRuntime('plastic-weld',engines):{runtime:null,error:null};
-  const weld=weldLoaded.runtime;
-  // A rivet site that cannot be prepared is left out with a note.
-  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
+  const processes=await prepareProcessSources({plan,placed,componentShells,processForAssignment},engines);
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
   const vase=vaseLoaded.runtime;
@@ -53,19 +51,18 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
     const loaded=sourceRuntimes.get(id);
     curveSources.push({...context,curveSource:loaded.runtime,sourceError:loaded.error});
   }
-  return {notes,curveSources,
+  return {...processes,curveSources,
     bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    geometryCuts:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.cavity})),
-    solidVolumes:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.solid})),combineSolids:engines.Geometry.combineSolids,
+    combineSolids:engines.Geometry.combineSolids,
     constructions:sleeves,
-    work:weld?.weldWork(sites)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};}
+    workDependencies:(node,nodes)=>vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]}
   };
 }
 
 export function extensionSummary(results){
   const summary={},vases=results.filter(result=>result.report.construction==='sleeve').map(result=>({id:result.id,...result.report}));
   if(vases.length)summary.vaseWall={...vases[0],instances:vases};
-  const sites=results.flatMap(result=>result.report.sites??[]);
-  if(sites.length)summary.plasticWeld={sites,physicalValidation:'not performed'};
+  const reports=results.flatMap(result=>result.report.extension?[result.report.extension]:[]);
+  if(reports.length)summary.extensions=Object.fromEntries([...new Set(reports.map(r=>r.id))].map(id=>[id,reports.filter(r=>r.id===id).map(r=>({sourceId:r.sourceId,...r.report}))]));
   return summary;
 }
