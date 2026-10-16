@@ -404,7 +404,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   }
   async function validateTarget(name,args={},beforeAttachment=false){
     if(args.bundleId&&name!=='capture_bundle')await requireOwnRuntime(args.bundleId);
-    if(operations.get(name)?.tracked&&args.bundleId&&!args.expectedStudio){
+    // Review explicitly rebinds a named print; caller-supplied targets and original
+    // request IDs still enforce their selection/ownership checks below.
+    if(name!=='request_review'&&operations.get(name)?.tracked&&args.bundleId&&!args.expectedStudio){
       const previous=(await agentRequests.query({printId:args.bundleId})).findLast(record=>record.ownerId===ownerId&&record.selectionVersion&&record.studioInstanceId);
       const remembered=rememberedTargets.get(args.bundleId)??(previous?{studioInstanceId:previous.studioInstanceId,selectionVersion:previous.selectionVersion}:null);
       if(remembered)assertStudioTarget(remembered.studioInstanceId,args.bundleId,{beforeAttachment,selectionVersion:remembered.selectionVersion});

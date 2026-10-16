@@ -1,0 +1,16 @@
+{
+  "expectedEditRevision": "9de6370a-1baa-4406-a49f-3f6fdd016be6",
+  "bundleId": "development/experience-039-overlap-20261016/overlap-joint-2",
+  "patch": {
+    "setup": {
+      "bambu": {
+        "startup": {
+          "toolOffsetCalibration": "printer",
+          "plateDetection": "printer",
+          "bedLeveling": "printer",
+          "flowCalibration": "printer"
+        }
+      }
+    }
+  }
+}

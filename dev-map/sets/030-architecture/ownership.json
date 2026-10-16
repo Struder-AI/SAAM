@@ -27726,6 +27726,10 @@
     "core/path/compose.mjs::courseCuts": {
       "owner": "scheduling",
       "reason": "Scheduling canonicalizes execution cuts by physical resolution and re-solves source contacts."
+    },
+    "studio/adapter-resolution.mjs::bundleLoader": {
+      "owner": "studio",
+      "reason": "One schema dispatch boundary reads schema-free shell drafts with current defaults and still rejects unknown explicit formats."
     }
   },
   "retiredAssignments": [

@@ -1,0 +1,6 @@
+{
+  "status": "completed",
+  "message": "Review-only 20 x 12 x 2 mm overlap-joint coupon. Blue PLA left claim is x0-12 mm and orange PLA right claim x8-20 mm: genuine 4 mm overlap on one solid. H2D both 0.4 mm assumed from local notes; colours are review placeholders; 0.2 mm layers, two loops, 30 percent middle fill. Generation passed (1475 moves,395.329 mm3,estimated3 minutes of body). Advisory:279 of357 short travels across blue-left/orange-right walls,fill and infill;all279 moved directly,none lifted. Both visual checks inspected; no export/hardware action. Ready for Studio playback and edits.",
+  "resultStage": "toolpath",
+  "requestId": "88d31730-6813-4070-b30b-af5ba3fd00e4"
+}

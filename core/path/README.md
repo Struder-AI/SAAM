@@ -1,6 +1,6 @@
 # SAAMpath and scheduling
 
-Contract **SP2, 2026-10-15** is the 0.3.9 implementation target. This document owns the seam; migration has not shipped.
+Contract **SP2, 2026-10-16** owns the compact source, execution and reader shipped in 0.3.9.
 
 ## Ownership and pipeline
 
