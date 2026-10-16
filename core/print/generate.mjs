@@ -15,7 +15,7 @@ import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignm
 import {geometryOperations} from '../geom/operations.mjs';
 import {injectionAssignment} from './injection.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
-import {operationId,withOperationAfter} from './operation-references.mjs';
+import {operationId,withOperationAfter,operationPrerequisite} from './operation-references.mjs';
 import {spiralStackCurve} from '../path/stack-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
@@ -160,6 +160,7 @@ export function resolveOperationReferences(plan,results){
   }
   return results.map(result=>({...result,operations:result.operations.map(operation=>{
     const after=[...new Set((operation.after??[]).flatMap(previous=>{
+      requireThat(operationPrerequisite(previous),'Invalid operation prerequisite.');
       if(typeof previous==='string')return [previous];
       const named=byAssignment.get(previous.assignment);
       requireThat(named?.length,'Required assignment produced no operations: '+previous.assignment);

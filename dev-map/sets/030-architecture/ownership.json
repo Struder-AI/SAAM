@@ -1806,6 +1806,10 @@
     "core/geom/surface-curve-image.mjs": {
       "owner": "geometry",
       "reason": "Native rational trim curves, planar queries and exact surface images share Geometry numerical ownership."
+    },
+    "core/print/operation-references.mjs": {
+      "owner": "recipe",
+      "reason": "Native operation selectors and pure prerequisite record edits; no geometry, execution or travel state."
     }
   },
   "leaves": {
@@ -27975,6 +27979,28 @@
     },
     "core/region/section.mjs::faceBoundaryLocation": {
       "owner": "geometry"
+    },
+    "core/print/operation-references.mjs::@module": {
+      "owner": "recipe"
+    },
+    "core/print/operation-references.mjs::operationPrerequisite": {
+      "owner": "recipe"
+    },
+    "core/print/operation-references.mjs::selectedOperation": {
+      "owner": "recipe"
+    },
+    "core/print/operation-references.mjs::operationId": {
+      "owner": "recipe"
+    },
+    "core/print/operation-references.mjs::withOperationAfter": {
+      "owner": "recipe"
+    },
+    "core/print/generate.mjs::resolveOperationReferences": {
+      "owner": "build-evaluate",
+      "reason": "Resolve authored producer completion to constructed operation IDs and reject vanished required targets before publication."
+    },
+    "core/application/deposition-schemas.mjs::operationAfter": {
+      "owner": "application"
     }
   },
   "retiredAssignments": [

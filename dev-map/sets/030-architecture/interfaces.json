@@ -2432,6 +2432,30 @@
         "call"
       ],
       "evidence": "Extensions request exact rational images of ordinary UV boundary curves; Geometry owns numerical preparation and lifetime."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-fit.mjs::curveStorageReduced",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Shared construction selects smaller numerical representations by their actual serialized geometry size."
+    },
+    {
+      "contract": "extension-slice",
+      "target": "core/print/operation-references.mjs::operationId",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Recipe editor/factory operation for skill-owned manufacturing prerequisites using native identities; no travel policy."
+    },
+    {
+      "contract": "extension-slice",
+      "target": "core/print/operation-references.mjs::withOperationAfter",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Public Recipe editor/factory operation for skill-owned manufacturing prerequisites using native identities; no travel policy."
     }
   ],
   "retiredBindings": [

@@ -151,12 +151,15 @@ export async function editHoleTransition(source,request,Geometry){
   let assignments=[...prior,...made.assignments];
   if(request.strategy==='wave'){
     const Recipe=Geometry.Recipe;
-    check(Recipe&&request.boreTo,'Wave holes need boreTo selecting the continuing wall operation.');
+    check(Recipe&&request.boreTo,'Wave holes need boreTo selecting continuing wall operations.');
+    check(!Array.isArray(request.boreTo)||request.boreTo.length,'boreTo cannot be empty.');
+    check(!Array.isArray(request.seedFrom)||request.seedFrom.length,'seedFrom cannot be empty.');
     check(request.seedFrom||request.after?.length,'Wave holes need seedFrom selecting printed seed material, or explicit after operation IDs.');
-    const anchor=request.seedFrom?Recipe.operationId(assignments,request.seedFrom):null;
-    if(anchor)made.assignments[0].dependencies.after=[...new Set([...made.assignments[0].dependencies.after,anchor])];
-    assignments=Recipe.withOperationAfter(assignments,request.boreTo,[{assignment:request.id}]);
-    made.report.dependencies={anchor:anchor??request.after,terminal:{assignment:request.id},continuation:Recipe.operationId(assignments,request.boreTo)};
+    const anchors=request.seedFrom?(Array.isArray(request.seedFrom)?request.seedFrom:[request.seedFrom]).map(target=>Recipe.operationId(assignments,target)):request.after;
+    made.assignments[0].dependencies.after=[...new Set([...made.assignments[0].dependencies.after,...anchors])];
+    const targets=Array.isArray(request.boreTo)?request.boreTo:[request.boreTo];
+    for(const target of targets)assignments=Recipe.withOperationAfter(assignments,target,[{assignment:request.id}]);
+    made.report.dependencies={anchor:[...made.assignments[0].dependencies.after],terminal:{assignment:request.id},continuation:targets.map(target=>Recipe.operationId(assignments,target))};
   }
   return {geometry:plan.geometry,assignmentRequests:assignments,report:{...made.report,physicalQualification:'Unverified; review cooling, span, attachment and finishing.'}};
 }

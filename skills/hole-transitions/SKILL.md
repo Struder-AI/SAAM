@@ -55,7 +55,7 @@ Curved charts use existing [wave fill](../wave-overhangs/SKILL.md) spacing, cali
 gaps, residuals and limits; no implicit final perimeter, normal-offset stacks,
 singular/folded charts or multi-chart stitching.
 
-`seedFrom` selects printed seed material and `boreTo` selects continuing walls:
+`seedFrom` selects printed seed material and `boreTo` continuing walls; either accepts a selector or array:
 `{assignment,index,group:"walls"}` for native Slice, or `{assignment,repetition}`
 for explicit Trace. Both boundaries are required (`after` can replace seedFrom).
 The helper wires seed → wave completion → selected walls, independently of world Z.

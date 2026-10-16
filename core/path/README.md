@@ -6,8 +6,7 @@ Contract **SP2, 2026-10-16** owns the compact source, execution and reader shipp
 
 Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
 Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses. Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events. Studio and exporters share the numerical reader; exporters own machine axes.
-Native layers are producer records; no stage reconstructs them or treats their surfaces as solid.
-Every producer retains native curves through flow/width/speed/pose edits. Mapping and position edits retain or construct NURBS under certified error bounds; polylines remain when no smaller faithful representation exists. This is automatic; `summary.compaction` records approximation bounds.
+Native layers are producer records; no stage reconstructs them or treats their surfaces as solid. Every producer retains regular native curves through flow/width/speed/pose edits. Mapping and position edits construct NURBS with whole-interval position and positive-speed certificates; serialized geometry size selects faithful spline or polyline storage automatically. `summary.compaction` records approximation bounds.
 
 ## Stored deposition: `saampath/2`
 

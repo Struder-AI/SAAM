@@ -5,6 +5,11 @@ import {restrictBezierLine} from './bezier-net.mjs';
 import {distance} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 
+// Numerical geometry serializes as ASCII. Include representation keys and
+// numeric digits when choosing storage, rather than counting scalar values.
+export function curveStorageReduced(geometry,points){
+  return JSON.stringify(geometry).length<JSON.stringify({kind:'polyline',points}).length;
+}
 function controls(points,parameters,first,last){
   const a=points[first],b=points[last],from=parameters[first],span=parameters[last]-from;
   const sums={xx:0,xy:0,yy:0,x:[0,0,0],y:[0,0,0]};
@@ -58,6 +63,7 @@ export function fitSampledCurve(points,{toleranceMm=PRINT_RESOLUTION_MM/2,forceN
       piece.rows[0].map((value,k)=>value+(piece.rows[1][k]-value)/3),piece.rows[0].map((value,k)=>value+2*(piece.rows[1][k]-value)/3),piece.rows[1]]:piece.rows;
     controlPoints.push(...rows.slice(i?1:0));knots.push(...Array(i===pieces.length-1?degree+1:degree).fill(piece.to));
   }
-  if(!forceNative&&controlPoints.length*3+knots.length>=points.length*3)return null;
-  return {geometry:{kind:'nurbs',degree,knots,controlPoints},parameters,points,positionErrorMm:maximum.error};
+  const geometry={kind:'nurbs',degree,knots,controlPoints};
+  if(!forceNative&&!curveStorageReduced(geometry,points))return null;
+  return {geometry,parameters,points,positionErrorMm:maximum.error};
 }

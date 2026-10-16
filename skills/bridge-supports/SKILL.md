@@ -21,15 +21,14 @@ Call `apply_extension` with `extensionId:"bridge-supports"`, current revision an
 component-local; supply `part`; height defaults to process.layerMm. The ribbon
 reference direction follows mean paired-control travel. Rounded average travel /
 height chooses divisions; only the compatible controls are interpolated.
-Rational controls include weights. Trace samples and deposits the resulting curves,
-from the first division through the exact offset landing curve.
+Trace deposits interpolated rational controls through the exact offset landing.
 Bead height uses that average spacing; width/speed inherit process values.
 `beadWidthMm`, `speedMmS` override them; `sampleStepMm` controls Trace sampling.
 
-`baseFrom` selects printed base material; omit it for an unattached bed base.
+`baseFrom` selects printed base material; omit it for an unattached bed base. Boundaries accept a selector or array.
 `landingTo` selects the later bridge: `{assignment,index,group:"fill"}` for a native
 Slice operation, or `{assignment,repetition}` for explicit Trace (name or ordinal).
-The helper wires base → sequential support courses → landing; unrelated work stays
+The helper wires base → successive support courses → landing; loop entry stays free and unrelated work stays
 free. `after` accepts existing base operation IDs. `lastOperationId` remains in the
 report; an omitted landing is reported unbound. Review chronology and bead contact.
 
