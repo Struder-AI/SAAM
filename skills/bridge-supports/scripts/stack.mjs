@@ -33,7 +33,7 @@ export async function buildBridgeSupport(spec,process={},Geometry,{geometry,base
     check(second.curves.length,'The second support loop collapsed; select a wider support curve.');
     for(const curve of [first,...second.curves])curves.push({...curve,role:'breakaway-support',directionRequired:false,seamRequired:false,beadWidthMm:width,heightMm,speedMmS:speed,...(spec.sampleStepMm===undefined?{}:{sampleStepMm:positive(spec.sampleStepMm,'sampleStepMm')}),repetitions:[i]});
   }
-  const repetitionIds=curves.map((_,i)=>`course-${i}`);
+  const repetitionIds=Array.from({length:divisions},(_,i)=>`course-${i}`);
   const assignment={id:spec.id,construction:'curves',part:spec.part??null,filament:null,process:null,after:spec.after??[],curves,repeat:{count:divisions,translation:[0,0,0]},sequence:false,repetitionIds,repetitionAfter:Object.fromEntries(repetitionIds.slice(1).map((name,i)=>[name,[repetitionIds[i]]])),maxExcursionMm:null};
   return {assignment,report:{id:spec.id,courses:divisions,loops:2,controlPoints:baseControls.length,requestedLayerHeightMm:target,averageCourseSpacingMm:heightMm,edgeOffsets:{base:base.report,landing:landing.report},lastOperationId:`${spec.id}:${repetitionIds.at(-1)}`}};
 }

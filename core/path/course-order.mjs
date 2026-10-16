@@ -81,13 +81,18 @@ export function selectTraversal(operation,cursor,verify=null){
   }
   throw failure;
 }
-function nearest(ready,cursor){
-  const best={index:0,cost:Infinity};
+function nearest(ready,cursor,{cooling=null,wholeSlice=false}={}){
+  const best={index:0,cost:Infinity,heat:Infinity},closest={index:0,cost:Infinity};
   for(const [i,node] of ready.entries()){
     const cost=selectTraversal(node.op,cursor),previous=ready[best.index];
-    if(cost<best.cost-PRINT_RESOLUTION_MM||Math.abs(cost-best.cost)<=PRINT_RESOLUTION_MM&&
-      (node.result<previous.result||node.result===previous.result&&node.index<previous.index)){best.index=i;best.cost=cost;}
+    const heat=cooling&&ready.length>1?cooling.heat(wholeSlice?node.unit.operations:node.thermalOperations):0;
+    const nearestNode=ready[closest.index];
+    if(cost<closest.cost-PRINT_RESOLUTION_MM||Math.abs(cost-closest.cost)<=PRINT_RESOLUTION_MM&&
+      (node.result<nearestNode.result||node.result===nearestNode.result&&node.index<nearestNode.index)){closest.index=i;closest.cost=cost;}
+    if(heat<best.heat||heat===best.heat&&(cost<best.cost-PRINT_RESOLUTION_MM||Math.abs(cost-best.cost)<=PRINT_RESOLUTION_MM&&
+      (node.result<previous.result||node.result===previous.result&&node.index<previous.index))){best.index=i;best.cost=cost;best.heat=heat;}
   }
+  if(cooling&&best.index!==closest.index){if(wholeSlice)cooling.summary.sliceChoices++;else cooling.summary.courseChoices++;}
   return best;
 }
 
@@ -107,10 +112,10 @@ function dependencyCycle(operations,prerequisites){
   return [];
 }
 
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null}={}){
-  const nodes=operations.map(op=>({op,...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
+export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null}={}){
+  const nodes=operations.map(op=>({op,thermalOperations:[op],...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
   const byId=new Map(nodes.map(node=>[node.op.id,node]));
-  const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),parents:new Set(),following:[],remaining:0,ready:[]}));
+  const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),operations:ids.map(id=>byId.get(id).op),parents:new Set(),following:[],remaining:0,ready:[]}));
   for(const unit of units)for(const node of unit.nodes)node.unit=unit;
   for(const node of nodes)for(const id of prerequisites.get(node.op.id)){
     const parent=byId.get(id);parent.following.push(node);if(parent.unit!==node.unit)node.unit.parents.add(parent.unit);
@@ -122,10 +127,10 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   while(ready.length){
     const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
     if(!entries.length)break;
-    const unit=entries[nearest(entries,cursor).index].unit;ready.splice(ready.indexOf(unit),1);
+    const unit=entries[nearest(entries,cursor,{cooling,wholeSlice:true}).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
-      const next=unit.ready.splice(nearest(unit.ready,cursor).index,1)[0];scheduled.push(next.op);
-      if(!next.op.barrier){cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
+      const next=unit.ready.splice(nearest(unit.ready,cursor,{cooling}).index,1)[0];scheduled.push(next.op);
+      if(!next.op.barrier){cooling?.record(next.op);cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
       for(const node of next.following)if(!--node.remaining)node.unit.ready.push(node);
     }
     if(unit.nodes.some(node=>node.remaining))break;

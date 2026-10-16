@@ -5,11 +5,12 @@ import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses,selectTraversal} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
 import {prepareRangeScene} from './physical-order.mjs';
+import {CoolingOrder} from './cooling-order.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,
-  planExtrusion,planDwell,planLayerCooling,planSelection,planProcess,planDepositRange} from './planning.mjs';
+  planExtrusion,planDwell,planSelection,planProcess,planDepositRange} from './planning.mjs';
 
-export function planOperationEntry(initialState,op,{layerSeconds=0,nozzleScene}={}) {
-  const contextual=planContext({...initialState,layerSeconds,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
+export function planOperationEntry(initialState,op,{nozzleScene}={}) {
+  const contextual=planContext({...initialState,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const configured=planProcess(selected.state,op.process);
   const prepared=planOperationStart(configured.state,op,nozzleScene);
@@ -325,7 +326,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         }
         if(progress.cyclic)break;
       }
-      const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges]});
+      const cooling=new CoolingOrder(source,state.scene);
+      const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges],cooling});
       for(const unit of ordered.operations)if(!unit.barrier){
         const body=state.scene.byId.get(unit.id);
         if(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
@@ -336,7 +338,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           throw error;
         }
       }
-      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,
+      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,cooling:cooling.summary,
         edges:state.edges,refinement:{...history,relaxedOrderChoices:relaxed.size,relaxedTraversalChunks:relaxedChunks.size,rejectedTraversals:blockedTraversals.size,
           wholeLayerChoices:state.promotions.filter(edge=>edge.kind==='access-layer-choice').length,wholeOperationChoices:state.promotions.filter(edge=>edge.kind==='access-operation-choice').length,splitCourses:cuts.size}};
     }catch(error){
@@ -404,18 +406,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
 
 export function planSourceComposition(initialState,source,reader,onProgress){
   const solved=resolveSourceOrder(source,reader,{onProgress,start:initialState.position,nozzleGeometry:initialState.nozzleGeometry}),scene=solved.scene;
-  const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),cursor={state:initialState,last:null};
-  const keyOf=unit=>unit.layerId??unit.operation;
-  function cool(unit){
-    const key=keyOf(unit),cooling=planLayerCooling({...cursor.state,layerSeconds:(elapsed.get(key)??0)+(paid.get(key)??0)},scene);
-    cursor.state=cooling.state;actions.add(cooling.actions);paid.set(key,(paid.get(key)??0)+(cooling.coolingSeconds??0));
-  }
+  const actions=new ActionAccumulator(),cursor={state:initialState};
   for(const [completed,unit] of solved.units.entries()){
-    if(cursor.last&&keyOf(cursor.last)!==keyOf(unit)&&!cursor.last.operation.continuous)cool(cursor.last);
-    const key=keyOf(unit),operation={...unit.operation,process:unit.process,phase:unit.operation.phase??unit.operation.kind,layer:unit.operation.layer??source.layers[unit.layerId]?.index??0};
-    const entered=planOperationEntry(cursor.state,operation,{layerSeconds:elapsed.get(key)??0,nozzleScene:scene});
+    const operation={...unit.operation,process:unit.process,phase:unit.operation.phase??unit.operation.kind,layer:unit.operation.layer??source.layers[unit.layerId]?.index??0};
+    const entered=planOperationEntry(cursor.state,operation,{nozzleScene:scene});
     cursor.state=entered.state;actions.add(entered.actions);
-    // Cooling and process changes can park the nozzle after ordering. Choose
+    // Process changes can park the nozzle after ordering. Choose
     // this chunk's entry from that actual position, preserving the proven DAG.
     if(unit.traversals?.length)selectTraversal(unit,{point:cursor.state.position,axis:cursor.state.pose.toolAxis},selected=>{
       scene.byId.get(selected.id).records=selected.ranges.map(scene.interval);scene.verifySelf(selected);
@@ -423,7 +419,7 @@ export function planSourceComposition(initialState,source,reader,onProgress){
     if(operation.kind==='inject'){
       const injection=operation.injection,approached=planTravel(cursor.state,injection.at,scene,injection.pose);
       const extruded=planExtrusion(approached.state,injection.volumeMm3,injection.flowMm3S),held=planDwell(extruded.state,injection.holdSeconds);
-      cursor.state={...held.state,layerSeconds:held.state.layerSeconds+injection.holdSeconds};
+      cursor.state=held.state;
       actions.add(approached.actions);actions.add(extruded.actions);actions.add(held.actions);scene.occupied.add(unit.id);scene.deposited.set(unit.id,0);
     }else for(const [i,range] of unit.ranges.entries()){
       const entry=curveAt(reader,range.curveId,range.reverse?range.to:range.from,range.reverse?{side:'left'}:{}),approached=planTravel(cursor.state,entry.point,scene,entry.pose);
@@ -432,13 +428,11 @@ export function planSourceComposition(initialState,source,reader,onProgress){
       scene.occupied.add(unit.id);scene.deposited.set(unit.id,i+1);
     }
     const ended=planOperationEnd(cursor.state,operation,scene);cursor.state=ended.state;actions.add(ended.actions);
-    elapsed.set(key,cursor.state.layerSeconds);cursor.last=unit;
     onProgress?.({stage:'Planning source ranges',completed:completed+1,total:solved.units.length});
   }
-  if(cursor.last&&!cursor.last.operation.continuous)cool(cursor.last);
   const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{nozzleScene:scene,
-    summary:{hierarchy:solved.hierarchy,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
+    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{substrateDependencies:count('substrate'),nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material'),
         conservativeSupportChoices:solved.edges.filter(edge=>edge.kind==='substrate'&&edge.witness?.provisional).length,
         conservativeNozzleChoices:solved.edges.filter(edge=>edge.kind==='nozzle-access'&&edge.witness?.provisional).length},queries:{...scene.stats}}});

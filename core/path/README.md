@@ -101,9 +101,7 @@ Geometry/profile/material knots are query information, not compulsory output mov
 ## Scheduler obligations
 
 Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps. Skills supply manufacturing requirements and deposition geometry. Scheduling owns travel, entry and traversal. Connected courses and fill cells form temporary chunks; actual entry distance and internal transfers choose permitted traversals. A witnessed conflict splits a chunk or rejects an unsafe traversal, preserving mandatory requirements. Native layer order remains a relaxable choice.
-Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity, required material and layer cooling
-remain constraints. Cadence is prepared material intent, not a substitute for
-physical scheduling.
+Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity and required material remain constraints. Cooling ranks ready slices, then their available courses, by nearby deposition recency; `minimumLayerSeconds` is its soft preference window (zero disables it). Bead-width/depth neighborhoods and existing length/feed estimates guide ordering; when all available work is warm, printing continues. Cooling adds no dwell or feed changes. Cadence remains prepared material intent.
 
 Printing, startup, transfers, reorientation, parking, temperature changes, cooling
 and finishing share continuous nozzle-clearance checks against actual deposited
@@ -117,7 +115,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/32` and completion `saam-neutral-motion/19` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/32` and completion `saam-neutral-motion/20` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported
@@ -129,7 +127,7 @@ source/schedule bytes separately, peak memory, CPU/wall time and refinement coun
 on pinned real and individually authored adversarial examples, including multi-axis
 versions. Independently verify continuous changing-pose motion; obtain human
 visual review when useful. Compression alone is not evidence of faster scheduling.
-Canonical bead/Studio geometry unification, shared-material redesign, map solving and thermal scoring are separate work. Full suites require local-note approval.
+Canonical bead/Studio geometry unification, shared-material redesign, map solving, cooling dwell and slowdown are separate work. Full suites require local-note approval.
 
 ## Retained construction interfaces
 
@@ -145,5 +143,5 @@ and normal gap determine material; overlap/spacing does not establish printabili
 [Process controls](./process-controls.mjs) retain scoped temperature validation;
 machine adapters own command semantics. Direct travel preserves pressure; routed
 travel retracts. Debt retains amount/speed through interleaving; zero retract
-prevents withdrawal. Cooling uses native layer identity. [Print lifecycle](../print/README.md) owns generation and review;
+prevents withdrawal. [Print lifecycle](../print/README.md) owns generation and review;
 [Material regions](../region/README.md) owns claims, cadence and surface contact.

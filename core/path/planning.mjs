@@ -12,7 +12,7 @@ export function createPlanningState({start,process,generatorVersion,motion=null,
   requireThat(typeof sourcePathId==='string'&&sourcePathId.length>0,'Planning requires an exact compact source identity.');
   validatePose(motion?.initialPose);
   return {sourcePathId,nozzleGeometry,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:structuredClone(motion.initialPose),selection,selections,defaultFilament:selection?.filament,
-    pose:structuredClone(motion.initialPose),fanPercent:null,nozzleC:selection?.nozzleC??null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,parked:false,
+    pose:structuredClone(motion.initialPose),fanPercent:null,nozzleC:selection?.nozzleC??null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,parked:false,
     stats:{travelMm:0,retractions:0,printMm:0}};
 }
 
@@ -81,7 +81,7 @@ export function planNozzle(state,targetC){
 }
 export function planExtrusion(state,volumeMm3,flowMm3S){
   requireThat(!state.retraction&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
-  return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flowMm3S,parked:false},
+  return appendAction({...state,parked:false},
     {kind:'inject',operationId:state.operationId,phase:state.phase,layer:state.layer,layerId:state.layerId});
 }
 
@@ -108,13 +108,6 @@ export function planPark(state,scene) {
   const pose=state.pose,target=state.position.map((v,i)=>v-pose.toolAxis[i]*state.motion.retreatMm);
   const retracted=planRetraction(state),parked=planTravel(retracted.state,target,scene,pose,{recover:false});
   return planningResult({...parked.state,parked:true},{chunks:[retracted.actions,parked.actions]});
-}
-
-export function planLayerCooling(state,scene) {
-  const remaining=state.process.minimumLayerSeconds-state.layerSeconds;
-  if(!(remaining>0))return planningResult({...state,layerSeconds:0});
-  const parked=planPark(state,scene),cooled=planDwell(parked.state,remaining);
-  return planningResult({...cooled.state,layerSeconds:0},{chunks:[parked.actions,cooled.actions]},{coolingSeconds:remaining});
 }
 
 export function planTravel(state,target,scene,targetPose,{recover=true}={}){
@@ -150,14 +143,13 @@ function planTravelCurve(input,to,speed,pose,seconds,durationSeconds){
   const curve={geometry:length?{kind:'polyline',points:[from,[...to]]}:{kind:'point',point:from},
     profiles:{speedMmS:length>0&&durationSeconds!==undefined?length/seconds:speed,pose:identical?pose:{interpolation:'frame',knots:[[0,fromPose],[1,pose]]}}};
   const state={...input,nextTravelId:input.nextTravelId+1,position:[...to],pose,parked:false,
-    layerSeconds:input.layerSeconds+seconds,stats:{...input.stats,travelMm:input.stats.travelMm+length}};
+    stats:{...input.stats,travelMm:input.stats.travelMm+length}};
   return appendAction(state,{kind:'travel',curveId,from:0,to:1,curve,
     ...(durationSeconds!==undefined?{durationSeconds}:{}),phase:state.phase,layer:state.layer,layerId:state.layerId,
     ...(state.operationId?{operation:state.operationId}:{})});
 }
 
 // A whole course/range remains one execution record regardless of vertex count.
-// Cooling uses a certified lower duration bound: uncertainty can only add dwell.
 
 export function planDepositRange(input,source,reader,course,prepared=null){
   const {from,to}=course;
@@ -165,12 +157,10 @@ export function planDepositRange(input,source,reader,course,prepared=null){
   const known=prepared?.range;
   const range=known&&known.lengthMm[1]-known.lengthMm[0]<=PRINT_RESOLUTION_MM?known:curveRange(reader,course.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM});
   const end=course.reverse?(prepared?.start??curveAt(reader,course.curveId,from)):
-    (prepared?.end??curveAt(reader,course.curveId,to,{side:'left'})),profile=source.curves[course.curveId].profiles.speedMmS;
-  const maximum=typeof profile==='number'?profile:Math.max(...profile.knots.map(([,value])=>value));
-  const seconds=maximum>0?range.lengthMm[0]/maximum:0;
+    (prepared?.end??curveAt(reader,course.curveId,to,{side:'left'}));
   const lower=input.stats.printMmBounds??[input.stats.printMm,input.stats.printMm];
   const printMmBounds=[lower[0]+range.lengthMm[0],lower[1]+range.lengthMm[1]];
-  const state={...input,position:end.point,pose:end.pose,parked:false,layerSeconds:input.layerSeconds+seconds,
+  const state={...input,position:end.point,pose:end.pose,parked:false,
     stats:{...input.stats,printMmBounds,printMm:(printMmBounds[0]+printMmBounds[1])/2}};
   return appendAction(state,{kind:'deposit',courseId:course.id,from,to,...(course.reverse?{reverse:true}:{}),phase:state.phase,layer:state.layer,
     layerId:state.layerId,operation:state.operationId,...(course.role?{role:course.role}:{})});

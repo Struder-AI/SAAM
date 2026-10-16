@@ -115,9 +115,9 @@ Owner, 2026-10-14: "It should determine what is underneath (not just vertical, a
 
 Owner clarification, 2026-10-14: "overlapping lines is fine - as in the heat set reinforcement fins. Only if the *nozzle* intersects with an existing line is there a problem (and there should be a small forgiveness margin)." Margin: "It should be much higher, maybe .1mm". Owner, 2026-10-16: "No, if it's hitting the boundary we clearly need a .2 forgiveness".
 
-Summary: scheduling infers local substrate and nozzle-access ordering, combines it with explicit process dependencies and interleaves interruptible courses in arbitrary orientations. Deposition overlap is allowed. The [scheduling manual](../core/path/README.md) owns the shared nozzle shape and 0.2 mm forgiveness. Carriage collision avoidance and thermal optimization remain deferred.
+Summary: scheduling infers local substrate and nozzle-access order, preserves explicit dependencies and interleaves interruptible courses in arbitrary orientations. Owner, 2026-10-16, now requests cooling by ordering, slices first and courses when necessary: prefer other ready work over repeating small hot paths; continue when nothing else is available. Deposition overlap remains allowed. The [scheduling manual](../core/path/README.md) owns cooling and the shared nozzle with 0.2 mm forgiveness; carriage collisions, cooling dwell and slowdown remain deferred.
 
-Sources: [D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent); [0.4.0 scheduling, collision and thermal rows](../plans/0.4.0.md).
+Sources: [D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations); [0.2.0](../plans/0.2.0.md#settled-intent); [0.3.9](../plans/0.3.9.md); [0.4.0](../plans/0.4.0.md).
 
 ## Recommended values are not limits
 > "0.3 is an arbitrary limit for no good reason, don't follow it, and change the guidance so it's "suggested for standard printing" or something rather than being presented as an actual limit." — owner, 2026-10-03 (Codex 01a0ff8a 02:20)

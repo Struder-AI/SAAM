@@ -1814,6 +1814,14 @@
     "core/machine/nozzle.mjs": {
       "owner": "settings",
       "reason": "Resolve selected installation nozzle dimensions into a numerical scheduling envelope."
+    },
+    "skills/bridge-supports/scripts/brim.mjs": {
+      "owner": "extensions",
+      "reason": "Breakaway adhesion policy composes shared Geometry offsets and clipping into ordinary Trace curves."
+    },
+    "core/path/cooling-order.mjs": {
+      "owner": "scheduling",
+      "reason": "Scheduler-owned recent-deposition neighborhoods rank available slices and courses without dwelling or changing feed."
     }
   },
   "leaves": {
@@ -4725,10 +4733,6 @@
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
     "core/path/planning.mjs::planFan": {
-      "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
-    },
-    "core/path/planning.mjs::planLayerCooling": {
       "owner": "scheduling",
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
