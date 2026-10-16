@@ -229,7 +229,8 @@ export function* sampleScanlineRows(frame,spacingMm){
   }
 }
 
-export function connectScanlineCells(rows){
+export function connectScanlineCells(rows,{tolerance=PRINT_RESOLUTION_MM}={}){
+  requireThat(Number.isFinite(tolerance)&&tolerance>=0,'Cell adjacency needs a finite nonnegative interval tolerance.');
   const cells=[];
   let previous=[];
   for(const spans of rows){
@@ -242,10 +243,10 @@ export function connectScanlineCells(rows){
     // travel still goes through the shared combing/clearance checks.
     let first = 0;
     for (const span of current) {
-      while(first<previous.length&&previous[first].right<=span.left+PRINT_RESOLUTION_MM)first++;
-      for(let j=first;j<previous.length&&previous[j].left<span.right-PRINT_RESOLUTION_MM;j++) {
+      while(first<previous.length&&previous[first].right<=span.left+tolerance)first++;
+      for(let j=first;j<previous.length&&previous[j].left<span.right-tolerance;j++) {
         const before=previous[j];
-        if(Math.min(before.right,span.right)-Math.max(before.left,span.left)>PRINT_RESOLUTION_MM) {
+        if(Math.min(before.right,span.right)-Math.max(before.left,span.left)>tolerance) {
           span.parents.push(before);before.children.push(span);
         }
       }

@@ -1,6 +1,6 @@
 // Source operations enter once as compact curves; execution refers to ranges.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {curveAt,curveRange,curveParameterAtLength,prepareCurvePath} from './curve-path.mjs';
+import {curveAt,curveRange,curveParameterAtLength,curveClosestParameter,prepareCurvePath} from './curve-path.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses,selectTraversal} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
@@ -77,6 +77,7 @@ function courseCuts(reader,course,values){
 export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set()}={}){
   const operations=Object.values(source.operations),bySource=new Map(operations.map(op=>[op.id,op]));
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
+  const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
   const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
   const constrained=new Set(operations.flatMap(operation=>(operation.courses??[]).flatMap(course=>course.after?.length?[course.id,...course.after]:[])));
   function node(operation,ranges,barrier=null,traversalKey=null){
@@ -86,16 +87,39 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
     const value={id,sourceOperation:operation.id,layerId:operation.layerId,operation,process:source.processes[operation.processId],
       ranges,entry,exit,barrier,label:operation.id+(ranges.length===1?' ['+ranges[0].id+' '+ranges[0].from+'..'+ranges[0].to+']':''),
       constructionRank:operation.constructionRank??0,...(traversalKey?{traversalKey}:{})};
-    if(!barrier&&!injection&&operation.interruptible&&!operation.continuous&&ranges.every(range=>range.directionRequired===false)){
+    if(!barrier&&!injection&&operation.interruptible&&!operation.continuous){
       const endpoint=(range,end)=>curveAt(reader,range.curveId,end?range.to:range.from,end?{side:'left'}:{});
-      const variants=[ranges,ranges.toReversed().map(range=>({...range,reverse:true}))];
-      if(ranges.length>1)variants.push(ranges.toReversed(),ranges.map(range=>({...range,reverse:true})));
-      value.traversals=variants.map(ranges=>{
-        const ends=ranges.map(range=>{const a=endpoint(range,false),b=endpoint(range,true);return range.reverse?[b,a]:[a,b];});
-        const key=JSON.stringify(ranges.map(range=>[range.id,range.from,range.to,Boolean(range.reverse)]));
-        return {key,ranges,entry:ends[0][0],exit:ends.at(-1)[1],
-          extraDistance:ends.slice(1).reduce((sum,[start],i)=>sum+distance(ends[i][1].point,start.point),0)};
-      }).filter(variant=>!blockedTraversals.has(variant.key));
+      const reversible=ranges.every(range=>range.directionRequired===false&&(range.seamRequired!==true||
+        range.from!==originals.get(range.id).from||distance(endpoint(range,false).point,endpoint(range,true).point)<=ROUNDING_MM));
+      const loop=ranges.length===1&&ranges[0].interruptible&&ranges[0].seamRequired===false&&distance(entry.point,exit.point)<=ROUNDING_MM?ranges[0]:null;
+      if(reversible||loop){
+        const variants=[ranges];
+        if(reversible){
+          variants.push(ranges.toReversed().map(range=>({...range,reverse:true})));
+          if(ranges.length>1)variants.push(ranges.toReversed(),ranges.map(range=>({...range,reverse:true})));
+        }
+        const traversal=ranges=>{
+          const ends=ranges.map(range=>{const a=endpoint(range,false),b=endpoint(range,true);return range.reverse?[b,a]:[a,b];});
+          const key=JSON.stringify(ranges.map(range=>[range.id,range.from,range.to,Boolean(range.reverse)]));
+          return {key,ranges,entry:ends[0][0],exit:ends.at(-1)[1],
+            extraDistance:ends.slice(1).reduce((sum,[start],i)=>sum+distance(ends[i][1].point,start.point),0)};
+        };
+        const allowed=variant=>!blockedTraversals.has(variant.key);
+        value.traversals=variants.map(traversal).filter(allowed);
+        if(loop){
+          const memo={point:null,choices:null};
+          value.traversalsAt=point=>{
+            if(memo.point?.every((v,i)=>v===point[i]))return memo.choices;
+            const closest=curveClosestParameter(reader,loop.curveId,loop.from,loop.to,point,{toleranceMm:PRINT_RESOLUTION_MM});
+            const seam=executionCut(reader,loop,closest,new Set()),choices=[...value.traversals];
+            if(seam!==null){
+              const head={...loop,to:seam},tail={...loop,from:seam};choices.push(traversal([tail,head]));
+              if(reversible)choices.push(traversal([{...head,reverse:true},{...tail,reverse:true}]));
+            }
+            memo.point=[...point];memo.choices=choices.filter(allowed);return memo.choices;
+          };
+        }
+      }
     }
     nodes.push(value);prerequisites.set(id,new Set());
     if(!barrier){
@@ -123,8 +147,8 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
           for(let i=1;i<parameters.length;i++)members.push(node(operation,[{...course,from:parameters[i-1],to:parameters[i]}]));
           continue;
         }
-        const previous=pending.at(-1),cell=previous?.provenance?.cell;
-        if(previous&&!(cell!==undefined&&cell===course.provenance?.cell)&&
+        const previous=pending.at(-1),cell=previous?.orderGroup??previous?.provenance?.cell;
+        if(previous&&!(cell!==undefined&&cell===(course.orderGroup??course.provenance?.cell))&&
           distance(curveAt(reader,previous.curveId,previous.to,{side:'left'}).point,curveAt(reader,course.curveId,course.from).point)>ROUNDING_MM)flush();
         pending.push(course);
       }
@@ -137,6 +161,8 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
     groups.set(operation.id,{members,begin,end});
   }
   for(const [id,parents] of declared)for(const parent of parents)prerequisites.get(groups.get(id).begin.id).add(groups.get(parent).end.id);
+  for(const [id,group] of courseGroups)if(originals.get(id).seamRequired===true&&group.members.length>1)
+    for(const member of group.members.slice(1))prerequisites.get(member.id).add(group.members[0].id);
   for(const operation of operations)for(const course of operation.courses??[])for(const previous of course.after??[]){
     const before=courseGroups.get(previous),after=courseGroups.get(course.id);
     requireThat(before,'Required course predecessor is absent.');
@@ -263,7 +289,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         if(accessLayers.has(unit.layerId))continue;
         onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
         try{state.scene.verifySelf(unit);}catch(error){
-          if(unit.traversalChoice&&unit.traversals.length>1)error.traversalChoice=unit.traversalChoice.key;
+          if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
           throw error;
         }
         for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)&&
@@ -288,11 +314,11 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges]});
       for(const unit of ordered.operations)if(!unit.barrier){
         const body=state.scene.byId.get(unit.id);
-        if(body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
+        if(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
           record.ref.to===unit.ranges[i].to&&Boolean(record.ref.reverse)===Boolean(unit.ranges[i].reverse)))continue;
         body.records=unit.ranges.map(state.scene.interval);
         try{state.scene.verifySelf(unit);}catch(error){
-          if(unit.traversalChoice&&unit.traversals.length>1)error.traversalChoice=unit.traversalChoice.key;
+          if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
           throw error;
         }
       }

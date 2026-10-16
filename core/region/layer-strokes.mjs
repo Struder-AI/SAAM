@@ -68,7 +68,7 @@ export function layerStrokes(region, options) {
   const {walls,interior,solidRegion,sparseRegion}=options.preparedLayout??sliceLayerLayout(region,options);
   if(fillOrder?.kind==='fronts'){
     const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm}));
-    return {walls,infill:[],fill:fronts.flatMap(front=>front.curves),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
+    return {walls,infill:[],fill:fronts.flatMap((front,i)=>front.curves.map(curve=>({...curve,id:i+':'+curve.id,after:curve.after.map(id=>i+':'+id)}))),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
   }
   const fillOptions={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
   let constructionReport, nextFillState;
@@ -81,7 +81,7 @@ export function layerStrokes(region, options) {
       toleranceMm:fillOrder.toleranceMm,direction:fillDirection??fillOrder.directions[(layer?.index??0)%fillOrder.directions.length],
       heightMm:layer.heightMm,speedMmS:layer.speedMmS,layoutChart:layoutReference,startU:fillState?.nextU??0,axialStart:fillState?.nextAxial??0});
     const cells=[...(solidRegion.length?[construct(solidRegion,solidDensity)]:[]),...(sparseRegion.length?[construct(sparseRegion,fillDensity)]:[])];
-    const metric=cells.length?{...cells.at(-1),strokes:cells.flatMap(cell=>cell.strokes)}:{strokes:[],report:{points:0},nextU:fillState?.nextU??0,nextAxial:fillState?.nextAxial??0};
+    const metric=cells.length?{...cells.at(-1),strokes:cells.flatMap((cell,i)=>cell.strokes.map(stroke=>({...stroke,...(stroke.orderGroup?{orderGroup:i+':'+stroke.orderGroup}:{})})))}:{strokes:[],report:{points:0},nextU:fillState?.nextU??0,nextAxial:fillState?.nextAxial??0};
     fill=metric.strokes;infill.length=0;constructionReport=metric.report;nextFillState={nextU:metric.nextU,nextAxial:metric.nextAxial};
   }
   return {walls,infill,fill,interior,sparseRegion,solidRegion,constructionReport,nextFillState};

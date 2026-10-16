@@ -51,6 +51,34 @@ function pointChordDistance(p,a,b){
   const delta=b.map((v,i)=>v-a[i]),length2=dot(delta,delta),t=length2?Math.max(0,Math.min(1,dot(p.map((v,i)=>v-a[i]),delta)/length2)):0;
   return distance(p,a.map((v,i)=>v+t*delta[i]));
 }
+// Exact projection for line pieces; positive-weight native bounds prune the
+// remaining search. Tolerance controls optimization accuracy, never geometry.
+export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=ROUNDING_MM}={}){
+  requireThat(xyz(point)&&Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&from<to&&to<=1&&Number.isFinite(toleranceMm)&&toleranceMm>0,'Closest-curve query needs a finite point, interval and positive tolerance.');
+  const best={u:from,distance:Infinity};
+  const consider=u=>{const d=distance(point,numericalCurveAt(curve,u).point);if(d<best.distance){best.u=u;best.distance=d;}};
+  consider(from);consider(to);
+  if(curve.kind==='point')return best.u;
+  if(curve.kind==='polyline'){
+    const cuts=[from,...curve.breaks.filter(u=>u>from&&u<to),to];
+    for(let i=1;i<cuts.length;i++){
+      const a=numericalCurveAt(curve,cuts[i-1]).point,b=numericalCurveAt(curve,cuts[i],'left').point,delta=b.map((v,k)=>v-a[k]),length2=dot(delta,delta);
+      const t=length2?Math.max(0,Math.min(1,dot(point.map((v,k)=>v-a[k]),delta)/length2)):0;
+      consider(cuts[i-1]+t*(cuts[i]-cuts[i-1]));
+    }
+    return best.u;
+  }
+  const pending=[[from,to]];
+  while(pending.length){
+    const [a,b]=pending.pop(),bounds=numericalCurveRange(curve,a,b).bounds;
+    const lower=Math.hypot(...point.map((v,k)=>Math.max(0,bounds.min[k]-v,v-bounds.max[k])));
+    if(lower>=best.distance-toleranceMm)continue;
+    const mid=(a+b)/2;
+    requireThat(mid>a&&mid<b,'Closest-curve query is unresolved at parameter precision.');
+    consider(mid);pending.push([mid,b],[a,mid]);
+  }
+  return best.u;
+}
 function nativeSpan(curve,u){
   const state={lo:0,hi:curve.parameters.length-1};
   while(state.hi-state.lo>1){const mid=Math.floor((state.lo+state.hi)/2);if(curve.parameters[mid]<=u)state.lo=mid;else state.hi=mid;}

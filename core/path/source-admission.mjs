@@ -15,7 +15,7 @@ export function serializableSource(value){
 }
 export function admitSource(source){
   for(const key of ['curves','layers','surfaces','processes','operations'])requireThat(table(source[key])&&Object.keys(source[key]).every(id),'Source needs ID keyed '+key+'.');
-  prepareCurvePath(source);
+  const reader=prepareCurvePath(source);
   for(const layer of Object.values(source.layers))requireThat(id(layer.stackId)&&Number.isInteger(layer.index)&&Object.hasOwn(source.surfaces,layer.surfaceId),'Layer must retain a native stack, index and surface.');
   const courses=new Set();
   for(const [key,operation] of Object.entries(source.operations)){
@@ -27,9 +27,15 @@ export function admitSource(source){
       requireThat(Array.isArray(operation.courses)&&operation.courses.length>0,'Moving operation needs courses.');
       for(const course of operation.courses){
         requireThat(course.directionRequired===undefined||typeof course.directionRequired==='boolean','Course directionRequired must be boolean.');
+        requireThat(course.seamRequired===undefined||typeof course.seamRequired==='boolean','Course seamRequired must be boolean.');
+        requireThat(course.orderGroup===undefined||id(course.orderGroup),'Course orderGroup must be a nonempty local name.');
         requireThat(id(course.id)&&!courses.has(course.id)&&Object.hasOwn(source.curves,course.curveId)&&interval(course.from,course.to)&&typeof course.interruptible==='boolean',
           'Invalid or duplicated source course.');courses.add(course.id);
         requireThat(source.curves[course.curveId].geometry.kind!=='point'&&source.curves[course.curveId].profiles.material,'Moving deposition needs material on a moving curve.');
+        if(course.seamRequired===true){
+          const start=curveAt(reader,course.curveId,course.from).point,end=curveAt(reader,course.curveId,course.to,{side:'left'}).point;
+          requireThat(start.every((v,i)=>Math.abs(v-end[i])<=ROUNDING_MM),'A required seam belongs to a closed course.');
+        }
       }
     }else{
       const injection=operation.injection;
@@ -96,7 +102,7 @@ export function validateExecutionSource(source,schedule){
       const low=curveAt(reader,found.course.curveId,entry.from),high=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
       const start=entry.reverse?high:low,end=entry.reverse?low:high;
       requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
-      const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,index});coverage.set(entry.courseId,pieces);
+      const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,reverse:entry.reverse,index});coverage.set(entry.courseId,pieces);
       const chronology=courseIndices.get(entry.courseId);
       if(chronology)chronology.last=index;else courseIndices.set(entry.courseId,{first:index,last:index});
       const indices=operationIndices.get(found.operation.id)??[];indices.push(index);operationIndices.set(found.operation.id,indices);
@@ -110,7 +116,9 @@ export function validateExecutionSource(source,schedule){
     }
   }
   for(const {course} of courses.values()){
-    const pieces=coverage.get(course.id)??[];pieces.sort((a,b)=>a.from-b.from);
+    const pieces=coverage.get(course.id)??[],first=pieces[0];
+    if(course.seamRequired===true)requireThat(first&&(first.reverse?first.to===course.to:first.from===course.from),'Execution violates a required course seam.');
+    pieces.sort((a,b)=>a.from-b.from);
     requireThat(pieces.length>0&&pieces[0].from===course.from&&pieces.at(-1).to===course.to&&pieces.every((piece,i)=>!i||piece.from===pieces[i-1].to),
       'Execution must cover each course exactly once without gaps.');
     if(!course.interruptible)requireThat(pieces.length===1,'An atomic course cannot be split.');

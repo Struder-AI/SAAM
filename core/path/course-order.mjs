@@ -59,14 +59,16 @@ export function slicePartitions(operations,prerequisites){
   const native=new Set(operations.filter(op=>op.layerId!==null&&op.layerId!==undefined).map(op=>op.layerId));
   const refinedSlices=[...native].filter(id=>{const ids=slices.get(id);return ids.some(id=>membership.get(id)!==membership.get(ids[0]));}).length;
   return {groups:state.groups,summary:{slices:native.size,wholeSlices:native.size-refinedSlices,refinedSlices,
-    executionUnits:state.groups.length,courses:operations.filter(op=>!op.barrier).reduce((sum,op)=>sum+(op.ranges?.length??1),0)}};
+    executionUnits:state.groups.length,courses:new Set(operations.filter(op=>!op.barrier).flatMap(op=>op.ranges?.map(range=>range.id)??[op.id])).size}};
 }
 
 export function selectTraversal(operation,cursor,verify=null){
   const entryCost=(entry,process)=>distance(cursor.point,entry?.point??cursor.point)+
     (cursor.axis&&entry?.pose?.toolAxis?(process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*entry.pose.toolAxis[i],0)):0);
-  if(operation.barrier||!operation.traversals?.length)return entryCost(operation.entry,operation.process);
-  const remaining=[...operation.traversals],cost=variant=>entryCost(variant.entry,operation.process)+variant.extraDistance;
+  const choices=operation.barrier?null:operation.traversalsAt?.(cursor.point)??operation.traversals;
+  if(!choices?.length)return entryCost(operation.entry,operation.process);
+  operation.traversalAlternatives=choices.length;
+  const remaining=[...choices],cost=variant=>entryCost(variant.entry,operation.process)+variant.extraDistance;
   let failure;
   while(remaining.length){
     const choice=remaining.reduce((best,variant)=>cost(variant)<cost(best)-PRINT_RESOLUTION_MM?variant:best);

@@ -9,6 +9,7 @@ import {materialProcess} from '../machine/filaments.mjs';
 import {validatePose} from '../path/pose.mjs';
 import {prepareDepositionMotion,prepareReferenceMotion} from '../path/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
+import {retainConstructionCurves} from '../path/construction-curves.mjs';
 
 function finalizedOperation(operation){
   let high=-Infinity;
@@ -53,6 +54,7 @@ export function finalizeDepositionResult(result,plan){
   result=resolveDepositionConnections(result,{excludedOperationIds});
   result=prepareDepositionMotion(result);
   result=depositedBeadFrames(result);
+  result=retainConstructionCurves(result);
   if(result.report?.depositionConnections?.count)result=republishDepositedBoundary(result,{widthMm:plan.process.lineWidthMm});
   if(!plan.modulations?.modifiers.length||!result.operations.some(op=>op.strokes.some(stroke=>matchingModulations(result,stroke.role,plan.modulations,op).length)))return {...result,depositionFinalized:true};
   const prepared={...result,operations:result.operations.map(op=>{

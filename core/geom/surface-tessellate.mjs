@@ -11,8 +11,15 @@ import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
   requireThat(solid.kind==='surface-solid'&&solid.topology&&!solid.topology.unmatched.length,'Tessellation needs a closed native surface boundary.');
+  return tessellateSurfaceShell(solid,{toleranceMm});
+}
+
+// Open authored shells still display their trimmed faces; material conversion
+// uses the closed-solid entry above. Both derive the same conforming boundary.
+export async function tessellateSurfaceShell(solid,{toleranceMm=.02}={}){
+  requireThat(solid.topology&&Array.isArray(solid.patches),'Tessellation needs native surface boundary topology.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Tessellation tolerance must be positive.');
-  if(solid.empty)return {vertices:[],triangles:[],notes:[...(solid.notes??[])]};
+  if(solid.empty)return {vertices:[],triangles:[],faceIndices:[],notes:[...(solid.notes??[])]};
   const kernel=await solidKernel(),topology=solid.topology,vertices=topology.vertices.map(point=>[...point]),boundaries=new Map();
   const edgeSamples=topology.edges.map((edge,index)=>{
     const curve=topology.curves[edge.curve],[lo,hi]=edge.range,at=t=>({point:curvePosition(curve,t)});
@@ -36,11 +43,12 @@ export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
   const triangles=topology.faces.flatMap(face=>triangulateFace(kernel,solid.patches[face.patch],face,topology.edges,edgeSamples,boundaries,vertices));
   const targetMm=Math.max(toleranceMm,solid.construction.toleranceMm);
   const refined=refineSurfaceTriangles(solid,vertices,triangles,boundaries,targetMm/2);
-  if(targetMm>toleranceMm)refined.notes.push(`Output mesh accuracy is limited by the ${targetMm} mm native Boolean construction; requested ${toleranceMm} mm. Change BOOLEAN_TOLERANCE_MM and rebuild for finer construction.`);
-  return {vertices,triangles:refined.triangles.filter(triangle=>new Set(triangle.corners.map(corner=>corner.id)).size===3).map(triangle=>{
+  if(targetMm>toleranceMm)refined.notes.push(`Output mesh accuracy is limited by the ${targetMm} mm native surface construction; requested ${toleranceMm} mm.`);
+  const retained=refined.triangles.filter(triangle=>new Set(triangle.corners.map(corner=>corner.id)).size===3);
+  return {vertices,triangles:retained.map(triangle=>{
     const ids=triangle.corners.map(corner=>corner.id);
     return solid.patches[triangle.face].normalSide<0?ids.reverse():ids;
-  }),notes:[...(solid.notes??[]),...refined.notes],tessellation:{toleranceMm,sampledErrorMm:refined.error,method:'conforming-native-boundary'}};
+  }),faceIndices:retained.map(triangle=>triangle.face),notes:[...(solid.notes??[]),...refined.notes],tessellation:{toleranceMm,sampledErrorMm:refined.error,method:'conforming-native-boundary'}};
 }
 
 function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries,vertices){

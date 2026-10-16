@@ -1,12 +1,13 @@
 // Physical parallel cells on an evaluated chart. This operation has no stack,
 // source-result, ownership or deposition lifecycle; any slice surface can use it.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {sampleSurfaceCurve} from './normal-surface.mjs';
 import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
 import {clipOpenPaths} from './intersection.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {connectScanlineCells} from './region2d.mjs';
 
 // Process scale: default sampling step and chord tolerance (a fortieth of a 0.4 mm line).
 export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFactor:spacing=1,sampleStepMm=.5,toleranceMm=.01,direction='axial',heightMm=.2,speedMmS,startU=0,axialStart=0,layoutChart=chart}){
@@ -70,7 +71,7 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
             let samples=sampleSurfaceCurve(chart,t=>{const v=a+(b-a)*t;return [centerAt(v).u,v];},0,options);
             let widths=samples.map(e=>centerAt(e.v).width);
             if((axialStart+report.axialPasses)%2){samples.reverse();widths.reverse();}
-            const stroke=newStroke('axial');emit(stroke,samples,widths);strokes.push(stroke);
+            const stroke={...newStroke('axial'),cellFamily:sector,cellRow:k};emit(stroke,samples,widths);strokes.push(stroke);
             report.axialPasses++;
             if(a>v0+vResolution||b<v1-vResolution)report.partialAxialPasses++;else report.fullAxialPasses++;
           };
@@ -82,7 +83,7 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
       const count=Math.ceil(meridianMax/trackPitch);
       for(let i=0;i<count;i++){
         const v=Math.min(v1,(i+.5)*trackPitch/meridianMax),samples=sampleSurfaceCurve(chart,t=>[t,v],0,options);
-        const stroke=newStroke('circumferential');emit(stroke,i%2?samples.toReversed():samples,samples.map(()=>w));strokes.push(stroke);
+        const stroke={...newStroke('circumferential'),cellFamily:0,cellRow:i};emit(stroke,i%2?samples.toReversed():samples,samples.map(()=>w));strokes.push(stroke);
       }
     }else{
       // A continuous periodic course. V advances by physical meridian pitch;
@@ -127,5 +128,22 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
     });
     return {...stroke,surfaceSamples:path.map(uv=>evaluateSurface(chart,uv)),cellWidthsMm:widths};
   }));
-  return {strokes:clipped,report,nextU:helixStartU,nextAxial:axialStart+report.axialPasses};
+  const families=new Map(),ungrouped=[];
+  for(const stroke of clipped){
+    if(stroke.cellFamily===undefined){ungrouped.push(stroke);continue;}
+    if(!families.has(stroke.cellFamily))families.set(stroke.cellFamily,new Map());
+    const rows=families.get(stroke.cellFamily),row=rows.get(stroke.cellRow)??[],values=stroke.surfaceSamples.map(p=>axial?p.v:p.u);
+    row.push({left:Math.min(...values),right:Math.max(...values),row:stroke});rows.set(stroke.cellRow,row);
+  }
+  const grouped=[];
+  for(const [family,rows] of families){
+    const indices=[...rows.keys()].sort((a,b)=>a-b);
+    function* intervals(){for(let i=indices[0];i<=indices.at(-1);i++)yield (rows.get(i)??[]).sort((a,b)=>a.left-b.left||a.right-b.right);}
+    for(const [cell,members] of connectScanlineCells(intervals(),{tolerance:ROUNDING_RELATIVE}).entries())for(const [i,member] of members.entries()){
+      const {cellFamily,cellRow,...stroke}=member,first=stroke.surfaceSamples[0],last=stroke.surfaceSamples.at(-1);
+      const reverse=(axial?last.v<first.v:last.u<first.u)!==Boolean(((axial?axialStart:0)+i)%2);
+      grouped.push({...stroke,orderGroup:'metric:'+family+':'+cell,...(reverse?{surfaceSamples:stroke.surfaceSamples.toReversed(),cellWidthsMm:stroke.cellWidthsMm.toReversed()}:{})});
+    }
+  }
+  return {strokes:[...grouped,...ungrouped],report,nextU:helixStartU,nextAxial:axialStart+report.axialPasses};
 }

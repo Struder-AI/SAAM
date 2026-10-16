@@ -1,14 +1,6 @@
-// A shell of untrimmed bivariate spline patches.
-//
-// This is the geometry contract the pattern skills accept. Every face is a full
-// rectangular (u,v) patch, so a face's section is the zero contour of g over the
-// whole domain: no trim classification is needed, which matters because
-// rhino3dm exposes no parameter-space trim curves (BrepTrim carries topology
-// indices only, and BrepFace.loops is unbound in this build).
-//
-// Closure is therefore measured numerically: a non-degenerate patch boundary
-// matched by no other boundary is open. An open shell builds, shows and slices
-// what closes on each layer; solid operations name its open edges (tessellate.mjs).
+// Native spline shells retain each patch's UV face region. Trimmed boundaries
+// share sewn curves; full rectangular patches retain their existing seam/pole
+// closure measurement. Open shells display and slice what closes per layer.
 
 import { evaluate } from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
@@ -16,12 +8,19 @@ import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
 import {trimSectionChains} from './surface-trim.mjs';
+import {sewSurfaceBoundary} from './surface-topology.mjs';
 
 const BOUNDARY_SAMPLES = 16;
 // Section pieces whose ends lie within print resolution join.
 const JOIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 export function makeShell(patches, { name = 'shell' } = {}) {
+  if(patches.some(patch=>patch.trimLoops)){
+    const faces=patches.map((patch,sourceFace)=>({...patch,sourceFace,normalSide:patch.normalSide??1}));
+    const topology=sewSurfaceBoundary(faces,[],{toleranceMm:PRINT_RESOLUTION_MM});
+    return {name,kind:'surface-solid',patches:faces,empty:!faces.length,bounds:shellBounds(faces),topology,
+      closure:{unmatched:topology.unmatched},intersections:[],contacts:[],notes:[],construction:{method:'authored-trimmed-surfaces',toleranceMm:PRINT_RESOLUTION_MM}};
+  }
   // Closure, not a patch count, decides whether a shell is solid: one
   // revolved patch closing on its own seam and poles is a whole sphere.
   const shell = { name, patches, empty:patches.length===0, bounds: shellBounds(patches) };

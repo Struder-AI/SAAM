@@ -27805,6 +27805,30 @@
     },
     "packaging/client-adapters.mjs::registerCodexAdapter::hookCommandWindows": {
       "owner": "application"
+    },
+    "core/geom/curve-query.mjs::numericalCurveClosestParameter": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-query.mjs::numericalCurveClosestParameter::consider": {
+      "owner": "geometry"
+    },
+    "core/path/curve-path.mjs::curveClosestParameter": {
+      "owner": "path-finalize"
+    },
+    "core/path/compose.mjs::prepareSourceUnits::node::traversal": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::prepareSourceUnits::node::allowed": {
+      "owner": "scheduling"
+    },
+    "core/region/surface-patterns.mjs::surfacePatternStrokes::rows": {
+      "owner": "geometry-surface-patterns"
+    },
+    "core/region/seeded-fronts.mjs::connectSurfacePasses::joining": {
+      "owner": "slice"
+    },
+    "core/region/metric-fill.mjs::metricFillStrokes::intervals": {
+      "owner": "slice"
     }
   },
   "retiredAssignments": [

@@ -7,13 +7,12 @@ Contract **SP2, 2026-10-16** owns the compact source, execution and reader shipp
 Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
 Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses. Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events. Studio and exporters share the numerical reader; exporters own machine axes.
 Native layers are producer records; no stage reconstructs them or treats their surfaces as solid.
-Preserve exact native curves; mapping/Modulation can require faithful polylines. Spline fitting is optional and never silently lossy.
+Construction retains native curves through flow/width/speed/pose edits. Mapping and position edits retain or construct NURBS under certified error bounds; polylines remain when no smaller faithful representation exists. `summary.compaction` records approximation bounds.
 
 ## Stored deposition: `saampath/2`
 
-Records contain finite serializable numbers in the part frame (mm, seconds, mm3). Tables use opaque nonempty string IDs.
-IDs are stable within one Bundle path identity; they never encode surface JSON. The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`,
-`planning`, `summary`, and optional existing provenance/generator metadata.
+Records contain finite serializable numbers in the part frame (mm, seconds, mm3). Tables use opaque nonempty string IDs, stable within one Bundle path identity; they never encode surface JSON.
+The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`, `planning`, `summary`, and optional provenance/generator metadata.
 
 - A curve is `{geometry, profiles}`. Geometry is `{kind:'polyline',points}`,
   `{kind:'nurbs',degree,knots,controlPoints,weights?}`, or `{kind:'point',point}`.
@@ -29,14 +28,14 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
   Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
   retaining roll. Antipodal normal keys require an authored intermediate direction.
-  New writers interpolate moving samples and cumulative rates over finite windows. Connected atomic courses share width/feed/frame endpoints, transitioning over one bead width, capped at half each course.
+  Publication compacts generated normal/material fields with continuous interval proofs, preserving full frames, exact course totals and zero-material intervals. Connected atomic courses share width/feed/frame endpoints over one bead width, capped at half each course.
 - Keys strictly increase, include 0 and 1, and cover the domain. Step values are
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath
   resolves ordinary three-axis poses explicitly; `materialNormal` never implies pose.
   Travel can omit width, normal and material, but always supplies pose and speed.
 - Material has one authority: `{kind:'area',areaMm2:profile}` integrates nonnegative area against arc length;
-  `{kind:'cumulative',interpolation:'monotone',knots:[[u,totalMm3],...]}` retains every supplied total and interpolates monotone C1 volume. Omitted interpolation retains older linear meaning.
+  `{kind:'cumulative',interpolation:'monotone',knots:[[u,totalMm3],...]}` retains every stored total and interpolates monotone C1 volume. Omitted interpolation retains older linear meaning.
   One prepared law supplies point rates, interval bounds and stable local integration; never subtract nearly equal evaluated totals. Local area is dV/ds.
   Positive volume on zero length or unbounded density is invalid. No separate height or segment-volume authority.
 - A layer is `{stackId,index,surfaceId}`: Slice's actual native identity and order,
@@ -45,14 +44,15 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Trace without a native slice has `layerId:null`; do not invent one by height.
 - A moving operation is `{id,kind:'deposit',layerId,processId,filament,after,
   interruptible,courses,...}`. Each course is `{id,curveId,from,to,interruptible,
-  role?,provenance?,after?,directionRequired?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
+  role?,provenance?,after?,orderGroup?,directionRequired?,seamRequired?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
   Each whole course is initially one scheduling unit; vertices and profile keys
   do not create execution boundaries. Curves/profile data are referenced, never copied into refinements.
   `processes` deduplicates the existing resolved process records; `planning`
   retains its existing defaults, explicit start and motion settings.
 - Operation `after` names whole source operations; course `after` names source-wide courses.
   Every predecessor must finish before its successor starts. Construction lowers local curve names, including parallel expansions, to these IDs. These are unbreakable manufacturing requirements, never convenience or travel choices.
-  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal with material and poses attached to their source locations; omission preserves authored direction. Ordinary Slice emits false, causal fronts retain direction, and Trace defaults true. Atomic/continuous operations retain their authored traversal.
+  Consecutive courses sharing `orderGroup` form a soft traversal chunk. Slice retains uninterrupted fill cells across publication; splits/merges end cells. Scheduling chooses entry, reversal and travel, and may split an implicated chunk for physical or required dependencies. Group names never impose hard precedence.
+  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal; `seamRequired:false` permits cyclic entry changes on interruptible closed courses. Material and poses retain their source locations. A required seam stays first even after refinement. Ordinary Slice frees direction/seam; causal fronts and Trace preserve them. Atomic/continuous operations retain their authored traversal.
 - A stationary operation has `kind:'inject'`, no courses, and
   `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
   occupied geometry, process selection, scoped `nozzleC`/`restoreNozzleC` and
@@ -83,11 +83,11 @@ Toolpath owns `core/path/curve-path.mjs`, with these exports. All queries are de
 | `curveAt(handle,curveId,u,{side='right'}={})` | `{point,tangent,pose,widthMm,speedMmS,materialNormal,areaMm2}`; absent travel channels stay absent; tangent is null only at a singularity/point. |
 | `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],tangentCone,chordErrorMm,normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
 | `curveParameterAtLength(handle,curveId,from,to,distanceMm,{fromEnd=false,toleranceMm}={})` | Source parameter at physical distance, certified by Geometry; defaults to rounding accuracy. |
+| `curveClosestParameter(handle,curveId,from,to,point,{toleranceMm}={})` | Source parameter nearest a point within the requested distance accuracy; Geometry owns projection/bounds. Geometry stays unchanged. |
 | `curveSpans(handle,curveId,from,to,options)` | Lazy iterable of bounded local spans, each `{from,to,start,end,range}`; endpoints are `curveAt` records, range is `curveRange`. |
 | `linearizePath(view,options)` | Lazy existing-style contextual action stream from the joined path, for consumers needing segments. Never the persisted authority. |
 
-`tangentCone` and `normalCone` are `{axis,halfAngleRad}`. The tangent cone encloses
-all regular forward tangents (full sphere when unproved; null for a point).
+`tangentCone` and `normalCone` are `{axis,halfAngleRad}`. The tangent cone encloses all regular forward tangents (full sphere when unproved; null for a point).
 `chordErrorMm` bounds distance from the entire curve interval to its endpoint segment;
 it does not assert that curve and chord share linear timing. `poseCone` is
 `{reference,halfAngleRad}`, bounding full SO(3) frame deviation, including roll.
@@ -98,9 +98,7 @@ it does not assert that curve and chord share linear timing. `poseCone` is
 full-frame deviation from endpoint interpolation, and total volume error over the
 requested range/path. Source breaks remain queryable. Reverse views enumerate source spans backwards; each span retains increasing source bounds. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
 Subdivision certifies convergent length/volume bounds; zero deposition stays exact.
-Shared numerical shape calculations delegate to Geometry; path/material semantics
-stay here. Consumers can request different resolutions without changing identity,
-profiles or accumulated material. Serialization never rounds range cuts into gaps.
+Shared numerical shapes belong to Geometry; path/material semantics stay here. Query resolution never changes identity, profiles or accumulated material. Serialization never rounds cuts into gaps.
 Geometry/profile/material knots are query information, not compulsory output moves. Physical arc-length tolerance governs nearby view boundaries and material placement; provenance cannot force microscopic extrusion. Unknown movement is a precision finding, not proof of a singularity.
 
 ## Scheduler obligations
@@ -124,7 +122,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/26` and completion `saam-neutral-motion/13` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/29` and completion `saam-neutral-motion/15` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

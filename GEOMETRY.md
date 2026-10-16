@@ -6,12 +6,15 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 ## Spline surfaces
 
-`geometry: {shape: "spline", patches: [...]}` is a shell of untrimmed NURBS
-patches. A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?}`:
+`geometry: {shape: "spline", patches: [...]}` retains named NURBS patches.
+A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`:
 `controlPoints` is rows along U, each a list of points along V, each `[x,y,z]` or
 `[x,y,z,weight]`. Degrees are 1–5 and below the control count. Omitted knots are
 clamped uniform; a supplied vector is complete (count + degree + 1 values).
-Orientation does not matter.
+`trimLoops` are closed UV polylines: outer loops counterclockwise, holes clockwise,
+inside the knot domain, without crossings or touching. The closing vertex is optional.
+When any patch is trimmed, author outward normals with `normalSide: 1` (default)
+or `-1` for reversed `du × dv`; untrimmed shells still infer orientation.
 
 **What a control net expresses**
 
@@ -30,10 +33,10 @@ Orientation does not matter.
 - Creases: separate patches meet at an edge, or a knot repeats `degree` times.
 - Local shaping: move interior controls; add rows or columns for more freedom.
 
-**Closure.** A shell is closed when every patch edge coincides with another edge,
-with the same patch's opposite edge (a seam), or collapses to a point (a pole).
-Sharing boundary control points and knots between neighbours makes this exact. An
-open shell saves and shows; each layer slices what closes; [booleans](#booleans) need closed solids.
+**Closure.** Trim boundaries, or rectangular edges when no trims are supplied,
+must pair with neighbouring faces, a seam or a collapsed pole. Core sews shared
+boundaries and reports gaps. Open shells save and show; each layer slices what closes.
+[Booleans](#booleans) need closed solids.
 
 **Worked forms**
 
@@ -54,11 +57,10 @@ open shell saves and shows; each layer slices what closes; [booleans](#booleans)
 - *A surface.* One patch saves and shows as it is. To print it as a sheet, add a copy
   offset along its normal and degree-1 strips ruling their edges.
 
-**Named patches.** Slicing uses the patches themselves, not a tessellation, and
-skills address surfaces by patch name: the roof a draped skin follows (a patch
-named `bottom` is never draped), the sleeve cladding coats, the slice a wave
-grows on, the reference text bends onto. Trimmed faces are not supported; cut
-openings with patch layout or a [boolean difference](#booleans).
+**Named patches.** Skills address surfaces by name. Slicing and containment use
+the retained surfaces and trims; Studio derives triangles for display. SAAM's 3DM
+stores supporting NURBS surfaces with face trims as SAAM metadata, verified on
+reopening; it is not a Rhino trimmed Brep. Trim boundaries currently use UV line segments.
 
 ## Blob field
 

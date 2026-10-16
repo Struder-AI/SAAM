@@ -213,7 +213,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   requireThat(stroke.frameSamples||!modifiers.some(m=>m.frame==='slice'),'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
   const directions=modifiers.some(m=>m.direction==='lateral'&&(m.frame??'world')==='world')?lateralDirections(points,stroke.closed):null;
   const curve=modifiers.some(m=>m.frame==='curve'||m.direction==='lateral'&&m.frame==='slice')?curveFrames(stroke,points):null;
-  const output=[],volumes=[],metadata=[],poses=[],sampleFrames=[],parameters=[];let maxExcursionMm=0,changed=false;
+  const output=[],volumes=[],metadata=[],poses=[],sampleFrames=[],parameters=[],nativeParameters=[];let maxExcursionMm=0,changed=false;
   for(let i=0;i<points.length-1;i++){
     const length=distance(points[i],points[i+1]);
     requireThat(length>0,'Modulation requires nonzero source segments.');
@@ -222,7 +222,9 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     requireThat(Number.isFinite(volume)&&volume>=0&&positive(width),'Modulation needs deposited segment volume and bead width.');
     const context={layerIndex,stackDirection,fillDirection:stroke.fillFamily?.direction,frames:frames?[frames[i],frames[i+1]]:null,curveFrames:curve?[curve[i],curve[i+1]]:null,poses:sourcePoses?[sourcePoses[i],sourcePoses[i+1]]:null};
     const samples=sampleModulatedSegment(points[i],points[i+1],modifiers,directions?[directions[i],directions[i+1]]:null,context);
-    const append=sample=>{output.push(sample.point);poses.push(sample.pose??uprightPose());if(frames)sampleFrames.push(sampledFrame(context.frames,sample.t));if(stroke.curveParameters)parameters.push(source.curveParameters[i]+sample.t*(source.curveParameters[i+1]-source.curveParameters[i]));};
+    const append=sample=>{output.push(sample.point);poses.push(sample.pose??uprightPose());if(frames)sampleFrames.push(sampledFrame(context.frames,sample.t));
+      if(stroke.curveParameters)parameters.push(source.curveParameters[i]+sample.t*(source.curveParameters[i+1]-source.curveParameters[i]));
+      if(source.nativePath)nativeParameters.push(source.nativePath.parameters[i]+sample.t*(source.nativePath.parameters[i+1]-source.nativePath.parameters[i]));};
     if(!output.length)append(samples[0]);
     for(let j=1;j<samples.length;j++){
       const left=samples[j-1],right=samples[j],mid=evaluateModulatedPoint(points[i],points[i+1],(left.t+right.t)/2,modifiers,directions?[directions[i],directions[i+1]]:null,context);
@@ -248,7 +250,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   const {normals,chartPoints,referenceAlong,heightsMm,widthsMm,flowMultipliers,beadAreaMm2,frameSamples,curveParameters,...retained}=stroke;
   return {stroke:{...retained,closed:false,points:output,volumesMm3:volumes,segmentMetadata:metadata,
     ...(stroke.nativePath&&!modifiers.some(modifier=>modifier.channel==='displacement')?
-      {nativePath:{...stroke.nativePath,points:output,parameters}}:{}),
+      {nativePath:{...stroke.nativePath,points:output,parameters:nativeParameters}}:{}),
     ...(sourcePoses||modifiers.some(m=>m.channel==='tilt')?{poses}:{}),...(frames?{frameSamples:sampleFrames}:{}),...(curveParameters?{curveParameters:parameters}:{})},changed:true,maxExcursionMm};
 }
 

@@ -6,7 +6,9 @@ import {uprightPose,interpolatePose} from './pose.mjs';
 import {surfaceReferenceRecord} from '../geom/surface-record.mjs';
 import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength} from '../geom/curve-query.mjs';
 import {keyed,profileAt,interpolateScalar} from './curve-profiles.mjs';
-import {ROUNDING_MM} from '../dimensions.mjs';
+import {constructionCurve} from './construction-curves.mjs';
+import {compactCurveProfiles,materialParameterError} from './compact-profiles.mjs';
+import {ROUNDING_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function channel(values,parameters,interpolation){
@@ -57,27 +59,45 @@ function sourceProvenance(stroke,metadata,parameters){
     if(previous&&previous.to===parameters[i]&&same(previous.labels,labels))previous.to=parameters[i+1];
     else segments.push({from:parameters[i],to:parameters[i+1],labels});
   }
-  return stroke.provenance||segments.length||stroke.scanlineCell!==undefined?{...(stroke.provenance?{source:stroke.provenance}:{}),
-    ...(stroke.scanlineCell===undefined?{}:{cell:stroke.scanlineCell}),...(segments.length?{segments}:{})}:undefined;
+  return stroke.provenance||segments.length?{...(stroke.provenance?{source:stroke.provenance}:{}),...(segments.length?{segments}:{})}:undefined;
 }
-function publishedCurve(original,process){
+function publishedCurve(original,process,surface){
   const stroke=original.closed?strokeRange(original):original,points=stroke.points,lengths=[0];
   for(const [i,p] of points.slice(1).entries())lengths.push(lengths.at(-1)+distance(points[i],p));
   requireThat(lengths.at(-1)>0,'Moving deposition needs nonzero curve length.');
-  const native=stroke.nativePath&&same(points,stroke.nativePath.points)?stroke.nativePath:null;
-  const parameters=native?native.parameters:lengths.map(length=>length/lengths.at(-1));
+  const native=constructionCurve(stroke,surface),constructed=Boolean(native&&(native.mapped||native.fitted));
+  const chordParameters=lengths.map(length=>length/lengths.at(-1));
+  const parameters=native?native.parameters:chordParameters;
   requireThat(parameters.every((u,i)=>!i||u>parameters[i-1]),'Finalized curves need distinct increasing parameters.');
+  const volumes=stroke.volumesMm3??lengths.slice(1).map((length,i)=>(length-lengths[i])*stroke.beadAreaMm2);
+  const material=stroke.volumesMm3||constructed?cumulative(volumes,parameters):{kind:'area',areaMm2:stroke.beadAreaMm2};
+  const chordMaterial=constructed?cumulative(volumes,chordParameters):null;
+  if(constructed&&!stroke.volumesMm3){
+    material.knots.at(-1)[1]=lengths.at(-1)*stroke.beadAreaMm2;
+    chordMaterial.interpolation='linear';chordMaterial.knots.at(-1)[1]=lengths.at(-1)*stroke.beadAreaMm2;
+  }
+  const parameterError=constructed?materialParameterError(chordMaterial,material):0;
+  const volumeTolerance=PRINT_RESOLUTION_MM*process.lineWidthMm*process.layerMm;
+  const geometry=native?.geometry??{kind:'polyline',points};
   const metadata=points.slice(1).map((_,i)=>stroke.segmentMetadata?.[i]??{});
   const widths=metadata.map(m=>m.beadWidthMm??stroke.beadWidthMm??process.lineWidthMm);
   const speeds=metadata.map(m=>m.speedMmS??stroke.speedMmS);
   const normals=points.map((_,i)=>stroke.normals?.[i]??stroke.frameSamples?.[i]?.normal??metadata[Math.min(i,metadata.length-1)].surfaceNormal);
   requireThat(normals.every(Boolean),'Finalized deposition needs explicit material normals.');
   const poses=stroke.poses??points.map(()=>uprightPose());
-  const material=stroke.volumesMm3?cumulative(stroke.volumesMm3,parameters):{kind:'area',areaMm2:stroke.beadAreaMm2};
-  return {curve:{geometry:native?native.geometry:{kind:'polyline',points},profiles:{
+  const profiles={
     widthMm:smoothChannel(stroke,'beadWidthMm',parameters,segmentChannel(widths,parameters)),
     speedMmS:smoothChannel(stroke,'speedMmS',parameters,segmentChannel(speeds,parameters)),
-    materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material}},provenance:sourceProvenance(stroke,metadata,parameters)};
+    materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material};
+  const extent=metadata.reduce((maximum,record)=>Math.max(maximum,record.beadHeightMm??record.normalGapMm??0),
+    widths.reduce((maximum,width)=>Math.max(maximum,width),stroke.beadHeightMm??process.layerMm));
+  const compacted=compactCurveProfiles(profiles,{normalToleranceRad:PRINT_RESOLUTION_MM/(4*extent),
+    volumeToleranceMm3:volumeTolerance/4});
+  return {curve:{geometry,profiles:compacted.profiles},provenance:sourceProvenance(stroke,metadata,parameters),
+    compaction:{mapped:Boolean(native?.mapped),fitted:Boolean(native?.fitted),positionErrorMm:native?.positionErrorMm??0,normalErrorRad:compacted.normalErrorRad,
+      volumeErrorMm3:compacted.volumeErrorMm3+parameterError,
+      normalKeysBefore:keyed(profiles.materialNormal)?profiles.materialNormal.knots.length:0,normalKeysAfter:keyed(compacted.profiles.materialNormal)?compacted.profiles.materialNormal.knots.length:0,
+      materialKeysBefore:profiles.material.knots?.length??0,materialKeysAfter:compacted.profiles.material.knots?.length??0}};
 }
 // A continuous operation has an authored traversal across its course seams.
 // Publish that transition once, over one bead width (at most half each course),
@@ -111,6 +131,7 @@ function continuousProfiles(curves,courses){
 }
 export function constructionPath({results,planning,composition,summary,generatorVersion}){
   const curves={},layers={},surfaces={},processes={},operations={},surfaceIds=new Map(),processIds=new Map();
+  const compaction={mappedCurves:0,fittedCurves:0,positionErrorMm:0,normalErrorRad:0,volumeErrorMm3:0,normalKeysBefore:0,normalKeysAfter:0,materialKeysBefore:0,materialKeysAfter:0};
   function processId(process){
     const key=JSON.stringify(process);
     if(processIds.has(key))return processIds.get(key);
@@ -154,8 +175,14 @@ export function constructionPath({results,planning,composition,summary,generator
         if(!localCourses.has(stroke.id))localCourses.set(stroke.id,[]);
         localCourses.get(stroke.id).push(id);
       }
-      const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
+      const published=publishedCurve(stroke,process,operation.slice);curves[curveId]=published.curve;
+      if(published.compaction.mapped)compaction.mappedCurves++;
+      if(published.compaction.fitted)compaction.fittedCurves++;
+      for(const key of ['positionErrorMm','normalErrorRad','volumeErrorMm3'])compaction[key]=Math.max(compaction[key],published.compaction[key]);
+      for(const key of ['normalKeysBefore','normalKeysAfter','materialKeysBefore','materialKeysAfter'])compaction[key]+=published.compaction[key];
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,directionRequired:stroke.directionRequired??true,role:stroke.role,
+        ...((stroke.orderGroup??stroke.scanlineCell)===undefined?{}:{orderGroup:stroke.orderGroup??stroke.scanlineCell}),
+        ...(stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<=ROUNDING_MM?{seamRequired:stroke.seamRequired??true}:{}),
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
     // Mapping and parallel bead construction may expand one named curve into
@@ -170,5 +197,5 @@ export function constructionPath({results,planning,composition,summary,generator
   }
   return saamPath({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
     operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
-      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary});
+      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}});
 }

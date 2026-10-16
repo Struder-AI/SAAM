@@ -48,7 +48,7 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
       const entries=geometry.parts.flatMap(part=>build(part.geometry).surfaces.map(entry=>{
         const surface=entry.surface.duplicate();owned.add(surface);
         requireThat(surface.translate([part.xMm,part.yMm,part.zMm]),'Could not place native component.');
-        return {name:part.id+'/'+entry.name,surface};
+        return {...entry,name:part.id+'/'+entry.name,surface};
       }));
       return shellFromSurfaces(rhino,entries,'assembly');
     }

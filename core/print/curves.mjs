@@ -15,7 +15,7 @@ import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
   requireThat(construction==='curves','Trace uses explicit curves; retired technique records require migration.');
-  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,repetitionIds:null,maxExcursionMm:null,source:null,toolPose:null,...options});
+  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,ordered:false,repetitionIds:null,repetitionAfter:null,maxExcursionMm:null,source:null,toolPose:null,...options});
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
@@ -32,6 +32,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(a.maxExcursionMm===null||Number.isFinite(a.maxExcursionMm)&&a.maxExcursionMm>0,'Trace excursion limit must be null or a positive authored bound.');
   const count=a.repeat?.count??1;
   requireThat(typeof a.sequence==='boolean'&&(a.repetitionIds===null||Array.isArray(a.repetitionIds)&&a.repetitionIds.length===count&&new Set(a.repetitionIds).size===count&&a.repetitionIds.every(id=>typeof id==='string'&&id.length)),'Trace sequence is boolean; repetitionIds are null or unique names for each repetition.');
+  requireThat(typeof a.ordered==='boolean','Trace ordered must be boolean.');
+  requireThat(a.repetitionAfter===null||a.repetitionAfter&&typeof a.repetitionAfter==='object'&&!Array.isArray(a.repetitionAfter)&&a.repetitionIds&&
+    Object.entries(a.repetitionAfter).every(([id,after])=>a.repetitionIds.includes(id)&&Array.isArray(after)&&after.every(previous=>previous!==id&&a.repetitionIds.includes(previous))),
+    'Trace repetitionAfter names required predecessors by repetitionIds.');
   const source=a.source;
   requireThat(source===null||source&&Object.keys(source).sort().join()==='assignment,extension,parameters'&&typeof source.extension==='string'&&/^[a-z][a-z0-9-]*$/.test(source.extension)&&typeof source.assignment==='string'&&source.assignment!==a.id&&source.assignment.length&&source.parameters&&typeof source.parameters==='object'&&!Array.isArray(source.parameters),'Trace source needs extension, distinct Slice assignment and parameters.');
   requireThat(a.toolPose===null||a.toolPose&&Object.keys(a.toolPose).join()==='alignToSliceNormal'&&typeof a.toolPose.alignToSliceNormal==='boolean','Trace toolPose is null or {alignToSliceNormal:boolean}.');
@@ -44,6 +48,8 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   for(const curve of a.curves){
     requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
     requireThat(curve.directionRequired===undefined||typeof curve.directionRequired==='boolean','Curve directionRequired must be boolean.');
+    requireThat(curve.seamRequired===undefined||typeof curve.seamRequired==='boolean','Curve seamRequired must be boolean.');
+    requireThat(curve.orderGroup===undefined||typeof curve.orderGroup==='string'&&curve.orderGroup.length>0,'Curve orderGroup must be a nonempty local name.');
     requireThat(curve.after===undefined||Array.isArray(curve.after)&&curve.after.every(id=>named.has(id)&&id!==curve.id),
       'Curve after must name distinct predecessor curves in this Trace.');
     if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
@@ -73,7 +79,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
 // two distinct vertices (three when closed) is null: it prints nothing. Speed
 // and flow need only be finite: zero flow moves along the curve without
 // depositing; a negative flow fails within its assignment's deposition boundary.
-const CURVE_FIELDS=['id','after','directionRequired','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
+const CURVE_FIELDS=['id','after','orderGroup','directionRequired','seamRequired','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
 const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
 export function readAuthoredCurve(source){
   const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)
@@ -131,9 +137,12 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
     const native=nativeTraceLayer(active,{assignment,sourceLayer,referenceStack,references,index});
-    const spec={key:sourceLayer?.key??assignment.repetitionIds?.[repetition]??repetition,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
+    const name=assignment.repetitionIds?.[repetition]??repetition;
+    const required=assignment.repetitionAfter&&Object.hasOwn(assignment.repetitionAfter,name)?assignment.repetitionAfter[name]:[];
+    const spec={key:sourceLayer?.key??name,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
+      after:required.map(previous=>assignment.id+':'+previous),
       ...(native??{}),
-      regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
+      regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence||assignment.ordered?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
       const raw=traceResult({...assignment,after:previous},{batches:[spec],process,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);

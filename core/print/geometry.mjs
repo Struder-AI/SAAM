@@ -1,10 +1,8 @@
 import {canonicalHash} from '../canonical-json.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
-// Spline shells require a different representation from an indexed mesh:
-// rhino3dm builds no general solid from a set of patches, so a shell, open or
-// closed, is stored as its named untrimmed surfaces. The file is accepted once
-// it reopens as the same patches.
+// Spline shells store named supporting surfaces and SAAM face metadata in 3DM.
+// Reopening verifies both control nets and trims; the recipe remains authority.
 
 import {rhino} from '../geom/runtime.mjs';
 import { patchFromSurface, evaluate } from '../geom/nurbs.mjs';
@@ -14,6 +12,7 @@ import {assemblyComponents} from '../geom/selections.mjs';
 
 import {requireThat} from '../geom/tolerance.mjs';
 import { booleanDisplayMesh } from '../geom/boolean-display.mjs';
+import {tessellateSurfaceShell} from '../geom/surface-tessellate.mjs';
 import {displayGeometry} from '../geom/boolean-solid.mjs';
 import {spatialPreview,validateSpatial} from '../geom/spatial.mjs';
 import {normalizeAuthoredGeometry} from '../geom/mesh-source.mjs';
@@ -82,8 +81,12 @@ const proxySteps = (knots, order, count) => Math.min(PROXY_STEPS_MAX, PROXY_STEP
 // Control nets are compared through a rounded hash: 3DM stores doubles, and a
 // nanometre is nine orders below the tolerances the process works at.
 const netHash = patches => canonicalHash(patches.map(patch => [patch.name, patch.nu, patch.nv, patch.orderU, patch.orderV,
-  [...patch.knotsU].map(round), [...patch.knotsV].map(round), [...patch.cp].map(round)]));
+  [...patch.knotsU].map(round), [...patch.knotsV].map(round), [...patch.cp].map(round),
+  ...(patch.trimLoops===undefined&&patch.normalSide===undefined?[]:[faceMetadata(patch)])]));
 const round = value => Number(value.toFixed(9));
+function faceMetadata(patch){
+  return {...(patch.trimLoops===undefined?{}:{trimLoops:patch.trimLoops}),...(patch.normalSide===undefined?{}:{normalSide:patch.normalSide})};
+}
 
 async function createGeometryArtifact(parameters) {
   if(parameters.shape==='spatial')return createSpatialGeometry(parameters);
@@ -96,11 +99,11 @@ async function createGeometryArtifact(parameters) {
   const descriptor = {
     schema: 'saam-shell-geometry/1',
     parameters,
-    nativeForm: 'named untrimmed NURBS surfaces, not a Rhino solid',
+    nativeForm: shell.patches.some(p=>p.trimLoops)?'named NURBS supporting surfaces with retained SAAM UV trims':'named untrimmed NURBS surfaces, not a Rhino solid',
     patchHash: netHash(shell.patches),
     features,
     boundsMm: shell.bounds,
-    ...proxyMesh(shell)
+    ...await proxyMesh(shell)
   };
   await reopenShell(bytes, descriptor);
   return { bytes, descriptor };
@@ -120,6 +123,8 @@ function nativeShellBytes(runtime,shell){
       const attributes=new runtime.ObjectAttributes();
       try{
         attributes.name=entry.name;attributes.setUserString('saam:feature',entry.name);
+        const metadata=faceMetadata(shell.patches[index]);
+        if(Object.keys(metadata).length)attributes.setUserString('saam:face',JSON.stringify(metadata));
         features.push({id:entry.name,objectId:doc.objects().add(entry.surface,attributes),patchIndex:index});
       }finally{attributes.delete();}
     }
@@ -139,9 +144,10 @@ async function reopenShell(bytes, descriptor) {
       const object = doc.objects().get(index);
       const attributes = object.attributes();
       requireThat(attributes.getUserString('saam:feature') === feature.id, `3DM object ${index} is not the named face "${feature.id}".`);
-      patches.push(patchFromSurface(object.geometry(), feature.id));
+      const metadata=attributes.getUserString('saam:face');
+      patches.push({...patchFromSurface(object.geometry(), feature.id),...(metadata?JSON.parse(metadata):{})});
     }
-    requireThat(netHash(patches) === descriptor.patchHash, 'The 3DM surfaces differ from the reviewed geometry.');
+    requireThat(netHash(patches) === descriptor.patchHash, 'The 3DM surfaces or face trims differ from the reviewed geometry.');
   } finally { doc?.destroy(); }
 }
 
@@ -161,7 +167,11 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
 
 // Quad proxy for the viewer: each patch is sampled on its own (u, v) grid, so
 // every quad carries the name of the face it came from and stays selectable.
-function proxyMesh(shell) {
+async function proxyMesh(shell) {
+  if(shell.kind==='surface-solid'){
+    const mesh=await tessellateSurfaceShell(shell,{toleranceMm:.05});
+    return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name)};
+  }
   const vertices = [], faces = [], labels = [];
   for (const patch of shell.patches) {
     const [u0, u1] = patch.domainU, [v0, v1] = patch.domainV;
@@ -196,7 +206,7 @@ async function createMeshGeometry(r,parameters) {
     const display=component.kind==='boolean'||component.kind==='surface-solid'?await booleanDisplayMesh(component):null;
     for(const note of display?.notes??[])notes.push(id?`${id}: ${note}`:note);
     const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
-      :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
+      :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:await proxyMesh(component);
     const offset=vertices.length;
     for(const p of proxy.vertices)vertices.push(p.map((v,i)=>v+translation[i]));
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));

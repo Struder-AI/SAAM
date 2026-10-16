@@ -19472,7 +19472,8 @@
         "surfaceReferenceRecord",
         "numericalGeometryRecord",
         "prepareSurfaceContact",
-        "contactChart"
+        "contactChart",
+        "numericalCurveClosestParameter"
       ],
       "inputs": "Explicit geometry, coordinates, frames and physical tolerances.",
       "outputs": "Geometry/frame values; no scheduling or selected-machine policy.",
@@ -19967,7 +19968,8 @@
         "pathSummary",
         "pathInitialPosition",
         "pathInitialPose",
-        "pathCompletion"
+        "pathCompletion",
+        "curveClosestParameter"
       ],
       "inputs": "Immutable saampath/2 source, exact joined source/schedule identity, normalized source ranges and explicit local tolerances.",
       "outputs": "Certified geometric/material/profile queries and lazy contextual local action views. No second persisted motion path.",

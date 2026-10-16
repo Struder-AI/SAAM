@@ -102,7 +102,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const descriptions=nodes.map(node=>assignmentWork(node,()=>depositionWorkDescription(node)));
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-    const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires),defaults=new Set();
+    const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires.filter(key=>key!==node.parentKey)),defaults=new Set();
     const references=node.construction==='curves'?[assignment.repeat?.stack,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
     for(const other of nodes){
       if(other===node)continue;

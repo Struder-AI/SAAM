@@ -1,7 +1,7 @@
 // One numerical reader for compact source, execution and older saved actions.
 // Handles prepare geometry only; local queries and streaming retain source u.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength,normalCone,frameCone} from '../geom/curve-query.mjs';
+import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength,numericalCurveClosestParameter,normalCone,frameCone} from '../geom/curve-query.mjs';
 import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume,materialProfileDeviation} from './curve-profiles.mjs';
 import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 
@@ -144,6 +144,10 @@ export function curveRange(handle,curveId,from,to,options={}){
 export function curveParameterAtLength(handle,curveId,from,to,distanceMm,options={}){
   requireThat(rangeValid(from,to),'Invalid curve interval.');
   return numericalCurveParameterAtLength(selected(handle,curveId).geometry,from,to,distanceMm,options);
+}
+export function curveClosestParameter(handle,curveId,from,to,point,options={}){
+  requireThat(rangeValid(from,to),'Invalid curve interval.');
+  return numericalCurveClosestParameter(selected(handle,curveId).geometry,from,to,point,options);
 }
 function tolerances(options){
   for(const key of ['positionToleranceMm','orientationToleranceRad','volumeToleranceMm3'])requireThat(positive(options?.[key]),'Local views need positive '+key+'.');

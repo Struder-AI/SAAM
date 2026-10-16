@@ -33,11 +33,7 @@ There is no separate wave producer.
   not physical adhesion or automatic support.
 - `reason` becomes the assignment description. Record the intended attachment.
 
-The common scheduler obeys dependencies and ownership, not array order alone.
-Adjacent fronts alternate and join with a short curve on the reference inside
-the region. Its length is limited to max(bead width, wave spacing) plus tolerance.
-Fronts may split into separate passes with shared travel. Inspect their starts
-and lateral attachment; a valid mask does not guarantee one continuous pass.
+Front construction joins adjacent waves with a short in-domain curve, limited to max(bead width, spacing) plus tolerance. Each causal pass is atomic. A split ends its shared prefix; both children depend on it, and a merge depends on every contributing branch. Independent branches stay unchained. Scheduling owns travel between passes. Inspect starts and lateral attachment; a valid mask does not guarantee continuity.
 
 | Preset option | Default | Meaning |
 |---|---:|---|

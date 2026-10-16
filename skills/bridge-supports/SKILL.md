@@ -33,4 +33,4 @@ bridge's prerequisite. Do not make the support wait for higher part layers.
 Review chronological extrusion: part and support advance together, each course
 prints once, and no material is deposited back inside completed lower layers.
 
-The [singleton example](examples/removable.json) has 20 Trace courses ending at Z4, then its landing bridge at Z4.2. Rebuild after process changes; review contact, removal and clearance. Membranes use ordinary Slice; see [hole guidance](../hole-supports/SKILL.md). Software generation does not establish physical print qualification.
+The [singleton example](examples/removable.json) has 20 circular Trace courses sampled within 0.001 mm, ending at Z4 before its landing bridge at Z4.2. Rebuild after process changes; review contact, removal and clearance. Membranes use ordinary Slice; see [hole guidance](../hole-supports/SKILL.md). Software generation does not establish physical print qualification.

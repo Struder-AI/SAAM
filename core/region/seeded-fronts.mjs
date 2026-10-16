@@ -6,7 +6,7 @@ import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {surfaceDerivatives as nativeDerivatives} from '../geom/surface-derivatives.mjs';
 import {evaluatedSurfaceDerivatives} from '../geom/evaluated-surface.mjs';
 import {surfaceChartBounds} from './surface-operations.mjs';
-import {offsetSurfaceRegion,UV_ROUNDING,UV_GRID} from './surface-offset.mjs'; // uv rounding and boolean grid
+import {offsetSurfaceRegion,strokeSurfaceRegion,UV_ROUNDING,UV_GRID} from './surface-offset.mjs'; // uv rounding and boolean grid
 import {intersect,difference,clipOpenPaths,union} from './intersection.mjs';
 import {regionArea,pointSegmentDistance,pointInRegion} from './region2d.mjs';
 import {offsetRegion} from './offset.mjs';
@@ -22,7 +22,7 @@ export function frontLayerStrokes(layer,{seedUv,lineSpacingMm,propagationStepMm,
   const seed=seedUv;
   const generated=seededSurfaceFronts(patch,domain,intersect(seed,domain),settings);
   const connected=connectSurfacePasses(patch,generated.waves,domain,settings,lineWidthMm);
-  return {curves:connected.passes.map(pass=>({role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:layer.seedSource??'authored'},seed};
+  return {curves:connected.passes.map(pass=>({id:pass.id,after:pass.after,interruptible:false,role:'fill',closed:false,points:pass.chartPoints,fillFamily:{spacingMm:lineSpacingMm}})),report:{...generated.report,continuity:connected.report,seed:layer.seedSource??'authored'},seed};
 }
 
 const surfaceDerivatives=(surface,u,v)=>surface.cp?nativeDerivatives(surface,u,v):evaluatedSurfaceDerivatives(surface,u,v);
@@ -40,46 +40,58 @@ export function connectSurfacePasses(patch,waves,domain,settings,lineWidthMm){
     const pieces=clipOpenPaths([[a,b]],domain,options);
     return pieces.some(p=>(distance(p[0],a)<=epsilon&&distance(p.at(-1),b)<=epsilon)||(distance(p[0],b)<=epsilon&&distance(p.at(-1),a)<=epsilon));
   };
-  let pending=[],previousCount=0;
+  function joining(pass,path){
+    let best=null;
+    for(const reverse of [false,true]){
+      const end=reverse?path.points.at(-1):path.points[0],uv=reverse?path.uv.at(-1):path.uv[0],gap=distance(pass.points.at(-1),end);
+      if(gap>limit||best&&gap>=best.gap||!inside(pass.endUv,uv))continue;
+      best={pass,reverse,gap,uv};
+    }
+    if(!best)return null;
+    const connector=mapFrontPath(patch,[pass.endUv,best.uv],settings);
+    budget.evaluations+=connector.report.evaluations;budget.points+=connector.report.points;
+    const lengthMm=connector.points.slice(1).reduce((sum,p,i)=>sum+distance(p,connector.points[i]),0);
+    return lengthMm<=limit?{...best,connector,lengthMm}:null;
+  }
+  let previous=[];
   for(const wave of waves){
-    // A merged front needs both deposited branches. It cannot be appended to
-    // one branch before the other branch has run.
-    if(wave.paths.length<previousCount)pending=[];
-    const available=wave.paths.map(path=>({path,wave:wave.index})),next=[];
-    while(available.length){
-      let best=null;
-      for(const pass of pending)for(let index=0;index<available.length;index++)for(const reverse of [false,true]){
-        const source=available[index].path,end=reverse?source.points.at(-1):source.points[0],uv=reverse?source.uv.at(-1):source.uv[0];
-        const gap=distance(pass.points.at(-1),end);
-        if(gap>limit||best&&gap>=best.gap||!inside(pass.endUv,uv))continue;
-        best={pass,index,reverse,gap,uv};
+    const current=wave.paths.map(path=>({path,parents:[],children:[]}));
+    // A checked depositing join proves the sole branch directly. Detailed
+    // lineage bands are needed only when that proof fails or branches occur.
+    if(previous.length===1&&current.length===1)current[0].join=joining(previous[0].pass,current[0].path);
+    // Retain causal branches, not one blanket wave barrier. A constrained
+    // physical band cannot infer a parent across a hole in the chart.
+    for(const before of previous){
+      if(current[0]?.join){before.children=[current[0]];current[0].parents=[before];continue;}
+      const band=strokeSurfaceRegion(patch,[{closed:false,points:before.path.uv}],
+        (wave.index-before.wave)*settings.lineSpacingMm+settings.toleranceMm,
+        {toleranceMm:settings.toleranceMm,maxStepMm:settings.sampleStepMm,constraintLoopsUv:domain});
+      budget.evaluations+=band.report.evaluations;
+      before.children=[];
+      for(const item of current)if(clipOpenPaths([item.path.uv],band.loopsUv,options).some(path=>path.some((p,i)=>i&&distance(p,path[i-1])>epsilon))){
+        item.parents.push(before);before.children.push(item);
       }
+    }
+    for(const item of current){
+      const parent=item.parents.length===1?item.parents[0]:null;
+      // Stop a meander at either a split or a merge, so a sibling waits only
+      // for the shared prefix and a merged front waits for every branch.
+      const best=item.join??(parent&&parent.children.length===1?joining(parent.pass,item.path):null);
       if(!best){
-        const item=available.shift(),path=item.path;
-        const pass={points:[...path.points],normals:[...path.normals],chartPoints:[...path.chartPoints],frameSamples:[...path.frameSamples],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
-        passes.push(pass);next.push(pass);continue;
+        const path=item.path,pass={id:'front-'+passes.length,after:[...new Set(item.parents.map(parent=>parent.pass.id))],
+          points:[...path.points],normals:[...path.normals],chartPoints:[...path.chartPoints],frameSamples:[...path.frameSamples],endUv:path.uv.at(-1),fronts:[wave.index],connectors:[]};
+        passes.push(pass);item.pass=pass;continue;
       }
-      const {pass,index,reverse,uv}=best,item=available.splice(index,1)[0];
-      const connector=mapFrontPath(patch,[pass.endUv,uv],settings);
-      budget.evaluations+=connector.report.evaluations;budget.points+=connector.report.points;
-      const lengthMm=connector.points.slice(1).reduce((sum,p,i)=>sum+distance(p,connector.points[i]),0);
-      if(lengthMm>limit){
-        // A short XYZ chord can conceal a long surface route. Leave this front
-        // separate instead of introducing an unbounded extruded connection.
-        const path=item.path,newPass={points:[...path.points],normals:[...path.normals],chartPoints:[...path.chartPoints],frameSamples:[...path.frameSamples],endUv:path.uv.at(-1),fronts:[item.wave],connectors:[]};
-        passes.push(newPass);next.push(newPass);continue;
-      }
+      const {pass,reverse,uv,connector,lengthMm}=best;
       pass.connectors.push({from:pass.endUv,to:uv,lengthMm});
       pass.points.push(...connector.points.slice(1));pass.normals.push(...connector.normals.slice(1));
       pass.chartPoints.push(...connector.chartPoints.slice(1));pass.frameSamples.push(...connector.frameSamples.slice(1));
       const points=reverse?item.path.points.toReversed():item.path.points,normals=reverse?item.path.normals.toReversed():item.path.normals;
       pass.points.push(...points.slice(1));pass.normals.push(...normals.slice(1));
       for(const key of ['chartPoints','frameSamples'])pass[key].push(...(reverse?item.path[key].toReversed():item.path[key]).slice(1));
-      pass.endUv=reverse?item.path.uv[0]:item.path.uv.at(-1);pass.fronts.push(item.wave);
-      pending=pending.filter(p=>p!==pass);next.push(pass);
+      pass.endUv=reverse?item.path.uv[0]:item.path.uv.at(-1);pass.fronts.push(wave.index);item.pass=pass;
     }
-    pending=next;
-    previousCount=wave.paths.length;
+    previous=current.map(item=>({...item,wave:wave.index}));
   }
   return {passes,report:{passes:passes.length,connectors:passes.flatMap(p=>p.connectors),...budget}};
 }

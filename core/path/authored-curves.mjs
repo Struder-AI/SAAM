@@ -67,6 +67,7 @@ export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,
     const n=s.normal,tangent=s.du;
     const u=normalize(tangent.map((v,i)=>v-dot(tangent,n)*n[i]));return {point:[...s.chart,input.normalMm??0],u,v:cross(n,u),normal:n};
   });result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
+  if(surface&&input.points&&!(input.normalMm??0))result.nativeSurface={surface,translation:offset};
   const profiled=applyCurveProfiles(result,curve);
   if(vary)profiled.profilePath={parameters:profiled.curveParameters,vary,
     widthsMm:profiled.widthsMm,speedsMmS:profiled.segmentMetadata?.map(m=>m.speedMmS)};

@@ -7,13 +7,9 @@ metadata:
 
 # Bridging
 
-Author the span and attachment centerlines as ordinary [Trace](../trace/SKILL.md)
-curves. Set `sequence:true` for ordered repetitions, use `repetitions:[index]` to choose
-curves per repeat, and optionally name each repetition in `repetitionIds`. A curve's
-`contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` requires
-support one resolved bead height below; a source assignment or operation ID
-selects particular prior material. A press is an explicit down-and-up curve
-with `depositionAction:{kind:'press',depthMm}`.
+Author span and attachment centerlines as ordinary [Trace](../trace/SKILL.md) curves. The helper preserves required attachment/span order and declares each `supportBridge` predecessor; independent bridges may be reordered. Trace owns the common fields.
+
+Use `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` to check expected supporting strands. Contact checks do not create execution dependencies. A press uses an explicit down-and-up curve with `depositionAction:{kind:'press',depthMm}`.
 
 The [authoring helper](scripts/prepare.mjs) converts the rail controls below into
 that explicit Trace data. It is guidance tooling; no bridge record reaches the
@@ -76,8 +72,8 @@ The helper checks authored excursion; shared Trace checks attachment coverage ag
 finalized positive-volume strands one vertical layer below, including sloped
 model paths or a named earlier bridge. Sparse gaps remain absent; the 0.015 mm coverage
 tolerance is numerical, not adhesion evidence.
-Spans have no intervening-object or swept-head clearance checks. Temperature
-and fan use common settings; no temperature sweep or endpoint dwell is exposed.
+Scheduling checks swept-nozzle access. Temperature and fan use common settings;
+no temperature sweep or endpoint dwell is exposed.
 
 The user reports physical bridging (2026-09-24); sag, tension, attachment and
 pressure are unmeasured. Save the recipe, program hash, photos and operator report;

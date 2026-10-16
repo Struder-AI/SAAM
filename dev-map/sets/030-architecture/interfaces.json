@@ -2368,6 +2368,22 @@
         "call"
       ],
       "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveClosestParameter",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Scheduler-owned closed-loop entry uses Geometry nearest-parameter queries without altering deposition."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::curveClosestParameter",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Scheduler-owned closed-loop entry uses Geometry nearest-parameter queries without altering deposition."
     }
   ],
   "retiredBindings": [
