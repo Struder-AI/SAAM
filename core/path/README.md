@@ -1,20 +1,19 @@
 # SAAMpath and scheduling
 
-Contract **SP2, 2026-10-15** is the implementation target for 0.3.9, replacing the expanded-stroke/expanded-motion contract. This document owns the seam. It describes the target, not a claim that the migration has shipped.
+Contract **SP2, 2026-10-15** is the 0.3.9 implementation target. This document owns the seam; migration has not shipped.
 
 ## Ownership and pipeline
 
-Geometry owns numerical shapes, evaluation and conservative geometric bounds. Material regions prepares ownership and interlock cadence before Toolpath.
-Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material
-and poses. Bundle stores that immutable source once. Scheduling orders source
-ranges and adds checked transfers and process events. Studio and exporters read
-the resulting path through the same numerical reader; exporters own machine axes.
-No stage reconstructs slices from deposition or treats a layer surface as solid. Native curves survive when exact; arbitrary mapping or Modulation may instead
-produce a faithful polyline. A spline fit is never compulsory or silently lossy.
+Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares ownership and interlock cadence before Toolpath.
+Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses.
+Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events.
+Studio and exporters share the numerical reader; exporters own machine axes.
+Native layers are producer records; no stage reconstructs them or treats their surfaces as solid.
+Preserve exact native curves; mapping/Modulation can require faithful polylines. Spline fitting is optional and never silently lossy.
 
 ## Stored deposition: `saampath/2`
 
-All records are serializable finite numerical data, in the part frame, with mm, seconds and mm3 units. Tables are objects keyed by opaque nonempty string IDs.
+Records contain finite serializable numbers in the part frame (mm, seconds, mm3). Tables use opaque nonempty string IDs.
 IDs are stable within one Bundle path identity; they never encode surface JSON. The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`,
 `planning`, `summary`, and optional existing provenance/generator metadata.
 
@@ -37,13 +36,11 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Deposition requires positive width and an explicit material normal. Toolpath
   resolves ordinary three-axis poses explicitly; `materialNormal` never implies pose.
   Travel can omit width, normal and material, but always supplies pose and speed.
-- Material has exactly one authoritative form: `{kind:'area',areaMm2:profile}`
-  integrates nonnegative area against arc length; or
-  `{kind:'cumulative',knots:[[u,totalMm3],...]}` defines piecewise-linear cumulative
-  volume, starting at zero and never decreasing. Range volume is its difference.
-  The latter preserves existing per-edge volumes without repeated move records.
-  Local area is dV/ds. Positive volume on zero length or unbounded density is invalid.
-  No independently authoritative height or segment-volume array duplicates it.
+- Material has one authority: `{kind:'area',areaMm2:profile}` integrates nonnegative area against arc length;
+  `{kind:'cumulative',knots:[[u,totalMm3],...]}` is nondecreasing piecewise-linear volume starting at zero.
+  Range volume is its difference, preserving supplied per-edge volumes without move records.
+  Local area is dV/ds; cumulative density bounds use authored span slopes and geometric speed.
+  Positive volume on zero length or unbounded density is invalid. No separate height or segment-volume authority.
 - A layer is `{stackId,index,surfaceId}`: Slice's actual native identity and order,
   including adjusted shared-material layers. `surfaces` holds the producer's
   admitted Geometry reference records once. Neither index nor rank means world Z.
@@ -99,14 +96,13 @@ all regular forward tangents (full sphere when unproved; null for a point).
 `chordErrorMm` bounds distance from the entire curve interval to its endpoint segment;
 it does not assert that curve and chord share linear timing. `poseCone` is
 `{reference,halfAngleRad}`, bounding full SO(3) frame deviation, including roll.
-`breaks` contains interior vertices, knots and profile discontinuities. Bounds enclose the entire interval; overlapping bounds prove no collision by themselves.
+`breaks` lists interior vertices, knots and profile discontinuities. Position bounds include both endpoints; attribute bounds use the right limit at `from` and left limit at `to`. Overlapping bounds alone prove no collision.
 `curveRange` options are optional positive `lengthToleranceMm` and `volumeToleranceMm3`. Without them it may return coarse certified bounds.
 `curveSpans` and `linearizePath` require positive `positionToleranceMm`,
 `orientationToleranceRad`, `volumeToleranceMm3`; these bound chord deviation,
 full-frame deviation from endpoint interpolation, and total volume error over the
-requested range/path. Intrinsic/profile breaks are retained. Subdivision tightens
-bounds; sampling midpoint agreement alone is never a certificate. Length/volume
-bounds must also converge. Zero deposition is represented exactly.
+requested range/path. Source breaks remain queryable. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
+Subdivision tightens bounds; midpoint agreement alone is no certificate. Length/volume bounds must converge; zero deposition stays exact.
 Shared numerical shape calculations delegate to Geometry; path/material semantics
 stay here. Consumers can request different resolutions without changing identity,
 profiles or accumulated material. Serialization never rounds range cuts into gaps.
@@ -117,7 +113,7 @@ Reason first about whole native slices, then courses, then source intervals. Der
 contacts/access conflicts require finer queries; envelopes never fill sparse gaps.
 Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity, required material and layer cooling
 remain constraints. Cadence is prepared material intent, not a substitute for
-physical scheduling. Reuse native slice records; do not slice the part again.
+physical scheduling.
 
 Printing, startup, transfers, reorientation, parking, temperature changes, cooling
 and finishing share continuous nozzle-clearance checks against actual deposited

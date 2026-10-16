@@ -13821,6 +13821,17 @@
         "file": "core/geom/surface-topology.mjs",
         "declaration": "chartSegmentsWithin::build"
       }
+    },
+    {
+      "id": "geometry-leaf-ebc116443e26",
+      "index": "2.2.1.3.9",
+      "label": "materialGeometry",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "prepareConstructions::materialGeometry"
+      }
     }
   ],
   "contracts": [

@@ -26377,30 +26377,6 @@
       "owner": "export",
       "reason": "SP2 operation boundary: selected-machine adaptation and streamed program writing."
     },
-    "core/geom/build.mjs::buildShells::construct::entries.<callback@44:44>::<callback@44:84>::surface": {
-      "owner": "geometry-leaf-02b1e99804b1"
-    },
-    "core/geom/build.mjs::resolveGeometrySelections::selected.<callback@67:31>::source": {
-      "owner": "geometry-leaf-ec92926869c2"
-    },
-    "core/geom/build.mjs::resolveGeometrySelections::<callback@73:23>::shell": {
-      "owner": "geometry-leaf-ec92926869c2"
-    },
-    "core/geom/build.mjs::resolveGeometrySelections::<callback@73:23>::key": {
-      "owner": "geometry-leaf-ec92926869c2"
-    },
-    "core/geom/build.mjs::resolveGeometrySelections::<callback@73:23>::frames": {
-      "owner": "geometry-leaf-ec92926869c2"
-    },
-    "core/geom/build.mjs::translateShell::patches.<callback@91:37>::cp": {
-      "owner": "geometry-leaf-627e4545f233"
-    },
-    "core/geom/build.mjs::translateShell::patches.<callback@91:37>::i": {
-      "owner": "geometry-leaf-627e4545f233"
-    },
-    "core/geom/build.mjs::translateShell::patches.<callback@91:37>::w": {
-      "owner": "geometry-leaf-627e4545f233"
-    },
     "core/geom/build.mjs::constructionOperands": {
       "owner": "geometry-leaf-eb98ffea3c5a"
     },
@@ -27592,8 +27568,80 @@
     "core/geom/solid-operations.mjs::materialPresence::knownPresent": {
       "owner": "geometry-leaf-78a906648ac7"
     },
-    "core/geom/solid-operations.mjs::mappedExtrusion::<callback@112:32>::q": {
+    "core/geom/solid-operations.mjs::prepareConstructions::materialInputs": {
+      "owner": "geometry-leaf-ecc102f7a229"
+    },
+    "core/geom/solid-operations.mjs::prepareConstructions::materialGeometry": {
+      "owner": "geometry-leaf-ebc116443e26"
+    },
+    "core/geom/solid-operations.mjs::prepareConstructions::materialGeometry::result": {
+      "owner": "geometry-leaf-ebc116443e26"
+    },
+    "core/geom/solid-operations.mjs::prepareConstructions::materialGeometry::@scope/block-1::operands": {
+      "owner": "geometry-leaf-ebc116443e26"
+    },
+    "core/geom/solid-operations.mjs::prepareConstructions::materialGeometry::@scope/block-2::operands": {
+      "owner": "geometry-leaf-ebc116443e26"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion::<callback@127:32>::q": {
       "owner": "geometry-leaf-c8d4e9d26294"
+    },
+    "core/geom/build.mjs::buildShells::owned": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::construct::shell": {
+      "owner": "geometry-leaf-02b1e99804b1"
+    },
+    "core/geom/build.mjs::buildShells::construct::entry": {
+      "owner": "geometry-leaf-02b1e99804b1"
+    },
+    "core/geom/build.mjs::buildShells::construct::entries.<callback@48:44>::<callback@48:84>::surface": {
+      "owner": "geometry-leaf-02b1e99804b1"
+    },
+    "core/geom/build.mjs::buildShells::results": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::retained": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::seen": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::keep": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::keep::entry": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::keep::child": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::@scope/block-1/forof-1::surface": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::buildShells::@scope/catchclause-1/block-1/forof-1::surface": {
+      "owner": "geometry-leaf-720f4ad736a8"
+    },
+    "core/geom/build.mjs::resolveGeometrySelections::selected.<callback@83:31>::source": {
+      "owner": "geometry-leaf-ec92926869c2"
+    },
+    "core/geom/build.mjs::resolveGeometrySelections::<callback@89:23>::shell": {
+      "owner": "geometry-leaf-ec92926869c2"
+    },
+    "core/geom/build.mjs::resolveGeometrySelections::<callback@89:23>::key": {
+      "owner": "geometry-leaf-ec92926869c2"
+    },
+    "core/geom/build.mjs::resolveGeometrySelections::<callback@89:23>::frames": {
+      "owner": "geometry-leaf-ec92926869c2"
+    },
+    "core/geom/build.mjs::translateShell::patches.<callback@107:37>::cp": {
+      "owner": "geometry-leaf-627e4545f233"
+    },
+    "core/geom/build.mjs::translateShell::patches.<callback@107:37>::i": {
+      "owner": "geometry-leaf-627e4545f233"
+    },
+    "core/geom/build.mjs::translateShell::patches.<callback@107:37>::w": {
+      "owner": "geometry-leaf-627e4545f233"
     }
   },
   "retiredAssignments": [

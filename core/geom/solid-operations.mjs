@@ -10,7 +10,22 @@ import {rigid} from './frame.mjs';
 import {requireThat,distance} from './tolerance.mjs';
 
 async function prepareConstructions(requests){
-  const cache=new Map();
+  const cache=new Map(),materialInputs=new Map();
+  // A Boolean consumes physical material. Assemblies keep their authored parts
+  // at the result boundary; within an operand their placements form a union.
+  function materialGeometry(geometry){
+    if(materialInputs.has(geometry))return materialInputs.get(geometry);
+    let result=geometry;
+    if(geometry.solid)result=materialGeometry(geometry.solid);
+    else if(geometry.shape==='assembly'){
+      const operands=geometry.parts.map(part=>transformGeometry(materialGeometry(part.geometry),rigid([part.xMm,part.yMm,part.zMm])));
+      result=operands.length>1?{shape:'boolean',operation:'union',operands}:operands[0]??{shape:'mesh',source:null,vertices:[],triangles:[]};
+    }else if(geometry.shape==='boolean'){
+      const operands=geometry.operands.map(materialGeometry);
+      if(operands.some((operand,i)=>operand!==geometry.operands[i]))result={...geometry,operands};
+    }else if(geometry.shape!=='mesh'&&Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles))result={shape:'mesh',source:geometry.source??null,vertices:geometry.vertices,triangles:geometry.triangles};
+    materialInputs.set(geometry,result);return result;
+  }
   async function prepare(request){
     if(cache.has(request))return cache.get(request);
     const result=await construct(request);cache.set(request,result);return result;
@@ -19,13 +34,13 @@ async function prepareConstructions(requests){
     if(request.kind||!request.shape&&request.patches)return {solid:request,geometry:null,notes:request.notes??[]};
     if(request.shape){
       const physical=request.solid??request;
-      const geometry=physical.shape!=='mesh'&&Array.isArray(physical.vertices)&&Array.isArray(physical.triangles)?{shape:'mesh',source:physical.source??null,vertices:physical.vertices,triangles:physical.triangles}:physical;
+      const geometry=physical.shape==='assembly'?physical:materialGeometry(physical);
       return {geometry,solid:null,notes:[]};
     }
     if(['union','difference','intersection'].includes(request.operation)){
       const children=[];for(const operand of request.operands)children.push(await prepare(operand));
       if(!children.length){requireThat(request.operation==='union','Difference and intersection need operands.');return {geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},solid:null,notes:[]};}
-      const geometry=children.every(c=>c.geometry)?children.length===1?children[0].geometry:{shape:'boolean',operation:request.operation,operands:children.map(c=>c.geometry)}:null;
+      const geometry=children.every(c=>c.geometry)?children.length===1?children[0].geometry:{shape:'boolean',operation:request.operation,operands:children.map(c=>materialGeometry(c.geometry))}:null;
       const solid=geometry?null:children.length===1?numerical(children[0]):booleanShell(request.operation,children.map(numerical));
       return {solid,geometry,notes:[...new Set([...children.flatMap(c=>c.notes),...solid?.notes??[]])]};
     }

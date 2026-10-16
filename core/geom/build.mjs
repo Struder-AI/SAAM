@@ -16,14 +16,18 @@ export function buildShell(rhino, geometry, options) {
 // One construction batch shares immutable source shapes, including components
 // encountered first while building an assembly. No caller owns this cache.
 export function buildShells(rhino,geometries,{material=false,native=true}={}){
-  const cache=new Map();
+  const cache=new Map(),owned=new Set();
   const build=geometry=>{
     if(cache.has(geometry))return cache.get(geometry);
     const shell=construct(geometry);cache.set(geometry,shell);return shell;
   };
   function construct(geometry){
     if(geometry?.solid||geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
-    if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
+    if(geometry.shape==='spline'){
+      const shell=splineSolidShell(rhino,geometry,{native});
+      for(const entry of shell.surfaces??[])owned.add(entry.surface);
+      return shell;
+    }
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,constructionOperands(geometry).map(build),{composeDisjoint:!native});
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
@@ -42,7 +46,7 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
         return makeShell(patches,{name:'assembly'});
       }
       const entries=geometry.parts.flatMap(part=>build(part.geometry).surfaces.map(entry=>{
-        const surface=entry.surface.duplicate();
+        const surface=entry.surface.duplicate();owned.add(surface);
         requireThat(surface.translate([part.xMm,part.yMm,part.zMm]),'Could not place native component.');
         return {name:part.id+'/'+entry.name,surface};
       }));
@@ -50,7 +54,19 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
     }
     throw new Error(`Unsupported geometry shape: ${geometry.shape}.`);
   }
-  return geometries.map(build);
+  try{
+    const results=geometries.map(build);
+    if(!owned.size)return results;
+    const retained=new Set(),seen=new Set();
+    const keep=shell=>{
+      if(seen.has(shell))return;seen.add(shell);
+      for(const entry of shell.surfaces??[])retained.add(entry.surface);
+      for(const child of shell.components??shell.operands??[])keep(child);
+    };
+    results.forEach(keep);
+    for(const surface of owned)if(!retained.has(surface)){owned.delete(surface);surface.delete();}
+    return results;
+  }catch(error){for(const surface of owned)try{surface.delete();}catch{}throw error;}
 }
 
 // Material queries combine placed components, including nested assemblies.
