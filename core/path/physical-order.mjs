@@ -467,7 +467,10 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       // tightens this pair; it never reports impossibility from this envelope.
       if(allowChoice&&!localize&&nb.errorMm+mb.errorMm<=precision&&!a.range.breaks.length&&(!b||!b.range.breaks.length))
         return {receiver:a.ref,material:b?.ref??null,provisional:true,precision};
-      let splitA=mb.exact||!nb.exact&&nb.errorMm>=mb.errorMm,chosen=splitA?a:b;
+      // Open piecewise boundaries before comparing smooth envelope errors.
+      // Otherwise a smaller-error material with breaks can keep the receiver
+      // refining below its rounding floor while order-choice admission waits.
+      let splitA=mb.exact||a.range.breaks.length>0||!b.range.breaks.length&&!nb.exact&&nb.errorMm>=mb.errorMm,chosen=splitA?a:b;
       requireTangent(chosen);let children=divide(chosen);
       if(!children&&!solid){splitA=!splitA;chosen=splitA?a:b;requireTangent(chosen);children=divide(chosen);}
       if(!children)throw unresolved(a,b);
@@ -567,7 +570,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       const precision=contactPrecision(a,b);
       if(am.errorMm<=precision&&bm.errorMm<=precision&&!a.range.breaks.length&&!b.range.breaks.length)
         return {receiver:a.ref,material:b.ref,provisional:true,precision};
-      const splitA=!am.exact&&(bm.exact||am.errorMm>=bm.errorMm),chosen=splitA?a:b;requireTangent(chosen);
+      const splitA=a.range.breaks.length>0||!b.range.breaks.length&&!am.exact&&(bm.exact||am.errorMm>=bm.errorMm),chosen=splitA?a:b;requireTangent(chosen);
       const children=divide(chosen);if(!children)throw unresolved(a,b);
       for(const child of children)pending.push(splitA?[child,b]:[a,child]);
     }

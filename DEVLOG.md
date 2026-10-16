@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Resolve curve breaks before clearance refinement
+
+- The larger marbled study exposed subdivision starvation in nozzle ordering: a material interval retained 16 internal breaks while its estimated envelope error was smaller than the receiver's rounding floor. The pair selector kept bisecting the receiver down to adjacent float64 parameters; the pending material breaks prevented conservative order-choice admission. A paused diagnostic captured the exact courses and interval data in .local/marbled-inspect.json.
+- Nozzle and substrate pair refinement now opens internal breaks before comparing smooth envelope errors. Enclosing bounds, contact witnesses, precision requirements and collision rejection remain unchanged; no time/subdivision budget or unchecked fallback was added. The pinned failing neighborhood completes in 19.9 ms with four subdivisions and a conservative ordering witness. Disposable checks retain CONTINUOUS_NOZZLE_CONFLICT for a proven atomic collision and PRINT_ORDER_CONFLICT for a declared cycle. Syntax and whitespace checks pass; no permanent tests or whole suite.
+- Full-size 72×48×12 mm, eight-region Studio regeneration and broader saved-source scheduling remain in progress; no completed marbled toolpath or release qualification is claimed. Existing influence-map regeneration owns the pending map refresh. No push, release, export or physical printing.
+
 ## 2026-10-16 — Prefer cooler available deposition without waiting
 
 - Owner requested thermal ordering in the shared checkout, slices first and individual courses when necessary, then clarified that cooling dwell and slowdown remain deferred. The existing ready-work scheduler now ranks native slice groups and available course chunks by nearby deposition recency before entry distance. It retains the physical/declared DAG, continuity, atomic chunks, traversal choices and checked travel; it adds no thermal precedence or source cuts. Three-dimensional bead-width/depth neighborhoods and existing length/feed lower estimates supply a soft heuristic, without a new machine timing or temperature model.
