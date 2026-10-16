@@ -48,7 +48,11 @@ function smoothChannel(stroke,key,parameters,fallback){
     const i=state.i,t=(u-original[i-1])/(original[i]-original[i-1]);
     return [parameters[i-1]+t*(parameters[i]-parameters[i-1]),value];
   });
-  return {interpolation:'linear',knots:converted};
+  const profile={interpolation:'linear',knots:converted},authored={interpolation:'linear',knots:keys};
+  // A changed centerline can change its parameter spacing. Sparse authored
+  // fields survive only when they still describe the finalized locations.
+  if(original.some((u,i)=>Math.abs(profileAt(profile,parameters[i])-profileAt(authored,u))>ROUNDING_MM))return fallback;
+  return profile;
 }
 function sourceProvenance(stroke,metadata,parameters){
   const segments=[];

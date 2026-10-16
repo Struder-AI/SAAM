@@ -19,7 +19,7 @@ export {SLICE_DEFAULTS,SLICE_PRESETS} from './slice-settings.mjs';
 
 export const SLICE_VERSION = 1;
 
-const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby'];
+const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby','operationAfter'];
 
 const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack','join','fillOrder','dependencies','description','contact','toolPose'];
 
@@ -75,6 +75,9 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
     requireThat(typeof a.description==='string'&&a.dependencies&&Object.keys(a.dependencies).sort().join()==='after,afterParts,beforeParts','Slice description/dependencies have invalid fields.');
     for(const key of ['afterParts','beforeParts'])requireThat(Array.isArray(a.dependencies[key])&&a.dependencies[key].every(part=>parts?.length?parts.includes(part):part===null),'Slice dependency part is not selected geometry.');
     requireThat(Array.isArray(a.dependencies.after)&&a.dependencies.after.every(id=>typeof id==='string'&&id.length),'Slice after dependencies name operation IDs.');
+    requireThat(a.operationAfter===undefined||a.operationAfter&&typeof a.operationAfter==='object'&&!Array.isArray(a.operationAfter)&&
+      Object.entries(a.operationAfter).every(([group,after])=>['walls','infill','fill'].includes(group)&&Array.isArray(after)&&after.every(id=>typeof id==='string'&&id.length)),
+      'Slice operationAfter maps walls, infill or fill to required operation IDs.');
     if(a.fillOrder!==null){
       const fill=a.fillOrder;
       if(fill.kind==='surface-cells')requireThat(Object.keys(fill).every(key=>['kind','directions','toleranceMm','offsetTightness'].includes(key))&&
@@ -88,7 +91,7 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
     requireThat(a.loopInsetMm===undefined||Number.isFinite(a.loopInsetMm),'Loop inset must be finite.');
     requireThat(a.roles===undefined||a.roles&&typeof a.roles==='object'&&!Array.isArray(a.roles)&&Object.keys(a.roles).every(key=>['perimeter','perimeter-inner','infill','fill'].includes(key)&&typeof a.roles[key]==='string'&&a.roles[key].length),'Slice roles map stroke groups to named roles.');
     if(a.sliceOverrides!==undefined){
-      requireThat(Array.isArray(a.sliceOverrides)&&a.sliceOverrides.length>0&&a.sliceOverrides.every(batch=>batch&&Object.keys(batch).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby'].includes(key))),'sliceOverrides contains per-slice settings.');
+      requireThat(Array.isArray(a.sliceOverrides)&&a.sliceOverrides.length>0&&a.sliceOverrides.every(batch=>batch&&Object.keys(batch).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby','operationAfter'].includes(key))),'sliceOverrides contains per-slice settings.');
       for(const batch of a.sliceOverrides){const {sliceOverrides,...settings}=a;validateSliceAssignment({...settings,...batch},{parts,firstLayerMm});}
     }
     requireThat(a.join===null||Object.keys(a.join).sort().join()==='levelEnd,mode'&&a.join.mode==='spiral'&&typeof a.join.levelEnd==='boolean'&&a.loops===1&&a.fillDensity===0&&a.solidTop===0&&a.solidBottom===0,`Slice ${a.id}: spiral join requires {mode:'spiral',levelEnd:boolean}, one loop and no fill/solid caps.`);

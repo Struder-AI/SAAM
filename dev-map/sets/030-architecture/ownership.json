@@ -27829,6 +27829,18 @@
     },
     "core/region/metric-fill.mjs::metricFillStrokes::intervals": {
       "owner": "slice"
+    },
+    "core/geom/spline-solid.mjs::validateTrimLoops": {
+      "owner": "geometry"
+    },
+    "core/geom/spline-solid.mjs::trimSegmentsMeet": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-tessellate.mjs::tessellateSurfaceShell": {
+      "owner": "geometry"
+    },
+    "core/print/geometry.mjs::faceMetadata": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [

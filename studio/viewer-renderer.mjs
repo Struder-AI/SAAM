@@ -1,4 +1,5 @@
-import {point} from '../core/geom/frame.mjs';
+import {point,axisFrame,mv,compose,invert} from '../core/geom/frame.mjs';
+import {nozzleAt,nozzleSweepReach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM} from '../core/geom/convex-clearance.mjs';
 import {frameAtTime} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
@@ -12,6 +13,25 @@ import {createViewPerformance,createMotionQuality} from './view-performance.mjs'
 import {depositionUnit} from './settings.mjs';
 
 const clock=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+
+// Inspection overlay: the shared collision shape, clipped only for display.
+// Dashed is the nominal cone; orange is the surface-allowance shape queried.
+function drawNozzleClearance(ctx,at,stock,project){
+  if(!at.point)return;
+  const pose={toolAxis:at.toolAxis??[0,0,-1],toolUp:at.toolUp??[0,1,0]},axis=pose.toolAxis.map(v=>-v);
+  const reach=nozzleSweepReach(stock,at.point,at.point,pose,pose),basis=axisFrame(axis,pose.toolUp);
+  const shapes=[nozzleAt(at.point,axis,reach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,0),nozzleAt(at.point,axis,reach)];
+  ctx.save();ctx.lineWidth=1.5;
+  for(const [index,shape] of shapes.entries()){
+    // Forty-eight sides are display tessellation, never collision geometry.
+    const ring=Array.from({length:48},(_,i)=>{const a=2*Math.PI*i/48,offset=mv(basis,[shape.endRadius*Math.cos(a),shape.endRadius*Math.sin(a),0]);return project(shape.b.map((v,k)=>v+offset[k]));});
+    const tip=project(shape.a);ctx.strokeStyle=index?'#d35b19':'#6d7475';ctx.globalAlpha=index?.95:.65;ctx.setLineDash(index?[]:[4,4]);
+    ctx.beginPath();ring.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.stroke();
+    for(let i=0;i<ring.length;i+=6){ctx.beginPath();ctx.moveTo(tip[0],tip[1]);ctx.lineTo(ring[i][0],ring[i][1]);ctx.stroke();}
+    ctx.beginPath();ctx.arc(tip[0],tip[1],2.5,0,2*Math.PI);ctx.stroke();
+  }
+  ctx.restore();
+}
 
 export function createViewerRenderer({canvas,reportPerformance=()=>{},
   requestFrame=globalThis.requestAnimationFrame,cancelFrame=globalThis.cancelAnimationFrame,now=()=>globalThis.performance.now(),
@@ -100,7 +120,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       if(Number.isInteger(at.tool))annotations.layerText+=' · '+(shown.machine?.tools?.find(t=>t.index===at.tool)?.label??`Tool ${at.tool}`);
       if(Number.isFinite(at.nozzleMm))annotations.layerText+=' · '+at.nozzleMm+' mm';
       // The part moves with the machine pose's part frame (a rotary table), never with the path.
-      const machine=machineState?.pose,follow=settings.followPlate;
+      const machine=settings.showNozzleClearance&&machineState?.pose?{...machineState.pose,components:machineState.pose.components.filter(c=>c.role!=='tool'),hasTool:false}:machineState?.pose,follow=settings.followPlate;
       const local=p=>{const q=machine&&!follow?point(machine.part,p):p;return [q[0]-placement.xMm,q[1]-placement.yMm,q[2]];};
       const solid=!!materialScene&&!!materialRenderer;if(solid)motionQuality??=createMotionQuality();quality=updateUI&&solid?pinnedQuality??(moving?motionQuality.level:0):0;
       const materialProject=p=>project(local(p));materialProject.pixelsPerMm=project.pixelsPerMm;
@@ -120,6 +140,13 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       annotations.fadeContinuation=fade.fading&&!playing;
       if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solid&&materialScene?.supported[at.active])){const style=toolpathStyle(current,current,phaseColours,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);}
       if(machine&&!solid)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameraMode,palette:machineColors,filter:c=>c.role==='tool'});
+      if(settings.showNozzleClearance){
+        const frames=machineState?.snapshot?.worldFromFrame,tcp=manualPose&&frames?.part&&frames?.tcp?compose(invert(frames.part),frames.tcp):null;
+        const nozzle=tcp?{point:tcp.translationMm,toolAxis:mv(tcp.rotation,[0,0,-1]),toolUp:mv(tcp.rotation,[0,1,0])}:at;
+        const stock=materialScene?.bounds??{min:bounds.min.map((v,i)=>v+(i===0?placement.xMm:i===1?placement.yMm:0)),max:bounds.max.map((v,i)=>v+(i===0?placement.xMm:i===1?placement.yMm:0))};
+        drawNozzleClearance(ctx,nozzle,stock,materialProject);
+        annotations.detailText=[annotations.detailText,`Nozzle clearance: ${DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG}° included cone · ${NOZZLE_FORGIVENESS_MM} mm surface allowance · dashed nominal / orange checked · clipped for display`].filter(Boolean).join(' · ');
+      }
       if(at.point&&!manualPose){const axis=at.toolAxis??[0,0,-1],p=project(local(at.point)),q=project(local(at.point.map((v,i)=>v-axis[i]*6)));if(!machine?.hasTool)segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],machine?.hasTool?2:3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();annotations.timeText=clock(position)+' / '+clock(duration);}
     }
     const projectedOrigin=referenceProject([0,0,0]),origin=tab==='toolpath'?projectedOrigin:[width-48,height-42];ctx.globalAlpha=tab==='toolpath'?1:.65;ctx.font='10px Segoe UI';

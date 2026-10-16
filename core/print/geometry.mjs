@@ -170,7 +170,9 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
 async function proxyMesh(shell) {
   if(shell.kind==='surface-solid'){
     const mesh=await tessellateSurfaceShell(shell,{toleranceMm:.05});
-    return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name)};
+    // Frame the visible face region, rather than discarded supporting controls.
+    const boundsMm=mesh.vertices.length?{min:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[k]),Infinity)),max:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[k]),-Infinity))}:shell.bounds;
+    return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name),boundsMm};
   }
   const vertices = [], faces = [], labels = [];
   for (const patch of shell.patches) {

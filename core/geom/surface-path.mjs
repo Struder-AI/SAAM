@@ -29,13 +29,14 @@ function reduce(rows){
   }
   return state.rows;
 }
-function corners(surface,chart){
+function corners(surface,chart,mapped){
   const kept=[0];
   for(let i=1;i<chart.length-1;i++){
     const a=chart[kept.at(-1)],b=chart[i],c=chart[i+1],delta=c.map((value,k)=>value-a[k]);
     const length2=delta.reduce((sum,value)=>sum+value*value,0),t=length2?b.reduce((sum,value,k)=>sum+(value-a[k])*delta[k],0)/length2:0;
     const on=a.map((value,k)=>value+t*delta[k]);
-    if(!(t>0&&t<1)||distance(evaluateSurface(surface,b).point,evaluateSurface(surface,on).point)>ROUNDING_MM)kept.push(i);
+    const onSurface=on.every((value,k)=>value===b[k])?mapped[i]:evaluateSurface(surface,on).point;
+    if(!(t>0&&t<1)||distance(mapped[i],onSurface)>ROUNDING_MM)kept.push(i);
   }
   kept.push(chart.length-1);return kept;
 }
@@ -48,12 +49,13 @@ export function mappedSurfacePath(surface,chart,points){
     const length=Math.hypot(...chart[i].map((value,k)=>value-chart[i-1][k]));
     if(!(length>0))return null;lengths.push(lengths.at(-1)+length);
   }
-  const parameters=lengths.map(value=>value/lengths.at(-1)),kept=corners(surface,chart),pieces=[];
+  const parameters=lengths.map(value=>value/lengths.at(-1)),mapped=chart.map(uv=>evaluateSurface(surface,uv).point),pieces=[];
   const error={positionMm:0};
   for(const [i,point] of points.entries()){
-    error.positionMm=Math.max(error.positionMm,distance(point,evaluateSurface(surface,chart[i]).point));
+    error.positionMm=Math.max(error.positionMm,distance(point,mapped[i]));
     if(error.positionMm>ROUNDING_MM)return null;
   }
+  const kept=corners(surface,chart,mapped);
   for(let i=1;i<kept.length;i++){
     const a=kept[i-1],b=kept[i];
     for(const curve of surfaceSegmentCurves(patch,chart[a],chart[b])){

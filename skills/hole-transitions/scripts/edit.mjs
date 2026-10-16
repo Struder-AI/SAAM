@@ -26,6 +26,18 @@ function selectedPart(plan,part){
   check(part===null&&solid,'Hole support needs a solid and a matching source part.');
   return {geometry:solid,setGeometry(geometry){if(plan.geometry.shape==='spatial')plan.geometry.solid=geometry;else plan.geometry=geometry;}};
 }
+function wallOperation(parent,index){
+  const loops=parent.sliceOverrides?.[index]?.loops??(Array.isArray(parent.loops)?parent.loops[index%parent.loops.length]:parent.loops);
+  check(loops>0,'Automatic hole attachment needs source wall loops at its supporting rim and continuing bore.');
+  return `${parent.part===null||parent.part===undefined?'':parent.part+':'}${parent.id}:${index}:walls`;
+}
+function continueWalls(parent,index,after){
+  wallOperation(parent,index);
+  const overrides=parent.sliceOverrides??[];
+  parent.sliceOverrides=Array.from({length:Math.max(overrides.length,index+1)},(_,i)=>({...overrides[i]}));
+  const selected=parent.sliceOverrides[index],groups=selected.operationAfter??{};
+  selected.operationAfter={...groups,walls:[...new Set([...(parent.operationAfter?.walls??[]),...(groups.walls??[]),after])]};
+}
 
 async function stepped(plan,request,parent,Geometry){
   check(Object.keys(request).every(k=>['strategy','id','sourceAssignment','centerMm','boreRadiusMm','counterboreRadiusMm','angleDeg','speedMmS','after','toleranceMm'].includes(k)),'Unknown stepped-reduction setting.');
@@ -48,6 +60,7 @@ async function stepped(plan,request,parent,Geometry){
     return Math.abs(Math.hypot(dot(delta,frame.xAxis),dot(delta,frame.yAxis))-radius)<=2*toleranceMm;
   }));
   check(match(reference.layers[at].slice,R,'negative')&&reference.layers.slice(at+1,at+5).every(layer=>match(layer.slice,r,'negative')),'The selected layers must contain the stated concentric circular counterbore and continuing bore.');
+  const anchorOperation=wallOperation(parent,reference.layers[at].index);
   const rotate=([x,y])=>{const a=angle*Math.PI/180;return [x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)];};
   const square=[[-r,-r],[r,-r],[r,r],[-r,r]],q=r*(Math.SQRT2-1);
   const apertures=[{name:'slot',points:[[-R,-r],[R,-r],[R,r],[-R,r]]},
@@ -56,21 +69,23 @@ async function stepped(plan,request,parent,Geometry){
   for(const [index,aperture] of apertures.entries()){
     const from=index*h,to=(index+1)*h,id=`${request.id}-${aperture.name}`,layer=reference.layers[at+index+1];
     cutters.push({shape:'boolean',operation:'intersection',operands:[prism(aperture.points.map(rotate),frame,from,to),prism(circle(R,toleranceMm),frame,from,to)]});
-    const after=index?[`${part===null?'':part+':'}${assignments.at(-1).id}:${reference.layers[at+index].index}:fill`]:request.after??[];
+    const after=index?[`${part===null?'':part+':'}${assignments.at(-1).id}:${reference.layers[at+index].index}:fill`]:[...new Set([anchorOperation,...(request.after??[])])];
     assignments.push({...structuredClone(parent),id,loops:0,fillDensity:1,fillPattern:'rectilinear',fillAnglesDeg:[angle+[0,90,45][index]],rotateFill:false,
       solidTop:0,solidBottom:0,spacingFactor:1,fillOrder:null,connectNearby:false,sliceOverrides:undefined,
       process:{...parent.process,planarSpeedMmS:speed,firstLayerSpeedMmS:speed},
       // A course mask selects one slicing plane; its bead still inherits the
       // full stack gap. Keep mask faces between planes, away from adjacent claims.
       within:[{kind:'geometry',geometry:prism(circle(R+2*width,toleranceMm),frame,to-h/4,to+h/4)}],
-      dependencies:{afterParts:[],beforeParts:[],after},description:`Experimental ${aperture.name} hole transition; bridge direction ${angle+[0,90,45][index]} degrees.`});
+      operationAfter:{},dependencies:{afterParts:[],beforeParts:[],after},description:`Experimental ${aperture.name} hole transition; bridge direction ${angle+[0,90,45][index]} degrees.`});
     // Omitted optional settings must stay absent in the saved ordinary record.
     delete assignments.at(-1).sliceOverrides;
     stages.push({id,aperture:aperture.name,layerIndex:layer.index,normalOffsetMm:to,angleDeg:angle+[0,90,45][index]});
   }
   const geometry={shape:'boolean',operation:'difference',operands:[owner.geometry,...cutters]};
   if(owner.setGeometry)owner.setGeometry(geometry);else owner.geometry=geometry;
-  return {assignments,report:{strategy:'stepped-reduction',part,stages,scope:'Planar references, including tilted planes and oblique translation directions; no curved slices.',notes:['Transition openings enlarge the original bore locally. Rebuild from a prior Bundle revision after layer, width or strategy changes.']}};
+  const terminal=`${part===null?'':part+':'}${assignments.at(-1).id}:${reference.layers[at+3].index}:fill`,boreIndex=reference.layers[at+4].index;
+  continueWalls(parent,boreIndex,terminal);
+  return {assignments,report:{strategy:'stepped-reduction',part,stages,dependencies:{anchor:anchorOperation,terminal,continuation:wallOperation(parent,boreIndex)},scope:'Planar references, including tilted planes and oblique translation directions; no curved slices.',notes:['Transition openings enlarge the original bore locally. Rebuild from a prior Bundle revision after layer, width or strategy changes.']}};
 }
 
 function wave(request,parent,process){

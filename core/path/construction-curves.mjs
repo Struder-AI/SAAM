@@ -12,7 +12,7 @@ export function constructionCurve(input,surface){
   const mapped=mappedSurfacePath(stroke.nativeSurface?.surface??surface,chart,points.map(point=>point.map((value,k)=>value-translation[k])));
   if(mapped&&mapped.geometry.controlPoints.length*3+mapped.geometry.knots.length+(mapped.geometry.weights?.length??0)<points.length*3)
     return {...mapped,geometry:{...mapped.geometry,controlPoints:mapped.geometry.controlPoints.map(point=>point.map((value,k)=>value+translation[k]))},points,mapped:true};
-  const fitted=fitSampledCurve(points,{forceNative:Boolean(stroke.nativePath)});
+  const fitted=fitSampledCurve(points);
   return fitted?{...fitted,fitted:true}:null;
 }
 export function retainConstructionCurves(result){

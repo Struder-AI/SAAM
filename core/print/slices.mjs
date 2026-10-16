@@ -45,7 +45,7 @@ function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCoun
       const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;
       let covered;
       operations.push({...deposited,id:opId,layerId:stackId+':layer:'+index,stackId,phase:planar?'planar':'curves',layer:index,rank:top,
-        after:[],strokes:lifted,connectNearby:s.connectNearby??(s.fillOrder?.kind!=='fronts'),layerIndex:layer.ordinal,layerCount:totalLayerCount,
+        after:[...(s.operationAfter?.[group]??[])],strokes:lifted,connectNearby:s.connectNearby??(s.fillOrder?.kind!=='fronts'),layerIndex:layer.ordinal,layerCount:totalLayerCount,
         stackDirection:layer.direction??null,...(s.continuous?{continuous:true,regionId:id+':'+index}:{}),
         order:s.order??(group==='walls'?(lifted.every(stroke=>stroke.closed&&!stroke.volumesMm3)?'nearest':'given'):lifted.every(stroke=>stroke.scanlineCell!==undefined)?'nearest-cells':'given'),
         region:measured.worldRegion,slice,ownershipIndex:index,

@@ -8,13 +8,11 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 `geometry: {shape: "spline", patches: [...]}` retains named NURBS patches.
 A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`:
-`controlPoints` is rows along U, each a list of points along V, each `[x,y,z]` or
-`[x,y,z,weight]`. Degrees are 1–5 and below the control count. Omitted knots are
-clamped uniform; a supplied vector is complete (count + degree + 1 values).
-`trimLoops` are closed UV polylines: outer loops counterclockwise, holes clockwise,
-inside the knot domain, without crossings or touching. The closing vertex is optional.
-When any patch is trimmed, author outward normals with `normalSide: 1` (default)
-or `-1` for reversed `du × dv`; untrimmed shells still infer orientation.
+`controlPoints` has rows along U and points along V: `[x,y,z]` or `[x,y,z,weight]`.
+Degrees are 1–5, below the control count. Knots are clamped uniform unless supplied complete (count + degree + 1).
+`trimLoops` are closed UV polylines inside the knot domain: outer loops counterclockwise,
+holes clockwise; no crossings or touching. Closing vertices are optional.
+Trimmed shells use outward `normalSide: 1` (default) or `-1` for reversed `du × dv`; untrimmed shells infer orientation.
 
 **What a control net expresses**
 
@@ -57,10 +55,9 @@ boundaries and reports gaps. Open shells save and show; each layer slices what c
 - *A surface.* One patch saves and shows as it is. To print it as a sheet, add a copy
   offset along its normal and degree-1 strips ruling their edges.
 
-**Named patches.** Skills address surfaces by name. Slicing and containment use
-the retained surfaces and trims; Studio derives triangles for display. SAAM's 3DM
-stores supporting NURBS surfaces with face trims as SAAM metadata, verified on
-reopening; it is not a Rhino trimmed Brep. Trim boundaries currently use UV line segments.
+**Named patches.** Skills select surfaces by name. Sections and containment use
+surfaces and trims; Studio derives triangles. SAAM's 3DM stores supporting surfaces
+and verified SAAM UV trim metadata, not a Rhino trimmed Brep.
 
 ## Blob field
 
