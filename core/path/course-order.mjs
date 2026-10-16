@@ -3,7 +3,7 @@
 import {distance} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
-function components(nodes,parents){
+export function dependencyComponents(nodes,parents){
   const following=new Map(nodes.map(id=>[id,[]])),seen=new Set(),finished=[],result=[];
   for(const [id,before] of parents)for(const parent of before)following.get(parent).push(id);
   for(const root of nodes){
@@ -25,11 +25,12 @@ function components(nodes,parents){
   return result;
 }
 
-function slicePartitions(operations,prerequisites){
+export function slicePartitions(operations,prerequisites){
   const slices=new Map(),membership=new Map(),state={groups:[]};
   for(const op of operations){
-    if(!slices.has(op.layerId))slices.set(op.layerId,[]);
-    slices.get(op.layerId).push(op.id);
+    const id=op.layerId??op.operation??op;
+    if(!slices.has(id))slices.set(id,[]);
+    slices.get(id).push(op.id);
   }
   for(const ids of slices.values()){state.groups.push(ids);for(const id of ids)membership.set(id,ids);}
   for(;;){
@@ -37,7 +38,7 @@ function slicePartitions(operations,prerequisites){
     for(const [id,before] of prerequisites)for(const parent of before){
       const a=membership.get(id),b=membership.get(parent);if(a!==b)parents.get(a).add(b);
     }
-    const cycles=components(state.groups,parents).filter(part=>part.length>1);
+    const cycles=dependencyComponents(state.groups,parents).filter(part=>part.length>1);
     if(!cycles.length)break;
     const exposed=new Set();
     for(const cycle of cycles){
@@ -55,12 +56,14 @@ function slicePartitions(operations,prerequisites){
     if(!change.split)break; // A course-level cycle is reported by the ordinary solver.
     state.groups=next;for(const group of next)for(const id of group)membership.set(id,group);
   }
-  const refinedSlices=[...slices.values()].filter(ids=>ids.some(id=>membership.get(id)!==membership.get(ids[0]))).length;
-  return {groups:state.groups,summary:{slices:slices.size,wholeSlices:slices.size-refinedSlices,refinedSlices,executionUnits:state.groups.length,courses:operations.length}};
+  const native=new Set(operations.filter(op=>op.layerId!==null&&op.layerId!==undefined).map(op=>op.layerId));
+  const refinedSlices=[...native].filter(id=>{const ids=slices.get(id);return ids.some(id=>membership.get(id)!==membership.get(ids[0]));}).length;
+  return {groups:state.groups,summary:{slices:native.size,wholeSlices:native.size-refinedSlices,refinedSlices,
+    executionUnits:state.groups.length,courses:operations.filter(op=>!op.barrier).length}};
 }
 
 function nearest(ready,cursor){
-  const score=node=>{const stroke=node.op.strokes[0],point=stroke?.points[0]??cursor.point,axis=stroke?.poses?.[0]?.toolAxis;
+  const score=node=>{const stroke=node.op.strokes?.[0],point=node.op.entry?.point??stroke?.points[0]??cursor.point,axis=node.op.entry?.pose?.toolAxis??stroke?.poses?.[0]?.toolAxis;
     return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
   const best={index:0,cost:Infinity};
   for(const [i,node] of ready.entries()){
@@ -96,14 +99,14 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
     const parent=byId.get(id);parent.following.push(node);if(parent.unit!==node.unit)node.unit.parents.add(parent.unit);
   }
   for(const unit of units){unit.remaining=unit.parents.size;for(const parent of unit.parents)parent.following.push(unit);for(const node of unit.nodes)if(!node.remaining)unit.ready.push(node);}
-  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??operations[0]?.strokes[0]?.points[0]??[0,0,0],axis:null};
+  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??operations[0]?.entry?.point??operations[0]?.strokes?.[0]?.points[0]??[0,0,0],axis:null};
   while(ready.length){
     const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
     if(!entries.length)break;
     const unit=entries[nearest(entries,cursor).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
       const next=unit.ready.splice(nearest(unit.ready,cursor).index,1)[0];scheduled.push(next.op);
-      cursor.point=next.op.strokes.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.strokes.at(-1)?.poses?.at(-1)?.toolAxis??null;
+      if(!next.op.barrier){cursor.point=next.op.exit?.point??next.op.strokes?.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.exit?.pose?.toolAxis??next.op.strokes?.at(-1)?.poses?.at(-1)?.toolAxis??null;}
       for(const node of next.following)if(!--node.remaining)node.unit.ready.push(node);
     }
     if(unit.nodes.some(node=>node.remaining))break;
@@ -112,8 +115,8 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   if(scheduled.length!==operations.length){
     const cycle=dependencyCycle(operations,prerequisites);
     const ids=new Set(cycle),reasons=physicalEdges.filter(edge=>ids.has(edge.before)&&ids.has(edge.after));
-    const refinementCourses=components(operations.map(op=>op.id),prerequisites).filter(part=>part.length>1).flat();
-    throw Object.assign(Error('Print ordering contains a cycle: '+cycle.join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:cycle,physicalDependencies:reasons,refinementCourses});
+    const refinementCourses=dependencyComponents(operations.map(op=>op.id),prerequisites).filter(part=>part.length>1).flat();
+    throw Object.assign(Error('Print ordering contains a cycle: '+cycle.map(id=>byId.get(id).op.label??id).join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:cycle,physicalDependencies:reasons,refinementCourses});
   }
   return scheduled;
 }

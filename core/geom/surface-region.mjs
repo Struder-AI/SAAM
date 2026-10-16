@@ -3,6 +3,7 @@
 import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {numericalGeometryRecord} from './surface-record.mjs';
 
 export function validateSurfaceSelection(s){
   requireThat(s&&['spline','mesh-strip'].includes(s.kind)&&typeof s.periodicU==='boolean'&&[1,-1].includes(s.normalSide),'Invalid cladding surface selection.');
@@ -60,5 +61,6 @@ export function surfaceRegion(shell,spec){
     // predates the classes (mesh-strip normals are interpolated, so a stricter bound is deferred).
     requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<1e-4,'Periodic surface seam must match in position and normal.');
   }
-  return {at:sample,breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind};
+  return {at:sample,breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind,
+    referenceRecord:{representation:'surface-region',geometry:numericalGeometryRecord(shell),selection:spec}};
 }

@@ -1,75 +1,68 @@
-// Construction requests are ordinary geometry and operation records. This is
-// the only owner of native temporaries for feature construction; shared input
-// identity preserves lazy boolean reuse until all requested meshes are read.
+// One construction pipeline retains ordinary geometry. Mesh output is an
+// explicit derived result; only operations requiring a mesh allocate the kernel.
 import {solidKernel,solidFromMesh,meshFromSolid,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from './solid.mjs';
 import {tessellateSolid} from './boolean-display.mjs';
+import {buildShell,buildShells,translateShell} from './build.mjs';
+import {booleanShell} from './boolean-solid.mjs';
+import {revolvedProfile} from './revolved-profile.mjs';
+import {boxGeometry,polygonProfile,loftProfiles,transformGeometry} from './solid-profiles.mjs';
+import {rigid} from './frame.mjs';
 import {requireThat,distance} from './tolerance.mjs';
-import {nativeSurfaceSolid,surfaceBoolean} from './surface-boolean.mjs';
 
-// -> per request, a mesh with the notes of its construction (an approximation
-// kept short of its tolerance), or null for no material.
-export async function constructSolids(requests,{toleranceMm=.02}={}){
-  const kernel=await solidKernel(),owned=[],cache=new Map(),notes=new Map(),boundaries=new Map();
-  const keep=solid=>{owned.push(solid);return solid;};
-  const operandsOf=async request=>{const solids=[];for(const operand of request.operands)solids.push(await evaluate(operand));return solids;};
-  const evaluate=async request=>{
+async function prepareConstructions(requests){
+  const cache=new Map();
+  async function prepare(request){
     if(cache.has(request))return cache.get(request);
-    const own=[],state={solid:null};
-    const boundary=nativeConstruction(request,boundaries);
-    if(boundary){
-      const mesh=await tessellateSolid(boundary,{toleranceMm});own.push(...mesh.notes??[]);state.solid=keep(solidFromMesh(kernel,mesh));
-    }else switch(request.kind?null:request.operation){
-      case 'union': state.solid=keep(kernel.Manifold.union(await operandsOf(request)));break;
-      case 'intersection': state.solid=keep(kernel.Manifold.intersection(await operandsOf(request)));break;
-      case 'difference': {const [first,...rest]=await operandsOf(request);state.solid=first;for(const operand of rest)state.solid=keep(state.solid.subtract(operand));break;}
-      case 'translate': state.solid=keep((await evaluate(request.geometry)).translate(request.offset));break;
-      case 'box': state.solid=keep(kernel.Manifold.cube(request.size));break;
-      case 'cylinder': state.solid=keep(kernel.Manifold.cylinder(request.heightMm,request.radiusMm,request.radiusMm,request.segments));break;
-      case 'loft': state.solid=keep(solidFromMesh(kernel,loftMesh(request.rings,request.centers)));break;
-      case 'mapped-extrusion': {const extrusion=mappedExtrusion(kernel,request);state.solid=keep(extrusion.solid);own.push(...extrusion.notes);break;}
-      default: {const mesh=await tessellateSolid(request,{toleranceMm});own.push(...mesh.notes??[]);state.solid=keep(solidFromMesh(kernel,mesh));}
-    }
-    requireThat(state.solid.status()==='NoError','Solid construction produced invalid geometry.');
-    const inputs=request.kind?[]:request.operation==='translate'?[request.geometry]:request.operands??[];
-    notes.set(request,[...new Set([...own,...inputs.flatMap(input=>notes.get(input)??[])])]);
-    cache.set(request,state.solid);return state.solid;
-  };
-  try{
-    const meshes=[];
-    for(const request of requests){const solid=await evaluate(request);meshes.push(solid.isEmpty()?null:{...meshFromSolid(solid),notes:notes.get(request)});}
-    return meshes;
-  }finally{for(const solid of owned.reverse())try{solid.delete();}catch{}}
-}
-
-// The same native Boolean implementation serves value construction and explicit
-// mesh-output requests. Only the completed boundary is converted for the latter.
-function nativeConstruction(request,cache){
-  if(cache.has(request))return cache.get(request);
-  if(nativeSurfaceSolid(request)){cache.set(request,request);return request;}
-  if((request.kind&&request.kind!=='boolean')||!['union','difference','intersection'].includes(request.operation))return null;
-  const operands=request.operands.map(operand=>nativeConstruction(operand,cache));
-  const native=operands.length&&operands.every(Boolean)?operands.length===1?operands[0]:surfaceBoolean(request.operation,operands):null;
-  cache.set(request,native);return native;
-}
-
-// Material existence is a geometric query. Native boundaries already know
-// whether any faces survived; mixed Boolean trees need their mesh construction.
-// Evaluate them together so shared input conversion and native lifetime stay here.
-export async function materialPresence(solids){
-  const pending=solids.filter(solid=>solid.kind==='boolean'&&!solid.empty);
-  const meshes=pending.length?await constructSolids(pending):[];
-  const answers=new Map(pending.map((solid,i)=>[solid,meshes[i]!==null]));
-  return solids.map(solid=>answers.get(solid)??!solid.empty);
-}
-function loftMesh(rings,centers){
-  const n=rings[0].length,vertices=rings.flat(),triangles=[];
-  requireThat(rings.length>=2&&n>=3&&rings.every(r=>r.length===n),'Loft rings need matching vertex correspondence.');
-  for(let layer=0;layer<rings.length-1;layer++)for(let j=0;j<n;j++){
-    const a=layer*n+j,b=layer*n+(j+1)%n,c=b+n,d=a+n;triangles.push([a,b,c],[a,c,d]);
+    const result=await construct(request);cache.set(request,result);return result;
   }
-  const bottom=vertices.length,top=bottom+1;vertices.push(...centers);
-  for(let j=0;j<n;j++){triangles.push([bottom,(j+1)%n,j]);const offset=(rings.length-1)*n;triangles.push([top,offset+j,offset+(j+1)%n]);}
-  return {vertices,triangles};
+  async function construct(request){
+    if(request.kind||!request.shape&&request.patches)return {solid:request,geometry:null,notes:request.notes??[]};
+    if(request.shape)return {geometry:request.solid??request,solid:null,notes:[]};
+    if(['union','difference','intersection'].includes(request.operation)){
+      const children=[];for(const operand of request.operands)children.push(await prepare(operand));
+      if(!children.length){requireThat(request.operation==='union','Difference and intersection need operands.');return {geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},solid:null,notes:[]};}
+      const geometry=children.every(c=>c.geometry)?children.length===1?children[0].geometry:{shape:'boolean',operation:request.operation,operands:children.map(c=>c.geometry)}:null;
+      const solid=geometry?null:children.length===1?numerical(children[0]):booleanShell(request.operation,children.map(numerical));
+      return {solid,geometry,notes:[...new Set([...children.flatMap(c=>c.notes),...solid?.notes??[]])]};
+    }
+    if(request.operation==='translate'){
+      const child=await prepare(request.geometry),geometry=child.geometry?transformGeometry(child.geometry,rigid(request.offset)):null;
+      return {geometry,solid:geometry?null:translateShell(numerical(child),...request.offset),notes:child.notes};
+    }
+    if(request.operation==='box')return prepare(boxGeometry(request.size));
+    if(request.operation==='cylinder')return prepare(revolvedProfile({positionMm:[0,0,0],axis:[0,0,1],profile:[[0,request.radiusMm],[request.heightMm,request.radiusMm]]}));
+    if(request.operation==='loft')return prepare(loftProfiles({profiles:request.rings.map(polygonProfile),centers:request.centers}));
+    if(request.operation==='mapped-extrusion'){
+      const kernel=await solidKernel(),mapped=mappedExtrusion(kernel,request);
+      try{const mesh=meshFromSolid(mapped.solid),geometry={shape:'mesh',source:null,vertices:mesh.vertices,triangles:mesh.triangles};return {geometry,solid:null,notes:mapped.notes};}
+      finally{mapped.solid.delete();}
+    }
+    throw Error('Unknown solid construction operation: '+request.operation);
+  }
+  const numerical=result=>result.solid??=buildShell(null,result.geometry,{material:true,native:false});
+  const results=[];for(const request of requests)results.push(await prepare(request));
+  const sources=results.filter(result=>!result.solid),built=buildShells(null,sources.map(result=>result.geometry),{material:true,native:false});
+  sources.forEach((result,i)=>{result.solid=built[i];result.notes=[...new Set([...result.notes,...built[i].notes??[]])];});return results;
+}
+// Retained results are ordinary serializable geometry; empty results remain empty.
+export async function constructGeometry(requests,options={}){
+  const prepared=await prepareConstructions(requests);
+  requireThat(prepared.every(result=>result.geometry),'Retained construction needs authored geometry, not an opaque prepared solid.');
+  const present=await materialPresence(prepared.map(result=>result.solid),options);
+  return prepared.map((result,i)=>({geometry:present[i]?result.geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},empty:!present[i],notes:result.notes}));
+}
+export async function constructSolids(requests,{toleranceMm=.02}={}){
+  const prepared=await prepareConstructions(requests),kernel=await solidKernel(),meshes=[];
+  for(const result of prepared){
+    const mesh=await tessellateSolid(result.solid,{toleranceMm}),solid=solidFromMesh(kernel,mesh);
+    try{requireThat(solid.status()==='NoError','Solid construction produced invalid geometry.');meshes.push(solid.isEmpty()?null:{...meshFromSolid(solid),notes:[...new Set([...result.notes,...mesh.notes??[]])]});}
+    finally{solid.delete();}
+  }
+  return meshes;
+}
+export async function materialPresence(solids,options={}){
+  const pending=solids.filter(solid=>solid.kind==='boolean'&&!solid.empty),meshes=pending.length?await constructSolids(pending,options):[];
+  const answers=new Map(pending.map((solid,i)=>[solid,meshes[i]!==null]));return solids.map(solid=>answers.get(solid)??!solid.empty);
 }
 
 function mappedExtrusion(kernel,{loops,map,lower,upper,maxEdgeMm,toleranceMm,normalSide=1}){

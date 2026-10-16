@@ -43,11 +43,10 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
      and, when posed, `initialPose` and `retreatMm`.
      `validate({machine, setup, process, output}, {required})` throws on invalid values and,
      when `required` (export), names unresolved ones; `rows` returns `[[label, text]]` for Studio.
-   - `export` receives [export-prepared motion](../core/export/prepare-path.mjs) and
-     `{machine, setup, process, output, release, defaultProcess}`; preparation adds startup,
-     priming, material-change lifts and axis-feed adaptation only at export; neutral SAAMpath and
-     Studio preview stay available. `report` holds `notice`, this print's `limitations`, optional written
-     `seconds`/`volumeMm3` and Studio facts; standing caveats belong in `SKILL.md`.
+   - `export` receives [prepared motion](../core/export/prepare-path.mjs), whose `actions` are a repeatable iterable,
+     and `{machine, setup, process, output, release, defaultProcess}`. Preparation streams startup,
+     priming, material changes and axis-feed adaptation. `report` holds `notice`, print-specific `limitations`,
+     optional written `seconds`/`volumeMm3` and Studio facts; standing caveats belong in `SKILL.md`.
      Core adds totals and the [short-travel advisory](../core/export/README.md#short-travel-advisory).
      Bundle stores the report; reopening and delivery run no adapter code.
    - `Export` supplies shared SAAM operations: `number` (XYZ to 0.001 mm), `slackMm`,

@@ -155,7 +155,7 @@ export function planLayerCooling(state,scene) {
 export function planTravel(state,target,scene,targetPose=uprightPose(),{recover=true}={}){
   requireThat(scene?.index&&scene.occupied,'Travel needs the scheduler-owned deposited material scene.');
   const current=state.pose??uprightPose(),route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,current,targetPose,{withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes});
-  if(route.blocked)throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+[...new Set(route.blocked.map(i=>scene.beads[i].operationId))].join(', ')),
+  if(route.blocked)throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+[...new Set(route.blocked.map(i=>scene.operationOf?scene.operationOf(i):scene.beads[i].operationId))].join(', ')),
     {code:'NOZZLE_ACCESS_BLOCKED',operations:[...new Set(route.blocked.map(i=>scene.beads[i].operationId))],target});
   const retracted=distance(state.position,target)>PRINT_RESOLUTION_MM?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
   actions.add(retracted.actions);const cursor={state:retracted.state};

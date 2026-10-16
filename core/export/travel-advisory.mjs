@@ -50,11 +50,14 @@ export function shortTravelAdvisory(moves,lineWidthMm) {
 
 // The prepared path as moves; a stationary extrusion is a stroke of zero length.
 export function preparedTravelAdvisory(prepared,plan){
-  const moves=[];let from=prepared.initialPosition;
-  for(const [action,a] of prepared.actions.entries()){
+  return shortTravelAdvisory(preparedMoves(prepared),plan.process.lineWidthMm);
+}
+function* preparedMoves(prepared){
+  const cursor={from:prepared.initialPosition,index:0};
+  for(const a of prepared.actions){
+    const action=cursor.index++;
     if(a.kind!=='move'&&a.kind!=='extrude')continue;
-    const to=a.kind==='move'?a.to:from;
-    moves.push({from,to,extruding:a.volumeMm3>0,operation:a.operation,phase:a.phase,layer:a.layer,action});from=to;
+    const to=a.kind==='move'?a.to:cursor.from;
+    yield {from:cursor.from,to,extruding:a.volumeMm3>0,operation:a.operation,phase:a.phase,layer:a.layer,action};cursor.from=to;
   }
-  return shortTravelAdvisory(moves,plan.process.lineWidthMm);
 }

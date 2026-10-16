@@ -32,7 +32,7 @@ polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topolo
 ## Geometry interoperability for skill authors
 
 Heat-set and text own editable features; [reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs) owns deposition.
-Every host supplies the [canonical CAD operations](operations.mjs); `await Geometry.buildGeometry(...)` returns numerical values; core calls the same implementations.
+Every host supplies the [canonical CAD operations](operations.mjs); `Geometry.buildGeometry(...)` synchronously prepares numerical values; native 3DM encoding explicitly loads its runtime.
 Geometry owns construction, conversion, queries and native lifetime; callers own feature/process decisions.
 
 ### Shared numerical foundations
@@ -82,21 +82,20 @@ owns written XYZ behavior.
 
 Plane sections accept `side:'negative'|'positive'` for one-sided limits along their normal, propagated through Boolean operands; outside-side extrema are empty. Default sections retain their existing numerical displacement. Curved sections do not accept this option.
 
-[section](../region/section.mjs) returns oriented loops on planes, patches or height charts, retaining Boolean topology, holes, disconnected components and nudge/edge diagnostics.
-[sliceStack](slice.mjs) stacks cutting surfaces; [slices](../print/slices.mjs) owns material allocation.
-[query](query.mjs) supplies native-shell and mesh top/containment queries.
+[section](../region/section.mjs) retains native topology and diagnostics; [sliceStack](slice.mjs) supplies references for [material allocation](../region/README.md).
 
 | Operation | Current consumers and contract |
 |---|---|
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
-| [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
-| [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
-| [constructSolids / materialPresence](solid-operations.mjs) | Construction/translation/Boolean requests yield manufacturing meshes with notes or null; material presence answers actual existence for native/mixed solids. Geometry owns conversion and native lifetime. |
+| [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | Native units, derivatives and chart identity survive numerical serialization. References retain original factory inputs; preparation reuses their evaluators, including [contact charts](contact-chart.mjs). Out-of-domain and singular samples retain their errors. |
+| [prepareNumericalCurve / numericalCurveAt / numericalCurveRange](curve-query.mjs) | Native NURBS, polylines and points share conservative position, tangent, speed, chord-error and convergent arc-length bounds. Geometry also supplies direction/full-frame cones. [Construction sampling](curve-sampling.mjs) uses probes, preserving observed crossings and breaks; unsampled crossings remain unknown. |
+| [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Presence queries resolve actual native/mixed material. Opaque numerical inputs support mesh output only. |
+| [loftProfiles / roundedRectangleProfile / transformGeometry](solid-profiles.mjs) | Corresponding closed NURBS profiles yield rational side surfaces and radial caps with explicit or averaged centers; caps require a star-shaped region about those centers. Rounded rectangles retain exact arcs. Rigid transforms apply to physical solids, leaving feature recipes with their authors. Concave polygon lofts retain [triangulated caps](loft.mjs). |
 | [revolvedProfile](revolved-profile.mjs) | `{positionMm, axis, profile:[[axialMm,radiusMm],…]}` yields ordinary rational spline geometry. Increasing axial positions and positive radii define cylindrical/conical intervals and end caps; heat-set and weld choose their dimensions. |
 | [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes `{solid, notes}`, a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; vertical or degenerate faces and faces reaching the plane are skipped and noted. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice stack. Extensions choose those values; Geometry checks and maps the sections. |
-| [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
-| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Geometry loads the native runtime and recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes and invalid shells/meshes retain construction errors; an empty intersection has flat bounds. No recipe placement or Bundle mutation. |
+| [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; synchronously reuses numerical source builds within a batch; Toolpath retains assignment and ownership policy. |
+| [resolveMaterialGeometry](build.mjs) | Builds an ordered batch of authored geometry, sharing immutable source builds. Numerical construction recursively unions placed assembly components for material queries; ordinary construction/selections retain their assembly representation. Unsupported shapes and invalid shells/meshes retain construction errors; an empty intersection has flat bounds. No recipe placement or Bundle mutation. |
 | [prepareSolidDistance / solidDistance](solid-distance.mjs) | Preparation builds material, tessellates at `toleranceMm`, admits the mesh and returns `{prepared,report:{toleranceMm,triangles,representation}}`, preserving tessellation errors and native Boolean disposal. Synchronous queries traverse every triangle without a radius limit; `signed` uses containment only above `1e-12` mm. Toolpath owns field composition, report keys, channels and sampling policy. |
 | [prepareBlobField / evaluateBlobField](blob-field.mjs) | Preparation turns finite weighted points or a periodic bump lattice into a plain record once; queries sample that record. Finite sources retain optional gradients and ordered accumulation; unrepresentable bucket coordinates use an ordered direct sum. Toolpath owns composition and sampling. |
 | [widenPlanarStrokes](stroke-topology.mjs) | Widens coplanar XYZ strokes in an explicit unit frame with round joins/caps, a fixed 0.001 mm grid and caller-supplied radius/arc tolerance. Returns closed XYZ loops; Toolpath retains bead count, pitch and width policy. |
@@ -320,13 +319,10 @@ query report. Section topology, offset collapse and contact error fail there.
 
 ## Text and solid modifiers
 
-The [text geometry skill](../../skills/text/SKILL.md) adds font-derived material,
-removes it, or retains it as a standalone solid. Planar glyph outlines use the
-existing Clipper2 union through [shared intersections](../region/intersection.mjs).
-The [solid boundary](./solid.mjs) uses pinned `manifold-3d@3.5.3` C++/WASM for 3D
-union and difference. Its internal 3D intersections are separate from planar
-Clipper2; the two backends serve different representations. No existing planar
-consumer is switched to Manifold.
+The [text skill](../../skills/text/SKILL.md) retains editable features and ordinary solids.
+Geometry preserves spline/Boolean sources, combining their sections directly; mesh/mixed
+output uses [Manifold](solid.mjs), and planar outlines use [Clipper2](../region/intersection.mjs).
+Mapped extrusion currently requires a mesh; surrounding native operands remain authored geometry.
 
 [Font outline extraction](./text-outline.mjs) uses pinned `fontkit@2.0.4` for glyph
 selection, positioning and vector paths. Bezier subdivision bounds control-point
@@ -371,30 +367,20 @@ Its dyadic grid doubles, with no triangle budget, until sampled chord deviation 
 Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.
 
-The text result is a `shape: text` recipe inside the existing native mesh bundle:
-original base, editable features, quality controls and output vertices/triangles.
-The persisted mesh is the reviewed and sliced geometry; reopening uses it without
-rerunning font shaping or booleans. Text edits rebuild through
-[the preparation entry](../../skills/text/scripts/text.mjs), then the normal bundle update leaves
-the program stale. Assembly edits retain the selected component id and other
-components' representations.
+Text, Gridfinity and heat-set records retain their editable inputs and an ordinary
+`solid`. Reopening uses that source without rerunning feature compilation; legacy
+vertices/triangles records remain readable. Meshes are derived for display or an
+operation requiring them, never substituted for the saved construction.
+Text edits rebuild through [the preparation entry](../../skills/text/scripts/text.mjs),
+then ordinary Bundle publication invalidates the program; assembly identity/placement stays.
 
-Text records save `materialParts`: `base` and
-`text/<feature-id>`. Raised additions exclude existing material; later recessed
-cuts subtract from every partition. Empty partitions are omitted. An uncut base
-uses `geometry: null` to retain the original native geometry and its queries;
-other partitions store their resulting mesh. Their boolean construction uses the
-same tessellation approximation as the final solid. `standalone: true` retains
-the source only as a reference and exposes no base material or base preparation
-details; it is the one optional field, present only on a reference body. A record
-without `materialParts` is rejected, not read as a whole solid.
-
-[Geometry selections](./selections.mjs) exposes these partitions to regional
-consumers, prefixing their names with the assembly component id where present.
-The final merged mesh remains the default whole-solid selection and review model.
-Changing the selected material or toolpath skill leaves the geometry record
-unchanged. The [region contract](../region/README.md#material-ownership-and-surface-contact)
-owns assignment rules.
+Text `materialParts` retain ordinary solids named `base` and `text/<feature-id>`.
+Raised additions exclude existing material; later cuts affect every partition.
+Empty partitions are omitted; an uncut base uses `geometry:null` to select its source.
+`standalone:true` keeps the base only as a reference. Missing partitions reject.
+[Selections](selections.mjs) prefixes names within assemblies; the full retained
+solid remains the default. [Material ownership](../region/README.md#material-ownership-and-surface-contact)
+owns assignment policy; changing assignments leaves saved geometry intact.
 
 Upstream contracts: [Fontkit](https://github.com/foliojs/fontkit),
 [Manifold](https://manifoldcad.org/docs/jsapi/documents/Using_Manifold.html).

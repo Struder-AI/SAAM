@@ -5,21 +5,14 @@ import {heatSetFeature,dimensions,borePoint} from './feature.mjs';
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const bounds=loops=>[0,1].map(k=>[Math.min(...loops.flat().map(p=>p[k])),Math.max(...loops.flat().map(p=>p[k]))]);
 
-// Ordinary authored mesh for the finite insert seat. The host's bore may
-// continue through the part; reinforcement stays on the selected insert seat.
-function seatMesh(feature,shift,toleranceMm){
+// The finite seat and blind pad use the same radial Geometry construction as
+// the bore. Their depth remains independent of its through/outward clearance.
+function seatGeometry(feature,shift,Geometry){
   const {diameterMm,depthMm}=dimensions(feature),radius=diameterMm/2;
-  const count=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/radius))));
-  const rings=feature.chamferDepthMm>0?[[-depthMm,radius],[-feature.chamferDepthMm,radius],
-    [0,radius+feature.chamferDepthMm*Math.tan(feature.chamferAngleDeg*Math.PI/180)]]:[[-depthMm,radius],[0,radius]];
-  const vertices=rings.flatMap(([s,r])=>Array.from({length:count},(_,i)=>borePoint(feature,r,2*Math.PI*i/count,s).map((v,k)=>v+shift[k]))),triangles=[];
-  const last=(rings.length-1)*count;
-  for(let i=1;i<count-1;i++)triangles.push([0,i+1,i],[last,last+i,last+i+1]);
-  for(let ring=0;ring<rings.length-1;ring++)for(let i=0;i<count;i++){
-    const a=ring*count+i,b=ring*count+(i+1)%count,c=a+count,d=b+count;
-    triangles.push([a,b,d],[a,d,c]);
-  }
-  return {vertices,triangles};
+  const profile=[[0,radius+feature.chamferDepthMm*Math.tan(feature.chamferAngleDeg*Math.PI/180)]];
+  if(feature.chamferDepthMm>0)profile.push([feature.chamferDepthMm,radius]);
+  profile.push([depthMm,radius]);
+  return Geometry.buildGeometry(Geometry.revolvedProfile({positionMm:feature.positionMm.map((value,k)=>value+shift[k]),axis:feature.axis,profile}));
 }
 
 // These are zero-thickness construction sheets fixed in the bore frame.
@@ -37,7 +30,7 @@ export function heatSetFinSheets(feature,shift=[0,0,0]){
 }
 
 export function heatSetTraceSource({Geometry,Toolpath}){
-  const needed=['makeMesh','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','union','intersect','difference','loopArea','regionArea'];
+  const needed=['buildGeometry','revolvedProfile','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','union','intersect','difference','loopArea','regionArea'];
   requireThat(needed.every(k=>typeof Geometry[k]==='function'),'Heat-set reinforcement needs the general Geometry layer-source connectors.');
   requireThat(typeof Toolpath?.fillSliceRegion==='function','Heat-set blind pads need the general Toolpath region-fill connector.');
   const cache=new Map();
@@ -48,8 +41,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
     const feature=heatSetFeature(parameters.feature),shift=source.placement?.offset??[0,0,0];
     const key=JSON.stringify([feature,shift,toleranceMm]);let construction=cache.get(key);
     if(!construction){
-      const mesh=seatMesh(feature,shift,toleranceMm);
-      construction={seat:Geometry.makeMesh(mesh.vertices,mesh.triangles),sheets:heatSetFinSheets(feature,shift)};
+      construction={seat:seatGeometry(feature,shift,Geometry),sheets:heatSetFinSheets(feature,shift)};
       cache.set(key,construction);
     }
     const {slice,settings,process}=source,width=source.widthMm??process.lineWidthMm,pitch=source.pitchMm??width*settings.spacingFactor;
@@ -115,7 +107,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         const guide={...feature,positionMm:floor,depthMm:thickness,diameterAdjustmentMm:2*padRadius-diameterMm+feature.diameterAdjustmentMm,
           chamferDepthMm:0};
         const key=JSON.stringify(['pad',guide,shift,toleranceMm]);let volume=cache.get(key);
-        if(!volume){const mesh=seatMesh(guide,shift,toleranceMm);volume=Geometry.makeMesh(mesh.vertices,mesh.triangles);cache.set(key,volume);}
+        if(!volume){volume=seatGeometry(guide,shift,Geometry);cache.set(key,volume);}
         let region=Geometry.intersect(Geometry.section(volume,slice).loops,room);
         const dense=source.denseRegion?.length?Geometry.offsetSliceRegion(slice,source.denseRegion,width/2,options):[];
         region=Geometry.difference(region,dense);

@@ -266,6 +266,7 @@ function validateGeometry(geometry) {
   if(geometry.shape==='boolean')authoredBounds(geometry);
   GEOMETRY_RECORDS[geometry.shape]?.validate(geometry);
   if(geometry.solid)validateGeometry(geometry.solid);
+  for(const part of geometry.materialParts??[])if(part.geometry){requireThat(GEOMETRY_SHAPES.includes(part.geometry.shape),'Invalid material partition geometry.');validateGeometry(part.geometry);}
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles))makeMesh(geometry.vertices,geometry.triangles);
 }

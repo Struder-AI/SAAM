@@ -18,11 +18,11 @@ export const loadSavedPath=state=>state.review?.path?loadPathPreview(state,{id:s
 const UPRIGHT={toolAxis:[0,0,-1],toolUp:[0,1,0]};
 // A move without its own line width has its material's (a filament process override), else the recipe's.
 export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
-  if(!Array.isArray(pathInitialPosition(path))||!(path?.deposition&&path.schedule||path?.schema==='saampath/1'&&Array.isArray(path.actions)))throw Error('Invalid saved SAAMpath.');
+  if(!Array.isArray(pathInitialPosition(path))||!(path?.deposition&&path.schedule||['saampath/1','saam-export-prepared/1'].includes(path?.schema)&&path.actions))throw Error('Invalid saved SAAMpath.');
   const width=(action,filament)=>action.beadWidthMm??action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??NaN;
   const metadata=pathSummary(path)?.inspection??inspection;
   const events=[];let position=pathInitialPosition(path),pose=pathInitialPose(path)??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
-  const posed=Boolean(pose)||Boolean(path.deposition)||path.actions.some(a=>a.pose);
+  const posed=Boolean(pose)||Boolean(path.deposition)||Array.isArray(path.actions)&&path.actions.some(a=>a.pose);
   for(const {action,context,index:line} of contextualActions(path)){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}
     if(action.kind==='fan'){fan=action.percent;continue;}

@@ -2,17 +2,13 @@ import {readFile} from 'node:fs/promises';
 import {initialDesign,normalizeDesign} from './design.mjs';
 import {buildCover} from './model.mjs';
 
-function centeredGeometry(geometry,origin){
-  if(geometry.shape==='assembly')return {...geometry,parts:geometry.parts.map(part=>({...part,geometry:centeredGeometry(part.geometry,origin)}))};
-  return {...geometry,vertices:geometry.vertices.map(point=>point.map((value,i)=>value-origin[i]))};
-}
 async function coverResources(){
   return {initialDesign,catalog:JSON.parse(await readFile(new URL('./catalog.json',import.meta.url),'utf8'))};
 }
 async function coverHandoff(design,pieceId,interfaces){
   if(pieceId!=='cover')throw Error('Unknown switch-cover piece.');
   const result=await buildCover(design,interfaces),base=interfaces.Toolpath.recipeDefaults();
-  const origin=[result.width/2,result.height/2,0],geometry=centeredGeometry(result.geometry,origin),body=base.slices.assignments[0];
+  const origin=[result.width/2,result.height/2,0],geometry=interfaces.Geometry.transformGeometry(result.geometry,{translationMm:origin.map(value=>-value),rotation:[[1,0,0],[0,1,0],[0,0,1]]}),body=base.slices.assignments[0];
   const twoColor=design.treatment.startsWith('two-color');
   // Logical material setup is selected later in Studio; keep both components
   // editable without inventing a machine's filaments at workspace handoff.

@@ -10,7 +10,7 @@ import {section,prepareSection} from '../region/section.mjs';
 import {pointSegmentDistance,loopArea} from '../region/region2d.mjs';
 
 import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from './deposited-curves.mjs';
-import {depositedContactChart} from './contact-curves.mjs';
+import {contactChart} from '../geom/contact-chart.mjs';
 
 // Process scale: toleranceMm is the default height slack of a top boundary, a
 // twentieth of a 0.4 mm line.
@@ -42,7 +42,7 @@ export function consumeFinishedSurface({shell,selection,results,substrateAdaptat
   if(sources.some(source=>source.depositedSegments)){
     const selected=new Set(sourceOperationIds);
     const segments=depositedBeadSegments(results.flatMap(result=>result.operations.filter(op=>selected.has(op.id))));
-    return {...depositedContactChart(chart,segments),sourceOperationIds,coverage:['final-deposited-beads']};
+    return {...contactChart(chart,segments),sourceOperationIds,coverage:['final-deposited-beads']};
   }
   const at=(u,v)=>{
     const e=chart.at(u,v),z=e.point[2];

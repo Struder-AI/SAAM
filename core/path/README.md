@@ -51,7 +51,8 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
 - A moving operation is `{id,kind:'deposit',layerId,processId,filament,after,
   interruptible,courses,...}`. Each course is `{id,curveId,from,to,interruptible,
   role?,provenance?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
-  Curves/profile data are referenced, never copied into operations or refinements.
+  Each whole course is initially one scheduling unit; vertices and profile keys
+  do not create execution boundaries. Curves/profile data are referenced, never copied into refinements.
   `processes` deduplicates the existing resolved process records; `planning`
   retains its existing defaults, explicit start and motion settings.
 - `after` names whole source operations. Each predecessor must finish before any
@@ -89,11 +90,14 @@ Toolpath owns `core/path/curve-path.mjs`, with these exports. All queries are de
 |---|---|
 | `prepareCurvePath({curves})` | Admitted curve-table/query handle (a source can be passed directly); no eager whole-path tessellation. |
 | `curveAt(handle,curveId,u,{side='right'}={})` | `{point,tangent,pose,widthMm,speedMmS,materialNormal,areaMm2}`; absent travel channels stay absent; tangent is null only at a singularity/point. |
-| `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
+| `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],tangentCone,chordErrorMm,normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
 | `curveSpans(handle,curveId,from,to,options)` | Lazy iterable of bounded local spans, each `{from,to,start,end,range}`; endpoints are `curveAt` records, range is `curveRange`. |
 | `linearizePath(view,options)` | Lazy existing-style contextual action stream from the joined path, for consumers needing segments. Never the persisted authority. |
 
-`normalCone` is `{axis,halfAngleRad}`. `poseCone` is
+`tangentCone` and `normalCone` are `{axis,halfAngleRad}`. The tangent cone encloses
+all regular forward tangents (full sphere when unproved; null for a point).
+`chordErrorMm` bounds distance from the entire curve interval to its endpoint segment;
+it does not assert that curve and chord share linear timing. `poseCone` is
 `{reference,halfAngleRad}`, bounding full SO(3) frame deviation, including roll.
 `breaks` contains interior vertices, knots and profile discontinuities. Bounds enclose the entire interval; overlapping bounds prove no collision by themselves.
 `curveRange` options are optional positive `lengthToleranceMm` and `volumeToleranceMm3`. Without them it may return coarse certified bounds.

@@ -3,6 +3,7 @@ import {saamPath} from './saampath.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {strokeRange} from './deposition.mjs';
 import {uprightPose} from './pose.mjs';
+import {surfaceReferenceRecord} from '../geom/surface-record.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function channel(values,parameters,interpolation){
@@ -20,11 +21,16 @@ function cumulative(volumes,parameters){
 }
 function smoothChannel(stroke,key,parameters,fallback){
   const witness=stroke.profilePath,keys=witness?.vary?.[key];
-  if(!keys||!same(stroke.curveParameters,witness.parameters))return fallback;
-  if(key==='speedMmS'&&!same(stroke.segmentMetadata?.map(m=>m.speedMmS),witness.speedsMmS))return fallback;
-  if(key==='beadWidthMm'&&!same(stroke.widthsMm,witness.widthsMm))return fallback;
-  const original=witness.parameters;
+  if(!keys||stroke.curveParameters?.length!==parameters.length)return fallback;
+  const original=stroke.curveParameters;
   if(original[0]!==0||original.at(-1)!==1||!original.every((u,i)=>!i||u>original[i-1]))return fallback;
+  for(let i=0;i<original.length-1;i++){
+    const u=(original[i]+original[i+1])/2,state={lo:0,hi:witness.parameters.length-1};
+    while(state.hi-state.lo>1){const mid=Math.floor((state.lo+state.hi)/2);if(witness.parameters[mid]<=u)state.lo=mid;else state.hi=mid;}
+    const expected=key==='speedMmS'?witness.speedsMmS?.[state.lo]:witness.widthsMm?.[state.lo];
+    const actual=key==='speedMmS'?stroke.segmentMetadata?.[i]?.speedMmS:stroke.segmentMetadata?.[i]?.beadWidthMm;
+    if(expected!==actual)return fallback;
+  }
   const converted=keys.map(([u,value])=>{
     const state={i:1};while(state.i<original.length-1&&original[state.i]<u)state.i++;
     const i=state.i,t=(u-original[i-1])/(original[i]-original[i-1]);
@@ -35,7 +41,7 @@ function smoothChannel(stroke,key,parameters,fallback){
 function sourceProvenance(stroke,metadata,parameters){
   const segments=[];
   for(const [i,record] of metadata.entries()){
-    const {surfaceNormal,beadWidthMm,speedMmS,beadHeightMm,normalHeightMm,gapMm,volumeMm3,...labels}=record;
+    const {surfaceNormal,beadWidthMm,speedMmS,beadHeightMm,normalHeightMm,normalGapMm,gapMm,beadAreaMm2,flowMultiplier,slopeDeg,volumeMm3,...labels}=record;
     if(!Object.keys(labels).length)continue;
     const previous=segments.at(-1);
     if(previous&&previous.to===parameters[i]&&same(previous.labels,labels))previous.to=parameters[i+1];
@@ -72,9 +78,9 @@ export function constructionPath({results,planning,composition,summary,generator
   function layerId(result,operation){
     if(!operation.slice)return null;
     const stackId=result.stackId??result.id,index=operation.ownershipIndex??operation.layer;
-    const id=stackId+':layer:'+index,key=JSON.stringify(operation.slice);
+    const reference=surfaceReferenceRecord(operation.slice),id=stackId+':layer:'+index,key=JSON.stringify(reference);
     const surfaceId=surfaceIds.get(key)??'surface:'+surfaceIds.size;
-    if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=operation.slice;}
+    if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}
     if(layers[id])requireThat(layers[id].surfaceId===surfaceId,'Native layer identity refers to different surfaces.');
     else layers[id]={stackId,index,surfaceId};
     return id;
@@ -84,8 +90,10 @@ export function constructionPath({results,planning,composition,summary,generator
     const {strokes,process,materialGeometry}=operation;
     const metadata=Object.fromEntries(['phase','layer','layerIndex','layerCount','rank','nominalRank','filament','fanPercent',
       'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','requiredMaterial','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
-    const shared={...metadata,id:operation.id,layerId:layerId(result,operation),processId:processId(process),
-      after:operation.after??[],interruptible:!operation.continuous,construction:result.id,constructionRank:resultIndex};
+    const interruptible=operation.interruptible??!operation.continuous;
+    const shared={...metadata,...(operation.part===undefined&&result.report?.part!==undefined?{part:result.report.part}:{}),
+      id:operation.id,layerId:layerId(result,operation),processId:processId(process),
+      after:operation.after??[],interruptible,construction:result.id,constructionRank:resultIndex};
     requireThat(!Object.hasOwn(operations,operation.id),'Duplicate source operation.');
     const injections=strokes.filter(stroke=>stroke.stationaryExtrusion);
     if(injections.length){
@@ -94,13 +102,13 @@ export function constructionPath({results,planning,composition,summary,generator
       const stroke=injections[0];
       operations[operation.id]={...shared,kind:'inject',interruptible:false,
         injection:{at:stroke.points[0],pose:stroke.poses?.[0]??uprightPose(),...stroke.stationaryExtrusion},
-        ...(materialGeometry?{occupied:materialGeometry}:{})};
+        ...(operation.occupied||materialGeometry?{occupied:operation.occupied??materialGeometry}:{})};
       continue;
     }
     const courses=strokes.map((stroke,i)=>{
       const id=operation.id+':course:'+i,curveId='curve:'+id;
       const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
-      return {id,curveId,from:0,to:1,interruptible:!operation.continuous,role:stroke.role,
+      return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,role:stroke.role,
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
     operations[operation.id]={...shared,kind:'deposit',courses};

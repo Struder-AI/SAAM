@@ -163,12 +163,11 @@ Recessed lettering cuts inward. Mirror only for a stamp.
 
 ## Supported scope and quality
 
-Fonts: TTF, OTF, WOFF/WOFF2 and collections with vector outlines; bitmap-only or
-colour/SVG-only glyphs are rejected. Mixed-script or bidirectional paragraphs
+TTF, OTF, WOFF/WOFF2 and collections need vector outlines; bitmap/color-only glyphs reject. Mixed-script or bidirectional paragraphs
 need separately placed features with explicit shaping; added spacing can break
-connected scripts. Spline targets are tessellated for the text boolean; their
-recipes stay editable. Lettering can make a vase section nonconvex or a roof
-unsuitable for draping.
+connected scripts. Saved solids retain native targets and editable features; mapped
+lettering uses meshes through shared Geometry. Lettering can make sections nonconvex
+or roofs unsuitable for draping.
 
 `toleranceMm` (0.02 mm) and `maxEdgeMm` (1 mm) are request-level construction
 controls, not a certified error bound. Tight folds, offset self-intersections,

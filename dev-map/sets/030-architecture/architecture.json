@@ -4284,50 +4284,6 @@
       }
     },
     {
-      "id": "geometry-leaf-6e6adf01e692",
-      "index": "2.2.1.3.2.2",
-      "label": "evaluate",
-      "description": "constructSolids::evaluate in core/geom/solid-operations.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/solid-operations.mjs",
-        "declaration": "constructSolids::evaluate"
-      }
-    },
-    {
-      "id": "geometry-leaf-85599f813812",
-      "index": "2.2.1.3.2.3",
-      "label": "keep",
-      "description": "constructSolids::keep in core/geom/solid-operations.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/solid-operations.mjs",
-        "declaration": "constructSolids::keep"
-      }
-    },
-    {
-      "id": "geometry-leaf-50d426099298",
-      "index": "2.2.1.3.2.4",
-      "label": "operandsOf",
-      "description": "constructSolids::operandsOf in core/geom/solid-operations.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/solid-operations.mjs",
-        "declaration": "constructSolids::operandsOf"
-      }
-    },
-    {
-      "id": "geometry-leaf-b665d6f405fc",
-      "index": "2.2.1.3.3",
-      "label": "loftMesh",
-      "description": "loftMesh in core/geom/solid-operations.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/solid-operations.mjs",
-        "declaration": "loftMesh"
-      }
-    },
-    {
       "id": "geometry-leaf-c8d4e9d26294",
       "index": "2.2.1.3.4.1",
       "label": "mappedExtrusion body",
@@ -11319,17 +11275,6 @@
       }
     },
     {
-      "id": "geometry-leaf-09e9fa58a32c",
-      "index": "2.2.7",
-      "label": "nativeConstruction",
-      "description": "Native geometry operation and its private numerical state.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/solid-operations.mjs",
-        "declaration": "nativeConstruction"
-      }
-    },
-    {
       "id": "geometry-leaf-78a906648ac7",
       "index": "2.2.8",
       "label": "materialPresence",
@@ -13646,6 +13591,235 @@
       "source": {
         "file": "core/geom/stl-repair.mjs",
         "declaration": "prepareSTLRepairValue::chunks"
+      }
+    },
+    {
+      "id": "geometry-leaf-eb98ffea3c5a",
+      "index": "2.2.1.1.12",
+      "label": "constructionOperands",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/build.mjs",
+        "declaration": "constructionOperands"
+      }
+    },
+    {
+      "id": "geometry-leaf-64d6c58b923c",
+      "index": "2.2.1.1.13",
+      "label": "append",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/build.mjs",
+        "declaration": "constructionOperands::append"
+      }
+    },
+    {
+      "id": "geometry-leaf-ecc102f7a229",
+      "index": "2.2.1.3.5",
+      "label": "prepareConstructions",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "prepareConstructions"
+      }
+    },
+    {
+      "id": "geometry-leaf-2da19486d8a1",
+      "index": "2.2.1.3.6",
+      "label": "prepare",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "prepareConstructions::prepare"
+      }
+    },
+    {
+      "id": "geometry-leaf-84b7fb4f28cb",
+      "index": "2.2.1.3.7",
+      "label": "construct",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "prepareConstructions::construct"
+      }
+    },
+    {
+      "id": "geometry-leaf-dcc3081d5f81",
+      "index": "2.2.1.3.8",
+      "label": "constructGeometry",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "constructGeometry"
+      }
+    },
+    {
+      "id": "geometry-module-7acec8ab6462",
+      "index": "2.2.1.11",
+      "label": "solid profiles",
+      "description": "Numerical solid construction and representation; feature and process choices stay with callers.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-ee12cba10e00",
+      "index": "2.2.1.11.1",
+      "label": "Module initialization and private numerical state",
+      "description": "Geometry construction configuration and preparation caches.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-6feeb8b4204c",
+      "index": "2.2.1.11.2",
+      "label": "polygonProfile",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs",
+        "declaration": "polygonProfile"
+      }
+    },
+    {
+      "id": "geometry-leaf-32c4c2667217",
+      "index": "2.2.1.11.3",
+      "label": "roundedRectangleProfile",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs",
+        "declaration": "roundedRectangleProfile"
+      }
+    },
+    {
+      "id": "geometry-leaf-24af1524b3bf",
+      "index": "2.2.1.11.4",
+      "label": "loftProfiles",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs",
+        "declaration": "loftProfiles"
+      }
+    },
+    {
+      "id": "geometry-leaf-8d92055b61ac",
+      "index": "2.2.1.11.5",
+      "label": "boxGeometry",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs",
+        "declaration": "boxGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-cb9985fca698",
+      "index": "2.2.1.11.6",
+      "label": "transformGeometry",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-profiles.mjs",
+        "declaration": "transformGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-30017bbfa9bd",
+      "index": "2.2.1.5.9",
+      "label": "numericalPatch",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/spline-solid.mjs",
+        "declaration": "numericalPatch"
+      }
+    },
+    {
+      "id": "geometry-leaf-1f5104a8a704",
+      "index": "2.3.1.9.15",
+      "label": "patchBreaks",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "patchBreaks"
+      }
+    },
+    {
+      "id": "geometry-leaf-c3936c0c2c0f",
+      "index": "2.3.1.9.16",
+      "label": "knotSpanTriangles",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "knotSpanTriangles"
+      }
+    },
+    {
+      "id": "geometry-leaf-4b7fac8c65e2",
+      "index": "2.3.1.9.17",
+      "label": "half",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "knotSpanTriangles::half"
+      }
+    },
+    {
+      "id": "geometry-leaf-32fb0737569c",
+      "index": "2.3.1.9.18",
+      "label": "refinementEdges",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "refinementEdges"
+      }
+    },
+    {
+      "id": "geometry-leaf-d2451847fd6d",
+      "index": "2.3.1.9.19",
+      "label": "mark",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "refinementEdges::mark"
+      }
+    },
+    {
+      "id": "geometry-leaf-a3417a635f42",
+      "index": "2.3.1.10.20",
+      "label": "chartSegmentsWithin",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "chartSegmentsWithin"
+      }
+    },
+    {
+      "id": "geometry-leaf-8465bbf881d7",
+      "index": "2.3.1.10.21",
+      "label": "build",
+      "description": "Shared numerical Geometry construction, evaluation or output operation.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "chartSegmentsWithin::build"
       }
     }
   ],
@@ -19277,7 +19451,17 @@
         "dot",
         "cross",
         "normalize",
-        "distance"
+        "distance",
+        "prepareNumericalCurve",
+        "numericalCurveAt",
+        "numericalCurveRange",
+        "normalCone",
+        "frameCone",
+        "interpolateDirection",
+        "surfaceReferenceRecord",
+        "numericalGeometryRecord",
+        "prepareSurfaceContact",
+        "contactChart"
       ],
       "inputs": "Explicit geometry, coordinates, frames and physical tolerances.",
       "outputs": "Geometry/frame values; no scheduling or selected-machine policy.",
@@ -19367,7 +19551,7 @@
         "constructionPath"
       ],
       "inputs": "Supplied owned regions/reference families, curves, points and resolved process; optional modulation.",
-      "outputs": "Constructed saampath/1: exact operation IDs/after prerequisites, frozen strokes/poses/material volumes, resolved neutral process, logical materials and numerical material geometry. No live motion state or executable travel callbacks.",
+      "outputs": "Immutable saampath/2: native or faithful polyline curves with parameter profiles, native Slice records, explicit Inject and source dependencies; no travel execution.",
       "effects": "Private construction state; Bundle alone accepts and commits the result.",
       "status": "Implemented saved-artifact handoff, 2026-10-13; guarded Bundle commit retains lifecycle authority.",
       "direction": "Causal influence: Toolpath supplies the stated values to generateBundle / commitGeneration.",
@@ -19756,6 +19940,135 @@
       "failure": "Malformed or singular geometry reports its consuming assignment.",
       "excludes": "No recipe, machine, persistence or completed-deposition lookup.",
       "status": "Implemented common surface contract; geometric numerical limits remain explicit."
+    },
+    {
+      "id": "toolpath-reader-scheduling",
+      "from": "toolpath",
+      "to": "scheduling",
+      "label": "SP2 shared curve/profile/range reading",
+      "operations": [
+        "prepareCurvePath",
+        "curveAt",
+        "curveRange",
+        "curveSpans",
+        "linearizePath",
+        "pathActions",
+        "pathSummary",
+        "pathInitialPosition",
+        "pathInitialPose",
+        "pathCompletion"
+      ],
+      "inputs": "Immutable saampath/2 source, exact joined source/schedule identity, normalized source ranges and explicit local tolerances.",
+      "outputs": "Certified geometric/material/profile queries and lazy contextual local action views. No second persisted motion path.",
+      "effects": "Pure explicit queries with private preparation caches; Bundle retains saved identity authority.",
+      "failure": "Reject malformed profiles, missing identities, inconsistent execution coverage and unachievable numerical precision.",
+      "access": [
+        {
+          "from": "scheduling",
+          "to": "toolpath"
+        }
+      ],
+      "evidence": [
+        "core/path/README.md",
+        "core/path/curve-path.mjs"
+      ]
+    },
+    {
+      "id": "toolpath-reader-bundle-path",
+      "from": "toolpath",
+      "to": "bundle-path",
+      "label": "SP2 shared curve/profile/range reading",
+      "operations": [
+        "prepareCurvePath",
+        "curveAt",
+        "curveRange",
+        "curveSpans",
+        "linearizePath",
+        "pathActions",
+        "pathSummary",
+        "pathInitialPosition",
+        "pathInitialPose",
+        "pathCompletion",
+        "admitSource"
+      ],
+      "inputs": "Immutable saampath/2 source, exact joined source/schedule identity, normalized source ranges and explicit local tolerances.",
+      "outputs": "Certified geometric/material/profile queries and lazy contextual local action views. No second persisted motion path.",
+      "effects": "Pure explicit queries with private preparation caches; Bundle retains saved identity authority.",
+      "failure": "Reject malformed profiles, missing identities, inconsistent execution coverage and unachievable numerical precision.",
+      "access": [
+        {
+          "from": "bundle-path",
+          "to": "toolpath"
+        }
+      ],
+      "evidence": [
+        "core/path/README.md",
+        "core/path/curve-path.mjs"
+      ]
+    },
+    {
+      "id": "toolpath-reader-export",
+      "from": "toolpath",
+      "to": "export",
+      "label": "SP2 shared curve/profile/range reading",
+      "operations": [
+        "prepareCurvePath",
+        "curveAt",
+        "curveRange",
+        "curveSpans",
+        "linearizePath",
+        "pathActions",
+        "pathSummary",
+        "pathInitialPosition",
+        "pathInitialPose",
+        "pathCompletion"
+      ],
+      "inputs": "Immutable saampath/2 source, exact joined source/schedule identity, normalized source ranges and explicit local tolerances.",
+      "outputs": "Certified geometric/material/profile queries and lazy contextual local action views. No second persisted motion path.",
+      "effects": "Pure explicit queries with private preparation caches; Bundle retains saved identity authority.",
+      "failure": "Reject malformed profiles, missing identities, inconsistent execution coverage and unachievable numerical precision.",
+      "access": [
+        {
+          "from": "export",
+          "to": "toolpath"
+        }
+      ],
+      "evidence": [
+        "core/path/README.md",
+        "core/path/curve-path.mjs"
+      ]
+    },
+    {
+      "id": "toolpath-reader-studio",
+      "from": "toolpath",
+      "to": "studio",
+      "label": "SP2 shared curve/profile/range reading",
+      "operations": [
+        "prepareCurvePath",
+        "curveAt",
+        "curveRange",
+        "curveSpans",
+        "linearizePath",
+        "pathActions",
+        "pathSummary",
+        "pathInitialPosition",
+        "pathInitialPose",
+        "pathCompletion"
+      ],
+      "inputs": "Immutable saampath/2 source, exact joined source/schedule identity, normalized source ranges and explicit local tolerances.",
+      "outputs": "Certified geometric/material/profile queries and lazy contextual local action views. No second persisted motion path.",
+      "effects": "Pure explicit queries with private preparation caches; Bundle retains saved identity authority.",
+      "failure": "Reject malformed profiles, missing identities, inconsistent execution coverage and unachievable numerical precision.",
+      "access": [
+        {
+          "from": "studio",
+          "to": "toolpath"
+        }
+      ],
+      "evidence": [
+        "core/path/README.md",
+        "core/path/curve-path.mjs"
+      ]
     }
   ],
   "layout": {
@@ -19862,6 +20175,6 @@
       "I think of geometry as the CAD program, toolpath -> scheduler as the CAM.",
       "Okay, I agree with one shared canonical operation and contract for each capability."
     ],
-    "implementation": "Canonical Geometry operations own native surface construction, interval discovery, one execution owner for worker lifecycle, transport, memory, cancellation, deadlines, progress and errors; Boolean-owned automatic fuzzy/perturbation recovery, warnings, containment, sections and output. Extensions author feature dimensions and process intent; Application and Material regions propagate reports."
+    "implementation": "Canonical Geometry operations own native surface construction, interval discovery, one execution owner for worker lifecycle, transport, memory, cancellation, deadlines, progress and errors; Boolean-owned automatic fuzzy/perturbation recovery, warnings, containment, sections and output. Extensions author feature dimensions and process intent; Application and Material regions propagate reports. Shared retained-solid construction preserves exact profiles and native operands; explicit mesh output shares that preparation. Synchronous numerical builds allocate no native file/runtime handles."
   }
 }

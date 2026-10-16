@@ -56,14 +56,23 @@ export function shellFromSurfaces(rhino, entries, name) {
 
 export function splineSolidShell(rhino,geometry,{native=true}={}){
   validateSplineSolid(geometry);
+  if(!native)return makeShell(geometry.patches.map(numericalPatch),{name:'spline'});
   const entries=[];
   try{
     for(const patch of geometry.patches)entries.push({name:patch.name,surface:nurbsSurface(rhino,patch)});
-    const shell=shellFromSurfaces(rhino,entries,'spline');
-    if(native)return shell;
-    const {surfaces,...value}=shell;return value;
-  }catch(error){if(native)for(const entry of entries)entry.surface.delete();throw error;}
-  finally{if(!native)for(const entry of entries)entry.surface.delete();}
+    return shellFromSurfaces(rhino,entries,'spline');
+  }catch(error){for(const entry of entries)entry.surface.delete();throw error;}
+}
+
+// Numerical preparation reads the authored control nets directly. Native
+// file/runtime objects are allocated only by the explicit native branch above.
+function numericalPatch(patch){
+  const nu=patch.controlPoints.length,nv=patch.controlPoints[0].length;
+  const knotsU=Float64Array.from(patch.knotsU??clampedKnots(nu,patch.degreeU));
+  const knotsV=Float64Array.from(patch.knotsV??clampedKnots(nv,patch.degreeV));
+  return {name:patch.name,nu,nv,orderU:patch.degreeU+1,orderV:patch.degreeV+1,knotsU,knotsV,
+    cp:Float64Array.from(patch.controlPoints.flatMap(row=>row.flatMap(([x,y,z,w=1])=>[x*w,y*w,z*w,w]))),
+    domainU:[knotsU[patch.degreeU],knotsU[nu]],domainV:[knotsV[patch.degreeV],knotsV[nv]]};
 }
 
 // openNURBS stores homogeneous points and omits the first and last knot.

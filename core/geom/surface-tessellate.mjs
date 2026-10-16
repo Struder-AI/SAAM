@@ -4,8 +4,8 @@
 import {solidKernel} from './solid.mjs';
 import {curvePosition} from './surface-topology.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
-import {evaluate} from './nurbs.mjs';
-import {surfaceSegmentCurves} from './surface-curves.mjs';
+import {evaluate,evaluateCurve} from './nurbs.mjs';
+import {surfaceIsoCurve,surfaceSegmentCurves} from './surface-curves.mjs';
 import {distance,dot,requireThat} from './tolerance.mjs';
 import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
@@ -14,16 +14,26 @@ export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Tessellation tolerance must be positive.');
   if(solid.empty)return {vertices:[],triangles:[],notes:[...(solid.notes??[])]};
   const kernel=await solidKernel(),topology=solid.topology,vertices=topology.vertices.map(point=>[...point]),boundaries=new Map();
-  const edgeSamples=topology.edges.map(edge=>{
+  const edgeSamples=topology.edges.map((edge,index)=>{
     const curve=topology.curves[edge.curve],[lo,hi]=edge.range,at=t=>({point:curvePosition(curve,t)});
-    const samples=sampleCurveIntervals({at,cuts:[lo,hi],stepMm:Infinity,toleranceMm:toleranceMm/2});
+    const cuts=[lo,hi],chartSpans=[];
+    for(const face of topology.faces)for(const loop of face.loops)for(const use of loop)if(use.edge===index){
+      const patch=solid.patches[face.patch];chartSpans.push(distance(...use.uvRange));
+      for(const [axis,knots] of patchBreaks(patch).entries()){
+        const a=use.uvRange[0][axis],delta=use.uvRange[1][axis]-a;
+        if(delta)for(const knot of knots){const t=(knot-a)/delta;if(t>0&&t<1)cuts.push(lo+t*(hi-lo));}
+      }
+    }
+    const guard=(hi-lo)*ROUNDING_RELATIVE/Math.min(...chartSpans.filter(span=>span>0));
+    const ordered=[lo];for(const cut of [...new Set(cuts)].sort((a,b)=>a-b))if(cut-ordered.at(-1)>guard&&hi-cut>guard)ordered.push(cut);ordered.push(hi);
+    const samples=sampleCurveIntervals({at,cuts:ordered,stepMm:Infinity,toleranceMm:toleranceMm/2});
     return samples.map((sample,i)=>{
       if(i===0)return {id:edge.vertices[0],t:sample.t};
       if(i===samples.length-1)return {id:edge.vertices[1],t:sample.t};
       const id=vertices.length;vertices.push(sample.point);return {id,t:sample.t};
     });
   });
-  const triangles=topology.faces.flatMap(face=>triangulateFace(kernel,solid.patches[face.patch],face,topology.edges,edgeSamples,boundaries));
+  const triangles=topology.faces.flatMap(face=>triangulateFace(kernel,solid.patches[face.patch],face,topology.edges,edgeSamples,boundaries,vertices));
   const targetMm=Math.max(toleranceMm,solid.construction.toleranceMm);
   const refined=refineSurfaceTriangles(solid,vertices,triangles,boundaries,targetMm/2);
   if(targetMm>toleranceMm)refined.notes.push(`Output mesh accuracy is limited by the ${targetMm} mm native Boolean construction; requested ${toleranceMm} mm. Change BOOLEAN_TOLERANCE_MM and rebuild for finer construction.`);
@@ -33,7 +43,7 @@ export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
   }),notes:[...(solid.notes??[]),...refined.notes],tessellation:{toleranceMm,sampledErrorMm:refined.error,method:'conforming-native-boundary'}};
 }
 
-function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries){
+function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries,vertices){
   const spans=[];
   const charts=face.loops.map(coedges=>{
     const traversal=patch.normalSide<0?[...coedges].reverse():coedges,points=[];
@@ -42,9 +52,9 @@ function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries){
       const samples=orientation>0?edgeSamples[coedge.edge]:[...edgeSamples[coedge.edge]].reverse();
       const chain=samples.map(sample=>({...sample,uv:interpolate(coedge.uvRange[0],coedge.uvRange[1],(sample.t-edge.range[0])/(edge.range[1]-edge.range[0]))}));
       for(let i=1;i<chain.length;i++)spans.push({curve:edge.curve,a:chain[i-1],b:chain[i]});
-      for(const sample of chain)if(!points.length||distance(sample.uv,points.at(-1).uv)>ROUNDING_RELATIVE)points.push(sample);
+      for(const sample of chain){const last=points.at(-1);if(!last||distance(sample.uv,last.uv)>ROUNDING_RELATIVE&&!(sample.id===last.id&&collapsedChartEdge(patch,last,sample,vertices[sample.id],ROUNDING_MM)))points.push(sample);}
     }
-    if(points.length>1&&distance(points[0].uv,points.at(-1).uv)<=ROUNDING_RELATIVE)points.pop();
+    if(points.length>1&&(distance(points[0].uv,points.at(-1).uv)<=ROUNDING_RELATIVE||points[0].id===points.at(-1).id&&collapsedChartEdge(patch,points[0],points.at(-1),vertices[points[0].id],ROUNDING_MM)))points.pop();
     return points;
   }).filter(chart=>chart.length>=3);
   if(!charts.length)return [];
@@ -56,7 +66,59 @@ function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries){
   };
   for(const span of spans)rememberBoundary(boundaries,face.patch,span.curve,atSample(span.a),atSample(span.b));
   const loops=charts.map(chart=>chart.map(record=>record.uv)),raw=kernel.triangulate(loops,ROUNDING_RELATIVE,false);
-  return constrainFaceBoundary(raw,records,loops).map(triangle=>({face:face.patch,corners:triangle.map(index=>records[index])}));
+  const triangles=constrainFaceBoundary(raw,records,loops).map(triangle=>triangle.map(index=>records[index]));
+  return knotSpanTriangles(patch,triangles,records,vertices).map(corners=>({face:face.patch,corners}));
+}
+
+// Seed triangles within native knot spans. Refining across long straight runs
+// and sharp profile changes otherwise creates a growing field of slivers.
+const breakCache=new WeakMap();
+function patchBreaks(patch){
+  if(!breakCache.has(patch)){
+    const domains=[patch.domainU,patch.domainV],knots=[patch.knotsU,patch.knotsV];
+    const cuts=planarPatch(patch)?[[],[]]:knots.map((values,axis)=>{
+      const [lo,hi]=domains[axis],other=1-axis;
+      const probes=[...new Set(knots[other])].filter(k=>k>=domains[other][0]&&k<=domains[other][1]);
+      const curves=probes.map(k=>surfaceIsoCurve(patch,other,k));
+      return [...new Set(values)].filter(k=>k>lo&&k<hi&&curves.some(curve=>distance(evaluateCurve(curve,k,true).derivative,evaluateCurve(curve,k).derivative)*(hi-lo)>ROUNDING_MM));
+    });
+    breakCache.set(patch,cuts);
+  }
+  return breakCache.get(patch);
+}
+function knotSpanTriangles(patch,triangles,records,vertices){
+  const cuts=patchBreaks(patch);
+  if(!cuts.some(axis=>axis.length))return triangles;
+  const points=new Map(),key=uv=>uv.map(v=>Math.round(v/ROUNDING_RELATIVE)).join(',');
+  for(const record of records){for(const [axis,knots] of cuts.entries())for(const knot of knots)if(Math.abs(record.uv[axis]-knot)<=ROUNDING_RELATIVE)record.uv[axis]=knot;points.set(key(record.uv),record);}
+  let nextChartId=records.length;
+  const at=uv=>{const k=key(uv);if(!points.has(k)){const existing=[...points.values()].find(p=>distance(p.uv,uv)<=ROUNDING_RELATIVE);if(existing)return existing;const position=evaluate(patch,...uv,false).point;
+      const collapsed=[...points.values()].find(p=>distance(vertices[p.id],position)<=ROUNDING_MM&&collapsedChartEdge(patch,p,{uv},position,ROUNDING_MM));
+      const id=collapsed?.id??vertices.length;if(!collapsed)vertices.push(position);points.set(k,{uv,id,chartId:nextChartId++});}return points.get(k);};
+  function half(polygon,axis,knot,side){
+    const output=[];
+    for(let i=0;i<polygon.length;i++){
+      const a=polygon[i],b=polygon[(i+1)%polygon.length],da=(a.uv[axis]-knot)*side,db=(b.uv[axis]-knot)*side;
+      if(da>=0)output.push(a);
+      if(da>0&&db<0||da<0&&db>0){
+        const uv=interpolate(a.uv,b.uv,da/(da-db));uv[axis]=knot;output.push(at(uv));
+      }
+    }
+    return output.filter((p,i)=>i===0||p.chartId!==output[i-1].chartId);
+  }
+  const output=[];
+  for(const triangle of triangles){
+    let polygons=[triangle];
+    for(const [axis,knots] of cuts.entries())for(const knot of knots)polygons=polygons.flatMap(polygon=>{
+      if(!polygon.some(p=>p.uv[axis]<knot)||!polygon.some(p=>p.uv[axis]>knot))return [polygon];
+      return [half(polygon,axis,knot,1),half(polygon,axis,knot,-1)].filter(p=>p.length>=3);
+    });
+    for(const polygon of polygons)for(let i=1;i<polygon.length-1;i++){
+      const [a,b,c]=[polygon[0],polygon[i],polygon[i+1]];
+      if(new Set([a.chartId,b.chartId,c.chartId]).size===3&&Math.abs((b.uv[0]-a.uv[0])*(c.uv[1]-a.uv[1])-(b.uv[1]-a.uv[1])*(c.uv[0]-a.uv[0]))>ROUNDING_RELATIVE**2)output.push([a,b,c]);
+    }
+  }
+  return output;
 }
 
 function chartEdgeKey(face,a,b){return `${face}|${edgeKey(a.chartId,b.chartId)}`;}
@@ -78,7 +140,7 @@ function constrainFaceBoundary(raw,records,loops){
   const pathOnEdge=(ai,bi,ci)=>{
     const a=records[ai].uv,b=records[bi].uv,first=locations[ai],last=locations[bi];
     if(first.indices!==last.indices)return null;
-    const delta=b.map((v,k)=>v-a[k]),length2=dot(delta,delta);
+    const delta=b.map((v,k)=>v-a[k]),length2=delta[0]**2+delta[1]**2;
     if(length2<=ROUNDING_RELATIVE**2)return null;
     for(const direction of [1,-1]){
       const path=[ai],n=first.indices.length;
@@ -186,7 +248,8 @@ function refinementEdges(triangles,vertices,boundaries,errors,toleranceMm){
 // actual rational edge image stays within construction/output accuracy;
 // a periodic arc with coincident endpoints still receives real subdivision.
 function collapsedChartEdge(patch,a,b,point,toleranceMm){
-  return surfaceSegmentCurves(patch,a.uv,b.uv).every(curve=>Array.from({length:curve.n},(_,i)=>i*4).every(i=>
+  const domains=[patch.domainU,patch.domainV],clamp=uv=>uv.map((v,k)=>Math.max(domains[k][0],Math.min(domains[k][1],v)));
+  return surfaceSegmentCurves(patch,clamp(a.uv),clamp(b.uv)).every(curve=>Array.from({length:curve.n},(_,i)=>i*4).every(i=>
     distance([0,1,2].map(k=>curve.cp[i+k]/curve.cp[i+3]),point)<=toleranceMm));
 }
 

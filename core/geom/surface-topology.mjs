@@ -154,7 +154,7 @@ function boundaryCurveUses(patch,a,b,curves,toleranceMm){
   const uvGuard=4*ROUNDING_RELATIVE*Math.max(patch.domainU[1]-patch.domainU[0],patch.domainV[1]-patch.domainV[0]);
   for(const curve of curves){
     if(curve.kind!=='intersection')continue;
-    for(const chart of curve.charts.filter(chart=>chart.face===patch.sourceFace))for(const {p,q,index:i} of preparedChartSegments(patch,curve,chart,toleranceMm)){
+    for(const chart of curve.charts.filter(chart=>chart.face===patch.sourceFace))for(const {p,q,index:i} of chartSegmentsWithin(preparedChartSegments(patch,curve,chart,toleranceMm),{min:a.map((v,k)=>Math.min(v,b[k])-uvGuard),max:a.map((v,k)=>Math.max(v,b[k])+uvGuard)})){
       const coordinates=chart.uv;
       const along=point=>((point[0]-a[0])*delta[0]+(point[1]-a[1])*delta[1])/length2;
       const x=along(p),y=along(q);
@@ -240,9 +240,29 @@ function preparedChartSegments(patch,curve,chart,toleranceMm){
   const segments=[],coordinates=chart.uv;
   for(let i=1;i<coordinates.length;i++){
     const p=coordinates[i-1],q=coordinates[i];
-    if(faithfulChartSegment(patch,p,q,curve.points[i-1],curve.points[i],toleranceMm))segments.push({p,q,index:i});
+    if(faithfulChartSegment(patch,p,q,curve.points[i-1],curve.points[i],toleranceMm))segments.push({p,q,index:i,min:p.map((v,k)=>Math.min(v,q[k])),max:p.map((v,k)=>Math.max(v,q[k]))});
   }
   cache.set(chart,{toleranceMm,points:curve.points,segments});return segments;
+}
+
+// Immutable chart segments share a conservative UV search tree. Queries retain
+// every candidate admitted by the original chart/physical-distance predicates.
+const segmentTrees=new WeakMap();
+function chartSegmentsWithin(segments,bounds){
+  function build(entries){
+    if(!entries.length)return null;
+    const min=[0,1].map(k=>Math.min(...entries.map(s=>s.min[k]))),max=[0,1].map(k=>Math.max(...entries.map(s=>s.max[k])));
+    if(entries.length<=8)return {min,max,entries};
+    const axis=max[0]-min[0]>=max[1]-min[1]?0:1,ordered=[...entries].sort((a,b)=>a.min[axis]+a.max[axis]-b.min[axis]-b.max[axis]),middle=Math.floor(entries.length/2);
+    return {min,max,left:build(ordered.slice(0,middle)),right:build(ordered.slice(middle))};
+  }
+  if(!segmentTrees.has(segments))segmentTrees.set(segments,build(segments));
+  const pending=[segmentTrees.get(segments)],found=[];
+  while(pending.length){const node=pending.pop();if(!node||node.min.some((v,k)=>v>bounds.max[k]||node.max[k]<bounds.min[k]))continue;
+    if(node.entries)found.push(...node.entries.filter(segment=>segment.min.every((v,k)=>v<=bounds.max[k]&&segment.max[k]>=bounds.min[k])));
+    else pending.push(node.right,node.left);
+  }
+  return found.sort((a,b)=>a.index-b.index);
 }
 
 function faithfulChartSegment(patch,a,b,first,last,toleranceMm){
@@ -253,7 +273,10 @@ function faithfulChartSegment(patch,a,b,first,last,toleranceMm){
 
 function nearCurveParameters(patch,uv,curve,chart,toleranceMm){
   const frame=evaluate(patch,...uv),coordinates=chart.uv,found=[];
-  for(const {p,q,index:i} of preparedChartSegments(patch,curve,chart,toleranceMm)){
+  const uu=dot(frame.du,frame.du),vv=dot(frame.dv,frame.dv),uvMetric=dot(frame.du,frame.dv),determinant=uu*vv-uvMetric**2;
+  const radii=determinant>0?[Math.sqrt(vv/determinant)*toleranceMm,Math.sqrt(uu/determinant)*toleranceMm]:[Infinity,Infinity];
+  const bounds={min:uv.map((v,k)=>v-radii[k]),max:uv.map((v,k)=>v+radii[k])};
+  for(const {p,q,index:i} of chartSegmentsWithin(preparedChartSegments(patch,curve,chart,toleranceMm),bounds)){
     const delta=q.map((v,k)=>v-p[k]);
     const direction=[0,1,2].map(k=>frame.du[k]*delta[0]+frame.dv[k]*delta[1]);
     const offset=[0,1,2].map(k=>frame.du[k]*(p[0]-uv[0])+frame.dv[k]*(p[1]-uv[1]));

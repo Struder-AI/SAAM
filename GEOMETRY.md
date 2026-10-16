@@ -147,8 +147,7 @@ Geometry is recipe data that `create_bundle` and `adjust_recipe` take whole: sen
 
 ## Computing geometry with scripts
 
-A script computes only an operation's input, such as a large, repetitive or
-formula-driven recipe, passed by file to `create_bundle`, `adjust_recipe`, `blob_field`
-or `combine_geometry` ([command line](core/print/USAGE.md#command-line)); SAAM makes the
-geometry and program ([working boundaries](MAKERS.md#working-boundaries)). On Windows, import
-SAAM modules with `file:///` URLs; [`circlePoints`](core/geom/cylinder.mjs) gives a mesh prism's circle.
+Scripts compute inputs for the [print tools](core/print/USAGE.md#command-line);
+SAAM constructs and publishes them ([boundaries](MAKERS.md#working-boundaries)).
+[Shared Geometry construction](core/geom/README.md#geometry-query-boundary) retains
+native profiles/solids and derives meshes when needed. Windows imports use `file:///` URLs.

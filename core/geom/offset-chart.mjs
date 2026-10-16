@@ -2,6 +2,7 @@
 import {prepareSurfaceOffset} from './surface-offset.mjs';
 import {evaluateSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,scale,normalize,cross,dot,add} from './tolerance.mjs';
+import {surfaceReferenceRecord,numericalGeometryRecord} from './surface-record.mjs';
 export function offsetSurfaceChart(chart,depth,{shell,selection,tightness=1}={}){
   const patch=selection?.kind==='spline'&&tightness<1?shell.patches?.find(p=>p.name===selection.patch):null;
   requireThat(patch!==undefined,'Selected native spline patch is missing.');
@@ -24,5 +25,7 @@ export function offsetSurfaceChart(chart,depth,{shell,selection,tightness=1}={})
     return {...actual,point:add(actual.point,transported)};
   }}:selectedChart;
   const reference=offsetChart(depth);
-  return offsetField?reference:{...chart,at:(u,v)=>evaluateSurface(chart,[u,v],depth)};
+  const output=offsetField?reference:{...chart,at:(u,v)=>evaluateSurface(chart,[u,v],depth)};
+  return {...output,referenceRecord:{representation:'offset-chart',source:surfaceReferenceRecord(chart),depthMm:depth,
+    geometry:patch?numericalGeometryRecord(shell):null,selection:selection??null,tightness}};
 }

@@ -8,10 +8,9 @@ metadata:
 # Gridfinity
 
 Create parametric open bins, solid blanks for custom inserts, and baseplates: a
-closed material mesh with its editable construction recipe. Setup, Studio review
+retained native solid with editable parameters. Setup, Studio review
 and delivery follow the usual [print tools](../../core/print/USAGE.md). The short
-frontmatter is intentional: shared discovery contains only the name.
-
+frontmatter keeps discovery to the name.
 ## Create and edit
 
 The `gridfinity` tool creates a print:
@@ -27,10 +26,10 @@ To edit, call it with `action: "update"`, `bundleId`, `expectedRevision` and a
 partial `parameters` object; omitted parameters stay as saved. Omit `machineId`
 on updates, and supply `part` with the component id for an assembly. A new
 `kind` keeps the footprint and tolerance and takes that kind's defaults for the
-rest. Wrong fields, incompatible settings, stale revisions,
-mesh failures are rejected before saving; export checks machine bounds, and
+rest. Invalid settings, stale revisions and construction failures reject before saving;
+export checks machine bounds, and
 `create` never overwrites a print. Dimension edits invalidate geometry and
-settings/toolpath confirmations; `adjust_recipe` on the baked mesh or parameters
+settings/toolpath confirmations; `adjust_recipe` on the compiled solid or parameters
 is rejected unless it supplies a complete newly compiled record.
 
 ## Parameters
@@ -42,7 +41,7 @@ rejected.
 |---|---|---|
 | `kind` | `bin` | `bin`, `blank`, `baseplate`. |
 | `xUnits`, `yUnits` | 1, 1 | Positive whole cell counts on 42 mm centres; export checks machine fit. |
-| `toleranceMm` | 0.03 | Positive chord deviation of the circular arcs; not a mating clearance. |
+| `toleranceMm` | 0.03 | Positive derived-mesh chord tolerance; arcs stay exact, no mating clearance. |
 
 | Bin setting | Default | Meaning / supported range |
 |---|---|---|
@@ -74,7 +73,7 @@ Creation keeps the default [slice](../slice/SKILL.md) (two loops, 20% fill,
 three solid layers top and bottom), so solid layers close the floor and wall tops
 without capping the bin. It is an editable proposal, not a validated recipe;
 inspect thin walls, dividers, foot joins and pockets. Other slice assignments,
-regions and assemblies work as for any mesh.
+regions and assemblies use ordinary Geometry.
 
 Use [text](../text/SKILL.md) for lettering on the floor, walls or a blank: a plane
 at Z = 7 reaches the default bin floor. Text features are rebuilt after a

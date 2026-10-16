@@ -47,27 +47,26 @@ is the normal confirmation. Fit, tool access and printable support need review.
 
 ## Deposition and composition
 
-The bore remains part of the main geometry; the main Slice keeps its walls and
-infill. A generated [Trace](../trace/SKILL.md) follows each prepared source layer.
-For N main loops it adds max(4,N+1)-N walls: one main loop becomes four total;
-eight become nine. The final added wall travels out and back along the fins.
-Added walls and fins intentionally overlap the unchanged main infill.
+The main Slice keeps its bore, walls and infill; a generated [Trace](../trace/SKILL.md)
+follows each prepared source layer.
+For N main loops it adds max(4,N+1)-N walls: one becomes four, eight become nine.
+The last wall follows fins; added walls/fins overlap unchanged main infill.
 
-Fixed zero-thickness fin sheets intersect the inherited layer surface; Geometry
-computes physical bead offsets there. Fin tips stay fixed; large main wall counts
-can leave little fin beyond the added wall. Settings, reference surface, width,
-pitch, gaps and tool pose inherit the prepared main layer, including nonplanar layers.
+Geometry constructs the finite seat/pad with the bore’s shared radial profile and
+intersects fixed fin sheets with the inherited layer surface. Seat depth excludes
+outward/through clearance. Large wall counts can consume fin reach; offsets and
+process settings inherit the prepared main layer, including nonplanar layers.
 
 The pattern clears main wall bands at every boundary, including neighboring holes
-and exterior edges. Clipped curves stay open; gaps are travel, with fragments
-reported. The nominal loop target cannot promise loops the host cannot contain.
+and exterior edges. Clipped gaps are travel; reports retain open fragments.
+The loop target is limited by available host material.
 
 Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
 omitted source selection, and an explicit override affects only the named hole.
-Vase-only deposition has no source Slice. Coincident fin/layer sheets have no
-unique intersection curve; skipped fins and singular charts are reported.
+Vase-only deposition has no source Slice; coincident fin/layer sheets have no unique
+intersection. Skipped fins and singular charts are reported.
 
-Meshes, supported spline hosts and assemblies retain editable holes alongside text/curves.
-Reports note cleared mouths, uneven rims, floor breakout and short through seats. Blind-floor pads
+Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
+Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind pads
 use max(solidTop,solidBottom) × layer gap, excluding existing dense coverage; oblique pads may span
 more layers. Fit, adhesion, strength, AMS behavior and unsupported orientations need print evidence.

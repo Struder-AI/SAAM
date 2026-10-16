@@ -1,6 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {prepareCurvePath} from './curve-path.mjs';
-import {validatePose} from './pose.mjs';
+import {prepareCurvePath,curveAt} from './curve-path.mjs';
+import {validatePose,samePose} from './pose.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 
 const table=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const id=value=>typeof value==='string'&&value.length>0;
@@ -77,15 +78,22 @@ function validateEvent(entry){
 }
 export function validateExecutionSource(source,schedule){
   const courses=new Map(),coverage=new Map(),injections=new Set(),operationIndices=new Map();
+  const reader=prepareCurvePath(source),motion=prepareCurvePath({curves:schedule.motionCurves}),cursor={point:schedule.initialPosition,pose:schedule.initialPose};
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[])courses.set(course.id,{course,operation});
   for(const [index,entry] of schedule.execution.entries()){
     if(entry.kind==='deposit'){
       const found=courses.get(entry.courseId);requireThat(found&&entry.from>=found.course.from&&entry.to<=found.course.to,'Execution references an unknown course or leaves its range.');
+      const start=curveAt(reader,found.course.curveId,entry.from),end=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
+      requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
       const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,index});coverage.set(entry.courseId,pieces);
       const indices=operationIndices.get(found.operation.id)??[];indices.push(index);operationIndices.set(found.operation.id,indices);
     }else if(entry.kind==='inject'){
       requireThat(source.operations[entry.operationId]?.kind==='inject'&&!injections.has(entry.operationId),'Injection must execute once.');
+      const injection=source.operations[entry.operationId].injection;requireContinuation(cursor,injection.at,injection.pose);
       injections.add(entry.operationId);operationIndices.set(entry.operationId,[index]);
+    }else if(entry.kind==='travel'){
+      const start=curveAt(motion,entry.curveId,entry.from),end=curveAt(motion,entry.curveId,entry.to,{side:'left'});
+      requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
     }
   }
   for(const {course} of courses.values()){
@@ -101,5 +109,14 @@ export function validateExecutionSource(source,schedule){
       const first=indices[0],last=indices.at(-1);
       for(const [other,found] of operationIndices)if(other!==operation.id)requireThat(found.every(index=>index<first||index>last),'An atomic operation cannot interleave.');
     }
+    if(operation.continuous){
+      const ordered=(operation.courses??[]).map(course=>coverage.get(course.id));
+      requireThat(ordered.every((pieces,i)=>pieces.length===1&&(!i||ordered[i-1][0].index<pieces[0].index)),
+        'Execution cannot split or reorder an authored continuous chain.');
+    }
   }
+}
+function requireContinuation(cursor,point,pose){
+  requireThat(point.every((value,i)=>Math.abs(value-cursor.point[i])<=ROUNDING_MM)&&samePose(cursor.pose,pose),
+    'Execution ranges need explicit continuous position and pose transfers.');
 }

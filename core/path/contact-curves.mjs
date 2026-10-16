@@ -1,18 +1,15 @@
 import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
-import {prepareExtrudedSegmentQuery} from '../geom/extruded-segments.mjs';
+import {prepareSurfaceContact} from '../geom/contact-chart.mjs';
 
 // A geometric query over final beads, shared by contact gaps and contact charts.
 // The outward ray starts beyond the actual material bounds, not at a nominal
 // CAD surface that may now lie inside or behind displaced material.
-export function depositedContact(segments,{toleranceMm=0}={}){
-  requireThat(segments.length>0,'Deposited contact needs actual material.');
-  const query=prepareExtrudedSegmentQuery(segments,{toleranceMm}),bounds=query.bounds;
-  return {bounds,at(point,direction){
-    const normal=normalize(direction),ceiling=normal.reduce((sum,n,i)=>sum+n*(n>=0?bounds.max[i]:bounds.min[i]),0)+toleranceMm;
-    const start=point.map((p,i)=>p+normal[i]*(ceiling-dot(point,normal)));
-    const hit=query.cast(start,normal.map(value=>-value));
+export function depositedContact(segments,options={}){
+  const query=prepareSurfaceContact(segments,options);
+  return {bounds:query.bounds,at(point,direction){
+    const hit=query.at(point,direction);
     return hit?{...hit,operationId:segments[hit.segmentIndex].operationId}:null;
   }};
 }
@@ -40,59 +37,6 @@ const SPAN_OUTCOME={unsupported:'has no deposited material below; it prints at i
 export function contactSpanNote(id,{kind,fromMm,toMm,lengthMm}){
   const at=point=>`(${point.map(v=>v.toFixed(2)).join(', ')})`;
   return `${id}: ${lengthMm.toFixed(2)} mm from ${at(fromMm)} to ${at(toMm)} mm ${SPAN_OUTCOME[kind]}.`;
-}
-
-// Evaluated substrate chart: its points and metric both come from final beads.
-// Finite differences shrink until their physical change meets the authored
-// tolerance. Where no material lies below, the nominal reference sample and
-// frame stand; interpolation never bridges a hole.
-// Process scale: default contact chord tolerance, a fortieth of a 0.4 mm line.
-const CONTACT_CHORD_MM=.01;
-export function depositedContactChart(chart,segments,{toleranceMm=CONTACT_CHORD_MM}={}){
-  requireThat(toleranceMm>0,'Contact chart needs positive tolerance.');
-  const contact=depositedContact(segments),positions=new Map(),frames=new Map();
-  const position=(u,v)=>{
-    const key=`${u},${v}`;if(positions.has(key))return positions.get(key);
-    const reference=chart.at(u,v),hit=contact.at(reference.point,reference.normal);
-    const sample=hit?{deposited:true,frame:{...reference,...hit,normal:reference.normal,contactNormal:hit.normal}}:{deposited:false,frame:reference};
-    positions.set(key,sample);return sample;
-  };
-  const at=(u,v)=>{
-    const key=`${u},${v}`;if(frames.has(key))return frames.get(key);
-    const {deposited,frame:center}=position(u,v);
-    if(!deposited){frames.set(key,center);return center;}
-    const derivative=axis=>{
-      const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
-      // Finite-difference step: square root of the tolerance over the chart scale, capped.
-      let h=Math.min(.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
-      // A probe beyond the deposited material has no deposited difference: null.
-      const estimate=step=>{
-        // A periodic seam is interior to the surface. Keep the differentiation
-        // interval unwrapped and wrap only its probes, so both seam sides use
-        // the same centered frame instead of disagreeing one-sided normals.
-        const periodic=axis===0&&chart.periodicU;
-        const a=periodic?coordinate-step:Math.max(0,coordinate-step),b=periodic?coordinate+step:Math.min(1,coordinate+step);
-        requireThat(b>a,'Contact chart derivative cannot progress.');
-        const probeA=periodic?a-Math.floor(a):a,probeB=periodic?b-Math.floor(b):b;
-        const pa=position(axis===0?probeA:u,axis===1?probeA:v),pb=position(axis===0?probeB:u,axis===1?probeB:v);
-        return pa.deposited&&pb.deposited?pb.frame.point.map((p,i)=>(p-pa.frame.point[i])/(b-a)):null;
-      };
-      let previous=estimate(h);
-      if(!previous)return nominal;
-      for(;;){
-        const next=estimate(h/2);
-        if(!next)return previous;
-        if(distance(previous,next)*h<=toleranceMm)return next;
-        requireThat(coordinate+h/2!==coordinate,'Deposited contact chart has an unresolved discontinuity.');
-        h/=2;previous=next;
-      }
-    };
-    const du=derivative(0),dv=derivative(1),oriented=cross(du,dv);
-    requireThat(Math.hypot(...oriented)>ROUNDING_MM**2,'Deposited contact chart is locally singular.');
-    const normal=normalize(oriented),side=dot(normal,center.normal)<0?-1:1;
-    const frame={...center,du,dv,normal:normal.map(n=>n*side)};frames.set(key,frame);return frame;
-  };
-  return {...chart,at,contactGeometry:'final-deposited-beads',contactMetric:'adaptive-finite-difference',toleranceMm};
 }
 
 // Keep authored positions; only marked contact segments acquire their actual

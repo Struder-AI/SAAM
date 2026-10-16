@@ -11,6 +11,7 @@ const xyz=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 export function prepareNumericalCurve(geometry){
   if(geometry.kind==='nurbs'){
     const {kind,...record}=geometry,native=authoredNurbs(record);
+    requireThat(geometry.controlPoints.some(point=>point.some((v,k)=>v!==geometry.controlPoints[0][k])),'A stationary curve uses point geometry.');
     const [a,b]=native.domain,breaks=[...new Set(native.knots)].filter(k=>k>a&&k<b).map(k=>(k-a)/(b-a));
     const multiplicities=new Map();
     for(const knot of native.knots)if(knot>a&&knot<b)multiplicities.set(knot,(multiplicities.get(knot)??0)+1);
@@ -24,6 +25,7 @@ export function prepareNumericalCurve(geometry){
     const length=distance(geometry.points[i],p);requireThat(length>0,'Polyline vertices must have distinct neighbors.');lengths.push(lengths.at(-1)+length);
   }
   const parameters=lengths.map(length=>length/lengths.at(-1));
+  requireThat(parameters.every((u,i)=>Number.isFinite(u)&&(!i||u>parameters[i-1])),'Polyline parameter precision cannot represent its distinct edges.');
   return {kind:'polyline',points:geometry.points,parameters,length:lengths.at(-1),breaks:parameters.slice(1,-1)};
 }
 function polylineIndex(curve,u,side){
@@ -67,8 +69,18 @@ function nativePiece(curve,from,to){
   // length is bounded by their Euclidean control polygon (Crofton formula).
   // This converges quadratically under subdivision, unlike a speed supremum.
   const polygon=points.slice(1).reduce((sum,point,i)=>sum+distance(points[i],point),0);
+  const directions=coefficients.filter(vector=>Math.hypot(...vector)>0).map(vector=>{const norm=Math.hypot(...vector);return vector.map(v=>v/norm);});
+  // Elevate X to degree p+1 and subtract W times the endpoint line. The
+  // numerator's Bernstein hull bounds position error at the SAME parameter,
+  // including rational speed variation and reversals hidden by chord distance.
+  const interpolationNumerator=Array.from({length:p+2},(_,i)=>{
+    const fraction=i/(p+1),left=rows[Math.min(i,p)],right=rows[Math.max(0,i-1)];
+    return [0,1,2].map(k=>(1-fraction)*(left[k]-left[3]*points[0][k])+fraction*(right[k]-right[3]*points.at(-1)[k]));
+  });
+  const interpolationErrorMm=Math.max(...interpolationNumerator.map(vector=>Math.hypot(...vector)))/minWeight+rounding;
   return {bounds:{min:[0,1,2].map(k=>Math.min(...points.map(p=>p[k]))-rounding),max:[0,1,2].map(k=>Math.max(...points.map(p=>p[k]))+rounding)},
-    lengthMm:[distance(points[0],points.at(-1)),Math.min(localSpeed[1],polygon+rounding)],speed:localSpeed.map(value=>value/(to-from)),
+    lengthMm:[Math.max(0,distance(points[0],points.at(-1))-rounding),Math.min(localSpeed[1],polygon+rounding)],speed:localSpeed.map(value=>value/(to-from)),
+    tangentCone:directions.length?normalCone(directions):null,interpolationErrorMm,
     chordErrorMm:Math.max(...points.map(point=>pointChordDistance(point,points[0],points.at(-1))))+rounding};
 }
 function boundedNativePiece(curve,from,to,tolerance){
@@ -80,17 +92,21 @@ function boundedNativePiece(curve,from,to,tolerance){
     speed:[Math.min(left.speed[0],right.speed[0]),Math.max(left.speed[1],right.speed[1])]};
 }
 export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
-  if(curve.kind==='point')return {bounds:{min:curve.point,max:curve.point},lengthMm:[0,0],speed:[0,0],chordErrorMm:0};
+  if(curve.kind==='point')return {bounds:{min:curve.point,max:curve.point},lengthMm:[0,0],speed:[0,0],tangentCone:null,chordErrorMm:0,interpolationErrorMm:0};
   const a=numericalCurveAt(curve,from).point,b=numericalCurveAt(curve,to,'left').point;
   if(curve.kind==='polyline'){
-    const bounds={min:a.map((v,k)=>Math.min(v,b[k])),max:a.map((v,k)=>Math.max(v,b[k]))},state={error:0};
+    const bounds={min:a.map((v,k)=>Math.min(v,b[k])),max:a.map((v,k)=>Math.max(v,b[k]))},state={error:0,interpolationError:0};
+    const directions=[numericalCurveAt(curve,from).tangent,numericalCurveAt(curve,to,'left').tangent];
     const start=polylineIndex(curve,from,'right')+1,end=polylineIndex(curve,to,'left');
     for(let i=start;i<=end;i++){
       const point=curve.points[i];for(let k=0;k<3;k++){bounds.min[k]=Math.min(bounds.min[k],point[k]);bounds.max[k]=Math.max(bounds.max[k],point[k]);}
       state.error=Math.max(state.error,pointChordDistance(point,a,b));
+      const fraction=(curve.parameters[i]-from)/(to-from),linear=a.map((v,k)=>v+fraction*(b[k]-v));
+      state.interpolationError=Math.max(state.interpolationError,distance(point,linear));
+      directions.push(numericalCurveAt(curve,curve.parameters[i]).tangent);
     }
     const length=curve.length*(to-from);
-    return {bounds,lengthMm:[length,length],speed:[curve.length,curve.length],chordErrorMm:state.error};
+    return {bounds,lengthMm:[length,length],speed:[curve.length,curve.length],tangentCone:normalCone(directions),chordErrorMm:state.error,interpolationErrorMm:state.interpolationError};
   }
   const cuts=[from,...curve.breaks.filter(u=>u>from&&u<to),to],pieces=cuts.slice(1).map((end,i)=>
     boundedNativePiece(curve,cuts[i],end,lengthToleranceMm?lengthToleranceMm*(end-cuts[i])/(to-from):null));
@@ -98,13 +114,27 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
   // The distance to a fixed segment is convex, hence its maximum on every
   // enclosure box is attained at a corner. Multi-span bounds use that hull.
   const corners=Array.from({length:8},(_,mask)=>[0,1,2].map(k=>mask&(1<<k)?bounds.max[k]:bounds.min[k]));
+  const interpolationErrorMm=pieces.reduce((maximum,piece,i)=>{
+    const start=numericalCurveAt(curve,cuts[i]).point,end=numericalCurveAt(curve,cuts[i+1],'left').point;
+    const left=a.map((v,k)=>v+(b[k]-v)*(cuts[i]-from)/(to-from)),right=a.map((v,k)=>v+(b[k]-v)*(cuts[i+1]-from)/(to-from));
+    return Math.max(maximum,piece.interpolationErrorMm+Math.max(distance(start,left),distance(end,right)));
+  },0);
   return {bounds,lengthMm:[0,1].map(k=>pieces.reduce((sum,p)=>sum+p.lengthMm[k],0)),
     speed:[Math.min(...pieces.map(p=>p.speed[0])),Math.max(...pieces.map(p=>p.speed[1]))],
+    tangentCone:combinedCones(pieces.map(piece=>piece.tangentCone)),interpolationErrorMm,
     chordErrorMm:pieces.length===1?pieces[0].chordErrorMm:Math.max(...corners.map(p=>pointChordDistance(p,a,b)))};
 }
+function combinedCones(cones){
+  const regular=cones.filter(Boolean);if(!regular.length)return null;
+  const axis=regular[0].axis,state={angle:0};
+  for(const cone of regular)state.angle=Math.max(state.angle,Math.acos(Math.max(-1,Math.min(1,dot(axis,cone.axis))))+cone.halfAngleRad);
+  return {axis,halfAngleRad:Math.min(Math.PI,state.angle)};
+}
 export function normalCone(values){
-  const axis=values[0],angle=Math.max(...values.map(v=>Math.acos(Math.max(-1,Math.min(1,dot(axis,v))))));
-  return {axis,halfAngleRad:angle>=Math.PI/2?Math.PI:angle};
+  const norm=Math.hypot(...values[0]),axis=values[0].map(v=>v/norm);
+  const angle=values.reduce((maximum,v)=>Math.max(maximum,Math.acos(Math.max(-1,Math.min(1,dot(axis,v)/Math.hypot(...v))))),0);
+  const bounded=angle===0?0:angle+ROUNDING_RELATIVE;
+  return {axis,halfAngleRad:bounded>=Math.PI/2?Math.PI:bounded};
 }
 export function frameCone(values){
   const reference=values[0],from=[reference.toolAxis,reference.toolUp,cross(reference.toolAxis,reference.toolUp)];

@@ -15,6 +15,7 @@ export function convexVolume(vertices){
 }
 
 export function convexSupport(shape,direction){
+  if(shape.translated)return add(convexSupport(shape.translated,direction),shape.offset);
   if(shape.vertices)return shape.vertices.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
   if(shape.body){const point=convexSupport(shape.body,direction);return dot(shape.sweep,direction)>0?add(point,shape.sweep):point;}
   if(shape.parts){
@@ -254,14 +255,14 @@ export function sweptNozzle(from,to,fromPose,toPose,lengthMm,includedAngleDeg=DE
 // Refine only a spatial candidate. Exact cones witness a hit; separated hulls
 // prove clearance. This terminates at floating-point representability rather
 // than a subdivision budget or an extra physical forgiveness margin.
-function nozzleIntervalIntersects(sweep,shape,toleranceMm){
+export function nozzleIntervalIntersects(sweep,shape,toleranceMm=ROUNDING_MM){
   const pending=[sweep];
   while(pending.length){
     const interval=pending.pop();
     if(!convexIntersects(interval,shape,toleranceMm))continue;
     if(interval.fixed||interval.parts.some(cone=>convexIntersects(cone,shape,toleranceMm)))return true;
     const mid=(interval.t0+interval.t1)/2;
-    if(mid<=interval.t0||mid>=interval.t1)return true;
+    if(mid<=interval.t0||mid>=interval.t1)throw Object.assign(Error('Continuous nozzle clearance is unresolved at numerical precision.'),{code:'NOZZLE_CLEARANCE_UNRESOLVED'});
     const left=nozzleInterval(interval.motion,interval.t0,mid),right=nozzleInterval(interval.motion,mid,interval.t1);
     if(convexIntersects(left.parts[1],shape,toleranceMm))return true;
     pending.push(left,right);
@@ -354,4 +355,85 @@ export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose,options
     state.clearance*=2;
     requireThat(Number.isFinite(state.clearance),'Nozzle exterior route has no representable clearance.');
   }
+}
+
+// Enclose an oriented rectangular section swept along a bounded curve interval.
+// These are numerical envelopes; an overlap is not an intersection witness.
+function sectionFrame(tangent,referenceNormal){
+  const projected=subtract(referenceNormal,scale(tangent,dot(referenceNormal,tangent))),size=length(projected);
+  if(size<=ROUNDING_RELATIVE)return null;
+  const normal=scale(projected,1/size);
+  return {normal,side:normalize(cross(normal,tangent)),projectedSize:size};
+}
+
+export function rectangularSection(point,tangent,referenceNormal,radius,depth){
+  const frame=sectionFrame(tangent,referenceNormal);
+  requireThat(frame,'A section reference normal is parallel to its tangent.');
+  return {vertices:[-1,1].flatMap(sign=>{
+    const side=add(point,scale(frame.side,sign*radius));
+    return [side,add(side,scale(frame.normal,-depth))];
+  }),frame};
+}
+
+export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCone,normalCone,radius,depth}){
+  const chord=subtract(to,from),size=length(chord),tangent=size>ROUNDING_MM?scale(chord,1/size):tangentCone.axis;
+  const frame=sectionFrame(tangent,normalCone.axis),extent=radius[1]+depth[1];
+  if(!frame){
+    const box={vertices:Array.from({length:8},(_,mask)=>bounds.min.map((value,k)=>(mask&(1<<k)?bounds.max[k]+extent:value-extent)))};
+    return {shape:box,frame:null,errorMm:extent,exact:false};
+  }
+  const tangentError=Math.min(2,length(subtract(tangent,tangentCone.axis))+2*Math.sin(tangentCone.halfAngleRad/2));
+  const referenceError=2*Math.sin(normalCone.halfAngleRad/2);
+  // Projection changes by at most dN + 2*dT. Normalizing a nonzero vector
+  // changes its direction by at most twice that error / reference magnitude.
+  const normalError=Math.min(2,2*(referenceError+2*tangentError)/frame.projectedSize);
+  const sideError=Math.min(2,tangentError+normalError);
+  const margin=chordErrorMm+radius[1]*sideError+depth[1]*normalError;
+  const body={a:from,b:to,side:frame.side,normal:frame.normal,radius:radius[1],depth:depth[1]};
+  const exact=margin===0&&radius[0]===radius[1]&&depth[0]===depth[1];
+  return {shape:margin?{parts:[body],margin}:body,frame,
+    errorMm:margin+radius[1]-radius[0]+depth[1]-depth[0],exact};
+}
+
+// Curve positions need only stay within the chord's geometric error tube.
+// All poses are enclosed independently, so nonuniform curve parameter speed
+// cannot change the pose/position coupling assumed by the envelope.
+export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stockBounds,{forgivenessMm=NOZZLE_FORGIVENESS_MM}={}){
+  const reach=Math.hypot(...bounds.min.map((value,k)=>Math.max(Math.abs(stockBounds.min[k]-bounds.max[k]),Math.abs(stockBounds.max[k]-value))))+PRINT_RESOLUTION_MM;
+  const reference=poseCone.reference,motion={from,to,fromPose:reference,toPose:reference,lengthMm:reach,
+    includedAngleDeg:DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm};
+  const body=nozzleInterval(motion,0,1),halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
+  const radius=(reach+forgivenessMm/Math.sin(halfAngle))/Math.cos(halfAngle);
+  const errorMm=chordErrorMm+radius*2*Math.sin(poseCone.halfAngleRad/2);
+  return {shape:errorMm?{parts:[body],margin:errorMm}:body,errorMm,exact:errorMm===0};
+}
+
+// The feasible translations between two convex bodies form an interval. Find
+// its exterior brackets directly instead of bisecting every source stroke.
+export function translationContactInterval(body,translation,obstacle,{resolutionMm=PRINT_RESOLUTION_MM/4,toleranceMm=ROUNDING_MM}={}){
+  requireThat(Number.isFinite(resolutionMm)&&resolutionMm>0,'Contact bracket needs a positive spatial resolution.');
+  const span=length(translation);
+  function at(t){return {translated:body,offset:scale(translation,t)};}
+  function hits(t){return convexIntersects(at(t),obstacle,toleranceMm);}
+  function crosses(a,b){return convexIntersects({body:at(a),sweep:scale(translation,b-a)},obstacle,toleranceMm);}
+  if(!crosses(0,1))return null;
+  const search={lo:0,hi:1,hit:hits(0)?0:hits(1)?1:null};
+  while(search.hit===null){
+    const mid=(search.lo+search.hi)/2;
+    if(mid<=search.lo||mid>=search.hi)throw Object.assign(Error('Translated contact has no representable intersection witness.'),{code:'CONTACT_UNRESOLVED'});
+    if(hits(mid)){search.hit=mid;break;}
+    if(crosses(search.lo,mid))search.hi=mid;else search.lo=mid;
+  }
+  const left={lo:0,hi:search.hit},right={lo:search.hit,hi:1};
+  if(hits(0))left.hi=0;
+  else while(span*(left.hi-left.lo)>resolutionMm){
+    const mid=(left.lo+left.hi)/2;if(mid<=left.lo||mid>=left.hi)break;
+    if(hits(mid))left.hi=mid;else left.lo=mid;
+  }
+  if(hits(1))right.lo=1;
+  else while(span*(right.hi-right.lo)>resolutionMm){
+    const mid=(right.lo+right.hi)/2;if(mid<=right.lo||mid>=right.hi)break;
+    if(hits(mid))right.lo=mid;else right.hi=mid;
+  }
+  return {from:left.lo,to:right.hi,at:search.hit,entry:[left.lo,left.hi],exit:[right.lo,right.hi]};
 }

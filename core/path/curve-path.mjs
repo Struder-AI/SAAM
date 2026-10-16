@@ -12,17 +12,17 @@ export const PATH_VIEW_TOLERANCES=Object.freeze({positionToleranceMm:PRINT_RESOL
   // Process volume: moving a one-mm2 material section by print resolution.
   volumeToleranceMm3:PRINT_RESOLUTION_MM});
 export function pathSummary(view){
-  const summary=view?.schedule?{...view.deposition.summary,...view.schedule.summary}:view?.summary;
+  const summary=view?.summary??(view?.schedule?{...view.deposition.summary,...view.schedule.summary}:undefined);
   const dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0,bounds=summary?.boundsMm;
   if(!bounds||(!dx&&!dy))return summary;
   return {...summary,boundsMm:{min:[bounds.min[0]+dx,bounds.min[1]+dy,bounds.min[2]],max:[bounds.max[0]+dx,bounds.max[1]+dy,bounds.max[2]]}};
 }
 export function pathInitialPosition(view){
-  const position=view?.schedule?.initialPosition??view?.initialPosition,dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0;
+  const position=view?.initialPosition??view?.schedule?.initialPosition,dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0;
   return position&&(dx||dy)?[position[0]+dx,position[1]+dy,position[2]]:position;
 }
-export const pathInitialPose=view=>view?.schedule?.initialPose??view?.initialPose;
-export const pathCompletion=view=>view?.schedule?.completion??view?.completion;
+export const pathInitialPose=view=>view?.initialPose??view?.schedule?.initialPose;
+export const pathCompletion=view=>view?.completion??view?.schedule?.completion;
 export function* pathActions(view,options=PATH_VIEW_TOLERANCES){
   const dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0;
   for(const action of linearizePath(view,options))yield (dx||dy)&&action.kind==='move'?{...action,to:[action.to[0]+dx,action.to[1]+dy,action.to[2]]}:action;
@@ -53,7 +53,12 @@ function prepareCurve(curve){
   const breaks=[...new Set([...geometry.breaks,...Object.values(profiles).flatMap(p=>keyed(p)?p.knots.map(([u])=>u):[]),
     ...(material?.kind==='area'&&keyed(material.areaMm2)?material.areaMm2.knots.map(([u])=>u):material?.kind==='cumulative'?material.knots.map(([u])=>u):[])])]
     .filter(u=>u>0&&u<1).sort((a,b)=>a-b);
-  return {geometry,profiles,breaks};
+  const prepared={geometry,profiles,breaks};
+  if(material?.kind==='cumulative'){
+    const range=materialRange(prepared,0,1,numericalCurveRange(geometry,0,1),{});
+    requireThat(range.areaMm2.every(Number.isFinite)&&range.volumeMm3.every(Number.isFinite),'Material density and volume must be bounded and finite.');
+  }
+  return prepared;
 }
 export function prepareCurvePath({curves}){
   requireThat(curves&&typeof curves==='object'&&!Array.isArray(curves),'Curve table must be an ID keyed object.');
@@ -98,8 +103,21 @@ function materialRange(curve,from,to,geometric,options){
     return {volumeMm3:[volume,volume],areaMm2:Math.max(...slopes)===0?[0,0]:[Math.min(...slopes)/geometric.speed[1],Math.max(...slopes)/geometric.speed[0]]};
   }
   const areaMm2=scalarRange(material.areaMm2,from,to);
-  if(areaMm2[1]===0)return {volumeMm3:[0,0],areaMm2};
-  const volumeMm3=[areaMm2[0]*geometric.lengthMm[0],areaMm2[1]*geometric.lengthMm[1]];
+  const interior=keyed(material.areaMm2)?interiorKeys(material.areaMm2.knots,from,to):[];
+  if(interior.length){
+    const cuts=[from,...interior.map(([u])=>u),to],volumeMm3=[0,0];
+    for(const [i,end] of cuts.slice(1).entries()){
+      const child={...options,...(options.volumeToleranceMm3?{volumeToleranceMm3:options.volumeToleranceMm3*(end-cuts[i])/(to-from)}:{})};
+      const range=localRange(curve,cuts[i],end,child);volumeMm3[0]+=range.volumeMm3[0];volumeMm3[1]+=range.volumeMm3[1];
+    }
+    return {volumeMm3,areaMm2};
+  }
+  // An endpoint's right-continuous step value has measure zero in an integral.
+  // Range area still encloses it; integrated density uses the inward limit.
+  const inward=[profileAt(material.areaMm2,from),profileAt(material.areaMm2,to,'left')];
+  const densityRange=[Math.min(...inward),Math.max(...inward)];
+  if(densityRange[1]===0)return {volumeMm3:[0,0],areaMm2};
+  const volumeMm3=[densityRange[0]*geometric.lengthMm[0],densityRange[1]*geometric.lengthMm[1]];
   if(!options.volumeToleranceMm3||volumeMm3[1]-volumeMm3[0]<=options.volumeToleranceMm3)return {volumeMm3,areaMm2};
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Material integral cannot reach requested precision.');
   const child={...options,volumeToleranceMm3:options.volumeToleranceMm3/2};
@@ -108,7 +126,7 @@ function materialRange(curve,from,to,geometric,options){
 }
 function localRange(curve,from,to,options){
   const geometry=numericalCurveRange(curve.geometry,from,to,options),profiles=curve.profiles;
-  const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,...materialRange(curve,from,to,geometry,options),
+  const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,tangentCone:geometry.tangentCone,chordErrorMm:geometry.chordErrorMm,...materialRange(curve,from,to,geometry,options),
     poseCone:frameCone(profileValues(profiles.pose,from,to)),breaks:interiorBreaks(curve.breaks,from,to)};
   if(profiles.widthMm!==undefined)result.widthMm=scalarRange(profiles.widthMm,from,to);
   if(profiles.materialNormal!==undefined)result.normalCone=normalCone(profileValues(profiles.materialNormal,from,to));
@@ -141,8 +159,10 @@ function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
   const geometry=numericalCurveRange(curve.geometry,from,to,settings),range=localRange(curve,from,to,settings);
   // Within one profile span a rigid frame follows exactly the same shortest
   // geodesic as its endpoints. Profile breaks are always traversal boundaries.
-  if(geometry.chordErrorMm<=options.positionToleranceMm){
-    yield {from,to,start:curveAt(handle,id,from),end:curveAt(handle,id,to,{side:'left'}),range};return;
+  const start=curveAt(handle,id,from),end=curveAt(handle,id,to,{side:'left'});
+  const moves=start.point.some((value,i)=>value!==end.point[i]);
+  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(moves||!(range.volumeMm3?.[1]>0))){
+    yield {from,to,start,end,range};return;
   }
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Curve subdivision cannot reach requested precision.');
   yield* boundedSpans(handle,id,curve,from,mid,rangeFrom,rangeTo,options);
@@ -155,7 +175,7 @@ function sourceCourses(deposition){
 }
 export function* linearizePath(view,options){
   tolerances(options);
-  if(view?.schema==='saampath/1'&&Array.isArray(view.actions)){yield* view.actions;return;}
+  if((view?.schema==='saampath/1'||view?.schema==='saam-export-prepared/1')&&view.actions){yield* view.actions;return;}
   requireThat(view?.deposition?.schema==='saampath/2'&&view.schedule?.schema==='saam-schedule/1'&&view.sourcePathId===view.schedule.sourcePathId,
     'Compact path needs its exact source/schedule identity.');
   const {deposition,schedule}=view,source=prepareCurvePath(deposition),motion=prepareCurvePath({curves:schedule.motionCurves}),courses=sourceCourses(deposition);
@@ -166,23 +186,63 @@ export function* linearizePath(view,options){
       const found=courses.get(entry.courseId);requireThat(found,'Unknown execution course.');
       const {course,operation}=found;
       requireThat(entry.from>=course.from&&entry.to<=course.to,'Execution range leaves source course.');
-      yield {kind:'context',phase:operation.phase??'deposit',layer:operation.layer??0,layerId:operation.layerId,
-        operation:operation.id,role:course.role??null};
-      for(const span of curveSpans(source,course.curveId,entry.from,entry.to,resolution))yield spanMove(span);
+      for(const piece of courseIntervals(course,entry.from,entry.to)){
+        yield {kind:'context',phase:operation.phase??'deposit',layer:piece.labels.layer??operation.layer??0,layerId:operation.layerId,
+          operation:piece.labels.operation??operation.id,role:piece.labels.role??course.role??null,travel:null,
+          connector:piece.labels.connector??null,region:operation.regionId??null};
+        const local={...resolution,volumeToleranceMm3:resolution.volumeToleranceMm3*(piece.to-piece.from)/(entry.to-entry.from)};
+        for(const span of attributeSpans(source,course.curveId,piece.from,piece.to,local))yield {...spanMove(span),sourceRange:{curveId:course.curveId,from:span.from,to:span.to}};
+      }
     }else if(entry.kind==='travel'){
-      for(const span of curveSpans(motion,entry.curveId,entry.from,entry.to,resolution))yield {...spanMove(span),
+      for(const span of attributeSpans(motion,entry.curveId,entry.from,entry.to,resolution))yield {...spanMove(span),
         ...(entry.durationSeconds?{durationSeconds:entry.durationSeconds*(span.to-span.from)/(entry.to-entry.from)}:{})};
     }else if(entry.kind==='inject'){
       const operation=deposition.operations[entry.operationId];requireThat(operation?.kind==='inject','Unknown execution injection.');
-      yield {kind:'context',phase:operation.phase??'inject',layer:operation.layer??0,layerId:operation.layerId,operation:operation.id};
+      yield {kind:'context',phase:operation.phase??'inject',layer:operation.layer??0,layerId:operation.layerId,operation:operation.id,role:null,travel:null,connector:null,region:operation.regionId??null};
       yield {kind:'extrude',volumeMm3:operation.injection.volumeMm3,flowMm3S:operation.injection.flowMm3S,pose:operation.injection.pose};
     }else yield entry;
   }
 }
+function* courseIntervals(course,from,to){
+  const state={from};
+  for(const segment of course.provenance?.segments??[]){
+    if(segment.to<=from||segment.from>=to)continue;
+    const start=Math.max(from,segment.from),end=Math.min(to,segment.to);
+    if(start>state.from)yield {from:state.from,to:start,labels:{}};
+    yield {from:start,to:end,labels:segment.labels};state.from=end;
+  }
+  if(state.from<to)yield {from:state.from,to,labels:{}};
+}
+function* attributeSpans(handle,id,from,to,options){
+  const integral={...options,volumeToleranceMm3:options.volumeToleranceMm3/2};
+  for(const span of curveSpans(handle,id,from,to,integral))yield* linearAttributeSpans(handle,id,span,from,to,options);
+}
+function materialInterpolationError(handle,id,span){
+  const curve=selected(handle,id),material=curve.profiles.material;
+  if(!material||material.kind==='cumulative')return 0;
+  const geometry=numericalCurveRange(curve.geometry,span.from,span.to),a=profileAt(material.areaMm2,span.from),b=profileAt(material.areaMm2,span.to,'left');
+  const low=Math.min(a,b)*geometry.speed[0],high=Math.max(a,b)*geometry.speed[1];
+  return (high-low)*(span.to-span.from)/4;
+}
+function* linearAttributeSpans(handle,id,span,from,to,options){
+  const {start,end}=span,widthMm=Math.max(start.widthMm??1,end.widthMm??1),scale=options.positionToleranceMm/widthMm;
+  const speed=Math.max(Math.abs(start.speedMmS),Math.abs(end.speedMmS));
+  const smooth=Math.abs((start.widthMm??0)-(end.widthMm??0))<=options.positionToleranceMm&&
+    (speed===0||Math.abs(start.speedMmS-end.speedMmS)/speed<=Math.sqrt(scale))&&
+    (!span.range.normalCone||span.range.normalCone.halfAngleRad<=scale)&&
+    materialInterpolationError(handle,id,span)<=options.volumeToleranceMm3/2;
+  if(smooth){yield span;return;}
+  const mid=(span.from+span.to)/2;requireThat(mid>span.from&&mid<span.to,'Attribute view cannot reach requested precision.');
+  for(const [a,b] of [[span.from,mid],[mid,span.to]]){
+    const childOptions={...options,volumeToleranceMm3:options.volumeToleranceMm3*(b-a)/(to-from)/2};
+    for(const child of curveSpans(handle,id,a,b,childOptions))yield* linearAttributeSpans(handle,id,child,from,to,options);
+  }
+}
 function spanMove(span){
   const {start,end,range}=span,volumeMm3=range.volumeMm3?(range.volumeMm3[0]+range.volumeMm3[1])/2:0;
-  const width=start.widthMm;
-  return {kind:'move',to:end.point,pose:end.pose,speedMmS:start.speedMmS,volumeMm3,
+  const width=start.widthMm===undefined?undefined:(start.widthMm+end.widthMm)/2;
+  return {kind:'move',to:end.point,pose:end.pose,speedMmS:(start.speedMmS+end.speedMmS)/2,volumeMm3,
+    speedFromMmS:start.speedMmS,speedToMmS:end.speedMmS,
     ...(width!==undefined?{beadWidthMm:width}:{}),...(start.materialNormal?{surfaceNormal:start.materialNormal}:{}),
     ...(width&&range.lengthMm[1]>0?{beadHeightMm:volumeMm3/((range.lengthMm[0]+range.lengthMm[1])/2)/width}:{}),
     sourceRange:{from:span.from,to:span.to}};

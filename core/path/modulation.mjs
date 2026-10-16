@@ -2,7 +2,8 @@ import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 
 import {strokeRange} from './deposition.mjs';
 import {validateModulationField,prepareScalarField,evaluateScalarField,fieldSampleStep,scalarFieldRange,scalarFieldInvariant,scalarFieldBreakpoints} from './modulation-field.mjs';
-import {interpolatePose,validatePose,uprightPose,POSE_RESOLUTION} from './pose.mjs';
+import {interpolatePose,validatePose,uprightPose} from './pose.mjs';
+import {rotation,mv} from '../geom/frame.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {transportCurveFrames} from '../geom/curve-frame.mjs';
 
@@ -97,11 +98,6 @@ function frameDirection(direction,frame){
   return unit([0,1,2].map(i=>direction[0]*frame.u[i]+direction[1]*frame.v[i]+direction[2]*frame.normal[i]));
 }
 
-function rotatedVector(vector,axis,angle){
-  const c=Math.cos(angle),s=Math.sin(angle),perpendicular=cross(axis,vector),along=dot(axis,vector);
-  return vector.map((v,i)=>v*c+perpendicular[i]*s+axis[i]*along*(1-c));
-}
-
 function evaluateModulatedPoint(a,b,t,modifiers,directions,context={}) {
   const source=mix(a,b,t),point=[...source];let flow=1,width=1,speed=1;
   let pose=context.poses?interpolatePose(context.poses[0],context.poses[1],t):null;
@@ -126,7 +122,8 @@ function evaluateModulatedPoint(a,b,t,modifiers,directions,context={}) {
       if(m.channel==='displacement')for(let axis=0;axis<3;axis++)point[axis]+=direction[axis]*amount;
       else if(amount!==0){
         pose??=uprightPose();
-        pose={...pose,toolAxis:rotatedVector(pose.toolAxis,direction,amount*Math.PI/180),toolUp:rotatedVector(pose.toolUp,direction,amount*Math.PI/180)};
+        const matrix=rotation(direction,amount*Math.PI/180);
+        pose={...pose,toolAxis:mv(matrix,pose.toolAxis),toolUp:mv(matrix,pose.toolUp)};
       }
     }else{
       requireThat(1+amount>0,`Modulation ${m.id} produced a nonpositive ${m.channel} factor.`);
@@ -230,7 +227,11 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
     for(let j=1;j<samples.length;j++){
       const left=samples[j-1],right=samples[j],mid=evaluateModulatedPoint(points[i],points[i+1],(left.t+right.t)/2,modifiers,directions?[directions[i],directions[i+1]]:null,context);
       const excursion=Math.max(distance(left.point,left.source),distance(right.point,right.source),distance(mid.point,mid.source));
-      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(s=>s.pose&&distance(s.pose.toolAxis,(sourcePoses?interpolatePose(...context.poses,s.t):uprightPose()).toolAxis)>POSE_RESOLUTION);
+      const poseChanged=modifiers.some(m=>m.channel==='tilt')&&[left,mid,right].some(sample=>{
+        if(!sample.pose)return false;
+        const original=sourcePoses?interpolatePose(...context.poses,sample.t):uprightPose();
+        return distance(sample.pose.toolAxis,original.toolAxis)>0||distance(sample.pose.toolUp,original.toolUp)>0;
+      });
       maxExcursionMm=Math.max(maxExcursionMm,excursion);changed ||= excursion>0||mid.flow!==1||mid.width!==1||mid.speed!==1||poseChanged;
       append(right);volumes.push(volume/length*distance(left.point,right.point)*mid.flow*mid.width);
       const speedMmS=(stroke.segmentMetadata?.[i]?.speedMmS??stroke.speedMmS)*mid.speed;
@@ -246,6 +247,8 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   // resampled vertices/volumes replace those inputs and the former uniform area.
   const {normals,chartPoints,referenceAlong,heightsMm,widthsMm,flowMultipliers,beadAreaMm2,frameSamples,curveParameters,...retained}=stroke;
   return {stroke:{...retained,closed:false,points:output,volumesMm3:volumes,segmentMetadata:metadata,
+    ...(stroke.nativePath&&!modifiers.some(modifier=>modifier.channel==='displacement')?
+      {nativePath:{...stroke.nativePath,points:output,parameters}}:{}),
     ...(sourcePoses||modifiers.some(m=>m.channel==='tilt')?{poses}:{}),...(frames?{frameSamples:sampleFrames}:{}),...(curveParameters?{curveParameters:parameters}:{})},changed:true,maxExcursionMm};
 }
 

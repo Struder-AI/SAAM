@@ -3,6 +3,7 @@
 import {evaluate} from './nurbs.mjs';
 import {heightSlicePoint,heightSliceNormal,referenceHeight} from './height-slice.mjs';
 import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
+import {prepareSurfaceReference,surfaceReferenceRecord} from './surface-record.mjs';
 
 const rings=new WeakMap();
 function sleeveRing(layer,u){
@@ -21,6 +22,7 @@ function sleeveRing(layer,u){
 }
 
 export function evaluateSurface(surface,[u,v],normalMm=0){
+  if(surface.representation)return evaluateSurface(prepareSurfaceReference(surface),[u,v],normalMm);
   let e;
   if(surface.cp||surface.kind==='patch')e=evaluate(surface.patch??surface,u,v);
   else if(surface.kind==='plane')e={point:surface.origin.map((x,k)=>x+u*surface.xAxis[k]+v*surface.yAxis[k]),normal:surface.normal,du:surface.xAxis,dv:surface.yAxis};
@@ -59,5 +61,6 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
     requireThat(e.normal,'Surface has a singular tangent at this chart point.');
     return {...e,uv,normal:e.normal.map(x=>x*normalSide),du:e.du?.map(x=>x*scale[0]),dv:e.dv?.map(x=>x*scale[1])};
   };
-  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(surface.knotsU,bounds[0],0),breaksV:breaks(surface.knotsV,bounds[1],1),periodicU};
+  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(surface.knotsU,bounds[0],0),breaksV:breaks(surface.knotsV,bounds[1],1),periodicU,
+    referenceRecord:{representation:'mapped-surface',source:surfaceReferenceRecord(surface),bounds,domain,normalSide,periodicU}};
 }

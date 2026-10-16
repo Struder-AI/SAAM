@@ -15,6 +15,13 @@ export function validateDirectionPair(primary,secondary){
   for(const v of [primary,secondary])requireThat(Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)&&Math.abs(length(v)-1)<DIRECTION_TOLERANCE,'Frame directions must be unit 3-vectors.');
   requireThat(Math.abs(dot(primary,secondary))<DIRECTION_TOLERANCE,'Frame directions must be perpendicular.');
 }
+export function interpolateDirection(a,b,t){
+  if(t===0)return [...a];if(t===1)return [...b];
+  const cosine=Math.max(-1,Math.min(1,dot(a,b))),sine=length(cross(a,b)),angle=Math.atan2(sine,cosine);
+  requireThat(sine>0||cosine>0,'Antipodal directions need an intermediate direction.');
+  if(angle===0)return [...a];
+  return a.map((v,i)=>(v*Math.sin((1-t)*angle)+b[i]*Math.sin(t*angle))/Math.sin(angle));
+}
 // Shortest rigid-frame interpolation, including opposed axes. This describes
 // nominal Cartesian orientation, without joint trajectories or kinematics.
 export function interpolateDirectionPair(a,b,t){

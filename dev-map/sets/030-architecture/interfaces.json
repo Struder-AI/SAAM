@@ -1904,6 +1904,454 @@
         "call"
       ],
       "evidence": "Canonical Geometry operations supplied to extension clients; construction representation and native lifetime remain inside Geometry."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::prepareCurvePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::curveAt",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::curveRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::curveSpans",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::linearizePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::pathActions",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::pathSummary",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::pathInitialPosition",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::pathInitialPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::pathCompletion",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::prepareCurvePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::curveAt",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::curveRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::curveSpans",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::linearizePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::pathActions",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::pathSummary",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::pathInitialPosition",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::pathInitialPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/curve-path.mjs::pathCompletion",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-bundle-path",
+      "target": "core/path/source-admission.mjs::admitSource",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Bundle freezes Toolpath-admitted finalized source."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::prepareCurvePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::curveAt",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::curveRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::curveSpans",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::linearizePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::pathActions",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::pathSummary",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::pathInitialPosition",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::pathInitialPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-export",
+      "target": "core/path/curve-path.mjs::pathCompletion",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::prepareCurvePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::curveAt",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::curveRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::curveSpans",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::linearizePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::pathActions",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::pathSummary",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::pathInitialPosition",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::pathInitialPose",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "toolpath-reader-studio",
+      "target": "core/path/curve-path.mjs::pathCompletion",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 shared reader used by current source/range consumers."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::prepareNumericalCurve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveAt",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::normalCone",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::frameCone",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/frame.mjs::interpolateDirection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/surface-record.mjs::surfaceReferenceRecord",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/surface-record.mjs::numericalGeometryRecord",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/contact-chart.mjs::prepareSurfaceContact",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/contact-chart.mjs::contactChart",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/solid-operations.mjs::constructGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/solid-profiles.mjs::loftProfiles",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/solid-profiles.mjs::roundedRectangleProfile",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/solid-profiles.mjs::transformGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/operations.mjs::buildGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry construction supplied to extension clients; ordinary retained geometry is authoritative, output meshes are derived."
     }
   ],
   "retiredBindings": [

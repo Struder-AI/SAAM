@@ -41,28 +41,11 @@ export function gridfinityParameters(input={}){
   return p;
 }
 
-// Convex rounded-rectangle loft. Corresponding quarter arcs share a segment
-// count, so the straight 45-degree profile sections remain exactly linear.
-function roundedRing(width,depth,radius,z,cx,cy,steps){
-  const ring=[];
-  for(let corner=0;corner<4;corner++){
-    const angle=corner*Math.PI/2;
-    const x=cx+(corner===0||corner===3?1:-1)*(width/2-radius);
-    const y=cy+(corner<2?1:-1)*(depth/2-radius);
-    for(let i=0;i<=steps;i++){
-      const a=angle+i*Math.PI/(2*steps);
-      ring.push([x+radius*Math.cos(a),y+radius*Math.sin(a),z]);
-    }
-  }
-  return ring;
-}
-
 // -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
-export async function compileGridfinity(input={}, {constructSolids}={}){
-  requireThat(typeof constructSolids==='function','Gridfinity needs the Geometry constructSolids operation.');
+export async function compileGridfinity(input={}, {constructGeometry,roundedRectangleProfile,loftProfiles}={}){
+  requireThat([constructGeometry,roundedRectangleProfile,loftProfiles].every(value=>typeof value==='function'),'Gridfinity needs shared Geometry construction and profile operations.');
   const p=gridfinityParameters(input);
-  const steps=Math.max(2,Math.ceil(Math.PI/(4*Math.acos(Math.max(-1,1-p.toleranceMm/4)))));
-  const loft=(levels,cx,cy)=>({operation:'loft',rings:levels.map(([z,w,d,r])=>roundedRing(w,d,r,z,cx,cy,steps)),centers:[[cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]]});
+  const loft=(levels,cx,cy)=>loftProfiles({profiles:levels.map(([z,widthMm,heightMm,radiusMm])=>roundedRectangleProfile({widthMm,heightMm,radiusMm,centerMm:[cx,cy,z]})),centers:[[cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]]});
   const block=(w,d,r,z0,z1,cx,cy)=>loft([[z0,w,d,r],[z1,w,d,r]],cx,cy);
   const union=operands=>({operation:'union',operands});
   const subtract=(a,b)=>({operation:'difference',operands:[a,b]});
@@ -117,11 +100,10 @@ export async function compileGridfinity(input={}, {constructSolids}={}){
       if(p.magnetHoles){
         const holes=[];
         for(let x=0;x<p.xUnits;x++)for(let y=0;y<p.yUnits;y++)for(const dx of [-13,13])for(const dy of [-13,13])
-          holes.push({operation:'translate',geometry:{operation:'cylinder',heightMm:2.5,radiusMm:3.25,segments:4*steps},offset:[21+42*x+dx,21+42*y+dy,-0.1]});
+          holes.push({operation:'translate',geometry:{operation:'cylinder',heightMm:2.5,radiusMm:3.25},offset:[21+42*x+dx,21+42*y+dy,-0.1]});
         solid=subtract(solid,union(holes));
       }
     }
-    const [mesh]=await constructSolids([solid],{toleranceMm:p.toleranceMm});
-    return {geometry:{shape:'gridfinity',parameters:p,vertices:mesh?.vertices??[],triangles:mesh?.triangles??[]},
-      notes:mesh?mesh.notes??[]:['The Gridfinity construction leaves no material.']};
+    const [built]=await constructGeometry([solid],{toleranceMm:p.toleranceMm});
+    return {geometry:{shape:'gridfinity',parameters:p,solid:built.geometry},notes:[...built.notes,...(built.empty?['The Gridfinity construction leaves no material.']:[])]};
 }

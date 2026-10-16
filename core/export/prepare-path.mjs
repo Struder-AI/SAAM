@@ -39,16 +39,22 @@ function uprightPath(path){
   return true;
 }
 function depositsMaterial(path){for(const action of pathActions(path))if(action.volumeMm3>0)return true;return false;}
-function limitedFeed(start,actions,machine){
-  let from=start;
-  return actions.map(action=>{
-    if(action.kind!=='move')return action;
-    const length=distance(from,action.to),delta=action.to.map((v,i)=>Math.abs(v-from[i]));
-    let speed=action.speedMmS;
-    for(let i=0;i<3;i++)if(delta[i]>0)speed=Math.min(speed,machine.maxFeedMmS['xyz'[i]]*length/delta[i]);
-    from=action.to;
-    return {...action,speedMmS:speed,...(action.durationSeconds?{durationSeconds:Math.max(action.durationSeconds,moveSeconds(length,speed))}:{})};
-  });
+function* limitedFeed(start,actions,machine){
+  const cursor={from:start};
+  for(const action of actions){
+    if(action.kind!=='move'){yield action;continue;}
+    const length=distance(cursor.from,action.to),delta=action.to.map((v,i)=>Math.abs(v-cursor.from[i])),feed={speed:action.speedMmS};
+    for(let i=0;i<3;i++)if(delta[i]>0)feed.speed=Math.min(feed.speed,machine.maxFeedMmS['xyz'[i]]*length/delta[i]);
+    cursor.from=action.to;
+    yield {...action,speedMmS:feed.speed,...(action.durationSeconds?{durationSeconds:Math.max(action.durationSeconds,moveSeconds(length,feed.speed))}:{})};
+  }
+}
+function* drainActions(motion){
+  const actions=motion.actions;motion.actions=[];yield* actions;
+}
+function adaptationMotion(start,plan,machine,block,oriented){
+  return new AdaptationMotion({start,process:plan.process,retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,
+    ...(oriented&&block?.retreatMm?{retreatMm:block.retreatMm}:{})});
 }
 
 // The saved SAAMpath is independent of machine/output. This ephemeral path is
@@ -66,17 +72,30 @@ export function prepareExportPath(saved,plan,machine,adapter){
   requireThat(oriented||uprightPath(path),
     'Selected output cannot represent non-upright tool orientation.');
   const bounds=toolBounds(machine,plan.setup.tool);
-  let selected={plan,tool:plan.setup.tool,process:plan.process,bounds};
-  const start=startupPosition(machine,plan,block),motion=new AdaptationMotion({start,process:plan.process,
-    retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,
-    ...(oriented&&block?.retreatMm?{retreatMm:block.retreatMm}:{})});
+  const start=startupPosition(machine,plan,block);
   const deposited=depositionBounds(path,plan),model=pathSummary(path)?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
-  const priming=depositsMaterial(path)&&!hasPrime(path)?machinePriming(motion,machine,bounds,geometryBounds):null;
+  const prime=depositsMaterial(path)&&!hasPrime(path);
+  const priming=prime?machinePriming(adaptationMotion(start,plan,machine,block,oriented),machine,bounds,geometryBounds):null;
+  const settings={path,plan,machine,bounds,start,block,oriented,geometryBounds,prime};
+  const actions={*[Symbol.iterator](){yield* limitedFeed(start,adaptedActions(settings),machine);}};
+  const {placement:_placement,...source}=path;
+  const prepared={...source,schema:PREPARED_PATH_CONTRACT,completion:{contract:PREPARED_PATH_CONTRACT},
+    initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
+    actions,summary:{...pathSummary(path),boundsMm:geometryBounds},notes:priming?[priming]:[]};
+  if(!oriented)delete prepared.initialPose;
+  return prepared;
+}
+
+function* adaptedActions({path,plan,machine,bounds,start,block,oriented,geometryBounds,prime}){
+  const cursor={selected:{plan,tool:plan.setup.tool,process:plan.process,bounds},neutralFrom:pathInitialPosition(path),relocating:false};
+  const motion=adaptationMotion(start,plan,machine,block,oriented);
+  if(prime)machinePriming(motion,machine,bounds,geometryBounds);
   motion.phase='start';motion.layer=0;motion.operationId=null;
   motion.travel(pathInitialPosition(path),oriented?pathInitialPose(path)??null:null);
-  const debts=new Map([[selected.tool,0]]);let neutralFrom=pathInitialPosition(path),relocating=false;
+  yield* drainActions(motion);
+  const debts=new Map([[cursor.selected.tool,0]]);
   // Context is resolved only at the selected-machine boundary. These actions
   // are private prepared machine motion, never a persisted neutral SAAMpath.
   for(const {action:physical,context} of contextualActions(path)){
@@ -87,48 +106,44 @@ export function prepareExportPath(saved,plan,machine,adapter){
         'Neutral material changes must not select a physical tool.');
       const incoming=selection(plan,machine,original.filament);
       // A same-nozzle change needs the output's declared mode; a change to another tool is a tool swap.
-      const constraints=machine.outputs.find(o=>o.id===plan.output)?.constraints,sameNozzle=incoming.tool===selected.tool;
+      const constraints=machine.outputs.find(o=>o.id===plan.output)?.constraints,sameNozzle=incoming.tool===cursor.selected.tool;
       requireThat(!sameNozzle||constraints?.materialChangeMode==='single-nozzle-ams',
         'Selected output has no contract for this material change.');
       const lift=constraints?.toolChangeLiftMm;
       requireThat(Number.isFinite(lift)&&lift>0,'Selected output has no material-change clearance contract.');
-      motion.retract();debts.set(selected.tool,motion.retracted?selected.process.retractMm:0);
-      const lo=bounds.min.map((_,i)=>Math.max(selected.bounds.min[i],incoming.bounds.min[i]));
-      const hi=bounds.max.map((_,i)=>Math.min(selected.bounds.max[i],incoming.bounds.max[i]));
+      motion.retract();debts.set(cursor.selected.tool,motion.retracted?cursor.selected.process.retractMm:0);
+      const lo=bounds.min.map((_,i)=>Math.max(cursor.selected.bounds.min[i],incoming.bounds.min[i]));
+      const hi=bounds.max.map((_,i)=>Math.min(cursor.selected.bounds.max[i],incoming.bounds.max[i]));
       const z=Math.max(motion.position[2],motion.depositedMaxZ+lift);
       requireThat(lo.every((v,i)=>v<=hi[i])&&z<=hi[2],'Material change exceeds common nozzle clearance bounds.');
       motion.move([motion.position[0],motion.position[1],z],motion.process.zSpeedMmS);
       motion.move([Math.max(lo[0],Math.min(hi[0],motion.position[0])),Math.max(lo[1],Math.min(hi[1],motion.position[1])),z],motion.process.travelSpeedMmS);
       motion.append({...original,tool:incoming.tool});
       const debt=sameNozzle?incoming.process.retractMm:debts.get(incoming.tool)??0;
-      motion.process=incoming.process;motion.retracted=debt>0;motion.pose=null;selected=incoming;
-      motion.recover();debts.set(selected.tool,0);relocating=true;continue;
+      motion.process=incoming.process;motion.retracted=debt>0;motion.pose=null;cursor.selected=incoming;
+      motion.recover();debts.set(cursor.selected.tool,0);cursor.relocating=true;yield* drainActions(motion);continue;
     }
-    if(relocating&&original.kind==='move'&&original.volumeMm3===0){neutralFrom=original.to;continue;}
-    if(relocating&&['retract','recover'].includes(original.kind))continue;
-    if(relocating&&(original.kind==='move'||original.kind==='extrude')){
-      motion.travel(neutralFrom);relocating=false;
+    if(cursor.relocating&&original.kind==='move'&&original.volumeMm3===0){cursor.neutralFrom=original.to;continue;}
+    if(cursor.relocating&&['retract','recover'].includes(original.kind))continue;
+    if(cursor.relocating&&(original.kind==='move'||original.kind==='extrude')){
+      motion.travel(cursor.neutralFrom);cursor.relocating=false;
     }
     if(original.kind==='move'){
       // Rounding guard: a neutral move of zero length within rounding is no move.
-      if(original.volumeMm3>0&&distance(motion.position,neutralFrom)>ROUNDING_MM)motion.travel(neutralFrom);
+      if(original.volumeMm3>0&&distance(motion.position,cursor.neutralFrom)>ROUNDING_MM)motion.travel(cursor.neutralFrom);
       // A deposition move of zero length is not written either.
-      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){neutralFrom=original.to;continue;}
+      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){cursor.neutralFrom=original.to;continue;}
       motion.position=[...original.to];motion.pose=original.pose??null;
-      if(original.volumeMm3>0)motion.depositedMaxZ=Math.max(motion.depositedMaxZ,neutralFrom[2],original.to[2]);
-      neutralFrom=original.to;
+      if(original.volumeMm3>0)motion.depositedMaxZ=Math.max(motion.depositedMaxZ,cursor.neutralFrom[2],original.to[2]);
+      cursor.neutralFrom=original.to;
     }else if(original.kind==='retract'||original.kind==='recover'){
       requireThat(original.kind==='retract'?!motion.retracted:motion.retracted,
         'Retraction/recovery action disagrees with the current withdrawal state.');
-      motion.retracted=original.kind==='retract';debts.set(selected.tool,motion.retracted?original.filamentMm:0);
+      motion.retracted=original.kind==='retract';debts.set(cursor.selected.tool,motion.retracted?original.filamentMm:0);
     }
     const action=oriented?original:original.pose?Object.fromEntries(Object.entries(original).filter(([key])=>key!=='pose')):original;
-    motion.actions.push(action);
+    motion.actions.push(action);yield* drainActions(motion);
   }
-  if(relocating)motion.travel(neutralFrom);
-  const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
-    initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
-    actions:limitedFeed(start,motion.actions,machine),summary:{...pathSummary(path),boundsMm:geometryBounds},notes:priming?[priming]:[]};
-  if(!oriented)delete prepared.initialPose;
-  return prepared;
+  if(cursor.relocating)motion.travel(cursor.neutralFrom);
+  yield* drainActions(motion);
 }

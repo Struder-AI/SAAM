@@ -6,7 +6,6 @@ import {makeMesh,translateMesh,hasMesh} from './mesh.mjs';
 import {booleanShell} from './boolean-solid.mjs';
 import {requireThat} from './tolerance.mjs';
 import {geometrySelections} from './selections.mjs';
-import {rhino} from './runtime.mjs';
 import {translateSurfaceSolid} from './surface-topology.mjs';
 
 
@@ -25,7 +24,7 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
   function construct(geometry){
     if(geometry?.solid||geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
     if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
-    if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
+    if(geometry.shape==='boolean')return booleanShell(geometry.operation,constructionOperands(geometry).map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
     }
@@ -56,21 +55,21 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
 
 // Material queries combine placed components, including nested assemblies.
 // Ordinary construction retains its component/surface representation.
-export async function resolveMaterialGeometry(geometries){
-  return buildShells(await rhino(),geometries,{material:true,native:false});
+export function resolveMaterialGeometry(geometries){
+  return buildShells(null,geometries,{material:true,native:false});
 }
 
 // Each request returns ordinary geometry in the requested frame. A replacement
 // geometry (a within-volume) uses the selected component/partition's origin.
 // Null selects the whole source, including an assembly, at the source origin.
-export async function resolveGeometrySelections(geometry,requests){
+export function resolveGeometrySelections(geometry,requests){
   const selections=geometrySelections(geometry);
   const selected=requests.map(({selection=null,geometry:replacement})=>{
     const source=selection===null?{geometry,xMm:0,yMm:0,zMm:0}:selections.get(selection);
     requireThat(source,`Unknown geometry selection ${selection}.`);
     return {geometry:replacement??source.geometry,offset:[source.xMm,source.yMm,source.zMm]};
   });
-  const shells=buildShells(await rhino(),selected.map(s=>s.geometry),{native:false}),placed=new Map();
+  const shells=buildShells(null,selected.map(s=>s.geometry),{native:false}),placed=new Map();
   return selected.map((selection,i)=>{
     const shell=shells[i],key=selection.offset.join(',');
     let frames=placed.get(shell);if(!frames){frames=new Map();placed.set(shell,frames);}
@@ -104,3 +103,16 @@ export function translateShell(shell, dx, dy, dz = 0) {
   return moved;
 }
 
+
+// Evaluate associative source operations together, before constructing any
+// intermediate trimmed boundaries. Difference subtracts all later operands.
+function constructionOperands(geometry){
+  const operation=geometry.operation,operands=[];
+  function append(value,first=false){
+    const source=value.solid??value;
+    if(source.shape==='boolean'&&(source.operation===operation&&(operation!=='difference'||first)||operation==='difference'&&!first&&source.operation==='union')){
+      source.operands.forEach((operand,i)=>append(operand,first&&i===0));
+    }else operands.push(value);
+  }
+  geometry.operands.forEach((operand,i)=>append(operand,i===0));return operands;
+}

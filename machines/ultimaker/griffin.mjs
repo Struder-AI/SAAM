@@ -10,9 +10,10 @@ function exportGriffin(path,plan,machine,{generatorVersion,buildDate},Export) {
   const s=plan.setup, tool=s.tool;
   const startupZ=machine.startup.zAfterStartupMm;
   requireThat(Number.isFinite(startupZ), 'Machine startup Z is required.');
-  const points=[path.initialPosition,...path.actions.filter(a=>a.kind==='move').map(a=>a.to)];
-  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
-  for(const point of points)for(let i=0;i<3;i++){min[i]=Math.min(min[i],point[i]);max[i]=Math.max(max[i],point[i]);}
+  const min=[...path.initialPosition],max=[...path.initialPosition];
+  for(const action of path.actions)if(action.kind==='move')for(let i=0;i<3;i++){
+    min[i]=Math.min(min[i],action.to[i]);max[i]=Math.max(max[i],action.to[i]);
+  }
   const envelope=machine.outputs.find(o=>o.id===plan.output).program;
   requireThat(envelope, 'Neither the print\'s machine snapshot nor the installed profile has Griffin program templates.');
   const values={...s,tool,generatorVersion,buildDate,volume:Math.ceil(tally.volumeMm3),seconds:Math.ceil(tally.seconds),startupZ:fmt(startupZ)};

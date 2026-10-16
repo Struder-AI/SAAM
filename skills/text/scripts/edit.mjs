@@ -39,7 +39,7 @@ export async function editText(source,request,geometryOperations){
     if(index>=0)features[index]=next;else features.push(next);
   }
   const compiled=features.length?await compileText(base,features,{...geometryOperations,standalone,toleranceMm:request.toleranceMm??old?.toleranceMm??0.02,maxEdgeMm:request.maxEdgeMm??old?.maxEdgeMm??1})
-    :standalone?{geometry:{...old,features:[],vertices:[],triangles:[],materialParts:[]},notes:['The text leaves no material.']}:null;
+    :standalone?{geometry:{...old,features:[],...(Object.hasOwn(old,'solid')?{solid:{shape:'mesh',source:null,vertices:[],triangles:[]}}:{vertices:[],triangles:[]}),materialParts:[]},notes:['The text leaves no material.']}:null;
   if(!compiled)requireThat(base,'Removing the last text feature needs its saved base.');
   owner.geometry=compiled?compiled.geometry:base;
   // A removed/changed feature may invalidate a material selector. Let the caller

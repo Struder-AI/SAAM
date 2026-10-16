@@ -25,12 +25,15 @@ function configuration(plan,machine){
   return output;
 }
 function contextFor(path,plan,machine,release){
-  const moves=path.actions.filter(a=>a.kind==='move'),points=[path.initialPosition,...moves.map(m=>m.to)];
-  const deposits=moves.filter(m=>m.volumeMm3>0);requireThat(deposits.length,'Bambu output needs deposition.');
+  const state={pathMaxZ:path.initialPosition[2],deposits:0},layers=new Set();
+  for(const action of path.actions)if(action.kind==='move'){
+    state.pathMaxZ=Math.max(state.pathMaxZ,action.to[2]);
+    if(action.volumeMm3>0){state.deposits++;layers.add(`${action.phase}:${action.layer}`);}
+  }
+  requireThat(state.deposits>0,'Bambu output needs deposition.');
   const bounds=path.summary?.boundsMm;
-  const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-bambu-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
-    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
+    pathMaxZ:state.pathMaxZ,layers:layers.size};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
@@ -130,7 +133,8 @@ function rows({machine,setup,process,output}){
 // wrote; the body is never read back.
 function exportBambu(path,plan,machine,release,Export){
   const output=configuration(plan,machine);
-  const filamentSequence=[plan.setup.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
+  const filamentSequence=[plan.setup.filament];
+  for(const action of path.actions)if(action.kind==='toolChange')filamentSequence.push(action.filament);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const {body,segments}=exportBambuBody(path,plan,machine,Export);
   const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0,untimedMoves=0;

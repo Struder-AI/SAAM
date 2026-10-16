@@ -2,7 +2,7 @@
 // belongs to Geometry; this module owns profile admission and side semantics.
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {validatePose,interpolatePose} from './pose.mjs';
-import {unitDirection,dot,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
+import {interpolateDirection,dot,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
 
 export const keyed=profile=>profile!==null&&typeof profile==='object'&&!Array.isArray(profile)&&Array.isArray(profile.knots);
 export function profileInterval(profile,u,side='right'){
@@ -44,9 +44,7 @@ export function profileAt(profile,u,side='right'){
   if(profile.interpolation==='step')return u===1&&side!=='left'?y:x;
   if(profile.interpolation==='linear')return x+(y-x)*t;
   if(profile.interpolation==='frame')return interpolatePose(x,y,t);
-  const angle=Math.acos(Math.max(-1,Math.min(1,dot(x,y))));
-  if(angle<DIRECTION_TOLERANCE)return unitDirection(x.map((v,i)=>v+(y[i]-v)*t));
-  return x.map((v,i)=>(v*Math.sin((1-t)*angle)+y[i]*Math.sin(t*angle))/Math.sin(angle));
+  return interpolateDirection(x,y,t);
 }
 export function profileValues(profile,from,to){
   if(!keyed(profile))return [profile];
