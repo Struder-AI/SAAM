@@ -26,9 +26,9 @@ function clientFolders(clientHome){
 // The home's AGENTS.md, CLAUDE.md and client skill are the installed program's
 // AGENTS.md, with this home's folders and links resolved to the program's manuals.
 const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-// Retire only SAAM's old shell hooks; native adapters own lifecycle now.
+// Native adapters own lifecycle. Codex hooks only deliver queued context.
 const isClaudeHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='client-event'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
-const isCodexHook=hook=>typeof hook?.command==='string'&&/saam\.mjs'? client-event$/.test(hook.command);
+const isCodexHook=hook=>typeof hook?.command==='string'&&(/saam\.mjs'? client-event$/.test(hook.command)||/[\\/]saam-codex(?:\.exe)?['"]? --saam-context-hook$/.test(hook.command));
 // A client's hooks with SAAM's handlers replaced by `groups` (event: SAAM's group, placed last).
 // Other hooks keep their place; an event that SAAM's removal empties is dropped.
 function replaceHooks(hooks,isOwn,groups={}){
@@ -75,9 +75,16 @@ async function registerCodex(clientHome,home,registered,platform){
   const adapter=await registerCodexAdapter({home,clientHome,platform});
   const hooksFile=join(folders.codex,'hooks.json'),hooksText=await optionalRead(hooksFile),document=hooksText?JSON.parse(hooksText):{};
   if(!document||typeof document!=='object'||Array.isArray(document))throw Error('Codex hooks.json must be a JSON object.');
-  const retired=replaceHooks(document.hooks??{},isCodexHook);
-  if(retired.removed){document.hooks=retired.hooks;await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');}
-  return {skill:skill.path,permissions:previous||permissionChanged?rule:null,...adapter,restartRequired:permissionChanged||adapter.restartRequired};
+  const before=JSON.stringify(document.hooks??{});
+  const handler={type:'command',command:adapter.hookCommand,commandWindows:adapter.hookCommandWindows,statusMessage:'SAAM Studio event context',timeout:10};
+  document.hooks=replaceHooks(document.hooks??{},isCodexHook,{
+    UserPromptSubmit:{hooks:[handler]},PostToolUse:{hooks:[handler]}
+  }).hooks;
+  const trustRequired=JSON.stringify(document.hooks)!==before;
+  if(trustRequired)await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');
+  return {skill:skill.path,permissions:previous||permissionChanged?rule:null,...adapter,hooks:hooksFile,trustRequired,
+    ...(trustRequired&&{tellPerson:'In Codex, click the yellow fishhook below the chat composer, review SAAM Studio event context, and Allow selected. Settings → Hooks also offers Trust.'}),
+    restartRequired:permissionChanged||adapter.restartRequired};
 }
 async function registerClaude(clientHome,home,registered,platform){
   const directory=clientFolders(clientHome).claude;

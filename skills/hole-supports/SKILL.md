@@ -22,6 +22,6 @@ This earlier membrane is the owner's adaptation of TKeller's [original exemplar]
 Other references need corresponding earlier surfaces and anchors; curved membranes remain unverified.
 
 [Whole-part comparison](examples/whole-parts.json): four complete 16×16×8mm bodies (R5 recess to Z4; R2 bore), left to right: removable landing support, drill-through membrane, stepped reduction and wave shoulder.
-The recipe separates support courses from the ordinary body: Trace landing stack, anchored membrane at Z4, bridges at Z4.2/4.4/4.6 in 0°/90°/45° directions, and seeded inward wave fronts at Z4.2.
-Review those courses and the succeeding bore walls in chronological playback. The membrane is pierced afterward; the landing support is removed. These experimental constructions remain physically unqualified.
+The recipe separates support courses from the ordinary body: Trace landing stack, anchored membrane at Z4, bridges at Z4.2/4.4/4.6 in 0°/90°/45° directions, and printed anchor rings followed by inward wave fronts at Z4.2.
+Inspect Z4–4.6 and the succeeding bore walls in chronological playback. Pierce the membrane afterward; remove the landing support. These experimental constructions remain physically unqualified.
 Use normal Bundle revisions and the [shared review workflow](../../core/print/USAGE.md).

@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Prove excluded material claims before numerical search
+
+- Shared-depth preparation retains mandatory inside/outside constraints from Boolean expressions. Geometry certifies containment of possible interior-ball centres using validated closed-mesh face halfspaces, including concave visibility kernels, arbitrary orientations and inverted winding. Identity and Boolean propagation preserve construction relationships; uncertainty retains the adaptive search. There is no primitive-name dispatch. Numerical surface queries are prepared lazily, and each claimant set computes its depth witness once.
+- The captured 19-owner/four-part input's 43 overlap checks take 37 ms (72 ms with concurrent probing), versus the previous 5.4 seconds; the before/after run measures 7.463 seconds versus 37 ms. All 166 resulting layers, native references, regions, material assignments and notes serialize identically (30,058,197 bytes; SHA-256 d0125ed62642d18e2c81b32f2ec3f0443c186a3110b6c91bf2c0528170b384f5). This is overlap-stage timing, not a full scheduler or current live-job timing claim.
+- Disposable checks cover 18 containment/concavity/winding/rotation cases, 500 independent analytic comparisons and three genuine Boolean-overlap witnesses. Actual planar and curved shared-region preparation preserves the 2:1 cadence and subordinate adaptation; existing curved-reference coverage notes remain. No permanent tests or whole suite. Concurrent client-context and hole-support edits ride in the standing all-changes checkpoint; they are not verified by these geometric probes. The other chat's source calculation remains active, so its runtime was not restarted.
+
 ## 2026-10-16 — Bound nonoverlapping material-claim checks
 
 - The four-part support review now has 19 regional assignments. Shared-depth discovery searched a landing against the frame that excludes it, despite there being no qualifying interlock. A bounded diagnostic stopped the old pair after 8.45 seconds/31,360 visited boxes without a result. Geometry now provides conservative whole-box membership for closed meshes and Boolean propagation, pruning excluded volumes before ball subdivision; unsupported/uncertain queries retain the existing search. Closed-mesh winding parity avoids a world-axis ray and print-resolution merging of distinct thin surfaces.

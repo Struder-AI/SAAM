@@ -68,18 +68,18 @@ export async function createClientLifecycle({folder,handBack}){
     if(!current.events.some(value=>value.id===event.id))current.events.push(event);
     await save();
   });}
-  function messageFor(client,sessionId){
+  function messageFor(client,sessionId,includeHeld){
     const events=state.sessions[key(client,sessionId)]?.events??[];
-    if(!events.some(event=>event.delivery==='delivered'))return null;
-    return {id:events[0].id,ids:events.map(event=>event.id),text:'SAAM Studio events (application notifications, not a human message). Event IDs are stable; ignore IDs already handled. Use the current Studio selection/version before editing; original work stays with its bundle.\n'+JSON.stringify(events)};
+    if(!events.length||!includeHeld&&!events.some(event=>event.delivery==='delivered'))return null;
+    return {id:events[0].id,ids:events.map(event=>event.id),...(includeHeld&&{events:structuredClone(events)}),text:'SAAM Studio events (application notifications, not a human message). Event IDs are stable; ignore IDs already handled. Use the current Studio selection/version before editing; original work stays with its bundle.\n'+JSON.stringify(events)};
   }
-  async function inbox({client,sessionId,sessionIds}){
+  async function inbox({client,sessionId,sessionIds,includeHeld=false}){
     await queue.tail;
     if(sessionIds!==undefined){
       if(!Array.isArray(sessionIds)||sessionIds.some(id=>typeof id!=='string'))throw Error('Inbox needs native session IDs.');
-      return {messages:sessionIds.flatMap(sessionId=>{const message=messageFor(client,sessionId);return message?[{sessionId,message}]:[];})};
+      return {messages:sessionIds.flatMap(sessionId=>{const message=messageFor(client,sessionId,includeHeld);return message?[{sessionId,message}]:[];})};
     }
-    return {message:messageFor(client,sessionId)};
+    return {message:messageFor(client,sessionId,includeHeld)};
   }
   function acknowledge({client,sessionId,eventIds}){return serial(async()=>{
     if(!Array.isArray(eventIds))throw Error('Acknowledgement needs event IDs.');

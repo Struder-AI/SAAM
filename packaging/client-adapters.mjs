@@ -19,7 +19,7 @@ function run(binary,args,env=process.env){return new Promise((done,fail)=>{
 });}
 async function executable(path){try{await access(path);return path;}catch{return null;}}
 async function prepare(home){
-  const files=['codex-relay.mjs','codex-wire.mjs','codex-backend.mjs','transport.mjs','owner.mjs','RelayLauncher.cs','claude/hooks/register.js','claude/hooks/hooks.json','claude/.claude-plugin/plugin.json'];
+  const files=['codex-relay.mjs','codex-wire.mjs','codex-backend.mjs','codex-context.mjs','transport.mjs','owner.mjs','RelayLauncher.cs','claude/hooks/register.js','claude/hooks/hooks.json','claude/.claude-plugin/plugin.json'];
   const contents=await Promise.all(files.map(file=>readFile(join(source,file))));
   const hash=createHash('sha256').update(process.version+process.arch+process.platform);
   for(const bytes of contents)hash.update(bytes);
@@ -83,7 +83,9 @@ export async function registerCodexAdapter({home,clientHome,platform}){
   const changed=await write(join(folder,'launcher.txt'),config.node+'\n'+join(release,'codex-relay.mjs')+'\n');
   await write(recordFile,JSON.stringify({launcher,backend,previousOverride:override!==launcher?override:previous?.previousOverride??null})+'\n');
   await environment('CODEX_CLI_PATH',launcher,platform,clientHome);
-  return {adapter:launcher,transport:'native-app-server',restartRequired:changed||override!==launcher};
+  const hookCommand="'"+launcher.replaceAll("'","'\\''")+"' --saam-context-hook";
+  const hookCommandWindows="& '"+launcher.replaceAll("'","''")+"' --saam-context-hook";
+  return {adapter:launcher,transport:'native-app-server',hookCommand,hookCommandWindows,restartRequired:changed||override!==launcher};
 }
 async function claudeBinary(clientHome,platform){
   const name=platform==='win32'?'claude.exe':'claude';

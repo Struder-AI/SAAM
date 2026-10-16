@@ -113,7 +113,10 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
   const explicit=inputOwners.filter(o=>o.kind==='part'&&o.within.length),groups=explicit.map(owner=>[owner]),interiors=new Map(),policies=new Map(),notes=[],reports=new Map();
   const interior=members=>{
     const key=members.map(o=>o.id).join('|');
-    if(!interiors.has(key))interiors.set(key,claimInterior(members));
+    if(!interiors.has(key)){
+      const query=claimInterior(members);
+      interiors.set(key,{supported:query.supported,witness:query.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null});
+    }
     return interiors.get(key);
   };
   const byPart=new Map();for(const owner of explicit){if(!byPart.has(owner.part))byPart.set(owner.part,[]);byPart.get(owner.part).push(owner);}
@@ -122,7 +125,7 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
     const a=claimants[i],b=claimants[j];
     onProgress?.({stage:'Checking material overlap',completed:checked++,total:pairCount,assignment:a.assignment.id});
     const query=interior([a,b]);
-    if(!query.supported||!query.find(MIN_SHARED_CLAIM_DEPTH_MM))continue;
+    if(!query.witness)continue;
     const first=groups.find(g=>g.includes(a)),second=groups.find(g=>g.includes(b));
     if(first!==second){first.push(...second);groups.splice(groups.indexOf(second),1);}
   }
@@ -130,12 +133,12 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
   for(const group of groups){
     group.sort((a,b)=>explicit.indexOf(a)-explicit.indexOf(b));
     const principal=group[0],query=group.length>1?interior(group):null;
-    const witness=query?.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null;
+    const witness=query?.witness;
     // A connected set need not have an n-way common volume. Its first actual
     // junction supplies the reference point; each active subset is partitioned.
     let point=witness;
     if(!point)for(let i=0;i<group.length&&!point;i++)for(let j=i+1;j<group.length&&!point;j++){
-      const pair=interior([group[i],group[j]]);if(pair.supported)point=pair.find(MIN_SHARED_CLAIM_DEPTH_MM);
+      point=interior([group[i],group[j]]).witness;
     }
     if(point)onProgress?.({stage:'Resolving shared material',assignment:principal.assignment.id});
     const joint=group.length>1&&point?cadence(group,point):null;
@@ -154,11 +157,11 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
     const key=members.map(o=>o.id).join('|');if(policies.has(key))return policies.get(key);
     const originals=members.map(o=>original.get(o)),principal=members[0],query=interior(originals);
     const result={principal,members,interlock:false};policies.set(key,result);
-    if(!query.supported||!query.find(MIN_SHARED_CLAIM_DEPTH_MM)){
+    if(!query.witness){
       notes.push(`Shared material ${key}: overlap is assigned solely to ${principal.id}; ${query.supported?`minimum shared-claim depth ${MIN_SHARED_CLAIM_DEPTH_MM} mm could not be established`:'the native claim has no interior-depth query'}.`);
       return result;
     }
-    const frame=frames.find(frame=>frame.members.includes(principal)),stack=frame?.principal.referenceStack??principal.referenceStack,normal=stack.base.kind==='plane'?stack.base.normal:stack.direction,joint=cadences.get(principal)??cadence(originals,query.find(MIN_SHARED_CLAIM_DEPTH_MM));
+    const frame=frames.find(frame=>frame.members.includes(principal)),stack=frame?.principal.referenceStack??principal.referenceStack,normal=stack.base.kind==='plane'?stack.base.normal:stack.direction,joint=cadences.get(principal)??cadence(originals,query.witness);
     Object.assign(result,{interlock:true,stack,bandMm:joint.periodMm,startMm:stack.firstLayerMm-stack.pitchMm,ray:prepareSliceRay(stack.base,stack.direction),normal});
     return result;
   };

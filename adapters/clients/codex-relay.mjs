@@ -8,10 +8,15 @@ import {fileURLToPath} from 'node:url';
 import {createCodexWire} from './codex-wire.mjs';
 import {control} from './transport.mjs';
 import {codexBackend} from './codex-backend.mjs';
+import {deliverCodexContext} from './codex-context.mjs';
 
 const folder=dirname(fileURLToPath(import.meta.url));
 const config=JSON.parse(await readFile(join(folder,'client.json'),'utf8'));
 const args=process.argv.slice(2),connectionId=randomUUID();
+if(args.includes('--saam-context-hook')){
+  try{await deliverCodexContext(config);}catch(error){process.stderr.write('SAAM context delivery deferred: '+error.message+'\n');}
+  process.exit(0);
+}
 const backend=await codexBackend(config);
 if(!args.includes('app-server')){
   const native=spawn(backend,args,{env:{...process.env,CODEX_CLI_PATH:backend},windowsHide:true,stdio:'inherit'});
@@ -22,7 +27,7 @@ if(!args.includes('app-server')){
 const outbox=join(config.home,'state','clients','codex-outbox');
 await mkdir(outbox,{recursive:true});
 const spool=await open(join(outbox,connectionId+'.jsonl'),'a');
-const state={pending:[],tail:Promise.resolve(),retry:null,delivery:null,ending:false,waking:false,wakeRequests:new Map(),wakeCounter:0,offset:0};
+const state={pending:[],tail:Promise.resolve(),retry:null,delivery:null,ending:false,waking:false,wakeRequests:new Map(),wakeCounter:0,offset:0,notified:new Set()};
 // Replay unfinished native evidence from earlier backend processes. Receiver IDs
 // make concurrent replay harmless; acknowledged spools are compacted on exit.
 for(const name of await readdir(outbox))if(name.endsWith('.jsonl')&&name!==connectionId+'.jsonl'){
@@ -59,7 +64,9 @@ function tap(direction){
       const forwarding={enabled:true};
       if(line.trim())try{const message=JSON.parse(line);if(direction==='client')wire.client(message);else if(!message.method&&state.wakeRequests.has(String(message.id))){
         const wake=state.wakeRequests.get(String(message.id));state.wakeRequests.delete(String(message.id));forwarding.enabled=false;
-        if(!message.error)for(const eventId of wake.ids)record({id:randomUUID(),client:'codex',sessionId:wake.sessionId,connectionId,kind:'acknowledged',eventId,deliveryMethod:wake.method,turnId:wake.turnId});
+        // A wake is only a nudge. Context delivery still owns acknowledgement.
+        if(!message.error)for(const eventId of wake.ids)state.notified.add(eventId);
+        if(!message.error&&message.result?.turn)wire.server({method:'turn/started',params:{threadId:wake.sessionId,turn:message.result.turn}});
       }else wire.server(message);}catch(error){process.stderr.write('SAAM lifecycle frame could not be observed; original traffic forwarded.\n');}
       // Establish native evidence before its next tool can reach SAAM. An
       // unavailable SAAM leaves durable evidence and never prevents chat use.
@@ -78,15 +85,17 @@ child.stderr.pipe(process.stderr);
 async function wake(){
   if(state.waking||state.ending)return;state.waking=true;
   try{
-    const sessionIds=wire.roots().filter(sessionId=>![...state.wakeRequests.values()].some(w=>w.sessionId===sessionId));
+    const sessionIds=wire.roots().filter(sessionId=>wire.idle(sessionId)&&![...state.wakeRequests.values()].some(w=>w.sessionId===sessionId));
     if(!sessionIds.length)return;
-    const {messages}=await control(config,{command:'client-inbox',client:'codex',sessionIds});
+    const {messages}=await control(config,{command:'client-inbox',client:'codex',sessionIds,includeHeld:true});
     for(const {sessionId,message} of messages){
+    // Recheck after the inbox read: a real user may have started work meanwhile.
+    if(!wire.idle(sessionId))continue;
+    const changes=message.events.filter(event=>['print-opened','import-completed','plan-updated','example-adopted'].includes(event.kind)&&!state.notified.has(event.id));
+    if(!changes.length)continue;
     const id='saam_'+connectionId+'_'+(++state.wakeCounter);
-    const turnId=wire.activeTurn(sessionId);
-    state.wakeRequests.set(id,{sessionId,ids:message.ids,method:turnId?'turn/steer':'turn/start',turnId:turnId??null});
-    if(turnId)child.stdin.write(JSON.stringify({id,method:'turn/steer',params:{threadId:sessionId,expectedTurnId:turnId,input:[{type:'text',text:message.text}]}})+'\n');
-    else child.stdin.write(JSON.stringify({id,method:'turn/start',params:{threadId:sessionId,clientUserMessageId:message.id,turnTrigger:'saam_studio',input:[{type:'text',text:message.text}]}})+'\n');
+    state.wakeRequests.set(id,{sessionId,ids:changes.map(event=>event.id)});
+    child.stdin.write(JSON.stringify({id,method:'turn/start',params:{threadId:sessionId,clientUserMessageId:changes[0].id,turnTrigger:'saam_studio',input:[{type:'text',text:'SAAM: file changed. Read the current Studio events.'}]}})+'\n');
   }}catch{}finally{state.waking=false;}
 }
 const wakeTimer=setInterval(()=>{void wake();},250);

@@ -3,7 +3,7 @@ import {randomUUID} from 'node:crypto';
 // Observe both directions of the SAME connection used by the desktop.
 // This module never approves a request or changes client/server traffic.
 export function createCodexWire(connectionId,emit){
-  const state={roots:new Set(),children:new Set(),pending:new Map(),turns:new Map(),active:new Set(),waiting:new Map()};
+  const state={roots:new Set(),children:new Set(),pending:new Map(),turns:new Map(),active:new Set(),starting:new Map(),waiting:new Map()};
   function publish(sessionId,kind,extra={}){
     const event={id:randomUUID(),client:'codex',sessionId,connectionId,kind,turnId:state.turns.get(sessionId)??null,...extra};
     if(state.children.has(sessionId))return;
@@ -25,6 +25,7 @@ export function createCodexWire(connectionId,emit){
     if(!message.method)return;
     const p=message.params??{};
     if(message.id!==undefined&&['thread/start','thread/read','thread/resume','thread/fork','turn/start','turn/steer','turn/interrupt'].includes(message.method))state.pending.set(String(message.id),{method:message.method,threadId:p.threadId,turnId:p.expectedTurnId??p.turnId});
+    if(message.method==='turn/start'&&p.threadId)state.starting.set(p.threadId,String(message.id));
     if(['turn/start','turn/steer'].includes(message.method)&&p.threadId)publish(p.threadId,'message',{turnId:p.expectedTurnId??state.turns.get(p.threadId)??null,source:'desktop-input'});
     if(message.method==='turn/interrupt'&&p.threadId)publish(p.threadId,'contact',{turnId:p.turnId,reason:'interrupt'});
   }
@@ -32,6 +33,7 @@ export function createCodexWire(connectionId,emit){
     const p=message.params??{};
     if(!message.method&&message.id!==undefined){
       const request=state.pending.get(String(message.id));state.pending.delete(String(message.id));
+      if(request?.method==='turn/start'&&state.starting.get(request.threadId)===String(message.id))state.starting.delete(request.threadId);
       if(request&&!message.error){
         if(message.result?.thread)classify(message.result.thread);
         if(request.method==='turn/start'&&message.result?.turn){state.turns.set(request.threadId,message.result.turn.id);state.active.add(request.threadId);publish(request.threadId,'started',{turnId:message.result.turn.id});}
@@ -51,5 +53,5 @@ export function createCodexWire(connectionId,emit){
     // Thread idle snapshots intentionally do not finish work: turn events own it.
   }
   function ended(confirmed){for(const id of state.roots)publish(id,confirmed?'closed':'disconnected',{turnId:null});}
-  return {client,server,ended,roots:()=>[...state.roots],idle:id=>state.roots.has(id)&&!state.active.has(id),activeTurn:id=>state.active.has(id)?state.turns.get(id):null};
+  return {client,server,ended,roots:()=>[...state.roots],idle:id=>state.roots.has(id)&&!state.active.has(id)&&!state.starting.has(id)};
 }

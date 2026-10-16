@@ -21,6 +21,6 @@ These steps are for the agent asked to install SAAM, a desktop application for m
 
 Studio opens. Have the person activate updates with their invite under **Connect**, restart an open client, start a new chat and mention SAAM.
 Initial setup remembers only SAAM command access: Codex's `~/.codex/rules/saam.rules`, and Claude Code's `Bash(saam *)` / `PowerShell(saam *)` rules in user settings. Manual users can remove these grants (Claude: `/permissions`); updates and repairs preserve edits/removals and other client policies. Use the stable `saam` prefix so new recipe files, operations and print IDs reuse the same grant.
-Setup registers Codex's native relay and Claude's in-process plugin automatically; fully restart open clients to load them. Lifecycle needs no `/hooks` trust. If attachment fails, run `saam call repair_client_setup`; removed command permissions stay removed.
+Setup registers both native adapters; restart open clients. In Codex, click the **yellow fishhook below the chat composer**, review **SAAM Studio event context**, and **Allow selected** (also **Settings → Hooks → Trust**). Activity observation needs no hook approval; context delivery does. Claude is unchanged. Repair attachment with `saam call repair_client_setup`; removed command grants stay removed.
 
 To uninstall later: `saam quit`, then `C:\SAAM\app\packaging\windows\uninstall.ps1 -Yes` (run as above) or `bash ~/SAAM/app/packaging/macos/uninstall.sh --yes`. Prints and settings stay.
