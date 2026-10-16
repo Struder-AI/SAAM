@@ -12,6 +12,11 @@ export const BUILD_SCALE_MM = 1000;
 // (coincident, touching, thin, closed) use it.
 export const PRINT_RESOLUTION_MM = 1e-3;
 
+// Native Boolean accuracy, in mm. This is the one construction setting to tune.
+// Curve chords use a quarter of it; boundary matching uses half, leaving room
+// for both approximations. Root solving and rounding guards stay finer.
+export const BOOLEAN_TOLERANCE_MM = 0.005;
+
 // Rounding guards: the slack that absorbs floating-point rounding in a predicate
 // or a division, derived from the functional tolerance it protects. A thousandth
 // of print resolution (agent-determined, 2026-10-06): float64 rounding at build

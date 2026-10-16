@@ -1,7 +1,8 @@
 // Scheduling interprets material contacts and nozzle-access hits as precedence.
 // Geometry owns all numerical volume and sweep predicates.
+import {prepareCurvePath,curveRange} from './curve-path.mjs';
 import {depositedBeadSegments} from './deposited-curves.mjs';
-import {convexSupport,convexIntersects,convexSpatialIndex,nozzleSweepHits} from '../geom/convex-clearance.mjs';
+import {convexSupport,convexIntersects,convexSpatialIndex,nozzleSweepHits,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,subtract,length,cross,normalize} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {uprightPose} from './pose.mjs';
@@ -161,4 +162,72 @@ export function physicalOrdering(courses,{onProgress,prerequisites=new Map()}={}
     }
   }
   return {beads,shapes,index,byStart,edges,...counts};
+}
+
+// Scheduling certificate: a complete native slice's nozzle stays on the clear
+// side of a material slice. Failure to certify means query children, not collide.
+
+const equalVector=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
+function constantVector(profile,select=value=>value){
+  if(!profile?.knots)return select(profile);
+  const first=select(profile.knots[0][1]);
+  return profile.knots.every(([,value])=>equalVector(first,select(value)))?first:null;
+}
+
+// Positive rational weights keep NURBS within their control hull. We use that
+// hull only as a bound, never as deposited material or a collision witness.
+function controlVertices(geometry){
+  if(geometry.kind==='polyline')return geometry.points;
+  if(geometry.kind==='nurbs')return geometry.controlPoints;
+  return null;
+}
+
+export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
+  const slices=new Map(),halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
+  const sine=Math.sin(halfAngle),retreat=NOZZLE_FORGIVENESS_MM/sine;
+  for(const operation of Object.values(source.operations)){
+    if(operation.layerId===null)continue;
+    const id=operation.layerId;
+    if(!slices.has(id))slices.set(id,{id,normal:null,minTip:Infinity,maxMaterial:-Infinity,eligible:true,courses:0});
+    const slice=slices.get(id);
+    // Stationary occupied geometry is a separate authored record. Do not
+    // accidentally certify it from the absence of moving deposition curves.
+    if(operation.kind!=='deposit'){slice.eligible=false;continue;}
+    for(const course of operation.courses){
+      slice.courses++;
+      if(!slice.eligible)continue;
+      const curve=source.curves[course.curveId],vertices=controlVertices(curve.geometry);
+      const normal=constantVector(curve.profiles.materialNormal),toolAxis=constantVector(curve.profiles.pose,value=>value.toolAxis);
+      if(!vertices?.length||!toolAxis){slice.eligible=false;continue;}
+      const outward=scale(toolAxis,-1/length(toolAxis));
+      const unit=slice.normal??(normal?scale(normal,1/length(normal)):outward);
+      slice.normal=unit;
+      const cosine=dot(unit,outward);
+      // Every generator of the infinite cone must point into the same open
+      // half-space. Pure tool roll is harmless; changing axes need local bounds.
+      if(cosine<=sine+ROUNDING_RELATIVE){slice.eligible=false;continue;}
+      const high=dot(convexSupport({vertices},unit),unit);
+      const low=dot(convexSupport({vertices},scale(unit,-1)),unit);
+      // The bead side lies perpendicular to this reference normal and its
+      // depth is inward, even when the path tangent requires projection of
+      // that normal. Thus its whole body is below its centerline hull's high.
+      const aligned=normal&&equalVector(scale(normal,1/length(normal)),unit);
+      // Other reference normals need an enclosure, not a fabricated sheet.
+      // A side offset is at most half width and inward depth is area/width.
+      // The broader bound still proves distant whole slices clear, including
+      // curved layers with changing bead normals and a fixed nozzle direction.
+      if(!aligned&&!reader)reader=prepareCurvePath(source);
+      if(!aligned&&!ranges.has(course.id))ranges.set(course.id,curveRange(reader,course.curveId,course.from,course.to));
+      const range=aligned?null:ranges.get(course.id);
+      const margin=aligned?0:range.widthMm[1]/2+(range.areaMm2?.[1]??0)/range.widthMm[0];
+      slice.maxMaterial=Math.max(slice.maxMaterial,high+margin+ROUNDING_MM);
+      slice.minTip=Math.min(slice.minTip,low+retreat*cosine-ROUNDING_MM);
+    }
+  }
+  const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);
+  return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length},clear(depositingLayer,materialLayer){
+    if(depositingLayer===materialLayer)return false;
+    const a=slices.get(depositingLayer),b=slices.get(materialLayer);
+    return Boolean(a?.eligible&&b?.eligible&&a.courses&&b.courses&&equalVector(a.normal,b.normal)&&a.minTip>b.maxMaterial+ROUNDING_MM);
+  }};
 }

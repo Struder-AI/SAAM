@@ -107,7 +107,8 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   }));
   if(sliced.summary)summary.slices=sliced.summary;
   // Generation notes: what was not covered or failed, joining the print's limitations.
-  const notes=[...[...geometryFailures].map(([id,error])=>`${id} failed; it produces nothing. ${error.message}`),...extensions.notes,...sliced.notes];
+  const geometryNotes=[...new Set([...shells.flatMap(([,shell])=>shell.notes??[]),...[...volumes.values()].flatMap(values=>values.flatMap(value=>value?.notes??[]))])];
+  const notes=[...geometryNotes,...[...geometryFailures].map(([id,error])=>`${id} failed; it produces nothing. ${error.message}`),...extensions.notes,...sliced.notes];
   if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
   const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));

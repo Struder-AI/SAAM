@@ -78,7 +78,7 @@ function meshIdentity(vertices,triangles){
   put(vertices.length);put(triangles.length);for(const p of vertices)for(const v of p)put(v);for(const t of triangles)for(const v of t)put(v);hash.update(buffer.subarray(0,offset));return hash.digest('hex');
 }
 // Geometry built through this backend: indexed meshes, booleans, and assemblies holding either.
-export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
+export const hasMesh=geometry=>!!geometry&&(geometry.solid?hasMesh(geometry.solid):((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)))));
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
   const input=validateMeshInput(vertices,triangles);
   const identity=meshIdentity(input.vertices,input.triangles);

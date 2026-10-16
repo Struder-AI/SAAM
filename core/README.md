@@ -34,7 +34,7 @@ orders those operations and plans their transitions; machine adapters emit and
 interpret the program used by review and delivery. A change to one of these
 interfaces needs to account for its current callers, result semantics and
 affected consumers. [Geometry interfaces](./geom/README.md#geometry-interoperability-for-skill-authors),
-[skill results](./path/README.md#skill-result-composition) and [machine output](./export/README.md#machine-interoperability-design)
+[skill results](./path/README.md#retained-construction-interfaces) and [machine output](./export/README.md#machine-interoperability-design)
 describe those contracts.
 
 Machine profiles and output adapters own machine behavior. Skills consume the
@@ -92,15 +92,13 @@ coordination timers and display budgets. These limits are kept:
 
 ## Dimensions and tolerances
 
-SAAM prints in build volumes of hundreds of millimetres, with lines of tenths
-(0.4 to 0.8 mm) and layers of hundredths (0.06 to 0.6 mm); machines repeat to
-about 0.01 mm. Every tolerance imports a class from [dimensions.mjs](./dimensions.mjs)
-or derives from the print's own dimensions, and says which:
+Tolerances import their class from [dimensions.mjs](./dimensions.mjs) or derive
+from the print dimensions. Machines repeat to about 0.01 mm:
 
 | Class | Value | What it protects |
 |---|---|---|
 | Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Every shape judgement (same point, joined, touching, on a plane, overlapping, too thin, collinear) uses it. |
-| Process scale | the print's `lineWidthMm`, `layerMm`, or an operation's chord or sampling tolerance chosen from them | Construction accuracy that matters to one print: chord error, sampling steps, wall merging (`planarWallToleranceMm`). |
+| Process scale | `lineWidthMm`, `layerMm`, or operation accuracy | Chord, sampling and wall-merging accuracy. Native Boolean construction uses the single `BOOLEAN_TOLERANCE_MM` setting ([contract](geom/README.md#native-boolean-construction)). |
 | Construction/admission, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM`; written XYZ, `XYZ_PROGRAM_DECIMALS` | Fine 5 decimals; XYZ 3 decimals | Geometry and saved SAAMpath retain fine precision; writers use 0.001 mm XYZ and five-decimal filament amounts with residual carry. Other commanded quantities use precision appropriate to their units and positional effect ([standards](../machines/README.md)). |
 | Rounding guards, `ROUNDING_MM`, `ROUNDING_RELATIVE` | print resolution / 1000; / `BUILD_SCALE_MM` | Slack that absorbs floating-point rounding in a predicate or division. Never judges shape. |
 

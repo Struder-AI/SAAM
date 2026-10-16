@@ -1,9 +1,7 @@
-// Solids combined one layer at a time. Every operand keeps its own native
-// backend; the shared queries (query.mjs) section each operand and combine the
-// loops with Clipper2, and find tops from the operands' crossings. A slicer
-// needs only the layers, so no surface-surface intersection curve or boolean
-// B-rep is built (core/region/README.md#layer-regions-and-several-solids).
+// Native spline operands construct one trimmed boundary. Mesh and mixed
+// operands retain native section composition; output conversion is separate.
 import {requireThat} from './tolerance.mjs';
+import {nativeSurfaceSolid,surfaceBoolean} from './surface-boolean.mjs';
 
 export const BOOLEAN_OPERATIONS=['union','difference','intersection'];
 export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','boolean'];
@@ -16,7 +14,7 @@ export function validateBooleanSolid(geometry){
   requireThat(Array.isArray(geometry.operands)&&geometry.operands.length>=2,'A boolean solid needs at least two operands.');
   if(Object.hasOwn(geometry,'displayOperand'))requireThat(Number.isInteger(geometry.displayOperand)&&geometry.displayOperand>=0&&geometry.displayOperand<geometry.operands.length,'displayOperand must identify an existing operand.');
   for(const operand of geometry.operands){
-    requireThat(BOOLEAN_OPERAND_SHAPES.includes(operand?.shape)||Array.isArray(operand?.vertices)&&!operand.base,`Boolean operands are ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
+    requireThat(BOOLEAN_OPERAND_SHAPES.includes(operand?.shape)||operand?.solid||Array.isArray(operand?.vertices)&&!operand.base,`Boolean operands are ${BOOLEAN_OPERAND_SHAPES.join(', ')} geometry.`);
   }
   return geometry;
 }
@@ -26,17 +24,20 @@ export function displayGeometry(geometry){
   if(geometry.shape!=='boolean')return geometry;
   validateBooleanSolid(geometry);
   if(Object.hasOwn(geometry,'displayOperand'))return displayGeometry(geometry.operands[geometry.displayOperand]);
-  return {...geometry,operands:geometry.operands.map(displayGeometry)};
+  const operands=geometry.operands.map(displayGeometry);
+  return operands.every((operand,i)=>operand===geometry.operands[i])?geometry:{...geometry,operands};
 }
 
 // Difference keeps the first operand's extent; intersection keeps the overlap,
 // flat where the operands' boxes do not meet: no material, shown empty.
-export function booleanShell(operation,operands){
+export function booleanShell(operation,operands,options){
+  if(operands.length>=2&&operands.every(nativeSurfaceSolid))return surfaceBoolean(operation,operands,options);
+  const notes=[...new Set(operands.flatMap(operand=>operand.notes??[]))];
   const empty=operation==='union'?operands.every(operand=>operand.empty):operation==='difference'?Boolean(operands[0]?.empty):operands.some(operand=>operand.empty);
-  if(empty)return {kind:'boolean',operation,operands,empty:true,bounds:{min:[0,0,0],max:[0,0,0]}};
+  if(empty)return {kind:'boolean',operation,operands,notes,empty:true,bounds:{min:[0,0,0],max:[0,0,0]}};
   const boxes=(operation==='union'?operands.filter(operand=>!operand.empty):operands).map(o=>o.bounds),overlap=[0,1,2].map(a=>Math.max(...boxes.map(b=>b.min[a])));
   const bounds=operation==='union'?{min:[0,1,2].map(a=>Math.min(...boxes.map(b=>b.min[a]))),max:[0,1,2].map(a=>Math.max(...boxes.map(b=>b.max[a])))}
     :operation==='difference'?structuredClone(boxes[0])
     :{min:overlap,max:[0,1,2].map(a=>Math.max(overlap[a],Math.min(...boxes.map(b=>b.max[a]))))};
-  return {kind:'boolean',operation,operands,empty:false,bounds};
+  return {kind:'boolean',operation,operands,notes,empty:false,bounds};
 }

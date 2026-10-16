@@ -1,7 +1,8 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
-import {saamPathText} from '../path/saampath.mjs';
+import {saamPathText,joinSaamPath} from '../path/saampath.mjs';
+import {pathSummary} from '../path/curve-path.mjs';
 import {schedulePath} from '../path/schedule.mjs';
 import {completedOutputState} from './review-state.mjs';
 import {checkedPhaseColours} from './phase-colours.mjs';
@@ -454,10 +455,10 @@ async function prepareGeneration(directory,{onProgress}={}){
     onProgress?.({stage:'Preparing geometry'});
     const {path,artifact}=await prepareToolpath(state,{onProgress,source});
     const missing=await programReadiness(state.plan,state.machine);
-    if(missing)return {pathArtifact:artifact,summary:path.summary,missing};
+    if(missing)return {pathArtifact:artifact,summary:pathSummary(path),missing};
     onProgress?.({stage:'Writing machine commands'});
-    try{return {pathArtifact:artifact,summary:path.summary,...await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
-    catch(error){error.stage='export';return {pathArtifact:artifact,summary:path.summary,exportError:error};}
+    try{return {pathArtifact:artifact,summary:pathSummary(path),...await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
+    catch(error){error.stage='export';return {pathArtifact:artifact,summary:pathSummary(path),exportError:error};}
   }).catch(error=>{candidate.result=null;throw error;});
   const result=await candidate.result;
   return {directory:state.dir,revision:state.revision,editRevision:state.editRevision,source:{release:source.release,hash:source.hash},result};
@@ -515,13 +516,12 @@ async function prepareToolpath(state,{onProgress,source}={}){
     const id=randomUUID(),file=`paths/${id}.json`;
     await save(resolve(state.dir,file),saamPathText(constructed));
     const stored=await readPathArtifact(state.dir,{file});
-    const motionFile=Array.isArray(stored.operations)?`paths/${id}.motion.json`:null;
-    if(motionFile){
-      onProgress?.({stage:'Scheduling saved deposition'});
-      const motion=schedulePath(stored,{onProgress});
-      await save(resolve(state.dir,motionFile),saamPathText(motion));
-    }
-    const artifact={id,file,...(motionFile?{motionFile}:{}),inputId:state.pathInputId,contract,
+    const scheduleFile=`paths/${id}.schedule.json`;
+    onProgress?.({stage:'Scheduling saved deposition'});
+    const schedule=schedulePath(stored,{sourcePathId:id,onProgress});
+    joinSaamPath({sourcePathId:id,deposition:stored,schedule});
+    await save(resolve(state.dir,scheduleFile),saamPathText(schedule));
+    const artifact={id,file,scheduleFile,inputId:state.pathInputId,contract,
       ...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
       ...(stored.summary.limitations?.length?{limitations:stored.summary.limitations}:{})};
     return {path:await readMotionArtifact(state.dir,artifact),artifact};
@@ -531,12 +531,16 @@ async function prepareToolpath(state,{onProgress,source}={}){
 }
 
 async function readPathArtifact(dir,artifact){return JSON.parse(await readFile(resolve(dir,artifact.file)));}
-async function readMotionArtifact(dir,artifact){return JSON.parse(await readFile(resolve(dir,artifact.motionFile??artifact.file)));}
+async function readMotionArtifact(dir,artifact){
+  if(!artifact.scheduleFile)return JSON.parse(await readFile(resolve(dir,artifact.motionFile??artifact.file)));
+  const deposition=await readPathArtifact(dir,artifact),schedule=JSON.parse(await readFile(resolve(dir,artifact.scheduleFile)));
+  return joinSaamPath({sourcePathId:artifact.id,deposition,schedule});
+}
 async function readConstructedPath(state){
   const artifact=state.completedOutput?.path??state.review.path;
   requireThat(artifact,'No saved SAAMpath.');
   const path=await readPathArtifact(state.dir,artifact);
-  requireThat(Array.isArray(path.operations),'This saved SAAMpath has no deposition operation records; regenerate to use them.');
+  requireThat(path.operations,'This saved SAAMpath has no deposition operation records; regenerate to use them.');
   return path;
 }
 function partFramePath(artifact){return artifact.contract===contract||artifact.contract?.startsWith('saam-deposition/')&&Number(artifact.contract.slice('saam-deposition/'.length))>=14;}

@@ -4,31 +4,35 @@
 import {solidKernel,solidFromMesh,meshFromSolid,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from './solid.mjs';
 import {tessellateSolid} from './boolean-display.mjs';
 import {requireThat,distance} from './tolerance.mjs';
+import {nativeSurfaceSolid,surfaceBoolean} from './surface-boolean.mjs';
 
 // -> per request, a mesh with the notes of its construction (an approximation
 // kept short of its tolerance), or null for no material.
 export async function constructSolids(requests,{toleranceMm=.02}={}){
-  const kernel=await solidKernel(),owned=[],cache=new Map(),notes=new Map();
+  const kernel=await solidKernel(),owned=[],cache=new Map(),notes=new Map(),boundaries=new Map();
   const keep=solid=>{owned.push(solid);return solid;};
   const operandsOf=async request=>{const solids=[];for(const operand of request.operands)solids.push(await evaluate(operand));return solids;};
   const evaluate=async request=>{
     if(cache.has(request))return cache.get(request);
-    const own=[];let solid;
-    switch(request.kind?null:request.operation){
-      case 'union': solid=keep(kernel.Manifold.union(await operandsOf(request)));break;
-      case 'intersection': solid=keep(kernel.Manifold.intersection(await operandsOf(request)));break;
-      case 'difference': {const [first,...rest]=await operandsOf(request);solid=first;for(const operand of rest)solid=keep(solid.subtract(operand));break;}
-      case 'translate': solid=keep((await evaluate(request.geometry)).translate(request.offset));break;
-      case 'box': solid=keep(kernel.Manifold.cube(request.size));break;
-      case 'cylinder': solid=keep(kernel.Manifold.cylinder(request.heightMm,request.radiusMm,request.radiusMm,request.segments));break;
-      case 'loft': solid=keep(solidFromMesh(kernel,loftMesh(request.rings,request.centers)));break;
-      case 'mapped-extrusion': {const extrusion=mappedExtrusion(kernel,request);solid=keep(extrusion.solid);own.push(...extrusion.notes);break;}
-      default: {const mesh=await tessellateSolid(request,{toleranceMm});own.push(...mesh.notes??[]);solid=keep(solidFromMesh(kernel,mesh));}
+    const own=[],state={solid:null};
+    const boundary=nativeConstruction(request,boundaries);
+    if(boundary){
+      const mesh=await tessellateSolid(boundary,{toleranceMm});own.push(...mesh.notes??[]);state.solid=keep(solidFromMesh(kernel,mesh));
+    }else switch(request.kind?null:request.operation){
+      case 'union': state.solid=keep(kernel.Manifold.union(await operandsOf(request)));break;
+      case 'intersection': state.solid=keep(kernel.Manifold.intersection(await operandsOf(request)));break;
+      case 'difference': {const [first,...rest]=await operandsOf(request);state.solid=first;for(const operand of rest)state.solid=keep(state.solid.subtract(operand));break;}
+      case 'translate': state.solid=keep((await evaluate(request.geometry)).translate(request.offset));break;
+      case 'box': state.solid=keep(kernel.Manifold.cube(request.size));break;
+      case 'cylinder': state.solid=keep(kernel.Manifold.cylinder(request.heightMm,request.radiusMm,request.radiusMm,request.segments));break;
+      case 'loft': state.solid=keep(solidFromMesh(kernel,loftMesh(request.rings,request.centers)));break;
+      case 'mapped-extrusion': {const extrusion=mappedExtrusion(kernel,request);state.solid=keep(extrusion.solid);own.push(...extrusion.notes);break;}
+      default: {const mesh=await tessellateSolid(request,{toleranceMm});own.push(...mesh.notes??[]);state.solid=keep(solidFromMesh(kernel,mesh));}
     }
-    requireThat(solid.status()==='NoError','Solid construction produced invalid geometry.');
+    requireThat(state.solid.status()==='NoError','Solid construction produced invalid geometry.');
     const inputs=request.kind?[]:request.operation==='translate'?[request.geometry]:request.operands??[];
-    notes.set(request,[...new Set([...own,...inputs.flatMap(input=>notes.get(input))])]);
-    cache.set(request,solid);return solid;
+    notes.set(request,[...new Set([...own,...inputs.flatMap(input=>notes.get(input)??[])])]);
+    cache.set(request,state.solid);return state.solid;
   };
   try{
     const meshes=[];
@@ -37,6 +41,26 @@ export async function constructSolids(requests,{toleranceMm=.02}={}){
   }finally{for(const solid of owned.reverse())try{solid.delete();}catch{}}
 }
 
+// The same native Boolean implementation serves value construction and explicit
+// mesh-output requests. Only the completed boundary is converted for the latter.
+function nativeConstruction(request,cache){
+  if(cache.has(request))return cache.get(request);
+  if(nativeSurfaceSolid(request)){cache.set(request,request);return request;}
+  if((request.kind&&request.kind!=='boolean')||!['union','difference','intersection'].includes(request.operation))return null;
+  const operands=request.operands.map(operand=>nativeConstruction(operand,cache));
+  const native=operands.length&&operands.every(Boolean)?operands.length===1?operands[0]:surfaceBoolean(request.operation,operands):null;
+  cache.set(request,native);return native;
+}
+
+// Material existence is a geometric query. Native boundaries already know
+// whether any faces survived; mixed Boolean trees need their mesh construction.
+// Evaluate them together so shared input conversion and native lifetime stay here.
+export async function materialPresence(solids){
+  const pending=solids.filter(solid=>solid.kind==='boolean'&&!solid.empty);
+  const meshes=pending.length?await constructSolids(pending):[];
+  const answers=new Map(pending.map((solid,i)=>[solid,meshes[i]!==null]));
+  return solids.map(solid=>answers.get(solid)??!solid.empty);
+}
 function loftMesh(rings,centers){
   const n=rings[0].length,vertices=rings.flat(),triangles=[];
   requireThat(rings.length>=2&&n>=3&&rings.every(r=>r.length===n),'Loft rings need matching vertex correspondence.');

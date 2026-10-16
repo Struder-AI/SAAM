@@ -112,7 +112,7 @@ export function prepareSliceContexts({plan,shells,volumes,bands=[],geometryCuts=
   const owners = sliceOwners(assignments, { shells:processShells, processes, materials, volumes, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
   for(const owner of owners)owner.publicationShell??=shells.find(([part])=>part===owner.part)?.[1];
   const owned = prepareMaterialRegions(owners, { bands, onProgress });
-  const contexts=[],notes=owned.flatMap(stack=>stack.notes);
+  const contexts=[],notes=[...new Set([...processShells.flatMap(([,shell])=>shell.notes??[]),...owned.flatMap(stack=>stack.notes)])];
   for (const { owner, referenceStack, stackId, layers, material, substrate, sharedReport } of owned) {
     const { assignment } = owner;
     if(assignment.join||!layers.length)continue;

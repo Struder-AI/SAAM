@@ -24,7 +24,7 @@ the departure after the last, and a travel between depositions with different
 known layer labels, where a nearby start is the intended path. A segment within
 print resolution inside a stroke is not a travel.
 
-Producers [connect nearby strokes by deposition](../path/README.md#whole-plan-travel-requirement),
+Producers [connect nearby strokes by deposition](../path/README.md#scheduler-obligations),
 so an ordinary print reports nothing. A finding is a bad-path report, not a
 validity gate or automatic repair, and the agent tells the person about it. The
 report includes total/count, `liftedCount` (trips that rose above both

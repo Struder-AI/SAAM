@@ -1,6 +1,6 @@
 # Collision-planning proposal
 
-A requested design study, separate from the [implemented travel contract](./README.md#whole-plan-travel-requirement).
+A requested design study, separate from the [implemented travel contract](./README.md#scheduler-obligations).
 
 ## General collision avoidance — options for review
 

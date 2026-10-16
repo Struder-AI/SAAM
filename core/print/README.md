@@ -198,7 +198,7 @@ Use `examples/prints/` only for explicitly curated examples.
 ## Shell pipeline (slices and draped-skin)
 
 `core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
-Toolpath supplies completed operations to Bundle; [Scheduling](../path/README.md#skill-result-composition) reads the saved result.
+Toolpath supplies completed operations to Bundle; [Scheduling](../path/README.md#retained-construction-interfaces) reads the saved result.
 A failing assignment produces nothing and the rest generates; its error, open sections
 and references ending inside the part are notes in `limitations`.
 Their manuals own supported settings and process limits; software checks do not

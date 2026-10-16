@@ -1,4 +1,5 @@
 import {contextualActions} from '../core/path/action-context.mjs';
+import {pathInitialPosition,pathInitialPose,pathSummary} from '../core/path/curve-path.mjs';
 // Studio draws the SAAMpath, never a machine program: the completed output's,
 // else the saved one, at its placement (readDrawnPath), or a mechanism study's
 // authored motion. Times are the path's own requested timing.
@@ -17,11 +18,11 @@ export const loadSavedPath=state=>state.review?.path?loadPathPreview(state,{id:s
 const UPRIGHT={toolAxis:[0,0,-1],toolUp:[0,1,0]};
 // A move without its own line width has its material's (a filament process override), else the recipe's.
 export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
-  if(path?.schema!=='saampath/1'||!Array.isArray(path.actions)||!Array.isArray(path.initialPosition))throw Error('Invalid saved SAAMpath.');
+  if(!Array.isArray(pathInitialPosition(path))||!(path?.deposition&&path.schedule||path?.schema==='saampath/1'&&Array.isArray(path.actions)))throw Error('Invalid saved SAAMpath.');
   const width=(action,filament)=>action.beadWidthMm??action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??NaN;
-  const metadata=path.summary?.inspection??inspection;
-  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
-  const posed=Boolean(pose)||path.actions.some(a=>a.pose);
+  const metadata=pathSummary(path)?.inspection??inspection;
+  const events=[];let position=pathInitialPosition(path),pose=pathInitialPose(path)??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
+  const posed=Boolean(pose)||Boolean(path.deposition)||path.actions.some(a=>a.pose);
   for(const {action,context,index:line} of contextualActions(path)){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}
     if(action.kind==='fan'){fan=action.percent;continue;}

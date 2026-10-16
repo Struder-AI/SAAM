@@ -7,6 +7,7 @@ import {booleanShell} from './boolean-solid.mjs';
 import {requireThat} from './tolerance.mjs';
 import {geometrySelections} from './selections.mjs';
 import {rhino} from './runtime.mjs';
+import {translateSurfaceSolid} from './surface-topology.mjs';
 
 
 export function buildShell(rhino, geometry, options) {
@@ -22,7 +23,7 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
     const shell=construct(geometry);cache.set(geometry,shell);return shell;
   };
   function construct(geometry){
-    if(geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
+    if(geometry?.solid||geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
     if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
     if(geometry.shape==='boolean')return booleanShell(geometry.operation,geometry.operands.map(build));
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
@@ -34,7 +35,7 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
     if(geometry.shape==='assembly'&&hasMesh(geometry)) {
       const components=geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm));
       const material=components.filter(component=>!component.empty);
-      return {kind:'assembly',components,empty:!material.length,bounds:material.length?{min:[0,1,2].map(i=>Math.min(...material.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...material.map(c=>c.bounds.max[i])))}:{min:[0,0,0],max:[0,0,0]}};
+      return {kind:'assembly',components,notes:components.flatMap((component,i)=>(component.notes??[]).map(note=>geometry.parts[i].id+': '+note)),empty:!material.length,bounds:material.length?{min:[0,1,2].map(i=>Math.min(...material.map(c=>c.bounds.min[i]))),max:[0,1,2].map(i=>Math.max(...material.map(c=>c.bounds.max[i])))}:{min:[0,0,0],max:[0,0,0]}};
     }
     if(geometry.shape==='assembly') {
       if(!native){
@@ -82,6 +83,7 @@ export async function resolveGeometrySelections(geometry,requests){
 // patches keep their parameterisation, so sections and surface solves are
 // unaffected apart from the translation.
 export function translateShell(shell, dx, dy, dz = 0) {
+  if(shell.kind==='surface-solid')return translateSurfaceSolid(shell,[dx,dy,dz]);
   if(shell.kind==='triangle-mesh'){
     return translateMesh(shell,dx,dy,dz);
   }

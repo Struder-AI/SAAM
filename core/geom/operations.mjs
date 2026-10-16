@@ -1,9 +1,10 @@
 // Every extension host supplies these same CAD operations. Backend loading and
 // native objects stay here; callers supply ordinary geometry and explicit options.
+import {compileBlobField} from './blob-field-compile.mjs';
 import {rhino} from './runtime.mjs';
 import {buildShell,resolveGeometrySelections,resolveMaterialGeometry,translateShell} from './build.mjs';
 import {booleanShell as combineSolids} from './boolean-solid.mjs';
-import {constructSolids} from './solid-operations.mjs';
+import {constructSolids,materialPresence} from './solid-operations.mjs';
 import {makeMesh} from './mesh.mjs';
 import {mappedRegionMaterial} from './mapped-region-material.mjs';
 import {textOutlines} from './text-outline.mjs';
@@ -35,10 +36,11 @@ import {prepareSolidDistance,solidDistance} from './solid-distance.mjs';
 import {extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery} from './extruded-segments.mjs';
 import {rodFrame,point} from './frame.mjs';
 import {convexVolume} from './convex-clearance.mjs';
+import {revolvedProfile} from './revolved-profile.mjs';
 import {geometrySelections} from './selections.mjs';
 
 async function buildGeometry(geometry){return buildShell(await rhino(),geometry,{native:false});}
-const operations=Object.freeze({buildGeometry,combineSolids,constructSolids,makeMesh,convexVolume,rodFrame,point,geometrySelections,
+const operations=Object.freeze({compileBlobField,buildGeometry,combineSolids,constructSolids,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,geometrySelections,
     resolveGeometrySelections,resolveMaterialGeometry,translateShell,mappedRegionMaterial,textOutlines,textLayout,
     matchCurveControls,ribbon,loftPolygons,topAt,createSectionQuery,containsPoint,
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,

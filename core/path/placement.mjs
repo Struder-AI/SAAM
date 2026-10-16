@@ -4,6 +4,7 @@
 export function placedPath(path,placement){
   const dx=placement?.xMm??0,dy=placement?.yMm??0;
   if(!dx&&!dy)return path;
+  if(path.deposition&&path.schedule)return {...path,placement:{xMm:dx,yMm:dy}};
   const shift=p=>[p[0]+dx,p[1]+dy,p[2]],bounds=path.summary?.boundsMm;
   return {...path,initialPosition:shift(path.initialPosition),
     actions:path.actions.map(action=>action.kind==='move'?{...action,to:shift(action.to)}:action),

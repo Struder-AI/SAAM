@@ -24,11 +24,14 @@ export function interpolateDirectionPair(a,b,t){
   const cosine=Math.max(-1,Math.min(1,(matrix[0][0]+matrix[1][1]+matrix[2][2]-1)/2));
   const skew=[matrix[2][1]-matrix[1][2],matrix[0][2]-matrix[2][0],matrix[1][0]-matrix[0][1]];
   const sine=length(skew)/2,angle=Math.atan2(sine,cosine);
-  if(angle<DIRECTION_TOLERANCE)return a.map(v=>[...v]);
+  if(angle===0)return a.map(v=>[...v]);
   const principal=[0,1,2].reduce((best,i)=>matrix[i][i]>matrix[best][best]?i:best,0);
   const halfTurn=[0,1,2].map(i=>i===principal?Math.sqrt(Math.max(0,(matrix[i][i]+1)/2)):
     (matrix[i][principal]+matrix[principal][i])/(4*Math.sqrt(Math.max(0,(matrix[principal][principal]+1)/2))));
-  const axis=unitDirection(sine>DIRECTION_TOLERANCE?skew:halfTurn),c=Math.cos(angle*t),s=Math.sin(angle*t);
+  // Small authored rotations remain continuous even below print resolution.
+  // Near a half turn use the symmetric matrix; elsewhere the skew is stable.
+  const seed=cosine<0&&sine<Math.sqrt(Number.EPSILON)?halfTurn:skew;
+  const norm=length(seed),axis=seed.map(value=>value/norm),c=Math.cos(angle*t),s=Math.sin(angle*t);
   return a.map(v=>add(add(scale(v,c),scale(cross(axis,v),s)),scale(axis,dot(axis,v)*(1-c))));
 }
 

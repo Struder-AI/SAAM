@@ -1,0 +1,1 @@
+export default async function(G){const a=G.revolvedProfile({positionMm:[0,0,0],axis:[0,0,1],profile:[[0,2.8],[5,.9]]}),b=G.revolvedProfile({positionMm:[-2.6,.4,1.9],axis:[1,-.07,.13],profile:[[0,.7],[5,1.8]]});return {name:'Two crossing tapers at an oblique angle',operation:'intersection',operands:[await G.buildGeometry(a),await G.buildGeometry(b)]};}

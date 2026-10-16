@@ -1,13 +1,16 @@
 # Geometry and numerical contracts
 
-## Repair worker boundary
+## Geometry execution
 
-`core/print/mesh-repair-job.mjs` owns a worker per repair/import, running inline when already in that worker.
-It settles after worker termination, allowing scratch cleanup. Progress callback errors abort;
-geometry callbacks acknowledge matching message IDs before work continues. Abort rejects pending
-acknowledgements; missing results and results arriving after cancellation cannot become success.
-`mesh-repair-worker.mjs` transfers repaired bytes and closes its message port on completion or failure.
-Repair uses SAAM's JavaScript implementation.
+[execution.mjs](execution.mjs) owns Geometry worker lifecycle, communication, memory policy,
+cancellation, deadlines, progress and errors. Named capabilities hide this machinery from clients.
+One bootstrap serves supervision and leased calculations; one idle calculation may be reused.
+Supervision stays responsive during synchronous queries. Boolean owns fuzzy matching, perturbations
+and attempt budgets; execution enforces the supplied deadline. Repair has no elapsed-time refusal.
+Progress callback errors cancel work. Geometry chunks await their matching acknowledgement.
+Async calls settle after calculation stops, including cancellation and worker allocation failures.
+Callers own scratch directories and publication; calculations may write only their supplied staging
+file. Payloads pass directly to calculation ports. No geometry is simplified for memory or transport.
 [Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
 
 ## Planar line/region clipping
@@ -34,28 +37,30 @@ Geometry owns construction, conversion, queries and native lifetime; callers own
 
 ### Shared numerical foundations
 
-Aspire to **numerically robust, established algorithms with measured performance**.
-Prefer a pinned, attributable upstream implementation behind one shared SAAM
-interface over handwritten approximations or skill-local copies. Preserve the
-upstream topology logic, tolerance semantics and required preconditions; an
-algorithm's reputation does not automatically transfer to a port or adaptation.
-Record source/version, adaptations, supported geometry, precision, reference comparisons,
-known failures and measured cost. Claims of reliability or speed name their scope and evidence.
+Use established numerical methods behind shared Geometry operations, preserving
+provenance, preconditions, topology and precision. An approved in-house kernel needs
+its own evidence. Design references: [Rhino events](https://developer.rhino3d.com/api/rhinoscript/surface_and_polysurface_methods/surfacesurfaceintersection.htm) and [OCCT interferences](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html); no kernel code was copied.
 
-All skills share offset/intersection operations. Extend the interface for missing capabilities; avoid inline
-copy, fallback kernel or private tolerance variant. Geometry-specific algorithms
-can live behind the same boundary with explicit capabilities and limitations.
-This aspiration applies to numerical geometry and toolpath operations generally,
-not just the two offset functions. It does not authorize replacing unrelated
-algorithms or selecting a new general intersection engine.
+### Native Boolean construction
 
-Use source comparisons, adversarial fixtures, convergence tests and benchmarks
-in development. Keep those expensive comparisons out of the production hot path.
-Runtime checks must earn their cost under [the existing guidance](../../DEVELOPER-CONTEXT.md#avoid-check-spirals).
-Numerical integration/subdivision needed to construct a result to its requested
-tolerance is algorithm work; an additional independent verification pass needs
-its own justification. Preserve parameter/point correspondence and cache useful
-evaluations instead of repeatedly flattening and inverse-projecting geometry.
+The [canonical operations](operations.mjs) own backend selection: Boolean recipes or
+`combineSolids(operation, solids)` construct a closed trimmed rational boundary.
+Sections, containment, translation and output share its surfaces, curves and coedges;
+Clipper2 handles UV regions. `BOOLEAN_TOLERANCE_MM` in [dimensions](../dimensions.mjs)
+is the single 0.005 mm setting: chord images use a quarter, sewing half; roots stay finer.
+Rational coefficient proofs handle basis changes and partial/periodic coincidence;
+local chart proofs bound fuzzy matches. General intersections audit control hulls beyond
+0.4 mm starting seeds, using interval exclusion, contraction and root-graph certificates.
+Sub-resolution closures are counted. Coplanar projection keeps native boundaries;
+support planes separate rotated contacts; point/edge contacts retain material sectors.
+Geometry automatically tries original construction, fuzzy matching at a quarter tolerance,
+then growing translations from the original operands. Numerical workers interrupt attempts
+at 5 seconds (2.5 on retries), with a 20-second operation budget. Success reports fuzzy
+accuracy or each actual displacement in notes; jiggles can exceed the default tolerance.
+Exhausted recovery returns its failures. General trimmed normal offsets remain unsupported.
+Mesh/mixed sections retain operand composition; output alone tessellates completed surfaces.
+[Regressions](../tests/surface-boolean.test.mjs), [authored examples](../../scripts/bench/boolean-examples/)
+and [benchmarks](../../scripts/bench/surface-boolean.mjs) save correctness/timing evidence.
 
 ### Precision belongs to a quantity and an operation
 
@@ -67,13 +72,11 @@ steps (not a certified surface-error bound) and predicate slack (rounding guards
 length vectors is in mm²; UV tolerances map to millimetres through surface derivatives and can differ
 in U and V; a normal dot product is dimensionless.
 
-Short segments can cross rounding boundaries. When removing points, preserve or recompute subsequent
-starts, volume integrals, gaps, widths and pose; quantize each output field once and reuse it for text,
-flow and modal state. `cleanPlanarLoop` removes numerical seams; it is not process-resolution
-simplification. Measure elapsed time, point counts and geometric change on the same recipe against
-independent references (translated geometry, corners, holes, thin walls, variable extrusion), and fix
-physical-invariant failures rather than loosening checks.
-[Formats](../print/README.md#formats) specifies current XYZ behavior.
+Point removal preserves starts, volume, gaps, widths and pose; quantize each output
+field once. `cleanPlanarLoop` removes numerical seams, not process detail. Compare
+elapsed time, point counts and geometric change on the same independent references;
+fix physical-invariant failures rather than loosening checks. [Formats](../print/README.md#formats)
+owns written XYZ behavior.
 
 ### Geometry query boundary
 
@@ -88,7 +91,8 @@ Plane sections accept `side:'negative'|'positive'` for one-sided limits along th
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs) | Shared point/normal/derivative evaluation retains native units. Checked native differentials include second derivatives and reject out-of-domain, nonpositive-weight or singular-tangent samples. Affine selection retains native UV; sleeve phase is periodic arc length, height charts use world XY. |
 | [Curve sampling](curve-sampling.mjs) | `sampleCurveIntervals` refines physical chord/step bounds. `sampledPositiveIntervals` returns positive runs from ordered parameter/value samples, refining observed crossings to 1e-9 native units; touching zero-separated runs stay separate, unsampled crossings remain unknown. Callbacks evaluate geometry only. |
-| [constructSolids](solid-operations.mjs) | Heat-set, text and gridfinity submit construction/translation/Boolean requests; Geometry owns conversion, mapped-extrusion refinement and native disposal. Results are manufacturing meshes with `notes` (a refinement kept short of its tolerance), or null for empty material. Feature rules and editable records remain with extensions. |
+| [constructSolids / materialPresence](solid-operations.mjs) | Construction/translation/Boolean requests yield manufacturing meshes with notes or null; material presence answers actual existence for native/mixed solids. Geometry owns conversion and native lifetime. |
+| [revolvedProfile](revolved-profile.mjs) | `{positionMm, axis, profile:[[axialMm,radiusMm],…]}` yields ordinary rational spline geometry. Increasing axial positions and positive radii define cylindrical/conical intervals and end caps; heat-set and weld choose their dimensions. |
 | [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes `{solid, notes}`, a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; vertical or degenerate faces and faces reaching the plane are skipped and noted. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
 | [prepareContourSleeve](sleeve/contour-sleeve.mjs) | Given explicit section heights, pitch, standoff, offset, tolerances and fit mode, construct contour correspondence and a Slice stack. Extensions choose those values; Geometry checks and maps the sections. |
 | [resolveGeometrySelections](build.mjs) | Resolves whole solids, components, material partitions and replacement volumes in an offset frame; owns runtime loading and reuses source builds within a batch. Async path generation requests these values; Toolpath retains assignment and ownership policy. |
@@ -104,10 +108,9 @@ chart endpoint matching and point cleanup at print resolution. Only regions add 
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
-Geodesic region offsets keep their C2 limit, and growth its domain limit; piecewise roofs/sleeves
-keep explicit crease transitions. No trimmed-surface capability is introduced.
-Native/manufacturing geometry is authoritative; display approximations keep its identity.
-Toolpath interprets contacts; Geometry owns [containment and ray queries](extruded-segments.mjs).
+Geodesic offsets keep their C2/domain limits; roofs/sleeves retain explicit creases.
+Manufacturing geometry is authoritative; display retains its identity. Geometry owns
+[containment and ray queries](extruded-segments.mjs); Toolpath interprets contacts.
 
 Indexed meshes live once in recipe geometry; display uses those manufacturing arrays.
 Geometry owns derived views and worker preparation reuse. Mixed assemblies retain
@@ -406,12 +409,11 @@ or physical printability.
 The spline backend uses Rhino and native 3DM files. Imported meshes use
 [native indexed geometry](#geometry-interoperability-for-skill-authors), with
 the user-confirmed shared interface preserving direct spline slicing.
-Spline solids intersect planes exactly ([sectioning](#sectioning-untrimmed-spline-shells))
-and vertical lines ([field.mjs](field.mjs)); booleans of them are combined one
-layer at a time ([boolean-solid.mjs](boolean-solid.mjs)). General edited-3DM
-import, surface-surface intersection curves and full Rhino computation remain
-deferred. rhino3dm is a geometry/file library, not the
-complete Rhino computation engine.
+Spline solids intersect planes ([sectioning](#sectioning-untrimmed-spline-shells))
+and vertical lines ([field.mjs](field.mjs)). Native Booleans retain trimmed surfaces
+([construction](#native-boolean-construction)); mixed operands retain section composition.
+General edited-3DM import and full Rhino computation remain deferred. rhino3dm is
+a geometry/file library, separate from the native construction implementation.
 
 ## Explicit mesh repair
 
@@ -518,15 +520,8 @@ per chunk, with local vertices/indices, first-triangle offset and completion
 percentage. Each callback is awaited, allowing the consumer to release a chunk
 before requesting more. There is no lower-quality display proxy. Studio import uses the shared progress and cancellation lifecycle.
 
-The [repair job](../print/mesh-repair-job.mjs) supervises the
-[worker](../print/mesh-repair-worker.mjs). Geometry messages carry IDs;
-the worker waits for the matching acknowledgment before continuing. Callback
-failure sends an error acknowledgment and requests abort. Abort rejects and clears
-pending geometry acknowledgments. The supervisor settles once, removes its abort
-listener, prefers a consumer callback error when present, and rejects worker exit
-without a result. Transferred repaired bytes are reconstructed with their actual
-offset and length. These message/lifetime rules are authored contracts; native
-worker wiring is not fully resolved by the map extractor.
+Repair uses the shared [Geometry execution](#geometry-execution) lifecycle. Transferred bytes
+retain their actual offset and length; allocation errors include source context.
 
 ### Mesh compatibility development boundary
 

@@ -1,0 +1,2 @@
+import {splineBlock,cylinder} from './shapes.mjs';
+export default async function(G){return {name:'Two unequal blind holes under a sloping roof',operation:'difference',operands:[await G.buildGeometry(splineBlock({runMm:10,widthMm:8,heightsMm:[[4,4],[7,6]]})),await G.buildGeometry(cylinder(G,{radius:.73,length:4.7,origin:[2.1,2.8,1.1]})),await G.buildGeometry(cylinder(G,{radius:1.13,length:5.2,origin:[7.2,5.3,2.1],axis:[.13,.04,1]}))]};}

@@ -8,6 +8,7 @@ import {placedPath} from '../path/placement.mjs';
 import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import {moveSeconds} from '../path/saampath.mjs';
+import {pathActions,pathSummary,pathInitialPosition,pathInitialPose,pathCompletion} from '../path/curve-path.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
 const upright=pose=>!pose||samePose(pose,uprightPose());
@@ -20,8 +21,8 @@ function hasPrime(path){
   return false;
 }
 function depositionBounds(path,plan){
-  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let from=path.initialPosition;
-  for(const action of path.actions){
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let from=pathInitialPosition(path);
+  for(const action of pathActions(path)){
     if(action.volumeMm3>0){
       const width=action.beadWidthMm??plan.process.lineWidthMm,height=action.normalHeightMm??action.gapMm??plan.process.layerMm;
       for(const point of action.kind==='move'?[from,action.to]:[from])for(let i=0;i<3;i++){
@@ -30,8 +31,14 @@ function depositionBounds(path,plan){
     }
     if(action.kind==='move')from=action.to;
   }
-  return min.every(Number.isFinite)?{min,max}:path.summary?.boundsMm??null;
+  return min.every(Number.isFinite)?{min,max}:pathSummary(path)?.boundsMm??null;
 }
+function uprightPath(path){
+  if(!upright(pathInitialPose(path)))return false;
+  for(const action of pathActions(path))if(!upright(action.pose))return false;
+  return true;
+}
+function depositsMaterial(path){for(const action of pathActions(path))if(action.volumeMm3>0)return true;return false;}
 function limitedFeed(start,actions,machine){
   let from=start;
   return actions.map(action=>{
@@ -51,25 +58,25 @@ function limitedFeed(start,actions,machine){
 // onto the bed by the recipe's placement first. notes: what adaptation could not
 // write as the profile asks (a shortened or omitted priming lane).
 export function prepareExportPath(saved,plan,machine,adapter){
-  requireThat(saved?.schema==='saampath/1'&&saved.completion?.contract===NEUTRAL_PATH_CONTRACT,
+  requireThat((saved?.deposition?.schema==='saampath/2'||saved?.schema==='saampath/1')&&pathCompletion(saved)?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
   const path=placedPath(saved,plan.placement);
   validateSetup(plan,machine,{required:true,adapter});
   const oriented=adapter.poses===true,block=plan.setup[adapter.settings?.key];
-  requireThat(oriented||[path.initialPose,...path.actions.map(a=>a.pose)].every(upright),
+  requireThat(oriented||uprightPath(path),
     'Selected output cannot represent non-upright tool orientation.');
   const bounds=toolBounds(machine,plan.setup.tool);
   let selected={plan,tool:plan.setup.tool,process:plan.process,bounds};
   const start=startupPosition(machine,plan,block),motion=new AdaptationMotion({start,process:plan.process,
     retracted:startupRetracted(machine,plan),pose:block?.initialPose??null,
     ...(oriented&&block?.retreatMm?{retreatMm:block.retreatMm}:{})});
-  const deposited=depositionBounds(path,plan),model=path.summary?.boundsMm;
+  const deposited=depositionBounds(path,plan),model=pathSummary(path)?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
-  const priming=path.actions.some(a=>a.volumeMm3>0)&&!hasPrime(path)?machinePriming(motion,machine,bounds,geometryBounds):null;
+  const priming=depositsMaterial(path)&&!hasPrime(path)?machinePriming(motion,machine,bounds,geometryBounds):null;
   motion.phase='start';motion.layer=0;motion.operationId=null;
-  motion.travel(path.initialPosition,oriented?path.initialPose??null:null);
-  const debts=new Map([[selected.tool,0]]);let neutralFrom=path.initialPosition,relocating=false;
+  motion.travel(pathInitialPosition(path),oriented?pathInitialPose(path)??null:null);
+  const debts=new Map([[selected.tool,0]]);let neutralFrom=pathInitialPosition(path),relocating=false;
   // Context is resolved only at the selected-machine boundary. These actions
   // are private prepared machine motion, never a persisted neutral SAAMpath.
   for(const {action:physical,context} of contextualActions(path)){
@@ -121,7 +128,7 @@ export function prepareExportPath(saved,plan,machine,adapter){
   if(relocating)motion.travel(neutralFrom);
   const prepared={...path,completion:{contract:PREPARED_PATH_CONTRACT},
     initialPosition:start,...(block?.initialPose?{initialPose:block.initialPose}:{}),
-    actions:limitedFeed(start,motion.actions,machine),summary:{...path.summary,boundsMm:geometryBounds},notes:priming?[priming]:[]};
+    actions:limitedFeed(start,motion.actions,machine),summary:{...pathSummary(path),boundsMm:geometryBounds},notes:priming?[priming]:[]};
   if(!oriented)delete prepared.initialPose;
   return prepared;
 }

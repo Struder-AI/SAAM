@@ -21,13 +21,17 @@ export const ASSIGNMENT_RECORDS=Object.freeze({
 const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:0.02,maxEdgeMm:1,
   vertices:[],triangles:[],materialParts:[],...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
 const gridfinityTemplate=()=>({shape:'gridfinity',parameters:null,vertices:[],triangles:[]});
-const heatSetTemplate=()=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,vertices:[],triangles:[]});
+const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
 const meshRecord=(record,template)=>{
   if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).sort().join()!==Object.keys(template(record)).sort().join())
     throw Error(`Unexpected ${record?.shape} geometry fields.`);
   if(!Array.isArray(record.vertices)||!Array.isArray(record.triangles))
     throw Error(`Invalid ${record.shape} saved geometry record.`);
 };
+function heatSetRecord(record){
+  if(!record?.solid)return meshRecord(record,heatSetTemplate);
+  requireThat(sameFields(record,heatSetTemplate(record))&&typeof record.solid.shape==='string','Invalid native heat-set geometry record.');
+}
 // Every geometry in a recipe tree: the root, bases, solids, parts and operands.
 export function geometryTree(geometry){
   const geometries=[];
@@ -44,7 +48,7 @@ export const COMPILED_GEOMETRY_TOOLS=Object.freeze({'blob-field':'blob_field',gr
 export const GEOMETRY_RECORDS=Object.freeze({
   text:{extension:'text',template:textTemplate,validate:record=>meshRecord(record,textTemplate)},
   gridfinity:{extension:'gridfinity',template:gridfinityTemplate,validate:record=>meshRecord(record,gridfinityTemplate)},
-  'heat-set':{extension:'heat-set-inserts',template:heatSetTemplate,validate:record=>meshRecord(record,heatSetTemplate)}
+  'heat-set':{extension:'heat-set-inserts',template:heatSetTemplate,validate:heatSetRecord}
 });
 
 export function validateExtensionRecipe(plan){

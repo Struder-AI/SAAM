@@ -1,6 +1,7 @@
 // The first context resets the semantic snapshot; later records carry changes.
 // Null clears an optional label. Independently composed paths retain their reset.
 export const CONTEXT_KEYS=Object.freeze(['phase','layer','layerId','operation','region','role','connector','travel']);
+import {pathActions} from './curve-path.mjs';
 export function actionContext(action){
   return Object.fromEntries(CONTEXT_KEYS.filter(key=>action[key]!==undefined).map(key=>[key,action[key]]));
 }
@@ -12,7 +13,7 @@ export function sameContext(a,b){
 // second path. Ordinals count physical actions, preserving saved preview lines.
 export function* contextualActions(path){
   let context={},index=0;
-  for(const action of path.actions){
+  for(const action of path.actions??pathActions(path)){
     if(action.kind==='context'){
       context=action.reset?{}:{...context};
       for(const key of CONTEXT_KEYS)if(Object.hasOwn(action,key)){

@@ -67,7 +67,16 @@ export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,
     const n=s.normal,tangent=s.du;
     const u=normalize(tangent.map((v,i)=>v-dot(tangent,n)*n[i]));return {point:[...s.chart,input.normalMm??0],u,v:cross(n,u),normal:n};
   });result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
-  return applyCurveProfiles(result,curve);
+  const profiled=applyCurveProfiles(result,curve);
+  if(vary)profiled.profilePath={parameters:profiled.curveParameters,vary,
+    widthsMm:profiled.widthsMm,speedsMmS:profiled.segmentMetadata?.map(m=>m.speedMmS)};
+  // Exact spatial NURBS survive process/profile finalization. Any subsequent
+  // mapping, connection or displacement changing these points invalidates this
+  // witness at publication and publishes the actual finalized polyline instead.
+  if(nurbs&&!uv)profiled.nativePath={geometry:{kind:'nurbs',...nurbs,
+    controlPoints:nurbs.controlPoints.map(p=>p.map((value,i)=>value+offset[i]))},
+    points:profiled.points,parameters:profiled.curveParameters};
+  return profiled;
 }
 
 export function applyCurveProfiles(input,curve){

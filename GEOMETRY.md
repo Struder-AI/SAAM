@@ -103,15 +103,14 @@ recognized defects and reports cancellable progress.
 
 ## Booleans
 
-`geometry: {shape: "boolean", operation, operands: [...]}` combines two or more
-spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
-joins them, `intersection` keeps what they share, and `difference` subtracts
-every later operand from the first: a drilled plate is a box minus a cylinder.
-Operands are closed solids; a result with no material saves and shows empty, with a note.
-Spline sections remain exact; named-patch operations need a plain spline part.
-Optional `displayOperand` selects a zero-based operand for the geometry preview; manufacturing still uses the full Boolean. Standard support uses `0` to hide its support solid. Nested choices compose.
+`geometry: {shape: "boolean", operation, operands: [...]}` combines spline, mesh,
+blob-field, gridfinity or Boolean solids in the same coordinates. `union` joins,
+`intersection` keeps shared material, and `difference` subtracts later operands.
+Closed spline operands use [native surface construction](core/geom/README.md#native-boolean-construction), with automatic recovery reported in notes.
+Mesh/mixed inputs combine sections; empty results stay empty. Named-patch operations need a plain spline.
+`displayOperand` selects a zero-based preview operand; manufacturing uses the full Boolean. Choices nest.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
-repeating the operation appends, except a display-selected solid stays nested so additions remain visible. Apply text/heat-set metadata after combining.
+Repeats append; display-selected solids stay nested. Apply text/heat-set metadata afterward.
 
 ## Assembly
 

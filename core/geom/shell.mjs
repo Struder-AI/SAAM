@@ -15,6 +15,7 @@ import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
+import {trimSectionChains} from './surface-trim.mjs';
 
 const BOUNDARY_SAMPLES = 16;
 // Section pieces whose ends lie within print resolution join.
@@ -139,10 +140,13 @@ export function sectionShell(shell, slice, options = {}) {
 // clockwise (seen from the normal).
 function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4, gapMm = 0 } = {}) {
   const plane = { normal: slice.normal, offset: dot(slice.normal, slice.origin) + nudge };
-  const cuts = shell.patches.map(patch => sectionPatch(patch, plane, { minFeatureMm }));
+  const cuts = shell.patches.map(patch => {
+    const cut=sectionPatch(patch,plane,{minFeatureMm});
+    return {...cut,chains:trimSectionChains(patch,cut.chains)};
+  });
   const coincident = cuts.filter(cut => cut.coincident).length;
   const chains = cuts.flatMap(cut => cut.coincident ? [] : cut.chains.filter(chain => chain.length > 1).map(chain => chain.map(p => p.point)));
-  const { loops, open } = joinChains(chains);
+  const { loops, open } = joinChains(chains,shell.construction?.toleranceMm??JOIN_TOLERANCE);
   const closed = closeOpenChains(open.map(chain => toChart(chain, slice)), gapMm);
   return { loops: orientLoops([...loops.map(loop => toChart(loop, slice)), ...closed.loops]), open: closed.open, coincident };
 }
@@ -185,15 +189,15 @@ const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 // Join per-patch chains into closed loops using 3D endpoint proximity. Adjacent
 // patches share the boundary geometrically, so their chain ends coincide.
-function joinChains(chains) {
+function joinChains(chains,toleranceMm=JOIN_TOLERANCE) {
   const pool = chains.map(points => [...points]);
   const loops = [], open = [];
   while (pool.length) {
     let chain = pool.pop();
     for (;;) {
-      if (chain.length > 2 && distance(chain[0], chain[chain.length - 1]) <= JOIN_TOLERANCE) { loops.push(chain); chain = null; break; }
+      if (chain.length > 2 && distance(chain[0], chain[chain.length - 1]) <= toleranceMm) { loops.push(chain); chain = null; break; }
       const tip = chain[chain.length - 1];
-      let best = -1, reverse = false, bestDistance = JOIN_TOLERANCE;
+      let best = -1, reverse = false, bestDistance = toleranceMm;
       for (let i = 0; i < pool.length; i++) {
         const head = distance(tip, pool[i][0]), tail = distance(tip, pool[i][pool[i].length - 1]);
         if (head <= bestDistance) { best = i; reverse = false; bestDistance = head; }

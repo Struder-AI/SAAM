@@ -190,10 +190,10 @@ async function createMeshGeometry(r,parameters) {
   }
   // A nested assembly shows its components, outer/inner, as generation slices them.
   const parts=parameters.shape==='assembly'?assemblyComponents(parameters.parts):[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
-  const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))]);
-  const vertices=[],faces=[],labels=[],features=[],notes=[];
+  const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))],{native:false});
+  const vertices=[],faces=[],labels=[],features=[],notes=[...(shell.notes??[])];
   const append=async(component,id,translation)=>{
-    const display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    const display=component.kind==='boolean'||component.kind==='surface-solid'?await booleanDisplayMesh(component):null;
     for(const note of display?.notes??[])notes.push(id?`${id}: ${note}`:note);
     const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
       :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:proxyMesh(component);
@@ -206,5 +206,5 @@ async function createMeshGeometry(r,parameters) {
   };
   for(const [index,part] of parts.entries())await append(components[index],part.id,[part.xMm,part.yMm,part.zMm]);
   return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,
-    nativeForm:'indexed manufacturing mesh; procedural components retain their source recipes and extraction settings',features,boundsMm:shell.bounds,vertices,faces,labels,...(notes.length?{notes}:{})}};
+    nativeForm:'display mesh derived from authoritative geometry recipes',features,boundsMm:shell.bounds,vertices,faces,labels,...(notes.length?{notes:[...new Set(notes)]}:{})}};
 }
