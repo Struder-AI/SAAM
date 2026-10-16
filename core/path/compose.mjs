@@ -315,6 +315,11 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         }
         for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)&&
           !precedes(unit.id,id))){
+          if(!hit.witness?.provisional){
+            const witness=state.scene.mutualConflict(hit.witness?.receiver,hit.witness?.material);
+            if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
+              {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[unit.sourceOperation,hit.unit.sourceOperation]});
+          }
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
           if(progress.cyclic)break;
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);

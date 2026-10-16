@@ -685,6 +685,15 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   // an irreducible event cycle. Splitting their unchanged curves cannot help.
   function mutualConflict(first,second){
     if(!first||!second)return null;
+    if(Number.isFinite(first.at)&&Number.isFinite(second.at)&&(first.id!==second.id||first.at!==second.at)){
+      const at=curveAt(reader,first.curveId,first.at,{side:first.at===first.to?'left':'right'});
+      const bt=curveAt(reader,second.curveId,second.at,{side:second.at===second.to?'left':'right'}),af=section(at),bf=section(bt);
+      // Strict contact survives in a neighborhood on each admitted span;
+      // neither traversal changes nor subdivision can order these events.
+      const forgiveness=NOZZLE_FORGIVENESS_MM+ROUNDING_MM*4;
+      if(af&&bf&&convexIntersects(cone(at,forgiveness),bf,ROUNDING_MM)&&convexIntersects(cone(bt,forgiveness),af,ROUNDING_MM))
+        return {receiver:first,material:second};
+    }
     const a=interval(first),b=interval(second),am=material(a),bm=material(b);
     if(!a.affine||!b.affine||!am?.exact||!bm?.exact)return null;
     const contact=translationContactInterval(cone(a.start),subtract(a.end.point,a.start.point),bm.shape);

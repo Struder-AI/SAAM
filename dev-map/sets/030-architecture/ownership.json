@@ -27793,6 +27793,15 @@
     "core/geom/convex-clearance.mjs::nozzleCurveEnvelope": {
       "owner": "geometry"
     },
+    "core/path/physical-order.mjs::prepareRangeScene": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::verifySelf": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::mutualConflict": {
+      "owner": "scheduling"
+    },
     "core/path/course-order.mjs::selectTraversal": {
       "owner": "scheduling"
     },
