@@ -25,5 +25,8 @@ export function currentMachineSnapshot(machine){
   const restored=supplied.filter(({output,program})=>!output.program&&program);
   const outputs=supplied.map(({output,program})=>program&&!output.program?{...output,program}:output);
   const notes=restored.map(({output})=>`This print's ${machine.name} snapshot has no program templates; the installed profile's were used (${output.id}).`);
-  return {machine:{...machine,outputs,defaultSetup:{...machine.defaultSetup,...Object.fromEntries(filled.map(key=>[key,defaults[key]]))}},filled,notes};
+  const tools=machine.tools.map(tool=>({...tool,...(!tool.nozzleGeometry&&profile.tools?.find(candidate=>candidate.index===tool.index)?.nozzleGeometry?
+    {nozzleGeometry:profile.tools.find(candidate=>candidate.index===tool.index).nozzleGeometry}:{})}));
+  return {machine:{...machine,tools,...(!machine.nozzleGeometry&&profile.nozzleGeometry?{nozzleGeometry:profile.nozzleGeometry}:{}),outputs,
+    defaultSetup:{...machine.defaultSetup,...Object.fromEntries(filled.map(key=>[key,defaults[key]]))}},filled,notes};
 }

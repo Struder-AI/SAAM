@@ -1,7 +1,7 @@
 // Scheduling interprets conservative curve bounds and actual contact witnesses.
 // Geometry owns numerical section, convex-volume and continuous-sweep operations.
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
-import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM,nozzleSideOffsetMm,nozzleReferenceFloorMm,
+import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_GEOMETRY,NOZZLE_FORGIVENESS_MM,nozzleSideOffsetMm,nozzleReferenceFloorMm,
   convexBounds,convexBox,nozzleBoundsClear,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
   nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,cross,subtract,length,requireThat} from '../geom/tolerance.mjs';
@@ -23,7 +23,8 @@ function controlVertices(geometry){
   return null;
 }
 
-function graphNozzleProofs(source,reader,rangeOf){
+function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
+  const {includedAngleDeg,tipDiameterMm}=nozzleGeometry;
   const first=Object.values(source.operations).find(op=>op.kind==='deposit'),course=first?.courses[0];
   if(!course)return null;
   const firstAxis=scale(curveAt(reader,course.curveId,course.from).pose.toolAxis,-1),average=[0,0,0];
@@ -36,7 +37,7 @@ function graphNozzleProofs(source,reader,rangeOf){
   for(const surface of Object.values(source.surfaces)){graph=referenceHeightGraph(surface.referencePatch??surface.patch,axis);if(graph)break;}
   // A linear projection is a numerical reference field even without native
   // surfaces. Actual source controls bound it; it assigns no slice identity.
-  if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360))
+  if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(includedAngleDeg*Math.PI/360))
     graph=referenceHeightGraph({kind:'linear'},axis);
   const curves=new Map(),frames=new Map(),projections=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
   function frameFloor(curveId){
@@ -66,7 +67,7 @@ function graphNozzleProofs(source,reader,rangeOf){
       const high=residual[1]+side-Math.min(0,inward*depth[1]);
       const underHigh=residual[1]+side-(inward>=0?depth[0]:depth[1])*inward+PRINT_RESOLUTION_MM*metric;
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
-      const tip=residual[0]+nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope);
+      const tip=residual[0]+nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm);
       const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
       if(operation.layerId!==null){
         if(!slices.has(operation.layerId))slices.set(operation.layerId,{min:Infinity,max:-Infinity,tip:Infinity});
@@ -117,13 +118,14 @@ function graphNozzleProofs(source,reader,rangeOf){
     }))};
 }
 
-function sphereNozzleProofs(source,reader,rangeOf){
+function sphereNozzleProofs(source,reader,rangeOf,nozzleGeometry){
+  const {includedAngleDeg,tipDiameterMm}=nozzleGeometry;
   const axes=Object.values(source.curves).map(curve=>constantVector(curve.profiles.pose,p=>p.toolAxis));
   if(axes.length&&axes[0]&&axes.every(axis=>axis&&equalVector(axis,axes[0])))return null;
   const vertices=Object.values(source.curves).flatMap(curve=>controlVertices(curve.geometry)??[]);
   if(!vertices.length)return null;
   const bounds=convexBounds({vertices}),center=bounds.min.map((v,k)=>(v+bounds.max[k])/2),courses=new Map();
-  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,retreat=nozzleReferenceFloorMm(1);
+  const halfAngle=includedAngleDeg*Math.PI/360,retreat=nozzleReferenceFloorMm(1,0,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm);
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
   const up=first?curveAt(reader,first.curveId,first.from).pose.toolUp:null,unitUp=up?scale(up,1/length(up)):null;
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[]){
@@ -157,12 +159,13 @@ function sphereNozzleProofs(source,reader,rangeOf){
     if(p.tip>q.material+ROUNDING_MM)return true;
     if(!p.planar)return false;
     const gap=Math.max(0,p.tipProjection[0]-q.projection[1],q.projection[0]-p.tipProjection[1]);
-    return Math.cos(halfAngle)*gap-Math.sin(halfAngle)*(q.material-p.support)+nozzleSideOffsetMm()>ROUNDING_MM*8;
+    return Math.cos(halfAngle)*gap-Math.sin(halfAngle)*(q.material-p.support)+nozzleSideOffsetMm(includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm)>ROUNDING_MM*8;
   }))};
 }
 
-export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
-  const slices=new Map(),queries={reader},halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
+export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY}={}){
+  const {includedAngleDeg,tipDiameterMm}=nozzleGeometry;
+  const slices=new Map(),queries={reader},halfAngle=includedAngleDeg*Math.PI/360;
   const sine=Math.sin(halfAngle),clearPairs=new Map(),positionBounds=new Map();
   const clearPairLimit=4*1024*1024/128;
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
@@ -179,7 +182,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
     const receiver=slices.get(a),material=slices.get(b);if(!receiver?.bounded||!material?.bounded)return false;
     const key=receiver.ordinal+':'+material.ordinal,known=clearPairs.get(key);
     if(known!==undefined){clearPairs.delete(key);clearPairs.set(key,known);return known;}
-    const clear=nozzleBoundsClear(receiver.positions,receiver.poseCone,material.material);
+    const clear=nozzleBoundsClear(receiver.positions,receiver.poseCone,material.material,NOZZLE_FORGIVENESS_MM,tipDiameterMm,includedAngleDeg);
     while(clearPairs.size>=clearPairLimit)clearPairs.delete(clearPairs.keys().next().value);
     clearPairs.set(key,clear);return clear;
   }
@@ -241,12 +244,12 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
       const range=aligned?null:rangeOf(course);
       const margin=aligned?0:range.widthMm[1]/2+(range.areaMm2?.[1]??0)/range.widthMm[0];
       slice.maxMaterial=Math.max(slice.maxMaterial,high+margin+ROUNDING_MM);
-      slice.minTip=Math.min(slice.minTip,low+nozzleReferenceFloorMm(cosine)-ROUNDING_MM);
+      slice.minTip=Math.min(slice.minTip,low+nozzleReferenceFloorMm(cosine,0,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm)-ROUNDING_MM);
     }
   }
   const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);
   if(!queries.reader)queries.reader=prepareCurvePath(source);
-  const graph=graphNozzleProofs(source,queries.reader,rangeOf),sphere=sphereNozzleProofs(source,queries.reader,rangeOf);
+  const graph=graphNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry),sphere=sphereNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry);
   return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
     frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,topApart:(a,b)=>graph?.topApart(a,b)??false,supportApart:(a,b)=>(graph?.supportApart(a,b)??false)||(sphere?.supportApart(a,b)??false),materialApart:(a,b)=>graph?.materialApart(a,b)??false,
     layersApart(a,b){
@@ -262,7 +265,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
 
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
-export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null}={}){
+export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY}={}){
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
@@ -309,7 +312,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   function nozzle(record){
     if(!record.nozzle)record.nozzle=nozzleCurveEnvelope({from:record.start.point,to:record.end.point,bounds:record.range.bounds,
-      chordErrorMm:record.chordErrorMm,poseCone:record.poseCone},stock);
+      chordErrorMm:record.chordErrorMm,poseCone:record.poseCone},stock,nozzleGeometry);
     return record.nozzle;
   }
   function divide(record){
@@ -352,7 +355,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   const fullRanges=new Map([...byId.values()].flatMap(body=>body.records.filter(record=>{
     const original=originalCourses.get(record.ref.id);return original.from===record.ref.from&&original.to===record.ref.to;
   }).map(record=>[record.ref.id,record.range])));
-  const proofs=sliceNozzleProofs(source,{reader,ranges:fullRanges});
+  const proofs=sliceNozzleProofs(source,{reader,ranges:fullRanges,nozzleGeometry});
   function candidates(shape,acceptGroup,boundsTest=null){
     return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest,boundsOnly:true}).map(index=>bodies[index]);
   }
@@ -397,7 +400,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     return rectangularSection(at.point,at.tangent,at.materialNormal,at.widthMm/2,at.areaMm2/at.widthMm);
   }
   function cone(at,forgivenessMm=NOZZLE_FORGIVENESS_MM){
-    return nozzleAt(at.point,scale(at.pose.toolAxis,-1),nozzleSweepReach(stock,at.point,at.point,at.pose,at.pose),DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm);
+    return nozzleAt(at.point,scale(at.pose.toolAxis,-1),nozzleSweepReach(stock,at.point,at.point,at.pose,at.pose),nozzleGeometry.includedAngleDeg,forgivenessMm,nozzleGeometry.tipDiameterMm);
   }
   function unresolved(a,b){return Object.assign(Error('Curve clearance is unresolved at numerical precision.'),
     {code:'CURVE_CLEARANCE_UNRESOLVED',receiver:a?.ref,material:b?.ref});}
@@ -494,7 +497,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     if(unit.operation.kind==='inject'){
       const injection=unit.operation.injection,point=injection.at;
       const tool=nozzleCurveEnvelope({from:point,to:point,bounds:{min:point,max:point},chordErrorMm:0,
-        poseCone:{reference:injection.pose,halfAngleRad:0}},stock,{forgivenessMm:0}).shape;
+        poseCone:{reference:injection.pose,halfAngleRad:0}},stock,{...nozzleGeometry,forgivenessMm:0}).shape;
       for(const id of index.query(tool,ROUNDING_MM,{acceptGroup}))if(acceptGroup(id))yield {unit:byId.get(id).unit,witness:{receiver:null,material:null}};
       return hits;
     }
@@ -687,7 +690,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return null;
   }
-  return {source,reader,index,byId,stats,proofs,nozzleHits,supportHits,requiredHits,verifySelf,cutsForWitness,mutualConflict,atomicSupportConflict,
+  return {source,reader,index,byId,stats,proofs,nozzleGeometry,nozzleHits,supportHits,requiredHits,verifySelf,cutsForWitness,mutualConflict,atomicSupportConflict,
     interval,pair,deposited,occupied:new Set(),withinGroups:null,groupPrefixes:null,
     operationOf:id=>byId.get(id)?.unit.sourceOperation??id};
 }

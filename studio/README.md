@@ -71,10 +71,9 @@ combined settings/toolpath confirmation.
 
 ### Geometry and program views
 
-Selection identifies the current geometry revision and native object or mesh
-face. Edge names describe adjacent surfaces/components and connected edges;
-geometry changes clear these display identities. Generic geometry editing is
-deferred.
+Selection identifies the current revision and native object or mesh face; geometry changes clear these identities.
+Native previews retain face IDs and evaluated corner normals for shading and crease detection.
+Edge names describe adjacent surfaces/components and connected edges. Generic geometry editing is deferred.
 
 A matching toolpath view queues one [short-travel advisory](../core/export/README.md#short-travel-advisory)
 per export. Acknowledge it and describe the findings; it neither blocks review

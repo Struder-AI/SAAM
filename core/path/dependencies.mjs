@@ -8,7 +8,7 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
 export const PATH_CONTRACT='saam-deposition/32'; // Required bridge action order and explicit atomic source curves.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/18'; // Shared 0.2 mm nozzle forgiveness and required order inside soft chunks.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/19'; // Saved machine-selected nozzle dimensions, shared by scheduling and inspection.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

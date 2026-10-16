@@ -22,9 +22,8 @@ subdivisions. Contacts merge overlapping input-boundary points/collinear interva
 span and collinearity no winding crossing. Normalize cancelling/overlapping loops first when the
 combined material boundary is required. Repeating the closing vertex is optional.
 Loops accept UV/XY vertices or connected ordinary `points`/`nurbs` curves ([schema](../../GEOMETRY.md#spline-surfaces)).
-Lines use the edge sweep; rational curves use native span roots and winding. Trim sections refine
-their ends against native curve/plane intersections. Polygon-only operations derive chord-controlled
-views; sewing restores surviving source-curve intervals. Knots, weights and control points remain authority.
+Lines use the edge sweep; rational roots refine trim sections. Boolean masks, classification and closure share one chord-controlled region;
+sewing restores source-curve intervals. Knots, weights and controls remain authority.
 Wing uses even-odd spans; infill uses nonzero spans; travel interpolates retained source parameters.
 Deposition keeps its top/bottom asymmetry. No exact-predicate guarantee is added; general polygon
 clipping and offset topology stay in [Clipper2](../region/intersection.mjs).
@@ -360,7 +359,7 @@ word to fill the circle. Bezier arc length uses a subdivided chord table with
 continuous curve/tangent evaluation; it is approximate. Existing UV references
 and saved compiled meshes retain their semantics.
 
-[Target tessellation](./tessellate.mjs) samples closed spline shells, matches differently parameterized shared boundaries geometrically and propagates mesh orientation.
+[Target tessellation](./tessellate.mjs) matches native shared boundaries and propagates orientation; native previews retain face IDs and evaluated corner normals through the common geometry route.
 Its dyadic grid doubles, with no triangle budget, until sampled chord deviation meets tolerance; once a doubling no longer lowers it, the closer grid is kept with a note.
 Shared boundary samples weld on a rounding-guard grid; the default approximation target is 0.02 mm. Manifold's float32 mesh boundary also makes precision depend on coordinate magnitude.
 Input solids require positive material volume. Ordinary native spline slicing introduces no conversion.

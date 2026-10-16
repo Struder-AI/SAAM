@@ -98,7 +98,7 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
       if(result.loops.length)face.kept.push(result);
     }
   }
-  const unchanged=unchangedOperand(faces,operands);
+  const unchanged=unchangedOperand(faces,operands,chordMm);
   const patches=unchanged>=0?faces.filter(face=>face.operand===unchanged).map(face=>({...face.patch,normalSide:face.sign})):faces.flatMap((face,i)=>face.kept.map((kept,j)=>({...face.patch,name:`boolean-${i}-${j}-${face.patch.name}`,
     trimLoops:retainFaceTrimCurves(face.patch,kept.loops,{toleranceMm:sewingMm/2}),normalSide:kept.sign,sourceFace:i,sourceName:face.patch.sourceName??face.patch.name,
     boundaryCurves:[...(face.patch.boundaryCurves??[]),...curves.flatMap(curve=>curve.charts.filter(chart=>chart.face===i).map(chart=>({points:curve.points,uv:chart.uv})))]})));
@@ -114,11 +114,11 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
 
 // If classification retained one complete operand, its existing boundary is
 // the result. Re-trimming it against discarded faces only introduces seams.
-function unchangedOperand(faces,operands){
+function unchangedOperand(faces,operands,chordMm){
   return operands.findIndex((_,operand)=>faces.every(face=>{
     if(face.operand!==operand)return !face.kept.length;
     if(face.kept.length!==1||face.kept[0].sign!==face.sign)return false;
-    const domain=faceTrimRegion(face.patch),kept=face.kept[0].loops;
+    const domain=faceTrimRegion(face.patch,{toleranceMm:chordMm}),kept=face.kept[0].loops;
     return !difference(domain,kept).length&&!difference(kept,domain).length;
   }));
 }

@@ -20,7 +20,7 @@ export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
 export async function tessellateSurfaceShell(solid,{toleranceMm=.02}={}){
   requireThat(solid.topology&&Array.isArray(solid.patches),'Tessellation needs native surface boundary topology.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Tessellation tolerance must be positive.');
-  if(solid.empty)return {vertices:[],triangles:[],faceIndices:[],notes:[...(solid.notes??[])]};
+  if(solid.empty)return {vertices:[],triangles:[],faceIndices:[],cornerNormals:[],notes:[...(solid.notes??[])]};
   const kernel=await solidKernel(),topology=solid.topology,vertices=topology.vertices.map(point=>[...point]),boundaries=new Map();
   const edgeSamples=topology.edges.map((edge,index)=>{
     const curve=topology.curves[edge.curve],[lo,hi]=edge.range,at=t=>({point:curvePosition(curve,t)});
@@ -55,7 +55,10 @@ export async function tessellateSurfaceShell(solid,{toleranceMm=.02}={}){
   return {vertices,triangles:retained.map(triangle=>{
     const ids=triangle.corners.map(corner=>corner.id);
     return solid.patches[triangle.face].normalSide<0?ids.reverse():ids;
-  }),faceIndices:retained.map(triangle=>triangle.face),notes:[...(solid.notes??[]),...refined.notes],tessellation:{toleranceMm,sampledErrorMm:refined.error,method:'conforming-native-boundary'}};
+  }),faceIndices:retained.map(triangle=>triangle.face),cornerNormals:retained.map(triangle=>{
+    const patch=solid.patches[triangle.face],sign=patch.normalSide??1,normals=triangle.corners.map(corner=>evaluate(patch,...corner.uv).normal?.map(v=>v*sign)??null);
+    return patch.normalSide<0?normals.reverse():normals;
+  }),notes:[...(solid.notes??[]),...refined.notes],tessellation:{toleranceMm,sampledErrorMm:refined.error,method:'conforming-native-boundary'}};
 }
 
 function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries,vertices){

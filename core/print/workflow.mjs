@@ -15,6 +15,7 @@ import { exportProgram, programReadiness, settingsRows } from '../export/registr
 import {placedPath} from '../path/placement.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import { loadMachine,currentMachineSnapshot } from '../machine/profile.mjs';
+import {resolveNozzleGeometry} from '../machine/nozzle.mjs';
 import {runComputationJob} from './computation-job.mjs';
 import {heldBundleInstance} from './studio-ownership.mjs';
 import {replaceFile} from '../file-write.mjs';
@@ -115,7 +116,7 @@ export function createBundleWorkflow(adapter) {
   // Bundle is the only writer: a commit that changes plan, machine or geometry
   // mints a new edit revision, and new geometry-input and path-input ids when
   // those parts changed. Programs and paths record the ids they were made from.
-  const pathInput=plan=>canonicalJson(adapter.pathDependencies?adapter.pathDependencies({...plan,geometry:null}):{...plan,geometry:null});
+  const pathInput=(plan,machine)=>canonicalJson({deposition:adapter.pathDependencies?adapter.pathDependencies({...plan,geometry:null}):{...plan,geometry:null},nozzleGeometry:resolveNozzleGeometry(machine,plan)});
   const manufacturingKey=plan=>canonicalJson(adapter.manufacturingInput?.(plan)??null);
   function inputIds(state,next){
     const current={editRevision:state.editRevision,geometryInputId:state.geometryInputId,pathInputId:state.pathInputId};
@@ -124,7 +125,7 @@ export function createBundleWorkflow(adapter) {
     const geometryChanged=(geometry?.id??null)!==(state.geometryArtifact?.id??null);
     return {editRevision:randomUUID(),
       geometryInputId:geometryChanged||manufacturingKey(plan)!==manufacturingKey(state.plan)?randomUUID():current.geometryInputId,
-      pathInputId:geometryChanged||pathInput(plan)!==pathInput(state.plan)?randomUUID():current.pathInputId};
+      pathInputId:geometryChanged||pathInput(plan,next.machine===undefined?state.machine:next.machine)!==pathInput(state.plan,state.machine)?randomUUID():current.pathInputId};
   }
   // The one reading of prints saved before input ids: hashes, approvals and
   // undo history are dropped; a program is kept with its saved SAAMpath when no
@@ -364,9 +365,10 @@ async function readBundleInput(directory) {
 async function describeBundle(input,program) {
   const {dir,plan,machine,geometryArtifact,review,revision,editRevision,geometryInputId,pathInputId,deferRememberSetup,phaseColours,recipeNotes}=input;
   const geometry=adapter.presentGeometry?await adapter.presentGeometry(plan,geometryArtifact?.descriptor??null):geometryArtifact?.descriptor??null;
-  const pathCurrent=Boolean(review.path)&&review.path.inputId===pathInputId&&review.path.contract===contract;
+  const pathCurrent=Boolean(review.path)&&review.path.inputId===pathInputId&&review.path.contract===contract&&
+    canonicalJson(review.path.nozzleGeometry??null)===canonicalJson(resolveNozzleGeometry(machine,plan));
   const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':pathCurrent?'current':'stale',
-    program:!review.generation?'absent':review.generation.editRevision===editRevision&&review.generation.contract===contract?'current':'stale'};
+    program:!review.generation?'absent':pathCurrent&&review.generation.editRevision===editRevision&&review.generation.contract===contract?'current':'stale'};
   const geometryId=geometryArtifact?.id??null;
   const workEvidence={schema:'saam-work-evidence/1',revision,inputKey:editRevision,geometryKey:geometryId,generationKey:review.generation?.id??review.path?.id??null,editRevision};
   const history={canUndo:Boolean(review.navigation?.past.length),canRedo:Boolean(review.navigation?.future.length)};
@@ -502,7 +504,8 @@ async function requireGenerationSource(state,expected){
 }
 
 async function prepareToolpath(state,{onProgress,source}={}){
-  const key=JSON.stringify([state.dir,state.pathInputId,source.release,source.hash??state.review.path?.source?.hash]);
+  const nozzleGeometry=resolveNozzleGeometry(state.machine,state.plan);
+  const key=JSON.stringify([state.dir,state.pathInputId,nozzleGeometry,source.release,source.hash??state.review.path?.source?.hash]);
   if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
@@ -517,10 +520,10 @@ async function prepareToolpath(state,{onProgress,source}={}){
     const stored=await readPathArtifact(state.dir,{file});
     const scheduleFile=`paths/${id}.schedule.json`;
     onProgress?.({stage:'Scheduling saved deposition'});
-    const schedule=schedulePath(stored,{sourcePathId:id,onProgress});
+    const schedule=schedulePath(stored,{sourcePathId:id,onProgress,nozzleGeometry});
     joinSaamPath({sourcePathId:id,deposition:stored,schedule});
     await save(resolve(state.dir,scheduleFile),saamPathText(schedule));
-    const artifact={id,file,scheduleFile,inputId:state.pathInputId,contract,
+    const artifact={id,file,scheduleFile,inputId:state.pathInputId,contract,nozzleGeometry,
       ...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
       ...(stored.summary.limitations?.length?{limitations:stored.summary.limitations}:{})};
     return {path:await readMotionArtifact(state.dir,artifact),artifact};

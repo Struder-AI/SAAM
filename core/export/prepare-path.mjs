@@ -2,6 +2,7 @@ import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../machine/rules.mjs';
 import {materialProcess,materialTool} from '../machine/filaments.mjs';
+import {resolveNozzleGeometry} from '../machine/nozzle.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 import {samePose,uprightPose} from '../path/pose.mjs';
 import {placedPath} from '../path/placement.mjs';
@@ -66,6 +67,9 @@ function adaptationMotion(start,plan,machine,block,oriented){
 export function prepareExportPath(saved,plan,machine,adapter){
   requireThat((saved?.deposition?.schema==='saampath/2'||saved?.schema==='saampath/1')&&pathCompletion(saved)?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
+  const scheduled=pathCompletion(saved).nozzleGeometry,selected=resolveNozzleGeometry(machine,plan);
+  requireThat(scheduled?.includedAngleDeg===selected.includedAngleDeg&&scheduled?.tipDiameterMm===selected.tipDiameterMm,
+    'Selected nozzle geometry differs from the saved schedule. Regenerate the toolpath.');
   const path=placedPath(saved,plan.placement);
   validateSetup(plan,machine,{required:true,adapter});
   const oriented=adapter.poses===true,block=plan.setup[adapter.settings?.key];

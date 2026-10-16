@@ -7,11 +7,11 @@ import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {validatePose,samePose} from './pose.mjs';
 import {nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 
-export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null}) {
+export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null,nozzleGeometry}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
   requireThat(typeof sourcePathId==='string'&&sourcePathId.length>0,'Planning requires an exact compact source identity.');
   validatePose(motion?.initialPose);
-  return {sourcePathId,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:structuredClone(motion.initialPose),selection,selections,defaultFilament:selection?.filament,
+  return {sourcePathId,nozzleGeometry,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:structuredClone(motion.initialPose),selection,selections,defaultFilament:selection?.filament,
     pose:structuredClone(motion.initialPose),fanPercent:null,nozzleC:selection?.nozzleC??null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,parked:false,
     stats:{travelMm:0,retractions:0,printMm:0}};
 }
@@ -120,7 +120,7 @@ export function planLayerCooling(state,scene) {
 export function planTravel(state,target,scene,targetPose,{recover=true}={}){
   requireThat(scene?.index&&scene.occupied,'Travel needs the scheduler-owned deposited material scene.');
   validatePose(targetPose);
-  const route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,state.pose,targetPose,{withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes});
+  const route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,state.pose,targetPose,{withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes,...scene.nozzleGeometry});
   if(route.blocked){
     const operations=[...new Set(route.blocked.map(id=>scene.operationOf(id)))];
     throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+operations.join(', ')),{code:'NOZZLE_ACCESS_BLOCKED',operations,target});

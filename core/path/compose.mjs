@@ -232,7 +232,7 @@ function relaxOrderChoices(error,edges,relaxed){
   return relaxed.size>before;
 }
 
-export function resolveSourceOrder(source,reader,{onProgress,start}={}){
+export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry}={}){
   const cuts=new Map(),relaxed=new Set(),relaxedChunks=new Set(),blockedTraversals=new Set(),supportPrecision=new Map(),history={solves:0,refinements:0};
   const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
   const sourceDependencies=prepareOperationDependencies(Object.values(source.operations),new Map(Object.entries(source.operations)),source.composition);
@@ -243,7 +243,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
     try{
       // Establish native groups and process barriers before any fine occupancy.
       const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:choices});
-      state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision});
+      state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
       const promoted=new Map();
@@ -403,7 +403,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
 }
 
 export function planSourceComposition(initialState,source,reader,onProgress){
-  const solved=resolveSourceOrder(source,reader,{onProgress,start:initialState.position}),scene=solved.scene;
+  const solved=resolveSourceOrder(source,reader,{onProgress,start:initialState.position,nozzleGeometry:initialState.nozzleGeometry}),scene=solved.scene;
   const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),cursor={state:initialState,last:null};
   const keyOf=unit=>unit.layerId??unit.operation;
   function cool(unit){

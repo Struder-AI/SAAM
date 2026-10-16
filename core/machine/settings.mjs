@@ -66,7 +66,7 @@ export function settingsDefaults(machine){
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
       fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,
       experimentalDeposition:false,primeLine:null,clearanceResponsibility:'operator',
-      clearanceNote:'No collision model is implemented; the operator owns physical clearance.',
+      clearanceNote:'Nozzle clearance uses the saved geometry envelope; carriage, fixtures and physical qualification remain the operator’s responsibility.',
       ...structuredClone(machine?.defaultProcess??{}),firstLayerMm:0.2,layerMm:0.2
     },
     output:machine?.outputs[0].id??null
@@ -129,10 +129,9 @@ export async function withMachineSetupExport(machineSetups,machine,action){
 
 // Material is not machine: the print's material settings stay across a machine change.
 const MATERIAL_FIELDS=['material','nozzleC','filament','filaments'];
-// A machine change selects setup and output; authored process and material
-// values stay, so the SAAMpath stays current. A remembered setup or the new
-// machine's defaults fill only what the print lacks. A placement left at the
-// previous default moves to the new bed's centre; a chosen one keeps its position.
+// A machine change preserves authored process/material values; Bundle rechecks
+// the schedule's nozzle dimensions. Remembered/default setup fills omissions.
+// Default placement follows the new bed; a chosen position stays.
 export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){
   const material=Object.fromEntries(MATERIAL_FIELDS.filter(key=>previous.setup?.[key]!==undefined).map(key=>[key,structuredClone(previous.setup[key])]));
   const setup=previousMachine?{...settings.setup,...material}:{...settings.setup,...previous.setup};

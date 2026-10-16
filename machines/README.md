@@ -35,7 +35,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
    (`materialChangeMode` `tool-swap` or `single-nozzle-ams` with `toolChangeLiftMm`
    permit material changes). Studio draws a gantry
    (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; any other machine needs
-   a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry).
+   a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry). `nozzleGeometry:{includedAngleDeg,tipDiameterMm,name,quality,source?,note?}` belongs on the profile or an overriding tool; flat diameter describes the external face, independently of the extrusion orifice. [Selection](../core/machine/nozzle.mjs) encloses all selected tools; missing geometry uses the labelled 80° / 0.9 mm estimate. UltiMaker profiles use original CAD (90° / 1 mm); Bambu uses the owner's provisional 70° / 0.8 mm. Scheduling and Studio consume the saved model; heater blocks, parked tools and carriage remain outside this cone.
 2. **Adapter.** `createAdapter(Export)` returns
    `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
    - `output` names `outputs[].id`; `poses: true` writes orientation, other outputs accept upright orientation.
@@ -56,7 +56,7 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
      and use ordinary runtime APIs; this boundary supplies their SAAM inputs.
 3. **Verification.** Optional `machine-verify` exports `verify(bytes, plan, machine, Export)`;
    `node scripts/machine-verify.mjs BUNDLE_DIR` interprets written bytes against the stored report.
-4. **Contract.** `SKILL.md` states what the output contains, its settings, vendor evidence and trials.
+4. **Contract.** `SKILL.md` owns output, settings, evidence and trials.
 
 | # | Owner-approved standard (2026-10-12) |
 |---|---|

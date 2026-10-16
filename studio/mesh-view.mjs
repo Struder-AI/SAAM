@@ -4,11 +4,18 @@ import {materialProjection} from './material-view.mjs';
 // Projected-depth bias (not millimetres): a mark on a face counts as in front of it.
 const DEPTH_BIAS=1e-7;
 
+function geometryCornerNormal(geometry,face,corner,fallback){
+  const normal=geometry.cornerNormals?.[face]?.[corner];
+  if(!Array.isArray(normal)||normal.length!==3||!normal.every(Number.isFinite))return fallback;
+  const magnitude=length(normal);return magnitude>0&&Number.isFinite(magnitude)?scale(normal,1/magnitude):fallback;
+}
+
 // Display creases, not tessellation. Weld coincident proxy vertices for edge
 // adjacency without changing the source mesh or the geometry used for slicing.
 // Display only: the guards and depth slacks in this file serve shading, picking
 // and hidden-edge drawing in screen units; they never reach geometry or programs.
-export function buildMeshView({vertices,faces},creaseDeg=3) {
+export function buildMeshView(geometry,creaseDeg=3) {
+  const {vertices,faces}=geometry;
   const ids=new Map(),weld=vertices.map(p=>{
     const key=p.map(v=>Math.round(v*1e7)).join(',');
     if(!ids.has(key))ids.set(key,ids.size);
@@ -32,7 +39,11 @@ export function buildMeshView({vertices,faces},creaseDeg=3) {
     if(entries.length!==2)continue; // preserve boundaries/nonmanifold proxy edges
     const [a,b]=entries,na=normals[a.f],nb=normals[b.f];
     // Patch proxies can have opposite winding: compare their geometric planes.
-    if(na&&nb&&Math.abs(na.reduce((s,v,i)=>s+v*nb[i],0))>cosine+1e-12)
+    const smooth=[a.i,(a.i+1)%faces[a.f].length].every(corner=>{
+      const other=faces[b.f].findIndex(v=>weld[v]===weld[faces[a.f][corner]]),first=geometryCornerNormal(geometry,a.f,corner,na),second=geometryCornerNormal(geometry,b.f,other,nb);
+      return first&&second&&Math.abs(dot(first,second))>cosine+1e-12;
+    });
+    if(smooth)
       masks[a.f][a.i]=masks[b.f][b.i]=false;
   }
   return {edgeMasks:masks,normals,weld,edges};
@@ -49,7 +60,8 @@ export function buildGeometryView(geometry,creaseDeg=35){
     const weight=Math.acos(Math.max(-1,Math.min(1,dot(a,b)/Math.max(1e-20,length(a)*length(b)))));
     const list=incident.get(weld[v])??[];list.push({f,weight});incident.set(weld[v],list);
   }));
-  const cornerNormals=faces.map((face,f)=>face.map(v=>{
+  const cornerNormals=faces.map((face,f)=>face.map((v,k)=>{
+    const supplied=geometryCornerNormal(geometry,f,k,null);if(supplied)return supplied;
     const n=normals[f]??[0,0,1];let sum=[0,0,0];
     for(const other of incident.get(weld[v])){
       const candidate=normals[other.f];if(!candidate||labels[other.f]!==labels[f])continue;

@@ -146,8 +146,7 @@ function chartBoundaryEndpoint(P,vertex,toleranceMm){
   return Math.hypot(...point.map((v,k)=>v-before[k]))<=ROUNDING_MM?{...vertex,uv,point}:null;
 }
 
-function closeOnBoundary(P,chains,domainInside,toleranceMm=PRINT_RESOLUTION_MM){
-  const boundaries=faceTrimRegion(P,{toleranceMm:toleranceMm/4});
+function closeOnBoundary(P,chains,domainInside,boundaries,toleranceMm){
   const loops=chains.filter(c=>c.closed).map(c=>c.vertices.map(x=>x.uv));
   const open=chains.filter(c=>!c.closed).map(chain=>{
     const first=faceBoundaryLocation(P,chain.vertices[0],boundaries,toleranceMm),last=faceBoundaryLocation(P,chain.vertices.at(-1),boundaries,toleranceMm);
@@ -520,7 +519,7 @@ export function surfaceInside(P, solid, { chordMm = TOLERANCE.chord, seedMm = 0.
   const chains=chainPieces(interiorBoundaryPieces(P,pieces),P,joiningMm).map(chain=>orient(chain,P,shell));
   const sample = uv => containsPoint(shell,evaluate(P,...uv,false).point);
   let raw;
-  try{raw=closeOnBoundary(P,chains,sample,joiningMm);}catch(error){
+  try{raw=closeOnBoundary(P,chains,sample,faceTrimRegion(P,{toleranceMm:chordMm}),joiningMm);}catch(error){
     // At a mesh tangency, adjacent facet intersections can terminate in the
     // chart interior without a unique stitch. Keep the exact authored chart
     // and use the shared physical containment/root construction for this case.

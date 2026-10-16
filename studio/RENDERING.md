@@ -10,7 +10,7 @@ location afterward; the final CAD model still describes the intended finished
 part. Thermal wait time is not simulated.
 
 The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine views and their providers.
-**Nozzle clearance** draws Geometry's shared angle and flat-tip diameter: dashed nominal, orange after surface allowance, clipped for display. It follows playback/manual pose, persists per tab and appears in movies. The overlay preserves collision rules, programs, toolpath colors, bead detail and part framing.
+**Nozzle clearance** draws the saved schedule's model, dimensions and provenance: dashed nominal, orange after surface allowance, clipped for display. Legacy output uses the labelled generic estimate. It follows playback/manual pose, persists per tab and appears in movies without changing collision rules, programs, colors or framing.
 
 ## Studio performance and display detail
 

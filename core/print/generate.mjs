@@ -203,7 +203,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.composition=null;
 
   summary.boundsMm = placed?.bounds??null;
-  summary.clearance = 'Scheduler uses an effectively infinite 15 degree included-angle nozzle cone; carriage and machine mechanisms are unchecked.';
+  summary.clearance = 'Scheduling records the selected nozzle clearance envelope; carriage and machine mechanisms are unchecked.';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
     maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100

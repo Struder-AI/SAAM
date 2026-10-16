@@ -236,8 +236,9 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   }};
 }
 
-export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=60;
-export const DEFAULT_NOZZLE_TIP_DIAMETER_MM=.5;
+export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=80;
+export const DEFAULT_NOZZLE_TIP_DIAMETER_MM=.9;
+export const DEFAULT_NOZZLE_GEOMETRY=Object.freeze({includedAngleDeg:DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,tipDiameterMm:DEFAULT_NOZZLE_TIP_DIAMETER_MM});
 // Physical allowance on the nozzle surface; bead overlap is independent.
 export const NOZZLE_FORGIVENESS_MM=.2;
 export const nozzleSideOffsetMm=(includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM)=>
@@ -336,8 +337,8 @@ function fixedConeBounds(sweep,toleranceMm=ROUNDING_MM){
 
 // Supporting plane of the enlarged infinite cone, minimized over both boxes.
 // A positive lower bound proves all positions/poses clear; overlap proves nothing.
-export function nozzleBoundsClear(positions,poseCone,material,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM){
-  const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+poseCone.halfAngleRad;
+export function nozzleBoundsClear(positions,poseCone,material,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG){
+  const angle=includedAngleDeg*Math.PI/360+poseCone.halfAngleRad;
   if(angle>=Math.PI/2)return false;
   const axis=normalize(scale(poseCone.reference.toolAxis,-1)),c=Math.cos(angle),s=Math.sin(angle);
   const q=positions.min.map((v,k)=>(material.min[k]+material.max[k]-v-positions.max[k])/2);
@@ -345,13 +346,13 @@ export function nozzleBoundsClear(positions,poseCone,material,forgivenessMm=NOZZ
   const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
   const lower=(r>ROUNDING_MM?c*r:0)-s*z-q.reduce((sum,_,k)=>sum+Math.abs(gradient[k])*
     (material.max[k]-material.min[k]+positions.max[k]-positions.min[k])/2,0);
-  return lower+nozzleSideOffsetMm(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm,tipDiameterMm)>ROUNDING_MM*8;
+  return lower+nozzleSideOffsetMm(includedAngleDeg,forgivenessMm,tipDiameterMm)>ROUNDING_MM*8;
 }
 
 export function nozzleSweepHits(index,from,to,fromPose,toPose,options={}){
   const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose),hits=new Set();
-  const {forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM,...filters}=options;
-  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm,tipDiameterMm)){
+  const {forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,...filters}=options;
+  for(const sweep of sweptNozzle(from,to,fromPose,toPose,reach,includedAngleDeg,forgivenessMm,tipDiameterMm)){
     function confirm(shape){return nozzleIntervalIntersects(sweep,shape,ROUNDING_MM);}
     if(sweep.fixed){for(const hit of index.query(sweep,ROUNDING_MM,{...filters,boundsTest:fixedConeBounds(sweep)}))hits.add(hit);}
     else for(const hit of index.query(sweep,ROUNDING_MM,{...filters,confirm}))hits.add(hit);
@@ -370,9 +371,9 @@ export function nozzleSweepReach(bounds,from,to,fromPose,toPose){
   return Math.max(length(subtract(from,center)),length(subtract(to,center)))+length(subtract(bounds.max,bounds.min))+PRINT_RESOLUTION_MM;
 }
 
-export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null,groupPrefixes=null}={}){
+export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null,groupPrefixes=null,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM}={}){
   if(!occupied.size||index.empty)return [];
-  return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups,groupPrefixes});
+  return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups,groupPrefixes,includedAngleDeg,tipDiameterMm});
 }
 
 function radialPose(radial,up){
@@ -470,11 +471,11 @@ export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCon
 // Curve positions need only stay within the chord's geometric error tube.
 // All poses are enclosed independently, so nonuniform curve parameter speed
 // cannot change the pose/position coupling assumed by the envelope.
-export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stockBounds,{forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM}={}){
+export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stockBounds,{forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG}={}){
   const reach=Math.hypot(...bounds.min.map((value,k)=>Math.max(Math.abs(stockBounds.min[k]-bounds.max[k]),Math.abs(stockBounds.max[k]-value))))+PRINT_RESOLUTION_MM;
   const reference=poseCone.reference,motion={from,to,fromPose:reference,toPose:reference,lengthMm:reach,
-    includedAngleDeg:DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm,tipDiameterMm};
-  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,angle=poseCone.halfAngleRad;
+    includedAngleDeg,forgivenessMm,tipDiameterMm};
+  const halfAngle=includedAngleDeg*Math.PI/360,angle=poseCone.halfAngleRad;
   if(tipDiameterMm===0&&angle>0&&halfAngle+angle<Math.PI/2){
     // For every permitted axis, the cone side distance is enclosed by the
     // reference-axis cone enlarged by that angular deviation, with the SAME
@@ -489,7 +490,7 @@ export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stock
       errorMm:chordErrorMm+deviation,exact:false};
   }
   const body=nozzleInterval(motion,0,1);
-  const radius=nozzleRadiusBound(reach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm,tipDiameterMm);
+  const radius=nozzleRadiusBound(reach,includedAngleDeg,forgivenessMm,tipDiameterMm);
   const errorMm=chordErrorMm+radius*2*Math.sin(poseCone.halfAngleRad/2);
   return {shape:errorMm?{parts:[body],margin:errorMm}:body,errorMm,exact:errorMm===0};
 }

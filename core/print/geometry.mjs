@@ -154,7 +154,7 @@ async function reopenShell(bytes, descriptor) {
 export async function createSpatialGeometry(parameters,solidDescriptor){
   validateSpatial(parameters);
   const solid=parameters.solid?(solidDescriptor?{descriptor:solidDescriptor}:await createGeometryArtifact(parameters.solid)):null;
-  const {vertices=[],faces=[],labels=[],features=[]}=solid?.descriptor??{};
+  const {vertices=[],faces=[],labels=[],features=[],cornerNormals}=solid?.descriptor??{};
   const preview=spatialPreview(parameters),bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   const include=p=>p.forEach((v,i)=>{bounds.min[i]=Math.min(bounds.min[i],v);bounds.max[i]=Math.max(bounds.max[i],v);});
   if(solid){include(solid.descriptor.boundsMm.min);include(solid.descriptor.boundsMm.max);}
@@ -162,7 +162,7 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
   for(const p of preview.points)include(p.point);
   if(!Number.isFinite(bounds.min[0])){bounds.min=[0,0,0];bounds.max=[0,0,0];}
   return {bytes:solid?.bytes??null,descriptor:{schema:'saam-shell-geometry/1',parameters,
-    nativeForm:'authored solid, curves and points',vertices,faces,labels,features:[...features,...preview.curves.map(c=>({id:c.id,kind:'curve'})),...preview.points.map(p=>({id:p.id,kind:'point'}))],boundsMm:bounds,...preview}};
+    nativeForm:'authored solid, curves and points',vertices,faces,labels,...(cornerNormals?{cornerNormals}:{}),features:[...features,...preview.curves.map(c=>({id:c.id,kind:'curve'})),...preview.points.map(p=>({id:p.id,kind:'point'}))],boundsMm:bounds,...preview}};
 }
 
 // Quad proxy for the viewer: each patch is sampled on its own (u, v) grid, so
@@ -172,23 +172,24 @@ async function proxyMesh(shell) {
     const mesh=await tessellateSurfaceShell(shell,{toleranceMm:.05});
     // Frame the visible face region, rather than discarded supporting controls.
     const boundsMm=mesh.vertices.length?{min:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[k]),Infinity)),max:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[k]),-Infinity))}:shell.bounds;
-    return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name),boundsMm};
+    return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name),cornerNormals:mesh.cornerNormals,boundsMm,notes:mesh.notes};
   }
-  const vertices = [], faces = [], labels = [];
+  const vertices = [], faces = [], labels = [], normals=[],cornerNormals=[];
   for (const patch of shell.patches) {
     const [u0, u1] = patch.domainU, [v0, v1] = patch.domainV;
     const stepsU = proxySteps(patch.knotsU, patch.orderU, patch.nu), stepsV = proxySteps(patch.knotsV, patch.orderV, patch.nv);
     const base = vertices.length, row = stepsV + 1;
     for (let i = 0; i <= stepsU; i++)
       for (let j = 0; j <= stepsV; j++)
-        vertices.push(evaluate(patch, u0 + (u1 - u0) * i / stepsU, v0 + (v1 - v0) * j / stepsV, false).point.map(round));
+        {const frame=evaluate(patch,u0+(u1-u0)*i/stepsU,v0+(v1-v0)*j/stepsV);vertices.push(frame.point.map(round));normals.push(frame.normal);}
     for (let i = 0; i < stepsU; i++)
       for (let j = 0; j < stepsV; j++) {
         faces.push([base + i * row + j, base + (i + 1) * row + j, base + (i + 1) * row + j + 1, base + i * row + j + 1]);
+        cornerNormals.push(faces.at(-1).map(index=>normals[index]));
         labels.push(patch.name);
       }
   }
-  return { vertices, faces, labels };
+  return { vertices, faces, labels,cornerNormals };
 }
 
 // Indexed mesh coordinates belong to the recipe. Mixed assemblies retain their
@@ -203,20 +204,21 @@ async function createMeshGeometry(r,parameters) {
   // A nested assembly shows its components, outer/inner, as generation slices them.
   const parts=parameters.shape==='assembly'?assemblyComponents(parameters.parts):[{geometry:parameters,id:'',xMm:0,yMm:0,zMm:0}];
   const [shell,...components]=buildShells(r,[parameters,...parts.map(part=>displayGeometry(part.geometry))],{native:false});
-  const vertices=[],faces=[],labels=[],features=[],notes=[...(shell.notes??[])];
+  const vertices=[],faces=[],labels=[],cornerNormals=[],features=[],notes=[...(shell.notes??[])];
   const append=async(component,id,translation)=>{
-    const display=component.kind==='boolean'||component.kind==='surface-solid'?await booleanDisplayMesh(component):null;
-    for(const note of display?.notes??[])notes.push(id?`${id}: ${note}`:note);
-    const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean')}
+    const display=component.kind==='boolean'?await booleanDisplayMesh(component):null;
+    const proxy=display?{vertices:display.vertices,faces:display.triangles,labels:display.triangles.map(()=>'boolean'),notes:display.notes}
       :component.kind==='triangle-mesh'?{vertices:component.vertices,faces:component.triangles,labels:component.triangles.map((_,i)=>`triangle:${i}`)}:await proxyMesh(component);
+    for(const note of proxy.notes??[])notes.push(id?`${id}: ${note}`:note);
     const offset=vertices.length;
     for(const p of proxy.vertices)vertices.push(p.map((v,i)=>v+translation[i]));
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));
-    for(const _label of proxy.labels)labels.push(id||'mesh');
-    // STL supplies no semantic CAD faces. Select the imported component as a whole.
-    features.push({id:id||'mesh'});
+    const names=proxy.labels.map(label=>id||(component.patches?label:'mesh'));
+    labels.push(...names);
+    for(const [index,face] of proxy.faces.entries())cornerNormals.push(proxy.cornerNormals?.[index]??face.map(()=>null));
+    for(const name of new Set(names))features.push({id:name});
   };
   for(const [index,part] of parts.entries())await append(components[index],part.id,[part.xMm,part.yMm,part.zMm]);
   return {bytes:null,descriptor:{schema:'saam-shell-geometry/1',parameters,
-    nativeForm:'display mesh derived from authoritative geometry recipes',features,boundsMm:shell.bounds,vertices,faces,labels,...(notes.length?{notes:[...new Set(notes)]}:{})}};
+    nativeForm:'display mesh derived from authoritative geometry recipes',features,boundsMm:shell.bounds,vertices,faces,labels,cornerNormals,...(notes.length?{notes:[...new Set(notes)]}:{})}};
 }

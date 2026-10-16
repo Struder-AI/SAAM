@@ -59,10 +59,8 @@ The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`, `
 
 ## Stored execution: `saam-schedule/1`
 
-`schedulePath(deposition,{sourcePathId,onProgress?})` consumes admitted source and
-returns `{schema:'saam-schedule/1',sourcePathId,initialPosition,initialPose,
-motionCurves,execution,summary,completion}`. It performs no Bundle I/O.
-Bundle supplies the exact source identity, saves source and schedule separately, and joins them for readers as `{sourcePathId,deposition,schedule}`. Identity mismatch is an error; editing source invalidates its schedule and checked program.
+`schedulePath(deposition,{sourcePathId,onProgress?,nozzleGeometry?})` consumes admitted source and numerical nozzle dimensions, returning `{schema:'saam-schedule/1',sourcePathId,initialPosition,initialPose,motionCurves,execution,summary,completion}` without Bundle I/O.
+Bundle resolves machine/tool clearance dimensions, saves them in the schedule summary/completion and artifact, and invalidates execution when they change. Source and schedule join as `{sourcePathId,deposition,schedule}`; mismatched identity fails. Deposition remains independent of machine selection.
 
 `execution` is ordered data. `{kind:'deposit',courseId,from,to,reverse?}` references a source subset; bounds stay increasing, and `reverse:true` traverses from `to` to `from` with positive material. `{kind:'travel',curveId,from,to,durationSeconds?}`
 references `motionCurves`, using the same curve/profile representation.
@@ -109,7 +107,7 @@ physical scheduling.
 
 Printing, startup, transfers, reorientation, parking, temperature changes, cooling
 and finishing share continuous nozzle-clearance checks against actual deposited
-material. Geometry's shared nozzle uses a 60° included angle, 0.5 mm flat-tip diameter and flat-face reference-height bounds. Surface forgiveness is 0.2 mm while moving and zero for stationary Inject.
+material. The shared truncated cone uses the saved nozzle dimensions and flat-face reference-height bounds; absent a profile, the provisional fallback is 80° included / 0.9 mm flat. Surface forgiveness is 0.2 mm while moving and zero for stationary Inject.
 Deposited beads may overlap. Carriage, fixtures and automatic supports are outside this model. No world-axis entry, support, retreat or motion-speed assumption is valid.
 Source material placement retains current semantics pending separate bead-geometry
 unification. Refinement preserves material and poses, uses contact witnesses where
@@ -119,7 +117,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/32` and completion `saam-neutral-motion/18` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/32` and completion `saam-neutral-motion/19` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

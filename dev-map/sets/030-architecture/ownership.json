@@ -1810,6 +1810,10 @@
     "core/print/operation-references.mjs": {
       "owner": "recipe",
       "reason": "Native operation selectors and pure prerequisite record edits; no geometry, execution or travel state."
+    },
+    "core/machine/nozzle.mjs": {
+      "owner": "settings",
+      "reason": "Resolve selected installation nozzle dimensions into a numerical scheduling envelope."
     }
   },
   "leaves": {
@@ -28013,6 +28017,15 @@
     "core/geom/convex-clearance.mjs::nozzleReferenceFloorMm": {
       "owner": "geometry",
       "reason": "Shared nozzle shape supplies conservative reference-height floors for whole-slice and travel clearance proofs."
+    },
+    "core/machine/nozzle.mjs::resolveNozzleGeometry": {
+      "owner": "settings"
+    },
+    "core/geom/convex-clearance.mjs::DEFAULT_NOZZLE_GEOMETRY": {
+      "owner": "geometry"
+    },
+    "studio/mesh-view.mjs::geometryCornerNormal": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [
