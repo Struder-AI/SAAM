@@ -1,4 +1,5 @@
 // Match curve controls, interpolate them, and hand ordinary curves to Trace.
+import {addSupportBrim} from './brim.mjs';
 const check=(condition,message)=>{if(!condition)throw Error(message);};
 const positive=(v,name)=>{check(Number.isFinite(v)&&v>0,`${name} must be positive and finite.`);return v;};
 const xyz=p=>p.slice(0,3).map(v=>v/p[3]);
@@ -23,13 +24,18 @@ export async function buildBridgeSupport(spec,process={},Geometry,{geometry,base
   const target=positive(spec.layerHeightMm??process.layerMm,'layerHeightMm');
   const divisions=Math.max(1,Math.round(positive(averageAdvance,'Average curve separation')/target)),heightMm=averageAdvance/divisions;
   check(Number.isSafeInteger(divisions),'Curve divisions exceed integer representation.');
-  const curves=Array.from({length:divisions},(_,i)=>{
+  const curves=[];
+  for(let i=0;i<divisions;i++){
     const t=(i+1)/divisions,controls=baseControls.map((a,j)=>a.map((v,k)=>v+(landingControls[j][k]-v)*t));
-    return {role:'breakaway-support',closed:matched.closed,directionRequired:false,seamRequired:false,nurbs:{degree:matched.degree,knots:matched.knots,controlPoints:controls.map(xyz),weights:controls.map(p=>p[3])},beadWidthMm:width,heightMm,speedMmS:speed,...(spec.sampleStepMm===undefined?{}:{sampleStepMm:positive(spec.sampleStepMm,'sampleStepMm')}),repetitions:[i]};
-  });
+    const first={closed:matched.closed,nurbs:{degree:matched.degree,knots:matched.knots,controlPoints:controls.map(xyz),weights:controls.map(p=>p[3])}};
+    const side=landing.report.side*(mapping.landingDirection==='reverse'?-1:1);
+    const second=await Geometry.ribbon({curve:first,vertical:original.direction,depthMm:side*width});
+    check(second.curves.length,'The second support loop collapsed; select a wider support curve.');
+    for(const curve of [first,...second.curves])curves.push({...curve,role:'breakaway-support',directionRequired:false,seamRequired:false,beadWidthMm:width,heightMm,speedMmS:speed,...(spec.sampleStepMm===undefined?{}:{sampleStepMm:positive(spec.sampleStepMm,'sampleStepMm')}),repetitions:[i]});
+  }
   const repetitionIds=curves.map((_,i)=>`course-${i}`);
   const assignment={id:spec.id,construction:'curves',part:spec.part??null,filament:null,process:null,after:spec.after??[],curves,repeat:{count:divisions,translation:[0,0,0]},sequence:false,repetitionIds,repetitionAfter:Object.fromEntries(repetitionIds.slice(1).map((name,i)=>[name,[repetitionIds[i]]])),maxExcursionMm:null};
-  return {assignment,report:{id:spec.id,courses:divisions,controlPoints:baseControls.length,requestedLayerHeightMm:target,averageCourseSpacingMm:heightMm,edgeOffsets:{base:base.report,landing:landing.report},lastOperationId:`${spec.id}:${repetitionIds.at(-1)}`}};
+  return {assignment,report:{id:spec.id,courses:divisions,loops:2,controlPoints:baseControls.length,requestedLayerHeightMm:target,averageCourseSpacingMm:heightMm,edgeOffsets:{base:base.report,landing:landing.report},lastOperationId:`${spec.id}:${repetitionIds.at(-1)}`}};
 }
 export async function editBridgeSupports(source,request,Geometry){
   check(request&&Object.keys(request).join()==='supports'&&Array.isArray(request.supports)&&request.supports.length,'Supply a nonempty supports array.');
@@ -45,8 +51,9 @@ export async function editBridgeSupports(source,request,Geometry){
     check(!Array.isArray(baseFrom)||baseFrom.length,'baseFrom cannot be empty.');
     check(!Array.isArray(landingTo)||landingTo.length,'landingTo cannot be empty.');
     check(baseOnBed||baseFrom||spec.after?.length,'Name baseFrom for printed material, or after for existing operation IDs.');
-    made.push({...await buildBridgeSupport(spec,source.process,Geometry,{geometry,baseOnBed}),baseFrom,landingTo});
+    made.push({...await buildBridgeSupport(spec,source.process,Geometry,{geometry,baseOnBed}),baseFrom,landingTo,baseOnBed,component});
   }
+  for(const entry of made)entry.report.brim=await addSupportBrim(entry.assignment,source,Geometry,{baseOnBed:entry.baseOnBed,component:entry.component,otherAssignments:[...prior,...made.map(m=>m.assignment)]});
   let assignments=[...prior,...made.map(m=>m.assignment)];
   const reports=made.map(({assignment,report,baseFrom,landingTo})=>{
     const Recipe=Geometry.Recipe;
