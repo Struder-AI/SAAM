@@ -9,8 +9,7 @@ direction or simulate molten cavity filling. The ring remains at the commanded
 location afterward; the final CAD model still describes the intended finished
 part. Thermal wait time is not simulated.
 
-The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine views and their providers.
-**Nozzle clearance** draws the saved schedule's model, dimensions and provenance: dashed nominal, orange after surface allowance, clipped for display. Legacy output uses the labelled generic estimate. It follows playback/manual pose, persists per tab and appears in movies without changing collision rules, programs, colors or framing.
+The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine views and their providers. **Nozzle clearance** draws a fixed 6 mm length of the saved nozzle model: dashed nominal, orange after surface allowance, with dimensions and provenance. Legacy output uses the generic estimate. It follows playback/manual pose, persists per tab and appears in movies without changing collision rules or programs.
 
 ## Studio performance and display detail
 

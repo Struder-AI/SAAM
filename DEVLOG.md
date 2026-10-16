@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-16 — Keep the nozzle overlay a fixed size
+
+- Studio draws a fixed 6 mm section of the saved nozzle cone at every playback/manual pose. It no longer sizes the overlay from the current pose's reach through the part bounds, which made the nozzle grow and shrink. Shared nominal/allowance geometry and movie rendering remain the same; scheduling and collision checks are unchanged.
+- Renderer syntax and whitespace checks pass; the active sector Studio serves the fixed-length module. Rendering guidance shrinks 202→201 lines. No permanent tests or whole suite; browser playback was not independently rechecked. Existing full map regeneration PID 12512 remains active, with coverage of this edit pending. No new declarations, installation, push or release.
+
 ## 2026-10-16 — Select nozzle geometry from machine profiles
 
 - Settings resolves a profile/tool's external nozzle angle and flat diameter into a numerical scheduling envelope. UltiMaker 2 Extended / 3 / S5 use 90° included / 1.0 mm flat from the manufacturer's original STEP geometry (outlet circle R0.5 and external 45° half-angle); Bambu H2D / X1 use the owner's provisional 70° / 0.8 mm, and unknown/no machine uses the owner-approved midpoint 80° / 0.9 mm. Extrusion-orifice size remains independent. Tool overrides are supported; differing selected tools use an explicitly labelled enclosing cone. Sources and provisional status stay with each model.
