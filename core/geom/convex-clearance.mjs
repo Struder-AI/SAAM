@@ -239,7 +239,7 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
 export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=60;
 export const DEFAULT_NOZZLE_TIP_DIAMETER_MM=.5;
 // Physical allowance on the nozzle surface; bead overlap is independent.
-export const NOZZLE_FORGIVENESS_MM=.1;
+export const NOZZLE_FORGIVENESS_MM=.2;
 export const nozzleSideOffsetMm=(includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM)=>
   forgivenessMm-tipDiameterMm/2*Math.cos(includedAngleDeg*Math.PI/360);
 export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM){

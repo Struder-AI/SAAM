@@ -109,7 +109,7 @@ physical scheduling.
 
 Printing, startup, transfers, reorientation, parking, temperature changes, cooling
 and finishing share continuous nozzle-clearance checks against actual deposited
-material. Geometry's shared nozzle uses a 60° included angle, 0.5 mm flat-tip diameter and flat-face reference-height bounds. Surface forgiveness is 0.1 mm while moving and zero for stationary Inject.
+material. Geometry's shared nozzle uses a 60° included angle, 0.5 mm flat-tip diameter and flat-face reference-height bounds. Surface forgiveness is 0.2 mm while moving and zero for stationary Inject.
 Deposited beads may overlap. Carriage, fixtures and automatic supports are outside this model. No world-axis entry, support, retreat or motion-speed assumption is valid.
 Source material placement retains current semantics pending separate bead-geometry
 unification. Refinement preserves material and poses, uses contact witnesses where
@@ -119,7 +119,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/32` and completion `saam-neutral-motion/17` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/32` and completion `saam-neutral-motion/18` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported
