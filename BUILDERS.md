@@ -289,7 +289,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Machine capabilities, emission or interpretation | [Machine interfaces and program output](core/export/README.md), [machine presentation models](core/machine/README.md) and [adding a machine](machines/README.md#adding-a-machine); `read-map @cluster/export` and `@cluster/settings` for influence |
 | Studio interaction, lifetime or rendering | [Studio](studio/README.md), [kinematics](studio/KINEMATICS.md) and [rendering](studio/RENDERING.md); `read-map @cluster/studio` for influence |
 | Chat-client commands and attachment | [Application](core/application/README.md) |
-| Performance measurement | [Slicing benchmarks](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
+| Performance measurement | [Developer measurements](scripts/bench/README.md) and [region kernel verification](scripts/bench/region-reference.md) |
 | Maker-facing behavior or end-to-end use | [MAKERS](MAKERS.md) and [development testing](#testing-through-the-use-context) |
 | Documentation | [Ownership and maintenance](#documentation-maintenance) |
 | Project direction, outstanding work, history or terminology | The versioned intent docs in [plans](plans/), [devlog](DEVLOG.md), [decision history](DECISIONS.md) or [terms](GLOSSARY.md) |

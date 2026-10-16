@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Retire stale benchmark callers and check the shared source
+
+- Removed the obsolete print/slicing benchmark harnesses and their unused fixture helper instead of maintaining old expanded-action callers. Other kernel diagnostics and archived-report reading remain; the guide shrinks 117 → 26 lines. The lifecycle-fix commit a6817dcb is already an ancestor of this branch, so no merge or cherry-pick was needed.
+- Focused production probes pass for native-layer generation → scheduling → preview → S5 export, a retained NURBS with smooth attributes/full roll, and Bundle save/reopen with exact checked-output/settings preservation after an edit. Lifecycle integration probes pass horizontal, tilted and curved heat-set reinforcement plus the two-material cover workspace; the curved reference retains its explicit edge-coverage limitation. Disposable evidence is under .local/sp2-* and .local/geometry-consolidation; no full suite or new permanent test ran.
+- Readiness remains incomplete: four explicit checks fail for cumulative-area enclosure, outgoing step endpoints, adjacent-key linearization and finite width reporting (.local/sp2-combined-readiness-report.json). The separate tiny native-range convergence defect remains. These source-level checks are not the requested maker-agent/Studio experience. Current saam status still reports installed 0.3.8 and source runtimes at 7a741e88; current runtime compatibility, waiting/hand-back behavior and integrated Studio feature trials remain outstanding. No installation, live Studio trial, push, release or physical print occurred.
+
 ## 2026-10-16 — Review SP2 tolerance concerns and defer timing accuracy
 
 - Owner authorized coordination with “Make scheduler” and requested independent assessment. Analytic probes reproduce cumulative-area underbounds (.08 expected versus .0625 reported), outgoing step values contaminating interval bounds, and a straight native curve's tiny-interval convergence failure. These are separate from scheduler correctness; no proposed reader/coalescing patch was adopted. Evidence: .local/sp2-tolerance-audit-report.json and the scheduler's pinned reproductions.
