@@ -2456,6 +2456,22 @@
         "call"
       ],
       "evidence": "Public Recipe editor/factory operation for skill-owned manufacturing prerequisites using native identities; no travel policy."
+    },
+    {
+      "contract": "settings-bundle",
+      "target": "core/machine/nozzle.mjs::resolveNozzleGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Select numerical dimensions from the supplied immutable machine/setup; Bundle stores them and Export rejects a mismatched saved schedule."
+    },
+    {
+      "contract": "settings-nozzle-export",
+      "target": "core/machine/nozzle.mjs::resolveNozzleGeometry",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Select numerical dimensions from the supplied immutable machine/setup; Bundle stores them and Export rejects a mismatched saved schedule."
     }
   ],
   "retiredBindings": [

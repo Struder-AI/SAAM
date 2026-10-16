@@ -17432,7 +17432,8 @@
         "selectSettings / settingsDefaults / resolveSettingsPatch",
         "saveSetup",
         "loadBundle / applySettingsSnapshot",
-        "record named extension configuration"
+        "record named extension configuration",
+        "resolveNozzleGeometry"
       ],
       "inputs": "Explicit selection or patch, immutable current Bundle snapshot, and expected revision.",
       "outputs": "Exact selected machine/settings snapshot; accepted Bundle state or stale-revision error.",
@@ -20082,6 +20083,32 @@
         "core/path/README.md",
         "core/path/curve-path.mjs"
       ]
+    },
+    {
+      "id": "settings-nozzle-export",
+      "from": "settings",
+      "to": "export",
+      "label": "selected nozzle dimensions",
+      "direction": "Settings supplies a numerical envelope from the supplied machine/setup snapshot; Export queries it to compare with saved scheduling dimensions.",
+      "operations": [
+        "resolveNozzleGeometry"
+      ],
+      "inputs": "Immutable selected machine profile and recipe material/tool selection.",
+      "outputs": "Included angle, external flat-tip diameter and provenance; a conservative envelope for differing selected tools.",
+      "effects": "Pure resolution over supplied values; no profile lookup, Bundle writes or scheduling.",
+      "failure": "Invalid numerical geometry is rejected; missing geometry uses the labelled generic fallback.",
+      "excludes": "No tool traversal, process geometry, machine motion or silent snapshot updates.",
+      "access": [
+        {
+          "from": "export",
+          "to": "settings"
+        }
+      ],
+      "evidence": [
+        "core/machine/nozzle.mjs::resolveNozzleGeometry",
+        "core/export/prepare-path.mjs::prepareExportPath"
+      ],
+      "status": "Owner-authorized machine-nozzle integration, 2026-10-16."
     }
   ],
   "layout": {
