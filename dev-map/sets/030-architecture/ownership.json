@@ -27554,6 +27554,18 @@
     "skills/text/scripts/text.mjs::compileText::record": {
       "owner": "extensions",
       "reason": "Feature inputs and saved authoring records stay with Extensions; shared construction stays in Geometry."
+    },
+    "core/print/curves.mjs::nativeTraceLayer": {
+      "owner": "trace",
+      "reason": "Trace retains the explicit native Slice reference used to construct its curves."
+    },
+    "core/path/curve-path.mjs::preparedCurves": {
+      "owner": "toolpath",
+      "reason": "Prepared geometry/profile queries stay private behind an opaque cached reader handle."
+    },
+    "core/dimensions.mjs::FLOAT64_EPSILON": {
+      "owner": "geometry-leaf-2047beebf63c",
+      "reason": "Float64 precision scales numerical rounding-error bounds and stable frame calculations."
     }
   },
   "retiredAssignments": [

@@ -21,9 +21,7 @@ SAAM trims the plate at 4.75 mm to keep a web between cells.
 
 ## Verification
 
-`node --test skills/gridfinity/tests/*.test.mjs` covers sections, cavities,
-mating intersections, parameter errors, text composition, assemblies,
-access and the review/export lifecycle in temporary bundles. No physical print is validated. Label ramps, screw holes, scoops,
-half-grid variants and object-shaped insert cutouts are not implemented. The
-only refusal is a subdivision the solid kernel cannot address. Dated checks are
-in the [development record](references/development-record.md).
+[Access checks](tests/access.test.mjs) cover Bundle creation, edits and stale revisions.
+[DEVLOG](../../DEVLOG.md) records native sections/output and composition probes; physical fit is unvalidated.
+Label ramps, screw holes, scoops, half-grid variants and object-shaped cutouts remain unimplemented.
+Construction/recovery follows [shared Geometry](../../core/geom/README.md#native-boolean-construction).

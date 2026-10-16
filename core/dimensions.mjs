@@ -26,6 +26,8 @@ export const ROUNDING_MM = PRINT_RESOLUTION_MM / 1000;
 // The same guard for dimensionless quantities (cosines, unit vectors, fractions of
 // a span): a rounding guard across the build scale.
 export const ROUNDING_RELATIVE = ROUNDING_MM / BUILD_SCALE_MM;
+// Float64 spacing at unity; numerical error estimates scale it by operation count.
+export const FLOAT64_EPSILON = Number.EPSILON;
 
 // Fine program/geometry resolution: filament length and internal construction
 // keep five decimals (1e-5 mm). Written XYZ commands use their approved coarser

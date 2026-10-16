@@ -122,8 +122,9 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
+    const native=nativeTraceLayer(active,{assignment,sourceLayer,referenceStack,references,index});
     const spec={key:sourceLayer?.key??assignment.repetitionIds?.[repetition]??repetition,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
-      ...(sourceLayer?.layerId?{layerId:sourceLayer.layerId}:{}),
+      ...(native??{}),
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
@@ -135,6 +136,17 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
   const noted=notes.length?{notes}:{};
   if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',repetitions:count,...noted}},parts);
   return traceResult(assignment,{batches,process,sequential:false,report:{construction:'curves',repetitions:count,...noted}});
+}
+
+// Trace retains an explicitly referenced Slice identity, never one inferred by height.
+function nativeTraceLayer(curves,{assignment,sourceLayer,referenceStack,references,index}){
+  if(sourceLayer?.slice)return {slice:sourceLayer.slice,stackId:sourceLayer.stackId,ownershipIndex:sourceLayer.index};
+  const refs=curves.map(curve=>curve.uv?.reference);
+  if(!refs.length||!refs.every(ref=>ref?.kind==='slice'))return null;
+  const first=refs[0],layerIndex=first.index??index;
+  if(!refs.every(ref=>ref.assignment===first.assignment&&(ref.index??index)===layerIndex))return null;
+  const stack=referenceStack??references['slice:'+first.assignment],layer=stack?.layers.find(layer=>layer.index===layerIndex);
+  return layer?{slice:layer.slice,stackId:stack.stackId??first.assignment,ownershipIndex:layerIndex}:null;
 }
 
 // Authored and skill-mapped centerlines share bead calculation, joining,
@@ -182,7 +194,7 @@ export function depositionReferences(shells,results){
     if(!referenceStack?.layers?.length)continue;
     const owner=result.report?.owner??result.id;
     const existing=references[`slice:${result.id}`];
-    const combined=existing?{...referenceStack,layers:[...existing.layers,...referenceStack.layers]}:referenceStack;
+    const combined={...referenceStack,stackId:result.stackId??referenceStack.stackId??result.id,layers:existing?[...existing.layers,...referenceStack.layers]:referenceStack.layers};
     references[`slice:${result.id}`]=combined;
     references[`sleeve:${result.id}`]=combined;
     if(!result.stackId||result.stackId===owner){

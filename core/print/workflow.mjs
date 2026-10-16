@@ -1,7 +1,7 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
-import {saamPathText,joinSaamPath} from '../path/saampath.mjs';
+import {saamPath,saamPathText,joinSaamPath} from '../path/saampath.mjs';
 import {pathSummary} from '../path/curve-path.mjs';
 import {schedulePath} from '../path/schedule.mjs';
 import {completedOutputState} from './review-state.mjs';
@@ -512,9 +512,8 @@ async function prepareToolpath(state,{onProgress,source}={}){
       return {path,artifact:saved};
     }
     if(source.missing)throw source.missing;
-    const constructed=await generatePath(state.plan,{onProgress});
     const id=randomUUID(),file=`paths/${id}.json`;
-    await save(resolve(state.dir,file),saamPathText(constructed));
+    await save(resolve(state.dir,file),saamPathText(await generatePath(state.plan,{onProgress})));
     const stored=await readPathArtifact(state.dir,{file});
     const scheduleFile=`paths/${id}.schedule.json`;
     onProgress?.({stage:'Scheduling saved deposition'});
@@ -530,7 +529,10 @@ async function prepareToolpath(state,{onProgress,source}={}){
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
 }
 
-async function readPathArtifact(dir,artifact){return JSON.parse(await readFile(resolve(dir,artifact.file)));}
+async function readPathArtifact(dir,artifact){
+  const path=JSON.parse(await readFile(resolve(dir,artifact.file)));
+  return path.schema==='saampath/2'?saamPath(path):path;
+}
 async function readMotionArtifact(dir,artifact){
   if(!artifact.scheduleFile)return JSON.parse(await readFile(resolve(dir,artifact.motionFile??artifact.file)));
   const deposition=await readPathArtifact(dir,artifact),schedule=JSON.parse(await readFile(resolve(dir,artifact.scheduleFile)));

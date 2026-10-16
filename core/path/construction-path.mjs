@@ -77,7 +77,7 @@ export function constructionPath({results,planning,composition,summary,generator
   }
   function layerId(result,operation){
     if(!operation.slice)return null;
-    const stackId=result.stackId??result.id,index=operation.ownershipIndex??operation.layer;
+    const stackId=operation.stackId??result.stackId??result.id,index=operation.ownershipIndex??operation.layer;
     const reference=surfaceReferenceRecord(operation.slice),id=stackId+':layer:'+index,key=JSON.stringify(reference);
     const surfaceId=surfaceIds.get(key)??'surface:'+surfaceIds.size;
     if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}

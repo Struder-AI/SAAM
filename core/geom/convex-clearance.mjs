@@ -376,11 +376,11 @@ export function rectangularSection(point,tangent,referenceNormal,radius,depth){
 }
 
 export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCone,normalCone,radius,depth}){
-  const chord=subtract(to,from),size=length(chord),tangent=size>ROUNDING_MM?scale(chord,1/size):tangentCone.axis;
+  const chord=subtract(to,from),size=length(chord),tangent=tangentCone.halfAngleRad===0?tangentCone.axis:size>ROUNDING_MM?scale(chord,1/size):tangentCone.axis;
   const frame=sectionFrame(tangent,normalCone.axis),extent=radius[1]+depth[1];
   if(!frame){
     const box={vertices:Array.from({length:8},(_,mask)=>bounds.min.map((value,k)=>(mask&(1<<k)?bounds.max[k]+extent:value-extent)))};
-    return {shape:box,frame:null,errorMm:extent,exact:false};
+    return {shape:box,frame:null,normalError:2,sideError:2,errorMm:extent,exact:false};
   }
   const tangentError=Math.min(2,length(subtract(tangent,tangentCone.axis))+2*Math.sin(tangentCone.halfAngleRad/2));
   const referenceError=2*Math.sin(normalCone.halfAngleRad/2);
@@ -391,7 +391,7 @@ export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCon
   const margin=chordErrorMm+radius[1]*sideError+depth[1]*normalError;
   const body={a:from,b:to,side:frame.side,normal:frame.normal,radius:radius[1],depth:depth[1]};
   const exact=margin===0&&radius[0]===radius[1]&&depth[0]===depth[1];
-  return {shape:margin?{parts:[body],margin}:body,frame,
+  return {shape:margin?{parts:[body],margin}:body,frame,normalError,sideError,
     errorMm:margin+radius[1]-radius[0]+depth[1]-depth[0],exact};
 }
 

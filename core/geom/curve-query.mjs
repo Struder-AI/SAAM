@@ -5,7 +5,7 @@ import {extract} from './curve-ops.mjs';
 import {bernsteinProductWeights} from './bezier-net.mjs';
 import {distance,requireThat} from './tolerance.mjs';
 import {dot,cross,unitDirection} from './frame.mjs';
-import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_RELATIVE,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 const xyz=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 export function prepareNumericalCurve(geometry){
@@ -62,7 +62,7 @@ function nativePiece(curve,from,to){
   const numeratorLow=Math.hypot(...low.map((v,k)=>v>0?v:high[k]<0?-high[k]:0));
   const numeratorHigh=Math.max(...coefficients.map(c=>Math.hypot(...c)));
   // Floating arithmetic guard, capped beneath the functional rounding class.
-  const rounding=Math.min(ROUNDING_RELATIVE,Number.EPSILON*16*piece.order**3)*Math.max(1,...points.flat().map(Math.abs));
+  const rounding=Math.min(ROUNDING_RELATIVE,FLOAT64_EPSILON*16*piece.order**3)*Math.max(1,...points.flat().map(Math.abs));
   const minWeight=Math.min(...weights),maxWeight=Math.max(...weights);
   const localSpeed=[Math.max(0,numeratorLow/maxWeight**2-rounding),numeratorHigh/minWeight**2+rounding];
   // Positive rational Bezier curves are variation diminishing: their arc
@@ -127,12 +127,12 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
 function combinedCones(cones){
   const regular=cones.filter(Boolean);if(!regular.length)return null;
   const axis=regular[0].axis,state={angle:0};
-  for(const cone of regular)state.angle=Math.max(state.angle,Math.acos(Math.max(-1,Math.min(1,dot(axis,cone.axis))))+cone.halfAngleRad);
+  for(const cone of regular)state.angle=Math.max(state.angle,Math.atan2(Math.hypot(...cross(axis,cone.axis)),dot(axis,cone.axis))+cone.halfAngleRad);
   return {axis,halfAngleRad:Math.min(Math.PI,state.angle)};
 }
 export function normalCone(values){
   const norm=Math.hypot(...values[0]),axis=values[0].map(v=>v/norm);
-  const angle=values.reduce((maximum,v)=>Math.max(maximum,Math.acos(Math.max(-1,Math.min(1,dot(axis,v)/Math.hypot(...v))))),0);
+  const angle=values.reduce((maximum,v)=>Math.max(maximum,Math.atan2(Math.hypot(...cross(axis,v)),dot(axis,v))),0);
   const bounded=angle===0?0:angle+ROUNDING_RELATIVE;
   return {axis,halfAngleRad:bounded>=Math.PI/2?Math.PI:bounded};
 }
@@ -141,10 +141,12 @@ export function frameCone(values){
   const state={angle:0};
   for(const value of values){
     const to=[value.toolAxis,value.toolUp,cross(value.toolAxis,value.toolUp)];
-    const angle=Math.acos(Math.max(-1,Math.min(1,(from.reduce((sum,v,i)=>sum+dot(v,to[i]),0)-1)/2)));
+    const skew=from.reduce((sum,v,i)=>sum.map((value,k)=>value+cross(v,to[i])[k]),[0,0,0]);
+    const angle=Math.atan2(Math.hypot(...skew)/2,Math.max(-1,Math.min(1,(from.reduce((sum,v,i)=>sum+dot(v,to[i]),0)-1)/2)));
     state.angle=Math.max(state.angle,angle);
   }
   // A geodesic ball of radius < pi/2 in SO(3) is convex. Larger endpoint
   // deviations require the complete group bound, including possible roll.
-  return {reference,halfAngleRad:state.angle>=Math.PI/2?Math.PI:state.angle};
+  const bounded=state.angle===0?0:state.angle+ROUNDING_RELATIVE;
+  return {reference,halfAngleRad:bounded>=Math.PI/2?Math.PI:bounded};
 }

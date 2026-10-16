@@ -30,6 +30,7 @@ export function* pathActions(view,options=PATH_VIEW_TOLERANCES){
 
 const positive=value=>Number.isFinite(value)&&value>0;
 const preparedTables=new WeakMap();
+const preparedCurves=new WeakMap();
 const rangeValid=(from,to)=>Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&to<=1&&from<to;
 const finiteNonnegative=value=>requireThat(Number.isFinite(value)&&value>=0,'Material must be finite and nonnegative.');
 function prepareCurve(curve){
@@ -65,9 +66,10 @@ export function prepareCurvePath({curves}){
   if(Object.isFrozen(curves)&&preparedTables.has(curves))return preparedTables.get(curves);
   const prepared=new Map();
   for(const [id,curve] of Object.entries(curves)){requireThat(id.length>0,'Empty curve ID.');prepared.set(id,prepareCurve(curve));}
-  const handle={curves:prepared};if(Object.isFrozen(curves))preparedTables.set(curves,handle);return handle;
+  const handle=Object.freeze({});preparedCurves.set(handle,prepared);
+  if(Object.isFrozen(curves))preparedTables.set(curves,handle);return handle;
 }
-function selected(handle,id){const curve=handle.curves.get(id);requireThat(curve,'Unknown curve: '+id);return curve;}
+function selected(handle,id){const curve=preparedCurves.get(handle)?.get(id);requireThat(curve,'Unknown curve: '+id);return curve;}
 function cumulativeAt(material,u,side='right'){return profileAt({interpolation:'linear',knots:material.knots},u,side);}
 function density(curve,u,side,speed){
   const material=curve.profiles.material;if(!material)return undefined;

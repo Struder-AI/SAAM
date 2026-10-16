@@ -112,6 +112,6 @@ export function constructDepositionResults(args,contexts){
       layers:parts.filter(part=>part.report.skippedLayer===undefined).length,skippedLayers:parts.filter(part=>part.report.skippedLayer!==undefined).length,strokes:parts.reduce((sum,part)=>sum+(part.report.strokes??0),0),lengthMm:parts.reduce((sum,part)=>sum+(part.report.lengthMm??0),0),volumeMm3:parts.reduce((sum,part)=>sum+(part.report.volumeMm3??0),0),
       notes:parts.flatMap(part=>part.report.notes??[]),layerReports:parts.map(part=>part.report)}},parts));
   }
-  const resultLayers=new Set(results.flatMap(result=>result.operations.map(op=>op.layerId)));
+  const resultLayers=new Set(results.flatMap(result=>result.operations.map(op=>op.layerId)).filter(id=>id!==null&&id!==undefined));
   return {results,summary:{layers:resultLayers.size,instances:results.map(result=>({id:result.id,...result.report}))}};
 }

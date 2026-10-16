@@ -24,7 +24,8 @@ export function depositCurveBatches({id,batches,process,after=[],filament=null,s
     const materialGeometry=travel.kind==='planar'||planar?{kind:'planar',loops:region,zMm:travel.zMm??top,maxZ:travel.zMm??top,lineWidthMm:inferred?width:batch.widthMm??process.lineWidthMm,
       ...(inferred?{coverage:'bounds'}:{}),...(travel.maxCombMm===undefined?{}:{maxCombMm:travel.maxCombMm})}:
       {kind:'bounds',maxZ:top,...(travel.clearanceZ===undefined?{}:{approachZ:travel.clearanceZ}),...(travel.poseJoinMm===undefined?{}:{poseJoinMm:travel.poseJoinMm}),...(travel.constant?{constant:true}:{})};
-    operations.push({id:operationId,layerId:batch.layerId??(planar?`planar:${top}`:operationId),phase:batch.phase??(planar?'planar':'curves'),layer:batch.layer??index,rank:batch.rank??index,
+    operations.push({id:operationId,layerId:batch.slice?`${batch.stackId??id}:layer:${batch.ownershipIndex??batch.layer??index}`:null,
+      ...(batch.slice?{slice:batch.slice,stackId:batch.stackId??id,ownershipIndex:batch.ownershipIndex??batch.layer??index}:{}),phase:batch.phase??(planar?'planar':'curves'),layer:batch.layer??index,rank:batch.rank??index,
       after:[...new Set([...previous,...(batch.after??[])])],strokes,order:batch.order??'given',...(batch.join?{continuous:joined.continuous}:{}),
       ...(batch.connectNearby===undefined?{}:{connectNearby:batch.connectNearby}),...(batch.regionId===undefined?{}:{regionId:batch.regionId}),
       ...(batch.layerIndex===undefined?{}:{layerIndex:batch.layerIndex}),...(batch.layerCount===undefined?{}:{layerCount:batch.layerCount}),

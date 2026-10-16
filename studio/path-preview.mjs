@@ -20,7 +20,7 @@ const UPRIGHT={toolAxis:[0,0,-1],toolUp:[0,1,0]};
 export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
   if(!Array.isArray(pathInitialPosition(path))||!(path?.deposition&&path.schedule||['saampath/1','saam-export-prepared/1'].includes(path?.schema)&&path.actions))throw Error('Invalid saved SAAMpath.');
   const width=(action,filament)=>action.beadWidthMm??action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??NaN;
-  const metadata=pathSummary(path)?.inspection??inspection;
+  const metadata=pathSummary(path)?.inspection??inspection,nativeLayers=path.deposition?.layers;
   const events=[];let position=pathInitialPosition(path),pose=pathInitialPose(path)??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
   const posed=Boolean(pose)||Boolean(path.deposition)||Array.isArray(path.actions)&&path.actions.some(a=>a.pose);
   for(const {action,context,index:line} of contextualActions(path)){
@@ -32,10 +32,10 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     // run its own display identity rather than infer ownership from its name.
     const key=JSON.stringify([context.phase,context.operation,context.layer]);
     if(key!==legacyKey){legacyKey=key;legacyRun++;}
-    const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer];
+    const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer],native=nativeLayers?.[context.layerId];
     const from=pose??UPRIGHT,next=action.kind==='extrude'?from:action.pose??UPRIGHT;
     const row={line:line+1,phase:context.phase,layer:context.layer,layerId:context.layerId??null,legacyRun,operation:context.operation??'',
-      sliceStack:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length,
+      sliceStack:(nativeLayers?native?.stackId:info?.family)??null,sliceIndex:(nativeLayers?native?.index:layer?.index)??null,modulated:!!info?.modifiers?.length,
       fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time,
       ...(posed?{toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp}:{}),
       surfaceNormal:action.surfaceNormal??[0,0,0],beadHeightMm:action.beadHeightMm??NaN};

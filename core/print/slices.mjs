@@ -1,6 +1,5 @@
 // Slice constructs deposition from one prepared region/surface/gap description.
 // Neither curvature, wrapping nor consumer names select a different pipeline.
-import {sliceKey} from '../geom/slice.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {measureSurfaceRegion} from '../geom/surface-region-measure.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
@@ -17,7 +16,7 @@ function evaluateRegionBatch({id,reference,strokes,gap,speedMmS,process,filament
   return depositCurveBatches({id,batches:[{key:0,curves,speedMmS}],process,filament,sequential:false})[0];
 }
 
-function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
+function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
   const width=process.lineWidthMm,operations=[],stackLayers=[];
   const report={depositionFamily:'slice',layers:0,skippedLayers:0,areaMm2:0,loops:0,fillRows:0,solidAreaMm2:0,...extra};
   for(const layer of layers){
@@ -45,7 +44,7 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
       const lifted=deposited.strokes,heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planar=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
       const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;
       let covered;
-      operations.push({...deposited,id:opId,layerId:planar?'planar:'+top:'slice:'+sliceKey(slice),phase:planar?'planar':'curves',layer:index,rank:top,
+      operations.push({...deposited,id:opId,layerId:stackId+':layer:'+index,stackId,phase:planar?'planar':'curves',layer:index,rank:top,
         after:[],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
         stackDirection:layer.direction??null,...(s.continuous?{continuous:true,regionId:id+':'+index}:{}),
         order:s.order??(group==='walls'?(lifted.every(stroke=>stroke.closed&&!stroke.volumesMm3)?'nearest':'given'):lifted.every(stroke=>stroke.scanlineCell!==undefined)?'nearest-cells':'given'),
@@ -79,6 +78,6 @@ export function fillSliceRegion(region,{source,angleDeg=null,role='fill'}={}){
 export function sliceContextResult(record,{layerIndex=null}={}){
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
-  const result=sliceResult({...record.spec,layers},record.context);
+  const result=sliceResult({...record.spec,stackId:record.stackId??record.spec.id,layers},record.context);
   return {...result,referenceStack:{...record.referenceStack,layers:result.stackLayers},stackId:record.stackId};
 }

@@ -12,7 +12,7 @@ export async function editGridfinity(source,parameters,{part,compileText,...Geom
   requireThat(parameters&&typeof parameters==='object'&&!Array.isArray(parameters),'Gridfinity parameters must be an object.');
   const bin=await compileGridfinity(editedGridfinityParameters(original.parameters,parameters),Geometry);
   if(text)requireThat(typeof compileText==='function','Gridfinity text needs the selected text extension compiler.');
-  const lettered=text?await compileText(bin.geometry,text.features,{...Geometry,toleranceMm:text.toleranceMm,maxEdgeMm:text.maxEdgeMm}):null;
+  const lettered=text?await compileText(bin.geometry,text.features,{...Geometry,standalone:text.standalone??false,toleranceMm:text.toleranceMm,maxEdgeMm:text.maxEdgeMm}):null;
   owner.geometry=lettered?lettered.geometry:bin.geometry;
   const notes=[...bin.notes,...(lettered?.notes??[])];
   return {geometry:plan.geometry,...(notes.length?{report:{notes}}:{})};

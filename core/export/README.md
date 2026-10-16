@@ -44,7 +44,7 @@ SAAMpath generation validates authored geometry and process values independently
 of machine capabilities. Machine profiles supply authoring defaults. They do not
 filter skills, reject tool poses or synthesize poses from the selected machine.
 Slice optionally derives upright orientation (default) or its surface normal; FIELD
-can vary either enabled output. Missing orientation implies ordinary print-Z alignment.
+can vary either enabled output. Toolpath publishes every full pose explicitly.
 
 [Export preparation](./prepare-path.mjs) adds installation startup and priming,
 material-change clearance and axis-feed limits without mutating the authored path.

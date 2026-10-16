@@ -14,9 +14,9 @@ with the source record and current plan revision beside the reviewed program.
 
 Studio's Export click confirms displayed settings and exact checked bytes once.
 Bundle retains one completed output with its immutable recipe, machine, geometry
-and SAAMpath snapshot. Toolpath supplies finalized deposition operations and their
-prerequisites. Bundle saves that graph before Scheduling reads it and writes the
-associated motion artifact; both share one path identity and guarded manifest commit. Any edit keeps it visible and exportable with its original
+and SAAMpath snapshot. Bundle saves Toolpath's immutable source before Scheduling
+references its ranges; source and execution share one path identity and guarded
+manifest commit. Any edit keeps it visible and exportable with its original
 settings and machine, marked as the previous toolpath; a saved SAAMpath without one
 stays visible the same way. Only regeneration dims it and blocks export;
 failure/cancel restores it. Agent activity never gates it.
@@ -152,8 +152,8 @@ Prints/<name>/
   plan.json                         # atomic plan + bundle manifest
   geometry/<geometry-id>.3dm        # spline native data only
   geometry/<geometry-id>.descriptor.json # source snapshot shared by history
-  paths/<path-id>.json               # constructed SAAMpath operation graph
-  paths/<path-id>.motion.json        # downstream scheduled motion
+  paths/<path-id>.json               # immutable curve/profile source
+  paths/<path-id>.schedule.json      # execution references and checked transfers
   history/<record-id>.json           # immutable component/history records
   exports/<output>/<output-id>-<name>
   delivery/part.gcode
@@ -175,11 +175,9 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
   header, start and end templates; these are part of the locked machine snapshot.
-- `saampath/1`: constructed deposition operations with `after` prerequisites and
-  material geometry data, or scheduled neutral actions. `readConstructedPath` reads
-  the graph; `readDrawnPath` reads its motion. Earlier linear paths remain readable.
-  Moves use absolute XYZ mm, speed mm/s and deposited volume mm³; retraction uses
-  filament mm. Phase/layer labels describe moves without determining geometry.
+- `saampath/2` source and `saam-schedule/1` execution follow [SP2](../path/README.md).
+  `readConstructedPath` reads source; `readDrawnPath` joins its exact schedule.
+  Earlier saved actions use the shared reader's compatibility branch.
 - `saam-review/1`: the manifest's history, path and
   generation records and a small generation summary for display (never
   playback geometry). Its generation record owns `saam-checks/1` software

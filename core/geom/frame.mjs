@@ -1,5 +1,5 @@
 import {add,subtract,scale,dot,cross,length,requireThat} from './tolerance.mjs';
-import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
+import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM,ROUNDING_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 export {add,subtract,scale,dot,cross,length} from './tolerance.mjs';
 export const innerProduct=(a,b)=>a.reduce((sum,value,i)=>sum+value*b[i],0);
 
@@ -37,7 +37,7 @@ export function interpolateDirectionPair(a,b,t){
     (matrix[i][principal]+matrix[principal][i])/(4*Math.sqrt(Math.max(0,(matrix[principal][principal]+1)/2))));
   // Small authored rotations remain continuous even below print resolution.
   // Near a half turn use the symmetric matrix; elsewhere the skew is stable.
-  const seed=cosine<0&&sine<Math.sqrt(Number.EPSILON)?halfTurn:skew;
+  const seed=cosine<0&&sine<Math.sqrt(FLOAT64_EPSILON)?halfTurn:skew;
   const norm=length(seed),axis=seed.map(value=>value/norm),c=Math.cos(angle*t),s=Math.sin(angle*t);
   return a.map(v=>add(add(scale(v,c),scale(cross(axis,v),s)),scale(axis,dot(axis,v)*(1-c))));
 }

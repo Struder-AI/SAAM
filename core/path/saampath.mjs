@@ -15,9 +15,9 @@ function freeze(value){
 export function saamPath(input){
   if(paths.has(input))return input;
   requireThat(input?.schema==='saampath/2'||input?.schema==='saam-schedule/1','New paths require compact source or execution.');
-  const copy=serializableSource(input);
+  const copy=freeze(serializableSource(input));
   if(copy.schema==='saampath/2')admitSource(copy);else admitSchedule(copy);
-  const path=freeze(copy);paths.add(path);return path;
+  paths.add(copy);return copy;
 }
 // Exact source parameters and profile values survive JSON; no admission rounding.
 export const saamPathText=input=>JSON.stringify(saamPath(input));

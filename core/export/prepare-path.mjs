@@ -129,10 +129,9 @@ function* adaptedActions({path,plan,machine,bounds,start,block,oriented,geometry
       motion.travel(cursor.neutralFrom);cursor.relocating=false;
     }
     if(original.kind==='move'){
-      // Rounding guard: a neutral move of zero length within rounding is no move.
+      // The writer carries material when XYZ quantization collapses a deposit.
       if(original.volumeMm3>0&&distance(motion.position,cursor.neutralFrom)>ROUNDING_MM)motion.travel(cursor.neutralFrom);
-      // A deposition move of zero length is not written either.
-      if(distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){cursor.neutralFrom=original.to;continue;}
+      if(original.volumeMm3===0&&distance(motion.position,original.to)<ROUNDING_MM&&!(oriented&&original.pose)){cursor.neutralFrom=original.to;continue;}
       motion.position=[...original.to];motion.pose=original.pose??null;
       if(original.volumeMm3>0)motion.depositedMaxZ=Math.max(motion.depositedMaxZ,cursor.neutralFrom[2],original.to[2]);
       cursor.neutralFrom=original.to;

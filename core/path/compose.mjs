@@ -1,49 +1,12 @@
-import {curveAt} from './curve-path.mjs';
+// Source operations enter once as compact curves; execution refers to ranges.
+import {requireThat} from '../private/toolpath/numeric.mjs';
+import {curveAt,prepareCurvePath} from './curve-path.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
-import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {orderSliceCourses} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
-export {orderReadyOperations} from './course-order.mjs';
-import {depositionCourses,physicalOrdering,refineCourseStrokes,prepareRangeScene} from './physical-order.mjs';
-// Skill results describe deposition operations. The composer advances explicit
-// planning state through scheduled operations and returns action chunks.
-
-import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
+import {prepareRangeScene} from './physical-order.mjs';
+import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,
   planExtrusion,planDwell,planLayerCooling,planSelection,planProcess,planDepositRange} from './planning.mjs';
-
-// Schedule once, then advance explicit motion state through operations. Layer and
-// obstacle ledgers are local scheduling work, never shared builder state.
-export function planComposition(initialState,skillResults,rules={},onProgress) {
-  const resolved=resolveOperationOrder(skillResults,rules,{onProgress,start:initialState.position});
-  const operations=resolved.operations.map(op=>{
-    const layerId=initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
-    return {...op,layerId};
-  });
-  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set(),withinGroups:new Set(),groupPrefixes:new Map()};
-  const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),layers=new Set();
-  const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
-  let state=initialState,completed=0,last=null;
-  onProgress?.({stage:'Planning print moves',completed,total:operations.length});
-  for(const op of operations){
-    if(last&&last.layerId!==op.layerId&&!last.continuous){
-      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);
-      state=cooling.state;actions.add(cooling.actions);paid.set(last.layerId,(paid.get(last.layerId)??0)+(cooling.coolingSeconds??0));
-    }
-    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{nozzleScene,layerSeconds:elapsed.get(op.layerId)??0});
-    state=planned.state;actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layers.add(op.layerId);last=op;
-    onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
-  }
-  if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);state=cooled.state;actions.add(cooled.actions);}
-  return planningResult({...state,operationId:undefined},actions.finish(),{nozzleScene,summary:{operationOrder:operations.map(op=>op.id),layers:layers.size,
-    hierarchy:resolved.hierarchy,physicalOrdering:{substrateDependencies:resolved.physical.substrateDependencies,nozzleDependencies:resolved.physical.nozzleDependencies,materialDependencies:resolved.physical.materialDependencies,
-      nozzle:'Effectively infinite sharp cone; 15 degree included angle; carriage unchecked.'}}});
-}
-
-export function planOperation(initialState,op,options={}) {
-  const entered=planOperationEntry(initialState,op,options);
-  const deposited=planPreparedOperation(entered.state,op,options);
-  return planningResult(deposited.state,{chunks:[entered.actions,deposited.actions]},{operationSeconds:deposited.operationSeconds});
-}
 
 export function planOperationEntry(initialState,op,{layerSeconds=0,nozzleScene}={}) {
   const contextual=planContext({...initialState,layerSeconds,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
@@ -53,129 +16,17 @@ export function planOperationEntry(initialState,op,{layerSeconds=0,nozzleScene}=
   return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
 }
 
-// The caller has already applied selection, temperature and parking actions.
-export function planPreparedOperation(initialState,op,{nozzleScene,finishLayer=false}={}) {
-  const strokes=op.strokes;
-  const actions=new ActionAccumulator();
-  let state=initialState;
-  for(const stroke of strokes){
-    const approached=planStrokeApproach(state,stroke,op,nozzleScene);
-    const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
-    state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);
-    for(const point of stroke.points)for(const i of nozzleScene.byStart.get(point)??[])if(nozzleScene.beads[i].operationId===op.id){
-      nozzleScene.occupied.add(i);nozzleScene.groupPrefixes.set(op.id,Math.max(nozzleScene.groupPrefixes.get(op.id)??-1,i));}
-    if(!nozzleScene.withinGroups.has(op.id))nozzleScene.withinGroups=new Set([...nozzleScene.withinGroups,op.id]);
-  }
-  const restored=planOperationEnd(state,op,nozzleScene),operationSeconds=restored.state.layerSeconds;
-  const cooled=finishLayer?planLayerCooling(restored.state,nozzleScene):planningResult(restored.state);
-  actions.add(restored.actions);actions.add(cooled.actions);
-  return planningResult(planProcess(cooled.state).state,actions.finish(),{operationSeconds});
-}
-
 export function planOperationStart(state,op,nozzleScene) {
   const fan=op.fanPercent!==undefined?planFan(state,op.fanPercent):planningResult(state);
-  if(op.nozzleC===undefined)return fan;
+  if(op.nozzleC===undefined||fan.state.nozzleC===op.nozzleC)return fan;
   const parked=planPark(fan.state,nozzleScene),heated=planNozzle(parked.state,op.nozzleC);
   return planningResult(heated.state,{chunks:[fan.actions,parked.actions,heated.actions]});
 }
 
 export function planOperationEnd(state,op,nozzleScene) {
-  if(op.nozzleC===undefined)return planningResult(state);
+  if(op.nozzleC===undefined||state.nozzleC===op.restoreNozzleC)return planningResult(state);
   const parked=planPark(state,nozzleScene),restored=planNozzle(parked.state,op.restoreNozzleC);
   return planningResult(restored.state,{chunks:[parked.actions,restored.actions]});
-}
-
-function segmentExtras(stroke,op,index) {
-  return {role:stroke.role,...(stroke.poses?{pose:stroke.poses[index+1]}:{}),
-    ...(stroke.beadWidthMm!==undefined?{beadWidthMm:stroke.beadWidthMm}:{}),
-    ...(stroke.beadHeightMm!==undefined?{beadHeightMm:stroke.beadHeightMm}:{}),
-    ...(op.regionId?{region:op.regionId}:{}),...(stroke.segmentMetadata?.[index]??{})};
-}
-
-export function planStrokeApproach(state,stroke,op,nozzleScene) {
-  requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
-  requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
-  // Depositing connections are explicit finalized strokes, never late material.
-  const travel=planTravel(state,stroke.points[0],nozzleScene,stroke.poses?.[0]);
-  return planningResult(travel.state,travel.actions,
-    {connected:false,travelKind:travel.travelKind});
-}
-
-export function planStrokeDeposition(initialState,stroke,op) {
-  const actions=new ActionAccumulator();
-  let state=initialState;
-  if(stroke.stationaryExtrusion){
-    requireThat(stroke.points.length===1&&!stroke.closed,'Stationary extrusion needs one point.');
-    const extruded=planExtrusion(state,stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
-    const holdSeconds=stroke.stationaryExtrusion.holdSeconds??0,held=planDwell(extruded.state,holdSeconds);
-    state={...held.state,layerSeconds:held.state.layerSeconds+holdSeconds};actions.add(extruded.actions);actions.add(held.actions);
-  }
-  for(let i=1;i<stroke.points.length;i++){
-    const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
-    requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
-    const speed=stroke.segmentMetadata?.[i-1]?.speedMmS??stroke.speedMmS;
-    requireThat(Number.isFinite(speed),'Invalid operation deposition speed.');
-    const moved=planMove(state,stroke.points[i],speed,volume,segmentExtras(stroke,op,i-1));
-    state=moved.state;actions.add(moved.actions);
-  }
-  return planningResult(state,actions.finish());
-}
-
-export function scheduleOperations(skillResults,rules={}) {
-  return resolveOperationOrder(skillResults,rules).operations;
-}
-
-function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
-  const batch=validateOperationBatch(skillResults);
-  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set(),splitStrokes=new Map();
-  const declaredBefore=precedenceLookup(batch.operations.map(operation=>operation.id),
-    [...declared].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
-  for(;;){
-    const partition=depositionCourses(batch.operations,{splitConnectors,splitStrokes});
-    try{return solveCourseOrder(batch,declared,partition,{onProgress,start});}
-    catch(error){
-      if(!['PRINT_ORDER_CONFLICT','CONTINUOUS_NOZZLE_CONFLICT'].includes(error.code))throw error;
-      // An authored prerequisite requires the entire source operation first.
-      // Subdividing either unchanged path cannot remove a witnessed nozzle hit
-      // against that material; reject this contradiction without grid refinement.
-      const sourceOf=new Map(partition.courses.map(course=>[course.id,course.sourceOperation]));
-      if(declaredBefore.cyclic||error.physicalDependencies?.some(edge=>edge.kind==='nozzle-access'&&
-        declaredBefore.has(sourceOf.get(edge.after),sourceOf.get(edge.before))))throw error;
-      const affected=new Set(error.refinementCourses??error.operations??[error.operation]);
-      const refinable=partition.courses.filter(course=>affected.has(course.id)&&!splitConnectors.has(course.sourceOperation)&&
-        course.strokes.length>1&&!course.continuous&&!course.strokes.some(stroke=>stroke.stationaryExtrusion));
-      if(!refinable.length){
-        if(!refineCourseStrokes(partition,affected,splitStrokes))throw error;
-        onProgress?.({stage:'Refining interruptible strokes',completed:splitStrokes.size,total:batch.operations.reduce((count,operation)=>count+operation.strokes.length,0)});continue;
-      }
-      for(const course of refinable)splitConnectors.add(course.sourceOperation);
-      onProgress?.({stage:'Refining interruptible connections',completed:splitConnectors.size,total:batch.operations.length});
-    }
-  }
-}
-
-function solveCourseOrder(batch,declared,{courses,groups,sequence},{onProgress,start}){
-  const prerequisites=new Map(courses.map(course=>[course.id,new Set([...declared.get(course.sourceOperation)].flatMap(id=>groups.get(id)))]));
-  for(const edge of sequence)prerequisites.get(edge.after).add(edge.before);
-  const physical=physicalOrdering(courses,{onProgress,prerequisites});
-  for(const edge of physical.edges)prerequisites.get(edge.after).add(edge.before);
-  const priorityById=prepareOperationPriorities(courses,batch.resultIndex);
-  const ordered=orderSliceCourses(courses,priorityById,prerequisites,{start,physicalEdges:[...sequence,...physical.edges]});
-  return {...ordered,physical};
-}
-
-export function validateOperationBatch(skillResults) {
-  const operations = skillResults.flatMap(result => result.operations);
-  const resultIndex = new Map(skillResults.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
-  const byId = new Map();
-  for (const operation of operations) {
-    requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
-    requireThat(typeof operation.layerId === 'string' && operation.layerId && Number.isFinite(operation.rank), 'Operation needs a layer reference and finite scheduling rank.');
-    requireThat(Array.isArray(operation.strokes)&&!operation.travelPolicy,'Operation needs deposition strokes, without runtime travel callbacks.');
-    requireThat(operation.order==='given','Scheduling consumes finalized deposition order.');
-    byId.set(operation.id, operation);
-  }
-  return {operations,resultIndex,byId};
 }
 
 export function prepareOperationPriorities(operations,resultIndex) {
@@ -201,6 +52,7 @@ export function prepareOperationDependencies(operations,byId,{order=[],dependenc
 // Compact-source graph. Whole-operation prerequisites use completion barriers,
 // so an operation with N courses followed by M courses needs O(N+M) edges.
 // Neither polyline vertices nor profile keys create scheduling nodes.
+
 export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
   const operations=Object.values(source.operations),bySource=new Map(operations.map(op=>[op.id,op]));
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
@@ -234,6 +86,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
 
 // Layer order is an initial construction-family choice, not a fixed-height
 // batch. A witnessed conflict releases only the implicated native-layer edge.
+
 function preferNativeLayers(source,graph,relaxed){
   const layers=new Map(),stacks=new Map(),edges=[];
   function barrier(prototype,kind){
@@ -357,11 +210,11 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         if(!cuts.has(id))cuts.set(id,new Set());const values=cuts.get(id);
         if(!values.has(u)){values.add(u);added.push({id,u});}
       }
-      const proposals=witnesses.flatMap(witness=>state.scene.cutsForWitness(witness)).map(proposal=>{
+      const proposals=witnesses.flatMap(witness=>state.scene.cutsForWitness(witness).map(proposal=>({...proposal,material:proposal.courseId===witness.material?.id}))).map(proposal=>{
         const owner=courseOwners.get(proposal.courseId),existing=cuts.get(proposal.courseId);
         const parameters=owner?.operation.interruptible&&owner.course.interruptible?[...new Set(proposal.parameters)].filter(u=>u>owner.course.from&&u<owner.course.to&&!existing?.has(u)):[];
         return {...proposal,parameters};
-      }).filter(proposal=>proposal.parameters.length).sort((a,b)=>a.parameters.length-b.parameters.length);
+      }).filter(proposal=>proposal.parameters.length).sort((a,b)=>a.parameters.length-b.parameters.length||Number(b.material)-Number(a.material));
       if(proposals.length)for(const u of proposals[0].parameters)addCut(proposals[0].courseId,u);
       if(!added.length)for(const witness of witnesses)for(const ref of [witness.receiver,witness.material])if(ref){
         addCut(ref.id,ref.from);addCut(ref.id,ref.to);
@@ -409,4 +262,10 @@ export function planSourceComposition(initialState,source,reader,onProgress){
     summary:{hierarchy:solved.hierarchy,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{substrateDependencies:count('substrate'),nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material'),
         conservativeSupportChoices:solved.edges.filter(edge=>edge.witness?.provisional).length},queries:{...scene.stats}}});
+}
+
+// Ordering-only callers use the same admitted source and solver as scheduling.
+export function scheduleOperations(source,options={}){
+  requireThat(source?.schema==='saampath/2','Operation ordering requires compact constructed SAAMpath.');
+  return resolveSourceOrder(source,prepareCurvePath(source),options).units;
 }
