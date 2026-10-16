@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-16 — Publish the live-trial fixes as SAAM 0.3.10
+
+- Published v0.3.10 at exact source 169ae7cc9fd60b0a1af395fd855356759f44a53b: shared default-schema dispatch, explicit review recovery with stale-edit guards, and consolidated guidance. All three clean-snapshot packages pass builder checks using verified official Node v24.19.0; all seven published digests and tag match. ZIP sizes: Windows 42536646, Apple Silicon 47783789, Intel 49132712 bytes. macOS module checks ran on Windows; no native Mac claim. Evidence: .local/0.3.10-release-evidence.json.
+- Deployed the existing release service (1f0ceef2-64b9-422d-98e3-b9e708db3471) and authenticated the exact three-platform offer. Installed application remains 0.3.9 to preserve the owner's open reviews; Studio Update is the supported next installation step. Boolean/overlap/native-curve maker trials and explicit command handbacks passed. Automatic native turn-end/wakeup awaits a full Codex restart to load the registered adapter; current client has zero native connections. Warm/cold map solving continues with analysis omissions disclosed. This chat owns remaining verification, with no Make scheduler coordination. No whole suite, permanent test or physical machine action.
+
 ## 2026-10-16 — Run the actual maker/Studio experience
 
 - Supported Update installed 0.3.9/contract3; three maker agents exercised public commands and actual Studios. The native Boolean ring/radial-bore and overlapping two-material joint generate checked outputs on installed code, then preserve geometry across 0.25 mm layer and 4→6 mm overlap edits. Browser capture records review→working→updated review; exact-output presentation and advisory handbacks settle, with no page errors. Their existing default-browser review windows are now attached to this parent chat. No export/hardware action.
