@@ -2,9 +2,9 @@
 // Geometry owns numerical section, convex-volume and continuous-sweep operations.
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
 import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM,
-  convexBounds,convexBox,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
+  convexBounds,convexBox,nozzleBoundsClear,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
   nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
-import {add,scale,dot,subtract,length,requireThat} from '../geom/tolerance.mjs';
+import {add,scale,dot,cross,subtract,length,requireThat} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {frameCone} from '../geom/curve-query.mjs';
 
@@ -77,7 +77,7 @@ function graphNozzleProofs(source,reader,rangeOf){
   }
   // Atomic occupied solids and unsupported curves cannot inherit a proof from
   // another moving course in the same source layer.
-  for(const op of Object.values(source.operations))if(op.layerId!==null&&(op.kind!=='deposit'||op.courses.some(c=>!courses.has(c.id))))slices.delete(op.layerId);
+  for(const op of Object.values(source.operations))if(op.layerId!==null&&(op.kind!=='deposit'||op.occupied||op.courses.some(c=>!courses.has(c.id))))slices.delete(op.layerId);
   const clear=(a,b)=>Boolean(a&&b&&a.tip>b.max+ROUNDING_MM),sweepTips=new WeakMap();
   function sweepTip(sweep){
     if(sweepTips.has(sweep))return sweepTips.get(sweep);
@@ -165,7 +165,26 @@ function sphereNozzleProofs(source,reader,rangeOf){
 
 export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   const slices=new Map(),queries={reader},halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
-  const sine=Math.sin(halfAngle),retreat=NOZZLE_FORGIVENESS_MM/sine;
+  const sine=Math.sin(halfAngle),retreat=NOZZLE_FORGIVENESS_MM/sine,clearPairs=new Map(),positionBounds=new Map();
+  const clearPairLimit=4*1024*1024/128;
+  const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
+  if(!queries.reader)queries.reader=prepareCurvePath(source);
+  const pose=first?curveAt(queries.reader,first.curveId,first.from).pose:null;
+  const axis=pose?scale(pose.toolAxis,-1/length(pose.toolAxis)):[0,0,1],up=pose?.toolUp??[0,1,0];
+  const lateral=cross(up,axis),side=scale(lateral,1/length(lateral));
+  const basis=[side,cross(axis,side),axis],local=vector=>basis.map(direction=>dot(vector,direction));
+  const emptyBounds=()=>({min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]});
+  function include(target,bounds,margin=0){for(let k=0;k<3;k++){
+    target.min[k]=Math.min(target.min[k],bounds.min[k]-margin);target.max[k]=Math.max(target.max[k],bounds.max[k]+margin);
+  }}
+  function boundsClear(a,b){
+    const receiver=slices.get(a),material=slices.get(b);if(!receiver?.bounded||!material?.bounded)return false;
+    const key=receiver.ordinal+':'+material.ordinal,known=clearPairs.get(key);
+    if(known!==undefined){clearPairs.delete(key);clearPairs.set(key,known);return known;}
+    const clear=nozzleBoundsClear(receiver.positions,receiver.poseCone,material.material);
+    while(clearPairs.size>=clearPairLimit)clearPairs.delete(clearPairs.keys().next().value);
+    clearPairs.set(key,clear);return clear;
+  }
   function rangeOf(course){
     if(!queries.reader)queries.reader=prepareCurvePath(source);
     if(!ranges.has(course.id))ranges.set(course.id,curveRange(queries.reader,course.curveId,course.from,course.to));
@@ -174,13 +193,30 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   for(const operation of Object.values(source.operations)){
     if(operation.layerId===null)continue;
     const id=operation.layerId;
-    if(!slices.has(id))slices.set(id,{id,normal:null,minTip:Infinity,maxMaterial:-Infinity,eligible:true,courses:0});
+    if(!slices.has(id))slices.set(id,{id,ordinal:slices.size,normal:null,minTip:Infinity,maxMaterial:-Infinity,eligible:true,courses:0,bounded:true,positions:emptyBounds(),material:emptyBounds(),poseCone:null});
     const slice=slices.get(id);
     // Stationary occupied geometry is a separate authored record. Do not
     // accidentally certify it from the absence of moving deposition curves.
-    if(operation.kind!=='deposit'){slice.eligible=false;continue;}
+    if(operation.kind!=='deposit'||operation.occupied){slice.eligible=false;slice.bounded=false;continue;}
     for(const course of operation.courses){
       slice.courses++;
+      if(slice.bounded){
+        const range=rangeOf(course);
+        if(!range.widthMm||!range.areaMm2)slice.bounded=false;
+        else {
+          if(!positionBounds.has(course.curveId)){
+            const vertices=controlVertices(source.curves[course.curveId].geometry);
+            if(vertices){const bounds=emptyBounds();for(const point of vertices){const value=local(point);include(bounds,{min:value,max:value},ROUNDING_MM*4);}positionBounds.set(course.curveId,bounds);}
+          }
+          const bounds=positionBounds.get(course.curveId);
+          if(!bounds){slice.bounded=false;slice.eligible=false;continue;}
+          include(slice.positions,bounds);include(slice.material,bounds,range.widthMm[1]/2+range.areaMm2[1]/range.widthMm[0]);
+          const cone={...range.poseCone,reference:{toolAxis:local(range.poseCone.reference.toolAxis),toolUp:local(range.poseCone.reference.toolUp)}};
+          if(!slice.poseCone)slice.poseCone={...cone};
+          else slice.poseCone.halfAngleRad=Math.min(Math.PI,Math.max(slice.poseCone.halfAngleRad,
+            frameCone([slice.poseCone.reference,cone.reference]).halfAngleRad+cone.halfAngleRad));
+        }
+      }
       if(!slice.eligible)continue;
       const curve=source.curves[course.curveId],vertices=controlVertices(curve.geometry);
       const normal=constantVector(curve.profiles.materialNormal),toolAxis=constantVector(curve.profiles.pose,value=>value.toolAxis);
@@ -215,8 +251,12 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   const graph=graphNozzleProofs(source,queries.reader,rangeOf),sphere=sphereNozzleProofs(source,queries.reader,rangeOf);
   return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
     frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,topApart:(a,b)=>graph?.topApart(a,b)??false,supportApart:(a,b)=>(graph?.supportApart(a,b)??false)||(sphere?.supportApart(a,b)??false),materialApart:(a,b)=>graph?.materialApart(a,b)??false,
+    layersApart(a,b){
+      const x=slices.get(a),y=slices.get(b);return Boolean(x?.bounded&&y?.bounded&&x.material.min.some((v,k)=>
+        v>y.material.max[k]+PRINT_RESOLUTION_MM*2+ROUNDING_MM||y.material.min[k]>x.material.max[k]+PRINT_RESOLUTION_MM*2+ROUNDING_MM));
+    },
     clear(depositingLayer,materialLayer){
-    if(graph?.clear(depositingLayer,materialLayer))return true;
+    if(graph?.clear(depositingLayer,materialLayer)||boundsClear(depositingLayer,materialLayer))return true;
     const a=slices.get(depositingLayer),b=slices.get(materialLayer);
     return Boolean(a?.eligible&&b?.eligible&&a.courses&&b.courses&&equalVector(a.normal,b.normal)&&a.minTip>b.maxMaterial+ROUNDING_MM);
   }};

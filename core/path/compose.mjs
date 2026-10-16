@@ -109,7 +109,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
 // batch. A witnessed conflict releases only the implicated native-layer edge.
 
 function preferNativeLayers(source,graph,relaxed){
-  const layers=new Map(),stacks=new Map(),edges=[];graph.layerGroups=new Map();
+  const layers=new Map(),stacks=new Map(),edges=[];graph.layerGroups=new Map();graph.nativeRuns=new Map();
   function barrier(prototype,kind){
     const value={...prototype,id:'schedule:'+graph.nodes.length,ranges:[],entry:null,exit:null,barrier:kind,
       label:'native layer '+prototype.layerId};
@@ -128,8 +128,12 @@ function preferNativeLayers(source,graph,relaxed){
   }
   for(const stack of stacks.values()){
     stack.sort((a,b)=>a.index-b.index);
+    let run={};graph.nativeRuns.set(stack[0].id,{run,index:0});
     for(let i=1;i<stack.length;i++){
-      const a=stack[i-1],b=stack[i],key=JSON.stringify([a.id,b.id]);if(relaxed.has(key))continue;
+      const a=stack[i-1],b=stack[i],key=JSON.stringify([a.id,b.id]);
+      if(relaxed.has(key))run={};
+      graph.nativeRuns.set(b.id,{run,index:i});
+      if(relaxed.has(key))continue;
       graph.prerequisites.get(b.begin.id).add(a.end.id);
       edges.push({before:a.end.id,after:b.begin.id,kind:'native-layer-order',key});
     }
@@ -158,8 +162,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
       const promoted=new Map();
+      function nativeBefore(before,after){
+        const a=graph.nativeRuns.get(before),b=graph.nativeRuns.get(after);
+        return Boolean(a&&b&&a.run===b.run&&a.index<b.index);
+      }
       function precedes(before,after){
-        return proofs.proves(before,after)||(promoted.get(before)??[]).some(id=>id===after||proofs.proves(id,after));
+        return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after)||(promoted.get(before)??[]).some(id=>id===after||proofs.proves(id,after));
       }
       function addEdge(before,after,kind,witness){
         if(before===after||graph.prerequisites.get(after).has(before))return;
@@ -189,16 +197,35 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         }
         if(progress.cyclic)break;
       }
+      // Resolve whole native layers before opening their courses. A run is
+      // only the still-present chain of preferred layer edges; relaxation
+      // rebuilds it. Occupied/injected or unlayered material stays detailed.
+      const accessLayers=new Set(),supportLayers=new Set();
+      if(graph.units.every(unit=>unit.operation.kind==='deposit'&&!unit.operation.occupied&&graph.layerGroups.has(unit.layerId))){
+        const ids=[...graph.layerGroups.keys()];
+        for(const id of ids){
+          if(ids.every(other=>state.scene.proofs.clear(id,other)||nativeBefore(id,other)))accessLayers.add(id);
+          const a=source.layers[id];
+          if(ids.every(other=>{
+            const b=source.layers[other];
+            return state.scene.proofs.layersApart(id,other)||nativeBefore(other,id)||id===other||a.surfaceId===b.surfaceId||a.stackId===b.stackId&&b.index>=a.index;
+          }))supportLayers.add(id);
+        }
+      }
+      Object.assign(state.scene.proofs.summary,{resolvedAccessLayers:accessLayers.size,resolvedSupportLayers:supportLayers.size});
+      if(!progress.cyclic)onProgress?.({stage:'Resolving slice nozzle access',completed:accessLayers.size,total:graph.layerGroups.size});
       if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
+        if(accessLayers.has(unit.layerId))continue;
         onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
         state.scene.verifySelf(unit);
-        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!precedes(unit.id,id)&&
-          !state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId))){
+        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)&&
+          !precedes(unit.id,id))){
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
         }
         if(progress.cyclic)break;
       }
       if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
+        if(supportLayers.has(unit.layerId))continue;
         onProgress?.({stage:'Resolving curve substrate',completed,total:graph.units.length});
         for(const hit of state.scene.supportHits(unit,id=>{
           if(id===unit.id||precedes(id,unit.id))return false;

@@ -1931,6 +1931,14 @@
     },
     {
       "contract": "toolpath-reader-scheduling",
+      "target": "core/path/curve-path.mjs::curveParameterAtLength",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing physical arc-length queries used by finite transitions and execution cuts."
+    },
+    {
+      "contract": "toolpath-reader-scheduling",
       "target": "core/path/curve-path.mjs::curveSpans",
       "kinds": [
         "call"
@@ -2256,6 +2264,14 @@
         "call"
       ],
       "evidence": "SP2 Geometry-owned numerical query or native reference operation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveParameterAtLength",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing physical arc-length queries used by finite transitions and execution cuts."
     },
     {
       "contract": "geometry-toolpath-numerics",

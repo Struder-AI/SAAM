@@ -1,65 +1,63 @@
-// Exact reachability over known course dependencies. A bounded dense cache is
-// an acceleration only; larger graphs use one reusable search row instead.
+// Sparse dependency edges are authoritative. Bounded memoization retains only
+// queried pairs; eviction changes search work, never the graph or its meaning.
 import {requireThat} from '../private/toolpath/numeric.mjs';
 const PRECEDENCE_CACHE_BYTES=16*1024*1024;
+const CACHED_PAIR_BYTES=128;
 
-// Cache witnessed paths while prerequisites are discovered. A positive proof
-// permits pruning; a missing proof only costs another geometric query. Rows
-// inherit the proofs available when an edge is recorded, so no invalidation or
-// propagation through every earlier row is needed. Cache size is bounded.
-export function prerequisiteProofs(ids,{cacheBytes=PRECEDENCE_CACHE_BYTES}={}){
-  const positions=new Map(ids.map((id,i)=>[id,i])),count=ids.length,words=Math.ceil(count/32);
-  const dense=count*words*Uint32Array.BYTES_PER_ELEMENT<=cacheBytes?new Uint32Array(count*words):null;
-  const parents=dense?null:Array.from({length:count},()=>[]),row={after:-1,seen:dense?null:new Uint8Array(count),pending:[]};
-  function inherit(before){
-    row.pending.push(before);
-    while(row.pending.length){const next=row.pending.pop();if(row.seen[next])continue;row.seen[next]=1;for(const parent of parents[next])row.pending.push(parent);}
+function reachability(ids,cacheBytes){
+  const positions=new Map(ids.map((id,i)=>[id,i])),count=ids.length;
+  requireThat(positions.size===count,'Precedence needs unique course IDs.');
+  const following=Array(count),parents=Array(count),cache=new Map();
+  const forwardSeen=new Uint32Array(count),backwardSeen=new Uint32Array(count);
+  const cacheLimit=Math.max(0,Math.floor(cacheBytes/CACHED_PAIR_BYTES));
+  let revision=0,stamp=0,rank=null;
+  function position(id){const index=positions.get(id);requireThat(index!==undefined,'Precedence names an unknown course.');return index;}
+  function search(a,b){
+    if(!following[a]?.size||!parents[b]?.size)return false;
+    if(following[a].has(b))return true;
+    if(rank&&rank[a]>=rank[b])return false;
+    const key=a+':'+b,known=cache.get(key);
+    if(known===true||known===revision){cache.delete(key);cache.set(key,known);return known===true;}
+    stamp=(stamp+1)>>>0;
+    if(stamp===0){forwardSeen.fill(0);backwardSeen.fill(0);stamp=1;}
+    const forward=[a],backward=[b];forwardSeen[a]=stamp;backwardSeen[b]=stamp;
+    let found=false;
+    while(forward.length&&backward.length){
+      const ahead=forward.length<=backward.length,front=ahead?forward:backward;
+      const seen=ahead?forwardSeen:backwardSeen,other=ahead?backwardSeen:forwardSeen;
+      for(const next of (ahead?following:parents)[front.pop()]??[]){
+        if(other[next]===stamp){found=true;break;}
+        if(seen[next]!==stamp){seen[next]=stamp;front.push(next);}
+      }
+      if(found)break;
+    }
+    if(cacheLimit){
+      cache.delete(key);
+      while(cache.size>=cacheLimit)cache.delete(cache.keys().next().value);
+      cache.set(key,found?true:revision);
+    }
+    return found;
   }
   return {record(before,after){
-    const a=positions.get(before),b=positions.get(after);
-    requireThat(a!==undefined&&b!==undefined,'Prerequisite proof names an unknown course.');
-    if(dense){const target=b*words,source=a*words;dense[target+(a>>>5)]|=1<<(a&31);for(let w=0;w<words;w++)dense[target+w]|=dense[source+w];}
-    else {parents[b].push(a);if(row.after===b)inherit(a);}
-  },proves(before,after){
-    const a=positions.get(before),b=positions.get(after);
-    requireThat(a!==undefined&&b!==undefined,'Prerequisite proof names an unknown course.');
-    if(dense)return (dense[b*words+(a>>>5)]&(1<<(a&31)))!==0;
-    if(row.after!==b){row.after=b;row.seen.fill(0);for(const parent of parents[b])inherit(parent);}
-    return row.seen[a]!==0;
+    const a=position(before),b=position(after);
+    if(following[a]?.has(b))return;
+    (following[a]??=new Set()).add(b);(parents[b]??=new Set()).add(a);
+    revision++;rank=null;
+  },proves(before,after){return search(position(before),position(after));},acyclic(){
+    const remaining=Uint32Array.from({length:count},(_,i)=>parents[i]?.size??0),ordered=[];
+    for(let i=0;i<count;i++)if(!remaining[i])ordered.push(i);
+    for(let i=0;i<ordered.length;i++)for(const next of following[ordered[i]]??[])if(!--remaining[next])ordered.push(next);
+    if(ordered.length!==count)return false;
+    rank=new Uint32Array(count);for(let i=0;i<count;i++)rank[ordered[i]]=i;return true;
   }};
 }
 
+export function prerequisiteProofs(ids,{cacheBytes=PRECEDENCE_CACHE_BYTES}={}){
+  return reachability(ids,cacheBytes);
+}
+
 export function precedenceLookup(ids,edges,{cacheBytes=PRECEDENCE_CACHE_BYTES}={}){
-  const positions=new Map(ids.map((id,i)=>[id,i])),count=ids.length,words=Math.ceil(count/32);
-  requireThat(positions.size===count,'Precedence needs unique course IDs.');
-  const following=Array.from({length:count},()=>[]),indegree=new Uint32Array(count);
-  for(const {before,after} of edges){
-    requireThat(positions.has(before)&&positions.has(after),'Precedence names an unknown course.');
-    const a=positions.get(before),b=positions.get(after);following[a].push(b);indegree[b]++;
-  }
-  const ordered=[];
-  for(let i=0;i<count;i++)if(!indegree[i])ordered.push(i);
-  for(let i=0;i<ordered.length;i++)for(const next of following[ordered[i]])if(!--indegree[next])ordered.push(next);
-  if(ordered.length!==count)return {cyclic:true,has:()=>false};
-  const dense=count*words*Uint32Array.BYTES_PER_ELEMENT<=cacheBytes?new Uint32Array(count*words):null;
-  if(dense)for(let i=count-1;i>=0;i--){
-    const a=ordered[i],offset=a*words;
-    for(const b of following[a]){
-      const other=b*words;dense[offset+(b>>>5)]|=1<<(b&31);
-      for(let w=0;w<words;w++)dense[offset+w]|=dense[other+w];
-    }
-  }
-  const search={source:-1,row:dense?null:new Uint32Array(words),pending:[]};
-  return {cyclic:false,has(before,after){
-    const a=positions.get(before),b=positions.get(after);
-    requireThat(a!==undefined&&b!==undefined,'Precedence query names an unknown course.');
-    if(a===b)return false;
-    if(dense)return (dense[a*words+(b>>>5)]&(1<<(b&31)))!==0;
-    if(search.source!==a){
-      search.source=a;search.row.fill(0);search.pending.push(a);
-      while(search.pending.length)for(const next of following[search.pending.pop()])
-        if(!(search.row[next>>>5]&(1<<(next&31)))){search.row[next>>>5]|=1<<(next&31);search.pending.push(next);}
-    }
-    return (search.row[b>>>5]&(1<<(b&31)))!==0;
-  }};
+  const graph=reachability(ids,cacheBytes);
+  for(const {before,after} of edges)graph.record(before,after);
+  return graph.acyclic()?{cyclic:false,has:(before,after)=>graph.proves(before,after)}:{cyclic:true,has:()=>false};
 }

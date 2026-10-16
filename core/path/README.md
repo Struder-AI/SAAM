@@ -110,8 +110,7 @@ Geometry/profile/material knots are query information, not compulsory output mov
 
 ## Scheduler obligations
 
-Reason first about whole native slices, then courses, then source intervals. Derive conservative aggregate proofs before opening their children. Only unresolved
-contacts/access conflicts require finer queries; envelopes never fill sparse gaps.
+Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps.
 Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity, required material and layer cooling
 remain constraints. Cadence is prepared material intent, not a substitute for
 physical scheduling.
@@ -125,7 +124,7 @@ this model. No world-axis entry, support, retreat or motion-speed assumption is 
 Source material placement retains current semantics pending separate bead-geometry
 unification. Refinement preserves material and poses, uses contact witnesses where
 possible, and rejects proven impossibility; arbitrary subdivision budgets cannot
-turn an unresolved case into success. Bounded caches may evict without losing correctness.
+turn an unresolved case into success. Keep dependency graphs sparse; bounded caches retain queried reachability results and may evict without losing correctness.
 
 ## Work ownership and migration acceptance
 

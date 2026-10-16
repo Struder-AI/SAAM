@@ -313,6 +313,20 @@ function fixedConeBounds(sweep,toleranceMm=ROUNDING_MM){
   };
 }
 
+// Supporting plane of the enlarged infinite cone, minimized over both boxes.
+// A positive lower bound proves all positions/poses clear; overlap proves nothing.
+export function nozzleBoundsClear(positions,poseCone,material,forgivenessMm=NOZZLE_FORGIVENESS_MM){
+  const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+poseCone.halfAngleRad;
+  if(angle>=Math.PI/2)return false;
+  const axis=normalize(scale(poseCone.reference.toolAxis,-1)),c=Math.cos(angle),s=Math.sin(angle);
+  const q=positions.min.map((v,k)=>(material.min[k]+material.max[k]-v-positions.max[k])/2);
+  const z=dot(q,axis),radial=subtract(q,scale(axis,z)),r=length(radial);
+  const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
+  const lower=(r>ROUNDING_MM?c*r:0)-s*z-q.reduce((sum,_,k)=>sum+Math.abs(gradient[k])*
+    (material.max[k]-material.min[k]+positions.max[k]-positions.min[k])/2,0);
+  return lower+forgivenessMm>ROUNDING_MM*8;
+}
+
 export function nozzleSweepHits(index,from,to,fromPose,toPose,options={}){
   const reach=nozzleSweepReach(index.bounds,from,to,fromPose,toPose),hits=new Set();
   const {forgivenessMm=NOZZLE_FORGIVENESS_MM,...filters}=options;
