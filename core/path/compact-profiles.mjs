@@ -1,7 +1,7 @@
 // Publication compacts generated fields once, independent of their producer.
 // Exact endpoints and zero-material intervals survive; every approximation is
 // bounded over complete source intervals, rather than checked only at samples.
-import {interpolateDirection,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
+import {interpolateDirection,prepareDirectionInterpolation,directionInterpolationError,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
 import {restrictBezierLine} from '../geom/bezier-net.mjs';
 import {keyed,profileAt,prepareMaterialProfile,materialProfileDeviation} from './curve-profiles.mjs';
 import {FLOAT64_EPSILON} from '../dimensions.mjs';
@@ -15,39 +15,42 @@ function directionAngle(a,b){
   const sine=Math.hypot(a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]);
   return Math.atan2(sine,a.reduce((sum,value,k)=>sum+value*b[k],0));
 }
-function directionProof(profile,first,last,tolerance){
+function directionProof(profile,first,last,tolerance,prepared){
   if(last===first+1)return 0;
   const [a,x]=profile.knots[first],[b,y]=profile.knots[last],maximum={angle:0};
-  const candidate=u=>interpolateDirection(x,y,(u-a)/(b-a));
-  function check(lo,hi,p,q){
+  const candidate=u=>interpolateDirection(x,y,(u-a)/(b-a),prepared);
+  function check(lo,hi,p,q,sourceAngle){
+    const left=candidate(lo),right=candidate(hi),candidateAngle=prepared.angle*(hi-lo)/(b-a);
+    const chordBound=directionInterpolationError(p,q,left,right,sourceAngle,candidateAngle);
+    if(chordBound<=tolerance){maximum.angle=Math.max(maximum.angle,chordBound);return true;}
     const middle=(lo+hi)/2,r=profileAt(profile,middle),error=directionAngle(r,candidate(middle));
-    const bound=error+(directionAngle(p,q)+directionAngle(candidate(lo),candidate(hi)))/2;
-    if(bound<=tolerance){maximum.angle=Math.max(maximum.angle,bound);return true;}
     if(error>tolerance||!(middle>lo&&middle<hi))return false;
-    return check(lo,middle,p,r)&&check(middle,hi,r,q);
+    return check(lo,middle,p,r,sourceAngle/2)&&check(middle,hi,r,q,sourceAngle/2);
   }
-  for(let i=first;i<last;i++)if(!check(profile.knots[i][0],profile.knots[i+1][0],profile.knots[i][1],profile.knots[i+1][1]))return null;
+  for(let i=first;i<last;i++)if(!check(profile.knots[i][0],profile.knots[i+1][0],profile.knots[i][1],profile.knots[i+1][1],
+    prepareDirectionInterpolation(profile.knots[i][1],profile.knots[i+1][1]).angle))return null;
   return maximum.angle;
 }
 function compactDirection(profile,tolerance){
   if(!keyed(profile)||profile.knots.length<=2)return {profile,error:0};
-  const kept=[profile.knots[0]],maximum={error:0};
-  function visit(first,last){
-    if(last===first+1){kept.push(profile.knots[last]);return;}
+  const kept=[profile.knots[0]],maximum={error:0},pending=[[0,profile.knots.length-1]];
+  while(pending.length){
+    const [first,last]=pending.pop();
+    if(last===first+1){kept.push(profile.knots[last]);continue;}
     const [a,x]=profile.knots[first],[b,y]=profile.knots[last],worst={error:0,index:-1};
-    if(directionAngle(x,y)>=Math.PI-DIRECTION_TOLERANCE){const middle=Math.floor((first+last)/2);visit(first,middle);visit(middle,last);return;}
+    if(directionAngle(x,y)>=Math.PI-DIRECTION_TOLERANCE){const middle=Math.floor((first+last)/2);pending.push([middle,last],[first,middle]);continue;}
+    const prepared=prepareDirectionInterpolation(x,y);
     for(let i=first+1;i<last;i++){
-      const [u,value]=profile.knots[i],error=directionAngle(value,interpolateDirection(x,y,(u-a)/(b-a)));
+      const [u,value]=profile.knots[i],error=directionAngle(value,interpolateDirection(x,y,(u-a)/(b-a),prepared));
       if(error>worst.error){worst.error=error;worst.index=i;}
     }
     if(worst.error<=tolerance/2){
-      const proof=directionProof(profile,first,last,tolerance);
-      if(proof!==null){kept.push(profile.knots[last]);maximum.error=Math.max(maximum.error,proof);return;}
+      const proof=directionProof(profile,first,last,tolerance,prepared);
+      if(proof!==null){kept.push(profile.knots[last]);maximum.error=Math.max(maximum.error,proof);continue;}
     }
     const cut=worst.index>first?worst.index:Math.floor((first+last)/2);
-    visit(first,cut);visit(cut,last);
+    pending.push([cut,last],[first,cut]);
   }
-  visit(0,profile.knots.length-1);
   const result=kept.length===2&&directionAngle(kept[0][1],kept[1][1])===0?kept[0][1]:{...profile,knots:kept};
   return {profile:result,error:maximum.error};
 }
@@ -60,6 +63,15 @@ function compactScalar(profile){
   }
   kept.push(profile.knots.at(-1));
   return kept.every(([,value])=>value===kept[0][1])?kept[0][1]:{...profile,knots:kept};
+}
+function compactPose(profile){
+  if(!keyed(profile))return profile;
+  // Retain every changing full frame, including roll. Interior samples in an
+  // exactly constant run have no interpolation effect and need no error budget.
+  const same=(a,b)=>['toolAxis','toolUp'].every(key=>a[key].every((v,k)=>v===b[key][k]));
+  const kept=profile.knots.filter(([,pose],i,knots)=>!i||i===knots.length-1||
+    !same(pose,knots[i-1][1])||!same(pose,knots[i+1][1]));
+  return kept.length===2&&same(kept[0][1],kept[1][1])?kept[0][1]:{...profile,knots:kept};
 }
 function materialValue(material,u){
   if(u===1)return material.knots.at(-1)[1];
@@ -120,5 +132,5 @@ export function materialParameterError(before,after){
 export function compactCurveProfiles(profiles,{normalToleranceRad,volumeToleranceMm3}){
   const normals=compactDirection(profiles.materialNormal,normalToleranceRad),material=compactMaterial(profiles.material,volumeToleranceMm3);
   return {profiles:{...profiles,widthMm:compactScalar(profiles.widthMm),speedMmS:compactScalar(profiles.speedMmS),
-    materialNormal:normals.profile,material:material.profile},normalErrorRad:normals.error,volumeErrorMm3:material.error};
+    materialNormal:normals.profile,material:material.profile,pose:compactPose(profiles.pose)},normalErrorRad:normals.error,volumeErrorMm3:material.error};
 }

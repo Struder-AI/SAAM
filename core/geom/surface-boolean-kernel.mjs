@@ -6,7 +6,7 @@ import {sewSurfaceBoundary} from './surface-topology.mjs';
 import {separatingSurfacePlane} from './surface-support.mjs';
 import {surfaceBoundaryPair,surfaceInside,outwardSigns} from '../region/section.mjs';
 import {union,intersect,difference} from '../region/intersection.mjs';
-import {patchDomain,segmentTrimSpans} from './surface-trim.mjs';
+import {patchDomain,faceTrimRegion,retainFaceTrimCurves,segmentTrimSpans} from './surface-trim.mjs';
 import {surfacePlane,surfaceCorrespondence,correspondingSourceLoops,correspondingSurfaceCharts,projectCoincidentChart,curveCorrespondence} from './surface-coincidence.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {surfaceSegmentCurves} from './surface-curves.mjs';
@@ -68,7 +68,7 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
   shareCoincidentCharts(faces,curves,coincidenceMm);
   for(const face of faces){
     reportPhase({stage:3,first:faces.indexOf(face),second:0});
-    const domain=face.patch.trimLoops??patchDomain(face.patch);
+    const domain=faceTrimRegion(face.patch,{toleranceMm:chordMm});
     const masks=operands.map((solid,i)=>{
       if(i===face.operand)return {minus:domain,plus:[]};
       if(solid.empty||!hullsOverlap(face.hull,solid.bounds))return {minus:[],plus:[]};
@@ -100,7 +100,7 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
   }
   const unchanged=unchangedOperand(faces,operands);
   const patches=unchanged>=0?faces.filter(face=>face.operand===unchanged).map(face=>({...face.patch,normalSide:face.sign})):faces.flatMap((face,i)=>face.kept.map((kept,j)=>({...face.patch,name:`boolean-${i}-${j}-${face.patch.name}`,
-    trimLoops:kept.loops,normalSide:kept.sign,sourceFace:i,sourceName:face.patch.sourceName??face.patch.name,
+    trimLoops:retainFaceTrimCurves(face.patch,kept.loops,{toleranceMm:sewingMm/2}),normalSide:kept.sign,sourceFace:i,sourceName:face.patch.sourceName??face.patch.name,
     boundaryCurves:[...(face.patch.boundaryCurves??[]),...curves.flatMap(curve=>curve.charts.filter(chart=>chart.face===i).map(chart=>({points:curve.points,uv:chart.uv})))]})));
   const bounds=patches.length?combinedBounds(operation,operands):{min:[0,0,0],max:[0,0,0]};
   reportPhase({stage:4,first:0,second:0});
@@ -118,7 +118,7 @@ function unchangedOperand(faces,operands){
   return operands.findIndex((_,operand)=>faces.every(face=>{
     if(face.operand!==operand)return !face.kept.length;
     if(face.kept.length!==1||face.kept[0].sign!==face.sign)return false;
-    const domain=face.patch.trimLoops??patchDomain(face.patch),kept=face.kept[0].loops;
+    const domain=faceTrimRegion(face.patch),kept=face.kept[0].loops;
     return !difference(domain,kept).length&&!difference(kept,domain).length;
   }));
 }
@@ -218,7 +218,7 @@ function coincidentFaces(a,b,toleranceMm,coincidenceMm){
   if(correspondence){
     if(correspondence.complete&&!a.trimLoops&&!b.trimLoops)return {a:patchDomain(a),b:patchDomain(b),aligned:correspondence.orientation,
       toB:correspondence,toA:surfaceCorrespondence(b,a,{toleranceMm:coincidenceMm})};
-    const aLoops=a.trimLoops??patchDomain(a),bLoops=b.trimLoops??patchDomain(b);
+    const aLoops=faceTrimRegion(a,{toleranceMm}),bLoops=faceTrimRegion(b,{toleranceMm});
     const reverse=surfaceCorrespondence(b,a,{toleranceMm:coincidenceMm});
     return {a:intersect(aLoops,correspondingSourceLoops(bLoops,correspondence)),
       b:intersect(bLoops,correspondingSourceLoops(aLoops,reverse)),aligned:correspondence.orientation,toB:correspondence,toA:reverse};
@@ -226,8 +226,8 @@ function coincidentFaces(a,b,toleranceMm,coincidenceMm){
   const planeA=surfacePlane(a),planeB=surfacePlane(b);
   if(!planeA||!planeB||Math.abs(Math.abs(dot(planeA.normal,planeB.normal))-1)>ROUNDING_RELATIVE||
     Math.abs(dot(planeA.normal,planeB.point.map((v,k)=>v-planeA.point[k])))>coincidenceMm)return null;
-  const aRegion=intersect(a.trimLoops??patchDomain(a),projectFaceLoops(b,b.trimLoops??patchDomain(b),a,toleranceMm,coincidenceMm));
-  const bRegion=intersect(b.trimLoops??patchDomain(b),projectFaceLoops(a,a.trimLoops??patchDomain(a),b,toleranceMm,coincidenceMm));
+  const aRegion=intersect(faceTrimRegion(a,{toleranceMm}),projectFaceLoops(b,faceTrimRegion(b,{toleranceMm}),a,toleranceMm,coincidenceMm));
+  const bRegion=intersect(faceTrimRegion(b,{toleranceMm}),projectFaceLoops(a,faceTrimRegion(a,{toleranceMm}),b,toleranceMm,coincidenceMm));
   return {a:aRegion,b:bRegion,aligned:dot(planeA.normal,planeB.normal)>0?1:-1,planar:true};
 }
 
@@ -242,7 +242,7 @@ function projectFaceLoops(source,loops,target,toleranceMm,coincidenceMm=ROUNDING
   const e=evaluate(target,(target.domainU[0]+target.domainU[1])/2,(target.domainV[0]+target.domainV[1])/2);
   const frame={origin:e.point,x:normalize(e.du),y:cross(e.normal,normalize(e.du)),normal:e.normal};
   const sourceRegion=planarFaceRegion(source,loops,frame,toleranceMm);
-  const targetLoops=target.trimLoops??patchDomain(target),targetRegion=planarFaceRegion(target,targetLoops,frame,toleranceMm);
+  const targetLoops=faceTrimRegion(target,{toleranceMm}),targetRegion=planarFaceRegion(target,targetLoops,frame,toleranceMm);
   const overlap=intersect(sourceRegion,targetRegion);
   if(!overlap.length)return [];
   const remaining=difference(targetRegion,overlap);

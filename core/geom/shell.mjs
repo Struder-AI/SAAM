@@ -141,7 +141,7 @@ function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4, gapMm = 0 } =
   const plane = { normal: slice.normal, offset: dot(slice.normal, slice.origin) + nudge };
   const cuts = shell.patches.map(patch => {
     const cut=sectionPatch(patch,plane,{minFeatureMm});
-    return {...cut,chains:trimSectionChains(patch,cut.chains)};
+    return {...cut,chains:trimSectionChains(patch,cut.chains,{plane})};
   });
   const coincident = cuts.filter(cut => cut.coincident).length;
   const chains = cuts.flatMap(cut => cut.coincident ? [] : cut.chains.filter(chain => chain.length > 1).map(chain => chain.map(p => p.point)));

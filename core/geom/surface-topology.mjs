@@ -4,6 +4,7 @@
 import {evaluate} from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import {patchDomain} from './surface-trim.mjs';
+import {prepareCurveLoops} from './curve-loops.mjs';
 import {curveCorrespondence} from './surface-coincidence.mjs';
 import {distance,dot,cross,normalize,requireThat} from './tolerance.mjs';
 import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
@@ -19,6 +20,20 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
   const uses=[];
   for(const [face,patch] of patches.entries()){
     for(const [loop,points] of (patch.trimLoops??patchDomain(patch)).entries()){
+      if(!Array.isArray(points)){
+        const source=prepareCurveLoops([points]).loops[0],ordered=patch.normalSide<0?[...source].reverse():source;
+        for(const [order,uvCurve] of ordered.entries()){
+          const from=patch.normalSide<0?1:0,to=1-from;
+          if(uvCurve.order===2&&uvCurve.n===2&&uvCurve.cp[3]===uvCurve.cp[7]){
+            const a=curvePoint(uvCurve,from).slice(0,2),b=curvePoint(uvCurve,to).slice(0,2);
+            for(const piece of boundaryCurveUses(patch,a,b,curves,toleranceMm))uses.push({...piece,face,loop,order});
+            continue;
+          }
+          const mapped=canonicalNativeUse({kind:'face-curve',patch,uvCurve},from,to,curves,toleranceMm);
+          uses.push({...mapped,face,loop,order,uvCurve,uvParameterRange:[from,to],uvFrom:curvePoint(uvCurve,from).slice(0,2),uvTo:curvePoint(uvCurve,to).slice(0,2)});
+        }
+        continue;
+      }
       const ordered=patch.normalSide<0?[...points].reverse():points;
       const sequence={next:0};
       for(let i=0;i<ordered.length;i++){
@@ -58,12 +73,14 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
       const endpointIds=ends.map(vertex);
       if(endpointIds[0]===endpointIds[1]&&[.25,.5,.75].every(f=>distance(curvePosition(curve,lo+f*(hi-lo)),ends[0])<=toleranceMm)){closedEdges.count++;continue;}
       const incidences=covering.map(use=>({face:use.face,loop:use.loop,orientation:use.to>use.from?1:-1,
-        order:use.order+(middle-use.from)/(use.to-use.from),uvRange:[interpolate(use.uvFrom,use.uvTo,(lo-use.from)/(use.to-use.from)),interpolate(use.uvFrom,use.uvTo,(hi-use.from)/(use.to-use.from))]}));
+        order:use.order+(middle-use.from)/(use.to-use.from),uvRange:[useUvAt(use,lo),useUvAt(use,hi)],
+        ...(use.uvCurve?{uvCurve:use.uvCurve,uvParameterRange:[useParameterAt(use,lo),useParameterAt(use,hi)]}:{})}));
       const groups=materialEdgeSectors(incidences,patches,curve,lo,hi),shared=[];
       for(const uses of groups){
         const edge={curve:curve.id,range:[lo,hi],vertices:[...endpointIds],uses},index=edges.length;
         edges.push(edge);shared.push(index);
-        for(const use of uses)faceLoops[use.face][use.loop].push({edge:index,orientation:use.orientation,order:use.order,uvRange:use.uvRange});
+        for(const use of uses)faceLoops[use.face][use.loop].push({edge:index,orientation:use.orientation,order:use.order,uvRange:use.uvRange,
+          ...(use.uvCurve?{uvCurve:use.uvCurve,uvParameterRange:use.uvParameterRange}:{})});
         if(uses.length!==2||uses[0].orientation===uses[1].orientation)unmatched.push({edge:index,uses:uses.length,faces:uses.map(use=>use.face),lengthMm:distance(...ends)});
       }
       if(shared.length>1)contacts.edges.push({curve:curve.id,range:[lo,hi],edges:shared});
@@ -89,7 +106,7 @@ function materialEdgeSectors(uses,patches,curve,lo,hi){
   if(distance(a,b)<=ROUNDING_MM)return [uses];
   const tangent=normalize(b.map((v,k)=>v-a[k]));
   const rays=uses.map(use=>{
-    const patch=patches[use.face],uv=interpolate(...use.uvRange,.5),normal=evaluate(patch,...uv).normal;
+    const patch=patches[use.face],uv=coedgeUvAt(use,[lo,hi],(lo+hi)/2),normal=evaluate(patch,...uv).normal;
     if(!normal)return null;
     const outward=normal.map(v=>v*patch.normalSide),direction=cross(outward,tangent).map(v=>v*use.orientation);
     if(Math.hypot(...direction)<=ROUNDING_RELATIVE)return null;
@@ -143,10 +160,16 @@ function chartSegmentCollapsed(patch,a,b){
 // A retraced chart boundary can cancel itself. Periodic seam coedges occupy
 // distinct places in the chart even though their world curves coincide.
 function sameChartPath(patch,a,b,parameter,toleranceMm){
-  const first=interpolate(a.uvFrom,a.uvTo,(parameter-a.from)/(a.to-a.from));
-  const second=interpolate(b.uvFrom,b.uvTo,(parameter-b.from)/(b.to-b.from));
+  const first=useUvAt(a,parameter),second=useUvAt(b,parameter);
   const e=evaluate(patch,...first),delta=second.map((v,k)=>v-first[k]);
   return Math.hypot(...e.du.map((v,k)=>v*delta[0]+e.dv[k]*delta[1]))<=toleranceMm;
+}
+
+function useParameterAt(use,t){return use.uvParameterRange[0]+(t-use.from)/(use.to-use.from)*(use.uvParameterRange[1]-use.uvParameterRange[0]);}
+function useUvAt(use,t){return use.uvCurve?curvePoint(use.uvCurve,useParameterAt(use,t)).slice(0,2):interpolate(use.uvFrom,use.uvTo,(t-use.from)/(use.to-use.from));}
+export function coedgeUvAt(use,range,t){
+  const fraction=(t-range[0])/(range[1]-range[0]);
+  return use.uvCurve?curvePoint(use.uvCurve,use.uvParameterRange[0]+fraction*(use.uvParameterRange[1]-use.uvParameterRange[0])).slice(0,2):interpolate(use.uvRange[0],use.uvRange[1],fraction);
 }
 
 function boundaryCurveUses(patch,a,b,curves,toleranceMm){
@@ -329,7 +352,7 @@ function canonicalNativeUse(candidate,from,to,curves,toleranceMm){
 export function curvePosition(curve,t){
   if(curve.kind==='line')return curve.origin.map((v,k)=>v+t*curve.direction[k]);
   if(curve.kind==='nurbs')return curvePoint(curve.native,t);
-  if(curve.kind==='face-curve')return evaluate(curve.patch,...interpolate(curve.fromUv,curve.toUv,t),false).point;
+  if(curve.kind==='face-curve')return evaluate(curve.patch,...(curve.uvCurve?curvePoint(curve.uvCurve,t).slice(0,2):interpolate(curve.fromUv,curve.toUv,t)),false).point;
   const position=Math.max(0,Math.min(curve.points.length-1,t*(curve.points.length-1))),index=Math.min(curve.points.length-2,Math.floor(position));
   return interpolate(curve.points[index],curve.points[index+1],position-index);
 }

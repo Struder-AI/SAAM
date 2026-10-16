@@ -23,6 +23,7 @@ import {intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurve
 import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
 import {surfaceDerivatives} from './surface-derivatives.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
+import {surfaceCurveImages} from './surface-curve-image.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {sampleSpatialCurve,distinctPolyline,curveLength} from './spatial-curve.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
@@ -46,7 +47,7 @@ const operations=Object.freeze({compileBlobField,buildGeometry,combineSolids,con
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,
     offsetRegion,difference,intersect,union,regionArea,loopArea,pointSegmentDistance,
     clipLineToRegion,clipPlanarCurveToRegion,intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurves,
-    evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,curvePoint,sampleCurveIntervals,
+    evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,surfaceCurveImages,curvePoint,sampleCurveIntervals,
     sampleSpatialCurve,distinctPolyline,curveLength,transportCurveFrames,
     prepareContourSleeve,detectMeshSleeveInterval,strokeTopology,widenPlanarStrokes,
     referenceSurface,surfaceRegion,prepareSolidDistance,solidDistance,

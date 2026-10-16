@@ -834,7 +834,18 @@ function seekTourLayer(startAt,feature='contour'){
 function createStudioTour(){
   return createTourUI({post:api,refresh,working,setTab,isBusy:()=>studioWork.busy,state:()=>printSync.state,seek:seekTourLayer});
 }
-async function loadStudio(){await studioWork.tourUI.load();await refresh();}
+async function loadStudio(){
+  await studioWork.tourUI.load();await refresh();
+  const inspection=new URLSearchParams(location.search),seconds=Number(inspection.get('time'));
+  if(!inspection.has('nozzle-clearance')&&!inspection.has('time'))return;
+  if(inspection.has('output')&&inspection.get('output')!==printSync.state?.outputId){message('This inspection link refers to a different saved toolpath.',true);return;}
+  if(inspection.get('nozzle-clearance')==='1')$('#nozzle-clearance').checked=true;
+  if(printSync.state?.program){
+    clearManual();stop();viewState.tab='toolpath';layerFade.reset();
+    if(inspection.has('time')&&Number.isFinite(seconds))playState.seconds=Math.max(0,Math.min(duration(),seconds));
+    render();
+  }
+}
 function scheduleChange(){
   if(printSync.changeTimer)clearTimeout(printSync.changeTimer);
   printSync.changeTimer=setTimeout(()=>{

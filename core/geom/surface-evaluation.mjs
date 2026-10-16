@@ -4,6 +4,7 @@ import {evaluate} from './nurbs.mjs';
 import {heightSlicePoint,heightSliceNormal,referenceHeight} from './height-slice.mjs';
 import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
 import {prepareSurfaceReference,surfaceReferenceRecord} from './surface-record.mjs';
+import {faceContainsUv} from './surface-trim.mjs';
 
 const rings=new WeakMap();
 function sleeveRing(layer,u){
@@ -48,6 +49,7 @@ export function surfaceChartCovers(surface,uv){
   if(surface.kind==='slice-chart')return surfaceChartCovers(surface.slice,uv);
   if(surface.kind==='height-field')return Boolean(referenceHeight(surface.reference,...uv));
   const native=surface.kind==='patch'?surface.patch:surface;
+  if(native.cp&&native.trimLoops)return faceContainsUv(native,...uv);
   return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter);
 }
 // An affine chart selection preserves native parameters and derivative units.

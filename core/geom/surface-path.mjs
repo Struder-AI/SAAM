@@ -2,8 +2,8 @@
 // and scheduling never enter this boundary; altered/unsupported mappings stay
 // with their finalized sampled geometry.
 import {surfaceSegmentCurves} from './surface-curves.mjs';
-import {evaluateSurface} from './surface-evaluation.mjs';
-import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange} from './curve-query.mjs';
+import {evaluate} from './nurbs.mjs';
+import {restrictBezierLine} from './bezier-net.mjs';
 import {distance} from './tolerance.mjs';
 import {ROUNDING_MM,FLOAT64_EPSILON,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
@@ -35,10 +35,36 @@ function corners(surface,chart,mapped){
     const a=chart[kept.at(-1)],b=chart[i],c=chart[i+1],delta=c.map((value,k)=>value-a[k]);
     const length2=delta.reduce((sum,value)=>sum+value*value,0),t=length2?b.reduce((sum,value,k)=>sum+(value-a[k])*delta[k],0)/length2:0;
     const on=a.map((value,k)=>value+t*delta[k]);
-    const onSurface=on.every((value,k)=>value===b[k])?mapped[i]:evaluateSurface(surface,on).point;
+    const onSurface=on.every((value,k)=>value===b[k])?mapped[i]:evaluate(surface,on[0],on[1],false).point;
     if(!(t>0&&t<1)||distance(mapped[i],onSurface)>ROUNDING_MM)kept.push(i);
   }
   kept.push(chart.length-1);return kept;
+}
+// Bound X-W*L directly on each original edge, split at native piece boundaries.
+// This needs only positional Bernstein controls; derivative, length and frame
+// queries would repeat unrelated work for every construction sample.
+function positionBound(pieces,parameters,points){
+  const state={piece:0,error:0};
+  for(let i=1;i<parameters.length;i++){
+    const a=parameters[i-1],b=parameters[i],cursor={from:a};
+    while(cursor.from<b){
+      while(pieces[state.piece].to<=cursor.from)state.piece++;
+      const piece=pieces[state.piece],to=Math.min(b,piece.to),span=piece.to-piece.from;
+      const rows=restrictBezierLine(piece.rows,[(cursor.from-piece.from)/span,(to-piece.from)/span]);
+      const start=points[i-1].map((v,k)=>v+(points[i][k]-v)*(cursor.from-a)/(b-a));
+      const end=points[i-1].map((v,k)=>v+(points[i][k]-v)*(to-a)/(b-a));
+      const degree=rows.length-1,weight=Math.min(...rows.map(row=>row[3]));
+      const rounding=FLOAT64_EPSILON*128*rows.length**3*Math.max(1,...start.map(Math.abs),...end.map(Math.abs));
+      for(let j=0;j<=degree+1;j++){
+        const t=j/(degree+1),left=rows[Math.min(j,degree)],right=rows[Math.max(0,j-1)];
+        const numerator=start.map((v,k)=>(1-t)*(left[k]-left[3]*v)+t*(right[k]-right[3]*end[k]));
+        state.error=Math.max(state.error,Math.hypot(...numerator)/weight+rounding);
+      }
+      if(state.error>PRINT_RESOLUTION_MM)return state.error;
+      cursor.from=to;
+    }
+  }
+  return state.error;
 }
 export function mappedSurfacePath(surface,chart,points){
   const record=surface?.kind==='patch'?surface.patch:surface?.cp?surface:null;
@@ -49,13 +75,13 @@ export function mappedSurfacePath(surface,chart,points){
     const length=Math.hypot(...chart[i].map((value,k)=>value-chart[i-1][k]));
     if(!(length>0))return null;lengths.push(lengths.at(-1)+length);
   }
-  const parameters=lengths.map(value=>value/lengths.at(-1)),mapped=chart.map(uv=>evaluateSurface(surface,uv).point),pieces=[];
+  const parameters=lengths.map(value=>value/lengths.at(-1)),mapped=chart.map(uv=>evaluate(patch,uv[0],uv[1],false).point),pieces=[];
   const error={positionMm:0};
   for(const [i,point] of points.entries()){
     error.positionMm=Math.max(error.positionMm,distance(point,mapped[i]));
     if(error.positionMm>ROUNDING_MM)return null;
   }
-  const kept=corners(surface,chart,mapped);
+  const kept=corners(patch,chart,mapped);
   for(let i=1;i<kept.length;i++){
     const a=kept[i-1],b=kept[i];
     for(const curve of surfaceSegmentCurves(patch,chart[a],chart[b])){
@@ -71,15 +97,7 @@ export function mappedSurfacePath(surface,chart,points){
   }
   const geometry={kind:'nurbs',degree,knots,controlPoints:controls.map(row=>row.slice(0,3).map(value=>value/row[3])),weights:controls.map(row=>row[3])};
   if(geometry.weights.every(weight=>Math.abs(weight-1)<=FLOAT64_EPSILON*32))delete geometry.weights;
-  const prepared=prepareNumericalCurve(geometry);
-  for(let i=0;i<points.length;i++){
-    const vertexError=distance(points[i],numericalCurveAt(prepared,parameters[i]).point);
-    if(vertexError>ROUNDING_MM)return null;
-    if(i){
-      const range=numericalCurveRange(prepared,parameters[i-1],parameters[i]);
-      error.positionMm=Math.max(error.positionMm,range.interpolationErrorMm+vertexError+ROUNDING_MM);
-      if(error.positionMm>PRINT_RESOLUTION_MM)return null;
-    }
-  }
+  error.positionMm=Math.max(error.positionMm,positionBound(pieces,parameters,points));
+  if(error.positionMm>PRINT_RESOLUTION_MM)return null;
   return {geometry,parameters,points,positionErrorMm:error.positionMm};
 }

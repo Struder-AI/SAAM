@@ -7,7 +7,7 @@ Contract **SP2, 2026-10-16** owns the compact source, execution and reader shipp
 Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
 Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses. Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events. Studio and exporters share the numerical reader; exporters own machine axes.
 Native layers are producer records; no stage reconstructs them or treats their surfaces as solid.
-Construction retains native curves through flow/width/speed/pose edits. Mapping and position edits retain or construct NURBS under certified error bounds; polylines remain when no smaller faithful representation exists. `summary.compaction` records approximation bounds.
+Every producer retains native curves through flow/width/speed/pose edits. Mapping and position edits retain or construct NURBS under certified error bounds; polylines remain when no smaller faithful representation exists. This is automatic; `summary.compaction` records approximation bounds.
 
 ## Stored deposition: `saampath/2`
 
@@ -28,7 +28,7 @@ The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`, `
   Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
   Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
   retaining roll. Antipodal normal keys require an authored intermediate direction.
-  Publication compacts generated normal/material fields with continuous interval proofs, preserving full frames, exact course totals and zero-material intervals. Connected atomic courses share width/feed/frame endpoints over one bead width, capped at half each course.
+  Publication removes exact redundant width/feed/frame keys and compacts generated normal/material fields with continuous interval proofs, preserving roll, exact course totals and zero-material intervals. Connected atomic courses share width/feed/frame endpoints over one bead width, capped at half each course.
 - Keys strictly increase, include 0 and 1, and cover the domain. Step values are
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath

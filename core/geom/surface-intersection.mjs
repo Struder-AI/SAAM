@@ -22,6 +22,7 @@ import {intersect} from '../region/intersection.mjs';
 import { cross, dot, subtract, distance, length, TOLERANCE } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
 import { DIRECTION_TOLERANCE } from './frame.mjs';
+import {faceTrimRegion} from './surface-trim.mjs';
 import {splitBezierNet,restrictBezierNet,bernsteinProductWeights} from './bezier-net.mjs';
 
 // Tolerances (core/README.md#dimensions-and-tolerances). A stalled solve still lands on
@@ -512,7 +513,7 @@ function cellMeetsFace(patch,piece){
   if(!trimmedCellCache.has(patch))trimmedCellCache.set(patch,new WeakMap());
   const cache=trimmedCellCache.get(patch);if(cache.has(piece))return cache.get(piece);
   const [[u0,u1],[v0,v1]]=[piece.u,piece.v].map(([low,high])=>[low-ROUNDING_RELATIVE,high+ROUNDING_RELATIVE]);
-  const meets=intersect([[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]],patch.trimLoops).length>0;
+  const meets=intersect([[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]],faceTrimRegion(patch)).length>0;
   cache.set(piece,meets);return meets;
 }
 

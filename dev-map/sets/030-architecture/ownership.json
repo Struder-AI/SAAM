@@ -1782,6 +1782,22 @@
     "adapters/clients/codex-context.mjs": {
       "owner": "application",
       "reason": "Native Codex context delivery reads the shared Studio inbox; the request ledger owns lifecycle state."
+    },
+    "core/geom/curve-fit.mjs": {
+      "owner": "geometry",
+      "reason": "Bounded NURBS construction from sampled curves."
+    },
+    "core/geom/surface-path.mjs": {
+      "owner": "geometry",
+      "reason": "Native rational images of chart paths and continuous positional error bounds."
+    },
+    "core/path/construction-curves.mjs": {
+      "owner": "toolpath",
+      "reason": "Shared retention of finalized deposition geometry across construction families and modulation."
+    },
+    "core/path/compact-profiles.mjs": {
+      "owner": "toolpath",
+      "reason": "Publication compacts deposition fields with bounded errors and preserved manufacturing quantities."
     }
   },
   "leaves": {
@@ -27885,6 +27901,29 @@
       "owner": "extensions"
     },
     "skills/hole-transitions/scripts/edit.mjs::editHoleTransition": {
+      "owner": "extensions"
+    },
+    "studio/viewer-renderer.mjs::drawNozzleClearance": {
+      "owner": "studio"
+    },
+    "studio/app.mjs::@handler/nozzle-clearance.onchange": {
+      "owner": "studio"
+    },
+    "core/geom/frame.mjs::prepareDirectionInterpolation": {
+      "owner": "geometry",
+      "reason": "Spherical interpolation and continuous angular error bounds."
+    },
+    "core/geom/frame.mjs::directionInterpolationError": {
+      "owner": "geometry",
+      "reason": "Spherical interpolation and continuous angular error bounds."
+    },
+    "skills/hole-transitions/scripts/edit.mjs::wallSettings": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::planarHole": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::membrane": {
       "owner": "extensions"
     }
   },

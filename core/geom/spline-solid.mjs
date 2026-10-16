@@ -5,6 +5,10 @@ import {patchFromSurface} from './nurbs.mjs';
 import {makeShell} from './shell.mjs';
 import {requireThat} from './tolerance.mjs';
 import {loopArea,pointInRegion} from '../region/region2d.mjs';
+import {prepareCurveLoops} from './curve-loops.mjs';
+import {faceTrimRegion} from './surface-trim.mjs';
+import {insideIntervals,curveCrossings} from './curve-ops.mjs';
+import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 const PATCH_FIELDS=['name','degreeU','degreeV','controlPoints','knotsU','knotsV','trimLoops','normalSide'];
 
@@ -39,12 +43,24 @@ export function validateSplineSolid(geometry){
   return geometry;
 }
 
-// Trims are closed polygonal curves in the patch's native UV domain. Validate
+// Trims are closed ordinary curves in the patch's native UV domain. Validate
 // topology without a world-distance epsilon: UV coordinates have no mm scale.
 function validateTrimLoops(patch,nu,nv){
   const domains=[[patch.knotsU??clampedKnots(nu,patch.degreeU),patch.degreeU,nu],[patch.knotsV??clampedKnots(nv,patch.degreeV),patch.degreeV,nv]].map(([knots,degree,count])=>[knots[degree],knots[count]]);
   requireThat(Array.isArray(patch.trimLoops)&&patch.trimLoops.length>0,`Patch ${patch.name}: trimLoops needs closed UV loops.`);
-  const loops=patch.trimLoops.map(loop=>{
+  const prepared=prepareCurveLoops(patch.trimLoops);
+  for(const curve of prepared.loops.flat()){
+    const intervals=insideIntervals(curve,domains.flatMap(([lo,hi],axis)=>[{axis,value:lo},{axis,value:hi}]),point=>domains.every(([lo,hi],k)=>point[k]>=lo&&point[k]<=hi));
+    requireThat(intervals.length===1&&intervals[0][0]===curve.domain[0]&&intervals[0][1]===curve.domain[1],`Patch ${patch.name}: trim curves leave its UV domain.`);
+    const multiplicities=new Map();for(const t of curve.knots)if(t>curve.domain[0]&&t<curve.domain[1])multiplicities.set(t,(multiplicities.get(t)??0)+1);
+    requireThat([...multiplicities.values()].every(count=>count<curve.order),`Patch ${patch.name}: split disconnected NURBS trim spans into connected curves.`);
+  }
+  if(patch.trimLoops.some(loop=>!Array.isArray(loop))){
+    const curves=prepared.loops.flat(),scale=Math.max(...domains.map(([lo,hi])=>hi-lo));
+    const closed=curves.map(curve=>prepared.loops.some(loop=>loop.length===1&&loop[0]===curve));
+    requireThat(!curveCrossings(curves,scale*ROUNDING_RELATIVE,closed).pairs.length,`Patch ${patch.name}: trim curves cross or touch.`);
+  }
+  const loops=faceTrimRegion(numericalPatch(patch)).map(loop=>{
     requireThat(Array.isArray(loop)&&loop.length>=3&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every((v,k)=>Number.isFinite(v)&&v>=domains[k][0]&&v<=domains[k][1])),`Patch ${patch.name}: trim vertices must be finite UV pairs inside its knot domain.`);
     const points=loop[0].every((v,k)=>v===loop.at(-1)[k])?loop.slice(0,-1):loop;
     requireThat(points.length>=3&&points.every((p,i)=>p.some((v,k)=>v!==points[(i+1)%points.length][k]))&&loopArea(points)!==0,`Patch ${patch.name}: trim loops need three distinct vertices and nonzero area.`);

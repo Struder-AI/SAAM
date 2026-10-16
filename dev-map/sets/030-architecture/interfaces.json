@@ -2384,6 +2384,38 @@
         "call"
       ],
       "evidence": "Scheduler-owned closed-loop entry uses Geometry nearest-parameter queries without altering deposition."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-fit.mjs::fitSampledCurve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Shared deposition publication requests native construction and continuous profile error bounds from Geometry."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/surface-path.mjs::mappedSurfacePath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Shared deposition publication requests native construction and continuous profile error bounds from Geometry."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/frame.mjs::prepareDirectionInterpolation",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Shared deposition publication requests native construction and continuous profile error bounds from Geometry."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/frame.mjs::directionInterpolationError",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Shared deposition publication requests native construction and continuous profile error bounds from Geometry."
     }
   ],
   "retiredBindings": [

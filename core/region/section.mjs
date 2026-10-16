@@ -25,7 +25,7 @@ import { union, intersect, difference } from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
 import { requireThat, dot, cross,normalize,TOLERANCE } from '../geom/tolerance.mjs';
 import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
-import {segmentTrimSpans,faceContainsUv} from '../geom/surface-trim.mjs';
+import {segmentTrimSpans,faceContainsUv,faceTrimRegion} from '../geom/surface-trim.mjs';
 
 const OFF_SURFACE_MM = PRINT_RESOLUTION_MM; // material within print resolution of a sheet is that sheet's side
 
@@ -107,15 +107,23 @@ function orient(chain,P,shell){
   return insideLeft?chain:{...chain,vertices:[...vertices].reverse()};
 }
 
-// Position on the domain boundary, counterclockwise from (u0, v0), in [0, 4).
-function perimeterAt(P, [u, v]) {
-  const [u0, u1] = P.domainU, [v0, v1] = P.domainV, du = u1 - u0, dv = v1 - v0, eps = TOLERANCE.domainFraction;
-  const sides = [[Math.abs(v - v0) / dv, (u - u0) / du], [Math.abs(u - u1) / du, 1 + (v - v0) / dv],
-    [Math.abs(v - v1) / dv, 2 + (u1 - u) / du], [Math.abs(u - u0) / du, 3 + (v1 - v) / dv]];
-  const [gap, s] = sides.reduce((best, side) => side[0] < best[0] ? side : best);
-  return gap <= eps ? ((s % 4) + 4) % 4 : null;
+// All face domains use their oriented boundary loops. A rectangular chart is
+// the ordinary four-point case; holes and disconnected trim loops need no
+// separate region-construction route.
+function faceBoundaryLocation(P,vertex,boundaries,toleranceMm){
+  const point=P.trimLoops?vertex:chartBoundaryEndpoint(P,vertex,toleranceMm);
+  if(!point)return null;
+  const candidates=[];
+  for(const [loop,points] of boundaries.entries())for(let i=0;i<points.length;i++){
+    const a=points[i],b=points[(i+1)%points.length],delta=b.map((v,k)=>v-a[k]);
+    const frame=evaluate(P,...a),along=frame.du.map((v,k)=>v*delta[0]+frame.dv[k]*delta[1]),offset=frame.du.map((v,k)=>v*(point.uv[0]-a[0])+frame.dv[k]*(point.uv[1]-a[1]));
+    const length2=dot(along,along),fraction=length2?Math.max(0,Math.min(1,dot(offset,along)/length2)):0;
+    const uv=a.map((v,k)=>v+fraction*delta[k]),world=evaluate(P,...uv,false).point;
+    const gap=Math.hypot(...world.map((v,k)=>v-point.point[k])),chartGap=Math.hypot(...uv.map((v,k)=>(v-point.uv[k])/([P.domainU,P.domainV][k][1]-[P.domainU,P.domainV][k][0])));
+    if(gap<=toleranceMm)candidates.push({vertex:point,loop,s:i+fraction,gap,chartGap});
+  }
+  candidates.sort((a,b)=>a.gap-b.gap||a.chartGap-b.chartGap);return candidates[0]??null;
 }
-const corner = (P, k) => [[P.domainU[0], P.domainV[0]], [P.domainU[1], P.domainV[0]], [P.domainU[1], P.domainV[1]], [P.domainU[0], P.domainV[1]]][k % 4];
 
 function chartBoundaryEndpoint(P,vertex,toleranceMm){
   const domains=[P.domainU,P.domainV],candidates=[];
@@ -139,30 +147,36 @@ function chartBoundaryEndpoint(P,vertex,toleranceMm){
 }
 
 function closeOnBoundary(P,chains,domainInside,toleranceMm=PRINT_RESOLUTION_MM){
+  const boundaries=faceTrimRegion(P,{toleranceMm:toleranceMm/4});
   const loops=chains.filter(c=>c.closed).map(c=>c.vertices.map(x=>x.uv));
   const open=chains.filter(c=>!c.closed).map(chain=>{
-    const first=chartBoundaryEndpoint(P,chain.vertices[0],toleranceMm),last=chartBoundaryEndpoint(P,chain.vertices.at(-1),toleranceMm);
+    const first=faceBoundaryLocation(P,chain.vertices[0],boundaries,toleranceMm),last=faceBoundaryLocation(P,chain.vertices.at(-1),boundaries,toleranceMm);
     if(!first||!last)throw new SurfaceBoundaryTopologyError(
       `A surface intersection curve on ${P.name} ends inside the surface near ${JSON.stringify(chain.vertices.at(-1).point?.map(v=>+v.toFixed(4)))}; the surfaces may touch tangentially there.`);
-    return {...chain,vertices:[first,...chain.vertices.slice(1,-1),last]};
+    return {...chain,first,last,vertices:[first.vertex,...chain.vertices.slice(1,-1),last.vertex]};
   });
-  const starts = open.map(chain => ({ chain, s: perimeterAt(P, chain.vertices[0].uv) })), used = new Set();
+  const starts = open.map(chain => ({chain,...chain.first})), used = new Set();
   for (const first of starts) {
     if (used.has(first.chain)) continue;
     const loop = [];let current = first;
     while (!used.has(current.chain)) {
       used.add(current.chain);loop.push(...current.chain.vertices.map(x => x.uv));
-      const end = perimeterAt(P, current.chain.vertices.at(-1).uv);
-      const next = starts.reduce((best, candidate) => {
-        const gap = ((candidate.s - end) % 4 + 4) % 4;
+      const end=current.chain.last,points=boundaries[end.loop],n=points.length;
+      const next = starts.filter(candidate=>candidate.loop===end.loop).reduce((best, candidate) => {
+        const gap = ((candidate.s - end.s) % n + n) % n;
         return !best || gap < best.gap ? { ...candidate, gap } : best;
       }, null);
-      for (let k = Math.floor(end) + 1; k < end + next.gap; k++) if (k - end > ROUNDING_RELATIVE) loop.push(corner(P, k));
+      requireThat(next,'A face boundary has an unmatched incoming intersection.');
+      for (let k = Math.floor(end.s) + 1; k < end.s + next.gap; k++) if (k - end.s > ROUNDING_RELATIVE) loop.push(points[k%n]);
       current = next;
     }
     loops.push(loop);
   }
-  if (!open.length && domainInside()) loops.push([0, 1, 2, 3].map(k => corner(P, k)));
+  for(const [index,points] of boundaries.entries())if(!open.some(chain=>chain.first.loop===index||chain.last.loop===index)){
+    const a=points[0],b=points[1],mid=a.map((v,k)=>(v+b[k])/2),left=[a[1]-b[1],b[0]-a[0]],frame=evaluate(P,...mid);
+    const across=frame.du.map((v,k)=>v*left[0]+frame.dv[k]*left[1]),step=Math.min(OFF_SURFACE_MM/Math.max(ROUNDING_MM,Math.hypot(...across)),.25);
+    if(domainInside(mid.map((v,k)=>v+step*left[k])))loops.push(points);
+  }
   return loops;
 }
 
@@ -504,10 +518,7 @@ export function surfaceInside(P, solid, { chordMm = TOLERANCE.chord, seedMm = 0.
   }
   const joiningMm=Math.max(chordMm,solid.construction?.toleranceMm??PRINT_RESOLUTION_MM);
   const chains=chainPieces(interiorBoundaryPieces(P,pieces),P,joiningMm).map(chain=>orient(chain,P,shell));
-  const sample = () => {
-    const u = P.domainU[0] + 1.37e-3 * (P.domainU[1] - P.domainU[0]), v = P.domainV[0] + 1.11e-3 * (P.domainV[1] - P.domainV[0]);
-    return containsPoint(shell, evaluate(P, u, v, false).point);
-  };
+  const sample = uv => containsPoint(shell,evaluate(P,...uv,false).point);
   let raw;
   try{raw=closeOnBoundary(P,chains,sample,joiningMm);}catch(error){
     // At a mesh tangency, adjacent facet intersections can terminate in the

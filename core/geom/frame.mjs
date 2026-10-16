@@ -15,12 +15,33 @@ export function validateDirectionPair(primary,secondary){
   for(const v of [primary,secondary])requireThat(Array.isArray(v)&&v.length===3&&v.every(Number.isFinite)&&Math.abs(length(v)-1)<DIRECTION_TOLERANCE,'Frame directions must be unit 3-vectors.');
   requireThat(Math.abs(dot(primary,secondary))<DIRECTION_TOLERANCE,'Frame directions must be perpendicular.');
 }
-export function interpolateDirection(a,b,t){
-  if(t===0)return [...a];if(t===1)return [...b];
+export function prepareDirectionInterpolation(a,b){
   const cosine=Math.max(-1,Math.min(1,dot(a,b))),sine=length(cross(a,b)),angle=Math.atan2(sine,cosine);
   requireThat(sine>0||cosine>0,'Antipodal directions need an intermediate direction.');
+  return {angle,sine:Math.sin(angle)};
+}
+export function interpolateDirection(a,b,t,prepared){
+  if(t===0)return [...a];if(t===1)return [...b];
+  const {angle,sine}=prepared??prepareDirectionInterpolation(a,b);
   if(angle===0)return [...a];
-  return a.map((v,i)=>(v*Math.sin((1-t)*angle)+b[i]*Math.sin(t*angle))/Math.sin(angle));
+  const left=Math.sin((1-t)*angle)/sine,right=Math.sin(t*angle)/sine;
+  return a.map((v,i)=>v*left+b[i]*right);
+}
+// A spherical interpolant satisfies r''=-angle^2*r. Its departure from its
+// endpoint chord is at most max|r''|/8. Apply this to both interpolants, then
+// convert their Euclidean separation to an angular bound using lower norms.
+// Angles may describe restrictions of a longer interpolant.
+export function directionInterpolationError(a,b,c,d,firstAngle,secondAngle){
+  const firstCos=Math.cos(firstAngle/2),secondCos=Math.cos(secondAngle/2);
+  if(!(firstCos>0&&secondCos>0))return Math.PI;
+  const norms=[a,b,c,d].map(v=>Math.hypot(...v));
+  const curvature=firstAngle**2*Math.max(norms[0],norms[1])/firstCos+secondAngle**2*Math.max(norms[2],norms[3])/secondCos;
+  const separation=Math.max(length(subtract(a,c)),length(subtract(b,d)))+curvature/8;
+  const firstLow=Math.min(norms[0],norms[1])*Math.cos(Math.atan2(length(cross(a,b)),dot(a,b))/2);
+  const secondLow=Math.min(norms[2],norms[3])*Math.cos(Math.atan2(length(cross(c,d)),dot(c,d))/2);
+  const guard=FLOAT64_EPSILON*128*Math.max(1,...norms);
+  if(firstLow<=guard||secondLow<=guard)return Math.PI;
+  return 2*Math.asin(Math.min(1,(separation+guard)/(2*Math.sqrt((firstLow-guard)*(secondLow-guard)))));
 }
 // Shortest rigid-frame interpolation, including opposed axes. This describes
 // nominal Cartesian orientation, without joint trajectories or kinematics.

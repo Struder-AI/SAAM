@@ -1,8 +1,25 @@
 // Native face regions. UV curves bound a retained NURBS surface; they are never
 // a tessellation of its interior. All consumers use this same trim predicate.
 import {clipLineToRegion} from './curve-region.mjs';
-import {evaluate} from './nurbs.mjs';
-import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {evaluate,authoredNurbs,evaluateCurve} from './nurbs.mjs';
+import {curvePlaneIntersections,extract,reverseCurve} from './curve-ops.mjs';
+import {surfaceCurveImages} from './surface-curve-image.mjs';
+import {distance} from './tolerance.mjs';
+import {ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {curveLoopSamples,prepareCurveLoops} from './curve-loops.mjs';
+import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
+
+const regionViews=new WeakMap();
+// Polygon-only consumers request a derived view at physical construction
+// accuracy. The patch continues to own its original line/spline trim curves.
+export function faceTrimRegion(patch,{toleranceMm=PRINT_RESOLUTION_MM/4}={}){
+  if(!patch.trimLoops)return patchDomain(patch);
+  if(patch.trimLoops.every(Array.isArray))return patch.trimLoops;
+  if(!regionViews.has(patch))regionViews.set(patch,new Map());
+  const cache=regionViews.get(patch);
+  if(!cache.has(toleranceMm))cache.set(toleranceMm,curveLoopSamples(patch.trimLoops,uv=>evaluate(patch,...uv,false).point,{toleranceMm}));
+  return cache.get(toleranceMm);
+}
 
 export function patchDomain(patch){
   const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
@@ -31,15 +48,16 @@ export function segmentTrimSpans(a,b,loops){
 
 // Plane-section samples already retain their native parameters. Clip those
 // parameters and evaluate only the retained ends on the original surface.
-export function trimSectionChains(patch,chains){
+export function trimSectionChains(patch,chains,{plane}={}){
   if(!patch.trimLoops)return chains;
+  const planeCuts=plane&&patch.trimLoops.some(loop=>!Array.isArray(loop))?trimPlaneCuts(patch,plane):[];
   const result=[];
   for(const chain of chains){
     const state={current:null};
     for(let i=1;i<chain.length;i++){
       const a=chain[i-1],b=chain[i];
       for(const [lo,hi] of segmentTrimSpans([a.u,a.v],[b.u,b.v],patch.trimLoops)){
-        const first=sectionVertex(patch,a,b,lo),last=sectionVertex(patch,a,b,hi);
+        const first=sectionVertex(patch,a,b,lo,planeCuts),last=sectionVertex(patch,a,b,hi,planeCuts);
         if(state.current&&Math.hypot(state.current.at(-1).u-first.u,state.current.at(-1).v-first.v)<=ROUNDING_RELATIVE)state.current.push(last);
         else{state.current=[first,last];result.push(state.current);}
       }
@@ -48,9 +66,70 @@ export function trimSectionChains(patch,chains){
   return result;
 }
 
-function sectionVertex(patch,a,b,t){
+function sectionVertex(patch,a,b,t,planeCuts){
   if(t===0)return a;
   if(t===1)return b;
   const u=a.u+t*(b.u-a.u),v=a.v+t*(b.v-a.v);
-  return {u,v,point:evaluate(patch,u,v,false).point};
+  const point=evaluate(patch,u,v,false).point;
+  const nearest=planeCuts.toSorted((a,b)=>distance(a.point,point)-distance(b.point,point))[0];
+  return nearest&&distance(nearest.point,point)<=distance(a.point,b.point)+PRINT_RESOLUTION_MM?nearest:{u,v,point};
+}
+
+const trimImages=new WeakMap();
+function trimPlaneCuts(patch,plane){
+  if(!trimImages.has(patch))trimImages.set(patch,patch.trimLoops.flatMap(loop=>{
+    const definitions=Array.isArray(loop)?[{points:[...loop,loop[0]]}]:loop.curves;
+    return definitions.flatMap(definition=>surfaceCurveImages(patch,definition)).map(image=>({curve:authoredNurbs(image.nurbs),uvCurve:authoredNurbs(image.uvNurbs,2)}));
+  }));
+  return trimImages.get(patch).flatMap(({curve,uvCurve})=>curvePlaneIntersections(curve,plane).parameters.map(t=>{
+    const uv=evaluateCurve(uvCurve,t).point;
+    return {u:uv[0],v:uv[1],point:evaluateCurve(curve,t).point};
+  }));
+}
+
+const boundarySources=new WeakMap();
+// Region operations may split existing trims. Restore those intervals from
+// their source curves; only newly constructed boundaries remain polylines.
+export function retainFaceTrimCurves(patch,loops,{toleranceMm}={}){
+  if(!patch.trimLoops?.some(loop=>!Array.isArray(loop)))return loops;
+  if(!boundarySources.has(patch))boundarySources.set(patch,prepareCurveLoops(patch.trimLoops).loops.flat().map(native=>{
+    const controls=Array.from({length:native.n},(_,i)=>[0,1,2].map(k=>native.cp[i*4+k]/native.cp[i*4+3]));
+    return {native,query:prepareNumericalCurve({kind:'nurbs',degree:native.order-1,knots:[...native.knots],controlPoints:controls,weights:Array.from({length:native.n},(_,i)=>native.cp[i*4+3])}),
+      min:[0,1].map(k=>Math.min(...controls.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...controls.map(p=>p[k])))};
+  }));
+  const sources=boundarySources.get(patch);
+  return loops.map(loop=>{
+    const pieces=[];
+    for(let i=0;i<loop.length;i++){
+      const a=loop[i],b=loop[(i+1)%loop.length],match=sourceTrimInterval(patch,a,b,sources,toleranceMm),previous=pieces.at(-1);
+      if(match&&previous?.source===match.source&&Math.abs(previous.to-match.from)<=ROUNDING_RELATIVE){previous.to=match.to;previous.end=match.end;}
+      else pieces.push(match??{start:a,end:b});
+    }
+    return {curves:pieces.map((piece,i)=>{
+      if(!piece.source)return {points:[pieces[(i+pieces.length-1)%pieces.length].end,pieces[(i+1)%pieces.length].start]};
+      const {native}=piece.source,[lo,hi]=[piece.from,piece.to].sort((a,b)=>a-b),domain=native.domain;
+      const part=extract(native,domain[0]+lo*(domain[1]-domain[0]),domain[0]+hi*(domain[1]-domain[0]));
+      return {nurbs:trimCurveRecord(piece.to>piece.from?part:reverseCurve(part))};
+    }).filter(curve=>!curve.points||curve.points[0].some((v,k)=>v!==curve.points[1][k]))};
+  }).filter(loop=>loop.curves.length);
+}
+function trimCurveRecord(curve){
+  return {degree:curve.order-1,knots:[...curve.knots],controlPoints:Array.from({length:curve.n},(_,i)=>[curve.cp[i*4]/curve.cp[i*4+3],curve.cp[i*4+1]/curve.cp[i*4+3]]),weights:Array.from({length:curve.n},(_,i)=>curve.cp[i*4+3])};
+}
+function sourceTrimInterval(patch,a,b,sources,toleranceMm){
+  const frame=evaluate(patch,...a),metric=Math.max(Math.hypot(...frame.du),Math.hypot(...frame.dv)),guard=toleranceMm/metric;
+  for(const source of sources){
+    if([a,b].some(p=>p.some((v,k)=>v<source.min[k]-guard||v>source.max[k]+guard)))continue;
+    const parameters=[a,b].map(uv=>{
+      const first=evaluateCurve(source.native,source.native.domain[0]).point,last=evaluateCurve(source.native,source.native.domain[1]).point;
+      if(distance(uv,first)<=guard)return 0;if(distance(uv,last)<=guard)return 1;
+      return numericalCurveClosestParameter(source.query,0,1,[...uv,0],{toleranceMm:ROUNDING_RELATIVE});
+    });
+    if(Math.abs(parameters[1]-parameters[0])<=ROUNDING_RELATIVE)continue;
+    const [start,end]=parameters.map(t=>{const d=source.native.domain;return evaluateCurve(source.native,d[0]+t*(d[1]-d[0])).point.slice(0,2);});
+    const middle=a.map((v,k)=>(v+b[k])/2),d=source.native.domain,mid=evaluateCurve(source.native,d[0]+(parameters[0]+parameters[1])/2*(d[1]-d[0])).point;
+    if([[a,start],[b,end],[middle,mid]].some(([x,y])=>distance(evaluate(patch,...x,false).point,evaluate(patch,...y.slice(0,2),false).point)>toleranceMm))continue;
+    return {source,from:parameters[0],to:parameters[1],start,end};
+  }
+  return null;
 }

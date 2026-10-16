@@ -2,7 +2,8 @@
 // coedge identities; each face has distinct chart vertices, including both
 // sides of a periodic seam. Internal diagonals never borrow seam identities.
 import {solidKernel} from './solid.mjs';
-import {curvePosition} from './surface-topology.mjs';
+import {curvePosition,coedgeUvAt} from './surface-topology.mjs';
+import {bezierSpans,bezierRoots} from './curve-ops.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {evaluate,evaluateCurve} from './nurbs.mjs';
 import {surfaceIsoCurve,surfaceSegmentCurves} from './surface-curves.mjs';
@@ -25,7 +26,13 @@ export async function tessellateSurfaceShell(solid,{toleranceMm=.02}={}){
     const curve=topology.curves[edge.curve],[lo,hi]=edge.range,at=t=>({point:curvePosition(curve,t)});
     const cuts=[lo,hi],chartSpans=[];
     for(const face of topology.faces)for(const loop of face.loops)for(const use of loop)if(use.edge===index){
-      const patch=solid.patches[face.patch];chartSpans.push(distance(...use.uvRange));
+      const patch=solid.patches[face.patch];
+      if(use.uvCurve){
+        const curve=use.uvCurve,coordinates=Array.from({length:curve.n},(_,i)=>[curve.cp[i*4]/curve.cp[i*4+3],curve.cp[i*4+1]/curve.cp[i*4+3]]);
+        chartSpans.push(Math.hypot(...[0,1].map(k=>Math.max(...coordinates.map(p=>p[k]))-Math.min(...coordinates.map(p=>p[k])))));
+        cuts.push(...curvedChartCuts(use,edge.range,patch));continue;
+      }
+      chartSpans.push(distance(...use.uvRange));
       for(const [axis,knots] of patchBreaks(patch).entries()){
         const a=use.uvRange[0][axis],delta=use.uvRange[1][axis]-a;
         if(delta)for(const knot of knots){const t=(knot-a)/delta;if(t>0&&t<1)cuts.push(lo+t*(hi-lo));}
@@ -58,7 +65,7 @@ function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries,vertices
     for(const coedge of traversal){
       const edge=edges[coedge.edge],orientation=coedge.orientation*(patch.normalSide<0?-1:1);
       const samples=orientation>0?edgeSamples[coedge.edge]:[...edgeSamples[coedge.edge]].reverse();
-      const chain=samples.map(sample=>({...sample,uv:interpolate(coedge.uvRange[0],coedge.uvRange[1],(sample.t-edge.range[0])/(edge.range[1]-edge.range[0]))}));
+      const chain=samples.map(sample=>({...sample,uv:coedgeUvAt(coedge,edge.range,sample.t),uvMap:{use:coedge,range:edge.range}}));
       for(let i=1;i<chain.length;i++)spans.push({curve:edge.curve,a:chain[i-1],b:chain[i]});
       for(const sample of chain){const last=points.at(-1);if(!last||distance(sample.uv,last.uv)>ROUNDING_RELATIVE&&!(sample.id===last.id&&collapsedChartEdge(patch,last,sample,vertices[sample.id],ROUNDING_MM)))points.push(sample);}
     }
@@ -70,12 +77,23 @@ function triangulateFace(kernel,patch,face,edges,edgeSamples,boundaries,vertices
   const atSample=sample=>{
     const candidates=records.filter(record=>record.id===sample.id).sort((a,b)=>distance(a.uv,sample.uv)-distance(b.uv,sample.uv));
     requireThat(candidates.length,'A surface boundary sample has no chart vertex.');
-    return {...candidates[0],t:sample.t};
+    return {...candidates[0],...sample};
   };
   for(const span of spans)rememberBoundary(boundaries,face.patch,span.curve,atSample(span.a),atSample(span.b));
   const loops=charts.map(chart=>chart.map(record=>record.uv)),raw=kernel.triangulate(loops,ROUNDING_RELATIVE,false);
   const triangles=constrainFaceBoundary(raw,records,loops).map(triangle=>triangle.map(index=>records[index]));
   return knotSpanTriangles(patch,triangles,records,vertices).map(corners=>({face:face.patch,corners}));
+}
+
+function curvedChartCuts(use,range,patch){
+  const curve=use.uvCurve,domain=curve.domain,parameters=[...curve.knots];
+  for(const span of bezierSpans(curve))for(const [axis,knots] of patchBreaks(patch).entries())for(const knot of knots)
+    bezierRoots(Array.from({length:span.cp.length/4},(_,i)=>span.cp[i*4+axis]-knot*span.cp[i*4+3]),span.a,span.b,parameters);
+  return parameters.map(t=>((t-domain[0])/(domain[1]-domain[0])-use.uvParameterRange[0])/(use.uvParameterRange[1]-use.uvParameterRange[0])).filter(f=>f>0&&f<1).map(f=>range[0]+f*(range[1]-range[0]));
+}
+function boundaryUvAt(boundary,t){
+  const [a,b]=boundary.ends;
+  return a.uvMap?coedgeUvAt(a.uvMap.use,a.uvMap.range,t):interpolate(a.uv,b.uv,(t-a.t)/(b.t-a.t));
 }
 
 // Seed triangles within native knot spans. Refining across long straight runs
@@ -191,7 +209,7 @@ function refineSurfaceTriangles(solid,vertices,input,boundaries,toleranceMm){
       for(let edge=0;edge<3;edge++){
         const a=triangle.corners[edge],b=triangle.corners[(edge+1)%3],reference=edgeReference(triangle.face,a,b,boundaries);
         if(!marked.has(reference.key)||split.has(reference.key))continue;
-        const boundary=reference.boundary,uv=interpolate(a.uv,b.uv,.5);
+        const boundary=reference.boundary,uv=boundary?boundaryUvAt(boundary,(boundary.ends[0].t+boundary.ends[1].t)/2):interpolate(a.uv,b.uv,.5);
         // Sewing may collapse a tiny coedge to one vertex. Subdivision retains
         // that identity instead of reopening it at a fresh evaluated point.
         if(a.id===b.id&&collapsedChartEdge(solid.patches[triangle.face],a,b,vertices[a.id],Math.max(toleranceMm,solid.construction.toleranceMm))){split.set(reference.key,a.id);continue;}
@@ -206,11 +224,11 @@ function refineSurfaceTriangles(solid,vertices,input,boundaries,toleranceMm){
         const b=corners[(i+1)%3],reference=edgeReference(triangle.face,a,b,boundaries),id=split.get(reference.key);
         if(id===undefined)return null;
         if(chartMids.has(reference.chart))return chartMids.get(reference.chart);
-        const mid={id,uv:interpolate(a.uv,b.uv,.5),chartId:state.nextChartId++};
+        const mid={id,uv:reference.boundary?boundaryUvAt(reference.boundary,(reference.boundary.ends[0].t+reference.boundary.ends[1].t)/2):interpolate(a.uv,b.uv,.5),chartId:state.nextChartId++};
         chartMids.set(reference.chart,mid);
         if(reference.boundary){
           const boundary=reference.boundary,[first,last]=boundary.ends;
-          const shared={...mid,t:(first.t+last.t)/2};
+          const shared={...mid,t:(first.t+last.t)/2,uvMap:first.uvMap};
           rememberBoundary(boundaries,triangle.face,boundary.curve,first,shared);
           rememberBoundary(boundaries,triangle.face,boundary.curve,shared,last);
         }

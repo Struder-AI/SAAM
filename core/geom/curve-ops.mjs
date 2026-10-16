@@ -100,6 +100,8 @@ function splitBezier(cp,s){
 // coefficients means no root; exactly one, with opposite ends, means one root,
 // bisected to the floating-point floor; otherwise split and recurse.
 export function bezierRoots(h,a,b,out){
+  if(h[0]===0)out.push(a);
+  if(h.at(-1)===0)out.push(b);
   const signs=h.filter(x=>x!==0).map(Math.sign);
   let changes=0;for(let i=1;i<signs.length;i++)if(signs[i]!==signs[i-1])changes++;
   if(changes===0)return;
@@ -115,6 +117,20 @@ export function bezierRoots(h,a,b,out){
     out.push((lo+hi)/2);return;
   }
   const [l,r]=casteljau(h,.5);bezierRoots(l,a,m,out);bezierRoots(r,m,b,out);
+}
+
+// Intersect a retained spatial curve with a plane, using homogeneous span
+// coefficients. Coincident spans remain intervals rather than invented roots.
+export function curvePlaneIntersections(curve,{normal,offset}){
+  const roots=[],coincident=[];
+  for(const span of bezierSpans(curve)){
+    const values=Array.from({length:span.cp.length/4},(_,i)=>normal.reduce((sum,v,k)=>sum+v*span.cp[i*4+k],0)-offset*span.cp[i*4+3]);
+    if(values.every(v=>v===0)){coincident.push([span.a,span.b]);continue;}
+    bezierRoots(values,span.a,span.b,roots);
+  }
+  const parameters=[];
+  for(const t of roots.sort((a,b)=>a-b))if(!parameters.length||t-parameters.at(-1)>ROUNDING_RELATIVE*(curve.domain[1]-curve.domain[0]))parameters.push(t);
+  return {parameters,coincident};
 }
 
 // Parameter intervals where a curve lies inside axis-aligned bounds in its

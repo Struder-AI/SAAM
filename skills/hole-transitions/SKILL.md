@@ -1,20 +1,18 @@
 ---
 name: hole-transitions
-description: Experimental. Add stepped-reduction bridge courses or a seeded wave shoulder around a retained bore using ordinary Slice.
+description: Experimental. Add a drill-through membrane, stepped reduction or seeded wave shoulder using ordinary Slice.
 metadata:
   saam-kind: extension
 ---
 
 # Hole transitions
 
-The [four-option guidance](../hole-supports/SKILL.md) owns the choice and finishing.
-Call `apply_extension` with `extensionId:"hole-transitions"`, the current Bundle
-revision and one request below. `sourceAssignment` selects the ordinary Slice
-owner supplying part, material and process. Other assignments remain present.
-IDs must be new; undo the application with a Bundle revision before rebuilding
-for changed geometry, layers, width or strategy. There is no separate feature runtime.
+The [four-option guidance](../hole-supports/SKILL.md) owns choice and finishing. Call
+`apply_extension` with `extensionId:"hole-transitions"`, the current Bundle revision
+and a request below. `sourceAssignment` supplies part, material and process; other
+assignments remain. Use new IDs; undo with a Bundle revision before rebuilding.
 
-## Stepped reduction
+## Membrane or stepped reduction
 
 ```json
 {"strategy":"stepped-reduction","id":"screw-hole","sourceAssignment":"body",
@@ -22,43 +20,44 @@ for changed geometry, layers, width or strategy. There is no separate feature ru
  "angleDeg":0,"speedMmS":20}
 ```
 
-Measure `centerMm` at the shoulder in part-local XYZ. The source must be an
-unbounded planar Slice owner: horizontal or an authored plane, with a positive
-translation direction. Its normal and chart axes define the bore axis and bridge
-angles. The shoulder must match its grid within `toleranceMm` (default 0.01mm);
-four continuing circular bore layers must exist above it. Layer height, first gap,
-bead width, material and pose inherit the source. Assembly sources select one part.
+`centerMm` is the shoulder in part-local XYZ. Use an unbounded planar Slice owner,
+horizontal or tilted, including oblique stack translations; no curved membranes or
+steps. Its normal/chart axes define the bore axis/angles. Match the shoulder grid
+within `toleranceMm` (default 0.01mm), retaining one bore layer for membrane or four
+for stepped reduction. Layer gaps, width, material and pose inherit the source.
 
-The extension cuts the exemplar's slot, tangent square and tangent octagon into
-the first three overhang courses, retaining the original host as a Boolean operand.
-Three local zero-loop dense Slice owners bridge at `angleDeg`, +90° and +45°;
-each reaches two bead widths beyond the counterbore for anchoring. Their geometry
-claims remove that material from the unbounded body's ordinary fill. The body keeps
-its existing walls/fill elsewhere and resumes the round bore on the fourth course.
-The report names actual source layer indices. `speedMmS` defaults to source speed;
-`angleDeg` defaults to 0. Inspect first-course span, anchoring and the enlarged opening.
-This supports tilted planar references and oblique stack directions, not curved slices.
+Stepped reduction cuts the exemplar's slot, tangent square and tangent octagon into
+three overhang courses, bridging at `angleDeg`, +90° and +45°, then resumes the bore.
+Both strategies' guides reach the source's last supporting wall using its count,
+inset and spacing; local dense zero-loop owners replace the body's fill there.
+The report names native indices. Angle defaults to 0; speed inherits the source.
+
+Use the same request with `strategy:"membrane"` for one straight dense fill at the
+shoulder, anchored on the preceding rim. A thin wafer closes the bore for later
+piercing or drilling. The helper wires rim walls → membrane → first bore walls;
+stepped reduction wires rim walls → stages → first round-bore walls. Both require
+source wall loops at their boundaries. `after` adds prerequisites. Fill traversal
+is a soft preference; the scheduler owns entry and travel.
 
 ## Experimental wave shoulder
 
-Supply `strategy:"wave"`, `id`, `sourceAssignment`, `surface`, `domainUv`, and
-`seedUv`. The surface is an ordinary Slice spline reference (authored control net)
-or named native patch, placed at the **top of the last wave course**. The domain
-contains a CCW outer loop and CW bore hole; the seed is the already supported
-outer rim in the same chart and is not printed again. Include the anchoring rim
-in the domain. Wrong seed placement can request unsupported deposition.
+Supply `strategy:"wave"`, `id`, `sourceAssignment`, `surface`, `domainUv` and `seedUv`.
+Place an ordinary Slice spline reference or native patch at the **top of the last
+wave course**. The domain has a CCW outer loop, CW bore hole and anchoring rim.
+The seed denotes already printed material in the same chart, not new deposition.
 
 `layers` defaults to 1; `layerHeightMm` inherits the source stack/process.
-The extension adds an ordinary `surface-domain` Slice with `fillOrder:"fronts"`
-and leaves host geometry unchanged. Defaults are spacing 0.3mm, propagation step
-0.1mm, tolerance 0.01mm, sample step 0.5mm, speed 5mm/s and fan 100%; the corresponding
-fields are `lineSpacingMm`, `propagationStepMm`, `toleranceMm`, `sampleStepMm`,
-`speedMmS` and `fanPercent`. They are experimental values, not machine calibration.
+An ordinary `surface-domain` Slice with `fillOrder:"fronts"` leaves geometry unchanged.
+Defaults are spacing 0.3mm, propagation step 0.1mm, tolerance 0.01mm,
+sample step 0.5mm, speed 5mm/s and fan 100%; fields are `lineSpacingMm`, `propagationStepMm`, `toleranceMm`, `sampleStepMm`,
+`speedMmS` and `fanPercent` (experimental values).
 `direction` accepts an XYZ translation direction; omission uses the reference's
 mean normal. `toolPose` inherits the source or accepts `{alignToSliceNormal:true}`.
-Spline charts may be curved: physical spacing and calibrated mean-normal gaps stay
-with the existing [wave fill](../wave-overhangs/SKILL.md), including its residual reports,
-chart/sampling limits and lack of an implicit final perimeter. Normal-offset stacks,
-singular/folded charts and multi-chart stitching are unsupported.
+Curved charts use existing [wave fill](../wave-overhangs/SKILL.md) spacing, calibrated
+gaps, residuals and limits; no implicit final perimeter, normal-offset stacks,
+singular/folded charts or multi-chart stitching.
 
-Stepped reduction wires source rim walls → stages → first round-bore walls; source wall loops are required at both boundaries. `after` adds prerequisites. Wave `after` still names its printed seed; scope the continuing bore's prerequisite with Slice `operationAfter` in its slice override. Never wait for the whole body above the feature. Review chronology, ownership and contact; software success establishes no physical result. [Examples](examples/README.md) include planar, tilted and curved constructions and the original exemplar.
+Wave `after` names its printed seed; target continuing bore walls with Slice
+`operationAfter` in a slice override. Review chronology, ownership and contact.
+[Examples](examples/README.md) include planar, tilted and curved constructions;
+software success establishes no physical result.

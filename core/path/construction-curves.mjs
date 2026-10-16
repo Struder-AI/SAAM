@@ -7,9 +7,11 @@ import {strokeRange} from './deposition.mjs';
 
 export function constructionCurve(input,surface){
   const stroke=input.closed?strokeRange(input):input,points=stroke.points;
-  if(stroke.nativePath&&JSON.stringify(points)===JSON.stringify(stroke.nativePath.points))return stroke.nativePath;
-  const chart=stroke.chartPoints??stroke.frameSamples?.map(frame=>frame.point.slice(0,2)),translation=stroke.nativeSurface?.translation??[0,0,0];
-  const mapped=mappedSurfacePath(stroke.nativeSurface?.surface??surface,chart,points.map(point=>point.map((value,k)=>value-translation[k])));
+  const witness=stroke.nativePath?.points;
+  if(witness&&(points===witness||points.length===witness.length&&points.every((point,i)=>point.every((value,k)=>value===witness[i][k]))))return stroke.nativePath;
+  const reference=stroke.nativeSurface?.surface??surface,translation=stroke.nativeSurface?.translation??[0,0,0];
+  const chart=reference&&(stroke.chartPoints??stroke.frameSamples?.map(frame=>frame.point.slice(0,2)));
+  const mapped=reference?mappedSurfacePath(reference,chart,translation.every(value=>value===0)?points:points.map(point=>point.map((value,k)=>value-translation[k]))):null;
   if(mapped&&mapped.geometry.controlPoints.length*3+mapped.geometry.knots.length+(mapped.geometry.weights?.length??0)<points.length*3)
     return {...mapped,geometry:{...mapped.geometry,controlPoints:mapped.geometry.controlPoints.map(point=>point.map((value,k)=>value+translation[k]))},points,mapped:true};
   const fitted=fitSampledCurve(points);
