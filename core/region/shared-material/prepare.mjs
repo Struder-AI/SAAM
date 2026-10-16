@@ -116,8 +116,11 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
     if(!interiors.has(key))interiors.set(key,claimInterior(members));
     return interiors.get(key);
   };
-  for(let i=0;i<explicit.length;i++)for(let j=i+1;j<explicit.length;j++){
-    const a=explicit[i],b=explicit[j];if(a.part!==b.part)continue;
+  const byPart=new Map();for(const owner of explicit){if(!byPart.has(owner.part))byPart.set(owner.part,[]);byPart.get(owner.part).push(owner);}
+  const pairCount=[...byPart.values()].reduce((n,owners)=>n+owners.length*(owners.length-1)/2,0);let checked=0;
+  for(const claimants of byPart.values())for(let i=0;i<claimants.length;i++)for(let j=i+1;j<claimants.length;j++){
+    const a=claimants[i],b=claimants[j];
+    onProgress?.({stage:'Checking material overlap',completed:checked++,total:pairCount,assignment:a.assignment.id});
     const query=interior([a,b]);
     if(!query.supported||!query.find(MIN_SHARED_CLAIM_DEPTH_MM))continue;
     const first=groups.find(g=>g.includes(a)),second=groups.find(g=>g.includes(b));
@@ -126,14 +129,15 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
   const replacements=new Map(),cadences=new Map(),frames=[];
   for(const group of groups){
     group.sort((a,b)=>explicit.indexOf(a)-explicit.indexOf(b));
-    const principal=group[0],query=interior(group);
-    const witness=group.length>1&&query.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null;
+    const principal=group[0],query=group.length>1?interior(group):null;
+    const witness=query?.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null;
     // A connected set need not have an n-way common volume. Its first actual
     // junction supplies the reference point; each active subset is partitioned.
     let point=witness;
     if(!point)for(let i=0;i<group.length&&!point;i++)for(let j=i+1;j<group.length&&!point;j++){
       const pair=interior([group[i],group[j]]);if(pair.supported)point=pair.find(MIN_SHARED_CLAIM_DEPTH_MM);
     }
+    if(point)onProgress?.({stage:'Resolving shared material',assignment:principal.assignment.id});
     const joint=group.length>1&&point?cadence(group,point):null;
     for(const owner of group){
       let referenceStack=owner.referenceStack,adjustment=null;
@@ -253,7 +257,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
     return cuts.length ? cuts.reduce((a, b) => a.length && b.length ? intersect(a, b) : []) : null;
   });
   const claimAt=(owner,layer)=>{const own=material(owner,layer.slice),cut=volume(owner,layer);return cut===null?own:intersect(own,cut);};
-  onProgress?.({stage:'Resolving shared material'});
+  onProgress?.({stage:'Checking material overlap'});
   const shared=prepareMaterialClaims(inputOwners,{claimAt,onProgress}),owners=shared.owners;
   const explicit = owners.filter(o => o.kind === 'part' && o.within.length), results = [];
   const characterAt=(owner,point)=>{

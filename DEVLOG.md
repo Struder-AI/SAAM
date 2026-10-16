@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Bound nonoverlapping material-claim checks
+
+- The four-part support review now has 19 regional assignments. Shared-depth discovery searched a landing against the frame that excludes it, despite there being no qualifying interlock. A bounded diagnostic stopped the old pair after 8.45 seconds/31,360 visited boxes without a result. Geometry now provides conservative whole-box membership for closed meshes and Boolean propagation, pruning excluded volumes before ball subdivision; unsupported/uncertain queries retain the existing search. Closed-mesh winding parity avoids a world-axis ray and print-resolution merging of distinct thin surfaces.
+- Material regions checks pairs only within each part, skips singleton interior preparation, reports measured “Checking material overlap” progress, and says “Resolving shared material” only after finding a joint. On the captured exact 19-owner input, all 43 pair checks finish in 5.399 seconds and the complete 721-layer preparation in 9.584 seconds/10.594 CPU seconds, with no cadence groups. Fine incidental overlaps retain principal allocation and existing notes; no region, threshold or interlock rule was removed.
+- Disposable verification preserves genuine 0.12mm overlap, rejects 0.08mm overlap/touching/complements under the 0.1mm threshold, checks 540 boxes in native/oblique frames, and verifies membership with a separate 0.0005mm-thick remote component. No permanent test or whole suite. Existing hole-support guidance changes ride in the standing all-changes checkpoint. Source runtime reload remains separate from recipe edits and requires the existing calculation to stop.
+
 ## 2026-10-16 — Remove the scheduler's graph-size cliff
 
 - Both dependency readers now retain sparse forward/reverse edges, search bidirectionally and cache only queried pairs. Positive proofs survive added edges; negative results carry the graph revision. Cache eviction changes work, never meaning; no quadratic closure allocation or size-triggered algorithm switch remains. Native-layer runs prove retained preferred ordering without repeated graph traversal and rebuild after relaxation.

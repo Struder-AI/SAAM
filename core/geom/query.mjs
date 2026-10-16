@@ -3,9 +3,10 @@ import { topAt as splineTopAt,crossingsAt as splineCrossingsAt } from './field.m
 import { meshTopAt,meshCrossingsAt } from './mesh.mjs';
 import {horizontalSlice} from './slice.mjs';
 import {section,prepareSection} from '../region/section.mjs';
-import { requireThat } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
+import { requireThat,dot,cross } from './tolerance.mjs';
+import { PRINT_RESOLUTION_MM,ROUNDING_MM,FLOAT64_EPSILON } from '../dimensions.mjs';
 import {chartPrismContains} from './chart-prism.mjs';
+import {triangleBVH} from './triangle-bvh.mjs';
 
 export function requireGeometry(geometry, capabilities) {
   requireThat(geometry?.bounds&&((geometry.kind==='triangle-mesh')||geometry.kind==='chart-prism'||geometry.kind==='boolean'||Array.isArray(geometry.patches)),'Unsupported geometry backend.');
@@ -92,4 +93,52 @@ export function containsPoint(geometry,[x,y,z]){
   if(geometry.kind==='chart-prism')return chartPrismContains(geometry,[x,y,z]);
   requireGeometry(geometry,['bounds']);
   return holdsHeight(geometry,columnCrossings(geometry,x,y),z);
+}
+
+// Classify a complete box: 1 inside, -1 outside, 0 unresolved. A closed mesh
+// with no boundary near the box has constant membership throughout that box.
+// Boolean propagation preserves uncertainty; unsupported surfaces stay unknown.
+const solidBoundsQueries=new WeakMap();
+function closedMeshMembership(mesh,point){
+  let angle=0,error=0;
+  for(const triangle of mesh.triangles){
+    const [a,b,c]=triangle.map(i=>mesh.vertices[i].map((v,k)=>v-point[k]));
+    const [la,lb,lc]=[a,b,c].map(v=>Math.hypot(...v)),scale=la*lb*lc;
+    const numerator=dot(a,cross(b,c)),denominator=scale+dot(a,b)*lc+dot(b,c)*la+dot(c,a)*lb;
+    const magnitude=Math.hypot(numerator,denominator);if(!magnitude)return 0;
+    angle+=2*Math.atan2(numerator,denominator);error+=FLOAT64_EPSILON*256*scale/magnitude;
+  }
+  const winding=angle/(4*Math.PI),nearest=Math.round(winding);
+  if(!Number.isFinite(winding)||Math.abs(winding-nearest)+error>=.5)return 0;
+  return Math.abs(nearest)%2?1:-1;
+}
+export function prepareSolidBoundsQuery(geometry){
+  if(solidBoundsQueries.has(geometry))return solidBoundsQueries.get(geometry);
+  const outside=box=>box.min.some((v,k)=>v>geometry.bounds.max[k]+ROUNDING_MM||box.max[k]<geometry.bounds.min[k]-ROUNDING_MM);
+  let classify=box=>geometry.empty||outside(box)?-1:0;
+  if(geometry.kind==='boolean'){
+    const operands=geometry.operands.map(prepareSolidBoundsQuery);
+    classify=box=>{
+      if(geometry.empty||outside(box))return -1;
+      const values=operands.map(query=>query(box));
+      return geometry.operation==='union'?(values.includes(1)?1:values.every(v=>v===-1)?-1:0):
+        geometry.operation==='intersection'?(values.includes(-1)?-1:values.every(v=>v===1)?1:0):
+        values[0]===-1||values.slice(1).includes(1)?-1:values[0]===1&&values.slice(1).every(v=>v===-1)?1:0;
+    };
+  }else if(geometry.kind==='triangle-mesh'&&geometry.topology&&
+      ['openEdges','nonmanifoldEdges','nonmanifoldVertices','inconsistentEdges'].every(key=>geometry.topology[key]===0)){
+    const tree=triangleBVH(geometry.vertices,geometry.triangles);
+    classify=box=>{
+      if(geometry.empty||outside(box))return -1;
+      let boundary=false;
+      tree.query(box.min,box.max,i=>{
+        if(boundary)return;
+        const triangle=geometry.triangles[i].map(index=>geometry.vertices[index]);
+        if(!box.min.some((v,k)=>v>Math.max(...triangle.map(p=>p[k]))+ROUNDING_MM||box.max[k]<Math.min(...triangle.map(p=>p[k]))-ROUNDING_MM))boundary=true;
+      });
+      if(boundary)return 0;
+      return closedMeshMembership(geometry,box.min.map((v,k)=>(v+box.max[k])/2));
+    };
+  }
+  solidBoundsQueries.set(geometry,classify);return classify;
 }

@@ -2,7 +2,7 @@
 // Mesh distances use their original triangles; NURBS surface exclusion uses
 // rational derivative bounds, never a presentation tessellation. Failure to find
 // a witness resolves spatial features to program precision, not a print grid.
-import {containsPoint} from '../../geom/query.mjs';
+import {containsPoint,prepareSolidBoundsQuery} from '../../geom/query.mjs';
 import {createMeshDistanceQuery} from '../../geom/mesh-distance.mjs';
 import {evaluate,gradientBound} from '../../geom/nurbs.mjs';
 import {dot} from '../../geom/frame.mjs';
@@ -79,6 +79,7 @@ function buildSolidBalls(geometry){
 export function prepareSharedInterior({solids,slabs=[]}){
   const queries=solids.map(solidBalls);
   if(queries.some(q=>!q))return {supported:false};
+  const boxes=solids.map(prepareSolidBoundsQuery);
   for(const {fromMm,toMm,axis=[0,0,1]} of slabs)queries.push((point,radius)=>{
     const h=dot(axis,point),r=radius*Math.hypot(...axis);
     return h-r>=fromMm-ROUNDING_MM&&h+r<=toMm+ROUNDING_MM?1:h+r<fromMm||h-r>toMm?-1:0;
@@ -97,6 +98,7 @@ export function prepareSharedInterior({solids,slabs=[]}){
     const pending=[{min,max}];
     while(pending.length){
       const box=pending.pop(),point=box.min.map((x,k)=>(x+box.max[k])/2),half=box.max.map((x,k)=>(x-box.min[k])/2),reach=Math.hypot(...half);
+      if(boxes.some(query=>query(box)===-1))continue;
       if(queries.every(query=>query(point,radius)===1))return point;
       if(queries.some(query=>query(point,reach)===-1))continue;
       if(radius>reach&&queries.some(query=>query(point,radius-reach)!==1))continue;

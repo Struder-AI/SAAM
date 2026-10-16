@@ -21,7 +21,7 @@ place it at Z5.8–6.0 before the first overhang at Z6.2; order lower body, memb
 This earlier membrane is the owner's adaptation of TKeller's [original exemplar](references/README.md), which uses the overhang course.
 Other references need corresponding earlier surfaces and anchors; curved membranes remain unverified.
 
-[Whole-part comparison](examples/whole-parts.json): four complete Ø30×12mm bodies (Ø14 recess to Z6; Ø6 bore), with original membrane, stepped reduction and 50%/75% sleeves left to right.
-This geometry-review `create_bundle` input omits `bundleId`; ordinary Slice does not encode TK's reserved bridge-before-contour ordering.
-Its 48-segment meshes derive from the supplied TK reference: original membrane Z6–6.2, 0.2mm layers; sleeve dimensions remain in the recipe descriptions.
+[Whole-part comparison](examples/whole-parts.json): four complete 16×16×8mm bodies (R5 recess to Z4; R2 bore), left to right: removable landing support, drill-through membrane, stepped reduction and wave shoulder.
+The recipe separates support courses from the ordinary body: Trace landing stack, anchored membrane at Z4, bridges at Z4.2/4.4/4.6 in 0°/90°/45° directions, and seeded inward wave fronts at Z4.2.
+Review those courses and the succeeding bore walls in chronological playback. The membrane is pierced afterward; the landing support is removed. These experimental constructions remain physically unqualified.
 Use normal Bundle revisions and the [shared review workflow](../../core/print/USAGE.md).
