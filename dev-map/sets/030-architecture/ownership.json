@@ -21537,9 +21537,6 @@
     "core/geom/boolean-display.mjs::booleanDisplayMesh::solidOf::operand": {
       "owner": "geometry-leaf-26371bcddc5c"
     },
-    "core/geom/boolean-display.mjs::booleanDisplayMesh::solidOf::<callback@20:24>::combined": {
-      "owner": "geometry-leaf-26371bcddc5c"
-    },
     "core/geom/boolean-display.mjs::booleanDisplayMesh::@scope/block-1::solid": {
       "owner": "geometry-leaf-f27032bb2008"
     },
@@ -26464,9 +26461,6 @@
     "core/geom/solid-operations.mjs::prepareConstructions::construct::mesh": {
       "owner": "geometry-leaf-84b7fb4f28cb"
     },
-    "core/geom/solid-operations.mjs::prepareConstructions::construct::@scope/block-3/block-1::geometry": {
-      "owner": "geometry-leaf-84b7fb4f28cb"
-    },
     "core/geom/solid-operations.mjs::prepareConstructions::numerical": {
       "owner": "geometry-leaf-ecc102f7a229"
     },
@@ -26502,9 +26496,6 @@
     },
     "core/geom/solid-operations.mjs::constructSolids::solid": {
       "owner": "geometry-leaf-464de5e3f611"
-    },
-    "core/geom/solid-operations.mjs::mappedExtrusion::<callback@107:32>::q": {
-      "owner": "geometry-leaf-c8d4e9d26294"
     },
     "core/geom/solid-profiles.mjs::@module": {
       "owner": "geometry-leaf-ee12cba10e00"
@@ -27576,12 +27567,33 @@
     "core/geom/solid-operations.mjs::prepareConstructions::construct::@scope/block-4/block-1::geometry": {
       "owner": "geometry-leaf-84b7fb4f28cb"
     },
-    "core/geom/solid-operations.mjs::mappedExtrusion::<callback@111:32>::q": {
-      "owner": "geometry-leaf-c8d4e9d26294"
-    },
     "core/path/curve-profiles.mjs::interpolateScalar": {
       "owner": "toolpath",
       "reason": "Source scalar profiles and bounded local estimates share finite, monotone interpolation with exact endpoints."
+    },
+    "core/geom/boolean-display.mjs::booleanDisplayMesh::solidOf::<callback@23:24>::combined": {
+      "owner": "geometry-leaf-26371bcddc5c"
+    },
+    "core/geom/boolean-display.mjs::tessellateSolid::signs": {
+      "owner": "geometry-leaf-3fc6eb5a85a4"
+    },
+    "core/geom/boolean-display.mjs::tessellateSolid::patches": {
+      "owner": "geometry-leaf-3fc6eb5a85a4"
+    },
+    "core/geom/boolean-display.mjs::tessellateSolid::topology": {
+      "owner": "geometry-leaf-3fc6eb5a85a4"
+    },
+    "core/geom/boolean-solid.mjs::booleanShell::native": {
+      "owner": "geometry-leaf-97223d9bdb91"
+    },
+    "core/geom/boolean-solid.mjs::booleanShell::composed": {
+      "owner": "geometry-leaf-97223d9bdb91"
+    },
+    "core/geom/solid-operations.mjs::materialPresence::knownPresent": {
+      "owner": "geometry-leaf-78a906648ac7"
+    },
+    "core/geom/solid-operations.mjs::mappedExtrusion::<callback@112:32>::q": {
+      "owner": "geometry-leaf-c8d4e9d26294"
     }
   },
   "retiredAssignments": [

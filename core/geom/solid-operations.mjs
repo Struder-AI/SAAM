@@ -65,7 +65,8 @@ export async function constructSolids(requests,{toleranceMm=.02}={}){
   return meshes;
 }
 export async function materialPresence(solids,options={}){
-  const pending=solids.filter(solid=>solid.kind==='boolean'&&!solid.empty),meshes=pending.length?await constructSolids(pending,options):[];
+  const knownPresent=solid=>!solid.empty&&(solid.kind!=='boolean'||solid.operation==='union'&&solid.operands.some(knownPresent));
+  const pending=solids.filter(solid=>!solid.empty&&!knownPresent(solid)),meshes=pending.length?await constructSolids(pending,options):[];
   const answers=new Map(pending.map((solid,i)=>[solid,meshes[i]!==null]));return solids.map(solid=>answers.get(solid)??!solid.empty);
 }
 

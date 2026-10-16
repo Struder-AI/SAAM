@@ -21,7 +21,9 @@ export function convexSupport(shape,direction){
   if(shape.body){const point=convexSupport(shape.body,direction);return dot(shape.sweep,direction)>0?add(point,shape.sweep):point;}
   if(shape.parts){
     const points=shape.parts.map(part=>convexSupport(part,direction));
-    const best=points.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
+    let best=points.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
+    if(shape.radialMargin){const radial=subtract(direction,scale(shape.radialNormal,dot(direction,shape.radialNormal))),size=length(radial);
+      if(size>0)best=add(best,scale(radial,shape.radialMargin/size));}
     return shape.margin?add(best,scale(normalize(direction),shape.margin)):best;
   }
   const normal=shape.normal,radial=subtract(direction,scale(normal,dot(direction,normal))),size=length(radial);
@@ -152,7 +154,7 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
 
 function roundedBody(shape){
   let body=shape,margin=0;
-  while(body.parts?.length===1){margin+=body.margin??0;body=body.parts[0];}
+  while(body.parts?.length===1){margin+=(body.margin??0)+(body.radialMargin??0);body=body.parts[0];}
   return {body,margin};
 }
 export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
@@ -400,7 +402,7 @@ export function rectangularSection(point,tangent,referenceNormal,radius,depth){
   }),frame};
 }
 
-export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCone,normalCone,radius,depth}){
+export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCone,normalCone,radius,depth,sectionFrameBounds=null}){
   const chord=subtract(to,from),size=length(chord),tangent=tangentCone.halfAngleRad===0?tangentCone.axis:size>ROUNDING_MM?scale(chord,1/size):tangentCone.axis;
   const frame=sectionFrame(tangent,normalCone.axis),extent=radius[1]+depth[1];
   if(!frame){
@@ -411,13 +413,21 @@ export function rectangularSweepEnvelope({from,to,bounds,chordErrorMm,tangentCon
   const referenceError=2*Math.sin(normalCone.halfAngleRad/2);
   // Projection changes by at most dN + 2*dT. Normalizing a nonzero vector
   // changes its direction by at most twice that error / reference magnitude.
-  const normalError=Math.min(2,2*(referenceError+2*tangentError)/frame.projectedSize);
-  const sideError=Math.min(2,tangentError+normalError);
-  const margin=chordErrorMm+radius[1]*sideError+depth[1]*normalError;
+  const ordinaryError=Math.min(2,2*(referenceError+2*tangentError)/frame.projectedSize);
+  const directionalError=sectionFrameBounds?Math.min(2,length(subtract(frame.normal,sectionFrameBounds.axis))+2*Math.sin(sectionFrameBounds.halfAngleRad/2)):2;
+  const normalError=Math.min(ordinaryError,directionalError),sideError=Math.min(2,tangentError+normalError);
+  const planar=sectionFrameBounds&&directionalError<ordinaryError;
+  // Side/curve uncertainty in a known section plane must not fabricate extra
+  // thickness. Normal-frame uncertainty remains a spherical enclosure.
+  const radialMargin=planar?chordErrorMm+radius[1]*sideError:0;
+  const axialError=planar?Math.min(chordErrorMm,sectionFrameBounds.projection[1]-sectionFrameBounds.projection[0]+
+    chordErrorMm*length(subtract(frame.normal,sectionFrameBounds.axis))):0;
+  const margin=planar?axialError+(radius[1]+depth[1])*normalError:chordErrorMm+radius[1]*sideError+depth[1]*normalError;
   const body={a:from,b:to,side:frame.side,normal:frame.normal,radius:radius[1],depth:depth[1]};
-  const exact=margin===0&&radius[0]===radius[1]&&depth[0]===depth[1];
-  return {shape:margin?{parts:[body],margin}:body,frame,normalError,sideError,
-    errorMm:margin+radius[1]-radius[0]+depth[1]-depth[0],exact};
+  const exact=margin===0&&radialMargin===0&&radius[0]===radius[1]&&depth[0]===depth[1];
+  return {shape:margin||radialMargin?{parts:[body],margin,...(radialMargin?{radialMargin,radialNormal:frame.normal}:{})}:body,
+    frame,normalError,sideError,sphericalErrorMm:margin,planarErrorMm:radialMargin,
+    errorMm:margin+radialMargin+radius[1]-radius[0]+depth[1]-depth[0],exact};
 }
 
 // Curve positions need only stay within the chord's geometric error tube.
@@ -483,6 +493,15 @@ export function translationContactInterval(body,translation,obstacle,{resolution
 // a sparse layer surface. Clamping its parameter coordinates extends the graph
 // globally with the same certified Lipschitz bound.
 export function referenceHeightGraph(patch,direction){
+  if(patch?.kind==='linear'){
+    const axis=normalize(direction),guard=ROUNDING_MM*8,residual=point=>dot(point,axis);
+    return {axis,slope:0,curvature:0,residual,curveBounds(geometry){
+      const vertices=geometry.kind==='polyline'?geometry.points:geometry.kind==='nurbs'?geometry.controlPoints:null;
+      if(!vertices)return null;
+      let lo=Infinity,hi=-Infinity;for(const point of vertices){const value=residual(point);lo=Math.min(lo,value);hi=Math.max(hi,value);}
+      return [lo-guard,hi+guard];
+    }};
+  }
   if(!patch?.cp||patch.orderU<2||patch.orderV<2||!patch.domainU||!patch.domainV)return null;
   for(const [knots,order,domain]of [[patch.knotsU,patch.orderU,patch.domainU],[patch.knotsV,patch.orderV,patch.domainV]]){
     if(!knots||!(domain[1]>domain[0]))return null;

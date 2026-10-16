@@ -1,7 +1,8 @@
-// Native spline operands construct one trimmed boundary. Mesh and mixed
-// operands retain native section composition; output conversion is separate.
+// Native operands construct trimmed boundaries or retain proven disjoint unions.
+// Sections query either representation directly; output conversion is separate.
 import {requireThat} from './tolerance.mjs';
 import {nativeSurfaceSolid,surfaceBoolean} from './surface-boolean.mjs';
+import {separatingSurfacePlane} from './surface-support.mjs';
 
 export const BOOLEAN_OPERATIONS=['union','difference','intersection'];
 export const BOOLEAN_OPERAND_SHAPES=['spline','mesh','blob-field','boolean'];
@@ -30,8 +31,12 @@ export function displayGeometry(geometry){
 
 // Difference keeps the first operand's extent; intersection keeps the overlap,
 // flat where the operands' boxes do not meet: no material, shown empty.
-export function booleanShell(operation,operands,options){
-  if(operands.length>=2&&operands.every(nativeSurfaceSolid))return surfaceBoolean(operation,operands,options);
+export function booleanShell(operation,operands,{composeDisjoint=false,...options}={}){
+  const native=operands.length>=2&&operands.every(nativeSurfaceSolid);
+  // A union with no common interior needs no face trimming for material queries.
+  // Retain exact operands; explicit full-boundary operations still sew their faces.
+  const composed=native&&composeDisjoint&&operation==='union'&&operands.every((a,i)=>operands.slice(i+1).every(b=>a.empty||b.empty||separatingSurfacePlane(a,b)));
+  if(native&&!composed)return surfaceBoolean(operation,operands,options);
   const notes=[...new Set(operands.flatMap(operand=>operand.notes??[]))];
   const empty=operation==='union'?operands.every(operand=>operand.empty):operation==='difference'?Boolean(operands[0]?.empty):operands.some(operand=>operand.empty);
   if(empty)return {kind:'boolean',operation,operands,notes,empty:true,bounds:{min:[0,0,0],max:[0,0,0]}};

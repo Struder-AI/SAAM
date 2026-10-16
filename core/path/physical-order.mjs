@@ -26,11 +26,19 @@ function controlVertices(geometry){
 function graphNozzleProofs(source,reader,rangeOf){
   const first=Object.values(source.operations).find(op=>op.kind==='deposit'),course=first?.courses[0];
   if(!course)return null;
-  const axis=scale(curveAt(reader,course.curveId,course.from).pose.toolAxis,-1);
+  const firstAxis=scale(curveAt(reader,course.curveId,course.from).pose.toolAxis,-1),average=[0,0,0];
+  for(const operation of Object.values(source.operations))for(const curve of operation.courses??[]){
+    const outward=curveAt(reader,curve.curveId,(curve.from+curve.to)/2).pose.toolAxis;
+    for(let k=0;k<3;k++)average[k]-=outward[k];
+  }
+  const axis=length(average)>ROUNDING_RELATIVE?scale(average,1/length(average)):firstAxis;
   let graph=null;
   for(const surface of Object.values(source.surfaces)){graph=referenceHeightGraph(surface.referencePatch??surface.patch,axis);if(graph)break;}
-  if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360))return null;
-  const curves=new Map(),frames=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
+  // A linear projection is a numerical reference field even without native
+  // surfaces. Actual source controls bound it; it assigns no slice identity.
+  if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360))
+    graph=referenceHeightGraph({kind:'linear'},axis);
+  const curves=new Map(),frames=new Map(),projections=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
   function frameFloor(curveId){
     if(frames.has(curveId))return frames.get(curveId);
     const curve=source.curves[curveId];if(curve.geometry.kind!=='polyline'){frames.set(curveId,-1);return -1;}
@@ -60,7 +68,7 @@ function graphNozzleProofs(source,reader,rangeOf){
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
       const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+deviation;
       const tip=angle<Math.PI/2&&graph.slope<1/Math.tan(angle)?residual[0]+NOZZLE_FORGIVENESS_MM/Math.sin(angle):-Infinity;
-      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine};courses.set(course.id,value);
+      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
       if(operation.layerId!==null){
         if(!slices.has(operation.layerId))slices.set(operation.layerId,{min:Infinity,max:-Infinity,tip:Infinity});
         const slice=slices.get(operation.layerId);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
@@ -82,7 +90,15 @@ function graphNozzleProofs(source,reader,rangeOf){
     }
     sweepTips.set(sweep,tip);return tip;
   }
-  return {slope:graph.slope,courses:courses.size,
+  return {slope:graph.slope,courses:courses.size,frameBounds(id){
+      const course=courses.get(id);if(!course)return null;
+      if(!projections.has(course.curveId)){
+        const vertices=controlVertices(source.curves[course.curveId].geometry);let lo=Infinity,hi=-Infinity;
+        for(const point of vertices){const value=dot(point,graph.axis);lo=Math.min(lo,value);hi=Math.max(hi,value);}
+        projections.set(course.curveId,[lo-ROUNDING_MM*4,hi+ROUNDING_MM*4]);
+      }
+      return {axis:graph.axis,halfAngleRad:Math.acos(Math.max(-1,Math.min(1,course.cosine))),projection:projections.get(course.curveId)};
+    },
     sweepClear:(sweep,unit)=>unit.operation.kind==='deposit'&&!unit.operation.occupied&&unit.ranges.every(ref=>{const material=courses.get(ref.id);return material&&sweepTip(sweep)>material.max+ROUNDING_MM;}),
     clear:(a,b)=>clear(slices.get(a),slices.get(b)),
     unitClear:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&
@@ -196,9 +212,9 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   }
   const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);
   if(!queries.reader)queries.reader=prepareCurvePath(source);
-  const graph=graphNozzleProofs(source,queries.reader,rangeOf),sphere=graph?null:sphereNozzleProofs(source,queries.reader,rangeOf);
+  const graph=graphNozzleProofs(source,queries.reader,rangeOf),sphere=sphereNozzleProofs(source,queries.reader,rangeOf);
   return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
-    unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,topApart:(a,b)=>graph?.topApart(a,b)??false,supportApart:(a,b)=>(graph?.supportApart(a,b)??false)||(sphere?.supportApart(a,b)??false),materialApart:(a,b)=>graph?.materialApart(a,b)??false,
+    frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,topApart:(a,b)=>graph?.topApart(a,b)??false,supportApart:(a,b)=>(graph?.supportApart(a,b)??false)||(sphere?.supportApart(a,b)??false),materialApart:(a,b)=>graph?.materialApart(a,b)??false,
     clear(depositingLayer,materialLayer){
     if(graph?.clear(depositingLayer,materialLayer))return true;
     const a=slices.get(depositingLayer),b=slices.get(materialLayer);
@@ -208,9 +224,9 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
 
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
-export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=PRINT_RESOLUTION_MM/8}={}){
+export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null}={}){
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
-  const roots=new Map(),cache=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
+  const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   function remember(key,record){
     const bytes=2048+record.range.breaks.length*8;
@@ -229,7 +245,9 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     const chord=length(subtract(end.point,start.point));
     const linear=curve.geometry.kind==='polyline'&&range.breaks.length===0;
     const tangentCone=linear?{axis:start.tangent,halfAngleRad:0}:range.tangentCone??{axis:start.tangent??end.tangent??[1,0,0],halfAngleRad:Math.PI};
-    const normal=constantVector(curve.profiles.materialNormal),axis=constantVector(curve.profiles.pose,value=>value.toolAxis);
+    if(!directions.has(ref.curveId))directions.set(ref.curveId,{
+      normal:constantVector(curve.profiles.materialNormal),axis:constantVector(curve.profiles.pose,value=>value.toolAxis)});
+    const {normal,axis}=directions.get(ref.curveId);
     const normalCone=normal?{axis:normal,halfAngleRad:0}:range.normalCone;
     const poseCone=axis?{reference:start.pose,halfAngleRad:0}:range.poseCone;
     // Arc length also bounds an ellipse containing every curve point. This
@@ -248,7 +266,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     if(record.depth[1]===0)return null;
     if(!record.material)record.material=rectangularSweepEnvelope({from:record.start.point,to:record.end.point,bounds:record.range.bounds,
       chordErrorMm:record.chordErrorMm,tangentCone:record.tangentCone,normalCone:record.normalCone,
-      radius:record.range.widthMm.map(width=>width/2),depth:record.depth});
+      radius:record.range.widthMm.map(width=>width/2),depth:record.depth,sectionFrameBounds:proofs.frameBounds(record.ref.id)});
     return record.material;
   }
   function nozzle(record){
@@ -301,7 +319,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest}).map(index=>bodies[index]);
   }
   const regionalIndexes=new Map(),regionalLimit=16*1024*1024;
-  function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]*2,record.depth[1]);}
+  function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]/4,record.depth[1]/4);}
   function regionalMaterial(body,shape){
     let local=regionalIndexes.get(body.unit.id);
     if(local){regionalIndexes.delete(body.unit.id);regionalIndexes.set(body.unit.id,local);}
@@ -374,6 +392,15 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return found;
   }};
+  // This is the initial accuracy of a possible ORDER choice, not a clearance
+  // tolerance. Conservative envelopes remain enclosing; an uncertain cycle
+  // tightens the involved pair before any source cut or impossibility finding.
+  function contactPrecision(a,b,nozzleAccess=false){
+    if(typeof supportPrecision==='number')return supportPrecision;
+    const key=JSON.stringify([...(nozzleAccess?['nozzle-access']:[]),a.ref.id,b?.ref.id??null]);
+    return supportPrecision?.get(key)??Math.max(PRINT_RESOLUTION_MM/8,
+      Math.min(NOZZLE_FORGIVENESS_MM,a.range.widthMm[0],b?.range.widthMm[0]??Infinity)/2);
+  }
   function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false}={}){
     const pending=[[receiver,materialRecord]];
     while(pending.length){
@@ -393,8 +420,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         const face=section(value);
         if(face&&nozzleIntervalIntersects(nb.shape,face,ROUNDING_MM))return {receiver:a.ref,material:localWitness(b,v)};
       }
-      const precision=typeof supportPrecision==='number'?supportPrecision:
-        supportPrecision.get(JSON.stringify(['nozzle-access',a.ref.id,b?.ref.id??null]))??PRINT_RESOLUTION_MM/8;
+      const precision=contactPrecision(a,b,true);
       // A bounded possible obstruction may constrain order without claiming
       // a collision. If that conservative choice creates a cycle, the solver
       // tightens this pair; it never reports impossibility from this envelope.
@@ -454,8 +480,9 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     // The support band extends at most one print-resolution below the
     // deepest bead surface. Bound that extra frame displacement; fixed
     // padding would survive refinement and create fictitious substrates.
-    const margin=body.errorMm+PRINT_RESOLUTION_MM*body.normalError;
-    return margin?{parts:[shape],margin}:shape;
+    const margin=(body.sphericalErrorMm??body.errorMm)+(record.depth[1]-record.depth[0])/2+PRINT_RESOLUTION_MM*body.normalError;
+    const radialMargin=body.planarErrorMm??0;
+    return margin||radialMargin?{parts:[shape],margin,...(radialMargin?{radialMargin,radialNormal:n}:{})}:shape;
   }
   function exactSupport(a,b){
     const shape=material(a).shape,candidate=material(b).shape,n=shape.normal,delta=subtract(shape.b,shape.a),size=length(delta);
@@ -496,7 +523,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       if(am.exact&&bm.exact){if(exactSupport(a,b))return {receiver:a.ref,material:b.ref,provisional:false};continue;}
       const under=underside(a);
       if(!convexIntersects(under,bm.shape,ROUNDING_MM)||!possibleSupport(a,b,am,under))continue;
-      const precision=typeof supportPrecision==='number'?supportPrecision:supportPrecision.get(JSON.stringify([a.ref.id,b.ref.id]))??PRINT_RESOLUTION_MM/8;
+      const precision=contactPrecision(a,b);
       if(am.errorMm<=precision&&bm.errorMm<=precision&&!a.range.breaks.length&&!b.range.breaks.length)
         return {receiver:a.ref,material:b.ref,provisional:true,precision};
       const splitA=!am.exact&&(bm.exact||am.errorMm>=bm.errorMm),chosen=splitA?a:b;requireTangent(chosen);

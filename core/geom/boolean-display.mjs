@@ -4,6 +4,9 @@ import {solidKernel,solidFromMesh,preciseSolidMesh,combineSolids} from './solid.
 import {tessellateShell} from './tessellate.mjs';
 import {tessellateSurfaceSolid} from './surface-tessellate.mjs';
 import {requireThat} from './tolerance.mjs';
+import {sewSurfaceBoundary} from './surface-topology.mjs';
+import {outwardSigns} from '../region/section.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const KERNEL_OPERATION={union:'add',difference:'subtract',intersection:'intersect'};
 
@@ -29,5 +32,13 @@ export async function booleanDisplayMesh(shell,{toleranceMm=0.05}={}){
 
 export async function tessellateSolid(shell,{toleranceMm=0.02}={}){
   if(shell.kind==='surface-solid')return tessellateSurfaceSolid(shell,{toleranceMm});
-  return shell.kind==='boolean'?booleanDisplayMesh(shell,{toleranceMm}):tessellateShell(shell,{toleranceMm});
+  if(shell.kind==='boolean')return booleanDisplayMesh(shell,{toleranceMm});
+  if(shell.patches?.length&&!shell.closure?.unmatched.length){
+    const signs=outwardSigns(shell),patches=shell.patches.map((patch,i)=>({...patch,normalSide:signs.get(patch),sourceFace:i}));
+    const topology=sewSurfaceBoundary(patches,[],{toleranceMm:PRINT_RESOLUTION_MM});
+    if(!topology.unmatched.length)return tessellateSurfaceSolid({...shell,kind:'surface-solid',patches,topology,construction:{toleranceMm:PRINT_RESOLUTION_MM}},{toleranceMm});
+  }
+  // Legacy shells can close geometrically with unmatched chart topology. Their
+  // existing output converter retains that supported parameterization.
+  return tessellateShell(shell,{toleranceMm});
 }

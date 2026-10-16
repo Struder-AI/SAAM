@@ -24,12 +24,12 @@ export function buildShells(rhino,geometries,{material=false,native=true}={}){
   function construct(geometry){
     if(geometry?.solid||geometry?.shape==='spatial'){requireThat(geometry.solid,'This operation needs solid geometry.');return build(geometry.solid);}
     if(geometry.shape==='spline')return splineSolidShell(rhino,geometry,{native});
-    if(geometry.shape==='boolean')return booleanShell(geometry.operation,constructionOperands(geometry).map(build));
+    if(geometry.shape==='boolean')return booleanShell(geometry.operation,constructionOperands(geometry).map(build),{composeDisjoint:!native});
     if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles)){
       return makeMesh(geometry.vertices,geometry.triangles);
     }
     if(geometry.shape==='assembly'&&material){
-      return booleanShell('union',geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm)));
+      return booleanShell('union',geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm)),{composeDisjoint:!native});
     }
     if(geometry.shape==='assembly'&&hasMesh(geometry)) {
       const components=geometry.parts.map(part=>translateShell(build(part.geometry),part.xMm,part.yMm,part.zMm));
@@ -86,7 +86,7 @@ export function translateShell(shell, dx, dy, dz = 0) {
   if(shell.kind==='triangle-mesh'){
     return translateMesh(shell,dx,dy,dz);
   }
-  if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)));
+  if(shell.kind==='boolean')return booleanShell(shell.operation,shell.operands.map(s=>translateShell(s,dx,dy,dz)),{composeDisjoint:true});
   if(shell.kind==='assembly')return {...shell,components:shell.components.map(s=>translateShell(s,dx,dy,dz)),bounds:{min:shell.bounds.min.map((v,i)=>v+[dx,dy,dz][i]),max:shell.bounds.max.map((v,i)=>v+[dx,dy,dz][i])}};
   const patches = shell.patches.map(patch => {
     const cp = Float64Array.from(patch.cp);

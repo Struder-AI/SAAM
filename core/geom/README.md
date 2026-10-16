@@ -42,10 +42,9 @@ provenance, preconditions, topology and precision. An approved in-house kernel n
 its own evidence. Design references: [Rhino events](https://developer.rhino3d.com/api/rhinoscript/surface_and_polysurface_methods/surfacesurfaceintersection.htm) and [OCCT interferences](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html); no kernel code was copied.
 
 ### Native Boolean construction
-
-The [canonical operations](operations.mjs) own backend selection: Boolean recipes or
-`combineSolids(operation, solids)` construct a closed trimmed rational boundary.
-Sections, containment, translation and output share its surfaces, curves and coedges;
+The [canonical operations](operations.mjs) own backend selection. Authored unions with
+provably disjoint interiors retain native operands; other native recipes and explicit
+`combineSolids` construct trimmed boundaries. Sections and containment query either form;
 Clipper2 handles UV regions. `BOOLEAN_TOLERANCE_MM` in [dimensions](../dimensions.mjs)
 is the single 0.005 mm setting: chord images use a quarter, sewing half; roots stay finer.
 Rational coefficient proofs handle basis changes and partial/periodic coincidence;
@@ -58,7 +57,8 @@ then growing translations from the original operands. Numerical workers interrup
 at 5 seconds (2.5 on retries), with a 20-second operation budget. Success reports fuzzy
 accuracy or each actual displacement in notes; jiggles can exceed the default tolerance.
 Exhausted recovery returns its failures. General trimmed normal offsets remain unsupported.
-Mesh/mixed sections retain operand composition; output alone tessellates completed surfaces.
+Mesh/mixed sections also retain operands. Explicit output tessellates native boundaries;
+nonempty checks derive a mesh only when construction has not already proved presence.
 [Regressions](../tests/surface-boolean.test.mjs), [authored examples](../../scripts/bench/boolean-examples/)
 and [benchmarks](../../scripts/bench/surface-boolean.mjs) save correctness/timing evidence.
 
@@ -89,7 +89,7 @@ Plane sections accept `side:'negative'|'positive'` for one-sided limits along th
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | Native units, derivatives and chart identity survive numerical serialization. References retain original factory inputs; preparation reuses their evaluators, including [contact charts](contact-chart.mjs). Out-of-domain and singular samples retain their errors. |
 | [prepareNumericalCurve / numericalCurveAt / numericalCurveRange](curve-query.mjs) | Native NURBS, polylines and points share conservative position, tangent, speed, chord-error and convergent arc-length bounds. Geometry also supplies direction/full-frame cones. [Construction sampling](curve-sampling.mjs) uses probes, preserving observed crossings and breaks; unsampled crossings remain unknown. |
-| [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Presence queries resolve actual native/mixed material. Opaque numerical inputs support mesh output only. |
+| [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Presence uses construction proofs or an explicit derived-mesh query. Opaque numerical inputs support mesh output only. |
 | [loftProfiles / roundedRectangleProfile / transformGeometry](solid-profiles.mjs) | Corresponding closed NURBS profiles yield rational side surfaces and radial caps with explicit or averaged centers; caps require a star-shaped region about those centers. Rounded rectangles retain exact arcs. Rigid transforms apply to physical solids, leaving feature recipes with their authors. Concave polygon lofts retain [triangulated caps](loft.mjs). |
 | [revolvedProfile](revolved-profile.mjs) | `{positionMm, axis, profile:[[axialMm,radiusMm],…]}` yields ordinary rational spline geometry. Increasing axial positions and positive radii define cylindrical/conical intervals and end caps; heat-set and weld choose their dimensions. |
 | [closeMeshPatchToPlane](mesh-patch-solid.mjs) | An indexed mesh plus selected `triangleIndices`, horizontal `planeZMm` and vertical `offsetMm` becomes `{solid, notes}`, a closed manufacturing mesh. Retains roof triangulation, holes and disconnected patches; vertical or degenerate faces and faces reaching the plane are skipped and noted. Folds, point-only joins and overlapping projections retain ordinary mesh errors; no selection, trimming, process policy or native lifetime in callers. Standard support consumes this operation. |
