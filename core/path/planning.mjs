@@ -52,7 +52,9 @@ export class ActionAccumulator {
   }
   finish(){const result={append:this.append};this.append=[];return result;}
 }
-function appendAction(state,action){return planningResult(state,{append:[action]});}
+function appendAction(state,action){
+  return planningResult(state,{append:[{layerId:state.layerId,operation:state.operationId,...action}]});
+}
 
 export function planContext(state,phase,layer,operationId=state.operationId) {
   return planningResult({...state,phase,layer,operationId});

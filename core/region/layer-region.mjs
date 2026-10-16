@@ -21,7 +21,7 @@ import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 // A volume's section in layer's chart: loops, or null where it covers the
 // whole plane. extent bounds the region it will be combined with.
 export function volumeSection(volume, layer, extent) {
-  if (volume.kind === 'geometry') return section(volume.geometry, layer.slice).loops;
+  if (volume.kind === 'geometry') return section(volume.geometry, layer.slice,layer.slice.kind==='plane'?{side:'negative'}:{}).loops;
   if (volume.kind === 'layer-regions') return volume.regions.find(r => r.index === layer.index)?.loops ?? [];
   if(volume.kind!=='slab')throw Error(`Unknown volume kind ${volume.kind}.`);
   return slabSection(volume, layer.slice, extent);

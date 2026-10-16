@@ -357,9 +357,26 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
         added.push({index:-1,slice,region,material:material(owner,slice),direction:regime.direction,translationMm:regime.advanceMm,heightMm:regime.advanceMm*Math.abs(projection),
           ...character,materialGrid:{layers:grid,index:0},patternDirection:owner.referenceStack.direction,boundaryCourse:true,referenceFrame:{base:slice,direction:regime.direction,offsetMm:0}});
       }
-      record.layers.push(...added);record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);
+      const before=record.layers.length;
+      for(const layer of added){
+        // Closing faces supplement native courses; a coincident course is not
+        // its own predecessor. Compare coverage in the closing face's chart.
+        for(const existing of record.layers){
+          const a=existing.slice,b=layer.slice;
+          if(a.kind!=='plane'||b.kind!=='plane'||a.normal.some((v,k)=>Math.abs(v-b.normal[k])>ROUNDING_RELATIVE)||
+            Math.abs(dot(a.normal,a.origin.map((v,k)=>v-b.origin[k])))>ROUNDING_MM)continue;
+          const covered=existing.region.map(loop=>loop.map(uv=>{
+            const delta=evaluateSurface(a,uv).point.map((v,k)=>v-b.origin[k]);
+            return [dot(delta,b.xAxis),dot(delta,b.yAxis)];
+          }));
+          layer.region=difference(layer.region,covered);
+          if(!layer.region.length)break;
+        }
+        if(layer.region.length)record.layers.push(layer);
+      }
+      record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);
       record.layers=record.layers.map((layer,index)=>({...layer,index}));record.referenceStack={...record.referenceStack,layers:record.layers};
-      if(added.length)record.sharedReport={...record.sharedReport,boundaryCourses:added.length};
+      if(record.layers.length>before)record.sharedReport={...record.sharedReport,boundaryCourses:record.layers.length-before};
     }
     const references=records.flatMap(record=>record.layers.map(layer=>({id:record.owner.id+':'+layer.index,slice:layer.slice,region:layer.region,frame:layer.referenceFrame})));
     for(const record of records)for(const layer of record.layers)layer.gap={advanceMm:layer.translationMm,direction:layer.direction,
