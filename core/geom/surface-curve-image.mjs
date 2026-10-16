@@ -3,7 +3,7 @@
 import {preparePlanarCurve} from './curve-loops.mjs';
 import {bezierSpans,bezierRoots,extract} from './curve-ops.mjs';
 import {bezierPieces} from './surface-intersection.mjs';
-import {evaluateCurve} from './nurbs.mjs';
+import {evaluateCurve,nurbsCurveRecord} from './nurbs.mjs';
 import {bernsteinProductWeights} from './bezier-net.mjs';
 import {requireThat} from './tolerance.mjs';
 
@@ -49,6 +49,5 @@ function composeBezier(cell,curve){
 }
 function controlRecord(controls,dimension=3){
   const degree=controls.length-1;
-  return {degree,knots:[...Array(degree+1).fill(0),...Array(degree+1).fill(1)],
-    controlPoints:controls.map(p=>p.slice(0,dimension).map(v=>v/p[3])),weights:controls.map(p=>p[3])};
+  return nurbsCurveRecord({order:degree+1,n:controls.length,knots:[...Array(degree+1).fill(0),...Array(degree+1).fill(1)],cp:controls.flat()},dimension);
 }

@@ -10,7 +10,6 @@
  "core/path/deposition.mjs": 1,
  "core/path/parallel-curves.mjs": 2,
  "core/region/clipper.mjs": 1,
- "core/region/section.mjs": 2,
  "core/region/seeded-fronts.mjs": 1,
  "core/region/surface-offset.mjs": 1,
  "machines/denso/denso.mjs": 1,

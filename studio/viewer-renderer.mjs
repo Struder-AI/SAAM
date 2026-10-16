@@ -1,5 +1,5 @@
 import {point,axisFrame,mv,compose,invert} from '../core/geom/frame.mjs';
-import {nozzleAt,nozzleSweepReach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM} from '../core/geom/convex-clearance.mjs';
+import {nozzleAt,nozzleSweepReach,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,DEFAULT_NOZZLE_TIP_DIAMETER_MM,NOZZLE_FORGIVENESS_MM} from '../core/geom/convex-clearance.mjs';
 import {frameAtTime} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
@@ -25,10 +25,12 @@ function drawNozzleClearance(ctx,at,stock,project){
   for(const [index,shape] of shapes.entries()){
     // Forty-eight sides are display tessellation, never collision geometry.
     const ring=Array.from({length:48},(_,i)=>{const a=2*Math.PI*i/48,offset=mv(basis,[shape.endRadius*Math.cos(a),shape.endRadius*Math.sin(a),0]);return project(shape.b.map((v,k)=>v+offset[k]));});
+    const flat=Array.from({length:48},(_,i)=>{const a=2*Math.PI*i/48,offset=mv(basis,[shape.radius*Math.cos(a),shape.radius*Math.sin(a),0]);return project(shape.a.map((v,k)=>v+offset[k]));});
     const tip=project(shape.a);ctx.strokeStyle=index?'#d35b19':'#6d7475';ctx.globalAlpha=index?.95:.65;ctx.setLineDash(index?[]:[4,4]);
     ctx.beginPath();ring.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.stroke();
-    for(let i=0;i<ring.length;i+=6){ctx.beginPath();ctx.moveTo(tip[0],tip[1]);ctx.lineTo(ring[i][0],ring[i][1]);ctx.stroke();}
-    ctx.beginPath();ctx.arc(tip[0],tip[1],2.5,0,2*Math.PI);ctx.stroke();
+    for(let i=0;i<ring.length;i+=6){ctx.beginPath();ctx.moveTo(flat[i][0],flat[i][1]);ctx.lineTo(ring[i][0],ring[i][1]);ctx.stroke();}
+    ctx.beginPath();flat.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();ctx.stroke();
+    if(shape.radius===0){ctx.beginPath();ctx.arc(tip[0],tip[1],2.5,0,2*Math.PI);ctx.stroke();}
   }
   ctx.restore();
 }
@@ -145,7 +147,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
         const nozzle=tcp?{point:tcp.translationMm,toolAxis:mv(tcp.rotation,[0,0,-1]),toolUp:mv(tcp.rotation,[0,1,0])}:at;
         const stock=materialScene?.bounds??{min:bounds.min.map((v,i)=>v+(i===0?placement.xMm:i===1?placement.yMm:0)),max:bounds.max.map((v,i)=>v+(i===0?placement.xMm:i===1?placement.yMm:0))};
         drawNozzleClearance(ctx,nozzle,stock,materialProject);
-        annotations.detailText=[annotations.detailText,`Nozzle clearance: ${DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG}° included cone · ${NOZZLE_FORGIVENESS_MM} mm surface allowance · dashed nominal / orange checked · clipped for display`].filter(Boolean).join(' · ');
+        annotations.detailText=[annotations.detailText,`Nozzle clearance: ${DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG}° included angle · ${DEFAULT_NOZZLE_TIP_DIAMETER_MM} mm flat tip · ${NOZZLE_FORGIVENESS_MM} mm surface allowance · dashed nominal / orange checked · clipped for display`].filter(Boolean).join(' · ');
       }
       if(at.point&&!manualPose){const axis=at.toolAxis??[0,0,-1],p=project(local(at.point)),q=project(local(at.point.map((v,i)=>v-axis[i]*6)));if(!machine?.hasTool)segment(p,q,'#273e36',3);ctx.beginPath();ctx.arc(p[0],p[1],machine?.hasTool?2:3,0,Math.PI*2);ctx.fillStyle='#273e36';ctx.fill();annotations.timeText=clock(position)+' / '+clock(duration);}
     }

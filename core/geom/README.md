@@ -4,9 +4,8 @@
 
 [execution.mjs](execution.mjs) owns Geometry worker lifecycle, communication, memory policy,
 cancellation, deadlines, progress and errors. Named capabilities hide this machinery from clients.
-One bootstrap serves supervision and leased calculations; one idle calculation may be reused.
-Supervision stays responsive during synchronous queries. Boolean owns fuzzy matching, perturbations
-and attempt budgets; execution enforces the supplied deadline. Repair has no elapsed-time refusal.
+One bootstrap serves supervision and leased calculations, reusing an idle calculation. Supervision stays responsive.
+Boolean owns fuzzy matching, perturbations and attempt budgets; execution enforces deadlines. Repair has no elapsed-time refusal.
 Progress callback errors cancel work. Geometry chunks await their matching acknowledgement.
 Async calls settle after calculation stops, including cancellation and worker allocation failures.
 Callers own scratch directories and publication; calculations may write only their supplied staging
@@ -22,24 +21,23 @@ It returns ordered `spans: [[t0,t1],…]` and `contacts: [[t0,t1],…]`. Half-op
 subdivisions. Contacts merge overlapping input-boundary points/collinear intervals; tangency adds no
 span and collinearity no winding crossing. Normalize cancelling/overlapping loops first when the
 combined material boundary is required. Repeating the closing vertex is optional.
-Wing uses even-odd spans; infill uses nonzero spans and its minimum stroke length. Travel uses spans
-and contacts against its existing expanded footprint, interpolates height in source parameters,
-and uses singleton queries for vertical moves. Deposition retains its top/bottom boundary asymmetry.
-This floating-point sweep adds no epsilon, snapping, spline clipping or exact-predicate guarantee.
-Travel's offset retains Clipper precision, but clipped endpoints no longer use its grid. General
-polyline clipping stays in [Clipper2](../region/intersection.mjs) for its topology/grid semantics.
+Loops accept UV/XY vertices or connected ordinary `points`/`nurbs` curves ([schema](../../GEOMETRY.md#spline-surfaces)).
+Lines use the edge sweep; rational curves use native span roots and winding. Trim sections refine
+their ends against native curve/plane intersections. Polygon-only operations derive chord-controlled
+views; sewing restores surviving source-curve intervals. Knots, weights and control points remain authority.
+Wing uses even-odd spans; infill uses nonzero spans; travel interpolates retained source parameters.
+Deposition keeps its top/bottom asymmetry. No exact-predicate guarantee is added; general polygon
+clipping and offset topology stay in [Clipper2](../region/intersection.mjs).
 
 ## Geometry interoperability for skill authors
 
-Heat-set and text own editable features; [reinforcement](../../skills/heat-set-inserts/scripts/reinforcement.mjs) owns deposition.
-Every host supplies the [canonical CAD operations](operations.mjs); `Geometry.buildGeometry(...)` synchronously prepares numerical values; native 3DM encoding explicitly loads its runtime.
-Geometry owns construction, conversion and queries; native batches release intermediates and transfer returned handles to their encoder. Callers own feature/process decisions.
+Hosts supply the [canonical CAD operations](operations.mjs). Geometry owns construction, queries,
+conversion and native lifetime; extensions own feature decisions. `buildGeometry` prepares numerical values.
 
 ### Shared numerical foundations
 
-Use established numerical methods behind shared Geometry operations, preserving
-provenance, preconditions, topology and precision. An approved in-house kernel needs
-its own evidence. Design references: [Rhino events](https://developer.rhino3d.com/api/rhinoscript/surface_and_polysurface_methods/surfacesurfaceintersection.htm) and [OCCT interferences](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html); no kernel code was copied.
+Shared Geometry methods preserve provenance, preconditions, topology and precision; in-house kernels need evidence.
+Design references: [Rhino events](https://developer.rhino3d.com/api/rhinoscript/surface_and_polysurface_methods/surfacesurfaceintersection.htm) and [OCCT interferences](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html); no kernel code was copied.
 
 ### Native Boolean construction
 The [canonical operations](operations.mjs) own backend selection. Authored unions with
@@ -87,6 +85,7 @@ Plane sections accept `side:'negative'|'positive'` for one-sided limits along th
 | Operation | Current consumers and contract |
 |---|---|
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
+| [surfaceCurveImages](surface-curve-image.mjs) | Given a numerical patch and an ordinary UV `points`/`nurbs` curve, return `{nurbs,uvNurbs}` pieces split at native knot crossings. Bernstein composition retains exact rational images; extensions use them for matching ruled walls, and trim sections use them for curve/plane roots. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | Native units, derivatives and chart identity survive numerical serialization. References retain original factory inputs; preparation reuses their evaluators, including [contact charts](contact-chart.mjs). Out-of-domain and singular samples retain their errors. |
 | [prepareNumericalCurve / numericalCurveAt / numericalCurveRange](curve-query.mjs) | Native NURBS, polylines and points share conservative position, tangent, speed, chord-error and convergent arc-length bounds. Geometry also supplies direction/full-frame cones. [Construction sampling](curve-sampling.mjs) uses probes, preserving observed crossings and breaks; unsampled crossings remain unknown. |
 | [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Root assemblies retain parts; Boolean operands resolve placed physical unions. Presence uses construction proofs or an explicit mesh query. Opaque numerical inputs support mesh output only. |

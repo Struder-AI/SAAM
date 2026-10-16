@@ -1798,6 +1798,14 @@
     "core/path/compact-profiles.mjs": {
       "owner": "toolpath",
       "reason": "Publication compacts deposition fields with bounded errors and preserved manufacturing quantities."
+    },
+    "core/geom/curve-loops.mjs": {
+      "owner": "geometry",
+      "reason": "Native rational trim curves, planar queries and exact surface images share Geometry numerical ownership."
+    },
+    "core/geom/surface-curve-image.mjs": {
+      "owner": "geometry",
+      "reason": "Native rational trim curves, planar queries and exact surface images share Geometry numerical ownership."
     }
   },
   "leaves": {
@@ -8102,12 +8110,6 @@
     },
     "core/region/section.mjs::orient": {
       "owner": "geometry-leaf-009ab01452c4"
-    },
-    "core/region/section.mjs::perimeterAt": {
-      "owner": "geometry-leaf-149ff3128844"
-    },
-    "core/region/section.mjs::corner": {
-      "owner": "geometry-leaf-e56f34758d25"
     },
     "core/region/section.mjs::closeOnBoundary": {
       "owner": "geometry-leaf-de341d944ca9"
@@ -27925,6 +27927,54 @@
     },
     "skills/hole-transitions/scripts/edit.mjs::membrane": {
       "owner": "extensions"
+    },
+    "core/geom/curve-ops.mjs::curvePlaneIntersections": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-region.mjs::mergedLineContacts": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-region.mjs::clipNativeLoopLine": {
+      "owner": "geometry"
+    },
+    "core/geom/nurbs.mjs::nurbsCurveRecord": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-trim.mjs::faceTrimRegion": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-trim.mjs::trimPlaneCuts": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-trim.mjs::retainFaceTrimCurves": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-trim.mjs::sourceTrimInterval": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-topology.mjs::useParameterAt": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-topology.mjs::useUvAt": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-topology.mjs::coedgeUvAt": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-topology.mjs::existingNativeUse": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-topology.mjs::partialNativeInterval": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-tessellate.mjs::curvedChartCuts": {
+      "owner": "geometry"
+    },
+    "core/geom/surface-tessellate.mjs::boundaryUvAt": {
+      "owner": "geometry"
+    },
+    "core/region/section.mjs::faceBoundaryLocation": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [

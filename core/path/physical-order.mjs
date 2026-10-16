@@ -1,7 +1,7 @@
 // Scheduling interprets conservative curve bounds and actual contact witnesses.
 // Geometry owns numerical section, convex-volume and continuous-sweep operations.
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
-import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM,
+import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,DEFAULT_NOZZLE_TIP_DIAMETER_MM,NOZZLE_FORGIVENESS_MM,
   convexBounds,convexBox,nozzleBoundsClear,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
   nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,cross,subtract,length,requireThat} from '../geom/tolerance.mjs';
@@ -67,7 +67,7 @@ function graphNozzleProofs(source,reader,rangeOf){
       const underHigh=residual[1]+side-(inward>=0?depth[0]:depth[1])*inward+PRINT_RESOLUTION_MM*metric;
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
       const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+deviation;
-      const tip=angle<Math.PI/2&&graph.slope<1/Math.tan(angle)?residual[0]+NOZZLE_FORGIVENESS_MM/Math.sin(angle):-Infinity;
+      const tip=angle<Math.PI/2&&graph.slope<1/Math.tan(angle)?residual[0]+(NOZZLE_FORGIVENESS_MM-DEFAULT_NOZZLE_TIP_DIAMETER_MM/2*Math.cos(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360))/Math.sin(angle):-Infinity;
       const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
       if(operation.layerId!==null){
         if(!slices.has(operation.layerId))slices.set(operation.layerId,{min:Infinity,max:-Infinity,tip:Infinity});
@@ -86,7 +86,7 @@ function graphNozzleProofs(source,reader,rangeOf){
       const motion=sweep.motion,at=t=>motion.from.map((v,k)=>v+(motion.to[k]-v)*t);
       const bounds=graph.curveBounds({kind:'polyline',points:[at(sweep.t0??0),at(sweep.t1??1)]});
       const angle=motion.includedAngleDeg*Math.PI/360+Math.acos(Math.max(-1,Math.min(1,dot(sweep.body.normal,graph.axis))));
-      if(angle<Math.PI/2&&graph.slope<1/Math.tan(angle))tip=bounds[0]+motion.forgivenessMm/Math.sin(angle);
+      if(angle<Math.PI/2&&graph.slope<1/Math.tan(angle))tip=bounds[0]+(motion.forgivenessMm-(motion.tipDiameterMm??DEFAULT_NOZZLE_TIP_DIAMETER_MM)/2*Math.cos(motion.includedAngleDeg*Math.PI/360))/Math.sin(angle);
     }
     sweepTips.set(sweep,tip);return tip;
   }
@@ -125,7 +125,7 @@ function sphereNozzleProofs(source,reader,rangeOf){
   const vertices=Object.values(source.curves).flatMap(curve=>controlVertices(curve.geometry)??[]);
   if(!vertices.length)return null;
   const bounds=convexBounds({vertices}),center=bounds.min.map((v,k)=>(v+bounds.max[k])/2),courses=new Map();
-  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,retreat=NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle);
+  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,retreat=(NOZZLE_FORGIVENESS_MM-DEFAULT_NOZZLE_TIP_DIAMETER_MM/2*Math.cos(halfAngle))/Math.sin(halfAngle);
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
   const up=first?curveAt(reader,first.curveId,first.from).pose.toolUp:null,unitUp=up?scale(up,1/length(up)):null;
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[]){
@@ -159,13 +159,13 @@ function sphereNozzleProofs(source,reader,rangeOf){
     if(p.tip>q.material+ROUNDING_MM)return true;
     if(!p.planar)return false;
     const gap=Math.max(0,p.tipProjection[0]-q.projection[1],q.projection[0]-p.tipProjection[1]);
-    return Math.cos(halfAngle)*gap-Math.sin(halfAngle)*(q.material-p.support)+NOZZLE_FORGIVENESS_MM>ROUNDING_MM*8;
+    return Math.cos(halfAngle)*(gap-DEFAULT_NOZZLE_TIP_DIAMETER_MM/2)-Math.sin(halfAngle)*(q.material-p.support)+NOZZLE_FORGIVENESS_MM>ROUNDING_MM*8;
   }))};
 }
 
 export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   const slices=new Map(),queries={reader},halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
-  const sine=Math.sin(halfAngle),retreat=NOZZLE_FORGIVENESS_MM/sine,clearPairs=new Map(),positionBounds=new Map();
+  const sine=Math.sin(halfAngle),retreat=(NOZZLE_FORGIVENESS_MM-DEFAULT_NOZZLE_TIP_DIAMETER_MM/2*Math.cos(halfAngle))/sine,clearPairs=new Map(),positionBounds=new Map();
   const clearPairLimit=4*1024*1024/128;
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
   if(!queries.reader)queries.reader=prepareCurvePath(source);
@@ -243,7 +243,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
       const range=aligned?null:rangeOf(course);
       const margin=aligned?0:range.widthMm[1]/2+(range.areaMm2?.[1]??0)/range.widthMm[0];
       slice.maxMaterial=Math.max(slice.maxMaterial,high+margin+ROUNDING_MM);
-      slice.minTip=Math.min(slice.minTip,low+retreat*cosine-ROUNDING_MM);
+      slice.minTip=Math.min(slice.minTip,low+(retreat>=0?retreat*cosine:retreat)-ROUNDING_MM);
     }
   }
   const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);

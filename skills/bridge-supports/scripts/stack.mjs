@@ -35,14 +35,30 @@ export async function editBridgeSupports(source,request,Geometry){
   check(request&&Object.keys(request).join()==='supports'&&Array.isArray(request.supports)&&request.supports.length,'Supply a nonempty supports array.');
   const solid=source.geometry?.shape==='spatial'?source.geometry.solid:source.geometry;
   const prior=source.slices?.assignments??[],ids=new Set(prior.map(a=>a.id));
-  const made=[];for(const spec of request.supports){
+  const made=[];for(const {baseFrom,landingTo,...spec} of request.supports){
     check(!ids.has(spec.id),'Support id already exists; edit its ordinary Trace or choose another id.');ids.add(spec.id);
     const part=spec.part??null;
     check(part===null||solid?.shape==='assembly'&&solid.parts.some(p=>p.id===part),'Support part must name an assembly part.');
     const component=part===null?null:solid.parts.find(p=>p.id===part),geometry=component?.geometry??solid;
     const controls=Geometry.matchCurveControls(spec.base,spec.landing,spec.correspondence??{}).baseControls;
     const baseOnBed=controls.every(p=>p[2]/p[3]+(component?.zMm??0)===0);
-    made.push(await buildBridgeSupport(spec,source.process,Geometry,{geometry,baseOnBed}));
+    check(baseOnBed||baseFrom||spec.after?.length,'Name baseFrom for printed material, or after for existing operation IDs.');
+    made.push({...await buildBridgeSupport(spec,source.process,Geometry,{geometry,baseOnBed}),baseFrom,landingTo});
   }
-  return {assignmentRequests:[...prior,...made.map(m=>m.assignment)],report:{supports:made.map(m=>m.report)}};
+  let assignments=[...prior,...made.map(m=>m.assignment)];
+  const reports=made.map(({assignment,report,baseFrom,landingTo})=>{
+    const Recipe=Geometry.Recipe;
+    check(!(baseFrom||landingTo)||Recipe,'The editor needs the shared Recipe operation interface.');
+    const dependencies={base:null,landing:null};
+    if(baseFrom){
+      dependencies.base=Recipe.operationId(assignments,baseFrom);
+      assignments=Recipe.withOperationAfter(assignments,{assignment:assignment.id,repetition:assignment.repetitionIds[0]},[baseFrom]);
+    }
+    if(landingTo){
+      dependencies.landing=Recipe.operationId(assignments,landingTo);
+      assignments=Recipe.withOperationAfter(assignments,landingTo,[report.lastOperationId]);
+    }
+    return {...report,dependencies,...(!landingTo?{notes:['The landing is unbound; select landingTo when its deposition assignment exists.']}: {})};
+  });
+  return {assignmentRequests:assignments,report:{supports:reports}};
 }

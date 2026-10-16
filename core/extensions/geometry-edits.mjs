@@ -2,6 +2,7 @@
 // operations know neither the selected extension nor the enclosing recipe.
 import {readExtension,loadExtensionEntry} from './library.mjs';
 import {geometryOperations} from '../geom/operations.mjs';
+import {operationId,withOperationAfter} from '../print/operation-references.mjs';
 
 export async function prepareExtensionGeometry(source,extension,request,options={}){
   const entry=options.create?'geometry-create':'geometry-edit';
@@ -17,7 +18,7 @@ export async function prepareExtensionGeometry(source,extension,request,options=
   // Existing geometry editors take named operations directly. These are the
   // same functions supplied under Geometry to runtime and workspace factories.
   const {geometry,placement,assignments,assignmentRequests,report}=await editor(input,request,
-    {...options,...Geometry,Geometry,...(compileText?{compileText}:{})});
+    {...options,...Geometry,Geometry,Recipe:{operationId,withOperationAfter},...(compileText?{compileText}:{})});
   return {plan:{...source,...(geometry===undefined?{}:{geometry}),
     ...(placement===undefined?{}:{placement})},assignments,assignmentRequests,report};
 }

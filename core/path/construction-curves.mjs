@@ -4,15 +4,21 @@
 import {mappedSurfacePath} from '../geom/surface-path.mjs';
 import {fitSampledCurve} from '../geom/curve-fit.mjs';
 import {strokeRange} from './deposition.mjs';
+import {prepareNumericalCurve,numericalCurveRegular} from '../geom/curve-query.mjs';
+
+function regularGeometry(geometry){
+  return numericalCurveRegular(prepareNumericalCurve(geometry));
+}
 
 export function constructionCurve(input,surface){
   const stroke=input.closed?strokeRange(input):input,points=stroke.points;
   const witness=stroke.nativePath?.points;
-  if(witness&&(points===witness||points.length===witness.length&&points.every((point,i)=>point.every((value,k)=>value===witness[i][k]))))return stroke.nativePath;
+  if(witness&&(points===witness||points.length===witness.length&&points.every((point,i)=>point.every((value,k)=>value===witness[i][k])))&&
+    regularGeometry(stroke.nativePath.geometry))return stroke.nativePath;
   const reference=stroke.nativeSurface?.surface??surface,translation=stroke.nativeSurface?.translation??[0,0,0];
   const chart=reference&&(stroke.chartPoints??stroke.frameSamples?.map(frame=>frame.point.slice(0,2)));
   const mapped=reference?mappedSurfacePath(reference,chart,translation.every(value=>value===0)?points:points.map(point=>point.map((value,k)=>value-translation[k]))):null;
-  if(mapped&&mapped.geometry.controlPoints.length*3+mapped.geometry.knots.length+(mapped.geometry.weights?.length??0)<points.length*3)
+  if(mapped&&mapped.geometry.controlPoints.length*3+mapped.geometry.knots.length+(mapped.geometry.weights?.length??0)<points.length*3&&regularGeometry(mapped.geometry))
     return {...mapped,geometry:{...mapped.geometry,controlPoints:mapped.geometry.controlPoints.map(point=>point.map((value,k)=>value+translation[k]))},points,mapped:true};
   const fitted=fitSampledCurve(points);
   return fitted?{...fitted,fitted:true}:null;

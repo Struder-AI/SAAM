@@ -6,12 +6,11 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 ## Spline surfaces
 
-`geometry: {shape: "spline", patches: [...]}` retains named NURBS patches.
-A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`:
+`geometry: {shape: "spline", patches: [...]}` retains patches `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`.
 `controlPoints` has rows along U and points along V: `[x,y,z]` or `[x,y,z,weight]`.
-Degrees are 1–5, below the control count. Knots are clamped uniform unless supplied complete (count + degree + 1).
-`trimLoops` are closed UV polylines inside the knot domain: outer loops counterclockwise,
-holes clockwise; no crossings or touching. Closing vertices are optional.
+Degrees are positive and below the control count. Knots default to clamped uniform; supplied vectors are complete (count + degree + 1).
+Each `trimLoops` entry is a UV polyline or `{curves:[{points:UV[]}|{nurbs:{degree,knots,controlPoints,weights?}},…]}`.
+Curves join into closed loops inside the knot domain: outer loops counterclockwise, holes clockwise; no crossings or touching.
 Trimmed shells use outward `normalSide: 1` (default) or `-1` for reversed `du × dv`; untrimmed shells infer orientation.
 
 **What a control net expresses**
@@ -57,7 +56,7 @@ boundaries and reports gaps. Open shells save and show; each layer slices what c
 
 **Named patches.** Skills select surfaces by name. Sections and containment use
 surfaces and trims; Studio derives triangles. SAAM's 3DM stores supporting surfaces
-and verified SAAM UV trim metadata, not a Rhino trimmed Brep.
+and verified SAAM UV curve metadata, not a Rhino trimmed Brep. Sampling remains derived from the retained curves.
 
 ## Blob field
 

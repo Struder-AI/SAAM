@@ -15,6 +15,7 @@ import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignm
 import {geometryOperations} from '../geom/operations.mjs';
 import {injectionAssignment} from './injection.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
+import {operationId,withOperationAfter} from './operation-references.mjs';
 import {spiralStackCurve} from '../path/stack-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
@@ -28,7 +29,7 @@ import {finalizedSliceResults} from './construction.mjs';
 async function extensionEngines(){return {
   Geometry:await geometryOperations(),
   MaterialRegions:{prepareSliceBoundaryStack},
-  Recipe:{assignmentFilament,injectionAssignment,depositionAssignment},
+  Recipe:{assignmentFilament,injectionAssignment,depositionAssignment,operationId,withOperationAfter},
   Toolpath:{fillSliceRegion,spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult}
 };}
 
@@ -136,6 +137,39 @@ export function applyDeclaredDependencies(plan,results){
   return applyResultDependencies(results,changes);
 }
 
+// Lower assignment completion references only after every producer has constructed.
+// No geometry, coordinate rank or construction order substitutes for identity.
+export function resolveOperationReferences(plan,results){
+  const all=results.flatMap(result=>result.operations),ids=new Set(all.map(op=>op.id)),byAssignment=new Map();
+  for(const result of results){
+    const owner=result.report?.owner??result.id;
+    if(!byAssignment.has(owner))byAssignment.set(owner,[]);
+    byAssignment.get(owner).push(...result.operations.map(op=>op.id));
+  }
+  for(const assignment of plan.slices.assignments){
+    if(assignment.construction==='curves'){
+      for(const [name,after] of Object.entries(assignment.operationAfter??{}))if(after.length)
+        requireThat(ids.has(assignment.id+':'+name),'Required Trace target was not constructed: '+assignment.id+':'+name);
+    }else if(!assignment.construction){
+      for(const [index,settings] of (assignment.sliceOverrides??[]).entries())for(const [group,after] of Object.entries(settings.operationAfter??{})){
+        if(!after.length||JSON.stringify(after)===JSON.stringify(assignment.operationAfter?.[group]))continue;
+        const targets=(byAssignment.get(assignment.id)??[]).filter(id=>id.endsWith(':'+assignment.id+':'+index+':'+group)||id===assignment.id+':'+index+':'+group);
+        requireThat(targets.length,'Required Slice target was not constructed: '+assignment.id+':'+index+':'+group);
+      }
+    }
+  }
+  return results.map(result=>({...result,operations:result.operations.map(operation=>{
+    const after=[...new Set((operation.after??[]).flatMap(previous=>{
+      if(typeof previous==='string')return [previous];
+      const named=byAssignment.get(previous.assignment);
+      requireThat(named?.length,'Required assignment produced no operations: '+previous.assignment);
+      return named;
+    }))];
+    requireThat(!after.includes(operation.id),'An operation cannot require its own completion: '+operation.id);
+    return {...operation,after};
+  })}));
+}
+
 // Dependency changes address operation IDs, which are unique within a composed
 // result batch. Apply ordered appends and ordered unions without changing earlier
 // stages' result, operation or prerequisite records. Geometry/policies stay shared.
@@ -217,7 +251,7 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
   const prime=primeLineResult(plan);
   const model=await generateModelResults(evaluated,prepared,onProgress);
-  const complemented={...model,results:applyDeclaredDependencies(evaluated,model.results)};
+  const complemented={...model,results:resolveOperationReferences(evaluated,applyDeclaredDependencies(evaluated,model.results))};
   const resultsWithPrime=prime?complemented.results.map(result=>({...result,operations:result.operations.map(operation=>({...operation,after:[...new Set([...prime.operations.map(op=>op.id),...(operation.after??[])])]}))})):complemented.results;
   const primed=prime?{...complemented,results:[prime,...resultsWithPrime],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
   const {placed}=prepared,{results,survey}=primed,process=plan.process;

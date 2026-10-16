@@ -12,8 +12,9 @@ export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infini
   requireThat(Array.isArray(range)&&range.length===2&&range.every(t=>typeof t==='number'&&!Number.isNaN(t))&&range[0]<=range[1]
     &&range[0]<Infinity&&range[1]>-Infinity,'Line clipping needs an ordered parameter range.');
   requireThat(fillRule==='nonzero'||fillRule==='evenodd','Line clipping needs nonzero or evenodd fill.');
+  requireThat(Array.isArray(loops),'Line clipping needs finite 2D region loops.');
   if(loops.some(loop=>!Array.isArray(loop)))return clipNativeLoopLine(origin,direction,loops,range,fillRule);
-  requireThat(Array.isArray(loops)&&loops.every(loop=>Array.isArray(loop)&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))),
+  requireThat(loops.every(loop=>Array.isArray(loop)&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))),
     'Line clipping needs finite 2D region loops.');
   const project=p=>{
     const x=p[0]-origin[0],y=p[1]-origin[1];

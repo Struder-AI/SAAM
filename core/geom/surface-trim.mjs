@@ -1,7 +1,7 @@
 // Native face regions. UV curves bound a retained NURBS surface; they are never
 // a tessellation of its interior. All consumers use this same trim predicate.
 import {clipLineToRegion} from './curve-region.mjs';
-import {evaluate,authoredNurbs,evaluateCurve} from './nurbs.mjs';
+import {evaluate,authoredNurbs,evaluateCurve,nurbsCurveRecord} from './nurbs.mjs';
 import {curvePlaneIntersections,extract,reverseCurve} from './curve-ops.mjs';
 import {surfaceCurveImages} from './surface-curve-image.mjs';
 import {distance} from './tolerance.mjs';
@@ -94,7 +94,7 @@ export function retainFaceTrimCurves(patch,loops,{toleranceMm}={}){
   if(!patch.trimLoops?.some(loop=>!Array.isArray(loop)))return loops;
   if(!boundarySources.has(patch))boundarySources.set(patch,prepareCurveLoops(patch.trimLoops).loops.flat().map(native=>{
     const controls=Array.from({length:native.n},(_,i)=>[0,1,2].map(k=>native.cp[i*4+k]/native.cp[i*4+3]));
-    return {native,query:prepareNumericalCurve({kind:'nurbs',degree:native.order-1,knots:[...native.knots],controlPoints:controls,weights:Array.from({length:native.n},(_,i)=>native.cp[i*4+3])}),
+    return {native,query:prepareNumericalCurve({kind:'nurbs',...nurbsCurveRecord(native)}),
       min:[0,1].map(k=>Math.min(...controls.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...controls.map(p=>p[k])))};
   }));
   const sources=boundarySources.get(patch);
@@ -109,12 +109,9 @@ export function retainFaceTrimCurves(patch,loops,{toleranceMm}={}){
       if(!piece.source)return {points:[pieces[(i+pieces.length-1)%pieces.length].end,pieces[(i+1)%pieces.length].start]};
       const {native}=piece.source,[lo,hi]=[piece.from,piece.to].sort((a,b)=>a-b),domain=native.domain;
       const part=extract(native,domain[0]+lo*(domain[1]-domain[0]),domain[0]+hi*(domain[1]-domain[0]));
-      return {nurbs:trimCurveRecord(piece.to>piece.from?part:reverseCurve(part))};
+      return {nurbs:nurbsCurveRecord(piece.to>piece.from?part:reverseCurve(part),2)};
     }).filter(curve=>!curve.points||curve.points[0].some((v,k)=>v!==curve.points[1][k]))};
   }).filter(loop=>loop.curves.length);
-}
-function trimCurveRecord(curve){
-  return {degree:curve.order-1,knots:[...curve.knots],controlPoints:Array.from({length:curve.n},(_,i)=>[curve.cp[i*4]/curve.cp[i*4+3],curve.cp[i*4+1]/curve.cp[i*4+3]]),weights:Array.from({length:curve.n},(_,i)=>curve.cp[i*4+3])};
 }
 function sourceTrimInterval(patch,a,b,sources,toleranceMm){
   const frame=evaluate(patch,...a),metric=Math.max(Math.hypot(...frame.du),Math.hypot(...frame.dv)),guard=toleranceMm/metric;

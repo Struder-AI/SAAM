@@ -1,7 +1,8 @@
 // Sew native face boundaries, without a mesh of the faces. Coedges refer to
 // either a shared surface intersection, a native isocurve, or a straight line.
 // All uses of a curve split at the same parameters and share vertex identities.
-import {evaluate} from './nurbs.mjs';
+import {evaluate,nurbsCurveRecord} from './nurbs.mjs';
+import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import {patchDomain} from './surface-trim.mjs';
 import {prepareCurveLoops} from './curve-loops.mjs';
@@ -17,6 +18,11 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
     if(existing){if(!existing.charts.some(chart=>chart.face===patch.sourceFace))existing.charts.push({face:patch.sourceFace,uv:boundary.uv});}
     else rememberIntersection(boundary.points,[{face:patch.sourceFace,uv:boundary.uv}],null,curves,toleranceMm);
   }
+  // Register full native chart edges before their trimmed uses. A later face
+  // may retain only an interval of a neighbour's edge; face order must not
+  // choose a shorter canonical parameterization for that shared curve.
+  for(const patch of patches)for(const loop of patchDomain(patch))for(let i=0;i<loop.length;i++)
+    if(!chartSegmentCollapsed(patch,loop[i],loop[(i+1)%loop.length]))nativeBoundaryMapping(patch,loop[i],loop[(i+1)%loop.length],curves,toleranceMm,{matchIntersections:false});
   const uses=[];
   for(const [face,patch] of patches.entries()){
     for(const [loop,points] of (patch.trimLoops??patchDomain(patch)).entries()){
@@ -199,7 +205,13 @@ function boundaryCurveUses(patch,a,b,curves,toleranceMm){
   if(state.from<1-ROUNDING_RELATIVE)result.push(nativeBoundaryUse(patch,interpolate(a,b,state.from),b,curves,toleranceMm));
   return result.map(use=>{
     const curve=curves[use.curve];
-    if(curve.kind!=='intersection'||curve.line===undefined)return use;
+    if(curve.kind!=='intersection')return use;
+    if(curve.line===undefined){
+      const onChartEdge=[patch.domainU,patch.domainV].some((domain,k)=>domain.some(value=>Math.abs(use.uvFrom[k]-value)<=ROUNDING_RELATIVE&&Math.abs(use.uvTo[k]-value)<=ROUNDING_RELATIVE));
+      if(onChartEdge)return {...use,...nativeBoundaryMapping(patch,use.uvFrom,use.uvTo,curves,toleranceMm,{matchIntersections:false})};
+      const native=existingNativeUse({kind:'face-curve',patch,fromUv:use.uvFrom,toUv:use.uvTo},0,1,curves,toleranceMm);
+      return native?{...use,...native}:use;
+    }
     const line=curves[curve.line],first=curvePosition(curve,use.from),last=curvePosition(curve,use.to);
     return {...use,curve:line.id,from:dot(first.map((v,k)=>v-line.origin[k]),line.direction),to:dot(last.map((v,k)=>v-line.origin[k]),line.direction)};
   });
@@ -211,8 +223,8 @@ function nativeBoundaryUse(patch,a,b,curves,toleranceMm){
   return {...nativeBoundaryMapping(patch,a,b,curves,toleranceMm),uvFrom:a,uvTo:b};
 }
 
-function nativeBoundaryMapping(patch,a,b,curves,toleranceMm){
-  const shared=geometricBoundaryUse(patch,a,b,curves,toleranceMm);if(shared)return shared;
+function nativeBoundaryMapping(patch,a,b,curves,toleranceMm,{matchIntersections=true}={}){
+  const shared=matchIntersections?geometricBoundaryUse(patch,a,b,curves,toleranceMm):null;if(shared)return shared;
   const first=evaluate(patch,...a,false).point,last=evaluate(patch,...b,false).point,middle=evaluate(patch,...interpolate(a,b,.5),false).point;
   const length=distance(first,last),d=last.map((v,k)=>v-first[k]);
   if(length>ROUNDING_MM&&distance(middle,interpolate(first,last,.5))<=ROUNDING_MM){
@@ -333,20 +345,38 @@ function lineUse(curves,first,last,toleranceMm){
   return {curve:curve.id,from:dot(first.map((v,k)=>v-curve.origin[k]),curve.direction),to:dot(last.map((v,k)=>v-curve.origin[k]),curve.direction)};
 }
 function canonicalNativeUse(candidate,from,to,curves,toleranceMm){
+  const existing=existingNativeUse(candidate,from,to,curves,toleranceMm);if(existing)return existing;
+  const curve={...candidate,id:curves.length};curves.push(curve);return {curve:curve.id,from,to};
+}
+function existingNativeUse(candidate,from,to,curves,toleranceMm){
   const points=[0,.25,.5,.75,1].map(t=>curvePosition(candidate,t));
   for(const curve of curves){
     if(curve.kind==='line'||curve.kind==='intersection')continue;
     if(candidate.kind==='nurbs'&&curve.kind==='nurbs'){
       const direction=curveCorrespondence(candidate.native,curve.native);
       if(direction)return {curve:curve.id,from:direction>0?from:1-from,to:direction>0?to:1-to};
-      continue;
     }
     for(const sign of [1,-1]){
       const matches=points.every((point,i)=>distance(point,curvePosition(curve,sign>0?i/4:1-i/4))<=toleranceMm/4);
       if(matches)return {curve:curve.id,from:sign>0?from:1-from,to:sign>0?to:1-to};
     }
+    if(curve.kind==='nurbs'){
+      const interval=partialNativeInterval(curve,points,toleranceMm/4);
+      if(interval)return {curve:curve.id,from:interval[0]+from*(interval[1]-interval[0]),to:interval[0]+to*(interval[1]-interval[0])};
+    }
   }
-  const curve={...candidate,id:curves.length};curves.push(curve);return {curve:curve.id,from,to};
+  return null;
+}
+
+const nativeEdgeQueries=new WeakMap();
+function partialNativeInterval(curve,points,toleranceMm){
+  if(!nativeEdgeQueries.has(curve.native))nativeEdgeQueries.set(curve.native,prepareNumericalCurve({kind:'nurbs',...nurbsCurveRecord(curve.native)}));
+  const query=nativeEdgeQueries.get(curve.native),bounds=[0,1,2].map(k=>Array.from({length:curve.native.n},(_,i)=>curve.native.cp[i*4+k]/curve.native.cp[i*4+3]));
+  if([points[0],points.at(-1)].some(p=>p.some((v,k)=>v<Math.min(...bounds[k])-toleranceMm||v>Math.max(...bounds[k])+toleranceMm)))return null;
+  const interval=[points[0],points.at(-1)].map(p=>numericalCurveClosestParameter(query,0,1,p,{toleranceMm:ROUNDING_MM,maxDistanceMm:toleranceMm}));
+  if(interval.some(t=>t===null))return null;
+  if(Math.abs(interval[1]-interval[0])<=ROUNDING_RELATIVE)return null;
+  return points.every((p,i)=>distance(p,curvePosition(curve,interval[0]+i/4*(interval[1]-interval[0])))<=toleranceMm)?interval:null;
 }
 
 export function curvePosition(curve,t){

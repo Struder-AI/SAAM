@@ -53,12 +53,13 @@ function pointChordDistance(p,a,b){
 }
 // Exact projection for line pieces; positive-weight native bounds prune the
 // remaining search. Tolerance controls optimization accuracy, never geometry.
-export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=ROUNDING_MM}={}){
+export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=ROUNDING_MM,maxDistanceMm=Infinity}={}){
   requireThat(xyz(point)&&Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&from<to&&to<=1&&Number.isFinite(toleranceMm)&&toleranceMm>0,'Closest-curve query needs a finite point, interval and positive tolerance.');
+  requireThat(maxDistanceMm>=0,'Closest-curve distance bound must be nonnegative.');
   const best={u:from,distance:Infinity};
   const consider=u=>{const d=distance(point,numericalCurveAt(curve,u).point);if(d<best.distance){best.u=u;best.distance=d;}};
   consider(from);consider(to);
-  if(curve.kind==='point')return best.u;
+  if(curve.kind==='point')return best.distance<=maxDistanceMm?best.u:null;
   if(curve.kind==='polyline'){
     const cuts=[from,...curve.breaks.filter(u=>u>from&&u<to),to];
     for(let i=1;i<cuts.length;i++){
@@ -66,18 +67,18 @@ export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=
       const t=length2?Math.max(0,Math.min(1,dot(point.map((v,k)=>v-a[k]),delta)/length2)):0;
       consider(cuts[i-1]+t*(cuts[i]-cuts[i-1]));
     }
-    return best.u;
+    return best.distance<=maxDistanceMm?best.u:null;
   }
   const pending=[[from,to]];
   while(pending.length){
     const [a,b]=pending.pop(),bounds=numericalCurveRange(curve,a,b).bounds;
     const lower=Math.hypot(...point.map((v,k)=>Math.max(0,bounds.min[k]-v,v-bounds.max[k])));
-    if(lower>=best.distance-toleranceMm)continue;
+    if(lower>maxDistanceMm||lower>=best.distance-toleranceMm)continue;
     const mid=(a+b)/2;
     requireThat(mid>a&&mid<b,'Closest-curve query is unresolved at parameter precision.');
     consider(mid);pending.push([mid,b],[a,mid]);
   }
-  return best.u;
+  return best.distance<=maxDistanceMm?best.u:null;
 }
 function nativeSpan(curve,u){
   const state={lo:0,hi:curve.parameters.length-1};
@@ -171,6 +172,25 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
     speed:[Math.min(...pieces.map(p=>p.speed[0])),Math.max(...pieces.map(p=>p.speed[1]))],
     tangentCone:combinedCones(pieces.map(piece=>piece.tangentCone)),interpolationErrorMm,
     chordErrorMm:pieces.length===1?pieces[0].chordErrorMm:Math.max(...corners.map(p=>pointChordDistance(p,a,b)))};
+}
+// Construction retains a native parameter only when its speed is bounded away
+// from zero over every span. Unresolved sub-rounding movement uses the sampled
+// construction instead; coincident endpoints alone cannot distinguish a loop
+// from a singularity.
+export function numericalCurveRegular(curve){
+  if(curve.kind==='point')return false;
+  if(curve.kind==='polyline')return true;
+  const pending=curve.parameters.slice(1).map((to,i)=>[curve.parameters[i],to]);
+  while(pending.length){
+    const [from,to]=pending.pop(),range=numericalCurveRange(curve,from,to);
+    if(range.speed[0]>0)continue;
+    if(numericalCurveAt(curve,from).speed===0||numericalCurveAt(curve,to,'left').speed===0||
+      range.speed[1]*(to-from)<=ROUNDING_MM)return false;
+    const middle=(from+to)/2;
+    if(!(middle>from&&middle<to))return false;
+    pending.push([middle,to],[from,middle]);
+  }
+  return true;
 }
 // Invert physical length in a source interval without treating normalized u as
 // millimetres. Precision loss is explicit; close XYZ endpoints may hide a loop.

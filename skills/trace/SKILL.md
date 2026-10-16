@@ -5,9 +5,7 @@ description: Deposit along explicit XYZ, NURBS or surface UV curves with varying
 
 # Trace
 
-Trace deposits along curves stored in [geometry](../../GEOMETRY.md); its recipe references stable `geometry` IDs and owns deposition settings. Inline curves remain accepted: saving separates their spatial definitions from deposition. [Slice](../slice/SKILL.md) covers solid regions.
-
-Add `construction:"curves"` to `plan.slices.assignments` with the existing `slice` tool or bulk recipe edit. Supply `id`, `curves`, and common `part`, `filament`, `process`, `after` settings; [print nozzle rules](../../core/print/USAGE.md#nozzle-selection) apply.
+Trace deposits curves stored in [geometry](../../GEOMETRY.md), separating spatial IDs from recipe settings on save. Inline curves remain accepted. Add `construction:"curves"` to `plan.slices.assignments` with `slice` or bulk edit: supply `id`, `curves`, common `part`, `filament`, `process` and `after`; [nozzle rules](../../core/print/USAGE.md#nozzle-selection) apply. [Slice](../slice/SKILL.md) covers solid regions.
 
 Each curve has `closed` and XYZ `points`, `nurbs`, or surface `uv`; [line-text](../line-text/SKILL.md) compiles XYZ curves. Local `id` and `after:[ids]` declare required predecessors within each repetition, including every expanded parallel bead; missing predecessors fail. Helpers add these only for manufacturing needs; `orderGroup` instead marks consecutive curves as a soft traversal chunk. `directionRequired` and closed-loop `seamRequired` preserve essential authored constraints (Trace defaults true). Scheduling owns travel and optional traversal; [the path contract](../../core/path/README.md) owns these distinctions.
 
@@ -27,6 +25,6 @@ Extensions can also submit already mapped batches through `traceResult(assignmen
 
 ## Ordered repetitions and declared contact
 
-`sequence:true` chains all repetitions and preserves their internal order. `ordered:true` preserves each repetition's required internal order independently; `repetitionAfter:{name:[predecessors]}` adds only selected dependencies using `repetitionIds`. Curve `repetitions:[indices]` selects repeats. `maxExcursionMm` bounds each group's Z span; null imposes no ceiling.
+`sequence:true` chains all repetitions and preserves their internal order. `ordered:true` preserves each repetition's required internal order independently; `repetitionAfter:{name:[predecessors]}` adds only selected dependencies using `repetitionIds`. External `operationAfter:{repetition:[ids|{assignment}]}` binds a named/ordinal repetition to required operations or full producer completion; missing targets/producers fail. Helpers use the [Recipe interface](../AUTHORING.md). Curve `repetitions:[indices]` selects repeats. `maxExcursionMm` bounds each group's Z span; null imposes no ceiling.
 
 A curve may declare `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}`. Null source uses available predecessors; a producer or operation ID narrows it. Null gap uses resolved bead height; null reference Z uses sampled curve points. Contact is checked vertically against positive-volume strands, with no inferred solid guide. Unsupported spans print as authored and appear in `limitations`. A down-and-up curve can declare `depositionAction:{kind:"press",depthMm}` within its bead height; polyline `segmentMetadata` retains identities through resampling and compaction.

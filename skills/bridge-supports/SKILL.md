@@ -17,7 +17,7 @@ Geometry matches their control nets without changing their shapes. `corresponden
 `baseSeam`/`landingSeam` (normalized curve parameters, default 0; open curves use 0).
 
 Call `apply_extension` with `extensionId:"bridge-supports"`, current revision and
-`request:{supports:[{id,base,landing,layerHeightMm:0.22}]}`. Assembly curves are
+`request:{supports:[{id,base,landing,layerHeightMm:0.22,baseFrom,landingTo}]}`. Curves are
 component-local; supply `part`; height defaults to process.layerMm. The ribbon
 reference direction follows mean paired-control travel. Rounded average travel /
 height chooses divisions; only the compatible controls are interpolated.
@@ -26,11 +26,11 @@ from the first division through the exact offset landing curve.
 Bead height uses that average spacing; width/speed inherit process values.
 `beadWidthMm`, `speedMmS` override them; `sampleStepMm` controls Trace sampling.
 
-`after` names the operation that prints the supporting base, not the entire part
-above it. Sequential Trace courses remain available to the ordinary scheduler
-alongside the part's layers. The report gives `lastOperationId` for the later
-bridge's prerequisite. Do not make the support wait for higher part layers.
-Review chronological extrusion: part and support advance together, each course
-prints once, and no material is deposited back inside completed lower layers.
+`baseFrom` selects printed base material; omit it for an unattached bed base.
+`landingTo` selects the later bridge: `{assignment,index,group:"fill"}` for a native
+Slice operation, or `{assignment,repetition}` for explicit Trace (name or ordinal).
+The helper wires base → sequential support courses → landing; unrelated work stays
+free. `after` accepts existing base operation IDs. `lastOperationId` remains in the
+report; an omitted landing is reported unbound. Review chronology and bead contact.
 
 The [singleton example](examples/removable.json) has 20 circular Trace courses sampled within 0.001 mm, ending at Z4 before its landing bridge at Z4.2. Rebuild after process changes; review contact, removal and clearance. Membranes use ordinary Slice; see [hole guidance](../hole-supports/SKILL.md). Software generation does not establish physical print qualification.

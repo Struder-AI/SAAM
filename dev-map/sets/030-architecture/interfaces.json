@@ -2416,6 +2416,22 @@
         "call"
       ],
       "evidence": "Shared deposition publication requests native construction and continuous profile error bounds from Geometry."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveRegular",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Construction retains native parameters only after Geometry certifies positive speed over complete intervals."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/surface-curve-image.mjs::surfaceCurveImages",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Extensions request exact rational images of ordinary UV boundary curves; Geometry owns numerical preparation and lifetime."
     }
   ],
   "retiredBindings": [

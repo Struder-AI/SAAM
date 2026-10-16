@@ -32,7 +32,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `sampleStepMm` | `0.2` | Physical sampling target. |
 | `surface`, `stack` | Horizontal, `null` | Reference geometry and first/regular normal gaps; optional translation direction. |
 | `within` | `[]` | Intersected material claims; empty retains unclaimed part material. |
-| `sliceOverrides`, `operationAfter` | Optional | Per-slice settings; `operationAfter:{walls:[ids],infill:[ids],fill:[ids]}` scopes required edges to operation groups, including within overrides. |
+| `sliceOverrides`, `operationAfter` | Optional | Per-slice settings; `operationAfter:{walls:[refs],infill:[refs],fill:[refs]}` scopes hard edges, also in overrides; refs are IDs or `{assignment}` completion. |
 | `loopInsetMm`, `roles` | Optional | Signed physical first-loop inset and stroke-role names. |
 | `fillOrder` | `null` | Ordinary patterns, physical chart cells or seeded fronts; independent of stack choice. |
 | `contact`, `toolPose` | `null` | Prepared-material source and optional derived poses, below. |

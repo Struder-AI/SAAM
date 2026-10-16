@@ -26,6 +26,10 @@ export function authoredNurbs(record,dimension=3){
     const w=weights?.[i]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}))};
 }
 
+export function nurbsCurveRecord(curve,dimension=3){
+  return {degree:curve.order-1,knots:[...curve.knots],controlPoints:Array.from({length:curve.n},(_,i)=>Array.from({length:dimension},(_,k)=>curve.cp[i*4+k]/curve.cp[i*4+3])),weights:Array.from({length:curve.n},(_,i)=>curve.cp[i*4+3])};
+}
+
 export function patchFromSurface(surface, name = 'patch') {
   const ns = surface.toNurbsSurface();
   requireThat(ns, `Surface "${name}" has no NURBS form.`);

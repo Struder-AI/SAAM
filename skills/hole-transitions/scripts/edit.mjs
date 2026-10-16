@@ -121,7 +121,7 @@ async function membrane(plan,request,parent,Geometry){
 }
 
 function wave(request,parent,process){
-  check(Object.keys(request).every(k=>['strategy','id','sourceAssignment','surface','domainUv','seedUv','layers','layerHeightMm','direction','lineSpacingMm','propagationStepMm','toleranceMm','sampleStepMm','speedMmS','fanPercent','toolPose','after'].includes(k)),'Unknown wave setting.');
+  check(Object.keys(request).every(k=>['strategy','id','sourceAssignment','surface','domainUv','seedUv','layers','layerHeightMm','direction','lineSpacingMm','propagationStepMm','toleranceMm','sampleStepMm','speedMmS','fanPercent','toolPose','after','seedFrom','boreTo'].includes(k)),'Unknown wave setting.');
   check(['spline','patch'].includes(request.surface?.kind),'Wave holes need an authored spline reference or named patch.');
   check(loops(request.domainUv)&&loops(request.seedUv),'Supply the shoulder domainUv and an already supported rim seedUv.');
   const signedArea=loop=>loop.reduce((sum,p,i)=>sum+p[0]*loop[(i+1)%loop.length][1]-p[1]*loop[(i+1)%loop.length][0],0)/2;
@@ -148,5 +148,15 @@ export async function editHoleTransition(source,request,Geometry){
   check(parent&&!parent.construction&&!parent.join,'sourceAssignment must name an ordinary Slice owner.');
   const made=request.strategy==='wave'?wave(request,parent,plan.process):await (request.strategy==='membrane'?membrane:stepped)(plan,request,parent,Geometry);
   check(made.assignments.every(a=>!prior.some(old=>old.id===a.id)),'Transition ids already exist; undo the prior application or choose a distinct hole id.');
-  return {geometry:plan.geometry,assignmentRequests:[...prior,...made.assignments],report:{...made.report,physicalQualification:'Unverified; review cooling, span, attachment and finishing.'}};
+  let assignments=[...prior,...made.assignments];
+  if(request.strategy==='wave'){
+    const Recipe=Geometry.Recipe;
+    check(Recipe&&request.boreTo,'Wave holes need boreTo selecting the continuing wall operation.');
+    check(request.seedFrom||request.after?.length,'Wave holes need seedFrom selecting printed seed material, or explicit after operation IDs.');
+    const anchor=request.seedFrom?Recipe.operationId(assignments,request.seedFrom):null;
+    if(anchor)made.assignments[0].dependencies.after=[...new Set([...made.assignments[0].dependencies.after,anchor])];
+    assignments=Recipe.withOperationAfter(assignments,request.boreTo,[{assignment:request.id}]);
+    made.report.dependencies={anchor:anchor??request.after,terminal:{assignment:request.id},continuation:Recipe.operationId(assignments,request.boreTo)};
+  }
+  return {geometry:plan.geometry,assignmentRequests:assignments,report:{...made.report,physicalQualification:'Unverified; review cooling, span, attachment and finishing.'}};
 }

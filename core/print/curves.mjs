@@ -10,6 +10,7 @@ import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {joinCurveSequence} from '../path/stack-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
+import {operationPrerequisite} from './operation-references.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
@@ -21,7 +22,7 @@ export function curveAssignment({id,construction='curves',...options}) {
 export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(!Object.hasOwn(a,'courseIds')&&!a.curves?.some(c=>Object.hasOwn(c,'courses'))&&!Object.hasOwn(a.repeat??{},'family'),'Trace field names courseIds, courses and repeat.family are retired; keep only repetitionIds, repetitions and repeat.stack.');
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
-  requireThat(a.construction==='curves'&&Object.keys(a).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
+  requireThat(a.construction==='curves'&&Object.keys(a).filter(key=>key!=='operationAfter').sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
@@ -36,6 +37,11 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(a.repetitionAfter===null||a.repetitionAfter&&typeof a.repetitionAfter==='object'&&!Array.isArray(a.repetitionAfter)&&a.repetitionIds&&
     Object.entries(a.repetitionAfter).every(([id,after])=>a.repetitionIds.includes(id)&&Array.isArray(after)&&after.every(previous=>previous!==id&&a.repetitionIds.includes(previous))),
     'Trace repetitionAfter names required predecessors by repetitionIds.');
+  requireThat(a.operationAfter===undefined||!a.source&&a.operationAfter&&typeof a.operationAfter==='object'&&!Array.isArray(a.operationAfter)&&
+    Object.entries(a.operationAfter).every(([name,after])=>(a.repetitionIds?a.repetitionIds.includes(name):a.repeat?.stack?
+      /^(0|[1-9][0-9]*)$/.test(name)&&Number.isSafeInteger(Number(name))&&(a.repeat.indices===null||Number(name)<a.repeat.indices.length):
+      /^(0|[1-9][0-9]*)$/.test(name)&&Number(name)<count)&&Array.isArray(after)&&after.every(operationPrerequisite)),
+    'Trace operationAfter maps repetition names to required operation IDs or {assignment}.');
   const source=a.source;
   requireThat(source===null||source&&Object.keys(source).sort().join()==='assignment,extension,parameters'&&typeof source.extension==='string'&&/^[a-z][a-z0-9-]*$/.test(source.extension)&&typeof source.assignment==='string'&&source.assignment!==a.id&&source.assignment.length&&source.parameters&&typeof source.parameters==='object'&&!Array.isArray(source.parameters),'Trace source needs extension, distinct Slice assignment and parameters.');
   requireThat(a.toolPose===null||a.toolPose&&Object.keys(a.toolPose).join()==='alignToSliceNormal'&&typeof a.toolPose.alignToSliceNormal==='boolean','Trace toolPose is null or {alignToSliceNormal:boolean}.');
@@ -140,7 +146,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     const name=assignment.repetitionIds?.[repetition]??repetition;
     const required=assignment.repetitionAfter&&Object.hasOwn(assignment.repetitionAfter,name)?assignment.repetitionAfter[name]:[];
     const spec={key:sourceLayer?.key??name,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
-      after:required.map(previous=>assignment.id+':'+previous),
+      after:[...required.map(previous=>assignment.id+':'+previous),...(assignment.operationAfter&&Object.hasOwn(assignment.operationAfter,name)?assignment.operationAfter[name]:[])],
       ...(native??{}),
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence||assignment.ordered?{join:{mode:'ordered'}}:{})};
     batches.push(spec);

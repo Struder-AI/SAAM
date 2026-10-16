@@ -46,9 +46,7 @@ Place an ordinary Slice spline reference or native patch at the **top of the las
 wave course**. The domain has a CCW outer loop, CW bore hole and anchoring rim.
 The seed denotes already printed material in the same chart, not new deposition.
 
-`layers` defaults to 1; `layerHeightMm` inherits the source stack/process.
-An ordinary `surface-domain` Slice with `fillOrder:"fronts"` leaves geometry unchanged.
-Defaults are spacing 0.3mm, propagation step 0.1mm, tolerance 0.01mm,
+`layers` defaults to 1; height inherits the source stack/process. Geometry stays unchanged. Defaults: spacing 0.3mm, propagation step 0.1mm, tolerance 0.01mm,
 sample step 0.5mm, speed 5mm/s and fan 100%; fields are `lineSpacingMm`, `propagationStepMm`, `toleranceMm`, `sampleStepMm`,
 `speedMmS` and `fanPercent` (experimental values).
 `direction` accepts an XYZ translation direction; omission uses the reference's
@@ -57,7 +55,8 @@ Curved charts use existing [wave fill](../wave-overhangs/SKILL.md) spacing, cali
 gaps, residuals and limits; no implicit final perimeter, normal-offset stacks,
 singular/folded charts or multi-chart stitching.
 
-Wave `after` names its printed seed; target continuing bore walls with Slice
-`operationAfter` in a slice override. Review chronology, ownership and contact.
-[Examples](examples/README.md) include planar, tilted and curved constructions;
-software success establishes no physical result.
+`seedFrom` selects printed seed material and `boreTo` selects continuing walls:
+`{assignment,index,group:"walls"}` for native Slice, or `{assignment,repetition}`
+for explicit Trace. Both boundaries are required (`after` can replace seedFrom).
+The helper wires seed → wave completion → selected walls, independently of world Z.
+Review contact and residuals; [examples](examples/README.md) establish no physical result.
