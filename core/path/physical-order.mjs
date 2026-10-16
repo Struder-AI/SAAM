@@ -2,10 +2,11 @@
 // Geometry owns numerical section, convex-volume and continuous-sweep operations.
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
 import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM,
-  convexBounds,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
-  nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph} from '../geom/convex-clearance.mjs';
+  convexBounds,convexBox,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
+  nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,subtract,length,requireThat} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {frameCone} from '../geom/curve-query.mjs';
 
 const equalVector=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 function constantVector(profile,select=value=>value){
@@ -28,18 +29,38 @@ function graphNozzleProofs(source,reader,rangeOf){
   const axis=scale(curveAt(reader,course.curveId,course.from).pose.toolAxis,-1);
   let graph=null;
   for(const surface of Object.values(source.surfaces)){graph=referenceHeightGraph(surface.referencePatch??surface.patch,axis);if(graph)break;}
-  if(!graph)return null;
-  const curves=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
+  if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360))return null;
+  const curves=new Map(),frames=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
+  function frameFloor(curveId){
+    if(frames.has(curveId))return frames.get(curveId);
+    const curve=source.curves[curveId];if(curve.geometry.kind!=='polyline'){frames.set(curveId,-1);return -1;}
+    const points=curve.geometry.points,lengths=[0];
+    for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+length(subtract(points[i],points[i-1])));
+    const cuts=[...new Set([...lengths.map(v=>v/lengths.at(-1)),...(curve.profiles.materialNormal.knots??[]).map(([u])=>u)])].sort((a,b)=>a-b);
+    let cosine=1;
+    for(let i=1;i<cuts.length;i++){
+      const a=curveAt(reader,curveId,cuts[i-1]),b=curveAt(reader,curveId,cuts[i],{side:'left'});
+      if(!a.tangent){cosine=-1;break;}
+      cosine=Math.min(cosine,sectionNormalProjectionBound(a.tangent,a.materialNormal,b.materialNormal,graph.axis));
+    }
+    frames.set(curveId,cosine);return cosine;
+  }
   for(const operation of Object.values(source.operations)){
     if(operation.kind!=='deposit')continue;
     for(const course of operation.courses){
       if(!curves.has(course.curveId))curves.set(course.curveId,graph.curveBounds(source.curves[course.curveId].geometry));
       const residual=curves.get(course.curveId);if(!residual)continue;
-      const range=rangeOf(course),offset=metric*(range.widthMm[1]/2+range.areaMm2[1]/range.widthMm[0]);
+      const range=rangeOf(course);if(!range.widthMm||!range.areaMm2)continue;
+      const cosine=frameFloor(course.curveId),sine=cosine>=0?Math.sqrt(Math.max(0,1-cosine*cosine)):1;
+      const side=range.widthMm[1]/2*Math.min(metric,sine+graph.slope);
+      const inward=cosine-graph.slope*sine,depth=[range.areaMm2[0]/range.widthMm[1],range.areaMm2[1]/range.widthMm[0]];
+      const low=residual[0]-side-depth[1]*metric;
+      const high=residual[1]+side-Math.min(0,inward*depth[1]);
+      const underHigh=residual[1]+side-(inward>=0?depth[0]:depth[1])*inward+PRINT_RESOLUTION_MM*metric;
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
       const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+deviation;
       const tip=angle<Math.PI/2&&graph.slope<1/Math.tan(angle)?residual[0]+NOZZLE_FORGIVENESS_MM/Math.sin(angle):-Infinity;
-      const value={min:residual[0]-offset,max:residual[1]+offset,tip};courses.set(course.id,value);
+      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine};courses.set(course.id,value);
       if(operation.layerId!==null){
         if(!slices.has(operation.layerId))slices.set(operation.layerId,{min:Infinity,max:-Infinity,tip:Infinity});
         const slice=slices.get(operation.layerId);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
@@ -49,14 +70,81 @@ function graphNozzleProofs(source,reader,rangeOf){
   // Atomic occupied solids and unsupported curves cannot inherit a proof from
   // another moving course in the same source layer.
   for(const op of Object.values(source.operations))if(op.layerId!==null&&(op.kind!=='deposit'||op.courses.some(c=>!courses.has(c.id))))slices.delete(op.layerId);
-  const clear=(a,b)=>Boolean(a&&b&&a.tip>b.max+ROUNDING_MM);
+  const clear=(a,b)=>Boolean(a&&b&&a.tip>b.max+ROUNDING_MM),sweepTips=new WeakMap();
+  function sweepTip(sweep){
+    if(sweepTips.has(sweep))return sweepTips.get(sweep);
+    let tip=-Infinity;
+    if(sweep.fixed&&sweep.motion&&!(sweep.margin>0)){
+      const motion=sweep.motion,at=t=>motion.from.map((v,k)=>v+(motion.to[k]-v)*t);
+      const bounds=graph.curveBounds({kind:'polyline',points:[at(sweep.t0??0),at(sweep.t1??1)]});
+      const angle=motion.includedAngleDeg*Math.PI/360+Math.acos(Math.max(-1,Math.min(1,dot(sweep.body.normal,graph.axis))));
+      if(angle<Math.PI/2&&graph.slope<1/Math.tan(angle))tip=bounds[0]+motion.forgivenessMm/Math.sin(angle);
+    }
+    sweepTips.set(sweep,tip);return tip;
+  }
   return {slope:graph.slope,courses:courses.size,
+    sweepClear:(sweep,unit)=>unit.operation.kind==='deposit'&&!unit.operation.occupied&&unit.ranges.every(ref=>{const material=courses.get(ref.id);return material&&sweepTip(sweep)>material.max+ROUNDING_MM;}),
     clear:(a,b)=>clear(slices.get(a),slices.get(b)),
     unitClear:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&
       a.ranges.every(x=>b.ranges.every(y=>clear(courses.get(x.id),courses.get(y.id)))),
+    topApart:(a,b)=>{const p=courses.get(a),q=courses.get(b);return Boolean(p&&q&&q.topMin>p.underHigh+PRINT_RESOLUTION_MM*metric*2);},
+    // If material touches the underside but its top is D higher in this
+    // Lipschitz field, the contact lies at least D/metric inward from that
+    // top. Coherent section normals therefore put the candidate's highest
+    // projection above the near-level support band as well. This excludes
+    // both support alternatives; lower-body overlap alone is not substrate.
+    supportApart:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&a.ranges.every(x=>b.ranges.every(y=>{
+      const p=courses.get(x.id),q=courses.get(y.id);if(!p||!q||p.cosine<=0||q.cosine<=0)return false;
+      const mutual=p.cosine*q.cosine-Math.sqrt(Math.max(0,1-p.cosine*p.cosine))*Math.sqrt(Math.max(0,1-q.cosine*q.cosine));
+      return mutual>0&&q.topMin-p.underHigh>PRINT_RESOLUTION_MM*8*metric/mutual;
+    })),
     materialApart:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&a.ranges.every(x=>b.ranges.every(y=>{
       const p=courses.get(x.id),q=courses.get(y.id);return p&&q&&(p.max+PRINT_RESOLUTION_MM*metric<q.min||q.max+PRINT_RESOLUTION_MM*metric<p.min);
     }))};
+}
+
+function sphereNozzleProofs(source,reader,rangeOf){
+  const axes=Object.values(source.curves).map(curve=>constantVector(curve.profiles.pose,p=>p.toolAxis));
+  if(axes.length&&axes[0]&&axes.every(axis=>axis&&equalVector(axis,axes[0])))return null;
+  const vertices=Object.values(source.curves).flatMap(curve=>controlVertices(curve.geometry)??[]);
+  if(!vertices.length)return null;
+  const bounds=convexBounds({vertices}),center=bounds.min.map((v,k)=>(v+bounds.max[k])/2),courses=new Map();
+  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,retreat=NOZZLE_FORGIVENESS_MM/Math.sin(halfAngle);
+  const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
+  const up=first?curveAt(reader,first.curveId,first.from).pose.toolUp:null,unitUp=up?scale(up,1/length(up)):null;
+  for(const operation of Object.values(source.operations))for(const course of operation.courses??[]){
+    const curve=source.curves[course.curveId];if(curve.geometry.kind!=='polyline')continue;
+    const points=curve.geometry.points,lengths=[0];let radius=0;
+    for(let i=0;i<points.length;i++){radius=Math.max(radius,length(subtract(points[i],center)));if(i)lengths.push(lengths.at(-1)+length(subtract(points[i],points[i-1])));}
+    const cuts=[...new Set([...lengths.map(v=>v/lengths.at(-1)),...(curve.profiles.pose.knots??[]).map(([u])=>u),...(curve.profiles.materialNormal.knots??[]).map(([u])=>u)])].sort((a,b)=>a-b);
+    const range=rangeOf(course);if(!range.areaMm2)continue;
+    const width=range.widthMm[1]/2,depth=range.areaMm2[1]/range.widthMm[0],fixedUp=constantVector(curve.profiles.pose,p=>p.toolUp);
+    const planar=unitUp&&fixedUp&&(equalVector(fixedUp,up)||equalVector(fixedUp,scale(up,-1)));
+    let support=Infinity,materialRadius=0,lo=Infinity,hi=-Infinity,tipLo=Infinity,tipHi=-Infinity,positionMin=Infinity,topMin=Infinity,underMax=0,cosine=1;
+    for(let i=1;i<cuts.length;i++){
+      const a=curveAt(reader,course.curveId,cuts[i-1]),b=curveAt(reader,course.curveId,cuts[i],{side:'left'}),angle=frameCone([a.pose,b.pose]).halfAngleRad;
+      support=Math.min(support,movingAxisSupportBound(a.point,b.point,a.pose,b.pose,angle,center));
+      const section=a.tangent&&movingSectionBounds(a.point,b.point,a.tangent,a.materialNormal,b.materialNormal,width,[range.areaMm2[0]/range.widthMm[1],depth],center,unitUp);
+      materialRadius=Math.max(materialRadius,section?.radius??radius+width+depth);
+      positionMin=Math.min(positionMin,section?.positionRadiusMin??0);topMin=Math.min(topMin,section?.topRadiusMin??-Infinity);
+      underMax=Math.max(underMax,section?.underRadiusMax??Infinity);cosine=Math.min(cosine,section?.normalCosine??-1);
+      lo=Math.min(lo,section?.projection[0]??-Infinity);hi=Math.max(hi,section?.projection[1]??Infinity);
+      tipLo=Math.min(tipLo,dot(a.point,unitUp),dot(b.point,unitUp));tipHi=Math.max(tipHi,dot(a.point,unitUp),dot(b.point,unitUp));
+    }
+    courses.set(course.id,{tip:support+retreat,support,material:materialRadius,projection:[lo,hi],tipProjection:[tipLo,tipHi],planar,positionMin,topMin,underMax,cosine,extent:width+depth});
+  }
+  return {courses:courses.size,supportApart:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&a.ranges.every(x=>b.ranges.every(y=>{
+    const p=courses.get(x.id),q=courses.get(y.id);if(!p||!q||p.cosine<=0||q.cosine<=0)return false;
+    const minimum=Math.min(p.positionMin,q.positionMin);if(!(minimum>0))return false;
+    const angle=Math.acos(p.cosine)+Math.acos(q.cosine)+2*Math.asin(Math.min(1,(p.extent+q.extent+PRINT_RESOLUTION_MM*2)/minimum));
+    return angle<Math.PI/2&&q.topMin-p.underMax>PRINT_RESOLUTION_MM*8/Math.cos(angle);
+  })),unitClear:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&a.ranges.every(x=>b.ranges.every(y=>{
+    const p=courses.get(x.id),q=courses.get(y.id);if(!p||!q)return false;
+    if(p.tip>q.material+ROUNDING_MM)return true;
+    if(!p.planar)return false;
+    const gap=Math.max(0,p.tipProjection[0]-q.projection[1],q.projection[0]-p.tipProjection[1]);
+    return Math.cos(halfAngle)*gap-Math.sin(halfAngle)*(q.material-p.support)+NOZZLE_FORGIVENESS_MM>ROUNDING_MM*8;
+  }))};
 }
 
 export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
@@ -108,9 +196,9 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
   }
   const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);
   if(!queries.reader)queries.reader=prepareCurvePath(source);
-  const graph=graphNozzleProofs(source,queries.reader,rangeOf);
-  return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null},
-    unitClear:(a,b)=>graph?.unitClear(a,b)??false,materialApart:(a,b)=>graph?.materialApart(a,b)??false,
+  const graph=graphNozzleProofs(source,queries.reader,rangeOf),sphere=graph?null:sphereNozzleProofs(source,queries.reader,rangeOf);
+  return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
+    unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,topApart:(a,b)=>graph?.topApart(a,b)??false,supportApart:(a,b)=>(graph?.supportApart(a,b)??false)||(sphere?.supportApart(a,b)??false),materialApart:(a,b)=>graph?.materialApart(a,b)??false,
     clear(depositingLayer,materialLayer){
     if(graph?.clear(depositingLayer,materialLayer))return true;
     const a=slices.get(depositingLayer),b=slices.get(materialLayer);
@@ -121,8 +209,8 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
 export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=PRINT_RESOLUTION_MM/8}={}){
-  const stats={rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
-  const cache=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
+  const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
+  const roots=new Map(),cache=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   function remember(key,record){
     const bytes=2048+record.range.breaks.length*8;
@@ -131,7 +219,9 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     cache.set(key,{record,bytes});stats.cacheBytes+=bytes;stats.peakCacheBytes=Math.max(stats.peakCacheBytes,stats.cacheBytes);return record;
   }
   function interval(ref){
-    const key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to]),known=cache.get(key);
+    const key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to]);
+    const root=roots.get(key);if(root){stats.rootHits++;return root;}
+    const known=cache.get(key);
     if(known){cache.delete(key);cache.set(key,known);stats.rangeCacheHits++;return known.record;}
     stats.rangeQueries++;
     const curve=source.curves[ref.curveId],range=curveRange(reader,ref.curveId,ref.from,ref.to);
@@ -184,6 +274,13 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   for(const [i,unit] of units.entries()){
     const records=unit.ranges.map(interval),solids=occupied(unit.operation),local={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
+    // Unit roots are already retained by the scene. Reuse that same record
+    // directly instead of re-querying it after a numerical cache eviction.
+    for(const record of records){
+      const ref=record.ref,key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to]);
+      if(!roots.has(key)){roots.set(key,record);stats.rootBytes+=2048+record.range.breaks.length*8;}
+      const held=cache.get(key);if(held){stats.cacheBytes-=held.bytes;cache.delete(key);}
+    }
     function addBounds(bounds){for(let k=0;k<3;k++){local.min[k]=Math.min(local.min[k],bounds.min[k]);local.max[k]=Math.max(local.max[k],bounds.max[k]);}}
     for(const record of records)if(record.depth[1]>0){
       const expansion=record.range.widthMm[1]/2+record.depth[1];
@@ -191,7 +288,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     for(const solid of solids)addBounds(convexBounds(solid));
     const body={unit,records,solids};byId.set(unit.id,body);
-    if(Number.isFinite(local.min[0])){include(local);bodies.push(body);boxes.push({vertices:boxCorners(local)});}
+    if(Number.isFinite(local.min[0])){include(local);bodies.push(body);boxes.push(convexBox(local));}
     if(i%256===0)onProgress?.({stage:'Preparing curve bounds',completed:i,total:units.length});
   }
   const proxy=convexSpatialIndex(boxes,{groups:bodies.map(body=>body.unit.id),partitions:bodies.map(body=>body.unit.layerId??body.unit.operation)});
@@ -267,8 +364,8 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return null;
   }
-  const index={bounds:stock,query(sweep,toleranceMm=ROUNDING_MM,filters={}){
-    const acceptGroup=id=>(!filters.withinGroups||filters.withinGroups.has(id))&&(!filters.acceptGroup||filters.acceptGroup(id))&&(!filters.accept||filters.accept(id));
+  const index={empty:bodies.length===0,bounds:stock,query(sweep,toleranceMm=ROUNDING_MM,filters={}){
+    const acceptGroup=id=>(!filters.withinGroups||filters.withinGroups.has(id))&&(!filters.acceptGroup||filters.acceptGroup(id))&&(!filters.accept||filters.accept(id))&&!proofs.sweepClear(sweep,byId.get(id).unit);
     const found=[];
     for(const body of candidates(sweep,acceptGroup,filters.boundsTest)){
       const solid=body.solids.some(shape=>convexIntersects(sweep,shape,toleranceMm)&&(!filters.confirm||filters.confirm(shape)));
@@ -277,7 +374,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return found;
   }};
-  function pair(receiver,materialRecord,solid=null,{localize=false}={}){
+  function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false}={}){
     const pending=[[receiver,materialRecord]];
     while(pending.length){
       const [a,b]=pending.pop(),nb=nozzle(a),mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;
@@ -301,7 +398,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       // A bounded possible obstruction may constrain order without claiming
       // a collision. If that conservative choice creates a cycle, the solver
       // tightens this pair; it never reports impossibility from this envelope.
-      if(!localize&&nb.errorMm+mb.errorMm<=precision&&!a.range.breaks.length&&(!b||!b.range.breaks.length))
+      if(allowChoice&&!localize&&nb.errorMm+mb.errorMm<=precision&&!a.range.breaks.length&&(!b||!b.range.breaks.length))
         return {receiver:a.ref,material:b?.ref??null,provisional:true,precision};
       let splitA=mb.exact||!nb.exact&&nb.errorMm>=mb.errorMm,chosen=splitA?a:b;
       requireTangent(chosen);let children=divide(chosen);
@@ -342,8 +439,8 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     })){
       if(seen.has(other.unit.id)||!acceptGroup(other.unit.id))continue;
       const state={witness:null};
-      for(const solid of other.solids){state.witness=pair(record,null,solid);if(state.witness)break;}
-      if(!state.witness)for(const candidate of regionalMaterial(other,nozzle(record).shape)){state.witness=pair(record,candidate);if(state.witness)break;}
+      for(const solid of other.solids){state.witness=pair(record,null,solid,{allowChoice:true});if(state.witness)break;}
+      if(!state.witness)for(const candidate of regionalMaterial(other,nozzle(record).shape)){state.witness=pair(record,candidate,null,{allowChoice:true});if(state.witness)break;}
       if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
     }
     return hits;
@@ -385,6 +482,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     const levelHi=projection(a.range.bounds,true)-(cosine>=0?a.depth[0]:a.depth[1])*cosine;
     const gapLo=projection(b.range.bounds,false)-levelHi;
     if(gapLo<=Math.min(PRINT_RESOLUTION_MM*2,a.depth[1]/2)+ROUNDING_MM)return true;
+    if(proofs.topApart(a.ref.id,b.ref.id))return false;
     if(!b.top)b.top=rectangularSweepEnvelope({from:b.start.point,to:b.end.point,bounds:b.range.bounds,
       chordErrorMm:b.chordErrorMm,tangentCone:b.tangentCone,normalCone:b.normalCone,
       radius:b.range.widthMm.map(width=>width/2),depth:[0,0]});
@@ -407,16 +505,16 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return null;
   }
-  function supportHits(unit,acceptGroup){
+  function* supportHits(unit,acceptGroup){
     const hits=[],seen=new Set();
-    for(const root of byId.get(unit.id).records)for(const {record,others} of queryRegions(root,'support',id=>!seen.has(id)&&acceptGroup(id)&&!proofs.materialApart(unit,byId.get(id).unit))){
+    for(const root of byId.get(unit.id).records)for(const {record,others} of queryRegions(root,'support',id=>!seen.has(id)&&acceptGroup(id)&&!proofs.materialApart(unit,byId.get(id).unit)&&!proofs.supportApart(unit,byId.get(id).unit))){
       for(const other of others){
-        if(seen.has(other.unit.id))continue;
+        if(seen.has(other.unit.id)||!acceptGroup(other.unit.id))continue;
         const state={witness:null};
         for(const candidate of regionalMaterial(other,underside(record))){state.witness=supportPair(record,candidate);if(state.witness)break;}
         // Stationary occupied solids contribute through explicit material
         // requirements; a convex envelope is not a fabricated substrate face.
-        if(state.witness){seen.add(other.unit.id);hits.push({unit:other.unit,witness:state.witness});}
+        if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
       }
     }
     return hits;
@@ -527,5 +625,3 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     interval,pair,deposited,occupied:new Set(),withinGroups:null,groupPrefixes:null,
     operationOf:id=>byId.get(id)?.unit.sourceOperation??id};
 }
-
-function boxCorners(bounds){return Array.from({length:8},(_,mask)=>bounds.min.map((value,k)=>mask&(1<<k)?bounds.max[k]:value));}

@@ -1,6 +1,6 @@
 // Contract only proven prerequisites: intact native slices execute together;
 // conflicting slice contractions expose the courses at their boundaries.
-import {distance} from '../private/toolpath/numeric.mjs';
+import {distance,requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 export function dependencyComponents(nodes,parents){
@@ -63,7 +63,7 @@ export function slicePartitions(operations,prerequisites){
 }
 
 function nearest(ready,cursor){
-  const score=node=>{const stroke=node.op.strokes?.[0],point=node.op.entry?.point??stroke?.points[0]??cursor.point,axis=node.op.entry?.pose?.toolAxis??stroke?.poses?.[0]?.toolAxis;
+  const score=node=>{const point=node.op.entry?.point??cursor.point,axis=node.op.entry?.pose?.toolAxis;
     return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
   const best={index:0,cost:Infinity};
   for(const [i,node] of ready.entries()){
@@ -99,14 +99,16 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
     const parent=byId.get(id);parent.following.push(node);if(parent.unit!==node.unit)node.unit.parents.add(parent.unit);
   }
   for(const unit of units){unit.remaining=unit.parents.size;for(const parent of unit.parents)parent.following.push(unit);for(const node of unit.nodes)if(!node.remaining)unit.ready.push(node);}
-  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??operations[0]?.entry?.point??operations[0]?.strokes?.[0]?.points[0]??[0,0,0],axis:null};
+  const entry=operations.find(operation=>operation.entry)?.entry;
+  requireThat(!operations.length||start||entry,'Ordering needs a source entry position.');
+  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??entry?.point,axis:null};
   while(ready.length){
     const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
     if(!entries.length)break;
     const unit=entries[nearest(entries,cursor).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
       const next=unit.ready.splice(nearest(unit.ready,cursor).index,1)[0];scheduled.push(next.op);
-      if(!next.op.barrier){cursor.point=next.op.exit?.point??next.op.strokes?.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.exit?.pose?.toolAxis??next.op.strokes?.at(-1)?.poses?.at(-1)?.toolAxis??null;}
+      if(!next.op.barrier){cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
       for(const node of next.following)if(!--node.remaining)node.unit.ready.push(node);
     }
     if(unit.nodes.some(node=>node.remaining))break;

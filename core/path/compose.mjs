@@ -148,11 +148,14 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       function preferWholeLayer(unit,hit){
         const layer=graph.layerGroups.get(hit.unit.layerId);
         if(progress.cyclic||!layer||unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
-        const key=JSON.stringify(['access-layer',unit.sourceOperation,unit.ranges.map(r=>[r.id,r.from,r.to]),hit.unit.layerId]);
-        if(relaxed.has(key)||precedes(unit.id,layer.begin.id))return;
-        addEdge(unit.id,layer.begin.id,'access-layer-choice',null);
+        const group=graph.groups.get(unit.sourceOperation),before=group.end.id;
+        const key=JSON.stringify(['operation-layer',unit.sourceOperation,hit.unit.layerId]);
+        if(relaxed.has(key)||precedes(before,layer.begin.id)||precedes(layer.begin.id,before))return;
+        addEdge(before,layer.begin.id,'access-layer-choice',null);
         const edge=state.edges.at(-1);edge.key=key;state.promotions.push(edge);
-        if(!promoted.has(unit.id))promoted.set(unit.id,[]);promoted.get(unit.id).push(layer.begin.id);
+        for(const member of group.members){
+          if(!promoted.has(member.id))promoted.set(member.id,[]);promoted.get(member.id).push(layer.begin.id);
+        }
       }
       for(const unit of graph.units){
         for(const requirement of unit.operation.requiredMaterial??[]){
@@ -179,7 +182,9 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
           const other=graph.byId.get(id),a=source.layers[unit.layerId],b=source.layers[other.layerId];
           if(a&&b&&(unit.layerId===other.layerId||a.surfaceId===b.surfaceId||a.stackId===b.stackId&&b.index>=a.index))return false;
           return true;
-        }))addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
+        })){
+          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);preferWholeLayer(hit.unit,{unit});
+        }
         if(progress.cyclic)break;
       }
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...layerEdges,...state.edges]});
@@ -263,7 +268,7 @@ export function planSourceComposition(initialState,source,reader,onProgress){
       actions.add(approached.actions);actions.add(extruded.actions);actions.add(held.actions);scene.occupied.add(unit.id);scene.deposited.set(unit.id,0);
     }else for(const [i,range] of unit.ranges.entries()){
       const entry=curveAt(reader,range.curveId,range.from),approached=planTravel(cursor.state,entry.point,scene,entry.pose);
-      const deposited=planDepositRange(approached.state,source,reader,range);
+      const deposited=planDepositRange(approached.state,source,reader,range,scene.byId.get(unit.id).records[i]);
       cursor.state=deposited.state;actions.add(approached.actions);actions.add(deposited.actions);
       scene.occupied.add(unit.id);scene.deposited.set(unit.id,i+1);
     }
@@ -274,7 +279,7 @@ export function planSourceComposition(initialState,source,reader,onProgress){
   if(cursor.last&&!cursor.last.operation.continuous)cool(cursor.last);
   const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{nozzleScene:scene,
-    summary:{hierarchy:solved.hierarchy,refinement:solved.refinement,executionUnits:solved.units.length,
+    summary:{hierarchy:solved.hierarchy,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{substrateDependencies:count('substrate'),nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material'),
         conservativeSupportChoices:solved.edges.filter(edge=>edge.kind==='substrate'&&edge.witness?.provisional).length,
         conservativeNozzleChoices:solved.edges.filter(edge=>edge.kind==='nozzle-access'&&edge.witness?.provisional).length},queries:{...scene.stats}}});

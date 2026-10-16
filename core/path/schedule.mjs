@@ -18,7 +18,7 @@ export function schedulePath(path,{sourcePathId,onProgress}={}){
   const started=planFan(createPlanningState({...path.planning,start,motion:{...motion,initialPose:pose},sourcePathId,generatorVersion:path.generatorVersion}),0);
   const composed=planSourceComposition(started.state,path,reader,onProgress),finished=planFinishing(composed.state,composed.nozzleScene);
   return planningPath(finished.state,[started.actions,composed.actions,finished.actions],{
-    ...path.summary,composition:composed.summary,construction:{operations:operations.length,
+    composition:composed.summary,construction:{operations:operations.length,
       courses:operations.reduce((n,operation)=>n+(operation.courses?.length??0),0),
       dependencies:operations.reduce((n,operation)=>n+operation.after.length,0)}
   },{contract:NEUTRAL_PATH_CONTRACT});

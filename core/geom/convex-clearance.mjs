@@ -34,6 +34,12 @@ export function convexSupport(shape,direction){
   const point=add(end,size>ROUNDING_MM?scale(radial,radius/size):[0,0,0]);
   return add(point,scale(normal,dot(direction,normal)<0?-shape.depth:0));
 }
+// Coordinate-aligned spatial boxes use the rectangular support primitive so
+// separating-axis/cone queries need no general simplex solve for their hull.
+export function convexBox({min,max}){
+  const y=(min[1]+max[1])/2;
+  return {a:[min[0],y,max[2]],b:[max[0],y,max[2]],side:[0,1,0],normal:[0,0,1],radius:(max[1]-min[1])/2,depth:max[2]-min[2]};
+}
 export const convexBounds=shape=>({min:[0,1,2].map(i=>convexSupport(shape,[0,1,2].map(k=>k===i?-1:0))[i]),
   max:[0,1,2].map(i=>convexSupport(shape,[0,1,2].map(k=>k===i?1:0))[i])});
 export const boundsOverlap=(a,b,slack=PRINT_RESOLUTION_MM)=>
@@ -198,7 +204,7 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
     const count=partition.members.reduce((sum,group)=>sum+Number(allowed.has(group)),0),status=count===0?0:count===partition.members.length?2:1;
     partition.token=selection.token;partition.status=status;return status;
   }
-  return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null}={}){
+  return {empty:shapes.length===0,bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null}={}){
     if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
     const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
     const rounded=roundedBody(shape),coneTest=rounded.body.fixed&&rounded.body.motion?fixedConeBounds(rounded.body,toleranceMm+rounded.margin):null;
@@ -326,7 +332,7 @@ export function nozzleSweepReach(bounds,from,to,fromPose,toPose){
 }
 
 export function nozzleMotionHits(index,occupied,from,to,fromPose,toPose,{withinGroups=null,groupPrefixes=null}={}){
-  if(!occupied.size)return [];
+  if(!occupied.size||index.empty)return [];
   return nozzleSweepHits(index,from,to,fromPose,toPose,{accept:hit=>occupied.has(hit),withinGroups,groupPrefixes});
 }
 
@@ -477,7 +483,12 @@ export function translationContactInterval(body,translation,obstacle,{resolution
 // a sparse layer surface. Clamping its parameter coordinates extends the graph
 // globally with the same certified Lipschitz bound.
 export function referenceHeightGraph(patch,direction){
-  if(!patch?.cp||patch.orderU<2||patch.orderV<2)return null;
+  if(!patch?.cp||patch.orderU<2||patch.orderV<2||!patch.domainU||!patch.domainV)return null;
+  for(const [knots,order,domain]of [[patch.knotsU,patch.orderU,patch.domainU],[patch.knotsV,patch.orderV,patch.domainV]]){
+    if(!knots||!(domain[1]>domain[0]))return null;
+    let previous=null,count=0;for(const knot of knots){count=knot===previous?count+1:1;previous=knot;
+      if(knot>domain[0]&&knot<domain[1]&&count>=order)return null;}
+  }
   const w=patch.cp[3];if(!(w>0))return null;
   const points=[];for(let i=0;i<patch.nu*patch.nv;i++){
     if(patch.cp[i*4+3]!==w)return null;
@@ -496,7 +507,20 @@ export function referenceHeightGraph(patch,direction){
     if(j+1<patch.nv){const span=patch.knotsV[j+patch.orderV]-patch.knotsV[j+1];if(span>0)
       gradient[1]=Math.max(gradient[1],(patch.orderV-1)*Math.abs(heights[i*patch.nv+j+1]-heights[i*patch.nv+j])/span);}
   }
-  const slope=(gradient[0]*length(dualU)+gradient[1]*length(dualV))*(1+ROUNDING_RELATIVE)+ROUNDING_RELATIVE;
+  const slope=Math.max(...[-1,1].flatMap(u=>[-1,1].map(v=>length(add(scale(dualU,u*gradient[0]),scale(dualV,v*gradient[1]))))))*(1+ROUNDING_RELATIVE)+ROUNDING_RELATIVE;
+  let curvature=Infinity;
+  const bezier=patch.nu===patch.orderU&&patch.nv===patch.orderV&&
+    patch.knotsU.every((v,i)=>v===patch.domainU[i<patch.orderU?0:1])&&patch.knotsV.every((v,i)=>v===patch.domainV[i<patch.orderV?0:1]);
+  if(bezier){
+    let uu=0,uv=0,vv=0;const p=patch.orderU-1,q=patch.orderV-1,du=patch.domainU[1]-patch.domainU[0],dv=patch.domainV[1]-patch.domainV[0];
+    for(let i=0;i<patch.nu;i++)for(let j=0;j<patch.nv;j++){
+      const at=(u,v)=>heights[u*patch.nv+v];
+      if(i+2<patch.nu)uu=Math.max(uu,p*(p-1)*Math.abs(at(i+2,j)-2*at(i+1,j)+at(i,j))/(du*du));
+      if(j+2<patch.nv)vv=Math.max(vv,q*(q-1)*Math.abs(at(i,j+2)-2*at(i,j+1)+at(i,j))/(dv*dv));
+      if(i+1<patch.nu&&j+1<patch.nv)uv=Math.max(uv,p*q*Math.abs(at(i+1,j+1)-at(i+1,j)-at(i,j+1)+at(i,j))/(du*dv));
+    }
+    curvature=(uu*dot(dualU,dualU)+2*uv*length(dualU)*length(dualV)+vv*dot(dualV,dualV))*(1+ROUNDING_RELATIVE)+ROUNDING_RELATIVE;
+  }
   const guard=ROUNDING_MM*8*(1+slope);
   function residual(point){
     const delta=subtract(point,origin),u=patch.domainU[0]+dot(delta,dualU),v=patch.domainV[0]+dot(delta,dualV);
@@ -505,16 +529,67 @@ export function referenceHeightGraph(patch,direction){
   function curveBounds(geometry){
     const vertices=geometry.kind==='polyline'?geometry.points:geometry.kind==='nurbs'?geometry.controlPoints:null;
     if(!vertices)return null;
-    let low=Infinity,high=-Infinity,previous=null,previousValue=0;
+    let low=Infinity,high=-Infinity,previous=null,previousValue=0,previousRegion=null;
+    const region=point=>{const delta=subtract(point,origin);return [dot(delta,dualU)+patch.domainU[0],dot(delta,dualV)+patch.domainV[0]].map((v,k)=>v<patch[k?'domainV':'domainU'][0]?-1:v>patch[k?'domainV':'domainU'][1]?1:0);};
     for(const point of vertices){const value=residual(point);
-      if(previous){const allowance=geometry.kind==='polyline'?slope*length(project(subtract(point,previous)))/2:0;
+      const currentRegion=region(point);
+      if(previous){const distance=length(project(subtract(point,previous))),smooth=currentRegion.every((v,k)=>v===previousRegion[k]);
+        const allowance=geometry.kind==='polyline'?Math.min(slope*distance/2,smooth&&Number.isFinite(curvature)?curvature*distance*distance/8:Infinity):0;
         low=Math.min(low,value,previousValue-allowance,value-allowance);high=Math.max(high,value,previousValue+allowance,value+allowance);
-      }else{low=value;high=value;}previous=point;previousValue=value;
+      }else{low=value;high=value;}previous=point;previousValue=value;previousRegion=currentRegion;
     }
     if(geometry.kind==='nurbs'){
       const bounds=convexBounds({vertices}),diameter=length(subtract(bounds.max,bounds.min));low-=slope*diameter;high+=slope*diameter;
     }
     return [low-guard,high+guard];
   }
-  return {axis,slope,residual,curveBounds};
+  return {axis,slope,curvature,residual,curveBounds};
+}
+
+// A fixed tangent and one slerped normal interval bound the projected section
+// normal. This is a directional bound, not a sampled section approximation.
+export function sectionNormalProjectionBound(tangent,fromNormal,toNormal,axis){
+  const frame=sectionFrame(tangent,fromNormal);if(!frame)return -1;
+  const cosine=Math.max(-1,Math.min(1,dot(fromNormal,toNormal))),angle=Math.atan2(length(cross(fromNormal,toNormal)),cosine);
+  const error=Math.min(2,4*Math.sin(angle/2)/frame.projectedSize+ROUNDING_RELATIVE);
+  return Math.max(-1,dot(frame.normal,axis)-error);
+}
+
+// Lower-bound the tip's support along its moving outward axis relative to a
+// reference center. Position is affine and the frame follows one SO(3) arc.
+// |(P.n)''| <= 2|P'|*angle + max|P-center|*angle², so the endpoint scalar
+// interpolation minus this bound/8 encloses the entire coupled motion.
+export function movingAxisSupportBound(from,to,fromPose,toPose,angle,center){
+  const a=subtract(from,center),b=subtract(to,center),first=dot(a,scale(fromPose.toolAxis,-1)),last=dot(b,scale(toPose.toolAxis,-1));
+  const curvature=2*length(subtract(to,from))*angle+Math.max(length(a),length(b))*angle*angle;
+  return Math.min(first,last)-curvature/8-ROUNDING_MM*4;
+}
+
+// Convex endpoint bounds for a moving rectangular section. The tangent is
+// fixed on this source span; its reference normal follows one slerp arc.
+export function movingSectionBounds(from,to,tangent,fromNormal,toNormal,radius,depthRange,center,projectionAxis){
+  const depth=depthRange[1];
+  const frame=sectionFrame(tangent,fromNormal);if(!frame)return null;
+  const angle=Math.atan2(length(cross(fromNormal,toNormal)),Math.max(-1,Math.min(1,dot(fromNormal,toNormal))));
+  const referenceError=2*Math.sin(angle/2),crossLow=Math.sqrt(Math.max(0,1-Math.min(1,Math.abs(dot(fromNormal,tangent))+referenceError)**2));
+  const normalAxial=Math.min(1,Math.max(Math.abs(dot(fromNormal,projectionAxis)),Math.abs(dot(toNormal,projectionAxis)))/Math.max(ROUNDING_RELATIVE,Math.cos(angle/2)));
+  // Nearly planar normals/tangents give a nearly constant section frame even
+  // when the reference normal rotates along that plane. Bound this correlation
+  // instead of isotropically inflating the section by its full normal change.
+  const planarError=crossLow>0?4*(normalAxial+Math.abs(dot(tangent,projectionAxis)))/crossLow:2;
+  const error=Math.min(2,4*Math.sin(angle/2)/frame.projectedSize,planarError)+ROUNDING_RELATIVE;
+  const a=subtract(from,center),b=subtract(to,center),reach=Math.max(length(a),length(b));
+  const normalLow=Math.min(dot(a,frame.normal),dot(b,frame.normal))-reach*error;
+  const sideHigh=Math.max(Math.abs(dot(a,frame.side)),Math.abs(dot(b,frame.side)))+reach*error;
+  const radiusBound=Math.sqrt(reach*reach+radius*radius+2*radius*sideHigh+Math.max(0,depth*depth-2*depth*normalLow))+ROUNDING_MM*4;
+  const delta=subtract(b,a),size2=dot(delta,delta),t=size2?Math.max(0,Math.min(1,-dot(a,delta)/size2)):0;
+  const positionRadiusMin=length(add(a,scale(delta,t)));
+  const topRadiusMin=Math.sqrt(Math.max(0,positionRadiusMin**2-Math.min(sideHigh**2,2*radius*sideHigh)))-ROUNDING_MM*4;
+  const normalHigh=Math.max(dot(a,frame.normal),dot(b,frame.normal))+reach*error;
+  const depthTerm=d=>d*d-2*d*(d>=0?normalLow:normalHigh);
+  const underRadiusMax=Math.sqrt(Math.max(0,reach**2+radius**2+2*radius*sideHigh+
+    Math.max(depthTerm(depthRange[0]-PRINT_RESOLUTION_MM),depthTerm(depth+PRINT_RESOLUTION_MM))))+ROUNDING_MM*4;
+  const extent=radius*Math.min(1,Math.abs(dot(frame.side,projectionAxis))+error)+depth*Math.min(1,Math.abs(dot(frame.normal,projectionAxis))+error);
+  const lo=Math.min(dot(from,projectionAxis),dot(to,projectionAxis))-extent,hi=Math.max(dot(from,projectionAxis),dot(to,projectionAxis))+extent;
+  return {radius:radiusBound,projection:[lo-ROUNDING_MM*4,hi+ROUNDING_MM*4],positionRadiusMin:Math.max(0,positionRadiusMin-ROUNDING_MM*4),topRadiusMin,underRadiusMax,normalCosine:reach&&normalLow>0?Math.min(1,normalLow/reach):-1};
 }

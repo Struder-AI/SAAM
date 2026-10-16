@@ -156,10 +156,12 @@ function planTravelCurve(input,to,speed,pose,seconds,durationSeconds){
 // A whole course/range remains one execution record regardless of vertex count.
 // Cooling uses a certified lower duration bound: uncertainty can only add dwell.
 
-export function planDepositRange(input,source,reader,course,from=course.from,to=course.to){
+export function planDepositRange(input,source,reader,course,prepared=null){
+  const {from,to}=course;
   requireThat(input.sourcePathId,'Source-range planning requires a compact source identity.');
-  const range=curveRange(reader,course.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM});
-  const end=curveAt(reader,course.curveId,to,{side:'left'}),profile=source.curves[course.curveId].profiles.speedMmS;
+  const known=prepared?.range;
+  const range=known&&known.lengthMm[1]-known.lengthMm[0]<=PRINT_RESOLUTION_MM?known:curveRange(reader,course.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM});
+  const end=prepared?.end??curveAt(reader,course.curveId,to,{side:'left'}),profile=source.curves[course.curveId].profiles.speedMmS;
   const maximum=typeof profile==='number'?profile:Math.max(...profile.knots.map(([,value])=>value));
   const seconds=maximum>0?range.lengthMm[0]/maximum:0;
   const lower=input.stats.printMmBounds??[input.stats.printMm,input.stats.printMm];
