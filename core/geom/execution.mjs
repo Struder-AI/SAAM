@@ -16,7 +16,7 @@ export async function executeGeometry(operation,input,options={}){
   finally{closeExecution(session);}
 }
 export function executeGeometrySync(operation,input,options={}){
-  if(options.timeoutMs===undefined||options.onGeometry)throw Error('Synchronous Geometry execution needs an operation deadline and no asynchronous geometry consumer.');
+  if(options.onGeometry)throw Error('Synchronous Geometry execution cannot await an asynchronous geometry consumer.');
   const session=beginExecution(operation,input,options);
   try{for(;;){
     const outcome=pollExecution(session);if(outcome){if(outcome.error)throw outcome.error;return outcome.value;}

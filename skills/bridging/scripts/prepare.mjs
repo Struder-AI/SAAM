@@ -40,5 +40,5 @@ export function bridgeAssignment({id,part=null,filament=null,process=null,after=
     return curves.map(curve=>({...curve,repetitions:[index],
       ...(curve.role==='bridge-span'?{}:{contact:{source:b.supportBridge?`${id}:${b.supportBridge}`:null,gapMm:null,sampleStepMm:.1,referenceZMm:curve.depositionAction?Math.max(...curve.points.map(p=>p[2])):null}})}));
   });
-  return curveAssignment({id,part,filament,process,after,curves,maxExcursionMm,repeat:{count:bridges.length,translation:[0,0,0]},ordered:true,repetitionIds:bridges.map(b=>b.id),repetitionAfter:Object.fromEntries(bridges.filter(b=>b.supportBridge).map(b=>[b.id,[b.supportBridge]]))});
+  return curveAssignment({id,part,filament,process,after,curves,maxExcursionMm,repeat:{count:bridges.length,translation:[0,0,0]},ordered:false,repetitionIds:bridges.map(b=>b.id),repetitionAfter:Object.fromEntries(bridges.filter(b=>b.supportBridge).map(b=>[b.id,[b.supportBridge]]))});
 }

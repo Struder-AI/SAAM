@@ -27,7 +27,7 @@ The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`, `
   Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
   Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
   retaining roll. Antipodal normal keys require an authored intermediate direction.
-  Publication removes exact redundant width/feed/frame keys and compacts generated normal/material fields with continuous interval proofs, preserving roll, exact course totals and zero-material intervals. Connected atomic courses share width/feed/frame endpoints over one bead width, capped at half each course.
+  Publication removes redundant width/feed/frame keys and compacts generated normal/material fields with continuous interval proofs, preserving roll, exact course totals and zero-material intervals. Connected atomic or explicitly required consecutive courses share width/feed/frame endpoints over one bead width, capped at half each course.
 - Keys strictly increase, include 0 and 1, and cover the domain. Step values are
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath
@@ -50,7 +50,7 @@ The source contains `curves`, `layers`, `surfaces`, `processes`, `operations`, `
   retains its existing defaults, explicit start and motion settings.
 - Operation `after` names whole source operations; course `after` names source-wide courses.
   Every predecessor must finish before its successor starts. Construction lowers local curve names, including parallel expansions, to these IDs. These are unbreakable manufacturing requirements, never convenience or travel choices.
-  Consecutive courses sharing `orderGroup` form a soft traversal chunk. Slice retains uninterrupted fill cells across publication; splits/merges end cells. Scheduling chooses entry, reversal and travel, and may split an implicated chunk for physical or required dependencies. Group names never impose hard precedence.
+  Consecutive courses sharing `orderGroup` form a soft traversal chunk; internal requirements constrain its permitted traversals and survive splitting. Slice retains uninterrupted fill cells; splits/merges end cells. Scheduling chooses entry, reversal and travel, and may split an implicated chunk for physical or required dependencies. Group names impose no hard precedence.
   `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal; `seamRequired:false` permits cyclic entry changes on interruptible closed courses. Material and poses retain their source locations. A required seam stays first even after refinement. Ordinary Slice frees direction/seam; causal fronts and Trace preserve them. Atomic/continuous operations retain their authored traversal.
 - A stationary operation has `kind:'inject'`, no courses, and
   `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
@@ -109,7 +109,7 @@ physical scheduling.
 
 Printing, startup, transfers, reorientation, parking, temperature changes, cooling
 and finishing share continuous nozzle-clearance checks against actual deposited
-material. Geometry's shared nozzle has a 60° included angle and 0.5 mm flat-tip diameter, with 0.1 mm surface forgiveness while moving and none for stationary Inject.
+material. Geometry's shared nozzle uses a 60° included angle, 0.5 mm flat-tip diameter and flat-face reference-height bounds. Surface forgiveness is 0.1 mm while moving and zero for stationary Inject.
 Deposited beads may overlap. Carriage, fixtures and automatic supports are outside this model. No world-axis entry, support, retreat or motion-speed assumption is valid.
 Source material placement retains current semantics pending separate bead-geometry
 unification. Refinement preserves material and poses, uses contact witnesses where
@@ -119,7 +119,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/31` and completion `saam-neutral-motion/16` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/32` and completion `saam-neutral-motion/17` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

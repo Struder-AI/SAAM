@@ -53,6 +53,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   }
   for(const curve of a.curves){
     requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
+    requireThat(curve.interruptible===undefined||typeof curve.interruptible==='boolean','Curve interruptible must be boolean.');
     requireThat(curve.directionRequired===undefined||typeof curve.directionRequired==='boolean','Curve directionRequired must be boolean.');
     requireThat(curve.seamRequired===undefined||typeof curve.seamRequired==='boolean','Curve seamRequired must be boolean.');
     requireThat(curve.orderGroup===undefined||typeof curve.orderGroup==='string'&&curve.orderGroup.length>0,'Curve orderGroup must be a nonempty local name.');
@@ -85,7 +86,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
 // two distinct vertices (three when closed) is null: it prints nothing. Speed
 // and flow need only be finite: zero flow moves along the curve without
 // depositing; a negative flow fails within its assignment's deposition boundary.
-const CURVE_FIELDS=['id','after','orderGroup','directionRequired','seamRequired','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
+const CURVE_FIELDS=['id','after','orderGroup','interruptible','directionRequired','seamRequired','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
 const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
 export function readAuthoredCurve(source){
   const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)

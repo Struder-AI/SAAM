@@ -79,7 +79,15 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
   const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
   const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
-  const constrained=new Set(operations.flatMap(operation=>(operation.courses??[]).flatMap(course=>course.after?.length?[course.id,...course.after]:[])));
+  // Forward requirements can live inside a soft traversal chunk. Exclude
+  // backwards or external endpoints; these must remain explicit graph nodes.
+  const constrained=new Set();
+  for(const operation of operations){
+    const courses=operation.courses??[];if(!courses.some(course=>course.after?.length))continue;
+    const positions=new Map(courses.map((course,index)=>[course.id,index]));
+    for(const [index,course] of courses.entries())for(const previous of course.after??[])
+      if(!positions.has(previous)||positions.get(previous)>=index){constrained.add(course.id);constrained.add(previous);}
+  }
   function node(operation,ranges,barrier=null,traversalKey=null){
     const id='schedule:'+counter.next++,injection=operation.kind==='inject'?operation.injection:null;
     const entry=barrier?null:injection?{point:injection.at,pose:injection.pose}:curveAt(reader,ranges[0].curveId,ranges[0].from);
@@ -104,7 +112,13 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
           return {key,ranges,entry:ends[0][0],exit:ends.at(-1)[1],
             extraDistance:ends.slice(1).reduce((sum,[start],i)=>sum+distance(ends[i][1].point,start.point),0)};
         };
-        const allowed=variant=>!blockedTraversals.has(variant.key);
+        const requiredOrder=ranges.some(range=>range.after?.length);
+        const allowed=variant=>{
+          if(blockedTraversals.has(variant.key))return false;
+          if(!requiredOrder)return true;
+          const positions=new Map(variant.ranges.map((range,index)=>[range.id,index]));
+          return variant.ranges.every((range,index)=>(range.after??[]).every(previous=>!positions.has(previous)||positions.get(previous)<index));
+        };
         value.traversals=variants.map(traversal).filter(allowed);
         if(loop){
           const memo={point:null,choices:null};

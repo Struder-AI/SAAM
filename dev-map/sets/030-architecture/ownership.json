@@ -28009,6 +28009,10 @@
     "core/geom/convex-clearance.mjs::nozzleSideOffsetMm": {
       "owner": "geometry",
       "reason": "Numerical truncated-cone clearance dimensions and rigid-motion bounds."
+    },
+    "core/geom/convex-clearance.mjs::nozzleReferenceFloorMm": {
+      "owner": "geometry",
+      "reason": "Shared nozzle shape supplies conservative reference-height floors for whole-slice and travel clearance proofs."
     }
   },
   "retiredAssignments": [

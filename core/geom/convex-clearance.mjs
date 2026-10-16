@@ -255,6 +255,16 @@ export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INC
   return {a:start,b:add(start,scale(outward,lengthMm)),normal:outward,radius:startRadius,endRadius:startRadius+lengthMm*Math.tan(angle),depth:0};
 }
 
+// Lowest reference-height offset of the whole nozzle, including its flat face.
+// The reference is Lipschitz over the perpendicular plane. Every cone generator
+// must increase that field; otherwise no finite floor can certify clearance.
+export function nozzleReferenceFloorMm(cosine,slope=0,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM){
+  const aligned=Math.max(-1,Math.min(1,cosine)),deviation=Math.acos(aligned),angle=includedAngleDeg*Math.PI/360+deviation;
+  if(angle>=Math.PI/2||slope>=1/Math.tan(angle))return -Infinity;
+  const shape=nozzleAt([0,0,0],[0,0,1],0,includedAngleDeg,forgivenessMm,tipDiameterMm),sine=Math.sqrt(Math.max(0,1-aligned*aligned));
+  return shape.a[2]*(aligned-slope*sine)-shape.radius*(sine+slope);
+}
+
 function nozzleRadiusBound(lengthMm,includedAngleDeg,forgivenessMm,tipDiameterMm){
   const shape=nozzleAt([0,0,0],[0,0,1],lengthMm,includedAngleDeg,forgivenessMm,tipDiameterMm);
   return Math.hypot(shape.b[2],shape.endRadius);

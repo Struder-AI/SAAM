@@ -7,7 +7,7 @@ metadata:
 
 # Bridging
 
-Author span and attachment centerlines as ordinary [Trace](../trace/SKILL.md) curves. The helper preserves required attachment/span order and declares each `supportBridge` predecessor; independent bridges may be reordered. Trace owns the common fields.
+Author span and attachment centerlines as ordinary [Trace](../trace/SKILL.md) curves. The helper requires attachment/span order within each one-way row; rows form soft chunks and may reorder independently. Alternating depositing turns require the full run’s sequence. Spans and presses are atomic. `supportBridge` requires its named predecessor; Scheduling owns travel. Trace owns common fields.
 
 Use `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` to check expected supporting strands. Contact checks do not create execution dependencies. A press uses an explicit down-and-up curve with `depositionAction:{kind:'press',depthMm}`.
 
@@ -31,7 +31,7 @@ Each helper entry in `bridges` has these required fields:
 |---|---|
 | `id` | Unique lowercase identifier |
 | `rails` | Two equally sized arrays of XYZ gap-edge points, at bridge deposition height; XY is relative to plan placement |
-| `mode` | `alternating` reverses successive spans and extrudes between anchors; `one-way` returns through shared retracted travel |
+| `mode` | `alternating` reverses successive spans and deposits between anchors; `one-way` fixes span direction |
 | `overlapMm` | XY extension from each gap edge into its supporting wall |
 | `speedMmS` | Unsupported span speed |
 | `attachmentSpeedMmS` | Supported attachment, turn, lead, jog and press speed |
@@ -43,8 +43,7 @@ Each helper entry in `bridges` has these required fields:
 Optional `endAttachment` is available for one-way mode. Supply all five fields:
 `overlapMm`, `speedMmS`, `pressMm`, `jogMm`, `flowMultiplier`. They override only
 the arrival attachment; `jogMm` adds a supported out-and-back jog after arrival,
-before travel/retraction. The ordinary start controls and free-span flow/speed
-stay unchanged. Without this record, both ends use the original settings.
+before leaving the row. Other controls stay unchanged; omitting this record uses the start settings at both ends.
 
 Optional `supportBridge` names an earlier bridge entry. Attachment checks then
 use that entry's emitted 3D strands one vertical layer below, including sloped

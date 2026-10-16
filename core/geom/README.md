@@ -5,7 +5,7 @@
 [execution.mjs](execution.mjs) owns Geometry worker lifecycle, communication, memory policy,
 cancellation, deadlines, progress and errors. Named capabilities hide this machinery from clients.
 One bootstrap serves supervision and leased calculations, reusing an idle calculation. Supervision stays responsive.
-Boolean owns fuzzy matching, perturbations and attempt budgets; execution enforces deadlines. Repair has no elapsed-time refusal.
+Boolean owns fuzzy matching and perturbations; execution enforces caller deadlines and cancellation. Construction has no elapsed-time refusal.
 Progress callback errors cancel work. Geometry chunks await their matching acknowledgement.
 Async calls settle after calculation stops, including cancellation and worker allocation failures.
 Callers own scratch directories and publication; calculations may write only their supplied staging
@@ -51,9 +51,8 @@ local chart proofs bound fuzzy matches. General intersections audit control hull
 Sub-resolution closures are counted. Coplanar projection keeps native boundaries;
 support planes separate rotated contacts; point/edge contacts retain material sectors.
 Geometry automatically tries original construction, fuzzy matching at a quarter tolerance,
-then growing translations from the original operands. Numerical workers interrupt attempts
-at 5 seconds (2.5 on retries), with a 20-second operation budget. Success reports fuzzy
-accuracy or each actual displacement in notes; jiggles can exceed the default tolerance.
+then growing translations from the original operands after numerical failures. Interruptible workers continue until completion or cancellation.
+Success reports fuzzy accuracy or each actual displacement in notes; jiggles can exceed the default tolerance.
 Exhausted recovery returns its failures. General trimmed normal offsets remain unsupported.
 Mesh/mixed sections also retain operands. Explicit output tessellates native boundaries;
 nonempty checks derive a mesh only when construction has not already proved presence.

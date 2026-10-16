@@ -105,8 +105,9 @@ export function retainFaceTrimCurves(patch,loops,{toleranceMm}={}){
       if(match&&previous?.source===match.source&&Math.abs(previous.to-match.from)<=ROUNDING_RELATIVE){previous.to=match.to;previous.end=match.end;}
       else pieces.push(match??{start:a,end:b});
     }
-    return {curves:pieces.map((piece,i)=>{
-      if(!piece.source)return {points:[pieces[(i+pieces.length-1)%pieces.length].end,pieces[(i+1)%pieces.length].start]};
+    const boundary=pieces.filter(piece=>!piece.source||piece.from!==piece.to);
+    return {curves:boundary.map((piece,i)=>{
+      if(!piece.source)return {points:[boundary[(i+boundary.length-1)%boundary.length].end,boundary[(i+1)%boundary.length].start]};
       const {native}=piece.source,[lo,hi]=[piece.from,piece.to].sort((a,b)=>a-b),domain=native.domain;
       const part=extract(native,domain[0]+lo*(domain[1]-domain[0]),domain[0]+hi*(domain[1]-domain[0]));
       return {nurbs:nurbsCurveRecord(piece.to>piece.from?part:reverseCurve(part),2)};
@@ -114,17 +115,23 @@ export function retainFaceTrimCurves(patch,loops,{toleranceMm}={}){
   }).filter(loop=>loop.curves.length);
 }
 function sourceTrimInterval(patch,a,b,sources,toleranceMm){
-  const frame=evaluate(patch,...a),metric=Math.max(Math.hypot(...frame.du),Math.hypot(...frame.dv)),guard=toleranceMm/metric;
+  const frame=evaluate(patch,...a),uu=frame.du.reduce((sum,v,k)=>sum+v*frame.du[k],0),vv=frame.dv.reduce((sum,v,k)=>sum+v*frame.dv[k],0),uv=frame.du.reduce((sum,v,k)=>sum+v*frame.dv[k],0);
+  const eigenvalue=(uu+vv-Math.hypot(uu-vv,2*uv))/2,guard=eigenvalue>0?toleranceMm/Math.sqrt(eigenvalue):Infinity;
+  const queryTolerance=Math.max(ROUNDING_RELATIVE,toleranceMm/Math.max(Math.sqrt(uu),Math.sqrt(vv))/16);
   for(const source of sources){
     if([a,b].some(p=>p.some((v,k)=>v<source.min[k]-guard||v>source.max[k]+guard)))continue;
     const parameters=[a,b].map(uv=>{
       const first=evaluateCurve(source.native,source.native.domain[0]).point,last=evaluateCurve(source.native,source.native.domain[1]).point;
       if(distance(uv,first)<=guard)return 0;if(distance(uv,last)<=guard)return 1;
-      return numericalCurveClosestParameter(source.query,0,1,[...uv,0],{toleranceMm:ROUNDING_RELATIVE});
+      return numericalCurveClosestParameter(source.query,0,1,[...uv,0],{toleranceMm:ROUNDING_RELATIVE,maxDistanceMm:guard});
     });
+    if(parameters.some(t=>t===null))continue;
     if(Math.abs(parameters[1]-parameters[0])<=ROUNDING_RELATIVE)continue;
     const [start,end]=parameters.map(t=>{const d=source.native.domain;return evaluateCurve(source.native,d[0]+t*(d[1]-d[0])).point.slice(0,2);});
-    const middle=a.map((v,k)=>(v+b[k])/2),d=source.native.domain,mid=evaluateCurve(source.native,d[0]+(parameters[0]+parameters[1])/2*(d[1]-d[0])).point;
+    const middle=a.map((v,k)=>(v+b[k])/2),d=source.native.domain;
+    const middleParameter=numericalCurveClosestParameter(source.query,Math.min(...parameters),Math.max(...parameters),[...middle,0],{toleranceMm:queryTolerance,maxDistanceMm:guard});
+    if(middleParameter===null)continue;
+    const mid=evaluateCurve(source.native,d[0]+middleParameter*(d[1]-d[0])).point;
     if([[a,start],[b,end],[middle,mid]].some(([x,y])=>distance(evaluate(patch,...x,false).point,evaluate(patch,...y.slice(0,2),false).point)>toleranceMm))continue;
     return {source,from:parameters[0],to:parameters[1],start,end};
   }

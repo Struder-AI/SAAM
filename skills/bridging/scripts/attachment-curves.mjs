@@ -19,7 +19,7 @@ export function alongRail(rail,index,mm) {
 
 // Construct process curves only: attachment and free-span roles, speeds and
 // multipliers remain distinct until depositCurves computes their bead sections.
-export function attachmentCurves({rails,mode,overlapMm,attachmentSpeedMmS,pressMm,jogMm,leadInMm,
+export function attachmentCurves({id='bridge',rails,mode,overlapMm,attachmentSpeedMmS,pressMm,jogMm,leadInMm,
   speedMmS,flowMultiplier,endAttachment,maxSegmentMm}) {
   const end=endAttachment??{overlapMm,pressMm,jogMm:0,speedMmS:attachmentSpeedMmS,flowMultiplier:1};
   const anchors=railAnchors(rails,[overlapMm,mode==='one-way'?end.overlapMm:overlapMm]),curves=[];
@@ -32,6 +32,7 @@ export function attachmentCurves({rails,mode,overlapMm,attachmentSpeedMmS,pressM
     if(depth)add('bridge-press',[a,[a[0],a[1],a[2]-depth],a],speed,flow,null,{kind:'press',depthMm:depth});
   }
   for(let i=0;i<rails[0].length;i++){
+    const first=curves.length;
     const side=mode==='alternating'?i%2:0,a=anchors[side][i],z=anchors[1-side][i];
     if(i&&mode==='alternating')add('bridge-turn',[anchors[side][i-1],a]);
     if(leadInMm){const start=alongRail(anchors[side],i,-leadInMm);if(i&&mode==='alternating')add('bridge-lead-position',[a,start]);add('bridge-lead',[start,a]);}
@@ -44,6 +45,10 @@ export function attachmentCurves({rails,mode,overlapMm,attachmentSpeedMmS,pressM
     add('bridge-attach',[rails[1-side][i],z],end.speedMmS,end.flowMultiplier);
     press(z,end.pressMm,end.speedMmS,end.flowMultiplier);
     if(end.jogMm)add('bridge-end-jog',[z,alongRail(anchors[1-side],i,-end.jogMm),z],end.speedMmS,end.flowMultiplier);
+    for(let j=first;j<curves.length;j++)curves[j]={...curves[j],id:id+':step:'+j,
+      after:j>first||mode==='alternating'&&j>0?[id+':step:'+(j-1)]:[],
+      orderGroup:id+(mode==='one-way'?':row:'+i:':run'),
+      interruptible:!['bridge-span','bridge-press'].includes(curves[j].role)};
   }
   return {curves,end};
 }

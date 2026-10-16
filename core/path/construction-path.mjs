@@ -103,10 +103,10 @@ function publishedCurve(original,process,surface){
       normalKeysBefore:keyed(profiles.materialNormal)?profiles.materialNormal.knots.length:0,normalKeysAfter:keyed(compacted.profiles.materialNormal)?compacted.profiles.materialNormal.knots.length:0,
       materialKeysBefore:profiles.material.knots?.length??0,materialKeysAfter:compacted.profiles.material.knots?.length??0}};
 }
-// A continuous operation has an authored traversal across its course seams.
-// Publish that transition once, over one bead width (at most half each course),
-// rather than asking execution readers to invent an instantaneous field change.
-function continuousProfiles(curves,courses){
+// Atomic operations and required consecutive courses retain authored transitions.
+// Publish over one bead width (at most half each course), so execution readers
+// never invent an instantaneous field change.
+function continuousProfiles(curves,courses,{requiredOnly=false}={}){
   const prepared=new Map();
   const geometry=id=>{if(!prepared.has(id))prepared.set(id,prepareNumericalCurve(curves[id].geometry));return prepared.get(id);};
   function endProfile(curve,key,u,value,start){
@@ -116,6 +116,7 @@ function continuousProfiles(curves,courses){
       :[...keys.filter(([at])=>at<u),anchor,[1,value]]};
   }
   for(let i=1;i<courses.length;i++){
+    if(requiredOnly&&!courses[i].after?.includes(courses[i-1].id))continue;
     const left=curves[courses[i-1].curveId],right=curves[courses[i].curveId];
     const changes=['widthMm','speedMmS','pose'].filter(key=>!same(profileAt(left.profiles[key],1),profileAt(right.profiles[key],0)));
     if(!changes.length)continue;
@@ -196,7 +197,7 @@ export function constructionPath({results,planning,composition,summary,generator
         'A required curve predecessor must be present in the same deposition batch.');
       courses[i].after=[...new Set(stroke.after.flatMap(id=>localCourses.get(id)))];
     }
-    if(!interruptible)continuousProfiles(curves,courses);
+    continuousProfiles(curves,courses,{requiredOnly:interruptible});
     operations[operation.id]={...shared,kind:'deposit',courses};
   }
   return saamPath({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,

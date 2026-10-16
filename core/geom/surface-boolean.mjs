@@ -1,15 +1,11 @@
-// A synchronous Geometry query uses an interruptible numerical worker. Its
-// deadline is a responsiveness budget: failed/slow attempts yield to recovery.
+// Native construction stays interruptible; numerical failures yield to recovery.
 import {executeGeometrySync} from './execution.mjs';
-import {performance} from 'node:perf_hooks';
 import {evaluate} from './nurbs.mjs';
 import {translateSurfaceSolid} from './surface-topology.mjs';
 import {distance,dot,normalize,requireThat} from './tolerance.mjs';
 import {nativeSurfaceSolid} from './surface-boolean-kernel.mjs';
 export {nativeSurfaceSolid};
 import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
-
-const RESPONSIVENESS={attemptMs:5000,recoveryAttemptMs:2500,operationMs:20000};
 
 export function surfaceBoolean(operation,operands,{seedMm=.4,signal,progress}={}){
   requireThat(['union','difference','intersection'].includes(operation),'Unknown surface Boolean operation.');
@@ -18,29 +14,29 @@ export function surfaceBoolean(operation,operands,{seedMm=.4,signal,progress}={}
   for(const solid of operands)requireThat(!solid.closure?.unmatched.length,'Surface Booleans need closed input solids.');
   signal?.throwIfAborted();
   const options={seedMm},execution={signal,progress};
-  const started=performance.now(),deadline=started+RESPONSIVENESS.operationMs,attempts=[];
+  const attempts=[];
   const source=operands.map(numericalOperand);
-  const original=attemptBoolean(operation,source,options,deadline,RESPONSIVENESS.attemptMs,execution);
+  const original=attemptBoolean(operation,source,options,execution);
   if(original.result)return inheritReports(original.result,operands);
   attempts.push({method:'original',...original.failure});
-  const fuzzy=attemptBoolean(operation,source,{...options,fuzzyMm:BOOLEAN_TOLERANCE_MM/4},deadline,RESPONSIVENESS.recoveryAttemptMs,execution);
+  const fuzzy=attemptBoolean(operation,source,{...options,fuzzyMm:BOOLEAN_TOLERANCE_MM/4},execution);
   if(fuzzy.result)return recoveredResult(fuzzy.result,operands,attempts,{method:'fuzzy',fuzzyMm:BOOLEAN_TOLERANCE_MM/4});
   attempts.push({method:'fuzzy',...fuzzy.failure});
   const directions=recoveryDirections(source,original.failure.facePair),extent=combinedExtent(source),state={distanceMm:BOOLEAN_TOLERANCE_MM,level:0};
-  while(performance.now()<deadline&&state.distanceMm<=extent){
+  while(state.distanceMm<=extent){
     for(const direction of directions.slice(0,Math.min(directions.length,2+state.level))){
-      if(performance.now()>=deadline)break;
+      signal?.throwIfAborted();
       // Every proposal starts from the authored operands. Retries never drift.
       const adjustments=source.map((_,i)=>i?{operand:i,translationMm:direction.map(value=>value*state.distanceMm*i/(source.length-1))}:null).filter(Boolean);
       const shifted=source.map((solid,i)=>i?translatedOperand(solid,adjustments[i-1].translationMm):solid);
       if(removesAllOverlap(source,shifted))continue;
-      const attempt=attemptBoolean(operation,shifted,options,deadline,RESPONSIVENESS.recoveryAttemptMs,execution);
+      const attempt=attemptBoolean(operation,shifted,options,execution);
       if(attempt.result)return recoveredResult(attempt.result,operands,attempts,{method:'perturbation',adjustments,maxDisplacementMm:state.distanceMm});
       attempts.push({method:'perturbation',maxDisplacementMm:state.distanceMm,...attempt.failure});
     }
     state.distanceMm*=2;state.level++;
   }
-  const error=new Error(`Native surface Boolean could not construct a closed boundary within its ${RESPONSIVENESS.operationMs/1000} s recovery budget. ${original.failure.message}`);
+  const error=new Error(`Native surface Boolean could not construct a closed boundary. ${original.failure.message}`);
   error.code='SURFACE_BOOLEAN_RECOVERY_FAILED';error.attempts=attempts;throw error;
 }
 
@@ -59,14 +55,12 @@ function recoveredResult(result,operands,attempts,recovery){
   return {...inherited,notes:[...inherited.notes,warning],construction:{...inherited.construction,recoveries:[...inherited.construction.recoveries,record]}};
 }
 
-function attemptBoolean(operation,operands,options,deadline,budgetMs,execution){
-  const remaining=Math.min(budgetMs,deadline-performance.now());
-  if(!(remaining>0))return {failure:{code:'BOOLEAN_TIME_BUDGET',message:'Recovery time budget exhausted.'}};
-  try{return {result:executeGeometrySync('surface-boolean',{operation,operands,options},{...execution,timeoutMs:remaining,subject:'Native surface Boolean'})};}
+function attemptBoolean(operation,operands,options,execution){
+  try{return {result:executeGeometrySync('surface-boolean',{operation,operands,options},{...execution,subject:'Native surface Boolean'})};}
   catch(error){
-    if(error.geometryFailure!=='calculation'&&error.code!=='GEOMETRY_EXECUTION_TIMEOUT'||error.code==='GEOMETRY_MEMORY_EXHAUSTED')throw error;
+    if(error.geometryFailure!=='calculation'||error.code==='GEOMETRY_MEMORY_EXHAUSTED')throw error;
     const phase=error.progress;
-    const message=error.code==='GEOMETRY_EXECUTION_TIMEOUT'?'Numerical attempt interrupted after '+remaining+' ms ('+attemptPhase(phase,operands)+').':error.message;
+    const message=error.message+' ('+attemptPhase(phase,operands)+').';
     return {failure:{code:error.code??'SURFACE_BOOLEAN_NUMERICAL',message,...(phase&&(phase.stage===1||phase.stage===2)?{facePair:[phase.first,phase.second]}:{})}};
   }
 }
