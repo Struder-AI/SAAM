@@ -12,7 +12,7 @@ It shares revisioned edits with text, heat-set and gridfinity; [standard support
 Claude/Codex session IDs identify chats; otherwise retain returned `chatId` and pass `--chat-id ID`, including retries. `--chat-name` sets its label.
 
 [Runtime](runtime.mjs) owns queues and [work/hand-back](../../studio/README.md#carrying-a-maker-request). Edits, generation and `request_review` return `visualCheck` from the connected Studio canvas at the saved inputs. Viewer failures return errors. Read the [temporary PNG](result-images.mjs) before hand-back; replacement, closure or shutdown also expires it.
-Naming an available open bundle selects its window; ambiguous populated windows need a target. An idle owned window is reused before opening another. Chats resume their window; one Studio reserves each bundle. IDs, credentials and addresses survive a runtime reload; changed runtime code reloads the viewer.
+Naming an open bundle selects its window; ambiguous windows need a target. An idle owned window is reused; `saam new-instance` opens a separate Studio. Chats resume their window; one Studio reserves each bundle. IDs and addresses survive runtime reloads; changed code reloads the viewer.
 `saam call capture_bundle --bundle-id PART` transfers ownership within a runtime; across runtimes it closes the previous Studio and opens the bundle in the target runtime's reusable window. Capture rejects active edits, imports, generation, construction and export; waiting requests are not active work.
 Capture cancels prior unfinished requests and rejects old writes. Studio-first requests survive attachment; a reload reclaims only its own matching dead-process reservation.
 

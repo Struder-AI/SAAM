@@ -214,7 +214,7 @@ async function createMeshGeometry(r,parameters) {
     for(const p of proxy.vertices)vertices.push(p.map((v,i)=>v+translation[i]));
     for(const f of proxy.faces)faces.push(f.map(v=>v+offset));
     const names=proxy.labels.map(label=>id||(component.patches?label:'mesh'));
-    labels.push(...names);
+    for(const name of names)labels.push(name);
     for(const [index,face] of proxy.faces.entries())cornerNormals.push(proxy.cornerNormals?.[index]??face.map(()=>null));
     for(const name of new Set(names))features.push({id:name});
   };

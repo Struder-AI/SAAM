@@ -11,7 +11,7 @@ import {homePaths,canonicalHome} from '../core/application/home.mjs';
 // help answers from this code alone; status, quit and stop-runtime reach a running SAAM
 // only; the other commands start SAAM when none runs.
 const globalCommands=new Set(['status','quit','update','diagnostics']);
-const startsSaam=new Set(['open','call','wait','start-tour','reload-runtime','update','diagnostics']),runningOnly=new Set(['status','quit','stop-runtime','stop-session']);
+const startsSaam=new Set(['open','new-instance','call','wait','start-tour','reload-runtime','update','diagnostics']),runningOnly=new Set(['status','quit','stop-runtime','stop-session']);
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
 function enabled(value){return value===true||value==='true';}
 export function commandInput(args,environment=process.env){
@@ -53,7 +53,7 @@ async function help(runtime,operationName){
   try{
     const operation=operationName?local.operations.find(value=>value.name===operationName):null;
     if(operationName&&!operation)throw Error('Unknown SAAM operation '+operationName+'.');
-    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','stop-session --studio-instance-id ID','update','quit'],
+    return {ok:true,instructions,commands:['open','new-instance','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','stop-session --studio-instance-id ID','update','quit'],
       operations:(operation?[operation]:local.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
         ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})})),
       runtime:{id:runtime.id,label:runtime.label}};

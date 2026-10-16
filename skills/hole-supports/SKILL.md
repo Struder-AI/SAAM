@@ -19,5 +19,4 @@ Choose in chat for a recess narrowing into a bore above air; review removal acce
 Helpers own hard support sequences; select printed base/seed and landing/bore operations using their native Slice or named Trace identity. Membrane/stepped boundaries are derived automatically; removable/wave helpers bind the selected boundaries. Unrelated body work stays free, fill traversal stays soft, and scheduling owns travel. Inspect hard edges, strand order, ownership and contact in execution.
 
 The membrane helper owns its guide, fill and edges. The static example bridges at Z4.0 from Z3.8 rim walls, then continues the bore at Z4.2, adapting TKeller's [original exemplar](references/README.md).
-
-Each linked example is one complete 16×16×8mm part with one technique (R5 recess to Z4; R2 bore). Inspect support contact and both operation and strand order around Z4–4.6 in chronological playback; report unresolved wave residue. Example Trace curves use assembly XYZ.
+Each linked example is one complete 16×16×8mm part with one technique (R5 recess to Z4; R2 bore), visually accepted 2026-10-16. Inspect contact and operation/strand order around Z4–4.6; report wave residue. Example Trace curves use assembly XYZ.

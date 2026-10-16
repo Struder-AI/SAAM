@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-16 — Record hole-support review and show a straight-edge support
+
+- The owner visually accepted all four official singleton hole-support examples. Guidance records that review and removes the wave example's stale awaiting-review statement; reported wave-front residue and physical qualification limits remain explicit. The three edited guidance files shrink 71→70 lines.
+- Created the independent `straight-overhang-removable-20261016` bundle and Studio at http://127.0.0.1:61326/. Its intact L-shaped ledge uses the existing bridge-support extension with an open straight bed base and actual landing edge. Chronological execution contains all 20 support courses in order before the first ledge bridge, followed by upper layers. Production generation and machine-program checks pass; the connected Studio toolpath PNG was inspected. The wave Studio remains at port 56596.
+- Exposed the application's existing New Instance action through the source CLI and help. The installed launcher predates this command; the source CLI successfully opened the separate window. No runtime scheduling changes. Syntax and whitespace checks pass; no permanent tests, whole suite, physical printing, installation, push or release.
+- Wave's 12/554 short-travel advisory and straight-edge's 48/191 advisory were reported and acknowledged, with local source/operation evidence retained. The existing full map solve and queued refresh remain responsible for map coverage. Concurrent mesh-label iteration changes ride in the standing all-changes checkpoint and are outside these probes.
+
 ## 2026-10-16 — Keep the nozzle overlay a fixed size
 
 - Studio draws a fixed 6 mm section of the saved nozzle cone at every playback/manual pose. It no longer sizes the overlay from the current pose's reach through the part bounds, which made the nozzle grow and shrink. Shared nominal/allowance geometry and movie rendering remain the same; scheduling and collision checks are unchanged.
