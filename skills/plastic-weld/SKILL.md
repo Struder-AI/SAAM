@@ -76,5 +76,5 @@ a pitch in X; overlapping height intervals can remain spatially separate.
 Checkout plastic-weld with `extension_library`; edit its local [runtime](scripts/runtime.mjs),
 manifest/manual and regenerate through the [process-source contract](../AUTHORING.md).
 It owns schema/defaults, validation, finite cavity/profile/volume, solid envelope and Inject.
-Enclosure requirements stop just inside the mouth to exclude touching cover beads;
+Requirements select the floor/wall, excluding the cavity and touching cover beads;
 Scheduling owns access/order.

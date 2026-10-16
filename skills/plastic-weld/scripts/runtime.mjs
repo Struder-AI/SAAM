@@ -59,8 +59,9 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
   function enclosureVolumes({x,y,floor,bottom,top,widest,profile}){
     const radius=widest+settings.wallMm,limit=top-Math.min(2*PRINT_RESOLUTION_MM,(top-floor)/4),volumes=[];
     if(bottom>floor)volumes.push(convexVolume(profileSolid(x,y,[[floor,radius],[bottom,radius]]).vertices));
-    for(let k=1;k<profile.length;k++){
-      const [low,innerLow]=profile[k-1],[high,innerHigh]=profile[k],end=Math.min(high,limit);
+    const boundary=profile.filter((p,i)=>i===0||i===profile.length-1||p[1]!==profile[i-1][1]||p[1]!==profile[i+1][1]);
+    for(let k=1;k<boundary.length;k++){
+      const [low,innerLow]=boundary[k-1],[high,innerHigh]=boundary[k],end=Math.min(high,limit);
       if(end<=low)continue;
       const innerEnd=innerLow+(innerHigh-innerLow)*(end-low)/(high-low);
       for(let i=0;i<sides;i++){

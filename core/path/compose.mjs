@@ -1,5 +1,6 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {orderSliceCourses} from './course-order.mjs';
+import {precedenceLookup} from './precedence.mjs';
 export {orderReadyOperations} from './course-order.mjs';
 import {depositionCourses,physicalOrdering,refineCourseStrokes} from './physical-order.mjs';
 // Skill results describe deposition operations. The composer advances explicit
@@ -125,11 +126,19 @@ export function scheduleOperations(skillResults,rules={}) {
 function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
   const batch=validateOperationBatch(skillResults);
   const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set(),splitStrokes=new Map();
+  const declaredBefore=precedenceLookup(batch.operations.map(operation=>operation.id),
+    [...declared].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
     const partition=depositionCourses(batch.operations,{splitConnectors,splitStrokes});
     try{return solveCourseOrder(batch,declared,partition,{onProgress,start});}
     catch(error){
       if(!['PRINT_ORDER_CONFLICT','CONTINUOUS_NOZZLE_CONFLICT'].includes(error.code))throw error;
+      // An authored prerequisite requires the entire source operation first.
+      // Subdividing either unchanged path cannot remove a witnessed nozzle hit
+      // against that material; reject this contradiction without grid refinement.
+      const sourceOf=new Map(partition.courses.map(course=>[course.id,course.sourceOperation]));
+      if(declaredBefore.cyclic||error.physicalDependencies?.some(edge=>edge.kind==='nozzle-access'&&
+        declaredBefore.has(sourceOf.get(edge.after),sourceOf.get(edge.before))))throw error;
       const affected=new Set(error.refinementCourses??error.operations??[error.operation]);
       const refinable=partition.courses.filter(course=>affected.has(course.id)&&!splitConnectors.has(course.sourceOperation)&&
         course.strokes.length>1&&!course.continuous&&!course.strokes.some(stroke=>stroke.stationaryExtrusion));

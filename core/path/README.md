@@ -51,8 +51,8 @@ Material ownership is explicit; fronts do not publish a finished surface chart.
 [course-order.mjs](./course-order.mjs) contracts the proven dependency graph into
 whole native slices. A contraction cycle exposes only its boundary courses;
 remaining courses stay grouped. [compose.mjs](./compose.mjs) refines actual course
-cycles by separating interruptible connector chains, then bisecting strokes at
-existing vertices. Pieces retain direction, material and aligned channels;
+cycles by separating interruptible connector chains and bisecting strokes at
+vertices or within straight edges. Pieces retain direction, material and channels;
 explicit continuity and stationary Inject remain atomic. Original IDs own motion
 context and process prerequisites; course IDs identify execution.
 
@@ -71,8 +71,7 @@ Known cycles stop unnecessary nozzle scans.
 The nozzle is an effectively infinite sharp cone: 15-degree included angle.
 Moving deposition uses 0.1 mm surface forgiveness (apex retreat about 0.766 mm);
 stationary deposition uses the full cone, keeping thin covers away from its tip.
-Deposited lines may
-overlap. Carriage, fixtures, joints, gravity, fusion and unsupported-span
+Deposited lines may overlap. Carriage, fixtures, joints, gravity, fusion and unsupported-span
 printability are outside this model; no supports are added. Moving beads supply
 occupancy; stationary Inject needs authored occupied geometry.
 
