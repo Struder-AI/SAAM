@@ -269,7 +269,10 @@ function split(patch, g, a, b, depth,chordMm=TOLERANCE.chord) {
   const mid = contourPointNear(patch, g, (a.u + b.u) / 2, (a.v + b.v) / 2, b.u - a.u, b.v - a.v);
   if (!mid) return [b];
   const chordMid = scale(add(a.point, b.point), 0.5);
-  if (distance(mid.point, chordMid) <= chordMm) return [b];
+  const nativeMid=evaluateSurface(patch,[(a.u+b.u)/2,(a.v+b.v)/2]).point;
+  // Trims consume the UV polyline too. A straight world contour can have a
+  // curved UV image on a nonuniform planar chart.
+  if(Math.max(distance(mid.point,chordMid),distance(nativeMid,chordMid))<=chordMm)return [b];
   return [...split(patch, g, a, mid, depth + 1,chordMm), ...split(patch, g, mid, b, depth + 1,chordMm)];
 }
 

@@ -43,8 +43,7 @@ is the normal confirmation. Fit, tool access and printable support need review.
 | `finWidthMm` | `null`; legacy positive values remain readable; star fins use two touching beads at the source layer width |
 | `finAngleDeg` | `0`; rotates the pattern around the bore |
 
-Request `toleranceMm` defaults to 0.01 mm and must be positive. CNC Kitchen normally
-needs no mouth chamfer; the catalog keeps its 1 mm blind clearance and wall advice.
+`toleranceMm` is positive placement/probe clearance (default 0.01 mm); [Boolean accuracy](../../core/geom/README.md#native-boolean-construction) belongs to Geometry. CNC Kitchen normally needs no chamfer; retain catalog clearance/wall advice.
 
 ## Deposition and composition
 

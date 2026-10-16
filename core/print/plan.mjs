@@ -280,6 +280,7 @@ function validateGeometry(geometry) {
   if(geometry.shape==='spline')validateSplineSolid(geometry);
   if(geometry.shape==='boolean')authoredBounds(geometry);
   GEOMETRY_RECORDS[geometry.shape]?.validate(geometry);
+  if(geometry.solid)validateGeometry(geometry.solid);
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles))makeMesh(geometry.vertices,geometry.triangles);
 }
@@ -300,5 +301,6 @@ function authoredBounds(geometry){
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   else if(Object.hasOwn(GEOMETRY_RECORDS,geometry.shape))GEOMETRY_RECORDS[geometry.shape].validate(geometry);
+  if(geometry.solid)return authoredBounds(geometry.solid);
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }

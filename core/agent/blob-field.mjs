@@ -1,4 +1,4 @@
-import {runComputationJob} from '../print/computation-job.mjs';
+import {compileBlobField} from '../geom/blob-field-compile.mjs';
 import {BLOB_FIELD_SCHEMA,BLOB_FIELD_THRESHOLD} from '../geom/blob-field.mjs';
 import {initBundle,loadBundle,updatePlan} from '../print/bundle.mjs';
 import {requireEditRevision} from '../print/edit-identity.mjs';
@@ -6,7 +6,6 @@ import {defaults} from '../print/plan.mjs';
 import {selectSettings} from '../machine/settings.mjs';
 import {solidGeometry,replaceSolid} from '../geom/spatial.mjs';
 import {normalizeSpatialPlan} from '../print/spatial-inputs.mjs';
-import {receiveGeometry} from '../print/geometry.mjs';
 
 
 const REQUEST_FIELDS=['points','threshold','edgeMm'];
@@ -39,8 +38,7 @@ export function compileRequest(request,options={}){
 function prepareRequest(request,{signal}={}){
   if(!(request&&typeof request==='object'&&Object.keys(request).every(k=>REQUEST_FIELDS.includes(k))))throw Error(`A blob field request has ${REQUEST_FIELDS.join(', ')}.`);
   const {points,threshold=BLOB_FIELD_THRESHOLD,edgeMm=defaultEdgeMm(points)}=request;
-  return runComputationJob(new URL('./blob-field-worker.mjs',import.meta.url),{field:{schema:BLOB_FIELD_SCHEMA,threshold,points},options:{edgeMm}},{signal,subject:'Blob field construction'})
-    .then(async result=>({geometry:await receiveGeometry(result.geometry)}));
+  return compileBlobField({schema:BLOB_FIELD_SCHEMA,threshold,points},{edgeMm,signal}).then(geometry=>({geometry}));
 }
 // A lone strength-1 point is a ball of radius reach/2; sample it with at least
 // four cells across that radius, and never coarser than half a millimetre.

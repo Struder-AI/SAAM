@@ -56,13 +56,14 @@ import * as nodeReadline from 'node:readline';
 import * as nodeAssertStrict from 'node:assert/strict';
 import * as nodeEvents from 'node:events';
 import * as nodeTimers from 'node:timers';
+import * as nodeTimersPromises from 'node:timers/promises';
 import * as nodeNet from 'node:net';
 
 const NODE={'node:fs':nodeFs,'node:fs/promises':nodeFsPromises,'node:path':nodePath,'node:url':nodeUrl,'node:crypto':nodeCrypto,
   'node:os':nodeOs,'node:child_process':nodeChild,'node:worker_threads':nodeWorker,'node:http':nodeHttp,'node:zlib':nodeZlib,
   'node:util':nodeUtil,'node:stream':nodeStream,'node:stream/promises':nodeStreamPromises,'node:string_decoder':nodeStringDecoder,
   'node:async_hooks':nodeAsyncHooks,'node:perf_hooks':nodePerfHooks,'node:readline':nodeReadline,'node:assert/strict':nodeAssertStrict,
-  'node:events':nodeEvents,'node:timers':nodeTimers,'node:net':nodeNet};
+  'node:events':nodeEvents,'node:timers':nodeTimers,'node:timers/promises':nodeTimersPromises,'node:net':nodeNet};
 const SPECIAL_ROOTS={TypedArray:Object.getPrototypeOf(Uint8Array)};
 
 // --- helpers for writing models ----------------------------------------------------------------
@@ -341,6 +342,9 @@ export const MODELS={
   }),
   ...group('node:child_process.ChildProcess.prototype.',{'kill disconnect':{mutates:['this'],effect:'process'},'ref unref':{mutates:['this'],effect:'process'},
     'send':{mutates:['this'],observe:['arg0.*'],effect:'process'}}),
+  'node:timers/promises.setTimeout':{out:[promise('arg1')],effect:'timers',note:'Resolves with the supplied value after a timer; an AbortSignal rejects it.'},
+  'node:worker_threads.MessageChannel':{construct:{fields:{port1:[fresh('MessagePort')],port2:[fresh('MessagePort')]},effect:'workers'}},
+  'node:worker_threads.receiveMessageOnPort':{out:[fresh('Object',[],{fields:{message:[fresh('json')]}})],mutates:['arg0'],reads:'workers',note:'Dequeues a structured-cloned worker message; no authored operand aliases cross the channel.'},
   'node:worker_threads.Worker':{construct:{effect:'workers',note:'Starts the module arg0 in a thread; messages cross through postMessage and message listeners.'}},
   ...group('node:worker_threads.Worker.prototype.',{'postMessage':{effect:'workers',observe:['arg0.*','arg0[]']},'terminate':{out:[promise()],mutates:['this'],effect:'workers'},
     'ref unref':{mutates:['this'],effect:'process'}}),
@@ -460,6 +464,7 @@ export const FAMILIES={
       'levelSet':{out:[fresh('manifold')],calls:[{fn:'arg0',params:[[fresh('TypedArray')]]}]},
       'cube sphere cylinder ofMesh union intersection difference extrude revolve compose':{out:[fresh('manifold')],observe:['args.*','args[]','args[][]']},
       'add subtract intersect translate rotate scale transform mirror refine refineToLength refineToTolerance simplify trimByPlane split':{out:[fresh('manifold')],observe:['args.*','args[]']},
+      'triangulate':{out:[arr(arr())],observe:['arg0','arg0[]','arg0[][]'],note:'manifold-3d triangulate reads planar polygons and returns fresh triangle index arrays; it performs no 3D solid Boolean.'},
       'getMesh':{out:[fresh('manifold')]},'status isEmpty volume surfaceArea numVert numTri genus boundingBox':P
     })},
   clipper:{note:'clipper2-wasm: paths and clipping operations; containers are WASM objects that hold the points pushed into them and are freed with delete().',ownElements:true,

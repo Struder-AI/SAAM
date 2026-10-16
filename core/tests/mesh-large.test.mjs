@@ -13,7 +13,7 @@ import {makeMesh} from '../geom/mesh.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {checkMeshCapacity,meshAllocation,meshAllocationError} from '../geom/mesh-capacity.mjs';
-import {repairMemoryError} from '../print/mesh-repair-job.mjs';
+import {repairMemoryError} from '../geom/stl-repair.mjs';
 import {regionArea} from '../region/region2d.mjs';
 
 test('196608-face ASCII file streams, validates and sections without simplification',async t=>{

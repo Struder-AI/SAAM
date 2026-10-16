@@ -11,6 +11,7 @@
 import { evaluate, clamp } from './nurbs.mjs';
 import { TOLERANCE, distance } from './tolerance.mjs';
 import { ROUNDING_MM, ROUNDING_RELATIVE, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
+import {faceContainsUv} from './surface-trim.mjs';
 
 const affineProjections = new WeakMap();
 const SEEDS = 3;
@@ -86,7 +87,7 @@ export function projectToPatch(patch, x, y) {
       for (let j = 1; j <= SEEDS; j++) {
         const solution = newton(patch, x, y,
           span.u[0] + (span.u[1] - span.u[0]) * i / (SEEDS + 1),
-          span.v[0] + (span.v[1] - span.v[0]) * j / (SEEDS + 1));
+          span.v[0] + (span.v[1] - span.v[0]) * j / (SEEDS + 1),span);
         if (!solution) continue;
         if (hits.some(hit => distance(hit.point, solution.point) <= PRINT_RESOLUTION_MM)) continue;
         hits.push(solution);
@@ -94,28 +95,29 @@ export function projectToPatch(patch, x, y) {
   return hits;
 }
 
-function newton(patch, x, y, u0, v0) {
-  let u = u0, v = v0;
-  for (let step = 0; step < NEWTON_STEPS; step++) {
-    const { point, du, dv, normal } = evaluate(patch, u, v);
-    const fx = point[0] - x, fy = point[1] - y;
-    if (Math.hypot(fx, fy) <= PROGRAM_STEP_MM) return { u, v, point, normal };
-    const determinant = du[0] * dv[1] - du[1] * dv[0];
-    // A singular Jacobian is a fold or a pole in XY; another seed may reach it.
-    if (Math.abs(determinant) < ROUNDING_MM**2) return null;
-    const stepU = (fx * dv[1] - fy * dv[0]) / determinant;
-    const stepV = (du[0] * fy - du[1] * fx) / determinant;
-    const nextU = clamp(u - stepU, patch.domainU), nextV = clamp(v - stepV, patch.domainV);
-    if (Math.abs(nextU - u) < TOLERANCE.parameter && Math.abs(nextV - v) < TOLERANCE.parameter) {
-      const check = evaluate(patch, nextU, nextV);
-      return Math.hypot(check.point[0] - x, check.point[1] - y) <= PROGRAM_STEP_MM ? { u: nextU, v: nextV, point: check.point, normal: check.normal } : null;
+function newton(patch,x,y,u0,v0,span){
+  const state={u:u0,v:v0};
+  for(let step=0;step<NEWTON_STEPS;step++){
+    const e=evaluate(patch,state.u,state.v),fx=e.point[0]-x,fy=e.point[1]-y,error=Math.hypot(fx,fy);
+    if(error<=PROGRAM_STEP_MM)return {u:state.u,v:state.v,point:e.point,normal:e.normal};
+    const determinant=e.du[0]*e.dv[1]-e.du[1]*e.dv[0];
+    if(Math.abs(determinant)<ROUNDING_MM**2)return null;
+    const stepU=(fx*e.dv[1]-fy*e.dv[0])/determinant,stepV=(e.du[0]*fy-e.du[1]*fx)/determinant;
+    const progress={accepted:false};
+    // Stay in this knot span. A cone-to-cylinder Newton step can otherwise
+    // land on the cylinder's singular XY projection and lose a real crossing.
+    for(const search={scale:1};search.scale>0;search.scale/=2){
+      const u=clamp(state.u-search.scale*stepU,span.u),v=clamp(state.v-search.scale*stepV,span.v);
+      if(u===state.u&&v===state.v)break;
+      const next=evaluate(patch,u,v),residual=Math.hypot(next.point[0]-x,next.point[1]-y);
+      if(residual<=PROGRAM_STEP_MM)return {u,v,point:next.point,normal:next.normal};
+      const jacobian=next.du[0]*next.dv[1]-next.du[1]*next.dv[0];
+      if(residual<error&&Math.abs(jacobian)>=ROUNDING_MM**2){state.u=u;state.v=v;progress.accepted=true;break;}
     }
-    u = nextU;
-    v = nextV;
+    if(!progress.accepted)return null;
   }
   return null;
 }
-
 // A pole (a revolved cap's centre) has no normal of its own; a smooth cap's
 // normal there is the limit from inside the patch.
 function limitNormal(patch, u, v) {
@@ -139,6 +141,7 @@ export function crossingsAt(shell, x, y) {
   const crossings = [];
   for (const patch of shell.patches)
     for (const hit of projectToPatch(patch, x, y)) {
+      if(!faceContainsUv(patch,hit.u,hit.v))continue;
       const normal = hit.normal ?? limitNormal(patch, hit.u, hit.v);
       if (!normal || Math.abs(normal[2]) < ROUNDING_RELATIVE) continue;
       const upward = normal[2] > 0 ? normal : normal.map(component => -component);
@@ -146,7 +149,7 @@ export function crossingsAt(shell, x, y) {
         zMm: hit.point[2],
         normal: upward,
         slopeDeg: Math.acos(Math.min(1, Math.abs(upward[2]))) * 180 / Math.PI,
-        patch: patch.name,
+        patch: patch.sourceName??patch.name,
         u: hit.u,
         v: hit.v
       });

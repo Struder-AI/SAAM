@@ -146,9 +146,8 @@ loops retain the supporting chart: XY/plane coordinates are millimetres, native
 patch coordinates remain UV. Both use the same winding and Boolean topology;
 physical offsets retain the appropriate planar or surface metric.
 
-Section each Boolean operand and combine its regions without building a B-rep.
-Supports, Slice, terminal-boundary queries and geometry tools use this operation.
-Material masks, fill patterns and actual deposited contact retain Toolpath policy.
+[Native Booleans](../geom/README.md#native-boolean-construction) section their constructed
+boundary; mixed/mesh Booleans combine operand regions. Toolpath owns material policy.
 
 ## Material ownership and surface contact
 

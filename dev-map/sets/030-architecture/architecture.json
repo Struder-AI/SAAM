@@ -3894,17 +3894,6 @@
       }
     },
     {
-      "id": "geometry-leaf-7082b7158db6",
-      "index": "2.1.5.4.34.8",
-      "label": "segmentDistance",
-      "description": "segmentDistance in core/geom/surface-intersection.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/surface-intersection.mjs",
-        "declaration": "segmentDistance"
-      }
-    },
-    {
       "id": "geometry-leaf-46d53b05f926",
       "index": "2.1.5.4.34.6",
       "label": "solveConstrained",
@@ -3957,28 +3946,6 @@
       "source": {
         "file": "core/geom/surface-intersection.mjs",
         "declaration": "splitNet"
-      }
-    },
-    {
-      "id": "geometry-leaf-6d89c121ace6",
-      "index": "2.1.5.4.32.5.2",
-      "label": "casteljau",
-      "description": "splitNet::casteljau in core/geom/surface-intersection.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/surface-intersection.mjs",
-        "declaration": "splitNet::casteljau"
-      }
-    },
-    {
-      "id": "geometry-leaf-55cb79af2664",
-      "index": "2.1.5.4.32.5.3",
-      "label": "half",
-      "description": "splitNet::half in core/geom/surface-intersection.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/surface-intersection.mjs",
-        "declaration": "splitNet::half"
       }
     },
     {
@@ -6270,50 +6237,6 @@
       }
     },
     {
-      "id": "geometry-leaf-536bb485e96d",
-      "index": "2.2.4.1.6.1",
-      "label": "prepareSTLImportInWorker body",
-      "description": "prepareSTLImportInWorker in core/geom/import-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/import-stl.mjs",
-        "declaration": "prepareSTLImportInWorker"
-      }
-    },
-    {
-      "id": "geometry-leaf-e9c276f4e5a3",
-      "index": "2.2.4.1.6.2",
-      "label": "decode",
-      "description": "prepareSTLImportInWorker::decode in core/geom/import-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/import-stl.mjs",
-        "declaration": "prepareSTLImportInWorker::decode"
-      }
-    },
-    {
-      "id": "geometry-leaf-3f3494c0af10",
-      "index": "2.2.4.1.6.3",
-      "label": "prepare",
-      "description": "prepareSTLImportInWorker::prepare in core/geom/import-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/import-stl.mjs",
-        "declaration": "prepareSTLImportInWorker::prepare"
-      }
-    },
-    {
-      "id": "geometry-leaf-4a51a1fd3ed1",
-      "index": "2.2.4.1.6.4",
-      "label": "progress",
-      "description": "prepareSTLImportInWorker::progress in core/geom/import-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/import-stl.mjs",
-        "declaration": "prepareSTLImportInWorker::progress"
-      }
-    },
-    {
       "id": "geometry-leaf-9e131ce4225f",
       "index": "2.2.4.1.7",
       "label": "releaseSTLImport",
@@ -6356,39 +6279,6 @@
       }
     },
     {
-      "id": "geometry-leaf-001a9e2c7a2b",
-      "index": "2.2.4.2.2.1",
-      "label": "emitGeometry body",
-      "description": "emitGeometry in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "emitGeometry"
-      }
-    },
-    {
-      "id": "geometry-leaf-b5afa3338932",
-      "index": "2.2.4.2.2.2",
-      "label": "@default/progress",
-      "description": "emitGeometry::@default/progress in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "emitGeometry::@default/progress"
-      }
-    },
-    {
-      "id": "geometry-leaf-b4d3967a9390",
-      "index": "2.2.4.2.3",
-      "label": "prepare",
-      "description": "prepare in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "prepare"
-      }
-    },
-    {
       "id": "geometry-leaf-732c445cebd7",
       "index": "2.2.4.2.4",
       "label": "repairSTL",
@@ -6408,61 +6298,6 @@
       "source": {
         "file": "core/print/repair-stl.mjs",
         "declaration": "repairSTLFiles"
-      }
-    },
-    {
-      "id": "geometry-leaf-5972bbc2b3a3",
-      "index": "2.2.4.2.5.2",
-      "label": "chunks",
-      "description": "repairSTLFiles::chunks in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "repairSTLFiles::chunks"
-      }
-    },
-    {
-      "id": "geometry-leaf-ebb222a7142d",
-      "index": "2.2.4.2.6.1",
-      "label": "shapeChanges body",
-      "description": "shapeChanges in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "shapeChanges"
-      }
-    },
-    {
-      "id": "geometry-leaf-06c1951fcae0",
-      "index": "2.2.4.2.6.2",
-      "label": "centroid",
-      "description": "shapeChanges::centroid in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "shapeChanges::centroid"
-      }
-    },
-    {
-      "id": "geometry-leaf-7208b71fa307",
-      "index": "2.2.4.2.6.3",
-      "label": "key",
-      "description": "shapeChanges::key in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "shapeChanges::key"
-      }
-    },
-    {
-      "id": "geometry-leaf-fdf656c4e4af",
-      "index": "2.2.4.2.6.4",
-      "label": "sample",
-      "description": "shapeChanges::sample in core/print/repair-stl.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/repair-stl.mjs",
-        "declaration": "shapeChanges::sample"
       }
     },
     {
@@ -6710,167 +6545,6 @@
       "source": {
         "file": "core/geom/stl-file.mjs",
         "declaration": "decodeSTLFile"
-      }
-    },
-    {
-      "id": "geometry-module-bb649d5bbf48",
-      "index": "2.2.4.6",
-      "label": "mesh repair job",
-      "description": "Decode user assets, perform requested repairs and release import scratch resources. Source: core/print/mesh-repair-job.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-job.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-cc25efab0326",
-      "index": "2.2.4.6.1",
-      "label": "Module initialization / exports",
-      "description": "Module context and initialization; callable declarations have separate leaves.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-job.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-1efc8357db49",
-      "index": "2.2.4.6.2",
-      "label": "repairMemoryError",
-      "description": "repairMemoryError in core/print/mesh-repair-job.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-job.mjs",
-        "declaration": "repairMemoryError"
-      }
-    },
-    {
-      "id": "geometry-leaf-1ad131a13d17",
-      "index": "2.2.4.6.3",
-      "label": "runRepairJob",
-      "description": "runRepairJob in core/print/mesh-repair-job.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-job.mjs",
-        "declaration": "runRepairJob"
-      }
-    },
-    {
-      "id": "geometry-module-6c7e15e19eef",
-      "index": "2.2.4.7",
-      "label": "mesh repair worker",
-      "description": "Decode user assets, perform requested repairs and release import scratch resources. Source: core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-889c427566e1",
-      "index": "2.2.4.7.1",
-      "label": "Module initialization / exports",
-      "description": "Module context and initialization; callable declarations have separate leaves.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs"
-      }
-    },
-    {
-      "id": "geometry-leaf-6797eb9c22ac",
-      "index": "2.2.4.7.2",
-      "label": "executeRepairWorkerJob",
-      "description": "executeRepairWorkerJob in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "executeRepairWorkerJob"
-      }
-    },
-    {
-      "id": "geometry-leaf-de443b92bba5",
-      "index": "2.2.4.7.3.1",
-      "label": "initializeRepairWorkerChannel body",
-      "description": "initializeRepairWorkerChannel in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel"
-      }
-    },
-    {
-      "id": "geometry-leaf-b73be049ec54",
-      "index": "2.2.4.7.3.2",
-      "label": "nativeReady",
-      "description": "initializeRepairWorkerChannel::nativeReady in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "retiredSource": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel::nativeReady"
-      }
-    },
-    {
-      "id": "geometry-leaf-0c96cf324ee6",
-      "index": "2.2.4.7.3.3",
-      "label": "nativeRun",
-      "description": "initializeRepairWorkerChannel::nativeRun in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "retiredSource": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel::nativeRun"
-      }
-    },
-    {
-      "id": "geometry-leaf-f547501c0799",
-      "index": "2.2.4.7.3.4",
-      "label": "onGeometry",
-      "description": "initializeRepairWorkerChannel::onGeometry in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel::onGeometry"
-      }
-    },
-    {
-      "id": "geometry-leaf-650e67700d46",
-      "index": "2.2.4.7.3.5",
-      "label": "progress",
-      "description": "initializeRepairWorkerChannel::progress in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel::progress"
-      }
-    },
-    {
-      "id": "geometry-leaf-f24e9af51094",
-      "index": "2.2.4.7.3.6",
-      "label": "receiveMessage",
-      "description": "initializeRepairWorkerChannel::receiveMessage in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "initializeRepairWorkerChannel::receiveMessage"
-      }
-    },
-    {
-      "id": "geometry-leaf-7c98ebb07786",
-      "index": "2.2.4.7.4",
-      "label": "prepareRepairWorkerResponse",
-      "description": "prepareRepairWorkerResponse in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "prepareRepairWorkerResponse"
-      }
-    },
-    {
-      "id": "geometry-leaf-d173c15cb237",
-      "index": "2.2.4.7.5",
-      "label": "runMeshRepairWorker",
-      "description": "runMeshRepairWorker in core/print/mesh-repair-worker.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/print/mesh-repair-worker.mjs",
-        "declaration": "runMeshRepairWorker"
       }
     },
     {
@@ -8335,8 +8009,8 @@
     {
       "id": "geometry-backends",
       "index": "2.3.3",
-      "label": "Native adapters and allocation",
-      "description": "Solid and polygon kernels, STL decoding and mesh allocation lifetime.",
+      "label": "Execution and native allocation",
+      "description": "Geometry execution owns worker lifecycle, transport, memory policy, cancellation, deadlines, progress and errors; native adapters own calculation resources.",
       "type": "component"
     },
     {
@@ -9684,31 +9358,10 @@
       "type": "component"
     },
     {
-      "id": "geometry-module-b41f333e5a01-6",
-      "index": "2.2.4.1.6",
-      "label": "prepareSTLImportInWorker",
-      "description": "prepareSTLImportInWorker and its enclosed declarations.",
-      "type": "component"
-    },
-    {
-      "id": "geometry-module-4507fb4914aa-2",
-      "index": "2.2.4.2.2",
-      "label": "emitGeometry",
-      "description": "emitGeometry and its enclosed declarations.",
-      "type": "component"
-    },
-    {
       "id": "geometry-module-4507fb4914aa-5",
       "index": "2.2.4.2.5",
       "label": "repairSTLFiles",
       "description": "repairSTLFiles and its enclosed declarations.",
-      "type": "component"
-    },
-    {
-      "id": "geometry-module-4507fb4914aa-6",
-      "index": "2.2.4.2.6",
-      "label": "shapeChanges",
-      "description": "shapeChanges and its enclosed declarations.",
       "type": "component"
     },
     {
@@ -11434,6 +11087,2566 @@
         "file": "core/geom/affine-surface.mjs"
       },
       "description": "One geometric meaning across planar, native and evaluated charts."
+    },
+    {
+      "id": "geometry-leaf-594fe343810a",
+      "index": "2.2.1.4.5",
+      "label": "displayGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/boolean-solid.mjs",
+        "declaration": "displayGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-720f4ad736a8",
+      "index": "2.2.1.1.10",
+      "label": "buildShells",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/build.mjs",
+        "declaration": "buildShells"
+      }
+    },
+    {
+      "id": "geometry-leaf-02b1e99804b1",
+      "index": "2.2.1.1.11",
+      "label": "construct",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/build.mjs",
+        "declaration": "buildShells::construct"
+      }
+    },
+    {
+      "id": "geometry-leaf-085b9a860af6",
+      "index": "2.1.5.2.8",
+      "label": "affineProjection",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/field.mjs",
+        "declaration": "affineProjection"
+      }
+    },
+    {
+      "id": "geometry-leaf-b20773892a60",
+      "index": "2.1.5.2.9",
+      "label": "patchCoversChart",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/field.mjs",
+        "declaration": "patchCoversChart"
+      }
+    },
+    {
+      "id": "geometry-leaf-09bd5b58efd0",
+      "index": "2.2.4.9.7",
+      "label": "normalize",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh-source.mjs",
+        "declaration": "normalizeAuthoredGeometry::normalize"
+      }
+    },
+    {
+      "id": "geometry-leaf-c7264cdb61ad",
+      "index": "2.3.2.1.31",
+      "label": "triangleNormal",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "triangleNormal"
+      }
+    },
+    {
+      "id": "geometry-leaf-b962168aed31",
+      "index": "2.3.2.1.32",
+      "label": "meshFaceNormal",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "meshFaceNormal"
+      }
+    },
+    {
+      "id": "geometry-leaf-d9cce0c3268a",
+      "index": "2.3.2.1.33",
+      "label": "nonadjacentContacts",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "nonadjacentContacts"
+      }
+    },
+    {
+      "id": "geometry-leaf-4e2eb226843b",
+      "index": "2.3.2.1.34",
+      "label": "separatedAlong",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "separatedAlong"
+      }
+    },
+    {
+      "id": "geometry-leaf-4024ee92ba36",
+      "index": "2.3.2.1.35",
+      "label": "setNormal",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "setNormal"
+      }
+    },
+    {
+      "id": "geometry-leaf-ef2fa31205e6",
+      "index": "2.3.2.1.36",
+      "label": "crossSeparates",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "crossSeparates"
+      }
+    },
+    {
+      "id": "geometry-leaf-3549c76fdf84",
+      "index": "2.3.2.1.37",
+      "label": "meshColumnIndex",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "meshColumnIndex"
+      }
+    },
+    {
+      "id": "geometry-leaf-4ce768f33014",
+      "index": "2.3.2.1.38",
+      "label": "meshBoundaryDistance",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/mesh.mjs",
+        "declaration": "meshBoundaryDistance"
+      }
+    },
+    {
+      "id": "geometry-module-09695615bd05",
+      "index": "2.3.1.4",
+      "label": "operations",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/operations.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-4bfb42a3367f",
+      "index": "2.3.1.4.1",
+      "label": "buildGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/operations.mjs",
+        "declaration": "buildGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-9daf24cf9e58",
+      "index": "2.3.1.4.2",
+      "label": "geometryOperations",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/operations.mjs",
+        "declaration": "geometryOperations"
+      }
+    },
+    {
+      "id": "geometry-leaf-9633face69ee",
+      "index": "2.1.3.4.15",
+      "label": "sectionSurface",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/section.mjs",
+        "declaration": "sectionSurface"
+      }
+    },
+    {
+      "id": "geometry-leaf-d68845d37a25",
+      "index": "2.1.3.4.16",
+      "label": "<callable@192:9>",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/section.mjs",
+        "declaration": "cellSegments::<callable@192:9>"
+      }
+    },
+    {
+      "id": "geometry-leaf-6ddc4cce88bb",
+      "index": "2.1.3.4.17",
+      "label": "<callable@193:9>",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/section.mjs",
+        "declaration": "cellSegments::<callable@193:9>"
+      }
+    },
+    {
+      "id": "geometry-leaf-200b49aa8d64",
+      "index": "2.3.1.3.16",
+      "label": "closeOpenChains",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/shell.mjs",
+        "declaration": "closeOpenChains"
+      }
+    },
+    {
+      "id": "geometry-leaf-09e9fa58a32c",
+      "index": "2.2.7",
+      "label": "nativeConstruction",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "nativeConstruction"
+      }
+    },
+    {
+      "id": "geometry-leaf-78a906648ac7",
+      "index": "2.2.8",
+      "label": "materialPresence",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/solid-operations.mjs",
+        "declaration": "materialPresence"
+      }
+    },
+    {
+      "id": "geometry-leaf-69b71da2365d",
+      "index": "2.2.2.5.4",
+      "label": "surfaceSegmentCurves",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-curves.mjs",
+        "declaration": "surfaceSegmentCurves"
+      }
+    },
+    {
+      "id": "geometry-leaf-63bf490f9d0c",
+      "index": "2.1.5.4.36",
+      "label": "projectSurfacePoint",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "projectSurfacePoint"
+      }
+    },
+    {
+      "id": "geometry-leaf-9d99d9d7542a",
+      "index": "2.1.5.4.37",
+      "label": "runContains",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "runContains"
+      }
+    },
+    {
+      "id": "geometry-leaf-7215d80c2111",
+      "index": "2.1.5.4.38",
+      "label": "ignoreDiscovery",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "ignoreDiscovery"
+      }
+    },
+    {
+      "id": "geometry-leaf-b908927def39",
+      "index": "2.1.5.4.39",
+      "label": "localTraceSegments",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "localTraceSegments"
+      }
+    },
+    {
+      "id": "geometry-leaf-f4c88287f826",
+      "index": "2.1.5.4.40",
+      "label": "certifiesKnownCurveGraph",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "certifiesKnownCurveGraph"
+      }
+    },
+    {
+      "id": "geometry-leaf-d544f2c482d7",
+      "index": "2.1.5.4.41",
+      "label": "expandedPiece",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "expandedPiece"
+      }
+    },
+    {
+      "id": "geometry-leaf-c3c032b94b1c",
+      "index": "2.1.5.4.42",
+      "label": "projectedControlBounds",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "projectedControlBounds"
+      }
+    },
+    {
+      "id": "geometry-leaf-fc67cafbd85d",
+      "index": "2.1.5.4.43",
+      "label": "derivativeControlBounds",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "derivativeControlBounds"
+      }
+    },
+    {
+      "id": "geometry-leaf-cf30b75185ea",
+      "index": "2.1.5.4.44",
+      "label": "derivativeControlData",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "derivativeControlData"
+      }
+    },
+    {
+      "id": "geometry-leaf-f956150abfae",
+      "index": "2.1.5.4.45",
+      "label": "projectedDerivativeBounds",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "projectedDerivativeBounds"
+      }
+    },
+    {
+      "id": "geometry-leaf-37016c9c83a1",
+      "index": "2.1.5.4.46",
+      "label": "scaledInterval",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "scaledInterval"
+      }
+    },
+    {
+      "id": "geometry-leaf-54af7f5899ee",
+      "index": "2.1.5.4.47",
+      "label": "parametricRootBounds",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "parametricRootBounds"
+      }
+    },
+    {
+      "id": "geometry-leaf-5e7c4c8df9d0",
+      "index": "2.1.5.4.48",
+      "label": "contractRootCell",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "contractRootCell"
+      }
+    },
+    {
+      "id": "geometry-leaf-87c76a3320fd",
+      "index": "2.1.5.4.49",
+      "label": "pieceBending",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "pieceBending"
+      }
+    },
+    {
+      "id": "geometry-leaf-baaee81c1f7c",
+      "index": "2.1.5.4.50",
+      "label": "discoverySplit",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "discoverySplit"
+      }
+    },
+    {
+      "id": "geometry-leaf-b8a501503903",
+      "index": "2.1.5.4.51",
+      "label": "controlHullsSeparated",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "controlHullsSeparated"
+      }
+    },
+    {
+      "id": "geometry-leaf-6dfe6180c30b",
+      "index": "2.1.5.4.52",
+      "label": "intersectionBox",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "intersectionBox"
+      }
+    },
+    {
+      "id": "geometry-leaf-9b2bb9da6d98",
+      "index": "2.1.5.4.53",
+      "label": "intersectionBoxCovered",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "intersectionBoxCovered"
+      }
+    },
+    {
+      "id": "geometry-leaf-afcd2132b4fe",
+      "index": "2.1.5.4.54",
+      "label": "collapseUncertainContacts",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "collapseUncertainContacts"
+      }
+    },
+    {
+      "id": "geometry-leaf-d0dd740a86e4",
+      "index": "2.1.5.4.55",
+      "label": "snapBoundaryState",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "snapBoundaryState"
+      }
+    },
+    {
+      "id": "geometry-leaf-117d221dd9ac",
+      "index": "2.1.5.4.56",
+      "label": "refineIntersectionCurve",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "refineIntersectionCurve"
+      }
+    },
+    {
+      "id": "geometry-leaf-9ad05d36a0b2",
+      "index": "2.1.5.4.57",
+      "label": "collapsedSurfaceEdges",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "collapsedSurfaceEdges"
+      }
+    },
+    {
+      "id": "geometry-leaf-4420a1b1e0d6",
+      "index": "2.1.5.4.58",
+      "label": "curveRootState",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "curveRootState"
+      }
+    },
+    {
+      "id": "geometry-leaf-6d3acb640dbd",
+      "index": "2.1.5.4.59",
+      "label": "alignPoleChart",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "alignPoleChart"
+      }
+    },
+    {
+      "id": "geometry-leaf-f4a544cad5c1",
+      "index": "2.1.5.4.60",
+      "label": "sameParameterTrace",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "sameParameterTrace"
+      }
+    },
+    {
+      "id": "geometry-leaf-3d20815848df",
+      "index": "2.1.5.4.61",
+      "label": "chartParametersNear",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "chartParametersNear"
+      }
+    },
+    {
+      "id": "geometry-leaf-848b797d735b",
+      "index": "2.1.5.4.62",
+      "label": "traceContains",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "traceContains"
+      }
+    },
+    {
+      "id": "geometry-leaf-53b3682919a1",
+      "index": "2.1.3.3.18",
+      "label": "<callable@103:75>",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "orient::<callable@103:75>"
+      }
+    },
+    {
+      "id": "geometry-leaf-d2f8297c1a05",
+      "index": "2.1.3.3.19",
+      "label": "chartBoundaryEndpoint",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "chartBoundaryEndpoint"
+      }
+    },
+    {
+      "id": "geometry-leaf-e60788cd1f16",
+      "index": "2.1.3.3.20",
+      "label": "surfaceBoundaryPair",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "surfaceBoundaryPair"
+      }
+    },
+    {
+      "id": "geometry-leaf-62fab2b27d3b",
+      "index": "2.1.3.3.21",
+      "label": "unrefinedBoundaryPair",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "unrefinedBoundaryPair"
+      }
+    },
+    {
+      "id": "geometry-leaf-4abfeaac7617",
+      "index": "2.1.3.3.22",
+      "label": "surfaceSupportedByPlane",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "surfaceSupportedByPlane"
+      }
+    },
+    {
+      "id": "geometry-leaf-afad112f5660",
+      "index": "2.1.3.3.23",
+      "label": "boundedPlanarPair",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "boundedPlanarPair"
+      }
+    },
+    {
+      "id": "geometry-leaf-a7f94fbd7966",
+      "index": "2.1.3.3.24",
+      "label": "generalBoundaryPair",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "generalBoundaryPair"
+      }
+    },
+    {
+      "id": "geometry-leaf-86123339b638",
+      "index": "2.1.3.3.25",
+      "label": "snapBoundaryUv",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "snapBoundaryUv"
+      }
+    },
+    {
+      "id": "geometry-leaf-e3361519d798",
+      "index": "2.1.3.3.26",
+      "label": "reverseBoundaryPieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "reverseBoundaryPieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-ba5603e6c9b0",
+      "index": "2.1.3.3.27",
+      "label": "clipBoundaryPieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "clipBoundaryPieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-599c7f5100b2",
+      "index": "2.1.3.3.28",
+      "label": "interiorBoundaryPieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "interiorBoundaryPieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-0ab99f83efb6",
+      "index": "2.1.3.3.29",
+      "label": "boundaryVertex",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "boundaryVertex"
+      }
+    },
+    {
+      "id": "geometry-leaf-2aae214740ee",
+      "index": "2.1.3.3.30",
+      "label": "planarBoundary",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "planarBoundary"
+      }
+    },
+    {
+      "id": "geometry-leaf-7d281522d63a",
+      "index": "2.1.3.3.31",
+      "label": "curvedPlanarBoundary",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "curvedPlanarBoundary"
+      }
+    },
+    {
+      "id": "geometry-leaf-e42d56eddd4e",
+      "index": "2.1.3.3.32",
+      "label": "planarSurfacePieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "planarSurfacePieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-f5f20f451557",
+      "index": "2.1.3.3.33",
+      "label": "periodicSurfaceAxes",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "periodicSurfaceAxes"
+      }
+    },
+    {
+      "id": "geometry-leaf-6450a52a9eab",
+      "index": "2.1.3.3.34",
+      "label": "splitPartnerSeams",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "splitPartnerSeams"
+      }
+    },
+    {
+      "id": "geometry-leaf-f99fe9c7eb36",
+      "index": "2.1.3.3.35",
+      "label": "planarSurfaceVertex",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "planarSurfaceVertex"
+      }
+    },
+    {
+      "id": "geometry-leaf-78db68cf7ad5",
+      "index": "2.1.3.3.36",
+      "label": "sampledSurfaceInside",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "sampledSurfaceInside"
+      }
+    },
+    {
+      "id": "geometry-module-f7e21b4ea3d9",
+      "index": "2.3.1.5",
+      "label": "bezier net",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-f2494c1eb525",
+      "index": "2.3.1.5.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-981f045096af",
+      "index": "2.3.1.5.2",
+      "label": "splitBezierLine",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "splitBezierLine"
+      }
+    },
+    {
+      "id": "geometry-leaf-567edc6fda29",
+      "index": "2.3.1.5.3",
+      "label": "restrictBezierLine",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "restrictBezierLine"
+      }
+    },
+    {
+      "id": "geometry-leaf-1addb0e0660b",
+      "index": "2.3.1.5.4",
+      "label": "restrictBezierNet",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "restrictBezierNet"
+      }
+    },
+    {
+      "id": "geometry-leaf-62ade2c88f91",
+      "index": "2.3.1.5.5",
+      "label": "splitBezierNet",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "splitBezierNet"
+      }
+    },
+    {
+      "id": "geometry-leaf-e2a35fe12edb",
+      "index": "2.3.1.5.6",
+      "label": "evaluateBezierNet",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "evaluateBezierNet"
+      }
+    },
+    {
+      "id": "geometry-leaf-e0388a06bb3c",
+      "index": "2.3.1.5.7",
+      "label": "bernsteinProductWeights",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/bezier-net.mjs",
+        "declaration": "bernsteinProductWeights"
+      }
+    },
+    {
+      "id": "geometry-module-6189ccfa73a0",
+      "index": "2.2.1.9",
+      "label": "revolved profile",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/revolved-profile.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-141451139158",
+      "index": "2.2.1.9.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/revolved-profile.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-1fa351ae9cb5",
+      "index": "2.2.1.9.2",
+      "label": "revolvedProfile",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/revolved-profile.mjs",
+        "declaration": "revolvedProfile"
+      }
+    },
+    {
+      "id": "geometry-module-21e6daf35140",
+      "index": "2.3.1.6",
+      "label": "surface boolean kernel",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-a35710edcbd2",
+      "index": "2.3.1.6.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-a96e41068e0c",
+      "index": "2.3.1.6.2",
+      "label": "ignorePhase",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "ignorePhase"
+      }
+    },
+    {
+      "id": "geometry-leaf-f82afa243374",
+      "index": "2.3.1.6.3",
+      "label": "nativeSurfaceSolid",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "nativeSurfaceSolid"
+      }
+    },
+    {
+      "id": "geometry-leaf-60e980f7cbb4",
+      "index": "2.3.1.6.4",
+      "label": "constructSurfaceBoolean",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "constructSurfaceBoolean"
+      }
+    },
+    {
+      "id": "geometry-leaf-74165851b422",
+      "index": "2.3.1.6.5",
+      "label": "unchangedOperand",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "unchangedOperand"
+      }
+    },
+    {
+      "id": "geometry-leaf-d0b2b13ac2f0",
+      "index": "2.3.1.6.6",
+      "label": "shareCoincidentCharts",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "shareCoincidentCharts"
+      }
+    },
+    {
+      "id": "geometry-leaf-8f35d5d4551e",
+      "index": "2.3.1.6.7",
+      "label": "subdivideCoincidentCurve",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "subdivideCoincidentCurve"
+      }
+    },
+    {
+      "id": "geometry-leaf-e2483ad872f9",
+      "index": "2.3.1.6.8",
+      "label": "rememberPieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "rememberPieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-e2f66e78cdb1",
+      "index": "2.3.1.6.9",
+      "label": "mergeRegions",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "mergeRegions"
+      }
+    },
+    {
+      "id": "geometry-leaf-cfeb81269cf3",
+      "index": "2.3.1.6.10",
+      "label": "booleanRegions",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "booleanRegions"
+      }
+    },
+    {
+      "id": "geometry-leaf-f80e93622f40",
+      "index": "2.3.1.6.11",
+      "label": "surfaceHull",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "surfaceHull"
+      }
+    },
+    {
+      "id": "geometry-leaf-87705b4b42d0",
+      "index": "2.3.1.6.12",
+      "label": "hullsOverlap",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "hullsOverlap"
+      }
+    },
+    {
+      "id": "geometry-leaf-35fd48b988c9",
+      "index": "2.3.1.6.13",
+      "label": "combinedBounds",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "combinedBounds"
+      }
+    },
+    {
+      "id": "geometry-leaf-1c1460670636",
+      "index": "2.3.1.6.14",
+      "label": "coincidentFaces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "coincidentFaces"
+      }
+    },
+    {
+      "id": "geometry-leaf-b488d2f74a5a",
+      "index": "2.3.1.6.15",
+      "label": "projectFaceLoops",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "projectFaceLoops"
+      }
+    },
+    {
+      "id": "geometry-leaf-384d7fa56340",
+      "index": "2.3.1.6.16",
+      "label": "planarFaceRegion",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "planarFaceRegion"
+      }
+    },
+    {
+      "id": "geometry-leaf-63d2d1f1b733",
+      "index": "2.3.1.6.17",
+      "label": "planarRegionPrism",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "planarRegionPrism"
+      }
+    },
+    {
+      "id": "geometry-leaf-20318f3b06ad",
+      "index": "2.3.1.6.18",
+      "label": "closePlanarSlivers",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "closePlanarSlivers"
+      }
+    },
+    {
+      "id": "geometry-leaf-51678097484b",
+      "index": "2.3.1.6.19",
+      "label": "affinePlaneUv",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean-kernel.mjs",
+        "declaration": "affinePlaneUv"
+      }
+    },
+    {
+      "id": "geometry-module-d0658c1f6732",
+      "index": "2.2.1.10",
+      "label": "surface boolean",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-02a4aecf94e2",
+      "index": "2.2.1.10.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-ca1f9e4eaa8f",
+      "index": "2.2.1.10.2",
+      "label": "surfaceBoolean",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "surfaceBoolean"
+      }
+    },
+    {
+      "id": "geometry-leaf-49378fd941cc",
+      "index": "2.2.1.10.3",
+      "label": "numericalOperand",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "numericalOperand"
+      }
+    },
+    {
+      "id": "geometry-leaf-415d1cf1d71e",
+      "index": "2.2.1.10.4",
+      "label": "inheritReports",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "inheritReports"
+      }
+    },
+    {
+      "id": "geometry-leaf-1a3b577febac",
+      "index": "2.2.1.10.5",
+      "label": "recoveredResult",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "recoveredResult"
+      }
+    },
+    {
+      "id": "geometry-leaf-c455b812b2a8",
+      "index": "2.2.1.10.6",
+      "label": "attemptBoolean",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "attemptBoolean"
+      }
+    },
+    {
+      "id": "geometry-leaf-522c2fb45d78",
+      "index": "2.2.1.10.7",
+      "label": "attemptPhase",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "attemptPhase"
+      }
+    },
+    {
+      "id": "geometry-leaf-1512791981a6",
+      "index": "2.2.1.10.10",
+      "label": "translatedOperand",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "translatedOperand"
+      }
+    },
+    {
+      "id": "geometry-leaf-346f410ba44d",
+      "index": "2.2.1.10.11",
+      "label": "recoveryDirections",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "recoveryDirections"
+      }
+    },
+    {
+      "id": "geometry-leaf-687ac1e28fea",
+      "index": "2.2.1.10.12",
+      "label": "combinedExtent",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "combinedExtent"
+      }
+    },
+    {
+      "id": "geometry-leaf-63f1174acecb",
+      "index": "2.2.1.10.13",
+      "label": "boxesOverlap",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "boxesOverlap"
+      }
+    },
+    {
+      "id": "geometry-leaf-e43e34e9786a",
+      "index": "2.2.1.10.14",
+      "label": "removesAllOverlap",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-boolean.mjs",
+        "declaration": "removesAllOverlap"
+      }
+    },
+    {
+      "id": "geometry-module-0bea741bbb97",
+      "index": "2.3.1.7",
+      "label": "surface coincidence",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-767811b578c8",
+      "index": "2.3.1.7.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-04676ce9d3ed",
+      "index": "2.3.1.7.2",
+      "label": "correspondenceCache",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "correspondenceCache"
+      }
+    },
+    {
+      "id": "geometry-leaf-dc03dfb0cb7f",
+      "index": "2.3.1.7.3",
+      "label": "surfaceCorrespondence",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "surfaceCorrespondence"
+      }
+    },
+    {
+      "id": "geometry-leaf-1dcec9a7330f",
+      "index": "2.3.1.7.4",
+      "label": "domainMapping",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "domainMapping"
+      }
+    },
+    {
+      "id": "geometry-leaf-c157289c49fb",
+      "index": "2.3.1.7.5",
+      "label": "inverseMapping",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "inverseMapping"
+      }
+    },
+    {
+      "id": "geometry-leaf-f8a55cb9b103",
+      "index": "2.3.1.7.6",
+      "label": "mappedUv",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "mappedUv"
+      }
+    },
+    {
+      "id": "geometry-leaf-bcd2020218ce",
+      "index": "2.3.1.7.7",
+      "label": "surfacePlane",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "surfacePlane"
+      }
+    },
+    {
+      "id": "geometry-leaf-f3cc77e86a1b",
+      "index": "2.3.1.7.8",
+      "label": "hasPlanarPiece",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "hasPlanarPiece"
+      }
+    },
+    {
+      "id": "geometry-leaf-7e8e7080b998",
+      "index": "2.3.1.7.9",
+      "label": "findCorrespondence",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "findCorrespondence"
+      }
+    },
+    {
+      "id": "geometry-leaf-cfc00aecbc96",
+      "index": "2.3.1.7.10",
+      "label": "fuzzyCorrespondence",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "fuzzyCorrespondence"
+      }
+    },
+    {
+      "id": "geometry-leaf-80bacaea4dfd",
+      "index": "2.3.1.7.11",
+      "label": "periodicChartAxes",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "periodicChartAxes"
+      }
+    },
+    {
+      "id": "geometry-leaf-dc4567ba9f66",
+      "index": "2.3.1.7.12",
+      "label": "imageDomains",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "imageDomains"
+      }
+    },
+    {
+      "id": "geometry-leaf-a768e9e0d649",
+      "index": "2.3.1.7.13",
+      "label": "domainLoop",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "domainLoop"
+      }
+    },
+    {
+      "id": "geometry-leaf-ddbe834b8bfd",
+      "index": "2.3.1.7.14",
+      "label": "domainsCovered",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "domainsCovered"
+      }
+    },
+    {
+      "id": "geometry-leaf-d2329abaf78a",
+      "index": "2.3.1.7.15",
+      "label": "localChartProposal",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "localChartProposal"
+      }
+    },
+    {
+      "id": "geometry-leaf-089017f36529",
+      "index": "2.3.1.7.16",
+      "label": "fuzzyChartImages",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "fuzzyChartImages"
+      }
+    },
+    {
+      "id": "geometry-leaf-ead7e29b354e",
+      "index": "2.3.1.7.17",
+      "label": "sameMapping",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "sameMapping"
+      }
+    },
+    {
+      "id": "geometry-leaf-685936635543",
+      "index": "2.3.1.7.18",
+      "label": "affineChartMapping",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "affineChartMapping"
+      }
+    },
+    {
+      "id": "geometry-leaf-ef7673bb958d",
+      "index": "2.3.1.7.19",
+      "label": "matchingChartSamples",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "matchingChartSamples"
+      }
+    },
+    {
+      "id": "geometry-leaf-e6f4a1180bff",
+      "index": "2.3.1.7.20",
+      "label": "matchingSurfaceRegion",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "matchingSurfaceRegion"
+      }
+    },
+    {
+      "id": "geometry-leaf-abfb26c4a01d",
+      "index": "2.3.1.7.21",
+      "label": "relativeRanges",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "relativeRanges"
+      }
+    },
+    {
+      "id": "geometry-leaf-88d19232e26c",
+      "index": "2.3.1.7.22",
+      "label": "matchingBezierRegions",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "matchingBezierRegions"
+      }
+    },
+    {
+      "id": "geometry-leaf-eb4e6f388095",
+      "index": "2.3.1.7.23",
+      "label": "mappedPiece",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "mappedPiece"
+      }
+    },
+    {
+      "id": "geometry-leaf-f19e6254a69f",
+      "index": "2.3.1.7.24",
+      "label": "sameRationalNets",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "sameRationalNets"
+      }
+    },
+    {
+      "id": "geometry-leaf-099f84d9f977",
+      "index": "2.3.1.7.25",
+      "label": "sameBasis",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "sameBasis"
+      }
+    },
+    {
+      "id": "geometry-leaf-180a8b70b18e",
+      "index": "2.3.1.7.26",
+      "label": "projectCoincidentChart",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "projectCoincidentChart"
+      }
+    },
+    {
+      "id": "geometry-leaf-5b7f28ead0ae",
+      "index": "2.3.1.7.27",
+      "label": "correspondingSurfaceCharts",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "correspondingSurfaceCharts"
+      }
+    },
+    {
+      "id": "geometry-leaf-21a13de516ba",
+      "index": "2.3.1.7.29",
+      "label": "curvePieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "curvePieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-c845888197cc",
+      "index": "2.3.1.7.30",
+      "label": "curveCorrespondence",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "curveCorrespondence"
+      }
+    },
+    {
+      "id": "geometry-module-101b0d9c05c9",
+      "index": "2.3.1.8",
+      "label": "surface support",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-f6e2805847b0",
+      "index": "2.3.1.8.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-88f3c3539a86",
+      "index": "2.3.1.8.2",
+      "label": "separatingSurfacePlane",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs",
+        "declaration": "separatingSurfacePlane"
+      }
+    },
+    {
+      "id": "geometry-leaf-b08edfb1cb62",
+      "index": "2.3.1.8.3",
+      "label": "findSeparatingPlane",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs",
+        "declaration": "findSeparatingPlane"
+      }
+    },
+    {
+      "id": "geometry-leaf-11f1bdc8d186",
+      "index": "2.3.1.8.4",
+      "label": "projectionPieces",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs",
+        "declaration": "projectionPieces"
+      }
+    },
+    {
+      "id": "geometry-leaf-533d51259de1",
+      "index": "2.3.1.8.5",
+      "label": "projectionPiece",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs",
+        "declaration": "projectionPiece"
+      }
+    },
+    {
+      "id": "geometry-leaf-452c85abd896",
+      "index": "2.3.1.8.6",
+      "label": "projectionMaximum",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-support.mjs",
+        "declaration": "projectionMaximum"
+      }
+    },
+    {
+      "id": "geometry-module-cc06dd3be213",
+      "index": "2.3.1.9",
+      "label": "surface tessellate",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-f9eaa91c4a34",
+      "index": "2.3.1.9.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-b0b75ba955e3",
+      "index": "2.3.1.9.2",
+      "label": "tessellateSurfaceSolid",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "tessellateSurfaceSolid"
+      }
+    },
+    {
+      "id": "geometry-leaf-3c978d1d5f88",
+      "index": "2.3.1.9.3",
+      "label": "triangulateFace",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "triangulateFace"
+      }
+    },
+    {
+      "id": "geometry-leaf-86e742ae8438",
+      "index": "2.3.1.9.4",
+      "label": "chartEdgeKey",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "chartEdgeKey"
+      }
+    },
+    {
+      "id": "geometry-leaf-ec8524ebb0f4",
+      "index": "2.3.1.9.5",
+      "label": "edgeReference",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "edgeReference"
+      }
+    },
+    {
+      "id": "geometry-leaf-fafe6ac458c0",
+      "index": "2.3.1.9.6",
+      "label": "rememberBoundary",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "rememberBoundary"
+      }
+    },
+    {
+      "id": "geometry-leaf-b93e01f03c46",
+      "index": "2.3.1.9.7",
+      "label": "constrainFaceBoundary",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "constrainFaceBoundary"
+      }
+    },
+    {
+      "id": "geometry-leaf-d3d21998556c",
+      "index": "2.3.1.9.8",
+      "label": "interpolate",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "interpolate"
+      }
+    },
+    {
+      "id": "geometry-leaf-28c50fae66eb",
+      "index": "2.3.1.9.9",
+      "label": "edgeKey",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "edgeKey"
+      }
+    },
+    {
+      "id": "geometry-leaf-0cb1136f06f4",
+      "index": "2.3.1.9.10",
+      "label": "refineSurfaceTriangles",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "refineSurfaceTriangles"
+      }
+    },
+    {
+      "id": "geometry-leaf-5234dc3755e3",
+      "index": "2.3.1.9.11",
+      "label": "collapsedChartEdge",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "collapsedChartEdge"
+      }
+    },
+    {
+      "id": "geometry-leaf-bcf2bb60cb48",
+      "index": "2.3.1.9.12",
+      "label": "appendTriangle",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "appendTriangle"
+      }
+    },
+    {
+      "id": "geometry-leaf-b658bbb4947d",
+      "index": "2.3.1.9.13",
+      "label": "triangleError",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "triangleError"
+      }
+    },
+    {
+      "id": "geometry-leaf-504b0fe33f28",
+      "index": "2.3.1.9.14",
+      "label": "planarPatch",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-tessellate.mjs",
+        "declaration": "planarPatch"
+      }
+    },
+    {
+      "id": "geometry-module-16374046c962",
+      "index": "2.3.1.10",
+      "label": "surface topology",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-395078d65295",
+      "index": "2.3.1.10.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-57465e38ccfe",
+      "index": "2.3.1.10.2",
+      "label": "sewSurfaceBoundary",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "sewSurfaceBoundary"
+      }
+    },
+    {
+      "id": "geometry-leaf-9b8ab774f6b9",
+      "index": "2.3.1.10.3",
+      "label": "materialEdgeSectors",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "materialEdgeSectors"
+      }
+    },
+    {
+      "id": "geometry-leaf-c8b51d9532cf",
+      "index": "2.3.1.10.4",
+      "label": "splitVertexFans",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "splitVertexFans"
+      }
+    },
+    {
+      "id": "geometry-leaf-fc0d6d366531",
+      "index": "2.3.1.10.5",
+      "label": "chartSegmentCollapsed",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "chartSegmentCollapsed"
+      }
+    },
+    {
+      "id": "geometry-leaf-49ff4f700547",
+      "index": "2.3.1.10.6",
+      "label": "sameChartPath",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "sameChartPath"
+      }
+    },
+    {
+      "id": "geometry-leaf-915d79337b9e",
+      "index": "2.3.1.10.7",
+      "label": "boundaryCurveUses",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "boundaryCurveUses"
+      }
+    },
+    {
+      "id": "geometry-leaf-66c84ab07cab",
+      "index": "2.3.1.10.8",
+      "label": "interpolate",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "interpolate"
+      }
+    },
+    {
+      "id": "geometry-leaf-8e368a655866",
+      "index": "2.3.1.10.9",
+      "label": "nativeBoundaryUse",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "nativeBoundaryUse"
+      }
+    },
+    {
+      "id": "geometry-leaf-347c1a89f550",
+      "index": "2.3.1.10.10",
+      "label": "nativeBoundaryMapping",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "nativeBoundaryMapping"
+      }
+    },
+    {
+      "id": "geometry-leaf-569cfd813937",
+      "index": "2.3.1.10.11",
+      "label": "geometricBoundaryUse",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "geometricBoundaryUse"
+      }
+    },
+    {
+      "id": "geometry-leaf-7b1b87f88e86",
+      "index": "2.3.1.10.12",
+      "label": "preparedChartSegments",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "preparedChartSegments"
+      }
+    },
+    {
+      "id": "geometry-leaf-b5917f728b67",
+      "index": "2.3.1.10.13",
+      "label": "faithfulChartSegment",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "faithfulChartSegment"
+      }
+    },
+    {
+      "id": "geometry-leaf-447784681a57",
+      "index": "2.3.1.10.14",
+      "label": "nearCurveParameters",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "nearCurveParameters"
+      }
+    },
+    {
+      "id": "geometry-leaf-cdbe955d03a4",
+      "index": "2.3.1.10.15",
+      "label": "rememberIntersection",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "rememberIntersection"
+      }
+    },
+    {
+      "id": "geometry-leaf-f71af031736e",
+      "index": "2.3.1.10.16",
+      "label": "lineUse",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "lineUse"
+      }
+    },
+    {
+      "id": "geometry-leaf-313a0ce851d6",
+      "index": "2.3.1.10.17",
+      "label": "canonicalNativeUse",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "canonicalNativeUse"
+      }
+    },
+    {
+      "id": "geometry-leaf-36193f844fb0",
+      "index": "2.3.1.10.18",
+      "label": "curvePosition",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "curvePosition"
+      }
+    },
+    {
+      "id": "geometry-leaf-d73017553ea3",
+      "index": "2.3.1.10.19",
+      "label": "translateSurfaceSolid",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-topology.mjs",
+        "declaration": "translateSurfaceSolid"
+      }
+    },
+    {
+      "id": "geometry-module-1ee9821b71fd",
+      "index": "2.3.1.11",
+      "label": "surface trim",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-0d741e7afeb8",
+      "index": "2.3.1.11.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-d9d258c43972",
+      "index": "2.3.1.11.2",
+      "label": "patchDomain",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs",
+        "declaration": "patchDomain"
+      }
+    },
+    {
+      "id": "geometry-leaf-c853210b277a",
+      "index": "2.3.1.11.3",
+      "label": "faceContainsUv",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs",
+        "declaration": "faceContainsUv"
+      }
+    },
+    {
+      "id": "geometry-leaf-35327dd03167",
+      "index": "2.3.1.11.4",
+      "label": "segmentTrimSpans",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs",
+        "declaration": "segmentTrimSpans"
+      }
+    },
+    {
+      "id": "geometry-leaf-16b0462ceed7",
+      "index": "2.3.1.11.5",
+      "label": "trimSectionChains",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs",
+        "declaration": "trimSectionChains"
+      }
+    },
+    {
+      "id": "geometry-leaf-885f4826a022",
+      "index": "2.3.1.11.6",
+      "label": "sectionVertex",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-trim.mjs",
+        "declaration": "sectionVertex"
+      }
+    },
+    {
+      "id": "geometry-leaf-aceb43df36cd",
+      "index": "2.1.5.4.63",
+      "label": "cellMeetsFace",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-intersection.mjs",
+        "declaration": "cellMeetsFace"
+      }
+    },
+    {
+      "id": "geometry-leaf-ead1e41da75d",
+      "index": "2.1.3.3.37",
+      "label": "monotonePlaneTrace",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/region/section.mjs",
+        "declaration": "monotonePlaneTrace"
+      }
+    },
+    {
+      "id": "geometry-leaf-0f2c27f0944f",
+      "index": "2.3.1.7.31",
+      "label": "correspondingSourceLoops",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/surface-coincidence.mjs",
+        "declaration": "correspondingSourceLoops"
+      }
+    },
+    {
+      "id": "geometry-leaf-21f322dbfdac",
+      "index": "2.3.5.2.2",
+      "label": "compileBlobFieldValue",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/blob-field-compile.mjs",
+        "declaration": "compileBlobFieldValue"
+      }
+    },
+    {
+      "id": "geometry-leaf-b1ee9bc701f1",
+      "index": "2.3.5.2.3",
+      "label": "@default/progress",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/blob-field-compile.mjs",
+        "declaration": "compileBlobFieldValue::@default/progress"
+      }
+    },
+    {
+      "id": "geometry-leaf-424688221586",
+      "index": "2.3.5.2.4",
+      "label": "extractBlobSurface",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/blob-field-compile.mjs",
+        "declaration": "extractBlobSurface"
+      }
+    },
+    {
+      "id": "geometry-leaf-d95aa27194c7",
+      "index": "2.2.4.1.9",
+      "label": "prepareSTLImportAt",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/import-stl.mjs",
+        "declaration": "prepareSTLImportAt"
+      }
+    },
+    {
+      "id": "geometry-leaf-398445417062",
+      "index": "2.2.4.1.10",
+      "label": "prepareSTLSourceValue",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/import-stl.mjs",
+        "declaration": "prepareSTLSourceValue"
+      }
+    },
+    {
+      "id": "geometry-module-74f7c2d26f95",
+      "index": "2.3.3.8",
+      "label": "execution worker",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution-worker.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-c5a6f32fb7b7",
+      "index": "2.3.3.8.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution-worker.mjs"
+      }
+    },
+    {
+      "id": "geometry-module-6f81f4644827",
+      "index": "2.3.3.9",
+      "label": "execution",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-1f13de37ca7c",
+      "index": "2.3.3.9.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-6eb561a7e256",
+      "index": "2.3.3.9.2",
+      "label": "geometryMemoryError",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "geometryMemoryError"
+      }
+    },
+    {
+      "id": "geometry-leaf-1dc1dba9bced",
+      "index": "2.3.3.9.3",
+      "label": "executeGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "executeGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-3bf18984a265",
+      "index": "2.3.3.9.4",
+      "label": "executeGeometrySync",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "executeGeometrySync"
+      }
+    },
+    {
+      "id": "geometry-leaf-818334bd0391",
+      "index": "2.3.3.9.5",
+      "label": "beginExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "beginExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-21238c587cb1",
+      "index": "2.3.3.9.6",
+      "label": "geometrySupervisor",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "geometrySupervisor"
+      }
+    },
+    {
+      "id": "geometry-leaf-e080193e2980",
+      "index": "2.3.3.9.7",
+      "label": "cancelExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "cancelExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-6a2906362384",
+      "index": "2.3.3.9.8",
+      "label": "pollExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "pollExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-7762df7ca8e8",
+      "index": "2.3.3.9.9",
+      "label": "consumeGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "consumeGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-b32d77cf6220",
+      "index": "2.3.3.9.10",
+      "label": "closeExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "closeExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-b1c06bf42bbb",
+      "index": "2.3.3.9.11",
+      "label": "ignoreTermination",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "ignoreTermination"
+      }
+    },
+    {
+      "id": "geometry-leaf-070628f52e3d",
+      "index": "2.3.3.9.12",
+      "label": "deadlineError",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "deadlineError"
+      }
+    },
+    {
+      "id": "geometry-leaf-a719a2324148",
+      "index": "2.3.3.9.13",
+      "label": "errorRecord",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "errorRecord"
+      }
+    },
+    {
+      "id": "geometry-leaf-36e030e8b130",
+      "index": "2.3.3.9.14",
+      "label": "restoreError",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "restoreError"
+      }
+    },
+    {
+      "id": "geometry-leaf-cf7002dea4ca",
+      "index": "2.3.3.9.15",
+      "label": "serveGeometryExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "serveGeometryExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-dbd7b25a4717",
+      "index": "2.3.3.9.16",
+      "label": "calculationWorker",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "calculationWorker"
+      }
+    },
+    {
+      "id": "geometry-leaf-185bd2dd12a2",
+      "index": "2.3.3.9.17",
+      "label": "superviseExecution",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "superviseExecution"
+      }
+    },
+    {
+      "id": "geometry-leaf-3baa9d8f09c5",
+      "index": "2.3.3.9.18",
+      "label": "settleLease",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "settleLease"
+      }
+    },
+    {
+      "id": "geometry-leaf-dfc9fe9a0468",
+      "index": "2.3.3.9.19",
+      "label": "executeLease",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "executeLease"
+      }
+    },
+    {
+      "id": "geometry-leaf-434ad4168da6",
+      "index": "2.3.3.9.20",
+      "label": "calculateGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/execution.mjs",
+        "declaration": "calculateGeometry"
+      }
+    },
+    {
+      "id": "geometry-module-d53f10a634cb",
+      "index": "2.3.1.12",
+      "label": "stl repair",
+      "description": "Shared native geometry implementation; feature and deposition policy remain with its clients.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-1cfd3ee652d4",
+      "index": "2.3.1.12.1",
+      "label": "Module initialization and scratch state",
+      "description": "Geometry owns native resources, numerical caches and immutable configuration in this module.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs"
+      }
+    },
+    {
+      "id": "geometry-leaf-19951ad1844c",
+      "index": "2.3.1.12.2",
+      "label": "repairMemoryError",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "repairMemoryError"
+      }
+    },
+    {
+      "id": "geometry-leaf-a0d60f97f614",
+      "index": "2.3.1.12.3",
+      "label": "prepareSTLRepair",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "prepareSTLRepair"
+      }
+    },
+    {
+      "id": "geometry-leaf-abc30a309e53",
+      "index": "2.3.1.12.4",
+      "label": "emitGeometry",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "emitGeometry"
+      }
+    },
+    {
+      "id": "geometry-leaf-d0fb71d0b93d",
+      "index": "2.3.1.12.5",
+      "label": "@default/progress",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "emitGeometry::@default/progress"
+      }
+    },
+    {
+      "id": "geometry-leaf-3751f61ceaf4",
+      "index": "2.3.1.12.6",
+      "label": "shapeChanges",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "shapeChanges"
+      }
+    },
+    {
+      "id": "geometry-leaf-1cb36f4d6415",
+      "index": "2.3.1.12.7",
+      "label": "sample",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "shapeChanges::sample"
+      }
+    },
+    {
+      "id": "geometry-leaf-f8bec2be17cb",
+      "index": "2.3.1.12.8",
+      "label": "shells",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "shells"
+      }
+    },
+    {
+      "id": "geometry-leaf-fe123d496208",
+      "index": "2.3.1.12.9",
+      "label": "prepareSTLRepairValue",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "prepareSTLRepairValue"
+      }
+    },
+    {
+      "id": "geometry-leaf-675572da3d5e",
+      "index": "2.3.1.12.10",
+      "label": "chunks",
+      "description": "Native geometry operation and its private numerical state.",
+      "type": "component",
+      "source": {
+        "file": "core/geom/stl-repair.mjs",
+        "declaration": "prepareSTLRepairValue::chunks"
+      }
     }
   ],
   "contracts": [
@@ -17649,6 +19862,6 @@
       "I think of geometry as the CAD program, toolpath -> scheduler as the CAM.",
       "Okay, I agree with one shared canonical operation and contract for each capability."
     ],
-    "implementation": "Extension hosts share canonical CAD operations; feature depth, recipe assembly, bead policy and pose conventions stay outside Geometry."
+    "implementation": "Canonical Geometry operations own native surface construction, interval discovery, one execution owner for worker lifecycle, transport, memory, cancellation, deadlines, progress and errors; Boolean-owned automatic fuzzy/perturbation recovery, warnings, containment, sections and output. Extensions author feature dimensions and process intent; Application and Material regions propagate reports."
   }
 }

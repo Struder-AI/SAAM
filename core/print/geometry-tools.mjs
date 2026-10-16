@@ -47,7 +47,7 @@ export async function intersectGeometry(geometry,{sectionsAtZ=[],topsAtXY=[],sur
   });
   const surfaceRegions=surfaces.map(spec=>surfaceSection(shell,spec,includeLoops));
   const stackFindings=await intersectDraftStacks(shell,stacks,{includeLoops});
-  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions,stacks:stackFindings};
+  return {boundsMm:{min:shell.bounds.min.map(round),max:shell.bounds.max.map(round)},sections,tops,surfaces:surfaceRegions,stacks:stackFindings,...(shell.notes?.length?{notes:[...shell.notes]}:{})};
 }
 
 export async function intersectDraftStacks(shell,drafts,{includeLoops=false}={}){

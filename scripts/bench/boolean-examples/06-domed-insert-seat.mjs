@@ -1,0 +1,2 @@
+import {splineBlock} from './shapes.mjs';
+export default async function(G){const host=splineBlock({runMm:9,widthMm:7,heightsMm:[[4,4.2,4],[4.4,6.1,4.3],[4,4.1,4]]}),tool=G.revolvedProfile({positionMm:[4.8,3.1,5.1],axis:[.17,-.23,-1],profile:[[-.6,1.1],[.4,1.1],[.9,.85],[3.8,.85]]});return {name:'Chamfered insert seat in an asymmetric dome',operation:'difference',operands:[await G.buildGeometry(host),await G.buildGeometry(tool)]};}

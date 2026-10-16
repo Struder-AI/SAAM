@@ -1880,6 +1880,30 @@
       "kinds": [
         "call"
       ]
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/revolved-profile.mjs::revolvedProfile",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry operations supplied to extension clients; construction representation and native lifetime remain inside Geometry."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/solid-operations.mjs::materialPresence",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry operations supplied to extension clients; construction representation and native lifetime remain inside Geometry."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/boolean-solid.mjs::booleanShell",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Canonical Geometry operations supplied to extension clients; construction representation and native lifetime remain inside Geometry."
     }
   ],
   "retiredBindings": [

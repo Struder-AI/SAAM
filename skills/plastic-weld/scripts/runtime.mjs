@@ -1,38 +1,41 @@
-// Plastic weld prepares process geometry, material assignments and ordinary Inject.
-// The selected extension copy owns the technique; it has no release-relative imports.
+// Plastic weld authors process cavities and material envelopes as ordinary
+// rational geometry, then uses the shared Boolean and Inject operations.
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
+// copies core/dimensions.mjs PRINT_RESOLUTION_MM; no release-relative imports
 const PRINT_RESOLUTION_MM=1e-3;
-// Heights (layer grid, rivet bottom and top, stroke levels) coincide and height
-// ranges overlap to print resolution; an overlap below a print-resolution square is none.
 export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
-  basinHeightMm:1.2,wallMm:1.2,floorMm:0.8,seatDepthMm:0,volumeFactor:1,flowMm3S:0.5,holdSeconds:1,nozzleC:null};
-const positive=(v,name)=>requireThat(Number.isFinite(v)&&v>0,'plastic-weld '+name+' must be positive.');
+  basinHeightMm:1.2,wallMm:1.2,floorMm:.8,seatDepthMm:0,volumeFactor:1,flowMm3S:.5,holdSeconds:1,nozzleC:null};
+const positive=(value,name)=>requireThat(Number.isFinite(value)&&value>0,'plastic-weld '+name+' must be positive.');
 
 export function validatePlasticWeld(plan){
-  const s=plan.skills['plastic-weld'];
-  requireThat(typeof s.enabled==='boolean'&&Array.isArray(s.sites),'plastic-weld needs an enabled flag and sites array.');
-  for(const k of ['shaftDiameterMm','basinDiameterMm','basinHeightMm','wallMm','floorMm','volumeFactor','flowMm3S'])positive(s[k],k);
-  requireThat(Number.isFinite(s.holdSeconds)&&s.holdSeconds>=0,'Rivet hold must be nonnegative.');
-  requireThat(Number.isFinite(s.seatDepthMm)&&s.seatDepthMm>=0,'Rivet seat depth must be nonnegative.');
-  if(s.nozzleC!==null)requireThat(Number.isFinite(s.nozzleC)&&s.nozzleC>=0,'Authored nozzle temperature must be finite and nonnegative.');
+  const settings=plan.skills['plastic-weld'];
+  requireThat(typeof settings.enabled==='boolean'&&Array.isArray(settings.sites),'plastic-weld needs an enabled flag and sites array.');
+  for(const key of ['shaftDiameterMm','basinDiameterMm','basinHeightMm','wallMm','floorMm','volumeFactor','flowMm3S'])positive(settings[key],key);
+  requireThat(Number.isFinite(settings.holdSeconds)&&settings.holdSeconds>=0,'Rivet hold must be nonnegative.');
+  requireThat(Number.isFinite(settings.seatDepthMm)&&settings.seatDepthMm>=0,'Rivet seat depth must be nonnegative.');
+  if(settings.nozzleC!==null)requireThat(Number.isFinite(settings.nozzleC)&&settings.nozzleC>=0,'Authored nozzle temperature must be finite and nonnegative.');
   const ids=new Set();
-  for(const site of s.sites){
-    requireThat(site&&Object.keys(site).sort().join()==='id,part,xMm,yMm,zBottomMm,zTopMm','Rivet sites need exactly id, part, xMm, yMm, zBottomMm and zTopMm.');
-    requireThat(typeof site.id==='string'&&/^[a-z][a-z0-9-]*$/.test(site.id)&&!ids.has(site.id),'Invalid or duplicate rivet site ID.');ids.add(site.id);
-    requireThat(['xMm','yMm','zBottomMm','zTopMm'].every(k=>Number.isFinite(site[k])),'Rivet coordinates must be finite.');
-    requireThat(site.zBottomMm>=0&&site.zTopMm>site.zBottomMm,'A rivet needs its bottom within its component and its opening above it.');
+  for(const site of settings.sites){
+    requireThat(typeof site?.id==='string'&&/^[a-z][a-z0-9-]*$/.test(site.id)&&!ids.has(site.id),'Invalid or duplicate rivet site ID.');ids.add(site.id);
+    const fields=Object.keys(site).sort().join();
+    if(fields==='axis,depthMm,id,part,positionMm'){
+      requireThat(Array.isArray(site.positionMm)&&site.positionMm.length===3&&site.positionMm.every(Number.isFinite),'Rivet positionMm must be finite XYZ at its opening.');
+      requireThat(Array.isArray(site.axis)&&site.axis.length===3&&site.axis.every(Number.isFinite)&&Math.hypot(...site.axis)>0,'Rivet axis must point into the part.');
+      positive(site.depthMm,'depthMm');
+    }else{
+      requireThat(fields==='id,part,xMm,yMm,zBottomMm,zTopMm','Rivet sites need id, part, positionMm, axis and depthMm; existing vertical coordinate sites remain readable.');
+      requireThat(['xMm','yMm','zBottomMm','zTopMm'].every(key=>Number.isFinite(site[key])),'Rivet coordinates must be finite.');
+      requireThat(site.zBottomMm>=0&&site.zTopMm>site.zBottomMm,'A rivet needs its bottom within its component and its opening above it.');
+    }
   }
 }
 
 export const plasticWeldRecordRuntime=()=>({validatePlasticWeld});
 
-// Explicit sites can be spatially staggered while their height ranges overlap.
-// This authoring helper returns ordinary locked sites, not a second recipe.
 export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=3,depthMm=4,
-  xMm=4,yMm=4,zBottomMm=0.8,part=null}){
+  xMm=4,yMm=4,zBottomMm=.8,part=null}){
   requireThat([columns,rows,levels].every(n=>Number.isSafeInteger(n)&&n>0)&&Number.isSafeInteger(columns*rows*levels),'Invalid rivet grid size.');
-  [pitchMm,heightStepMm,depthMm].forEach(v=>positive(v,'grid spacing/depth'));
+  [pitchMm,heightStepMm,depthMm].forEach(value=>positive(value,'grid spacing/depth'));
   return Array.from({length:levels},(_,k)=>Array.from({length:rows},(_,j)=>Array.from({length:columns},(_,i)=>({
     id:`rivet-${k}-${j}-${i}`,part,xMm:xMm+(i+(k%2)/2)*pitchMm,yMm:yMm+j*pitchMm,
     zBottomMm:zBottomMm+k*heightStepMm,zTopMm:zBottomMm+k*heightStepMm+depthMm
@@ -40,60 +43,45 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
 }
 
 export function plasticWeldRuntime({Geometry,Recipe}){
-  const {makeMesh,horizontalSlice,sliceStack,evaluateSurface,regionArea,intersect}=Geometry;
+  const {buildGeometry,revolvedProfile,section,regionArea,intersect}=Geometry;
   const {assignmentFilament,injectionAssignment}=Recipe;
-  const sides=96;
-  const circle=(x,y,r)=>[Array.from({length:sides},(_,i)=>[x+r*Math.cos(i*2*Math.PI/sides),y+r*Math.sin(i*2*Math.PI/sides)])];
-  // One closed mesh represents the stepped cavity. This same prepared profile
-  // supplies its polygonal volume; depositing results are never inspected.
-  function profileSolid(x,y,profile){
-    const vertices=profile.flatMap(([z,r])=>circle(x,y,r)[0].map(p=>[...p,z])),triangles=[];
-    for(let ring=0;ring<profile.length-1;ring++)for(let i=0;i<sides;i++){
-      const a=ring*sides+i,b=ring*sides+(i+1)%sides,c=a+sides,d=b+sides;
-      triangles.push([a,b,d],[a,d,c]);
-    }
-    const last=(profile.length-1)*sides;
-    for(let i=1;i<sides-1;i++)triangles.push([0,i+1,i],[last,last+i,last+i+1]);
-    return makeMesh(vertices,triangles);
-  }
-  function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
+  async function preparePlasticWeld({plan,placed,componentShells,processForAssignment}){
     const settings=plan.skills?.['plastic-weld'];if(!settings?.enabled)return {sites:[],notes:[]};
-    const notes=[],sites=settings.sites.flatMap(site=>{
-      try{return [prepareSite(site)];}catch(error){notes.push('Rivet '+site.id+' produces nothing: '+error.message);return [];}
-    });
+    const sites=[],notes=[];
+    for(const site of settings.sites){
+      try{sites.push(await prepareSite(site));}
+      catch(error){notes.push('Rivet '+site.id+' produces nothing: '+error.message);}
+    }
     return {sites,notes};
-    function prepareSite(site){
+    async function prepareSite(site){
       requireThat(componentShells?componentShells.has(site.part):site.part===null,'Rivet site must select its native component.');
       const id='plastic-weld:'+site.id,process=processForAssignment({part:site.part});
       const shell=componentShells?componentShells.get(site.part):placed;
-      const component=componentShells?plan.geometry.parts.find(p=>p.id===site.part):null;
-      const x=(component?.xMm??0)+site.xMm,y=(component?.yMm??0)+site.yMm;
-      const min=shell.bounds.min[2],first=min+process.firstLayerMm;
-      const onGrid=z=>{const k=Math.round((z-first)/process.layerMm);return k>=0?first+k*process.layerMm:z-min<process.firstLayerMm/2?min:first;};
-      const last=first+Math.floor((shell.bounds.max[2]-first+PRINT_RESOLUTION_MM)/process.layerMm)*process.layerMm;
-      const bottom=onGrid(min+site.zBottomMm),top=Math.min(onGrid(min+site.zTopMm),last);
-      requireThat(top>bottom+PRINT_RESOLUTION_MM,'Rivet '+site.id+' has no depth on its component layer grid.');
-      requireThat(settings.seatDepthMm<top-bottom-PRINT_RESOLUTION_MM,'Rivet insertion depth must remain within its prepared cavity.');
-      const levels=sliceStack({base:horizontalSlice(min),pitchMm:process.layerMm,firstLayerMm:process.firstLayerMm},
-        {...shell.bounds,max:[shell.bounds.max[0],shell.bounds.max[1],top]}).layers.map(layer=>layer.slice.origin[2]).filter(z=>z>bottom+PRINT_RESOLUTION_MM);
-      const radiusAt=z=>settings.shaftDiameterMm/2+(settings.basinDiameterMm-settings.shaftDiameterMm)/2*Math.max(0,1-(z-bottom)/settings.basinHeightMm);
-      const profile=[];let from=bottom,cavityVolumeMm3=0;
-      for(const z of levels){
-        const radius=radiusAt(z-process.layerMm);
-        if(!profile.length||profile.at(-1)[1]!==radius)profile.push([from,radius]);
-        profile.push([z,radius]);
-        cavityVolumeMm3+=Math.abs(regionArea(circle(x,y,radius)))*(z-from);from=z;
-      }
-      const cavity=profileSolid(x,y,profile),widest=Math.max(settings.basinDiameterMm,settings.shaftDiameterMm)/2;
-      const floor=Math.max(min,bottom-settings.floorMm),solid=profileSolid(x,y,[[floor,widest+settings.wallMm],[top,widest+settings.wallMm]]);
+      const component=componentShells?plan.geometry.parts.find(part=>part.id===site.part):null;
+      const offset=[component?.xMm??0,component?.yMm??0,component?.zMm??0];
+      const authored=site.positionMm?site.positionMm:[site.xMm,site.yMm,shell.bounds.min[2]-offset[2]+site.zTopMm];
+      const mouth=authored.map((value,k)=>value+offset[k]);
+      const direction=site.axis??[0,0,-1],axis=direction.map(value=>value/Math.hypot(...direction));
+      const depth=site.depthMm??site.zTopMm-site.zBottomMm;
+      requireThat(settings.seatDepthMm<depth-PRINT_RESOLUTION_MM,'Rivet insertion depth must remain within its prepared cavity.');
+      const neck=Math.max(0,depth-settings.basinHeightMm),profile=[[0,settings.shaftDiameterMm/2]];
+      if(neck>0)profile.push([neck,settings.shaftDiameterMm/2]);
+      profile.push([depth,settings.basinDiameterMm/2]);
+      const cavityGeometry=revolvedProfile({positionMm:mouth,axis,profile}),widest=Math.max(settings.basinDiameterMm,settings.shaftDiameterMm)/2;
+      const envelopeGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[0,widest+settings.wallMm],[depth+settings.floorMm,widest+settings.wallMm]]});
+      const cavity=await buildGeometry(cavityGeometry),solid=await buildGeometry(envelopeGeometry);
+      const cavityVolumeMm3=profile.slice(1).reduce((sum,[s,r],i)=>{
+        const [previous,priorRadius]=profile[i];return sum+Math.PI*(s-previous)*(priorRadius**2+priorRadius*r+r**2)/3;
+      },0);
+      const injection=mouth.map((value,k)=>value+settings.seatDepthMm*axis[k]);
       const assignment=injectionAssignment({id,part:site.part,filament:assignmentFilament(plan,{id,part:site.part}),nozzleC:settings.nozzleC,
-        points:[{point:[x,y,top-settings.seatDepthMm],volumeMm3:cavityVolumeMm3*settings.volumeFactor,
+        points:[{point:injection,direction:axis,volumeMm3:cavityVolumeMm3*settings.volumeFactor,
           flowMm3S:settings.flowMm3S,holdSeconds:settings.holdSeconds,approachMm:settings.seatDepthMm}]});
-      const report={id:site.id,part:site.part,positionMm:assignment.points[0].point,openingMm:top,bottomMm:bottom,
-        cavityVolumeMm3,volumeMm3:assignment.points[0].volumeMm3,nozzleC:settings.nozzleC??plan.setup.nozzleC,flowMm3S:settings.flowMm3S};
-      const notes=Math.max(Math.abs(bottom-min-site.zBottomMm),Math.abs(top-min-site.zTopMm))>PRINT_RESOLUTION_MM?
-        ['Rivet '+site.id+': placed on its component layer grid, Z '+(bottom-min).toFixed(3)+' to '+(top-min).toFixed(3)+' mm above its base.']:[];
-      return {...site,x,y,bottom,top,floor,widest,settings,assignment,process,cavity,solid,report,notes};
+      const top=Math.min(shell.bounds.max[2],solid.bounds.max[2]),bottom=cavity.bounds.min[2],floor=solid.bounds.min[2];
+      const report={id:site.id,part:site.part,positionMm:injection,openingMm:mouth[2],bottomMm:bottom,axis,depthMm:depth,
+        cavityVolumeMm3,volumeMm3:assignment.points[0].volumeMm3,nozzleC:settings.nozzleC??plan.setup.nozzleC,flowMm3S:settings.flowMm3S,
+        cavityGeometry:'rational-surface Boolean cutter'};
+      return {...site,x:mouth[0],y:mouth[1],mouth,axis,depth,bottom,top,floor,widest,settings,assignment,process,cavity,solid,cavityGeometry,envelopeGeometry,report,notes:[]};
     }
   }
   function weldWork(sites){
@@ -101,19 +89,19 @@ export function plasticWeldRuntime({Geometry,Recipe}){
       nominalRank:site.top,context:{details:{site},assignment:site.assignment,process:site.process},requires:[],
       report:{sites:[site.report],physicalValidation:'not performed',notes:site.notes}}));
   }
+  function encloses(site,node){
+    if(node.kind!=='slice')return false;
+    return node.layers.some(layer=>{
+      const envelope=section(site.solid,layer.slice).loops;
+      return envelope.length&&Math.abs(regionArea(intersect(layer.region,envelope)))>0;
+    });
+  }
   function weldDependencies(node,nodes){
     const needs=new Set();
     for(const other of nodes){
       if(other===node||other.part!==node.part)continue;
-      if(node.construction==='rivet'&&other.kind==='slice'&&!other.reference){
-        const site=node.details.site,footprint=circle(site.x,site.y,site.widest+site.settings.wallMm);
-        if(other.layers.some(layer=>{
-          const points=layer.region.map(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point)),flat=points.flat();
-          return flat.length&&Math.min(...flat.map(p=>p[2]))<=site.top+PRINT_RESOLUTION_MM&&Math.max(...flat.map(p=>p[2]))>site.floor+PRINT_RESOLUTION_MM&&
-            Math.abs(regionArea(intersect(points.map(loop=>loop.map(p=>p.slice(0,2))),footprint)))>PRINT_RESOLUTION_MM**2;
-        }))needs.add(other.key);
-      }
-      if(other.construction==='rivet'&&node.construction!=='rivet'&&node.heightRange[1]>other.details.site.top+PRINT_RESOLUTION_MM)needs.add(other.key);
+      if(node.construction==='rivet'&&encloses(node.details.site,other))needs.add(other.key);
+      if(other.construction==='rivet'&&node.construction!=='rivet'&&!encloses(other.details.site,node)&&node.heightRange[1]>other.details.site.top+PRINT_RESOLUTION_MM)needs.add(other.key);
     }
     return [...needs];
   }

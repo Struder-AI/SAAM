@@ -1,0 +1,1 @@
+export default async function(G){const outside=G.revolvedProfile({positionMm:[0,0,0],axis:[0,0,1],profile:[[0,3],[5,2]]}),inside=G.revolvedProfile({positionMm:[.12,-.06,1],axis:[0,0,1],profile:[[0,2.35],[5,1.45]]});return {name:'Drafted cup with an eccentric bottom and open mouth',operation:'difference',operands:[await G.buildGeometry(outside),await G.buildGeometry(inside)]};}

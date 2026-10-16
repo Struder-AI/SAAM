@@ -11,7 +11,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   const weldLoaded=plan.skills?.['plastic-weld']?.enabled?await depositionRuntime('plastic-weld',engines):{runtime:null,error:null};
   const weld=weldLoaded.runtime;
   // A rivet site that cannot be prepared is left out with a note.
-  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
+  const {sites,notes}=placed&&weld?await weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
   const vase=vaseLoaded.runtime;
