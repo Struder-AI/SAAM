@@ -38,11 +38,17 @@ export function validateProfile(profile,channel){
 function validateValue(value,channel){
   if(channel==='pose')validatePose(value);else if(channel==='materialNormal')normal(value);else scalar(value);
 }
+// Profile interpolation and local range estimates share finite scalar arithmetic.
+export function interpolateScalar(x,y,t){
+  if(t===0||x===y)return x;if(t===1)return y;
+  const delta=y-x,value=Number.isFinite(delta)?x+delta*t:x*(1-t)+y*t;
+  return Math.max(Math.min(x,y),Math.min(Math.max(x,y),value));
+}
 export function profileAt(profile,u,side='right'){
   if(!keyed(profile))return profile;
   const [[a,x],[b,y]]=profileInterval(profile,u,side),t=(u-a)/(b-a);
   if(profile.interpolation==='step')return u===1&&side!=='left'?y:x;
-  if(profile.interpolation==='linear')return x+(y-x)*t;
+  if(profile.interpolation==='linear')return interpolateScalar(x,y,t);
   if(profile.interpolation==='frame')return interpolatePose(x,y,t);
   return interpolateDirection(x,y,t);
 }

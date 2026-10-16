@@ -17,7 +17,11 @@ async function prepareConstructions(requests){
   }
   async function construct(request){
     if(request.kind||!request.shape&&request.patches)return {solid:request,geometry:null,notes:request.notes??[]};
-    if(request.shape)return {geometry:request.solid??request,solid:null,notes:[]};
+    if(request.shape){
+      const physical=request.solid??request;
+      const geometry=physical.shape!=='mesh'&&Array.isArray(physical.vertices)&&Array.isArray(physical.triangles)?{shape:'mesh',source:physical.source??null,vertices:physical.vertices,triangles:physical.triangles}:physical;
+      return {geometry,solid:null,notes:[]};
+    }
     if(['union','difference','intersection'].includes(request.operation)){
       const children=[];for(const operand of request.operands)children.push(await prepare(operand));
       if(!children.length){requireThat(request.operation==='union','Difference and intersection need operands.');return {geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},solid:null,notes:[]};}

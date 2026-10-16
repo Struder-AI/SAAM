@@ -3,6 +3,7 @@
 import {add,subtract,scale,dot,cross,length,normalize,requireThat} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {interpolateDirectionPair,rotation,mv} from './frame.mjs';
+import {evaluateScalar} from './nurbs.mjs';
 
 // Serializable convex hull; topology is unnecessary for support-map queries.
 export function convexVolume(vertices){
@@ -91,7 +92,8 @@ export const convexDistance=(a,b)=>convexSeparation(a,b);
 // Separating axes retain zero-thickness faces and avoid simplex degeneracy at
 // local surface contact. side marks orthogonal rectangular bead prisms.
 function prismIntersects(a,b,toleranceMm){
-  const axesA=[normalize(subtract(a.b,a.a)),a.side,a.normal],axesB=[normalize(subtract(b.b,b.a)),b.side,b.normal];
+  const along=shape=>{const delta=subtract(shape.b,shape.a),size=length(delta);return size>0?scale(delta,1/size):cross(shape.side,shape.normal);};
+  const axesA=[along(a),a.side,a.normal],axesB=[along(b),b.side,b.normal];
   const centerA=add(scale(add(a.a,a.b),.5),scale(a.normal,-a.depth/2)),centerB=add(scale(add(b.a,b.b),.5),scale(b.normal,-b.depth/2));
   const spansA=[length(subtract(a.b,a.a))/2,a.radius,a.depth/2],spansB=[length(subtract(b.b,b.a))/2,b.radius,b.depth/2],offset=subtract(centerB,centerA);
   for(const axis of [...axesA,...axesB,...axesA.flatMap(x=>axesB.map(y=>cross(x,y)))]){
@@ -142,10 +144,25 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
   return -s*interval.high<=toleranceMm;
 }
 
+function roundedBody(shape){
+  let body=shape,margin=0;
+  while(body.parts?.length===1){margin+=body.margin??0;body=body.parts[0];}
+  return {body,margin};
+}
 export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
   if(a.side&&b.side)return prismIntersects(a,b,toleranceMm);
-  const sweep=a.fixed&&a.motion?a:b.fixed&&b.motion?b:null,prism=sweep===a?b:a;
-  if(sweep&&prism.side){const hit=fixedConePrismIntersects(sweep,prism,toleranceMm);if(hit!==null)return hit;}
+  const x=roundedBody(a),y=roundedBody(b),expanded=toleranceMm+x.margin+y.margin;
+  // A separating prism axis remains a separating plane after spherical
+  // inflation by its two radii. Passing these axes is only a candidate hit.
+  if(x.body.side&&y.body.side&&!prismIntersects(x.body,y.body,expanded))return false;
+  const sweep=x.body.fixed&&x.body.motion?x.body:y.body.fixed&&y.body.motion?y.body:null,prism=sweep===x.body?y.body:x.body;
+  if(sweep&&prism.side){
+    // The cone side function is 1-Lipschitz: a positive margin larger than
+    // both inflation radii certifies clearance without a rounded-body GJK.
+    const hit=fixedConePrismIntersects(sweep,prism,expanded);
+    if(hit===false)return false;
+    if(hit!==null&&x.margin+y.margin===0)return hit;
+  }
   return convexSeparation(a,b,toleranceMm)<=toleranceMm;
 }
 
@@ -184,17 +201,19 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   return {bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null}={}){
     if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
     const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
+    const rounded=roundedBody(shape),coneTest=rounded.body.fixed&&rounded.body.motion?fixedConeBounds(rounded.body,toleranceMm+rounded.margin):null;
+    const admitted=bounds=>(!boundsTest||boundsTest(bounds))&&(!coneTest||coneTest(bounds));
     function eligible(member){
       if(member.token!==token){member.token=token;member.allowed=(!withinGroups||withinGroups.has(member.group))&&(!acceptGroup||acceptGroup(member.group));member.through=groupPrefixes?.get(member.group)??Infinity;}
       return member.allowed;
     }
     while(pending.length){
       const node=pending.pop(),{group,grouped}=node;
-      if(!boundsOverlap(box,node.bounds,toleranceMm)||boundsTest&&!boundsTest(node.bounds))continue;
+      if(!boundsOverlap(box,node.bounds,toleranceMm)||!admitted(node.bounds))continue;
       const status=withinGroups?selected(node.partition,withinGroups):2;if(!status)continue;
       if(grouped&&(firstPerGroup&&settled.has(group)||!eligible(node.member)||node.firstIndex>node.member.through))continue;
       if(node.items){for(const item of node.items){
-        if(!boundsOverlap(box,item.bounds,toleranceMm)||boundsTest&&!boundsTest(item.bounds))continue;
+        if(!boundsOverlap(box,item.bounds,toleranceMm)||!admitted(item.bounds))continue;
         if(item.tree){pending.push(item.tree);continue;}
         const group=item.group;
         if(groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
@@ -273,14 +292,14 @@ export function nozzleIntervalIntersects(sweep,shape,toleranceMm=ROUNDING_MM){
 // The infinite cone's signed side inequality is convex. Its supporting
 // plane at a node's center gives a lower bound over the entire AABB and
 // translated tip segment. A positive bound proves separation before GJK.
-function fixedConeBounds(sweep){
+function fixedConeBounds(sweep,toleranceMm=ROUNDING_MM){
   const axis=sweep.body.normal,halfAngle=sweep.motion.includedAngleDeg*Math.PI/360,c=Math.cos(halfAngle),s=Math.sin(halfAngle);
   const tip=add(sweep.body.a,scale(sweep.sweep,.5));
   return bounds=>{
     const q=bounds.min.map((v,k)=>(v+bounds.max[k])/2-tip[k]),z=dot(q,axis),radial=subtract(q,scale(axis,z)),r=length(radial);
     const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
     const lower=(r>ROUNDING_MM?c*r:0)-s*z-bounds.min.reduce((sum,v,k)=>sum+Math.abs(gradient[k])*(bounds.max[k]-v)/2,0)-Math.abs(dot(gradient,sweep.sweep))/2;
-    return lower<=ROUNDING_MM;
+    return lower<=toleranceMm;
   };
 }
 
@@ -402,7 +421,21 @@ export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stock
   const reach=Math.hypot(...bounds.min.map((value,k)=>Math.max(Math.abs(stockBounds.min[k]-bounds.max[k]),Math.abs(stockBounds.max[k]-value))))+PRINT_RESOLUTION_MM;
   const reference=poseCone.reference,motion={from,to,fromPose:reference,toPose:reference,lengthMm:reach,
     includedAngleDeg:DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm};
-  const body=nozzleInterval(motion,0,1),halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
+  const halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360,angle=poseCone.halfAngleRad;
+  if(angle>0&&halfAngle+angle<Math.PI/2){
+    // For every permitted axis, the cone side distance is enclosed by the
+    // reference-axis cone enlarged by that angular deviation, with the SAME
+    // surface forgiveness. Its eroded apex retreats by f/sin(enlarged angle).
+    // Unlike a stock-radius ball inflation, this retains the clear half-space
+    // near the tip even when distant stock makes the cone effectively long.
+    const includedAngleDeg=(halfAngle+angle)*360/Math.PI;
+    const body=nozzleInterval({...motion,includedAngleDeg},0,1);
+    const deviation=reach*(Math.tan(halfAngle+angle)-Math.tan(halfAngle))+
+      forgivenessMm*(1/Math.sin(halfAngle)-1/Math.sin(halfAngle+angle));
+    return {shape:chordErrorMm?{parts:[body],margin:chordErrorMm}:body,
+      errorMm:chordErrorMm+deviation,exact:false};
+  }
+  const body=nozzleInterval(motion,0,1);
   const radius=(reach+forgivenessMm/Math.sin(halfAngle))/Math.cos(halfAngle);
   const errorMm=chordErrorMm+radius*2*Math.sin(poseCone.halfAngleRad/2);
   return {shape:errorMm?{parts:[body],margin:errorMm}:body,errorMm,exact:errorMm===0};
@@ -436,4 +469,52 @@ export function translationContactInterval(body,translation,obstacle,{resolution
     if(hits(mid))right.lo=mid;else right.hi=mid;
   }
   return {from:left.lo,to:right.hi,at:search.hit,entry:[left.lo,left.hi],exit:[right.lo,right.hi]};
+}
+
+// A numerical reference height field, used only for separation certificates.
+// It need not coincide with any printed material. Actual curve controls/vertices
+// are bounded against it, so selecting it never assigns a native layer or fills
+// a sparse layer surface. Clamping its parameter coordinates extends the graph
+// globally with the same certified Lipschitz bound.
+export function referenceHeightGraph(patch,direction){
+  if(!patch?.cp||patch.orderU<2||patch.orderV<2)return null;
+  const w=patch.cp[3];if(!(w>0))return null;
+  const points=[];for(let i=0;i<patch.nu*patch.nv;i++){
+    if(patch.cp[i*4+3]!==w)return null;
+    points.push([0,1,2].map(k=>patch.cp[i*4+k]/w));
+  }
+  const axis=normalize(direction),origin=points[0],project=v=>subtract(v,scale(axis,dot(v,axis)));
+  const U=scale(project(subtract(points[(patch.nu-1)*patch.nv],origin)),1/(patch.domainU[1]-patch.domainU[0]));
+  const V=scale(project(subtract(points[patch.nv-1],origin)),1/(patch.domainV[1]-patch.domainV[0]));
+  const E=dot(U,U),F=dot(U,V),G=dot(V,V),det=E*G-F*F;
+  if(!(det>ROUNDING_RELATIVE*E*G))return null;
+  const dualU=scale(subtract(scale(U,G),scale(V,F)),1/det),dualV=scale(subtract(scale(V,E),scale(U,F)),1/det);
+  const heights=points.map(point=>dot(point,axis)),gradient=[0,0];
+  for(let i=0;i<patch.nu;i++)for(let j=0;j<patch.nv;j++){
+    if(i+1<patch.nu){const span=patch.knotsU[i+patch.orderU]-patch.knotsU[i+1];if(span>0)
+      gradient[0]=Math.max(gradient[0],(patch.orderU-1)*Math.abs(heights[(i+1)*patch.nv+j]-heights[i*patch.nv+j])/span);}
+    if(j+1<patch.nv){const span=patch.knotsV[j+patch.orderV]-patch.knotsV[j+1];if(span>0)
+      gradient[1]=Math.max(gradient[1],(patch.orderV-1)*Math.abs(heights[i*patch.nv+j+1]-heights[i*patch.nv+j])/span);}
+  }
+  const slope=(gradient[0]*length(dualU)+gradient[1]*length(dualV))*(1+ROUNDING_RELATIVE)+ROUNDING_RELATIVE;
+  const guard=ROUNDING_MM*8*(1+slope);
+  function residual(point){
+    const delta=subtract(point,origin),u=patch.domainU[0]+dot(delta,dualU),v=patch.domainV[0]+dot(delta,dualV);
+    return dot(point,axis)-evaluateScalar(patch,heights,u,v);
+  }
+  function curveBounds(geometry){
+    const vertices=geometry.kind==='polyline'?geometry.points:geometry.kind==='nurbs'?geometry.controlPoints:null;
+    if(!vertices)return null;
+    let low=Infinity,high=-Infinity,previous=null,previousValue=0;
+    for(const point of vertices){const value=residual(point);
+      if(previous){const allowance=geometry.kind==='polyline'?slope*length(project(subtract(point,previous)))/2:0;
+        low=Math.min(low,value,previousValue-allowance,value-allowance);high=Math.max(high,value,previousValue+allowance,value+allowance);
+      }else{low=value;high=value;}previous=point;previousValue=value;
+    }
+    if(geometry.kind==='nurbs'){
+      const bounds=convexBounds({vertices}),diameter=length(subtract(bounds.max,bounds.min));low-=slope*diameter;high+=slope*diameter;
+    }
+    return [low-guard,high+guard];
+  }
+  return {axis,slope,residual,curveBounds};
 }

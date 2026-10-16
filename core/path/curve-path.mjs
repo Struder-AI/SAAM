@@ -2,7 +2,7 @@
 // Handles prepare geometry only; local queries and streaming retain source u.
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,normalCone,frameCone} from '../geom/curve-query.mjs';
-import {validateProfile,validateKeys,keyed,profileAt,profileInterval,profileValues,scalarRange,interiorKeys} from './curve-profiles.mjs';
+import {validateProfile,validateKeys,keyed,profileAt,profileInterval,profileValues,scalarRange,interiorKeys,interpolateScalar} from './curve-profiles.mjs';
 import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 
 // Display/program local views share explicit tolerances, independent of the
@@ -217,7 +217,8 @@ function* courseIntervals(course,from,to){
 }
 function* attributeSpans(handle,id,from,to,options){
   const integral={...options,volumeToleranceMm3:options.volumeToleranceMm3/2};
-  for(const span of curveSpans(handle,id,from,to,integral))yield* linearAttributeSpans(handle,id,span,from,to,options);
+  const speedScale=Math.max(...scalarRange(selected(handle,id).profiles.speedMmS,from,to).map(Math.abs));
+  for(const span of curveSpans(handle,id,from,to,integral))yield* linearAttributeSpans(handle,id,span,from,to,options,speedScale);
 }
 function materialInterpolationError(handle,id,span){
   const curve=selected(handle,id),material=curve.profiles.material;
@@ -226,26 +227,26 @@ function materialInterpolationError(handle,id,span){
   const low=Math.min(a,b)*geometry.speed[0],high=Math.max(a,b)*geometry.speed[1];
   return (high-low)*(span.to-span.from)/4;
 }
-function* linearAttributeSpans(handle,id,span,from,to,options){
+function* linearAttributeSpans(handle,id,span,from,to,options,speedScale){
   const {start,end}=span,widthMm=Math.max(start.widthMm??1,end.widthMm??1),scale=options.positionToleranceMm/widthMm;
-  const speed=Math.max(Math.abs(start.speedMmS),Math.abs(end.speedMmS));
+  // A range-wide scale stays finite when an admitted speed reaches zero.
   const smooth=Math.abs((start.widthMm??0)-(end.widthMm??0))<=options.positionToleranceMm&&
-    (speed===0||Math.abs(start.speedMmS-end.speedMmS)/speed<=Math.sqrt(scale))&&
+    (speedScale===0||Math.abs(start.speedMmS-end.speedMmS)/speedScale<=Math.sqrt(scale))&&
     (!span.range.normalCone||span.range.normalCone.halfAngleRad<=scale)&&
     materialInterpolationError(handle,id,span)<=options.volumeToleranceMm3/2;
   if(smooth){yield span;return;}
   const mid=(span.from+span.to)/2;requireThat(mid>span.from&&mid<span.to,'Attribute view cannot reach requested precision.');
   for(const [a,b] of [[span.from,mid],[mid,span.to]]){
     const childOptions={...options,volumeToleranceMm3:options.volumeToleranceMm3*(b-a)/(to-from)/2};
-    for(const child of curveSpans(handle,id,a,b,childOptions))yield* linearAttributeSpans(handle,id,child,from,to,options);
+    for(const child of curveSpans(handle,id,a,b,childOptions))yield* linearAttributeSpans(handle,id,child,from,to,options,speedScale);
   }
 }
 function spanMove(span){
-  const {start,end,range}=span,volumeMm3=range.volumeMm3?(range.volumeMm3[0]+range.volumeMm3[1])/2:0;
-  const width=start.widthMm===undefined?undefined:(start.widthMm+end.widthMm)/2;
-  return {kind:'move',to:end.point,pose:end.pose,speedMmS:(start.speedMmS+end.speedMmS)/2,volumeMm3,
+  const {start,end,range}=span,volumeMm3=range.volumeMm3?interpolateScalar(...range.volumeMm3,.5):0;
+  const width=start.widthMm===undefined?undefined:interpolateScalar(start.widthMm,end.widthMm,.5);
+  return {kind:'move',to:end.point,pose:end.pose,speedMmS:interpolateScalar(start.speedMmS,end.speedMmS,.5),volumeMm3,
     speedFromMmS:start.speedMmS,speedToMmS:end.speedMmS,
     ...(width!==undefined?{beadWidthMm:width}:{}),...(start.materialNormal?{surfaceNormal:start.materialNormal}:{}),
-    ...(width&&range.lengthMm[1]>0?{beadHeightMm:volumeMm3/((range.lengthMm[0]+range.lengthMm[1])/2)/width}:{}),
+    ...(width&&range.lengthMm[1]>0?{beadHeightMm:volumeMm3/interpolateScalar(...range.lengthMm,.5)/width}:{}),
     sourceRange:{from:span.from,to:span.to}};
 }

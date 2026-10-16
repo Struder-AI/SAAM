@@ -88,7 +88,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
 // batch. A witnessed conflict releases only the implicated native-layer edge.
 
 function preferNativeLayers(source,graph,relaxed){
-  const layers=new Map(),stacks=new Map(),edges=[];
+  const layers=new Map(),stacks=new Map(),edges=[];graph.layerGroups=new Map();
   function barrier(prototype,kind){
     const value={...prototype,id:'schedule:'+graph.nodes.length,ranges:[],entry:null,exit:null,barrier:kind,
       label:'native layer '+prototype.layerId};
@@ -102,7 +102,7 @@ function preferNativeLayers(source,graph,relaxed){
     const native=source.layers[id];requireThat(native,'Scheduling needs the producer native layer record.');
     const begin=barrier(groups[0].begin,'layer-begin'),end=barrier(groups[0].end,'layer-end');
     for(const group of groups){graph.prerequisites.get(group.begin.id).add(begin.id);graph.prerequisites.get(end.id).add(group.end.id);}
-    const value={id,begin,end,index:native.index};
+    const value={id,begin,end,index:native.index};graph.layerGroups.set(id,value);
     if(!stacks.has(native.stackId))stacks.set(native.stackId,[]);stacks.get(native.stackId).push(value);
   }
   for(const stack of stacks.values()){
@@ -129,17 +129,30 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
     const graph=prepareSourceUnits(source,reader,{cuts}),layerEdges=preferNativeLayers(source,graph,relaxed);
-    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[]};history.solves++;
+    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[],promotions:[]};history.solves++;
     try{
       // Establish native groups and process barriers before any fine occupancy.
       const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:layerEdges});
       state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
+      const promoted=new Map();
+      function precedes(before,after){
+        return proofs.proves(before,after)||(promoted.get(before)??[]).some(id=>id===after||proofs.proves(id,after));
+      }
       function addEdge(before,after,kind,witness){
         if(before===after||graph.prerequisites.get(after).has(before))return;
-        if(proofs.proves(after,before))progress.cyclic=true;
+        if(precedes(after,before))progress.cyclic=true;
         graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness});
+      }
+      function preferWholeLayer(unit,hit){
+        const layer=graph.layerGroups.get(hit.unit.layerId);
+        if(progress.cyclic||!layer||unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
+        const key=JSON.stringify(['access-layer',unit.sourceOperation,unit.ranges.map(r=>[r.id,r.from,r.to]),hit.unit.layerId]);
+        if(relaxed.has(key)||precedes(unit.id,layer.begin.id))return;
+        addEdge(unit.id,layer.begin.id,'access-layer-choice',null);
+        const edge=state.edges.at(-1);edge.key=key;state.promotions.push(edge);
+        if(!promoted.has(unit.id))promoted.set(unit.id,[]);promoted.get(unit.id).push(layer.begin.id);
       }
       for(const unit of graph.units){
         for(const requirement of unit.operation.requiredMaterial??[]){
@@ -151,37 +164,39 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         if(progress.cyclic)break;
       }
       if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
+        onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
+        state.scene.verifySelf(unit);
+        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!precedes(unit.id,id)&&
+          !state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId))){
+          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeLayer(unit,hit);
+        }
+        if(progress.cyclic)break;
+      }
+      if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
         onProgress?.({stage:'Resolving curve substrate',completed,total:graph.units.length});
         for(const hit of state.scene.supportHits(unit,id=>{
-          if(id===unit.id||proofs.proves(id,unit.id))return false;
+          if(id===unit.id||precedes(id,unit.id))return false;
           const other=graph.byId.get(id),a=source.layers[unit.layerId],b=source.layers[other.layerId];
           if(a&&b&&(unit.layerId===other.layerId||a.surfaceId===b.surfaceId||a.stackId===b.stackId&&b.index>=a.index))return false;
           return true;
         }))addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
         if(progress.cyclic)break;
       }
-      if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
-        onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
-        state.scene.verifySelf(unit);
-        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!proofs.proves(unit.id,id)&&
-          !state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)))addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);
-        if(progress.cyclic)break;
-      }
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...layerEdges,...state.edges]});
       return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,
-        edges:state.edges,refinement:{...history,relaxedLayerEdges:relaxed.size,splitCourses:cuts.size}};
+        edges:state.edges,refinement:{...history,relaxedLayerEdges:relaxed.size,wholeLayerChoices:state.promotions.length,splitCourses:cuts.size}};
     }catch(error){
       if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
-      if(relaxNativeLayers(error,layerEdges,relaxed))continue;
+      if(relaxNativeLayers(error,[...layerEdges,...state.promotions],relaxed))continue;
       if(!state.scene)throw error;
       const reasons=error.physicalDependencies??[];
-      if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&authored.has(graph.byId.get(edge.after).sourceOperation,graph.byId.get(edge.before).sourceOperation)))throw error;
-      for(const edge of reasons)if(edge.kind==='nozzle-access'){
+      if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&!edge.witness?.provisional&&authored.has(graph.byId.get(edge.after).sourceOperation,graph.byId.get(edge.before).sourceOperation)))throw error;
+      for(const edge of reasons)if(edge.kind==='nozzle-access'&&!edge.witness?.provisional){
         const witness=state.scene.mutualConflict(edge.witness?.receiver,edge.witness?.material);
         if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
           {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[graph.byId.get(edge.before).sourceOperation,graph.byId.get(edge.after).sourceOperation]});
       }
-      for(const nozzle of reasons)if(nozzle.kind==='nozzle-access'){
+      for(const nozzle of reasons)if(nozzle.kind==='nozzle-access'&&!nozzle.witness?.provisional){
         const blocker=graph.byId.get(nozzle.after);
         const atomic=!blocker.operation.interruptible||blocker.ranges.every(range=>!range.interruptible);
         if(!atomic)continue;
@@ -198,8 +213,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       const uncertain=reasons.filter(edge=>edge.witness?.provisional);
       if(uncertain.length){
         for(const edge of uncertain){
-          const witness=edge.witness,key=JSON.stringify([witness.receiver.id,witness.material.id]);
-          if(witness.precision<=ROUNDING_MM)throw Object.assign(Error('Material contact order is unresolved at numerical precision.'),{code:'SUPPORT_CONTACT_UNRESOLVED',witness});
+          const witness=edge.witness,key=JSON.stringify([...(edge.kind==='nozzle-access'?['nozzle-access']:[]),witness.receiver.id,witness.material?.id??null]);
+          if(witness.precision<=ROUNDING_MM)throw Object.assign(Error('Contact order is unresolved at numerical precision.'),{code:edge.kind==='nozzle-access'?'CURVE_CLEARANCE_UNRESOLVED':'SUPPORT_CONTACT_UNRESOLVED',witness});
           supportPrecision.set(key,witness.precision/2);
         }
         continue;
@@ -261,7 +276,8 @@ export function planSourceComposition(initialState,source,reader,onProgress){
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{nozzleScene:scene,
     summary:{hierarchy:solved.hierarchy,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{substrateDependencies:count('substrate'),nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material'),
-        conservativeSupportChoices:solved.edges.filter(edge=>edge.witness?.provisional).length},queries:{...scene.stats}}});
+        conservativeSupportChoices:solved.edges.filter(edge=>edge.kind==='substrate'&&edge.witness?.provisional).length,
+        conservativeNozzleChoices:solved.edges.filter(edge=>edge.kind==='nozzle-access'&&edge.witness?.provisional).length},queries:{...scene.stats}}});
 }
 
 // Ordering-only callers use the same admitted source and solver as scheduling.

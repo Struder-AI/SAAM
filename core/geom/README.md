@@ -369,7 +369,8 @@ Input solids require positive material volume. Ordinary native spline slicing in
 
 Text, Gridfinity and heat-set records retain their editable inputs and an ordinary
 `solid`. Reopening uses that source without rerunning feature compilation; legacy
-vertices/triangles records remain readable. Meshes are derived for display or an
+vertices/triangles remain readable and contribute physical meshes to composition.
+Meshes are derived for display or an
 operation requiring them, never substituted for the saved construction.
 Text edits rebuild through [the preparation entry](../../skills/text/scripts/text.mjs),
 then ordinary Bundle publication invalidates the program; assembly identity/placement stays.

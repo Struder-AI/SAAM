@@ -37,7 +37,8 @@ export function interpolateDirectionPair(a,b,t){
     (matrix[i][principal]+matrix[principal][i])/(4*Math.sqrt(Math.max(0,(matrix[principal][principal]+1)/2))));
   // Small authored rotations remain continuous even below print resolution.
   // Near a half turn use the symmetric matrix; elsewhere the skew is stable.
-  const seed=cosine<0&&sine<Math.sqrt(FLOAT64_EPSILON)?halfTurn:skew;
+  const alignedHalfTurn=dot(halfTurn,skew)<0?scale(halfTurn,-1):halfTurn;
+  const seed=cosine<0&&sine<Math.sqrt(FLOAT64_EPSILON)?alignedHalfTurn:skew;
   const norm=length(seed),axis=seed.map(value=>value/norm),c=Math.cos(angle*t),s=Math.sin(angle*t);
   return a.map(v=>add(add(scale(v,c),scale(cross(axis,v),s)),scale(axis,dot(axis,v)*(1-c))));
 }

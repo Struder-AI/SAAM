@@ -3,7 +3,7 @@
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
 import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,NOZZLE_FORGIVENESS_MM,
   convexBounds,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
-  nozzleIntervalIntersects,translationContactInterval} from '../geom/convex-clearance.mjs';
+  nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,subtract,length,requireThat} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
@@ -20,6 +20,43 @@ function controlVertices(geometry){
   if(geometry.kind==='polyline')return geometry.points;
   if(geometry.kind==='nurbs')return geometry.controlPoints;
   return null;
+}
+
+function graphNozzleProofs(source,reader,rangeOf){
+  const first=Object.values(source.operations).find(op=>op.kind==='deposit'),course=first?.courses[0];
+  if(!course)return null;
+  const axis=scale(curveAt(reader,course.curveId,course.from).pose.toolAxis,-1);
+  let graph=null;
+  for(const surface of Object.values(source.surfaces)){graph=referenceHeightGraph(surface.referencePatch??surface.patch,axis);if(graph)break;}
+  if(!graph)return null;
+  const curves=new Map(),courses=new Map(),slices=new Map(),metric=Math.hypot(1,graph.slope);
+  for(const operation of Object.values(source.operations)){
+    if(operation.kind!=='deposit')continue;
+    for(const course of operation.courses){
+      if(!curves.has(course.curveId))curves.set(course.curveId,graph.curveBounds(source.curves[course.curveId].geometry));
+      const residual=curves.get(course.curveId);if(!residual)continue;
+      const range=rangeOf(course),offset=metric*(range.widthMm[1]/2+range.areaMm2[1]/range.widthMm[0]);
+      const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
+      const angle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360+deviation;
+      const tip=angle<Math.PI/2&&graph.slope<1/Math.tan(angle)?residual[0]+NOZZLE_FORGIVENESS_MM/Math.sin(angle):-Infinity;
+      const value={min:residual[0]-offset,max:residual[1]+offset,tip};courses.set(course.id,value);
+      if(operation.layerId!==null){
+        if(!slices.has(operation.layerId))slices.set(operation.layerId,{min:Infinity,max:-Infinity,tip:Infinity});
+        const slice=slices.get(operation.layerId);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
+      }
+    }
+  }
+  // Atomic occupied solids and unsupported curves cannot inherit a proof from
+  // another moving course in the same source layer.
+  for(const op of Object.values(source.operations))if(op.layerId!==null&&(op.kind!=='deposit'||op.courses.some(c=>!courses.has(c.id))))slices.delete(op.layerId);
+  const clear=(a,b)=>Boolean(a&&b&&a.tip>b.max+ROUNDING_MM);
+  return {slope:graph.slope,courses:courses.size,
+    clear:(a,b)=>clear(slices.get(a),slices.get(b)),
+    unitClear:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&
+      a.ranges.every(x=>b.ranges.every(y=>clear(courses.get(x.id),courses.get(y.id)))),
+    materialApart:(a,b)=>a.operation.kind==='deposit'&&b.operation.kind==='deposit'&&!b.operation.occupied&&a.ranges.every(x=>b.ranges.every(y=>{
+      const p=courses.get(x.id),q=courses.get(y.id);return p&&q&&(p.max+PRINT_RESOLUTION_MM*metric<q.min||q.max+PRINT_RESOLUTION_MM*metric<p.min);
+    }))};
 }
 
 export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
@@ -70,7 +107,12 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
     }
   }
   const eligible=[...slices.values()].filter(slice=>slice.eligible&&slice.courses);
-  return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length},clear(depositingLayer,materialLayer){
+  if(!queries.reader)queries.reader=prepareCurvePath(source);
+  const graph=graphNozzleProofs(source,queries.reader,rangeOf);
+  return {slices,summary:{slices:slices.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null},
+    unitClear:(a,b)=>graph?.unitClear(a,b)??false,materialApart:(a,b)=>graph?.materialApart(a,b)??false,
+    clear(depositingLayer,materialLayer){
+    if(graph?.clear(depositingLayer,materialLayer))return true;
     const a=slices.get(depositingLayer),b=slices.get(materialLayer);
     return Boolean(a?.eligible&&b?.eligible&&a.courses&&b.courses&&equalVector(a.normal,b.normal)&&a.minTip>b.maxMaterial+ROUNDING_MM);
   }};
@@ -79,7 +121,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
 export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=PRINT_RESOLUTION_MM/8}={}){
-  const stats={rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0};
+  const stats={rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const cache=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   function remember(key,record){
@@ -153,9 +195,37 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     if(i%256===0)onProgress?.({stage:'Preparing curve bounds',completed:i,total:units.length});
   }
   const proxy=convexSpatialIndex(boxes,{groups:bodies.map(body=>body.unit.id),partitions:bodies.map(body=>body.unit.layerId??body.unit.operation)});
-  const proofs=sliceNozzleProofs(source,{reader,ranges:new Map([...byId.values()].flatMap(body=>body.records.map(record=>[record.ref.id,record.range])))});
+  const originalCourses=new Map(Object.values(source.operations).flatMap(op=>(op.courses??[]).map(course=>[course.id,course])));
+  const fullRanges=new Map([...byId.values()].flatMap(body=>body.records.filter(record=>{
+    const original=originalCourses.get(record.ref.id);return original.from===record.ref.from&&original.to===record.ref.to;
+  }).map(record=>[record.ref.id,record.range])));
+  const proofs=sliceNozzleProofs(source,{reader,ranges:fullRanges});
   function candidates(shape,acceptGroup,boundsTest=null){
     return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest}).map(index=>bodies[index]);
+  }
+  const regionalIndexes=new Map(),regionalLimit=16*1024*1024;
+  function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]*2,record.depth[1]);}
+  function regionalMaterial(body,shape){
+    let local=regionalIndexes.get(body.unit.id);
+    if(local){regionalIndexes.delete(body.unit.id);regionalIndexes.set(body.unit.id,local);}
+    else{
+      const pending=[...body.records],cells=[];
+      while(pending.length){
+        const record=pending.pop(),envelope=material(record);if(!envelope)continue;
+        if(envelope.errorMm>sectionScale(record)){const children=divide(record);if(children){pending.push(...children);continue;}}
+        cells.push({ref:record.ref,shape:envelope.shape});
+      }
+      local={cells,index:cells.length?convexSpatialIndex(cells.map(cell=>cell.shape)):null,bytes:cells.length*1024};
+      stats.materialIndexBuilds++;stats.materialIndexCells+=cells.length;
+      if(local.bytes<=regionalLimit){
+        while(stats.materialIndexBytes+local.bytes>regionalLimit&&regionalIndexes.size){
+          const first=regionalIndexes.keys().next().value;stats.materialIndexBytes-=regionalIndexes.get(first).bytes;regionalIndexes.delete(first);
+        }
+        regionalIndexes.set(body.unit.id,local);stats.materialIndexBytes+=local.bytes;
+        stats.peakMaterialIndexBytes=Math.max(stats.peakMaterialIndexBytes,stats.materialIndexBytes);
+      }
+    }
+    return (local.index?.query(shape,ROUNDING_MM)??[]).map(i=>interval(local.cells[i].ref));
   }
   function parameterAt(ref,u){return u===0?ref.from:u===1?ref.to:ref.from+u*(ref.to-ref.from);}
   function localWitness(record,at){
@@ -226,9 +296,17 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         const face=section(value);
         if(face&&nozzleIntervalIntersects(nb.shape,face,ROUNDING_MM))return {receiver:a.ref,material:localWitness(b,v)};
       }
-      const splitA=mb.exact||!nb.exact&&nb.errorMm>=mb.errorMm;
-      const chosen=splitA?a:b;requireTangent(chosen);
-      const children=divide(chosen);if(!children)throw unresolved(a,b);
+      const precision=typeof supportPrecision==='number'?supportPrecision:
+        supportPrecision.get(JSON.stringify(['nozzle-access',a.ref.id,b?.ref.id??null]))??PRINT_RESOLUTION_MM/8;
+      // A bounded possible obstruction may constrain order without claiming
+      // a collision. If that conservative choice creates a cycle, the solver
+      // tightens this pair; it never reports impossibility from this envelope.
+      if(!localize&&nb.errorMm+mb.errorMm<=precision&&!a.range.breaks.length&&(!b||!b.range.breaks.length))
+        return {receiver:a.ref,material:b?.ref??null,provisional:true,precision};
+      let splitA=mb.exact||!nb.exact&&nb.errorMm>=mb.errorMm,chosen=splitA?a:b;
+      requireTangent(chosen);let children=divide(chosen);
+      if(!children&&!solid){splitA=!splitA;chosen=splitA?a:b;requireTangent(chosen);children=divide(chosen);}
+      if(!children)throw unresolved(a,b);
       for(const child of children)pending.push(splitA?[child,b]:[a,child]);
     }
     return null;
@@ -244,27 +322,29 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       if(!body)continue;
       const shape=kind==='support'?underside(record):body.shape,others=candidates(shape,acceptGroup);
       if(!others.length)continue;
-      const scale=Math.max(PRINT_RESOLUTION_MM,Math.min(record.range.widthMm[0]/4,record.depth[1]/2));
+      const scale=sectionScale(record);
       if(body.errorMm>scale){const children=divide(record);if(children){pending.push(...children);continue;}}
       yield {record,others};
     }
   }
-  function nozzleHits(unit,acceptGroup){
+  function* nozzleHits(unit,acceptGroup){
     const body=byId.get(unit.id),hits=[],seen=new Set();
     if(!bodies.length)return hits;
     if(unit.operation.kind==='inject'){
       const injection=unit.operation.injection,point=injection.at;
       const tool=nozzleCurveEnvelope({from:point,to:point,bounds:{min:point,max:point},chordErrorMm:0,
         poseCone:{reference:injection.pose,halfAngleRad:0}},stock,{forgivenessMm:0}).shape;
-      for(const id of index.query(tool,ROUNDING_MM,{acceptGroup}))hits.push({unit:byId.get(id).unit,witness:{receiver:null,material:null}});
+      for(const id of index.query(tool,ROUNDING_MM,{acceptGroup}))if(acceptGroup(id))yield {unit:byId.get(id).unit,witness:{receiver:null,material:null}};
       return hits;
     }
-    for(const root of body.records)for(const {record,others} of queryRegions(root,'nozzle',id=>!seen.has(id)&&acceptGroup(id)))for(const other of others){
-      if(seen.has(other.unit.id))continue;
+    for(const root of body.records)for(const {record,others} of queryRegions(root,'nozzle',id=>!seen.has(id)&&acceptGroup(id)&&!proofs.unitClear(unit,byId.get(id).unit)))for(const other of others.sort((a,b)=>{
+      const x=source.layers[a.unit.layerId],y=source.layers[b.unit.layerId];return x&&y&&x.stackId===y.stackId?x.index-y.index:0;
+    })){
+      if(seen.has(other.unit.id)||!acceptGroup(other.unit.id))continue;
       const state={witness:null};
       for(const solid of other.solids){state.witness=pair(record,null,solid);if(state.witness)break;}
-      if(!state.witness)for(const candidate of other.records){state.witness=pair(record,candidate);if(state.witness)break;}
-      if(state.witness){seen.add(other.unit.id);hits.push({unit:other.unit,witness:state.witness});}
+      if(!state.witness)for(const candidate of regionalMaterial(other,nozzle(record).shape)){state.witness=pair(record,candidate);if(state.witness)break;}
+      if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
     }
     return hits;
   }
@@ -329,11 +409,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   function supportHits(unit,acceptGroup){
     const hits=[],seen=new Set();
-    for(const root of byId.get(unit.id).records)for(const {record,others} of queryRegions(root,'support',id=>!seen.has(id)&&acceptGroup(id))){
+    for(const root of byId.get(unit.id).records)for(const {record,others} of queryRegions(root,'support',id=>!seen.has(id)&&acceptGroup(id)&&!proofs.materialApart(unit,byId.get(id).unit))){
       for(const other of others){
         if(seen.has(other.unit.id))continue;
         const state={witness:null};
-        for(const candidate of other.records){state.witness=supportPair(record,candidate);if(state.witness)break;}
+        for(const candidate of regionalMaterial(other,underside(record))){state.witness=supportPair(record,candidate);if(state.witness)break;}
         // Stationary occupied solids contribute through explicit material
         // requirements; a convex envelope is not a fabricated substrate face.
         if(state.witness){seen.add(other.unit.id);hits.push({unit:other.unit,witness:state.witness});}
@@ -362,7 +442,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     return hits;
   }
   function verifySelf(unit){
-    if(unit.operation.kind==='inject'||proofs.clear(unit.layerId,unit.layerId))return;
+    if(unit.operation.kind==='inject'||proofs.clear(unit.layerId,unit.layerId)||proofs.unitClear(unit,unit))return;
     const records=byId.get(unit.id).records;
     function conflict(witness){throw Object.assign(Error('A continuous source course blocks its own nozzle access: '+unit.operation.id),
       {code:'CONTINUOUS_NOZZLE_CONFLICT',operation:unit.id,refinementCourses:[unit.id],witness});}
