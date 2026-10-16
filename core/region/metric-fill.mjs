@@ -27,8 +27,6 @@ export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFacto
   const options={toleranceMm:s.toleranceMm,maxStepMm:s.sampleStepMm};
   let points=0,helixStartU=startU;const emitted=[];
   const report={backend:chart.backend,slices:1,points:0,partialAxialPasses:0,fullAxialPasses:0,axialPasses:0,
-    
-    minBeadWidthMm:Infinity,maxBeadWidthMm:0,
     coverage:'Arc-length cells in each U sector; partial axial courses start/end where a cell appears/disappears. Sampled coverage, not a global geodesic guarantee.',
     physicalValidation:'not performed'};
   const newStroke=role=>({role,closed:false,surfaceSamples:[],cellWidthsMm:[],heightMm:s.normalMm,speedMmS:p.planarSpeedMmS});

@@ -31,15 +31,15 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
   Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
   retaining roll. Antipodal normal keys require an authored intermediate direction.
+  New writers connect moving width/feed samples over finite intervals; frame and material-rate changes also occupy nonzero path windows.
 - Keys strictly increase, include 0 and 1, and cover the domain. Step values are
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath
   resolves ordinary three-axis poses explicitly; `materialNormal` never implies pose.
   Travel can omit width, normal and material, but always supplies pose and speed.
 - Material has one authority: `{kind:'area',areaMm2:profile}` integrates nonnegative area against arc length;
-  `{kind:'cumulative',knots:[[u,totalMm3],...]}` is nondecreasing piecewise-linear volume starting at zero.
-  Range volume is its difference, preserving supplied per-edge volumes without move records.
-  Local area is dV/ds; cumulative density bounds use authored span slopes and geometric speed.
+  `{kind:'cumulative',interpolation:'monotone',knots:[[u,totalMm3],...]}` retains every supplied total and interpolates monotone C1 volume. Omitted interpolation retains older linear meaning.
+  One prepared law supplies point rates, interval bounds and stable local integration; never subtract nearly equal evaluated totals. Local area is dV/ds.
   Positive volume on zero length or unbounded density is invalid. No separate height or segment-volume authority.
 - A layer is `{stackId,index,surfaceId}`: Slice's actual native identity and order,
   including adjusted shared-material layers. `surfaces` holds the producer's
@@ -106,6 +106,7 @@ Subdivision tightens bounds; midpoint agreement alone is no certificate. Length/
 Shared numerical shape calculations delegate to Geometry; path/material semantics
 stay here. Consumers can request different resolutions without changing identity,
 profiles or accumulated material. Serialization never rounds range cuts into gaps.
+Geometry/profile/material knots are query information, not compulsory output moves. Physical arc-length tolerance governs nearby view boundaries and material placement; provenance cannot force microscopic extrusion. Unknown movement is a precision finding, not proof of a singularity.
 
 ## Scheduler obligations
 
@@ -128,16 +129,8 @@ turn an unresolved case into success. Bounded caches may evict without losing co
 
 ## Work ownership and migration acceptance
 
-The scheduler task owns `schedule.mjs`, `compose.mjs`, `course-order.mjs`,
-`physical-order.mjs`, `precedence.mjs`, `planning.mjs`, `toolpath.mjs`, scheduling
-diagnostics and `core/geom/convex-clearance.mjs`. The Toolpath/SAAMpath task owns
-curve production/admission, `curve-path.mjs`, `saampath.mjs`, `dependencies.mjs`, the other Toolpath-owned path helpers,
-Bundle joins and Studio/export/other consumer migrations. It updates the source
-contract to `saam-deposition/22` and completion to `saam-neutral-motion/9` together.
-Each task leaves the other's files alone. This document owns contract changes;
-implementation difficulties requiring a changed seam must be raised explicitly.
-The Toolpath task notifies the person before changing Geometry-bin capabilities;
-numerical curve-query additions belong there, not hidden in Toolpath wrappers.
+One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
+Source contract `saam-deposition/23` and completion `saam-neutral-motion/10` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

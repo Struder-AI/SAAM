@@ -26025,10 +26025,6 @@
       "owner": "toolpath",
       "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
     },
-    "core/path/curve-path.mjs::cumulativeAt": {
-      "owner": "toolpath",
-      "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
-    },
     "core/path/curve-path.mjs::density": {
       "owner": "toolpath",
       "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
@@ -26070,10 +26066,6 @@
       "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
     },
     "core/path/curve-path.mjs::linearizePath": {
-      "owner": "toolpath",
-      "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
-    },
-    "core/path/curve-path.mjs::courseIntervals": {
       "owner": "toolpath",
       "reason": "SP2 operation boundary: source-parameter profiles and shared local path views."
     },
@@ -26190,10 +26182,6 @@
       "reason": "SP2 operation boundary: compact source publication and saved path consistency."
     },
     "core/path/construction-path.mjs::channel": {
-      "owner": "path-finalize",
-      "reason": "SP2 operation boundary: compact source publication and saved path consistency."
-    },
-    "core/path/construction-path.mjs::stepChannel": {
       "owner": "path-finalize",
       "reason": "SP2 operation boundary: compact source publication and saved path consistency."
     },
@@ -27642,6 +27630,54 @@
     },
     "core/geom/build.mjs::translateShell::patches.<callback@107:37>::w": {
       "owner": "geometry-leaf-627e4545f233"
+    },
+    "core/path/curve-profiles.mjs::prepareMaterialProfile": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-profiles.mjs::materialInterval": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-profiles.mjs::restrictedRates": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-profiles.mjs::materialProfileDensity": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-profiles.mjs::materialProfileRange": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-profiles.mjs::materialProfileVolume": {
+      "owner": "toolpath",
+      "reason": "One prepared deposition law supplies point density, interval bounds and stable local volume."
+    },
+    "core/path/curve-path.mjs::querySpans": {
+      "owner": "toolpath",
+      "reason": "Physical local path views preserve material and source provenance without treating query keys as compulsory moves."
+    },
+    "core/path/curve-path.mjs::courseLabels": {
+      "owner": "toolpath",
+      "reason": "Physical local path views preserve material and source provenance without treating query keys as compulsory moves."
+    },
+    "core/path/curve-path.mjs::materialInterpolationError": {
+      "owner": "toolpath",
+      "reason": "Physical local path views preserve material and source provenance without treating query keys as compulsory moves."
+    },
+    "core/path/construction-path.mjs::segmentChannel": {
+      "owner": "path-finalize",
+      "reason": "Finalized moving fields interpolate segment samples before immutable publication."
+    },
+    "core/geom/curve-query.mjs::nativeSpan": {
+      "owner": "geometry",
+      "reason": "Native derivative information is prepared at the original knot-span scale before interval restriction."
+    },
+    "core/geom/curve-query.mjs::preparedNativePiece": {
+      "owner": "geometry",
+      "reason": "Native derivative information is prepared at the original knot-span scale before interval restriction."
     }
   },
   "retiredAssignments": [
@@ -29075,6 +29111,21 @@
       "owner": "path-finalize",
       "reason": "Toolpath emits completed deposition as an explicit SAAMpath operation graph.",
       "retired": "Construction output is an explicit record shape."
+    },
+    "core/path/curve-path.mjs::cumulativeAt": {
+      "owner": "toolpath",
+      "reason": "SP2 operation boundary: source-parameter profiles and shared local path views.",
+      "retired": "Replaced by the shared material law and physically bounded view generation, 2026-10-16."
+    },
+    "core/path/curve-path.mjs::courseIntervals": {
+      "owner": "toolpath",
+      "reason": "SP2 operation boundary: source-parameter profiles and shared local path views.",
+      "retired": "Replaced by the shared material law and physically bounded view generation, 2026-10-16."
+    },
+    "core/path/construction-path.mjs::stepChannel": {
+      "owner": "path-finalize",
+      "reason": "SP2 operation boundary: compact source publication and saved path consistency.",
+      "retired": "Replaced by the shared material law and physically bounded view generation, 2026-10-16."
     }
   }
 }

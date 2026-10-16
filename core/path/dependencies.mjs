@@ -7,8 +7,8 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/22'; // SP2 immutable curves, profiles and native layers.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/9'; // SP2 checked source-range execution.
+export const PATH_CONTRACT='saam-deposition/23'; // SP2 finite moving transitions and one compiled material law.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/10'; // Physical views of checked source-range execution.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

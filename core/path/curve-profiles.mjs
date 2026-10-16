@@ -3,6 +3,8 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {validatePose,interpolatePose} from './pose.mjs';
 import {interpolateDirection,dot,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
+import {restrictBezierLine} from '../geom/bezier-net.mjs';
+import {FLOAT64_EPSILON} from '../dimensions.mjs';
 
 export const keyed=profile=>profile!==null&&typeof profile==='object'&&!Array.isArray(profile)&&Array.isArray(profile.knots);
 export function profileInterval(profile,u,side='right'){
@@ -52,11 +54,72 @@ export function profileAt(profile,u,side='right'){
   if(profile.interpolation==='frame')return interpolatePose(x,y,t);
   return interpolateDirection(x,y,t);
 }
-export function profileValues(profile,from,to){
+// Every traversal query is right-continuous at its start and inward at its end.
+// Admission explicitly requests the outgoing endpoint when checking all values.
+export function profileValues(profile,from,to,{endSide='left'}={}){
   if(!keyed(profile))return [profile];
-  return [profileAt(profile,from),...interiorKeys(profile.knots,from,to).map(([,value])=>value),profileAt(profile,to,'left'),profileAt(profile,to)];
+  return [profileAt(profile,from),...interiorKeys(profile.knots,from,to).map(([,value])=>value),profileAt(profile,to,endSide)];
 }
-export function scalarRange(profile,from,to){
-  const values=profileValues(profile,from,to);
+export function scalarRange(profile,from,to,options){
+  const values=profileValues(profile,from,to,options);
   return values.reduce(([lo,hi],value)=>[Math.min(lo,value),Math.max(hi,value)],[Infinity,-Infinity]);
+}
+
+// Compile cumulative material once. Point density, interval density and partial
+// volume all consume these authored interval rates, never tiny differences of
+// independently evaluated accumulated totals. Area material uses the same field
+// machinery with arc length as its measure instead of source parameter.
+export function prepareMaterialProfile(material){
+  if(!material)return null;
+  if(material.kind==='area')return {measure:'length',density:material.areaMm2};
+  requireThat(material.interpolation===undefined||['linear','monotone'].includes(material.interpolation),'Invalid cumulative material interpolation.');
+  const intervals=material.knots.slice(1).map(([to,total],i)=>{
+    const [from,previous]=material.knots[i],volumeMm3=total-previous,rate=volumeMm3/(to-from);
+    requireThat(Number.isFinite(rate),'Authored material rate must be finite.');
+    return {from,to,volumeMm3,rate};
+  });
+  for(const [i,span] of intervals.entries()){
+    const a=material.interpolation==='monotone'?Math.min(span.rate,intervals[i-1]?.rate??span.rate):span.rate;
+    const b=material.interpolation==='monotone'?Math.min(span.rate,intervals[i+1]?.rate??span.rate):span.rate;
+    // Hermite volume endpoints and shared nonnegative slopes. Each endpoint
+    // slope is at most this secant, so every derivative Bernstein control is
+    // nonnegative. The primitive is monotone, C1, and retains every total.
+    const middle=(span.rate-a)+(span.rate-b)+span.rate;
+    requireThat(Number.isFinite(middle),'Material transition exceeds numerical rate precision.');
+    span.coefficients=[[a],[middle],[b]];
+  }
+  return {measure:'parameter',knots:material.knots,intervals};
+}
+function materialInterval(material,u,side){return material.intervals[keyIndex(material.knots,u,side)];}
+function restrictedRates(span,from,to){
+  return restrictBezierLine(span.coefficients,[(from-span.from)/(span.to-span.from),(to-span.from)/(span.to-span.from)]).map(row=>row[0]);
+}
+export function materialProfileDensity(material,u,side='right'){
+  if(material.measure==='length')return profileAt(material.density,u,side);
+  const span=materialInterval(material,u,side),t=(u-span.from)/(span.to-span.from),[a,b,c]=span.coefficients.map(row=>row[0]);
+  return interpolateScalar(interpolateScalar(a,b,t),interpolateScalar(b,c,t),t);
+}
+export function materialProfileRange(material,from,to){
+  if(material.measure==='length')return scalarRange(material.density,from,to);
+  const state={low:Infinity,high:-Infinity};
+  for(let i=keyIndex(material.knots,from,'right');i<material.intervals.length;i++){
+    const span=material.intervals[i];if(span.from>=to)break;
+    const values=restrictedRates(span,Math.max(from,span.from),Math.min(to,span.to));
+    const guard=values.every(value=>value===values[0])?0:FLOAT64_EPSILON*8*Math.max(...values.map(Math.abs));
+    state.low=Math.min(state.low,Math.max(0,Math.min(...values)-guard));state.high=Math.max(state.high,Math.max(...values)+guard);
+  }
+  return [state.low,state.high];
+}
+export function materialProfileVolume(material,from,to){
+  const sum={value:0,remainder:0};
+  const first=keyIndex(material.knots,from,'right');
+  for(let i=first;i<material.intervals.length;i++){
+    const span=material.intervals[i];if(span.from>=to)break;
+    const a=Math.max(from,span.from),b=Math.min(to,span.to);
+    const values=restrictedRates(span,a,b),mean=interpolateScalar(interpolateScalar(values[0],values[2],.5),values[1],1/3);
+    const volume=a===span.from&&b===span.to?span.volumeMm3:mean*(b-a);
+    const adjusted=volume-sum.remainder,next=sum.value+adjusted;
+    sum.remainder=(next-sum.value)-adjusted;sum.value=next;
+  }
+  return sum.value;
 }

@@ -56,8 +56,6 @@ function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCoun
     }
     report.layers++;report.areaMm2+=measured.areaMm2;
   }
-  const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));
-  if(widths.length){report.minBeadWidthMm=Math.min(...widths);report.maxBeadWidthMm=Math.max(...widths);}
   return {id,operations,report,stackLayers};
 }
 

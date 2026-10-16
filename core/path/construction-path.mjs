@@ -10,14 +10,21 @@ function channel(values,parameters,interpolation){
   if(values.every(value=>same(value,values[0])))return values[0];
   return {interpolation,knots:values.map((value,i)=>[parameters[i],value])};
 }
-function stepChannel(values,parameters){
+function segmentChannel(values,parameters){
   if(values.every(value=>same(value,values[0])))return values[0];
-  return {interpolation:'step',knots:[...values.flatMap((value,i)=>!i||!same(value,values[i-1])?[[parameters[i],value]]:[]),[1,values.at(-1)]]};
+  // Segment samples describe a moving field. Connect their centres instead of
+  // turning every sampled value into an instantaneous change at a vertex.
+  const knots=[[0,values[0]]];
+  for(const [i,value] of values.entries()){
+    const u=(parameters[i]+parameters[i+1])/2;
+    if(u>knots.at(-1)[0]&&u<1)knots.push([u,value]);
+  }
+  knots.push([1,values.at(-1)]);return {interpolation:'linear',knots};
 }
 function cumulative(volumes,parameters){
   const state={total:0},knots=[[0,0]];
   for(const [i,volume] of volumes.entries()){state.total+=volume;knots.push([parameters[i+1],state.total]);}
-  return {kind:'cumulative',knots};
+  return {kind:'cumulative',interpolation:'monotone',knots};
 }
 function smoothChannel(stroke,key,parameters,fallback){
   const witness=stroke.profilePath,keys=witness?.vary?.[key];
@@ -64,8 +71,8 @@ function publishedCurve(original,process){
   const poses=stroke.poses??points.map(()=>uprightPose());
   const material=stroke.volumesMm3?cumulative(stroke.volumesMm3,parameters):{kind:'area',areaMm2:stroke.beadAreaMm2};
   return {curve:{geometry:native?native.geometry:{kind:'polyline',points},profiles:{
-    widthMm:smoothChannel(stroke,'beadWidthMm',parameters,stepChannel(widths,parameters)),
-    speedMmS:smoothChannel(stroke,'speedMmS',parameters,stepChannel(speeds,parameters)),
+    widthMm:smoothChannel(stroke,'beadWidthMm',parameters,segmentChannel(widths,parameters)),
+    speedMmS:smoothChannel(stroke,'speedMmS',parameters,segmentChannel(speeds,parameters)),
     materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material}},provenance:sourceProvenance(stroke,metadata,parameters)};
 }
 export function constructionPath({results,planning,composition,summary,generatorVersion}){
