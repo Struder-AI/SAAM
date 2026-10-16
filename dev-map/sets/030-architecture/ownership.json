@@ -27784,6 +27784,15 @@
     "core/path/compose.mjs::resolveSourceOrder": {
       "owner": "scheduling"
     },
+    "core/path/compose.mjs::resolveSourceOrder::selfProofs": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::resolveSourceOrder::access": {
+      "owner": "scheduling"
+    },
+    "core/geom/convex-clearance.mjs::nozzleCurveEnvelope": {
+      "owner": "geometry"
+    },
     "core/path/course-order.mjs::selectTraversal": {
       "owner": "scheduling"
     },

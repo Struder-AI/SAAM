@@ -265,7 +265,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
 
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
-export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY}={}){
+export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY,selfProofs={entries:new Map(),bytes:0}}={}){
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
@@ -612,6 +612,10 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   function verifySelf(unit){
     if(unit.operation.kind==='inject'||proofs.clear(unit.layerId,unit.layerId)||proofs.unitClear(unit,unit))return;
+    // The solve retains one immutable source and nozzle. Every scene reach
+    // covers this material, so self clearance depends only on its traversal.
+    const key=JSON.stringify(unit.ranges.map(ref=>[ref.id,ref.from,ref.to,Boolean(ref.reverse)])),known=selfProofs.entries.get(key);
+    if(known!==undefined){selfProofs.entries.delete(key);selfProofs.entries.set(key,known);return;}
     const records=byId.get(unit.id).records;
     function conflict(witness){throw Object.assign(Error('A continuous source course blocks its own nozzle access: '+unit.operation.id),
       {code:'CONTINUOUS_NOZZLE_CONFLICT',operation:unit.id,refinementCourses:[unit.id],witness});}
@@ -625,6 +629,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         const first=next.ref.reverse?children[1]:children[0],last=next.ref.reverse?children[0]:children[1];
         const hit=pair(last,first);if(hit)conflict(hit);pending.push(...children);
       }
+    }
+    const bytes=key.length*2+128;
+    if(bytes<=cacheLimit){
+      while(selfProofs.bytes+bytes>cacheLimit){const first=selfProofs.entries.keys().next().value;selfProofs.bytes-=selfProofs.entries.get(first);selfProofs.entries.delete(first);}
+      selfProofs.entries.set(key,bytes);selfProofs.bytes+=bytes;
     }
   }
   function cutsForWitness(witness){

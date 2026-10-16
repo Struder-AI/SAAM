@@ -235,6 +235,7 @@ function relaxOrderChoices(error,edges,relaxed){
 
 export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry}={}){
   const cuts=new Map(),relaxed=new Set(),relaxedChunks=new Set(),blockedTraversals=new Set(),supportPrecision=new Map(),history={solves:0,refinements:0};
+  const selfProofs={entries:new Map(),bytes:0};
   const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
   const sourceDependencies=prepareOperationDependencies(Object.values(source.operations),new Map(Object.entries(source.operations)),source.composition);
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
@@ -244,7 +245,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
     try{
       // Establish native groups and process barriers before any fine occupancy.
       const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:choices});
-      state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry});
+      state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry,selfProofs});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
       const promoted=new Map();
@@ -300,7 +301,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       Object.assign(state.scene.proofs.summary,{resolvedAccessLayers:accessLayers.size,resolvedSupportLayers:supportLayers.size});
       if(!progress.cyclic)onProgress?.({stage:'Resolving slice nozzle access',completed:accessLayers.size,total:graph.layerGroups.size});
-      if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
+      // Follow discovered blockers before unrelated source work so opposing
+      // requirements reach the cycle resolver without scanning a whole region.
+      const access={pending:graph.units.toReversed(),visited:new Set()};
+      if(!progress.cyclic)while(access.pending.length){
+        const unit=access.pending.pop();if(access.visited.has(unit.id))continue;
+        const completed=access.visited.size;access.visited.add(unit.id);
         if(accessLayers.has(unit.layerId))continue;
         onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
         try{state.scene.verifySelf(unit);}catch(error){
@@ -310,6 +316,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)&&
           !precedes(unit.id,id))){
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
+          if(progress.cyclic)break;
+          if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }
         if(progress.cyclic)break;
       }
@@ -323,6 +331,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           return true;
         })){
           addEdge(hit.unit.id,unit.id,'substrate',hit.witness);preferWholeGroup(hit.unit,{unit});
+          if(progress.cyclic)break;
         }
         if(progress.cyclic)break;
       }

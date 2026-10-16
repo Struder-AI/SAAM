@@ -476,18 +476,23 @@ export function nozzleCurveEnvelope({from,to,bounds,chordErrorMm,poseCone},stock
   const reference=poseCone.reference,motion={from,to,fromPose:reference,toPose:reference,lengthMm:reach,
     includedAngleDeg,forgivenessMm,tipDiameterMm};
   const halfAngle=includedAngleDeg*Math.PI/360,angle=poseCone.halfAngleRad;
-  if(tipDiameterMm===0&&angle>0&&halfAngle+angle<Math.PI/2){
-    // For every permitted axis, the cone side distance is enclosed by the
-    // reference-axis cone enlarged by that angular deviation, with the SAME
-    // surface forgiveness. Its eroded apex retreats by f/sin(enlarged angle).
-    // Unlike a stock-radius ball inflation, this retains the clear half-space
-    // near the tip even when distant stock makes the cone effectively long.
-    const includedAngleDeg=(halfAngle+angle)*360/Math.PI;
-    const body=nozzleInterval({...motion,includedAngleDeg},0,1);
-    const deviation=reach*(Math.tan(halfAngle+angle)-Math.tan(halfAngle))+
-      forgivenessMm*(1/Math.sin(halfAngle)-1/Math.sin(halfAngle+angle));
+  if(angle>0&&halfAngle+angle<Math.PI/2){
+    // Rotating an eroded cone through angle encloses its side in a cone
+    // widened by that angle, retaining its original side offset. The lowest
+    // flat face is d*cos(angle)-r*sin(angle); its enclosing radius is
+    // r*cos(angle)+d*sin(angle). This also covers a pointed nozzle (r=0).
+    const base=nozzleAt([0,0,0],[0,0,1],reach,includedAngleDeg,forgivenessMm,tipDiameterMm),sine=Math.sin(angle),cosine=Math.cos(angle);
+    const low=base.a[2]*cosine-base.radius*sine,high=base.b[2]+base.endRadius*sine;
+    const radius=base.radius*cosine+base.a[2]*sine,axis=scale(reference.toolAxis,-1),enlarged=(halfAngle+angle)*360/Math.PI;
+    const shifted={...motion,from:add(from,scale(axis,low)),to:add(to,scale(axis,low)),lengthMm:high-low,
+      includedAngleDeg:enlarged,forgivenessMm:0,tipDiameterMm:radius*2};
+    const body=nozzleInterval(shifted,0,1),endRadius=radius+(high-low)*Math.tan(halfAngle+angle);
+    // Bound distance to the reference cone, then to any admitted pose. The
+    // bound converges with the angle; chord uncertainty remains independent.
+    const axialError=Math.max(base.a[2]-low,high-base.b[2]),radialError=Math.max(Math.abs(radius-base.radius),Math.abs(endRadius-base.endRadius));
+    const errorMm=chordErrorMm+Math.hypot(axialError,radialError)+Math.hypot(base.b[2],base.endRadius)*2*Math.sin(angle/2);
     return {shape:chordErrorMm?{parts:[body],margin:chordErrorMm}:body,
-      errorMm:chordErrorMm+deviation,exact:false};
+      errorMm,exact:false};
   }
   const body=nozzleInterval(motion,0,1);
   const radius=nozzleRadiusBound(reach,includedAngleDeg,forgivenessMm,tipDiameterMm);
