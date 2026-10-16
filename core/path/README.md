@@ -4,10 +4,8 @@ Contract **SP2, 2026-10-16** owns the compact source, execution and reader shipp
 
 ## Ownership and pipeline
 
-Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares ownership and interlock cadence before Toolpath.
-Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses.
-Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events.
-Studio and exporters share the numerical reader; exporters own machine axes.
+Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
+Toolpath finalizes Slice/Trace/Inject geometry, connections, Modulation, material and poses. Bundle stores immutable source once; Scheduling orders ranges and adds checked transfers/process events. Studio and exporters share the numerical reader; exporters own machine axes.
 Native layers are producer records; no stage reconstructs them or treats their surfaces as solid.
 Preserve exact native curves; mapping/Modulation can require faithful polylines. Spline fitting is optional and never silently lossy.
 
@@ -47,15 +45,15 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Trace without a native slice has `layerId:null`; do not invent one by height.
 - A moving operation is `{id,kind:'deposit',layerId,processId,filament,after,
   interruptible,courses,...}`. Each course is `{id,curveId,from,to,interruptible,
-  role?,provenance?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
+  role?,provenance?,after?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
   Each whole course is initially one scheduling unit; vertices and profile keys
   do not create execution boundaries. Curves/profile data are referenced, never copied into refinements.
   `processes` deduplicates the existing resolved process records; `planning`
   retains its existing defaults, explicit start and motion settings.
-- `after` names whole source operations. Each predecessor must finish before any
-  of its successor executes. `interruptible:false` makes an operation, or course,
-  atomic. Otherwise pieces may interleave/reorder, preserving each piece's forward
-  direction and all physical/declared constraints. Splitting cannot relax an
+- Operation `after` names whole source operations; course `after` names source-wide courses.
+  Every predecessor must finish before its successor starts. Construction lowers local curve names, including parallel expansions, to these IDs. These are unbreakable manufacturing requirements, never convenience or travel choices.
+  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder,
+  preserving each piece's forward direction and all physical/declared constraints. Splitting cannot relax an
   authored continuous chain; connected atomic chains belong to an atomic operation.
 - A stationary operation has `kind:'inject'`, no courses, and
   `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
@@ -110,7 +108,7 @@ Geometry/profile/material knots are query information, not compulsory output mov
 
 ## Scheduler obligations
 
-Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps.
+Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps. Skills supply manufacturing requirements and deposition geometry. Scheduling owns travel, entry and traversal; connected courses, fill cells and native layer order suggest relaxable choices, not additional requirements.
 Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity, required material and layer cooling
 remain constraints. Cadence is prepared material intent, not a substitute for
 physical scheduling.
@@ -129,7 +127,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/23` and completion `saam-neutral-motion/10` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/25` and completion `saam-neutral-motion/12` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

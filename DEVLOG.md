@@ -1,5 +1,13 @@
 # Development log
 
+## 2026-10-16 — Preserve local manufacturing dependencies through Trace
+
+- Trace curves can name local predecessors with `id` and `after`. Mapping, persistence, modulation and parallel bead expansion retain those declarations; source publication resolves each named predecessor to all its resulting courses. Missing, filtered or collapsed predecessors fail instead of silently dropping the requirement. These remain mandatory; scheduler traversal choices remain relaxable. The source contract advances to `/25`; source and Trace guidance now state that Scheduling owns traversal and travel. Guide line counts: Path 161→159, Trace 34→34.
+- Disposable end-to-end checks pass persisted names, two-course parallel expansion, predecessor completion, equal material with/without the constraint, invalid names and skipped prerequisites. The existing small scheduling probe still relaxes two convenience edges to obey a hard dependency, rejects cycles and validates split-predecessor completion; ordinary/developer material preparation checks still pass. Syntax and whitespace checks pass; no permanent tests or whole suite.
+- Pinned four-part hole-support source (9,204,899 bytes, 10,375 courses, 240 slices) schedules in 8.516 seconds/11.064 CPU seconds, 384,176,128-byte peak RSS, one solve and no refinement. All 1,782 interior connectors now retain their neighboring source-course order; the preceding schedule misplaced 896. Twenty-four still have intervening deposition, so this does not establish uninterrupted traversal. Exact source coverage and mandatory dependencies validate. Evidence: `.local/hierarchical-local-curves-probe.json`, `.local/hierarchical-hole-order-report.json`, `.local/hierarchical-hole-order-check.json`.
+- Entry-aware reversal/seams, automatic skill-specific prerequisites and broader workflow verification remain unfinished. A full map regeneration is already live (PID 12512, verified with its analysis child); no duplicate was launched. No installation, publishing, push or physical machine action.
+- Concurrent Application/Studio image-capture changes ride in this checkpoint under the owner's all-changes rule; the scheduling checks do not validate them.
+
 ## 2026-10-16 — Keep tray requests on the orchestrator contract
 
 - Windows and macOS trays now receive the contract from the orchestrator's launch record instead of independently sending version 2. Rejected status refreshes retain the last runtime/Studio entries and update offer, show a status-unavailable item with the error, and clear it after successful refresh.

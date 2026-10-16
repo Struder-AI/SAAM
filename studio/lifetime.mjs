@@ -26,6 +26,10 @@ export function viewerLifetime(server,{onShutdown=async()=>{},onViewers=()=>{},o
   server.once('close',()=>{lifetime.closing=true;});
   return {shutdown,viewers:()=>viewers.size,
     notify(event,data){for(const res of viewers)res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);},
+    notifyOne(event,data){
+      const viewer=viewers.values().next().value;if(!viewer)return false;
+      viewer.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);return true;
+    },
     attach(res){
       if(lifetime.closing){res.writeHead(503);res.end('Studio is closing.');return;}
       viewers.add(res);onViewers(viewers.size);

@@ -146,13 +146,25 @@ export function constructionPath({results,planning,composition,summary,generator
         ...(operation.occupied||materialGeometry?{occupied:operation.occupied??materialGeometry}:{})};
       continue;
     }
+    const localCourses=new Map();
     const courses=strokes.map((stroke,i)=>{
       const id=operation.id+':course:'+i,curveId='curve:'+id;
+      if(stroke.id!==undefined){
+        requireThat(typeof stroke.id==='string'&&stroke.id.length>0,'A local curve id must be a nonempty string.');
+        if(!localCourses.has(stroke.id))localCourses.set(stroke.id,[]);
+        localCourses.get(stroke.id).push(id);
+      }
       const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,role:stroke.role,
-        ...(stroke.after?.length?{after:stroke.after}:{}),
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
+    // Mapping and parallel bead construction may expand one named curve into
+    // several courses. Its dependents need all of them, regardless of order.
+    for(const [i,stroke] of strokes.entries())if(stroke.after!==undefined){
+      requireThat(Array.isArray(stroke.after)&&stroke.after.every(id=>localCourses.has(id)&&id!==stroke.id),
+        'A required curve predecessor must be present in the same deposition batch.');
+      courses[i].after=[...new Set(stroke.after.flatMap(id=>localCourses.get(id)))];
+    }
     if(!interruptible)continuousProfiles(curves,courses);
     operations[operation.id]={...shared,kind:'deposit',courses};
   }

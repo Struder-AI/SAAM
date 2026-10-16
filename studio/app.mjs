@@ -846,9 +846,31 @@ function scheduleChange(){
 // and acknowledge the displayed result even when the saved print is unchanged.
 function studioUpdate(event){
   if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
+  if(event.detail.kind==='visual-check'){void captureViewerFrame(event.detail);return;}
   const {kinds=[]}=event.detail;
   if(kinds.includes('print')){printSync.stateUpdate++;if(printSync.state)render();}
   if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests'))scheduleChange();
+}
+async function captureViewerFrame(request){
+  const reply={id:request.id,bundleId:request.bundleId,target:request.target,stage:request.stage};
+  try{
+    while(studioWork.busy||printSync.polling)await painted();
+    await working('Preparing visual check…',async()=>{
+      await refresh(true);
+      const evidence=printSync.state.work?.snapshot;
+      if(printSync.state.work?.printId!==request.bundleId
+        ||['revision','inputKey','geometryKey','generationKey'].some(key=>(evidence?.[key]??null)!==(request.target[key]??null)))
+        throw Error('Studio is displaying different saved inputs.');
+      if(request.stage==='toolpath'&&!(presentedState()??printSync.state).program)throw Error('Studio has no toolpath to display.');
+      stop();viewState.tab=request.stage;viewState.selected=null;
+      Object.assign(orbitView,DEFAULT_CAMERA,{zoom:1,pan:[0,0],fitBounds:null});
+      if(request.stage==='toolpath'){playState.seconds=duration();layerFade.reset();}
+      render();draw({updateUI:false});
+      reply.target=evidence;reply.png=canvas.toDataURL('image/png');
+      if(request.stage==='toolpath')reply.phases=phasePalette();
+    },{preview:false});
+  }catch(error){reply.error=error.message;message(error.message,true);}
+  try{await api('visual-check',reply);}catch(error){message('Visual check unavailable: '+error.message,true);}
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
 function stopFallbackPolling(){clearInterval(printSync.stateFallbackTimer);clearInterval(printSync.progressFallbackTimer);printSync.stateFallbackTimer=printSync.progressFallbackTimer=null;}

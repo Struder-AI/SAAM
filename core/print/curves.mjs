@@ -36,9 +36,16 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(source===null||source&&Object.keys(source).sort().join()==='assignment,extension,parameters'&&typeof source.extension==='string'&&/^[a-z][a-z0-9-]*$/.test(source.extension)&&typeof source.assignment==='string'&&source.assignment!==a.id&&source.assignment.length&&source.parameters&&typeof source.parameters==='object'&&!Array.isArray(source.parameters),'Trace source needs extension, distinct Slice assignment and parameters.');
   requireThat(a.toolPose===null||a.toolPose&&Object.keys(a.toolPose).join()==='alignToSliceNormal'&&typeof a.toolPose.alignToSliceNormal==='boolean','Trace toolPose is null or {alignToSliceNormal:boolean}.');
   requireThat(Array.isArray(a.curves)&&(source?a.curves.length===0&&a.repeat===null:a.curves.length>0),'Trace needs explicit centerlines or one generation-time source without curves or repeats.');
+  const named=new Set();
+  for(const curve of a.curves)if(curve?.id!==undefined){
+    requireThat(typeof curve.id==='string'&&curve.id.length>0&&!named.has(curve.id),'Curve ids must be distinct nonempty local names.');
+    named.add(curve.id);
+  }
   for(const curve of a.curves){
-    if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
     requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
+    requireThat(curve.after===undefined||Array.isArray(curve.after)&&curve.after.every(id=>named.has(id)&&id!==curve.id),
+      'Curve after must name distinct predecessor curves in this Trace.');
+    if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
     requireThat(['points','nurbs','uv'].filter(k=>curve[k]!==undefined).length===1,'Curve needs exactly one of points, nurbs or uv.');
     const input=curve.uv??curve,dimensions=curve.uv?2:3;
     if(input.nurbs)authoredNurbs(input.nurbs,dimensions);
@@ -65,7 +72,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
 // two distinct vertices (three when closed) is null: it prints nothing. Speed
 // and flow need only be finite: zero flow moves along the curve without
 // depositing; a negative flow fails within its assignment's deposition boundary.
-const CURVE_FIELDS=['points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
+const CURVE_FIELDS=['id','after','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
 const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
 export function readAuthoredCurve(source){
   const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)

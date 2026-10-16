@@ -176,7 +176,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     search:async args=>(await getResourceClient()).search(args),
     download:async(fileId,options)=>(await getResourceClient()).download(fileId,options)
   };
-  const resultImages=createResultImages(paths);
+  const resultImages=createResultImages();
   const app={closing:null},chats=new Map(),allStudios=new Map(),workspaceSessions=new Map(),imports=new Map(),calculations=new Map();
   const work={tails:new Map(),pending:new Set()},operationObservers=new Set(),eventObservers=new Set(),clientEventObservers=new Set(),activeOperations=new Map(),transferringStudios=new Set();
   // A request belongs to the chat attached to its Studio, else to the chat that wrote it.
@@ -557,7 +557,8 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
             reminder:'This operation failed; the work episode remains active for repair. Hand back once with respond_to_studio_request when the sequence stops.'};
           try{
             if(!workError&&episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
-              const visualCheck=await resultImages.capture(resolve(libraryRoot,input.bundleId),input.bundleId,before,call.saved,definition.resultStage,ownerId);
+              const visualStudio=view?.server??associated?.server;
+              const visualCheck=await resultImages.capture(visualStudio,input.bundleId,before,call.saved,definition.resultStage,ownerId);
               if(visualCheck)call.result={...call.result,visualCheck};
             }
           }finally{

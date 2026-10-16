@@ -3,6 +3,10 @@
   "status": "Whole-slice scheduling and adaptive stroke interruption, 2026-10-15. Shared-material construction remains experimental; general non-edge-on construction is unfinished.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "studio/viewer-capture.mjs": {
+      "owner": "studio",
+      "reason": "Revision-bound capture of a frame from the connected Studio viewer."
+    },
     "dev-map/influence/position-documents.mjs": {
       "owner": "development",
       "reason": "Shared authored-position document values for static and server writes."

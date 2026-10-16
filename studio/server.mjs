@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { randomBytes, createHash } from 'node:crypto';
 import {claimBundleInstance,releaseBundleInstance,reassignBundleInstance,withBundleInstance,bundleInstance} from '../core/print/studio-ownership.mjs';
 import { viewerLifetime } from './lifetime.mjs';
+import {createViewerCapture} from './viewer-capture.mjs';
 import {machineEntrySource} from '../core/extensions/library.mjs';
 
 
@@ -512,9 +513,11 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       if(operations.creating&&!dir&&!['/api/cancel-calculation','/api/open','/api/import-stl'].includes(url.pathname))throw Error('The print is being created. Wait for the current operation before editing it.');
       // A print, once open, stays open, so this check cannot go stale in the queue.
       if(!dir&&!printFreeRoutes.has(url.pathname))throw noPrint();
-      const importing=url.pathname==='/api/import-stl',chunks=[];let size=0;
-      for await(const chunk of req){size+=chunk.length;if(size>(importing?64*1024*1024:64_000))throw Error('Request too large.');chunks.push(chunk);}
+      const importing=url.pathname==='/api/import-stl',capturing=url.pathname==='/api/visual-check',chunks=[];let size=0;
+      for await(const chunk of req){size+=chunk.length;if(size>(importing||capturing?64*1024*1024:64_000))throw Error('Request too large.');chunks.push(chunk);}
       const body=Buffer.concat(chunks),data=importing?Object.fromEntries(url.searchParams):JSON.parse(body.toString()||'{}');
+      // A capture reply must not queue behind the operation awaiting this frame.
+      if(capturing){viewerCapture.accept(data);send({ok:true});return;}
       // Browser-measured view bursts, kept in memory for an agent to read.
       if(url.pathname==='/api/view-performance'){viewPerformance.push({receivedAt:new Date().toISOString(),...data});viewPerformance.splice(0,viewPerformance.length-20);send({ok:true});return;}
       if(url.pathname==='/api/cancel-generation'){
@@ -718,7 +721,15 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       }).catch(()=>{/* A partial external write will be rechecked at commit. */}).finally(()=>{checkingGeneration=false;});
     }
   });
-  server.once('close',()=>{closed=true;stopWatching();chat.stopRequestFeed();if(!generationRun?.committing)generationRun?.controller.abort(cancelledGeneration());void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
+  const viewerCapture=createViewerCapture({notify:detail=>lifetime.notifyOne('studio-update',detail)});
+  server.captureView=async request=>{
+    const version=selection.version;
+    if(workIdFor(dir)!==request.bundleId)throw Error('Studio selected another bundle before its visual check.');
+    const frame=await viewerCapture.capture(request);
+    if(selection.version!==version||workIdFor(dir)!==request.bundleId)throw Error('Studio selected another bundle during its visual check.');
+    return frame;
+  };
+  server.once('close',()=>{closed=true;viewerCapture.close();stopWatching();chat.stopRequestFeed();if(!generationRun?.committing)generationRun?.controller.abort(cancelledGeneration());void releaseInstance().catch(error=>note('instance-release-failed',{error:error.message}));});
   server.sessionToken=()=>token;
   server.shutdown=lifetime.shutdown;server.viewerCount=lifetime.viewers;
   server.generationStatus=generationStatus;
