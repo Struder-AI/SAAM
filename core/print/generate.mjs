@@ -45,7 +45,8 @@ function primeLineResult(plan){
   const top=Math.max(...passes.map(pass=>pass.zMm));
   return traceResult({id:'prime-line',filament:null,after:[]},{process:plan.process,report:{passes:passes.length},batches:[{
     key:0,layerId:'planar:'+top,phase:'prime',layer:0,rank:-1,
-    curves:passes.map(pass=>({role:'prime-line',closed:false,points:[[...pass.startMm,pass.zMm],[...pass.endMm,pass.zMm]],beadWidthMm:pass.widthMm,heightMm:pass.heightMm,speedMmS:pass.speedMmS})),
+    curves:passes.map(pass=>({role:'prime-line',closed:false,points:[[...pass.startMm,pass.zMm],[...pass.endMm,pass.zMm]],
+      normals:[[0,0,1],[0,0,1]],beadWidthMm:pass.widthMm,heightMm:pass.heightMm,speedMmS:pass.speedMmS})),
     widthMm:Math.max(...passes.map(pass=>pass.widthMm)),travel:{kind:'planar',region,zMm:top,maxCombMm:0}}]});
 }
 

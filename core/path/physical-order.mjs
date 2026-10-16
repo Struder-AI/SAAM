@@ -183,7 +183,7 @@ function controlVertices(geometry){
 }
 
 export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
-  const slices=new Map(),halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
+  const slices=new Map(),queries={reader},halfAngle=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360;
   const sine=Math.sin(halfAngle),retreat=NOZZLE_FORGIVENESS_MM/sine;
   for(const operation of Object.values(source.operations)){
     if(operation.layerId===null)continue;
@@ -216,8 +216,8 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map()}={}){
       // A side offset is at most half width and inward depth is area/width.
       // The broader bound still proves distant whole slices clear, including
       // curved layers with changing bead normals and a fixed nozzle direction.
-      if(!aligned&&!reader)reader=prepareCurvePath(source);
-      if(!aligned&&!ranges.has(course.id))ranges.set(course.id,curveRange(reader,course.curveId,course.from,course.to));
+      if(!aligned&&!queries.reader)queries.reader=prepareCurvePath(source);
+      if(!aligned&&!ranges.has(course.id))ranges.set(course.id,curveRange(queries.reader,course.curveId,course.from,course.to));
       const range=aligned?null:ranges.get(course.id);
       const margin=aligned?0:range.widthMm[1]/2+(range.areaMm2?.[1]??0)/range.widthMm[0];
       slice.maxMaterial=Math.max(slice.maxMaterial,high+margin+ROUNDING_MM);

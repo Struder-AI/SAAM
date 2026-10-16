@@ -1,4 +1,6 @@
 import {saamPath,moveSeconds} from './saampath.mjs';
+import {curveAt,curveRange} from './curve-path.mjs';
+import {CONTEXT_KEYS,sameContext} from './action-context.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Explicit path transitions. A stage owns its local work; its inputs are read-only.
 // Actions are append/replace-tail deltas, never the accumulated program. A merge
@@ -7,9 +9,9 @@ import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {uprightPose,validatePose,samePose} from './pose.mjs';
 import {nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 
-export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null}) {
+export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
-  return {start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
+  return {sourcePathId,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:motion?.initialPose??null,selection,selections,defaultFilament:selection?.filament,
     pose:motion?.initialPose?structuredClone(motion.initialPose):null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,layerSeconds:0,parked:false,
     stats:{joined:0,connected:0,combed:0,hopped:0,travelMm:0,retractions:0,printMm:0}};
 }
@@ -79,6 +81,10 @@ export function planMove(input,to,speed,volumeMm3=0,extra={}) {
   const seconds=pose?(extra.durationSeconds??moveSeconds(length,speed)):moveSeconds(length,speed);
   // A reorientation at a fixed point is untimed: the machine turns at its own rate.
   requireThat(seconds>0||length===0,'Motion needs positive duration.');
+  if(state.sourcePathId){
+    requireThat(volumeMm3===0,'Compact deposition must reference its source range.');
+    return planTravelCurve(state,to,speed,pose??uprightPose(),seconds,extra.durationSeconds);
+  }
   const {durationSeconds:requestedDuration,...properties}=extra;
   const action={...properties,kind:'move',to:[...to],speedMmS:pose&&length>0&&requestedDuration!==undefined?length/seconds:speed,volumeMm3,phase:state.phase,layer:state.layer,layerId:state.layerId,
     ...(state.operationId?{operation:state.operationId}:{}),...(pose?{pose:structuredClone(pose),...(length===0&&seconds>0?{durationSeconds:seconds}:{})}:{})};
@@ -124,6 +130,7 @@ export function planExtrusion(state,volumeMm3,flowMm3S) {
   requireThat(!state.retraction&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
   const flow=flowMm3S;
   return appendAction({...state,layerSeconds:state.layerSeconds+volumeMm3/flow,moveRun:null,parked:false},
+  state.sourcePathId?{kind:'inject',operationId:state.operationId,phase:state.phase,layer:state.layer,layerId:state.layerId}:
   {kind:'extrude',volumeMm3,flowMm3S:flow,phase:state.phase,layer:state.layer,layerId:state.layerId,operation:state.operationId});
 }
 export function planDwell(state,seconds) {
@@ -172,6 +179,12 @@ export function materializeActions(actionChunks) {
 }
 
 export function planningPath(state,actionChunks,summary={},completion) {
+  if(state.sourcePathId){
+    const packed=compactExecution(materializeActions(actionChunks));
+    return saamPath({schema:'saam-schedule/1',sourcePathId:state.sourcePathId,initialPosition:state.start,
+      initialPose:state.initialPose??uprightPose(),motionCurves:packed.motionCurves,execution:packed.execution,
+      summary:{...summary,travel:{...state.stats}},...(completion?{completion}:{})});
+  }
   return saamPath({schema:'saampath/1',generatorVersion:state.generatorVersion,units:'mm',materialUnits:'mm3',initialPosition:state.start,
     ...(state.initialPose?{initialPose:structuredClone(state.initialPose)}:{}),
     actions:materializeActions(actionChunks),summary:{...summary,travel:{...state.stats}},...(completion?{completion}:{} )});
@@ -196,4 +209,50 @@ function mergeableMove(run,next) {
   // original run axis, so the merged chord departs from every original point by
   // less than print resolution; successive merges cannot accumulate flattening.
   return along>before&&Math.hypot(...vector.map((v,i)=>v-along*run.direction[i]))<=PRINT_RESOLUTION_MM/2;
+}
+
+// Curve definitions live only in local emission deltas. Final delivery moves
+// each into the motion table once; earlier planning states share no mutable table.
+function planTravelCurve(input,to,speed,pose,seconds,durationSeconds){
+  const from=input.position,fromPose=input.pose??uprightPose(),length=distance(from,to);
+  const curveId='travel:'+input.nextTravelId;
+  const identical=fromPose.toolAxis.every((v,k)=>v===pose.toolAxis[k])&&fromPose.toolUp.every((v,k)=>v===pose.toolUp[k]);
+  const curve={geometry:length?{kind:'polyline',points:[from,[...to]]}:{kind:'point',point:from},
+    profiles:{speedMmS:speed,pose:identical?pose:{interpolation:'frame',knots:[[0,fromPose],[1,pose]]}}};
+  const state={...input,nextTravelId:input.nextTravelId+1,position:[...to],pose,parked:false,moveRun:null,
+    layerSeconds:input.layerSeconds+seconds,stats:{...input.stats,travelMm:input.stats.travelMm+length}};
+  return appendAction(state,{kind:'travel',curveId,from:0,to:1,curve,
+    ...(durationSeconds!==undefined?{durationSeconds}:{}),phase:state.phase,layer:state.layer,layerId:state.layerId,
+    ...(state.operationId?{operation:state.operationId}:{})});
+}
+
+// A whole course/range remains one execution record regardless of vertex count.
+// Cooling uses a certified lower duration bound: uncertainty can only add dwell.
+export function planDepositRange(input,source,reader,course,from=course.from,to=course.to){
+  requireThat(input.sourcePathId,'Source-range planning requires a compact source identity.');
+  const range=curveRange(reader,course.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM});
+  const end=curveAt(reader,course.curveId,to,{side:'left'}),profile=source.curves[course.curveId].profiles.speedMmS;
+  const maximum=typeof profile==='number'?profile:Math.max(...profile.knots.map(([,value])=>value));
+  const seconds=maximum>0?range.lengthMm[0]/maximum:0;
+  const lower=input.stats.printMmBounds??[input.stats.printMm,input.stats.printMm];
+  const printMmBounds=[lower[0]+range.lengthMm[0],lower[1]+range.lengthMm[1]];
+  const state={...input,position:end.point,pose:end.pose,parked:false,moveRun:null,layerSeconds:input.layerSeconds+seconds,
+    stats:{...input.stats,printMmBounds,printMm:(printMmBounds[0]+printMmBounds[1])/2}};
+  return appendAction(state,{kind:'deposit',courseId:course.id,from,to,phase:state.phase,layer:state.layer,
+    layerId:state.layerId,operation:state.operationId,...(course.role?{role:course.role}:{})});
+}
+
+function compactExecution(actions){
+  const motionCurves={},execution=[],cursor={context:null};
+  for(const action of actions){
+    const context=Object.fromEntries(CONTEXT_KEYS.filter(key=>action[key]!==undefined).map(key=>[key,action[key]]));
+    if(!cursor.context||!sameContext(cursor.context,context)){
+      const changes=cursor.context?Object.fromEntries(CONTEXT_KEYS.filter(key=>context[key]!==cursor.context[key]).map(key=>[key,context[key]??null])):context;
+      execution.push({kind:'context',...(!cursor.context?{reset:true}:{}),...changes});cursor.context=context;
+    }
+    const physical=Object.fromEntries(Object.entries(action).filter(([key])=>key!=='curve'&&!CONTEXT_KEYS.includes(key)));
+    if(action.kind==='travel')motionCurves[action.curveId]=action.curve;
+    execution.push(physical);
+  }
+  return {motionCurves,execution};
 }

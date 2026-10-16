@@ -50,14 +50,30 @@ export function admitSchedule(schedule){
   requireThat(id(schedule.sourcePathId)&&point(schedule.initialPosition)&&table(schedule.motionCurves)&&Array.isArray(schedule.execution),
     'Schedule needs exact source identity, initial position, motion curves and execution.');
   validatePose(schedule.initialPose);prepareCurvePath({curves:schedule.motionCurves});
+  requireThat(table(schedule.summary)&&table(schedule.completion),'Schedule needs summary and completion records.');
+  for(const curve of Object.values(schedule.motionCurves)){
+    const material=curve.profiles.material;
+    if(material)requireThat(material.kind==='cumulative'?material.knots.at(-1)[1]===0:
+      typeof material.areaMm2==='number'?material.areaMm2===0:material.areaMm2.knots.every(([,value])=>value===0),'Travel cannot deposit material.');
+  }
   for(const entry of schedule.execution){
     if(entry.kind==='deposit')requireThat(id(entry.courseId)&&interval(entry.from,entry.to),'Invalid execution source range.');
     else if(entry.kind==='travel')requireThat(Object.hasOwn(schedule.motionCurves,entry.curveId)&&interval(entry.from,entry.to)&&
       (entry.durationSeconds===undefined||Number.isFinite(entry.durationSeconds)&&entry.durationSeconds>0),'Invalid execution travel.');
     else if(entry.kind==='inject')requireThat(id(entry.operationId),'Invalid execution injection.');
-    else requireThat(['fan','temperature','toolChange','retract','recover','dwell','context'].includes(entry.kind),'Invalid execution event.');
+    else validateEvent(entry);
   }
   return schedule;
+}
+function validateEvent(entry){
+  if(entry.kind==='temperature')requireThat(Number.isFinite(entry.targetC)&&entry.targetC>0,'Invalid execution temperature.');
+  else if(entry.kind==='fan')requireThat(Number.isFinite(entry.percent),'Invalid execution fan.');
+  else if(entry.kind==='toolChange')requireThat(Number.isInteger(entry.filament)&&entry.filament>=0&&!Object.hasOwn(entry,'tool'),'Execution selects logical material.');
+  else if(entry.kind==='retract'||entry.kind==='recover')requireThat(Number.isFinite(entry.filamentMm)&&entry.filamentMm>=0&&Number.isFinite(entry.speedMmS),'Invalid execution filament action.');
+  else if(entry.kind==='dwell')requireThat(Number.isFinite(entry.seconds)&&entry.seconds>=0,'Invalid execution dwell.');
+  else if(entry.kind==='context')requireThat(!['pose','materialNormal','widthMm','speedMmS','material','volumeMm3'].some(key=>Object.hasOwn(entry,key)),
+    'Context cannot override physical profiles.');
+  else throw Error('Invalid execution event: '+entry.kind);
 }
 export function validateExecutionSource(source,schedule){
   const courses=new Map(),coverage=new Map(),injections=new Set(),operationIndices=new Map();

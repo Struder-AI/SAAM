@@ -2,7 +2,7 @@
 // Handles prepare geometry only; local queries and streaming retain source u.
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,normalCone,frameCone} from '../geom/curve-query.mjs';
-import {validateProfile,validateKeys,keyed,profileAt,profileInterval,profileValues,scalarRange} from './curve-profiles.mjs';
+import {validateProfile,validateKeys,keyed,profileAt,profileInterval,profileValues,scalarRange,interiorKeys} from './curve-profiles.mjs';
 import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 
 // Display/program local views share explicit tolerances, independent of the
@@ -82,7 +82,11 @@ function materialRange(curve,from,to,geometric,options){
   const material=curve.profiles.material;if(!material)return {};
   if(material.kind==='cumulative'){
     const volume=cumulativeAt(material,to)-cumulativeAt(material,from),slopes=[];
-    const cuts=[from,...material.knots.map(([u])=>u).filter(u=>u>from&&u<to),to];
+    const cuts=[from,...interiorKeys(material.knots,from,to).map(([u])=>u),to];
+    if(cuts.length>2){
+      const areas=cuts.slice(1).map((end,i)=>localRange(curve,cuts[i],end,options).areaMm2);
+      return {volumeMm3:[volume,volume],areaMm2:areas.reduce(([lo,hi],area)=>[Math.min(lo,area[0]),Math.max(hi,area[1])],[Infinity,-Infinity])};
+    }
     for(const [i,end] of cuts.slice(1).entries())slopes.push((cumulativeAt(material,end)-cumulativeAt(material,cuts[i]))/(end-cuts[i]));
     if(Math.max(...slopes)>0&&geometric.speed[0]===0){
       const mid=(from+to)/2;
@@ -105,10 +109,15 @@ function materialRange(curve,from,to,geometric,options){
 function localRange(curve,from,to,options){
   const geometry=numericalCurveRange(curve.geometry,from,to,options),profiles=curve.profiles;
   const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,...materialRange(curve,from,to,geometry,options),
-    poseCone:frameCone(profileValues(profiles.pose,from,to)),breaks:curve.breaks.filter(u=>u>from&&u<to)};
+    poseCone:frameCone(profileValues(profiles.pose,from,to)),breaks:interiorBreaks(curve.breaks,from,to)};
   if(profiles.widthMm!==undefined)result.widthMm=scalarRange(profiles.widthMm,from,to);
   if(profiles.materialNormal!==undefined)result.normalCone=normalCone(profileValues(profiles.materialNormal,from,to));
   return result;
+}
+function interiorBreaks(breaks,from,to){
+  const state={lo:0,hi:breaks.length};
+  while(state.lo<state.hi){const mid=Math.floor((state.lo+state.hi)/2);if(breaks[mid]<=from)state.lo=mid+1;else state.hi=mid;}
+  const result=[];for(let i=state.lo;i<breaks.length&&breaks[i]<to;i++)result.push(breaks[i]);return result;
 }
 export function curveRange(handle,curveId,from,to,options={}){
   requireThat(rangeValid(from,to),'Invalid curve interval.');

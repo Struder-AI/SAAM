@@ -1,7 +1,6 @@
 // Geometry's certified local queries. Positive rational controls bound the
 // complete curve; Bernstein derivative coefficients bound speed and length.
-import {authoredNurbs} from './spatial.mjs';
-import {evaluateCurve} from './nurbs.mjs';
+import {authoredNurbs,evaluateCurve} from './nurbs.mjs';
 import {extract} from './curve-ops.mjs';
 import {bernsteinProductWeights} from './bezier-net.mjs';
 import {distance,requireThat} from './tolerance.mjs';

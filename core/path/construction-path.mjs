@@ -32,6 +32,17 @@ function smoothChannel(stroke,key,parameters,fallback){
   });
   return {interpolation:'linear',knots:converted};
 }
+function sourceProvenance(stroke,metadata,parameters){
+  const segments=[];
+  for(const [i,record] of metadata.entries()){
+    const {surfaceNormal,beadWidthMm,speedMmS,beadHeightMm,normalHeightMm,gapMm,volumeMm3,...labels}=record;
+    if(!Object.keys(labels).length)continue;
+    const previous=segments.at(-1);
+    if(previous&&previous.to===parameters[i]&&same(previous.labels,labels))previous.to=parameters[i+1];
+    else segments.push({from:parameters[i],to:parameters[i+1],labels});
+  }
+  return stroke.provenance||segments.length?{...(stroke.provenance?{source:stroke.provenance}:{}),...(segments.length?{segments}:{})}:undefined;
+}
 function publishedCurve(original,process){
   const stroke=original.closed?strokeRange(original):original,points=stroke.points,lengths=[0];
   for(const [i,p] of points.slice(1).entries())lengths.push(lengths.at(-1)+distance(points[i],p));
@@ -46,10 +57,10 @@ function publishedCurve(original,process){
   requireThat(normals.every(Boolean),'Finalized deposition needs explicit material normals.');
   const poses=stroke.poses??points.map(()=>uprightPose());
   const material=stroke.volumesMm3?cumulative(stroke.volumesMm3,parameters):{kind:'area',areaMm2:stroke.beadAreaMm2};
-  return {geometry:native?native.geometry:{kind:'polyline',points},profiles:{
+  return {curve:{geometry:native?native.geometry:{kind:'polyline',points},profiles:{
     widthMm:smoothChannel(stroke,'beadWidthMm',parameters,stepChannel(widths,parameters)),
     speedMmS:smoothChannel(stroke,'speedMmS',parameters,stepChannel(speeds,parameters)),
-    materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material}};
+    materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material}},provenance:sourceProvenance(stroke,metadata,parameters)};
 }
 export function constructionPath({results,planning,composition,summary,generatorVersion}){
   const curves={},layers={},surfaces={},processes={},operations={},surfaceIds=new Map(),processIds=new Map();
@@ -88,9 +99,9 @@ export function constructionPath({results,planning,composition,summary,generator
     }
     const courses=strokes.map((stroke,i)=>{
       const id=operation.id+':course:'+i,curveId='curve:'+id;
-      curves[curveId]=publishedCurve(stroke,process);
+      const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
       return {id,curveId,from:0,to:1,interruptible:!operation.continuous,role:stroke.role,
-        ...(stroke.provenance?{provenance:stroke.provenance}:{})};
+        ...(published.provenance?{provenance:published.provenance}:{})};
     });
     operations[operation.id]={...shared,kind:'deposit',courses};
   }

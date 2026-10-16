@@ -6,9 +6,17 @@ import {unitDirection,dot,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
 
 export const keyed=profile=>profile!==null&&typeof profile==='object'&&!Array.isArray(profile)&&Array.isArray(profile.knots);
 export function profileInterval(profile,u,side='right'){
-  const knots=profile.knots,state={index:0};
-  while(state.index<knots.length-2&&(side==='left'?knots[state.index+1][0]<u:knots[state.index+1][0]<=u))state.index++;
-  return [knots[state.index],knots[state.index+1]];
+  const knots=profile.knots,index=keyIndex(knots,u,side);
+  return [knots[index],knots[index+1]];
+}
+function keyIndex(knots,u,side){
+  const state={lo:0,hi:knots.length-1};
+  while(state.hi-state.lo>1){const mid=Math.floor((state.lo+state.hi)/2);if(knots[mid][0]<u||side==='right'&&knots[mid][0]===u)state.lo=mid;else state.hi=mid;}
+  return state.lo;
+}
+export function interiorKeys(knots,from,to){
+  const start=keyIndex(knots,from,'right')+1,end=keyIndex(knots,to,'left')+1;
+  return knots.slice(start,end).filter(([u])=>u>from&&u<to);
 }
 export function validateKeys(knots,validate){
   requireThat(Array.isArray(knots)&&knots.length>=2&&knots[0][0]===0&&knots.at(-1)[0]===1,'Profile keys must cover [0,1].');
@@ -42,9 +50,9 @@ export function profileAt(profile,u,side='right'){
 }
 export function profileValues(profile,from,to){
   if(!keyed(profile))return [profile];
-  return [profileAt(profile,from),...profile.knots.filter(([u])=>u>from&&u<to).map(([,value])=>value),profileAt(profile,to,'left'),profileAt(profile,to)];
+  return [profileAt(profile,from),...interiorKeys(profile.knots,from,to).map(([,value])=>value),profileAt(profile,to,'left'),profileAt(profile,to)];
 }
 export function scalarRange(profile,from,to){
   const values=profileValues(profile,from,to);
-  return [Math.min(...values),Math.max(...values)];
+  return values.reduce(([lo,hi],value)=>[Math.min(lo,value),Math.max(hi,value)],[Infinity,-Infinity]);
 }

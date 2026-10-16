@@ -7,6 +7,8 @@
 - The origin task's shared executor replaces Boolean, blob and STL-repair worker paths; broader Geometry consumer migration remains unfinished. Native Boolean tolerance is 0.005 mm; automatic recovery can report larger displacements. Reuse the origin's broader numerical/execution evidence for unchanged implementations. Concurrent curve-based SAAMpath/scheduler overhaul work is checkpointed under the all-changes rule and remains in progress; these merge checks qualify the preceding interface, not that unfinished overhaul.
 
 
+- Final checks also confirm an embedded native-spline insert mouth is cleared outward at its full chamfer radius. Saved the originating task’s 24 benchmark/validation reports before requested worktree cleanup. Final warm/cold map comparisons completed, retaining the better solutions; read/drawing checks pass. The snapshot reports 95 unowned declarations amid the ongoing curve-contract work and several application closures exceeded their 2660 MB analysis allowance; map conformance is not claimed. The follow-up checkpoint carries all concurrent changes under the standing rule.
+
 ## 2026-10-15 — Repair stationary injection in Studio playback
 
 - The owner's review exposed a real display crash: the saved path existed and scheduled, but stationary extrusion omitted orientation columns required by Studio's packed move store, raising “Cannot convert undefined or null to object”. The prior generation PNGs did not exercise this browser path. Preview orientation now comes from one common row for stationary and moving deposition; a stationary event retains its current pose.
