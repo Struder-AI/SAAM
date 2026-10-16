@@ -122,14 +122,14 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
   if(length(sweep.sweep)>0)generators.push(scale(sweep.sweep,-1));
   const halfAngle=sweep.motion.includedAngleDeg*Math.PI/360,c=Math.cos(halfAngle),s=Math.sin(halfAngle);
   const projected=generators.map(v=>dot(v,axis)),z0=dot(origin,axis),low=z0+projected.reduce((n,z)=>n+Math.min(0,z),0),high=z0+projected.reduce((n,z)=>n+Math.max(0,z),0);
-  // The caller normally extends the cone past all indexed stock. A shorter
-  // finite cap needs the general convex predicate instead of this shortcut.
-  if(high>sweep.motion.lengthMm)return null;
+  // A crossed flat face or finite upper cap needs the general convex predicate.
+  if(high>sweep.motion.lengthMm||sweep.body.radius>0&&low<0)return null;
+  const sideTolerance=toleranceMm+c*sweep.body.radius;
   const vertices=Array.from({length:2**generators.length},(_,mask)=>{
     const point=generators.reduce((q,g,k)=>mask&(1<<k)?add(q,g):q,origin),z=dot(point,axis);
     return {point,z,r2:Math.max(0,dot(point,point)-z*z)};
   });
-  if(vertices.some(v=>c*Math.sqrt(v.r2)-s*v.z<=toleranceMm))return true;
+  if(vertices.some(v=>c*Math.sqrt(v.r2)-s*v.z<=sideTolerance))return true;
   for(const [k,g] of generators.entries()){
     const dz=projected[k],a=Math.max(0,dot(g,g)-dz*dz),denominator=c*c*a-s*s*dz*dz;
     if(a<=ROUNDING_MM**2||denominator<=0)continue;
@@ -138,7 +138,7 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
       const b=dot(v.point,g)-v.z*dz,k2=Math.max(0,a*v.r2-b*b),t=(s*dz*Math.sqrt(k2/denominator)-b)/a;
       if(t<=0||t>=1)continue;
       const r2=Math.max(0,v.r2+2*b*t+a*t*t);
-      if(c*Math.sqrt(r2)-s*(v.z+dz*t)<=toleranceMm)return true;
+      if(c*Math.sqrt(r2)-s*(v.z+dz*t)<=sideTolerance)return true;
     }
   }
   const interval={low,high};
@@ -149,7 +149,7 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
     const ends=[minimum/along,maximum/along];interval.low=Math.max(interval.low,Math.min(...ends));interval.high=Math.min(interval.high,Math.max(...ends));
     if(interval.low>interval.high+ROUNDING_MM)return false;
   }
-  return -s*interval.high<=toleranceMm;
+  return -s*interval.high<=sideTolerance;
 }
 
 function roundedBody(shape){
@@ -236,20 +236,22 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   }};
 }
 
-export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=15;
-export const DEFAULT_NOZZLE_TIP_DIAMETER_MM=0;
+export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=60;
+export const DEFAULT_NOZZLE_TIP_DIAMETER_MM=.5;
 // Physical allowance on the nozzle surface; bead overlap is independent.
 export const NOZZLE_FORGIVENESS_MM=.1;
+export const nozzleSideOffsetMm=(includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM)=>
+  forgivenessMm-tipDiameterMm/2*Math.cos(includedAngleDeg*Math.PI/360);
 export function nozzleAt(point,axis,lengthMm,includedAngleDeg=DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm=NOZZLE_FORGIVENESS_MM,tipDiameterMm=DEFAULT_NOZZLE_TIP_DIAMETER_MM){
   const outward=normalize(axis);
   requireThat(Number.isFinite(includedAngleDeg)&&includedAngleDeg>0&&includedAngleDeg<180,'Nozzle cone included angle must be between 0 and 180 degrees.');
   requireThat(Number.isFinite(forgivenessMm)&&forgivenessMm>=0,'Nozzle surface forgiveness must be finite and nonnegative.');
   requireThat(Number.isFinite(tipDiameterMm)&&tipDiameterMm>=0,'Nozzle flat-tip diameter must be finite and nonnegative.');
-  const angle=includedAngleDeg*Math.PI/360,radius=tipDiameterMm/2;
+  const angle=includedAngleDeg*Math.PI/360,sideOffset=nozzleSideOffsetMm(includedAngleDeg,forgivenessMm,tipDiameterMm);
   // Erode both the flat face and conical side. A vanishing flat retains the
   // pointed cone's shifted apex; a wider flat retains a finite bottom face.
-  const offset=Math.max(forgivenessMm,(forgivenessMm-radius*Math.cos(angle))/Math.sin(angle));
-  const start=add(point,scale(outward,offset)),startRadius=Math.max(0,radius+offset*Math.tan(angle)-forgivenessMm/Math.cos(angle));
+  const offset=Math.max(forgivenessMm,sideOffset/Math.sin(angle));
+  const start=add(point,scale(outward,offset)),startRadius=offset===forgivenessMm?Math.max(0,(offset*Math.sin(angle)-sideOffset)/Math.cos(angle)):0;
   return {a:start,b:add(start,scale(outward,lengthMm)),normal:outward,radius:startRadius,endRadius:startRadius+lengthMm*Math.tan(angle),depth:0};
 }
 
@@ -265,7 +267,6 @@ function nozzleInterval(motion,a,b){
     const poses=[a,b].map(t=>interpolateDirectionPair(
       [fromPose.toolAxis,fromPose.toolUp],[toPose.toolAxis,toPose.toolUp],t));
     const axes=poses.map(p=>scale(p[0],-1)),axisChord=length(subtract(axes[0],axes[1]));
-    const halfAngle=includedAngleDeg*Math.PI/360;
     // A frame may roll around an oblique axis: its cone axis then follows a
     // small circle, not the great-circle arc between the endpoint axes. Use
     // the full frame rotation for the rigid-point sagitta bound. The second
@@ -334,7 +335,7 @@ export function nozzleBoundsClear(positions,poseCone,material,forgivenessMm=NOZZ
   const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
   const lower=(r>ROUNDING_MM?c*r:0)-s*z-q.reduce((sum,_,k)=>sum+Math.abs(gradient[k])*
     (material.max[k]-material.min[k]+positions.max[k]-positions.min[k])/2,0);
-  return lower+forgivenessMm-tipDiameterMm/2*Math.cos(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG*Math.PI/360)>ROUNDING_MM*8;
+  return lower+nozzleSideOffsetMm(DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG,forgivenessMm,tipDiameterMm)>ROUNDING_MM*8;
 }
 
 export function nozzleSweepHits(index,from,to,fromPose,toPose,options={}){

@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Share flat-tip nozzle clearance dimensions
+
+- Geometry now uses the owner's provisional 0.5 mm flat-tip diameter and 30° sides from the axis (60° included). The shared truncated cone supplies deposition, travel, broad-phase proofs, rotating envelopes and Studio's nominal/checked overlay. Surface forgiveness erodes both the flat face and cone side. Finite-tip predicates retain conservative caps; flat-face crossings use the general convex solver. Completion contract advances to /16 so previous toolpaths need regeneration.
+- Current removable source now reports upper counterbore-wall deposition obstructions for rings 0 and 1 (three and two wall operations); rings 2–19 and earlier support rings remain clear. The old saved execution is retained for comparison. Exact, broad-phase and travel probes distinguish a flat-tip hit from a pointed-tip clearance, and 420 fixed-sweep comparisons agree with the general solver. Syntax and whitespace checks pass. No permanent tests, whole suite, new print generation, machine output, physical qualification, installation, push or release.
+- Source Studio was reloaded and its first-ring inspection link visibly reports 60° included / 0.5 mm flat / 0.1 mm allowance. Path guidance shrinks 153→151 lines and Studio rendering guidance 203→202. New numerical helpers have Geometry ownership. Full map regeneration remains active (session 91282); some large closures have reached time/memory limits and later-edit coverage remains pending.
+
 ## 2026-10-16 — Bind support stages by native work identity
 
 - Editors and process factories share Recipe.operationId/withOperationAfter. Helpers select native Slice index/group or named/ordinal explicit Trace repetition, then emit scoped hard prerequisites without hand-built IDs or travel policy. Trace gains per-repetition operationAfter; Slice group prerequisites can also name full producer completion as {assignment}. Generation lowers those references to actual constructed operation IDs and rejects missing producers, vanished selected targets, self requirements and cycles. Source currency advances to /31; published dependencies remain concrete IDs. Most of this implementation rode in the concurrent b31f756e all-changes checkpoint; this entry records its verification and final boundary-set/traversal changes.

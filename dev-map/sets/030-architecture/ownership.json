@@ -28001,6 +28001,14 @@
     },
     "core/application/deposition-schemas.mjs::operationAfter": {
       "owner": "application"
+    },
+    "core/geom/convex-clearance.mjs::nozzleRadiusBound": {
+      "owner": "geometry",
+      "reason": "Numerical truncated-cone clearance dimensions and rigid-motion bounds."
+    },
+    "core/geom/convex-clearance.mjs::nozzleSideOffsetMm": {
+      "owner": "geometry",
+      "reason": "Numerical truncated-cone clearance dimensions and rigid-motion bounds."
     }
   },
   "retiredAssignments": [
