@@ -42,6 +42,8 @@ Sources: [0.3.3 "One route: everything through Application"](../plans/0.3.3.md);
 
 Summary: autonomous work stays dimmed across edits. Hand-back or human contact un-dims after underway work settles and the saved revision is displayed, or its view failure is shown. Subagent events are ignored; actual new edits begin work again. Open and Import share one selection pipe: old work keeps its bundle, loses write authority and no longer awaits an abandoned view. Native client adapters implement these settled semantics.
 
+> "We can insert a brief \"file changed\" message into the chat to wake an idle chat, and everything else can NOT insert into chat." — owner, 2026-10-16
+
 Sources: [0.3.5 "Dimming by client turn-end signal"](../plans/0.3.5.md); [0.3.6 "Dimming means the agent is at the SAAM desk"](../plans/0.3.6.md); `.local/team/dimming-design.md`; `.local/team/questions-036.md` 1-2; `.local/team/questions.md` R1(a); Claude e6f170be 10-05 18:22 ("I've fully clarified this intent multiple times").
 
 ## Windows and instances

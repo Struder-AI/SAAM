@@ -294,7 +294,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       if(!added.length)throw Object.assign(Error('Source ordering is unresolved at physical interruption resolution.'),
         {code:'SOURCE_ORDER_UNRESOLVED',cause:error,witnesses});
       history.refinements++;
-      onProgress?.({stage:'Refining witnessed curve conflicts',completed:history.refinements,total:cuts.size});
+      onProgress?.({stage:'Refining witnessed curve conflicts'});
     }
   }
 }

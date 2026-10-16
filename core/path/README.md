@@ -155,7 +155,7 @@ Assemblies retain named native components; an assignment's `part` selects its ow
 `spacingFactor` (default 1), divided by fill density where applicable. Actual width
 and normal gap determine material; overlap/spacing does not establish printability.
 [Process controls](./process-controls.mjs) retain scoped temperature validation;
-machine adapters own command semantics. Retraction debt retains amount/speed
-through interleaving, zero retract prevents new withdrawal, and cooling uses native
-layer identity. [Print lifecycle](../print/README.md) owns generation and review;
+machine adapters own command semantics. Direct travel preserves pressure; routed
+travel retracts. Debt retains amount/speed through interleaving; zero retract
+prevents withdrawal. Cooling uses native layer identity. [Print lifecycle](../print/README.md) owns generation and review;
 [Material regions](../region/README.md) owns claims, cadence and surface contact.

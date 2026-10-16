@@ -4,6 +4,7 @@ import {mkdir,readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {replaceFile} from '../file-write.mjs';
+import {studioWakeEvent} from './chat-events.mjs';
 
 export function contactIncludes(contact,work){
   if(!contact||!work)return true;
@@ -71,7 +72,8 @@ export async function createClientLifecycle({folder,handBack}){
   function messageFor(client,sessionId,includeHeld){
     const events=state.sessions[key(client,sessionId)]?.events??[];
     if(!events.length||!includeHeld&&!events.some(event=>event.delivery==='delivered'))return null;
-    return {id:events[0].id,ids:events.map(event=>event.id),...(includeHeld&&{events:structuredClone(events)}),text:'SAAM Studio events (application notifications, not a human message). Event IDs are stable; ignore IDs already handled. Use the current Studio selection/version before editing; original work stays with its bundle.\n'+JSON.stringify(events)};
+    const change=studioWakeEvent(events);
+    return {id:events[0].id,ids:events.map(event=>event.id),...(includeHeld&&{events:structuredClone(events),wake:change?{id:change.id,text:'SAAM: file changed. Read the current Studio events.'}:null}),text:'SAAM Studio events (application notifications, not a human message). Event IDs are stable; ignore IDs already handled. Use the current Studio selection/version before editing; original work stays with its bundle.\n'+JSON.stringify(events)};
   }
   async function inbox({client,sessionId,sessionIds,includeHeld=false}){
     await queue.tail;

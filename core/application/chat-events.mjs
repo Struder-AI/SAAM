@@ -9,6 +9,13 @@ export const DELIVERED_KINDS=new Set(['chat-attached','chat-detached','chat-capt
 export const HELD_KINDS=new Set(['viewer-opened','viewer-closed','view-presented','geometry-started','generation-started','generation-finished','approved',
   'tour-playback','import-started','bundle-share-started','example-adopted','plan-updated','workspace-design-updated','workspace-previewed','workspace-bundles-started','workspace-bundles-progress','workspace-viewer-opened','workspace-viewer-closed']);
 export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];
+// Only a changed selection/input or a person requesting agent work warrants an
+// idle wake. Progress, presentation and advisory observations stay in context.
+const WAKE_KINDS=new Set(['print-opened','import-completed','plan-updated','example-adopted','chat-attached','chat-captured',
+  'tour-started','tour-lesson','tour-exited','workspace-opened','workspace-design-updated']);
+export function studioWakeEvent(events){
+  return events.findLast(event=>WAKE_KINDS.has(event.kind)||event.kind==='request-queued'&&event.requestKind!=='advisory')??null;
+}
 const clone=({key,...event})=>structuredClone(event);
 
 export function createChatEvents({now=Date.now,limit=200,historyLimit=100}={}){

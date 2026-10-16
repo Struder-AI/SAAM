@@ -8,7 +8,7 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
 export const PATH_CONTRACT='saam-deposition/23'; // SP2 finite moving transitions and one compiled material law.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/10'; // Physical views of checked source-range execution.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/11'; // Direct travel preserves pressure; routed travel retracts.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

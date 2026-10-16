@@ -125,14 +125,15 @@ export function planTravel(state,target,scene,targetPose,{recover=true}={}){
     const operations=[...new Set(route.blocked.map(id=>scene.operationOf(id)))];
     throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+operations.join(', ')),{code:'NOZZLE_ACCESS_BLOCKED',operations,target});
   }
-  const retracted=distance(state.position,target)>PRINT_RESOLUTION_MM?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
+  const travelKind=route.length>1?'routed':'direct';
+  const retracted=travelKind==='routed'?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
   actions.add(retracted.actions);const cursor={state:retracted.state};
   for(const next of route){
     const moved=planMove(cursor.state,next.point,state.process.travelSpeedMmS,0,{pose:next.pose});
     cursor.state=moved.state;actions.add(moved.actions);
   }
   const recovered=recover?planRecovery(cursor.state):planningResult(cursor.state);actions.add(recovered.actions);
-  return planningResult(recovered.state,actions.finish(),{travelKind:route.length>1?'routed':'direct'});
+  return planningResult(recovered.state,actions.finish(),{travelKind});
 }
 export function materializeActions(chunks){const collector=new ActionAccumulator();collector.add({chunks});return collector.finish().append;}
 export function planningPath(state,chunks,summary={},completion){

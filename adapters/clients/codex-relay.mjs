@@ -15,8 +15,7 @@ const config=JSON.parse(await readFile(join(folder,'client.json'),'utf8'));
 const args=process.argv.slice(2),connectionId=randomUUID();
 if(args.includes('--saam-context-hook')){
   try{await deliverCodexContext(config);}catch(error){process.stderr.write('SAAM context delivery deferred: '+error.message+'\n');}
-  process.exit(0);
-}
+}else{
 const backend=await codexBackend(config);
 if(!args.includes('app-server')){
   const native=spawn(backend,args,{env:{...process.env,CODEX_CLI_PATH:backend},windowsHide:true,stdio:'inherit'});
@@ -91,11 +90,10 @@ async function wake(){
     for(const {sessionId,message} of messages){
     // Recheck after the inbox read: a real user may have started work meanwhile.
     if(!wire.idle(sessionId))continue;
-    const changes=message.events.filter(event=>['print-opened','import-completed','plan-updated','example-adopted'].includes(event.kind)&&!state.notified.has(event.id));
-    if(!changes.length)continue;
+    if(!message.wake||state.notified.has(message.wake.id))continue;
     const id='saam_'+connectionId+'_'+(++state.wakeCounter);
-    state.wakeRequests.set(id,{sessionId,ids:changes.map(event=>event.id)});
-    child.stdin.write(JSON.stringify({id,method:'turn/start',params:{threadId:sessionId,clientUserMessageId:changes[0].id,turnTrigger:'saam_studio',input:[{type:'text',text:'SAAM: file changed. Read the current Studio events.'}]}})+'\n');
+    state.wakeRequests.set(id,{sessionId,ids:[message.wake.id]});
+    child.stdin.write(JSON.stringify({id,method:'turn/start',params:{threadId:sessionId,clientUserMessageId:message.wake.id,turnTrigger:'saam_studio',input:[{type:'text',text:message.wake.text}]}})+'\n');
   }}catch{}finally{state.waking=false;}
 }
 const wakeTimer=setInterval(()=>{void wake();},250);
@@ -106,3 +104,4 @@ child.on('close',async(code,signal)=>{
   // The durable outbox is recovered by the receiver even if it is offline here.
   clearTimeout(state.retry);await spool.close();process.exitCode=code??1;process.stdin.destroy();
 });
+}

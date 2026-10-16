@@ -18,10 +18,12 @@ function run(binary,args,env=process.env){return new Promise((done,fail)=>{
   child.once('close',code=>code===0?done(output.text.trim()):fail(Error(binary+' failed: '+(output.error||output.text).trim())));
 });}
 async function executable(path){try{await access(path);return path;}catch{return null;}}
-async function prepare(home){
-  const files=['codex-relay.mjs','codex-wire.mjs','codex-backend.mjs','codex-context.mjs','transport.mjs','owner.mjs','RelayLauncher.cs','claude/hooks/register.js','claude/hooks/hooks.json','claude/.claude-plugin/plugin.json'];
+async function prepare(home,client){
+  const files=client==='codex'
+    ?['codex-relay.mjs','codex-wire.mjs','codex-backend.mjs','codex-context.mjs','transport.mjs','RelayLauncher.cs']
+    :['owner.mjs','claude/hooks/register.js','claude/hooks/hooks.json','claude/.claude-plugin/plugin.json'];
   const contents=await Promise.all(files.map(file=>readFile(join(source,file))));
-  const hash=createHash('sha256').update(process.version+process.arch+process.platform);
+  const hash=createHash('sha256').update(client+orchestratorContract+process.version+process.arch+process.platform);
   for(const bytes of contents)hash.update(bytes);
   const version=hash.digest('hex'),folder=join(home,'state','clients'),release=join(folder,'releases',version);
   await mkdir(release,{recursive:true});
@@ -30,10 +32,12 @@ async function prepare(home){
   const node=join(runtime,process.platform==='win32'?'node.exe':'node');
   if(!await executable(node))await copyFile(process.execPath,node);
   if(process.platform!=='win32')await chmod(node,0o755);
-  const config={home,contract:orchestratorContract,node,owner:join(release,'owner.mjs')};
-  await write(join(release,'claude','client.json'),JSON.stringify(config)+'\n');
-  const manifest=JSON.parse(contents.at(-1).toString());manifest.version='1.0.0-'+version;
-  await write(join(release,'claude','.claude-plugin','plugin.json'),JSON.stringify(manifest)+'\n');
+  const config={home,contract:orchestratorContract,node};
+  if(client==='claude'){
+    await write(join(release,'claude','client.json'),JSON.stringify({...config,owner:join(release,'owner.mjs')})+'\n');
+    const manifest=JSON.parse(contents.at(-1).toString());manifest.version='1.0.0-'+version;
+    await write(join(release,'claude','.claude-plugin','plugin.json'),JSON.stringify(manifest)+'\n');
+  }
   return {folder,release,config,version};
 }
 async function environment(name,value,platform,clientHome){
@@ -61,7 +65,7 @@ async function userOverride(platform,clientHome){
   return process.env.CODEX_CLI_PATH??null;
 }
 export async function registerCodexAdapter({home,clientHome,platform}){
-  const prepared=await prepare(home),{folder,release,config}=prepared;
+  const prepared=await prepare(home,'codex'),{folder,release,config}=prepared;
   const recordFile=join(folder,'codex-startup.json'),previous=await optional(recordFile).then(text=>text?JSON.parse(text):null);
   const launcher=join(folder,platform==='win32'?'saam-codex.exe':'saam-codex');
   const override=await userOverride(platform,clientHome);
@@ -92,7 +96,7 @@ async function claudeBinary(clientHome,platform){
   return await executable(join(clientHome,'.local','bin',name))??await executable(join('/usr/local/bin',name))??name;
 }
 export async function registerClaudeAdapter({home,clientHome,platform,directory}){
-  const {folder,release,version}=await prepare(home),marketplace=join(folder,'marketplace');
+  const {folder,release,version}=await prepare(home,'claude'),marketplace=join(folder,'marketplace');
   // The native CLI copies the plugin into its own cache; updates are versioned.
   await cp(join(release,'claude'),join(marketplace,'claude'),{recursive:true});
   await write(join(marketplace,'.claude-plugin','marketplace.json'),JSON.stringify({name:'saam-local',owner:{name:'SAAM'},plugins:[{name:'saam-lifecycle',source:'./claude',version:'1.0.0-'+version}]})+'\n');

@@ -1,5 +1,5 @@
 // Native in-process observers. No command hooks or permission decisions.
-const observer={connectionId:crypto.randomUUID(),sequence:0,polling:false,sessions:{},turns:{},active:{},configuration:null};
+const observer={connectionId:crypto.randomUUID(),sequence:0,polling:false,sessions:{},turns:{},active:{},notified:{},configuration:null};
 async function configuration($){return observer.configuration??=JSON.parse(await $.fs.read($.plugin.root+'/client.json'));}
 async function control($,message){
   const config=await configuration($),instance=JSON.parse(await $.fs.read(config.home+'/state/instance.json'));
@@ -22,7 +22,7 @@ async function report($,kind,e,extra={}){
   }
   try{await send($,event);await $.store.delete(event.id);observer.sessions[sessionId]=true;}catch{}
 }
-async function inbox($,sessionId){return control($,{command:'client-inbox',client:'claude',sessionId});}
+async function inbox($,sessionId){return control($,{command:'client-inbox',client:'claude',sessionId,includeHeld:true});}
 async function acknowledge($,sessionId,message){await control($,{command:'client-ack',client:'claude',sessionId,eventIds:message.ids});}
 export function register(on){
   on('session.start',async($,e,next)=>{
@@ -46,13 +46,28 @@ export function register(on){
         if(!observer.sessions[sessionId])await report($,'connected',{sessionId});
         if(observer.active[sessionId])return;
         const {message}=await inbox($,sessionId);
-        if(message){await $.prompt.submit({text:message.text});await acknowledge($,sessionId,message);}
+        if(observer.active[sessionId]||!message?.wake||observer.notified[sessionId]===message.wake.id)return;
+        await $.prompt.submit({text:message.wake.text});
+        observer.notified[sessionId]=message.wake.id;
       }catch{/* Durable evidence and unacknowledged Studio events retry. */}finally{observer.polling=false;}
     });
     return next(e);
   });
   on('prompt.submit',async($,e,next)=>{if(['composer','bridge','sdk'].includes(e.origin.kind))await report($,'message',e);return next(e);});
-  on('session.append',{door:'prompt'},async($,e,next)=>{if(['composer','bridge','sdk'].includes(e.origin.kind))await report($,'message',e);return next(e);});
+  on('session.append',{door:'prompt'},async($,e,next)=>{
+    if(['composer','bridge','sdk'].includes(e.origin.kind))await report($,'message',e);
+    const result=await next(e);
+    if(!e.agentId)try{
+      const sessionId=await $.session.id(),{message}=await inbox($,sessionId);
+      if(message){
+        // The prompt is stored, but its model request has not been prepared.
+        // Native append creates an isMeta context row, not a composer prompt.
+        await $.session.append({message:{type:'user',content:[{type:'text',text:message.text}]}});
+        await acknowledge($,sessionId,message);
+      }
+    }catch{/* Keep the inbox for the next native tool-result boundary. */}
+    return result;
+  });
   on('session.append',{door:'tool-result'},async($,e,next)=>{
     if(e.agentId)return next(e);
     const delivery={sessionId:null,message:null,content:null};

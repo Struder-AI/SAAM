@@ -1774,6 +1774,10 @@
     "core/geom/solid-profiles.mjs": {
       "owner": "geometry",
       "reason": "Geometry owns retained solids, exact profiles and derived output."
+    },
+    "adapters/clients/codex-context.mjs": {
+      "owner": "application",
+      "reason": "Native Codex context delivery reads the shared Studio inbox; the request ledger owns lifecycle state."
     }
   },
   "leaves": {
@@ -27730,6 +27734,48 @@
     "studio/adapter-resolution.mjs::bundleLoader": {
       "owner": "studio",
       "reason": "One schema dispatch boundary reads schema-free shell drafts with current defaults and still rejects unknown explicit formats."
+    },
+    "adapters/clients/codex-context.mjs::@module": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-context.mjs::deliverCodexContext": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-context.mjs::deliverCodexContext::chunks": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-context.mjs::deliverCodexContext::event": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-context.mjs::deliverCodexContext::message": {
+      "owner": "application"
+    },
+    "adapters/clients/codex-context.mjs::deliverCodexContext::result": {
+      "owner": "application"
+    },
+    "core/application/chat-events.mjs::WAKE_KINDS": {
+      "owner": "application"
+    },
+    "core/application/chat-events.mjs::studioWakeEvent": {
+      "owner": "application"
+    },
+    "core/application/client-lifecycle.mjs::createClientLifecycle::messageFor::change": {
+      "owner": "application"
+    },
+    "packaging/client-setup.mjs::registerCodex::before": {
+      "owner": "application"
+    },
+    "packaging/client-setup.mjs::registerCodex::handler": {
+      "owner": "application"
+    },
+    "packaging/client-setup.mjs::registerCodex::trustRequired": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::hookCommand": {
+      "owner": "application"
+    },
+    "packaging/client-adapters.mjs::registerCodexAdapter::hookCommandWindows": {
+      "owner": "application"
     }
   },
   "retiredAssignments": [
