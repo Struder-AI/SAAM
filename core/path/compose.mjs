@@ -1,7 +1,7 @@
 // Source operations enter once as compact curves; execution refers to ranges.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {curveAt,prepareCurvePath} from './curve-path.mjs';
-import {ROUNDING_MM} from '../dimensions.mjs';
+import {curveAt,curveRange,curveParameterAtLength,prepareCurvePath} from './curve-path.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
 import {prepareRangeScene} from './physical-order.mjs';
@@ -53,6 +53,27 @@ export function prepareOperationDependencies(operations,byId,{order=[],dependenc
 // so an operation with N courses followed by M courses needs O(N+M) edges.
 // Neither polyline vertices nor profile keys create scheduling nodes.
 
+// Proof subdivisions are not execution fragments. Keep source coverage exact,
+// canonicalize only proposed interruption locations, and re-solve all contacts.
+function executionCut(reader,course,u,existing){
+  if(!(u>course.from&&u<course.to)||existing.has(u))return null;
+  const boundaries=[course.from,...existing,course.to].sort((a,b)=>a-b),i=boundaries.findIndex(value=>value>u),a=boundaries[i-1],b=boundaries[i];
+  const measured=(from,to)=>curveRange(reader,course.curveId,from,to,{lengthToleranceMm:ROUNDING_MM}).lengthMm;
+  const left=measured(a,u),right=measured(u,b);
+  if(a!==course.from&&left[1]<=PRINT_RESOLUTION_MM||b!==course.to&&right[1]<=PRINT_RESOLUTION_MM)return null;
+  const target=PRINT_RESOLUTION_MM+ROUNDING_MM;
+  if(left[0]<PRINT_RESOLUTION_MM)u=curveParameterAtLength(reader,course.curveId,a,b,target);
+  else if(right[0]<PRINT_RESOLUTION_MM)u=curveParameterAtLength(reader,course.curveId,a,b,target,{fromEnd:true});
+  if(!(u>a&&u<b))return null;
+  return measured(a,u)[0]>=PRINT_RESOLUTION_MM&&measured(u,b)[0]>=PRINT_RESOLUTION_MM?u:null;
+}
+function courseCuts(reader,course,values){
+  const retained=new Set();
+  for(const u of [...new Set(values)].sort((a,b)=>a-b)){
+    const cut=executionCut(reader,course,u,retained);if(cut!==null)retained.add(cut);
+  }
+  return [...retained].sort((a,b)=>a-b);
+}
 export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
   const operations=Object.values(source.operations),bySource=new Map(operations.map(op=>[op.id,op]));
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
@@ -70,7 +91,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
     const members=[];
     if(operation.kind==='inject'||!operation.interruptible)members.push(node(operation,operation.courses??[]));
     else for(const course of operation.courses){
-      const breaks=course.interruptible?[...new Set(cuts.get(course.id)??[])].filter(u=>u>course.from&&u<course.to).sort((a,b)=>a-b):[];
+      const breaks=course.interruptible?courseCuts(reader,course,cuts.get(course.id)??[]):[];
       const parameters=[course.from,...breaks,course.to];
       for(let i=1;i<parameters.length;i++)members.push(node(operation,[{...course,from:parameters[i-1],to:parameters[i]}]));
     }
@@ -229,8 +250,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
       const witnesses=error.witness?[error.witness]:reasons.map(edge=>edge.witness).filter(Boolean),added=[];
       function addCut(id,u){
         const owner=courseOwners.get(id);if(!owner?.operation.interruptible||!owner.course.interruptible||!(u>owner.course.from&&u<owner.course.to))return;
-        if(!cuts.has(id))cuts.set(id,new Set());const values=cuts.get(id);
-        if(!values.has(u)){values.add(u);added.push({id,u});}
+        if(!cuts.has(id))cuts.set(id,new Set());const values=cuts.get(id),cut=executionCut(reader,owner.course,u,values);
+        if(cut!==null){values.add(cut);added.push({id,u:cut});}
       }
       const proposals=witnesses.flatMap(witness=>state.scene.cutsForWitness(witness).map(proposal=>({...proposal,material:proposal.courseId===witness.material?.id}))).map(proposal=>{
         const owner=courseOwners.get(proposal.courseId),existing=cuts.get(proposal.courseId);
@@ -243,7 +264,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         if(ref.at!==undefined)addCut(ref.id,ref.at);
         else addCut(ref.id,(ref.from+ref.to)/2);
       }
-      if(!added.length)throw error;
+      if(!added.length)throw Object.assign(Error('Source ordering is unresolved at physical interruption resolution.'),
+        {code:'SOURCE_ORDER_UNRESOLVED',cause:error,witnesses});
       history.refinements++;
       onProgress?.({stage:'Refining witnessed curve conflicts',completed:history.refinements,total:cuts.size});
     }

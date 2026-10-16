@@ -5,7 +5,7 @@ import {extract} from './curve-ops.mjs';
 import {bernsteinProductWeights,restrictBezierLine} from './bezier-net.mjs';
 import {distance,requireThat} from './tolerance.mjs';
 import {dot,cross} from './frame.mjs';
-import {ROUNDING_RELATIVE,FLOAT64_EPSILON} from '../dimensions.mjs';
+import {ROUNDING_RELATIVE,ROUNDING_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 const xyz=p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite);
 export function prepareNumericalCurve(geometry){
@@ -143,6 +143,26 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
     speed:[Math.min(...pieces.map(p=>p.speed[0])),Math.max(...pieces.map(p=>p.speed[1]))],
     tangentCone:combinedCones(pieces.map(piece=>piece.tangentCone)),interpolationErrorMm,
     chordErrorMm:pieces.length===1?pieces[0].chordErrorMm:Math.max(...corners.map(p=>pointChordDistance(p,a,b)))};
+}
+// Invert physical length in a source interval without treating normalized u as
+// millimetres. Precision loss is explicit; close XYZ endpoints may hide a loop.
+export function numericalCurveParameterAtLength(curve,from,to,distanceMm,{fromEnd=false,toleranceMm=ROUNDING_MM}={}){
+  requireThat(Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&to<=1&&from<to,'Arc-length inversion needs an increasing source interval.');
+  requireThat(Number.isFinite(distanceMm)&&distanceMm>=0&&Number.isFinite(toleranceMm)&&toleranceMm>0,'Arc-length inversion needs finite distance and positive accuracy.');
+  if(distanceMm===0)return fromEnd?to:from;
+  if(curve.kind==='point')return fromEnd?from:to;
+  if(curve.kind==='polyline')return fromEnd?Math.max(from,to-distanceMm/curve.length):Math.min(to,from+distanceMm/curve.length);
+  const total=numericalCurveRange(curve,from,to,{lengthToleranceMm:toleranceMm/4}).lengthMm;
+  if(distanceMm>=total[1])return fromEnd?from:to;
+  const state={lo:from,hi:to};
+  for(let u=(state.lo+state.hi)/2;u>state.lo&&u<state.hi;u=(state.lo+state.hi)/2){
+    const range=numericalCurveRange(curve,fromEnd?u:from,fromEnd?to:u,{lengthToleranceMm:toleranceMm/4}).lengthMm;
+    if(Math.max(Math.abs(range[0]-distanceMm),Math.abs(range[1]-distanceMm))<=toleranceMm)return u;
+    if(range[1]<distanceMm){if(fromEnd)state.hi=u;else state.lo=u;}
+    else if(range[0]>distanceMm){if(fromEnd)state.lo=u;else state.hi=u;}
+    else return u;
+  }
+  throw Object.assign(Error('Physical curve distance is unresolved at source parameter precision.'),{code:'CURVE_LENGTH_UNRESOLVED',from,to,distanceMm});
 }
 function combinedCones(cones){
   const regular=cones.filter(Boolean);if(!regular.length)return null;

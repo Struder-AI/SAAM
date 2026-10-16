@@ -2,8 +2,11 @@
 import {saamPath} from './saampath.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {strokeRange} from './deposition.mjs';
-import {uprightPose} from './pose.mjs';
+import {uprightPose,interpolatePose} from './pose.mjs';
 import {surfaceReferenceRecord} from '../geom/surface-record.mjs';
+import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength} from '../geom/curve-query.mjs';
+import {keyed,profileAt,interpolateScalar} from './curve-profiles.mjs';
+import {ROUNDING_MM} from '../dimensions.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function channel(values,parameters,interpolation){
@@ -75,6 +78,36 @@ function publishedCurve(original,process){
     speedMmS:smoothChannel(stroke,'speedMmS',parameters,segmentChannel(speeds,parameters)),
     materialNormal:channel(normals,parameters,'slerp'),pose:channel(poses,parameters,'frame'),material}},provenance:sourceProvenance(stroke,metadata,parameters)};
 }
+// A continuous operation has an authored traversal across its course seams.
+// Publish that transition once, over one bead width (at most half each course),
+// rather than asking execution readers to invent an instantaneous field change.
+function continuousProfiles(curves,courses){
+  const prepared=new Map();
+  const geometry=id=>{if(!prepared.has(id))prepared.set(id,prepareNumericalCurve(curves[id].geometry));return prepared.get(id);};
+  function endProfile(curve,key,u,value,start){
+    const profile=curve.profiles[key],anchor=[u,profileAt(profile,u)],keys=keyed(profile)?profile.knots:[[0,profile],[1,profile]];
+    curve.profiles[key]={interpolation:key==='pose'?'frame':'linear',knots:start
+      ?[[0,value],anchor,...keys.filter(([at])=>at>u)]
+      :[...keys.filter(([at])=>at<u),anchor,[1,value]]};
+  }
+  for(let i=1;i<courses.length;i++){
+    const left=curves[courses[i-1].curveId],right=curves[courses[i].curveId];
+    const changes=['widthMm','speedMmS','pose'].filter(key=>!same(profileAt(left.profiles[key],1),profileAt(right.profiles[key],0)));
+    if(!changes.length)continue;
+    const a=geometry(courses[i-1].curveId),b=geometry(courses[i].curveId);
+    if(distance(numericalCurveAt(a,1).point,numericalCurveAt(b,0).point)>ROUNDING_MM)continue;
+    const width=Math.max(profileAt(left.profiles.widthMm,1),profileAt(right.profiles.widthMm,0));
+    const window=shape=>Math.min(width,numericalCurveRange(shape,0,1,{lengthToleranceMm:ROUNDING_MM}).lengthMm[0]/2);
+    const from=numericalCurveParameterAtLength(a,0,1,window(a),{fromEnd:true});
+    const to=numericalCurveParameterAtLength(b,0,1,window(b));
+    requireThat(from>0&&from<1&&to>0&&to<1,'Continuous fields need a representable transition window.');
+    for(const key of changes){
+      const x=profileAt(left.profiles[key],1),y=profileAt(right.profiles[key],0);
+      const value=key==='pose'?interpolatePose(x,y,.5):interpolateScalar(x,y,.5);
+      endProfile(left,key,from,value,false);endProfile(right,key,to,value,true);
+    }
+  }
+}
 export function constructionPath({results,planning,composition,summary,generatorVersion}){
   const curves={},layers={},surfaces={},processes={},operations={},surfaceIds=new Map(),processIds=new Map();
   function processId(process){
@@ -118,6 +151,7 @@ export function constructionPath({results,planning,composition,summary,generator
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,role:stroke.role,
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
+    if(!interruptible)continuousProfiles(curves,courses);
     operations[operation.id]={...shared,kind:'deposit',courses};
   }
   return saamPath({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,

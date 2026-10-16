@@ -1,8 +1,8 @@
 // One numerical reader for compact source, execution and older saved actions.
 // Handles prepare geometry only; local queries and streaming retain source u.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,normalCone,frameCone} from '../geom/curve-query.mjs';
-import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume} from './curve-profiles.mjs';
+import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength,normalCone,frameCone} from '../geom/curve-query.mjs';
+import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume,materialProfileDeviation} from './curve-profiles.mjs';
 import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 
 // Display/program local views share explicit tolerances, independent of the
@@ -141,6 +141,10 @@ export function curveRange(handle,curveId,from,to,options={}){
   for(const key of ['lengthToleranceMm','volumeToleranceMm3'])if(options[key]!==undefined)requireThat(positive(options[key]),'Curve range tolerance must be positive.');
   return localRange(selected(handle,curveId),from,to,options);
 }
+export function curveParameterAtLength(handle,curveId,from,to,distanceMm,options={}){
+  requireThat(rangeValid(from,to),'Invalid curve interval.');
+  return numericalCurveParameterAtLength(selected(handle,curveId).geometry,from,to,distanceMm,options);
+}
 function tolerances(options){
   for(const key of ['positionToleranceMm','orientationToleranceRad','volumeToleranceMm3'])requireThat(positive(options?.[key]),'Local views need positive '+key+'.');
 }
@@ -152,12 +156,27 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
   const curve=selected(handle,curveId),state={start:from};
   // Geometry and labels are useful view candidates. Profile/material keys are
   // query information, not an instruction to emit one move between every key.
-  const candidates=[...new Set([...curve.geometry.breaks,...labels])].filter(u=>u>from&&u<to).sort((a,b)=>a-b);
-  for(const end of candidates){
+  const priorities=new Map([...labels.map(u=>[u,0]),...curve.geometry.breaks.map(u=>[u,1])]);
+  // Older explicit scalar steps retain their meaning. When a step and a
+  // geometry vertex are physically coincident, use the step once and certify
+  // the geometry across it; do not emit the microscopic interval between them.
+  for(const profile of [curve.profiles.widthMm,curve.profiles.speedMmS])if(keyed(profile)&&profile.interpolation==='step')
+    for(const [i,[u,value]] of profile.knots.entries())if(i&&value!==profile.knots[i-1][1])priorities.set(u,2);
+  const candidates=[...priorities].filter(([u])=>u>from&&u<to).sort(([a],[b])=>a-b),groups=[];
+  for(const candidate of candidates){
+    const group=groups.at(-1);
+    if(group&&numericalCurveRange(curve.geometry,group[0][0],candidate[0]).lengthMm[1]<=options.positionToleranceMm)group.push(candidate);
+    else groups.push([candidate]);
+  }
+  const cuts=groups.flatMap(group=>{
+    const required=group.filter(([,priority])=>priority===2);
+    return required.length?required:[group.reduce((chosen,candidate)=>candidate[1]>chosen[1]?candidate:chosen)];
+  });
+  for(const [end,priority] of cuts){
     const remaining=curve.geometry.kind==='polyline'?curve.geometry.length*(to-end):
       numericalCurveRange(curve.geometry,end,to).lengthMm[1];
-    if(numericalCurveRange(curve.geometry,state.start,end).lengthMm[1]<=options.positionToleranceMm||
-      remaining<=options.positionToleranceMm)continue;
+    if(priority<2&&(numericalCurveRange(curve.geometry,state.start,end).lengthMm[1]<=options.positionToleranceMm||
+      remaining<=options.positionToleranceMm))continue;
     yield* boundedSpans(handle,curveId,curve,state.start,end,from,to,options);state.start=end;
   }
   yield* boundedSpans(handle,curveId,curve,state.start,to,from,to,options);
@@ -172,9 +191,9 @@ function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
   // enclosure certificate; agreeing endpoints alone can hide an entire turn.
   const pose=curve.profiles.pose;
   const frameExact=!keyed(pose)||!interiorKeys(pose.knots,from,to).length;
-  if(geometry.interpolationErrorMm<=options.positionToleranceMm/2&&(frameExact||4*range.poseCone.halfAngleRad<=options.orientationToleranceRad)&&
+  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(frameExact||4*range.poseCone.halfAngleRad<=options.orientationToleranceRad)&&
     (moves||!(range.volumeMm3?.[1]>0))){
-    yield {from,to,start,end,range};return;
+    yield {from,to,start,end,range,positionErrorMm:geometry.interpolationErrorMm};return;
   }
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Curve subdivision cannot reach requested precision.');
   yield* boundedSpans(handle,id,curve,from,mid,rangeFrom,rangeTo,options);
@@ -235,8 +254,7 @@ function materialInterpolationError(handle,id,span){
   const curve=selected(handle,id),material=curve.material;
   if(!material)return 0;
   if(material.measure==='parameter'){
-    const rates=materialProfileRange(material,span.from,span.to);
-    return (rates[1]-rates[0])*(span.to-span.from)/4;
+    return materialProfileDeviation(material,span.from,span.to);
   }
   const geometry=numericalCurveRange(curve.geometry,span.from,span.to),area=scalarRange(material.density,span.from,span.to);
   const low=area[0]*geometry.speed[0],high=area[1]*geometry.speed[1];
@@ -256,7 +274,7 @@ function* linearAttributeSpans(handle,id,span,from,to,options,speedScale){
   const smooth=(!range.widthMm||range.widthMm[1]-range.widthMm[0]<=options.positionToleranceMm)&&
     (speedScale===0||(speed[1]-speed[0])/speedScale<=Math.sqrt(scale))&&
     (!range.normalCone||2*Math.sin(range.normalCone.halfAngleRad/2)*sectionExtent<=options.positionToleranceMm)&&
-    materialShift<=options.positionToleranceMm/2;
+    materialShift<=Math.max(0,options.positionToleranceMm-span.positionErrorMm);
   if(smooth){yield span;return;}
   const mid=(span.from+span.to)/2;requireThat(mid>span.from&&mid<span.to,'Attribute view cannot reach requested precision.');
   for(const [a,b] of [[span.from,mid],[mid,span.to]]){

@@ -31,7 +31,7 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
   Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
   retaining roll. Antipodal normal keys require an authored intermediate direction.
-  New writers connect moving width/feed samples over finite intervals; frame and material-rate changes also occupy nonzero path windows.
+  New writers interpolate moving samples and cumulative rates over finite windows. Connected atomic courses share width/feed/frame endpoints, transitioning over one bead width, capped at half each course.
 - Keys strictly increase, include 0 and 1, and cover the domain. Step values are
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath
@@ -75,8 +75,7 @@ references `motionCurves`, using the same curve/profile representation.
 `{kind:'inject',operationId}` references its source injection. Fan, temperature,
 toolChange, retract, recover, dwell and context retain their current action fields
 and delta semantics. Context labels source operations, layers and provenance; it cannot override material or pose profiles. Travel has zero deposited volume.
-Optional travel duration preserves timed rotation; otherwise machine rate applies. Each moving source course is covered exactly once, with no gaps or duplicated
-volume; each injection executes once. A failed solve produces a finding, never
+Optional travel duration preserves timed rotation; otherwise machine rate applies. Each moving source course is covered exactly once, without gaps or duplicated volume; scheduler cuts coalesce or move within print resolution and all contacts are re-solved; each injection executes once. A failed solve produces a finding, never
 a partially successful schedule or unchecked fallback motion.
 
 ## Shared numerical reader
@@ -88,6 +87,7 @@ Toolpath owns `core/path/curve-path.mjs`, with these exports. All queries are de
 | `prepareCurvePath({curves})` | Admitted curve-table/query handle (a source can be passed directly); no eager whole-path tessellation. |
 | `curveAt(handle,curveId,u,{side='right'}={})` | `{point,tangent,pose,widthMm,speedMmS,materialNormal,areaMm2}`; absent travel channels stay absent; tangent is null only at a singularity/point. |
 | `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],tangentCone,chordErrorMm,normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
+| `curveParameterAtLength(handle,curveId,from,to,distanceMm,{fromEnd=false,toleranceMm}={})` | Source parameter at physical distance, certified by Geometry; defaults to rounding accuracy. |
 | `curveSpans(handle,curveId,from,to,options)` | Lazy iterable of bounded local spans, each `{from,to,start,end,range}`; endpoints are `curveAt` records, range is `curveRange`. |
 | `linearizePath(view,options)` | Lazy existing-style contextual action stream from the joined path, for consumers needing segments. Never the persisted authority. |
 
@@ -102,7 +102,7 @@ it does not assert that curve and chord share linear timing. `poseCone` is
 `orientationToleranceRad`, `volumeToleranceMm3`; these bound chord deviation,
 full-frame deviation from endpoint interpolation, and total volume error over the
 requested range/path. Source breaks remain queryable. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
-Subdivision tightens bounds; midpoint agreement alone is no certificate. Length/volume bounds must converge; zero deposition stays exact.
+Subdivision certifies convergent length/volume bounds; zero deposition stays exact.
 Shared numerical shape calculations delegate to Geometry; path/material semantics
 stay here. Consumers can request different resolutions without changing identity,
 profiles or accumulated material. Serialization never rounds range cuts into gaps.

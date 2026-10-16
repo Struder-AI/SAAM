@@ -94,6 +94,22 @@ function materialInterval(material,u,side){return material.intervals[keyIndex(ma
 function restrictedRates(span,from,to){
   return restrictBezierLine(span.coefficients,[(from-span.from)/(span.to-span.from),(to-span.from)/(span.to-span.from)]).map(row=>row[0]);
 }
+function* materialPieces(material,from,to){
+  for(let i=keyIndex(material.knots,from,'right');i<material.intervals.length;i++){
+    const span=material.intervals[i];if(span.from>=to)break;
+    const a=Math.max(from,span.from),b=Math.min(to,span.to);
+    yield {span,from:a,to:b,rates:restrictedRates(span,a,b)};
+  }
+}
+function rateBounds(values){
+  const guard=values.every(value=>value===values[0])?0:FLOAT64_EPSILON*8*Math.max(...values.map(Math.abs));
+  return [Math.max(0,Math.min(...values)-guard),Math.max(...values)+guard];
+}
+function pieceVolume({span,from,to,rates}){
+  if(from===span.from&&to===span.to)return span.volumeMm3;
+  const mean=interpolateScalar(interpolateScalar(rates[0],rates[2],.5),rates[1],1/3);
+  return mean*(to-from);
+}
 export function materialProfileDensity(material,u,side='right'){
   if(material.measure==='length')return profileAt(material.density,u,side);
   const span=materialInterval(material,u,side),t=(u-span.from)/(span.to-span.from),[a,b,c]=span.coefficients.map(row=>row[0]);
@@ -102,24 +118,26 @@ export function materialProfileDensity(material,u,side='right'){
 export function materialProfileRange(material,from,to){
   if(material.measure==='length')return scalarRange(material.density,from,to);
   const state={low:Infinity,high:-Infinity};
-  for(let i=keyIndex(material.knots,from,'right');i<material.intervals.length;i++){
-    const span=material.intervals[i];if(span.from>=to)break;
-    const values=restrictedRates(span,Math.max(from,span.from),Math.min(to,span.to));
-    const guard=values.every(value=>value===values[0])?0:FLOAT64_EPSILON*8*Math.max(...values.map(Math.abs));
-    state.low=Math.min(state.low,Math.max(0,Math.min(...values)-guard));state.high=Math.max(state.high,Math.max(...values)+guard);
+  for(const piece of materialPieces(material,from,to)){
+    const [low,high]=rateBounds(piece.rates);state.low=Math.min(state.low,low);state.high=Math.max(state.high,high);
   }
   return [state.low,state.high];
 }
 export function materialProfileVolume(material,from,to){
   const sum={value:0,remainder:0};
-  const first=keyIndex(material.knots,from,'right');
-  for(let i=first;i<material.intervals.length;i++){
-    const span=material.intervals[i];if(span.from>=to)break;
-    const a=Math.max(from,span.from),b=Math.min(to,span.to);
-    const values=restrictedRates(span,a,b),mean=interpolateScalar(interpolateScalar(values[0],values[2],.5),values[1],1/3);
-    const volume=a===span.from&&b===span.to?span.volumeMm3:mean*(b-a);
+  for(const piece of materialPieces(material,from,to)){
+    const volume=pieceVolume(piece);
     const adjusted=volume-sum.remainder,next=sum.value+adjusted;
     sum.remainder=(next-sum.value)-adjusted;sum.value=next;
   }
   return sum.value;
+}
+export function materialProfileDeviation(material,from,to){
+  const total=materialProfileVolume(material,from,to),mean=total/(to-from),state={volume:0,error:0};
+  for(const piece of materialPieces(material,from,to)){
+    const left=state.volume-mean*(piece.from-from);state.volume+=pieceVolume(piece);
+    const right=state.volume-mean*(piece.to-from),[low,high]=rateBounds(piece.rates);
+    state.error=Math.max(state.error,Math.max(Math.abs(left),Math.abs(right))+(high-low)*(piece.to-piece.from)/4);
+  }
+  return state.error+FLOAT64_EPSILON*8*total;
 }

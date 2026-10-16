@@ -27678,6 +27678,54 @@
     "core/geom/curve-query.mjs::preparedNativePiece": {
       "owner": "geometry",
       "reason": "Native derivative information is prepared at the original knot-span scale before interval restriction."
+    },
+    "core/geom/curve-query.mjs::numericalCurveParameterAtLength": {
+      "owner": "geometry",
+      "reason": "Geometry certifies physical arc-length inversion on retained native curves."
+    },
+    "core/path/curve-path.mjs::curveParameterAtLength": {
+      "owner": "toolpath",
+      "reason": "The shared prepared reader exposes Geometry physical distance in source parameters."
+    },
+    "core/path/curve-profiles.mjs::materialPieces": {
+      "owner": "toolpath",
+      "reason": "Prepared material pieces supply shared integration, density bounds and spatial redistribution error."
+    },
+    "core/path/curve-profiles.mjs::rateBounds": {
+      "owner": "toolpath",
+      "reason": "Prepared material pieces supply shared integration, density bounds and spatial redistribution error."
+    },
+    "core/path/curve-profiles.mjs::pieceVolume": {
+      "owner": "toolpath",
+      "reason": "Prepared material pieces supply shared integration, density bounds and spatial redistribution error."
+    },
+    "core/path/curve-profiles.mjs::materialProfileDeviation": {
+      "owner": "toolpath",
+      "reason": "Prepared material pieces supply shared integration, density bounds and spatial redistribution error."
+    },
+    "core/path/construction-path.mjs::continuousProfiles": {
+      "owner": "path-finalize",
+      "reason": "Finalization encodes finite connected-course field transitions before immutable publication."
+    },
+    "core/path/construction-path.mjs::continuousProfiles::geometry": {
+      "owner": "path-finalize",
+      "reason": "Finalization encodes finite connected-course field transitions before immutable publication."
+    },
+    "core/path/construction-path.mjs::continuousProfiles::endProfile": {
+      "owner": "path-finalize",
+      "reason": "Finalization encodes finite connected-course field transitions before immutable publication."
+    },
+    "core/path/compose.mjs::executionCut": {
+      "owner": "scheduling",
+      "reason": "Scheduling canonicalizes execution cuts by physical resolution and re-solves source contacts."
+    },
+    "core/path/compose.mjs::executionCut::measured": {
+      "owner": "scheduling",
+      "reason": "Scheduling canonicalizes execution cuts by physical resolution and re-solves source contacts."
+    },
+    "core/path/compose.mjs::courseCuts": {
+      "owner": "scheduling",
+      "reason": "Scheduling canonicalizes execution cuts by physical resolution and re-solves source contacts."
     }
   },
   "retiredAssignments": [
