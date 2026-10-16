@@ -9,10 +9,9 @@ direction or simulate molten cavity filling. The ring remains at the commanded
 location afterward; the final CAD model still describes the intended finished
 part. Thermal wait time is not simulated.
 
-The [machine presentation contract](./KINEMATICS.md#implemented-consumer) owns
-the simple ghost overlay, Machine view, shared depth/compositing strategy and
-model-provider boundary. Its neutral palette and assembly bounds are separate
-from toolpath colors, bead detail and default part framing described below.
+The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine views and their providers.
+**Nozzle clearance** replaces the schematic tool with the scheduler's shared cone: dashed nominal, orange after surface allowance, clipped for display. It follows playback/manual pose, persists per tab and appears in movies; this overlay does not change collision rules or programs.
+Toolpath colors, bead detail and part framing remain independent of machine presentation.
 
 ## Studio performance and display detail
 

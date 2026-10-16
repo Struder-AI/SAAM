@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-16 — Wire stepped-hole boundary requirements automatically
+
+- Slice `operationAfter:{walls:[ids],infill:[ids],fill:[ids]}` scopes genuine prerequisites to one operation group, including in `sliceOverrides`. These lower to the existing source-operation dependency contract; no travel instruction or world-height scheduling rule is added. Unknown groups are rejected. Source contract advances to `/30`, retaining concurrent `/29` curve/profile compaction work.
+- The stepped-hole helper now declares source rim walls → slot → square → octagon → first round-bore walls. It derives exact native indices and operation IDs itself; caller `after` adds prerequisites. Only the relevant bore-wall operation waits for the terminal stage. Existing settings, per-slice overrides and group prerequisites survive, and the input recipe is unchanged. Automatic boundary selection requires source wall loops at the rim and bore.
+- Disposable actual helper→generation→schedule checks pass the horizontal assembly and tilted/oblique singleton examples: both resolve 43 native slices in one solve with no refinement. Their boundary indices are 19/23 and 54/58 respectively; no scheduler Z ordering was used. Evidence: `.local/hierarchical-stepped-boundaries.json` and `.local/hierarchical-stepped-tilted-boundaries.json`, with their saved sources and schedules. Validation also covers malformed group names and preservation of existing fill prerequisites. No permanent tests or whole suite.
+- Hole-transition guidance shrinks 68→64 lines; Slice and umbrella hole guidance retain their line counts while documenting automatic/scoped edges. Map ownership records the helper. Membrane/wave and removable-support boundary automation, broader verification and coverage by the still-running full map refresh remain unfinished. Concurrent curve/geometry and Studio edits ride in the standing all-changes checkpoint; these probes do not qualify them. No installation, push, release or physical machine action.
+
 ## 2026-10-16 — Retain authored trimmed spline faces
 
 - Owner authorized the core scope with "Good, do it" after reviewing recipe, closure and persistence changes. Spline patches now retain validated UV polyline trims and outward orientation. Geometry sews their actual boundaries, preserves named faces through placement/assemblies, and uses existing trim-aware sections and containment. The extension returns ordinary spline geometry; its hand-authored numerical topology and manufacturing-mesh conversion are removed.

@@ -27841,6 +27841,51 @@
     },
     "core/print/geometry.mjs::faceMetadata": {
       "owner": "geometry"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::@module": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::check": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::positive": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::dot": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::subtract": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::vector": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::loops": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::prism": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::circle": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::selectedPart": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::wallOperation": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::continueWalls": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::stepped": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::wave": {
+      "owner": "extensions"
+    },
+    "skills/hole-transitions/scripts/edit.mjs::editHoleTransition": {
+      "owner": "extensions"
     }
   },
   "retiredAssignments": [

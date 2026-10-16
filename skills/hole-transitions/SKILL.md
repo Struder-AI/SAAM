@@ -61,8 +61,4 @@ with the existing [wave fill](../wave-overhangs/SKILL.md), including its residua
 chart/sampling limits and lack of an implicit final perimeter. Normal-offset stacks,
 singular/folded charts and multi-chart stitching are unsupported.
 
-For either strategy `after` may name exact operations printing the supporting
-base; never make a transition wait for the entire body above it. Review chronological
-deposition, ownership and the next bore wall in Studio. Software success establishes
-no adhesion, cooling, removal or physical result. [Example inputs](examples/README.md)
-include planar, tilted-plane and curved wave constructions and the original exemplar.
+Stepped reduction wires source rim walls → stages → first round-bore walls; source wall loops are required at both boundaries. `after` adds prerequisites. Wave `after` still names its printed seed; scope the continuing bore's prerequisite with Slice `operationAfter` in its slice override. Never wait for the whole body above the feature. Review chronology, ownership and contact; software success establishes no physical result. [Examples](examples/README.md) include planar, tilted and curved constructions and the original exemplar.

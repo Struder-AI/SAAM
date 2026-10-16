@@ -35,7 +35,7 @@ function continueWalls(parent,index,after){
   wallOperation(parent,index);
   const overrides=parent.sliceOverrides??[];
   parent.sliceOverrides=Array.from({length:Math.max(overrides.length,index+1)},(_,i)=>({...overrides[i]}));
-  const selected=parent.sliceOverrides[index],groups=selected.operationAfter??{};
+  const selected=parent.sliceOverrides[index],groups={...parent.operationAfter,...selected.operationAfter};
   selected.operationAfter={...groups,walls:[...new Set([...(parent.operationAfter?.walls??[]),...(groups.walls??[]),after])]};
 }
 
