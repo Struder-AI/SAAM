@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Review SP2 tolerance concerns and defer timing accuracy
+
+- Owner authorized coordination with “Make scheduler” and requested independent assessment. Analytic probes reproduce cumulative-area underbounds (.08 expected versus .0625 reported), outgoing step values contaminating interval bounds, and a straight native curve's tiny-interval convergence failure. These are separate from scheduler correctness; no proposed reader/coalescing patch was adopted. Evidence: .local/sp2-tolerance-audit-report.json and the scheduler's pinned reproductions.
+- Corrected the scope of the Infinity explanation: deposition admission rejects infinite widths, but metric fill returns an unupdated Infinity/0 report seed even with finite physical widths. An independent plane example confirms that reporting defect. Production corrections and scheduler verification remain outstanding.
+- Owner defers robust, accurate timing estimation to 0.4.0 because substantially more machine test data is needed. Plans record the boundary; no new timing model, calibration gate or estimate-accuracy complexity is added to 0.3.9. The scheduler task received this direction. Existing commanded attributes and geometric/material guarantees remain in scope. No production implementation, installation, push, release or machine trial changed in this review.
+
 ## 2026-10-16 — Complete retained Geometry construction acceptance
 
 - Shared construction retains native source across heat-set reinforcement/finite blind pads, text, Gridfinity and switch covers, with explicit numerical/native preparation and derived mesh output. Acceptance additionally fixes placed/nested assembly operands and native intermediate-surface ownership. Saved authoring history, material partitions, component placement, standalone editing and finite SP2 Trace source remain covered. No reserved curve/frame/surface serialization, core/path or Bundle/Studio/export migration code was authored by this task; their concurrent changes ride in shared checkpoints.
