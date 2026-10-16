@@ -145,13 +145,15 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         if(precedes(after,before))progress.cyclic=true;
         graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness});
       }
-      function preferWholeLayer(unit,hit){
-        const layer=graph.layerGroups.get(hit.unit.layerId);
-        if(progress.cyclic||!layer||unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
+      function preferWholeGroup(unit,hit){
+        // An explicit source operation is also a useful relaxable aggregate.
+        // This does not invent a native layer for a standalone Trace.
+        const native=graph.layerGroups.get(hit.unit.layerId),layer=native??graph.groups.get(hit.unit.sourceOperation);
+        if(progress.cyclic||!layer||unit.sourceOperation===hit.unit.sourceOperation||unit.layerId!==null&&unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
         const group=graph.groups.get(unit.sourceOperation),before=group.end.id;
-        const key=JSON.stringify(['operation-layer',unit.sourceOperation,hit.unit.layerId]);
+        const key=JSON.stringify([native?'operation-layer':'operation-operation',unit.sourceOperation,native?hit.unit.layerId:hit.unit.sourceOperation]);
         if(relaxed.has(key)||precedes(before,layer.begin.id)||precedes(layer.begin.id,before))return;
-        addEdge(before,layer.begin.id,'access-layer-choice',null);
+        addEdge(before,layer.begin.id,native?'access-layer-choice':'access-operation-choice',null);
         const edge=state.edges.at(-1);edge.key=key;state.promotions.push(edge);
         for(const member of group.members){
           if(!promoted.has(member.id))promoted.set(member.id,[]);promoted.get(member.id).push(layer.begin.id);
@@ -171,7 +173,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         state.scene.verifySelf(unit);
         for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!precedes(unit.id,id)&&
           !state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId))){
-          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeLayer(unit,hit);
+          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
         }
         if(progress.cyclic)break;
       }
@@ -183,13 +185,13 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
           if(a&&b&&(unit.layerId===other.layerId||a.surfaceId===b.surfaceId||a.stackId===b.stackId&&b.index>=a.index))return false;
           return true;
         })){
-          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);preferWholeLayer(hit.unit,{unit});
+          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);preferWholeGroup(hit.unit,{unit});
         }
         if(progress.cyclic)break;
       }
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...layerEdges,...state.edges]});
       return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,
-        edges:state.edges,refinement:{...history,relaxedLayerEdges:relaxed.size,wholeLayerChoices:state.promotions.length,splitCourses:cuts.size}};
+        edges:state.edges,refinement:{...history,relaxedLayerEdges:relaxed.size,wholeLayerChoices:state.promotions.filter(edge=>edge.kind==='access-layer-choice').length,wholeOperationChoices:state.promotions.filter(edge=>edge.kind==='access-operation-choice').length,splitCourses:cuts.size}};
     }catch(error){
       if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
       if(relaxNativeLayers(error,[...layerEdges,...state.promotions],relaxed))continue;

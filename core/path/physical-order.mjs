@@ -316,10 +316,10 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }).map(record=>[record.ref.id,record.range])));
   const proofs=sliceNozzleProofs(source,{reader,ranges:fullRanges});
   function candidates(shape,acceptGroup,boundsTest=null){
-    return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest}).map(index=>bodies[index]);
+    return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest,boundsOnly:true}).map(index=>bodies[index]);
   }
   const regionalIndexes=new Map(),regionalLimit=16*1024*1024;
-  function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]/4,record.depth[1]/4);}
+  function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]/4,record.depth[1]);}
   function regionalMaterial(body,shape){
     let local=regionalIndexes.get(body.unit.id);
     if(local){regionalIndexes.delete(body.unit.id);regionalIndexes.set(body.unit.id,local);}
@@ -340,7 +340,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         stats.peakMaterialIndexBytes=Math.max(stats.peakMaterialIndexBytes,stats.materialIndexBytes);
       }
     }
-    return (local.index?.query(shape,ROUNDING_MM)??[]).map(i=>interval(local.cells[i].ref));
+    return (local.index?.query(shape,ROUNDING_MM,{boundsOnly:true})??[]).map(i=>interval(local.cells[i].ref));
   }
   function parameterAt(ref,u){return u===0?ref.from:u===1?ref.to:ref.from+u*(ref.to-ref.from);}
   function localWitness(record,at){

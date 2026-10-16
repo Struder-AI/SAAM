@@ -175,6 +175,8 @@ export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
 }
 
 // Index immutable volumes in caller-owned partitions and witness groups.
+// boundsOnly returns conservative candidates; the caller must perform its own
+// shape/contact query. Proxies and lazy intervals otherwise repeat that work.
 // Proven partition admission precedes local spatial and group/ordinal filters.
 export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   requireThat(!groups||groups.length===shapes.length,'Spatial index groups must match its shapes.');
@@ -206,7 +208,7 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
     const count=partition.members.reduce((sum,group)=>sum+Number(allowed.has(group)),0),status=count===0?0:count===partition.members.length?2:1;
     partition.token=selection.token;partition.status=status;return status;
   }
-  return {empty:shapes.length===0,bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null}={}){
+  return {empty:shapes.length===0,bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null,boundsOnly=false}={}){
     if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
     const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
     const rounded=roundedBody(shape),coneTest=rounded.body.fixed&&rounded.body.motion?fixedConeBounds(rounded.body,toleranceMm+rounded.margin):null;
@@ -225,7 +227,7 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
         if(item.tree){pending.push(item.tree);continue;}
         const group=item.group;
         if(groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
-        if((!accept||accept(item.index))&&convexIntersects(shape,item.shape,toleranceMm)&&(!confirm||confirm(item.shape))){
+        if((!accept||accept(item.index))&&(boundsOnly||convexIntersects(shape,item.shape,toleranceMm))&&(!confirm||confirm(item.shape))){
           found.push(item.index);if(firstPerGroup&&groups)settled.add(group);
         }
       }}else pending.push(node.left,node.right);

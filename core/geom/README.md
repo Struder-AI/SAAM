@@ -43,8 +43,8 @@ its own evidence. Design references: [Rhino events](https://developer.rhino3d.co
 
 ### Native Boolean construction
 The [canonical operations](operations.mjs) own backend selection. Authored unions with
-provably disjoint interiors retain native operands; other native recipes and explicit
-`combineSolids` construct trimmed boundaries. Sections and containment query either form;
+provably disjoint interiors retain native operands. Operations on native boundaries trim
+them; composed/mixed operands retain queries. Sections and containment accept either form;
 Clipper2 handles UV regions. `BOOLEAN_TOLERANCE_MM` in [dimensions](../dimensions.mjs)
 is the single 0.005 mm setting: chord images use a quarter, sewing half; roots stay finer.
 Rational coefficient proofs handle basis changes and partial/periodic coincidence;
