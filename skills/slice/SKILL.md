@@ -51,7 +51,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 - `outline` supplies the brim's auxiliary region.
 
 Volumes use the schemas' `kind`; unbounded owners keep explicit claims' remainder.
-Explicit overlap on one part uses experimental shared courses or a reported principal allocation. Each owner walls its boundaries; solid masks follow the part's material.
+Use disjoint or explicitly partitioned claims under the [role boundary](../../MAKERS.md#toolpaths). Each owner walls its boundaries; solid masks follow the part's material.
 
 References may be horizontal, an authored plane, a roof height chart or a native
 spline patch. Translated stacks calibrate pitch against the whole-reference

@@ -5,8 +5,10 @@ use scripting additions
 property statusItem : missing value
 property controlPort : missing value
 property controlToken : missing value
+property controlContract : missing value
 property trayMenu : missing value
 property updateItem : missing value
+property statusProblemItem : missing value
 property newInstanceItem : missing value
 property endItem : missing value
 property raiseScript : missing value
@@ -20,7 +22,7 @@ end callControl
 on sendControl(payload)
   set payloadData to (current application's NSString's stringWithString:payload)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
   set commandData to current application's NSJSONSerialization's JSONObjectWithData:payloadData options:(current application's NSJSONReadingMutableContainers) |error|:(missing value)
-  commandData's setObject:2 forKey:"contract"
+  commandData's setObject:controlContract forKey:"contract"
   set encodedData to current application's NSJSONSerialization's dataWithJSONObject:commandData options:0 |error|:(missing value)
   set payload to (current application's NSString's alloc()'s initWithData:encodedData encoding:(current application's NSUTF8StringEncoding)) as text
   set resultText to do shell script "/usr/bin/curl --silent --show-error -H " & quoted form of ("X-SAAM-Control: " & controlToken) & " -H 'Content-Type: application/json' --data " & quoted form of payload & " " & quoted form of ("http://127.0.0.1:" & controlPort & "/control")
@@ -124,10 +126,6 @@ on refreshMenu_(sender)
     current application's NSApp's terminate:me
     return
   end try
-  set firstIndex to (trayMenu's indexOfItem:newInstanceItem) + 1
-  repeat while (trayMenu's indexOfItem:endItem) > firstIndex
-    trayMenu's removeItemAtIndex:firstIndex
-  end repeat
   try
     set statusText to my callControl("status", "false")
     set statusData to (current application's NSString's stringWithString:statusText)'s dataUsingEncoding:(current application's NSUTF8StringEncoding)
@@ -138,6 +136,10 @@ on refreshMenu_(sender)
     updateItem's setHidden:(not (paired and offer is not missing value and offer is not current application's NSNull's |null|()))
     set runtimeList to appStatus's objectForKey:"runtimes"
     set studioList to appStatus's objectForKey:"studios"
+    set firstIndex to (trayMenu's indexOfItem:newInstanceItem) + 1
+    repeat while (trayMenu's indexOfItem:endItem) > firstIndex
+      trayMenu's removeItemAtIndex:firstIndex
+    end repeat
     repeat with runtimeIndex from 0 to ((runtimeList's |count|()) - 1)
       set runtime to runtimeList's objectAtIndex:runtimeIndex
       set runtimeId to (runtime's objectForKey:"id") as text
@@ -174,8 +176,10 @@ on refreshMenu_(sender)
         if isSource and (runtimeDormant is missing value or runtimeDormant is current application's NSNull's |null|() or not (runtimeDormant's boolValue())) then my addEntry("Stop " & runtimeLabel, "stopSelectedRuntime:", runtimeId)
       end if
     end repeat
-  on error
-    updateItem's setHidden:true
+    statusProblemItem's setHidden:true
+  on error problem
+    statusProblemItem's setToolTip:problem
+    statusProblemItem's setHidden:false
   end try
 end refreshMenu_
 on menuNeedsUpdate_(sender)
@@ -219,6 +223,7 @@ on run argv
   set controlToken to item 2 of argv
   set appPid to item 3 of argv
   set raiseScript to item 4 of argv
+  set controlContract to (item 5 of argv) as integer
   -- AppleScript terms (app, run, count, null, button) are not variable names; Cocoa methods with those names are piped.
   set sharedApp to current application's NSApplication's sharedApplication()
   sharedApp's setActivationPolicy:(current application's NSApplicationActivationPolicyAccessory)
@@ -228,7 +233,7 @@ on run argv
   trayMenu's setAutoenablesItems:false
   trayMenu's setDelegate:me
   -- The empty entry is endItem, the separator Studios are inserted before.
-  repeat with menuEntry in {{"Open Studio", "openStudio:"}, {"New Instance", "newInstance:"}, {"", ""}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
+  repeat with menuEntry in {{"Open Studio", "openStudio:"}, {"New Instance", "newInstance:"}, {"", ""}, {"Status unavailable", ""}, {"Update", "updateApp:"}, {"Quit", "quitApp:"}}
     set entryTitle to item 1 of menuEntry
     if entryTitle is "" then
       set menuItem to current application's NSMenuItem's separatorItem()
@@ -239,6 +244,11 @@ on run argv
     end if
     trayMenu's addItem:menuItem
     if entryTitle is "New Instance" then set newInstanceItem to menuItem
+    if entryTitle is "Status unavailable" then
+      set statusProblemItem to menuItem
+      menuItem's setEnabled:false
+      menuItem's setHidden:true
+    end if
     if entryTitle is "Update" then
       set updateItem to menuItem
       menuItem's setHidden:true

@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Keep tray requests on the orchestrator contract
+
+- Windows and macOS trays now receive the contract from the orchestrator's launch record instead of independently sending version 2. Rejected status refreshes retain the last runtime/Studio entries and update offer, show a status-unavailable item with the error, and clear it after successful refresh.
+- Disposable checks pass for both platform launch arguments using the current and a future contract; native Windows PowerShell sends contract 3 to an isolated HTTP fixture, preserves entries on a rejected status, and replaces them on recovery without displaying a tray or touching installed SAAM. JavaScript syntax, PowerShell parsing and whitespace checks pass. Native macOS execution and the whole suite were not run. Installed 0.3.10 remains unchanged; map refresh/solve from the preceding work cycle remains in progress.
+- Concurrent recipe, scheduler, runtime and map work rides in this all-changes checkpoint; the tray checks do not validate it.
+
 ## 2026-10-16 — Context delivery and brief idle wakes
 
 - Owner approved the hybrid for both clients after reviewing Codex's yellow fishhook approval UI. Application's durable inbox now owns one idle-wake policy: selection/input changes and person-requested work may wake; progress, presentation and advisories remain context. Waking never acknowledges the full event batch. Existing selection/version guards, request ownership, operation settlement and presentation authority remain in place.

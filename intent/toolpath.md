@@ -76,7 +76,9 @@ Sources: [0.3.3 "One wiring for slab-under-skin"](../plans/0.3.3.md) (retired); 
 ## Overlapping material regions
 > "Forget the slice stack crossing check, get rid of it entirely. Just let overlapping material regions co-exist (don't bother even reporting), since we are about to fix it in 0.4.0 anyway. And it should never happen anyway, that would be an agent error already. And now the agent gets an image, so even if it does happen, the image will probably catch it, or the user will see it. Make sure you fully remove all signs of the overlapping material regions checks, and all current intent OTHER THAN the plan in 0.4.0. I don't want this coming back to life until 0.4.0." — owner, 2026-10-11, on audit item G22
 
-Summary: overlapping slice and material claims co-exist, each assignment printing its own claimed region; shared ownership is 0.4.0 intent.
+Owner, 2026-10-16: "We need to remove our support of using them by maker and builder agents. Developer agents can use, to keep working on them."
+
+Summary: shared-material overlap/interlocking is developer-only research; [maker and builder work](../MAKERS.md#toolpaths) uses disjoint or explicitly partitioned claims. Ordinary bead overlap is separate.
 
 Sources: [0.3.7 "Overlapping material regions"](../plans/0.3.7.md); [0.4.0 "Material overlap and shared ownership"](../plans/0.4.0.md) (agent wording).
 

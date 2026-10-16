@@ -1,5 +1,5 @@
 // Source operations enter once as compact curves; execution refers to ranges.
-import {requireThat} from '../private/toolpath/numeric.mjs';
+import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {curveAt,curveRange,curveParameterAtLength,prepareCurvePath} from './curve-path.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses} from './course-order.mjs';
@@ -77,7 +77,7 @@ function courseCuts(reader,course,values){
 export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
   const operations=Object.values(source.operations),bySource=new Map(operations.map(op=>[op.id,op]));
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
-  const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),counter={next:0};
+  const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
   function node(operation,ranges,barrier=null){
     const id='schedule:'+counter.next++,injection=operation.kind==='inject'?operation.injection:null;
     const entry=barrier?null:injection?{point:injection.at,pose:injection.pose}:curveAt(reader,ranges[0].curveId,ranges[0].from);
@@ -85,7 +85,12 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
     const value={id,sourceOperation:operation.id,layerId:operation.layerId,operation,process:source.processes[operation.processId],
       ranges,entry,exit,barrier,label:operation.id+(ranges.length===1?' ['+ranges[0].id+' '+ranges[0].from+'..'+ranges[0].to+']':''),
       constructionRank:operation.constructionRank??0};
-    nodes.push(value);prerequisites.set(id,new Set());if(!barrier)units.push(value);return value;
+    nodes.push(value);prerequisites.set(id,new Set());
+    if(!barrier){
+      units.push(value);
+      for(const range of ranges){if(!courseGroups.has(range.id))courseGroups.set(range.id,{operation,members:[]});courseGroups.get(range.id).members.push(value);}
+    }
+    return value;
   }
   for(const operation of operations){
     const members=[];
@@ -102,7 +107,33 @@ export function prepareSourceUnits(source,reader,{cuts=new Map()}={}){
     groups.set(operation.id,{members,begin,end});
   }
   for(const [id,parents] of declared)for(const parent of parents)prerequisites.get(groups.get(id).begin.id).add(groups.get(parent).end.id);
+  for(const operation of operations)for(const course of operation.courses??[])for(const previous of course.after??[]){
+    const before=courseGroups.get(previous),after=courseGroups.get(course.id);
+    requireThat(before,'Required course predecessor is absent.');
+    if(before.members[0]===after.members[0])continue;
+    if(!before.end){
+      before.end=before.members.length===1?before.members[0]:node(before.operation,[],'course-end');
+      if(before.members.length>1)for(const member of before.members)prerequisites.get(before.end.id).add(member.id);
+    }
+    for(const member of after.members)prerequisites.get(member.id).add(before.end.id);
+  }
   return {units,nodes,groups,prerequisites,declared,byId:new Map(nodes.map(node=>[node.id,node]))};
+}
+
+// Connected deposition and fill cells suggest a traversal, not a manufacturing
+// prerequisite. These choices are private to this solve and can be relaxed.
+function preferCourseTraversal(graph,relaxed){
+  const edges=[];
+  for(const {members} of graph.groups.values())for(let i=1;i<members.length;i++){
+    const before=members[i-1],after=members[i],a=before.ranges.at(-1),b=after.ranges[0];
+    const cell=a.provenance?.cell;
+    if(a.id!==b.id&&!(cell!==undefined&&cell===b.provenance?.cell)&&distance(before.exit.point,after.entry.point)>ROUNDING_MM)continue;
+    const key=JSON.stringify(['traversal',a.id,a.from,a.to,b.id,b.from,b.to]);
+    if(relaxed.has(key))continue;
+    graph.prerequisites.get(after.id).add(before.id);
+    edges.push({before:before.id,after:after.id,kind:'traversal-choice',key});
+  }
+  return edges;
 }
 
 // Layer order is an initial construction-family choice, not a fixed-height
@@ -153,11 +184,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
   const sourceDependencies=prepareOperationDependencies(Object.values(source.operations),new Map(Object.entries(source.operations)),source.composition);
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
-    const graph=prepareSourceUnits(source,reader,{cuts}),layerEdges=preferNativeLayers(source,graph,relaxed);
+    const graph=prepareSourceUnits(source,reader,{cuts}),layerEdges=preferNativeLayers(source,graph,relaxed),traversalEdges=preferCourseTraversal(graph,relaxed);
+    const choices=[...layerEdges,...traversalEdges];
     const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[],promotions:[]};history.solves++;
     try{
       // Establish native groups and process barriers before any fine occupancy.
-      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:layerEdges});
+      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:choices});
       state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
@@ -237,12 +269,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start}={}){
         }
         if(progress.cyclic)break;
       }
-      const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...layerEdges,...state.edges]});
+      const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges]});
       return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,
-        edges:state.edges,refinement:{...history,relaxedLayerEdges:relaxed.size,wholeLayerChoices:state.promotions.filter(edge=>edge.kind==='access-layer-choice').length,wholeOperationChoices:state.promotions.filter(edge=>edge.kind==='access-operation-choice').length,splitCourses:cuts.size}};
+        edges:state.edges,refinement:{...history,relaxedOrderChoices:relaxed.size,wholeLayerChoices:state.promotions.filter(edge=>edge.kind==='access-layer-choice').length,wholeOperationChoices:state.promotions.filter(edge=>edge.kind==='access-operation-choice').length,splitCourses:cuts.size}};
     }catch(error){
       if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
-      if(relaxNativeLayers(error,[...layerEdges,...state.promotions],relaxed))continue;
+      if(relaxNativeLayers(error,[...choices,...state.promotions],relaxed))continue;
       if(!state.scene)throw error;
       const reasons=error.physicalDependencies??[];
       if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&!edge.witness?.provisional&&authored.has(graph.byId.get(edge.after).sourceOperation,graph.byId.get(edge.before).sourceOperation)))throw error;

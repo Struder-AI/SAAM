@@ -27,13 +27,11 @@ when the person asks to fetch one or gives a Thingiverse link.
 
 ## Toolpaths
 
-Choose among three construction families: [Slice](skills/slice/SKILL.md) deposits
-over 3D regions, [Trace](skills/trace/SKILL.md) follows curves, and
-[Inject](skills/inject/SKILL.md) deposits at points. Techniques such as skins,
-vase walls, bridges and rivets use or combine these families; their manuals explain
-current options and limits. Reason from geometry about transitions and print order.
-Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
-Software checks alone do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
+Use [Slice](skills/slice/SKILL.md) for regions, [Trace](skills/trace/SKILL.md) for curves or [Inject](skills/inject/SKILL.md) for points; their manuals cover composite techniques.
+Maker and builder agents use disjoint or explicitly partitioned material claims; shared-material overlap/interlocking is developer-only research.
+Ordinary bead overlap, including fill overlap and reinforcement, remains part of those techniques.
+Reason from geometry about transitions and print order. Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
+Software checks do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
 For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
 
 ## Maker interaction flow

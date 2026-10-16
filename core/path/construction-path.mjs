@@ -57,7 +57,8 @@ function sourceProvenance(stroke,metadata,parameters){
     if(previous&&previous.to===parameters[i]&&same(previous.labels,labels))previous.to=parameters[i+1];
     else segments.push({from:parameters[i],to:parameters[i+1],labels});
   }
-  return stroke.provenance||segments.length?{...(stroke.provenance?{source:stroke.provenance}:{}),...(segments.length?{segments}:{})}:undefined;
+  return stroke.provenance||segments.length||stroke.scanlineCell!==undefined?{...(stroke.provenance?{source:stroke.provenance}:{}),
+    ...(stroke.scanlineCell===undefined?{}:{cell:stroke.scanlineCell}),...(segments.length?{segments}:{})}:undefined;
 }
 function publishedCurve(original,process){
   const stroke=original.closed?strokeRange(original):original,points=stroke.points,lengths=[0];
@@ -149,6 +150,7 @@ export function constructionPath({results,planning,composition,summary,generator
       const id=operation.id+':course:'+i,curveId='curve:'+id;
       const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,role:stroke.role,
+        ...(stroke.after?.length?{after:stroke.after}:{}),
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
     if(!interruptible)continuousProfiles(curves,courses);

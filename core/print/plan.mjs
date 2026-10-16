@@ -35,7 +35,7 @@ export function defaults(machine=loadMachine()) {
 export function recipeDefaults(){
   return {
     schema:'saam-shell-plan/1',generatorVersion:VERSION,
-    experimental:{substrateAdaptation:false},skills:{},
+    experimental:{substrateAdaptation:false,sharedMaterial:false},skills:{},
     slices:defaultSlices(),modulations:defaultModulations(),
     composition:{order:[],dependencies:[],filaments:[]}
   };
@@ -115,7 +115,7 @@ function currentFields(plan,machine,fields){
   const experimental=section(plan.experimental,base.experimental);
   return {...defaults,...knownFields(plan,{...defaults,skills,geometry:null,workspace:null}),
     process:section(plan.process,defaults.process),placement:section(plan.placement,defaults.placement),
-    experimental:{...experimental,substrateAdaptation:Boolean(experimental.substrateAdaptation)},
+    experimental:{...experimental,substrateAdaptation:Boolean(experimental.substrateAdaptation),sharedMaterial:experimental.sharedMaterial===true},
     composition:currentComposition(section(plan.composition,base.composition)),
     slices:section(plan.slices,base.slices),modulations:section(plan.modulations,base.modulations),
     setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})},

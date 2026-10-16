@@ -37,6 +37,14 @@ export function admitSource(source){
         'Inject needs an atomic finite metered stationary operation.');validatePose(injection.pose);
     }
   }
+  for(const operation of Object.values(source.operations))for(const [index,course] of (operation.courses??[]).entries()){
+    requireThat(course.after===undefined||Array.isArray(course.after)&&course.after.every(previous=>previous!==course.id&&courses.has(previous)),
+      'Course dependencies must name existing distinct predecessor courses.');
+    if(!operation.interruptible)for(const previous of course.after??[]){
+      const local=operation.courses.findIndex(candidate=>candidate.id===previous);
+      requireThat(local<0||local<index,'An atomic operation must retain its required course sequence.');
+    }
+  }
   const visited=new Set(),active=new Set();
   function visit(key){
     if(visited.has(key))return;requireThat(!active.has(key),'Source dependencies contain a cycle.');active.add(key);
@@ -77,7 +85,7 @@ function validateEvent(entry){
   else throw Error('Invalid execution event: '+entry.kind);
 }
 export function validateExecutionSource(source,schedule){
-  const courses=new Map(),coverage=new Map(),injections=new Set(),operationIndices=new Map();
+  const courses=new Map(),coverage=new Map(),injections=new Set(),operationIndices=new Map(),courseIndices=new Map();
   const reader=prepareCurvePath(source),motion=prepareCurvePath({curves:schedule.motionCurves}),cursor={point:schedule.initialPosition,pose:schedule.initialPose};
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[])courses.set(course.id,{course,operation});
   for(const [index,entry] of schedule.execution.entries()){
@@ -86,6 +94,8 @@ export function validateExecutionSource(source,schedule){
       const start=curveAt(reader,found.course.curveId,entry.from),end=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
       requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
       const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,index});coverage.set(entry.courseId,pieces);
+      const chronology=courseIndices.get(entry.courseId);
+      if(chronology)chronology.last=index;else courseIndices.set(entry.courseId,{first:index,last:index});
       const indices=operationIndices.get(found.operation.id)??[];indices.push(index);operationIndices.set(found.operation.id,indices);
     }else if(entry.kind==='inject'){
       requireThat(source.operations[entry.operationId]?.kind==='inject'&&!injections.has(entry.operationId),'Injection must execute once.');
@@ -101,6 +111,8 @@ export function validateExecutionSource(source,schedule){
     requireThat(pieces.length>0&&pieces[0].from===course.from&&pieces.at(-1).to===course.to&&pieces.every((piece,i)=>!i||piece.from===pieces[i-1].to),
       'Execution must cover each course exactly once without gaps.');
     if(!course.interruptible)requireThat(pieces.length===1,'An atomic course cannot be split.');
+    for(const previous of course.after??[])requireThat(courseIndices.get(previous)?.last<courseIndices.get(course.id).first,
+      'Execution violates a required course dependency.');
   }
   for(const operation of Object.values(source.operations)){
     const indices=operationIndices.get(operation.id);requireThat(indices?.length>0,'Source operation is missing from execution.');

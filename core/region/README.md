@@ -151,11 +151,9 @@ boundary; mixed/mesh Booleans combine operand regions. Toolpath owns material po
 
 ## Material ownership and surface contact
 
-[prepareMaterialRegions](./shared-material/prepare.mjs) takes ordered native claims
-and nominal stacks, returning owned layers, adjusted references and findings.
-Settings stay per region; defaults retain unclaimed material and separate parts.
+[prepareMaterialRegions](./shared-material/prepare.mjs) takes ordered native claims and nominal stacks, returning owned layers, adjusted references and findings. Settings stay per region; defaults retain unclaimed material and separate parts.
 An explicit `substrate:{origin,normal}` plane clips stack advance in its frame.
-Shared cadence/nonplanar transitions remain in development; see the [slice manual](../../skills/slice/SKILL.md).
+Shared cadence/nonplanar transitions require developer-only `plan.experimental.sharedMaterial:true`; normal generation uses ordinary claims/remainder without interlock discovery. See the [maker/builder boundary](../../MAKERS.md#toolpaths).
 Text selections are `base` and `text/<feature-id>`, prefixed by assembly component;
 [geometry selections](../geom/selections.mjs) applies placement without changing saved geometry.
 

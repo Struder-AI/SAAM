@@ -4,6 +4,7 @@
 // Distances are mm; layer regions retain their slice's native chart coordinates.
 // Settings stay with each claimant; returned layers contain no constructed strokes.
 import {difference,intersect,union} from '../intersection.mjs';
+import {allocateChartClaims} from '../ownership.mjs';
 import {offsetRegion} from '../offset.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../../dimensions.mjs';
 import {prepareSharedInterior} from './depth.mjs';
@@ -109,7 +110,9 @@ function sharedStack(source,pitchMm,bounds){
   return sliceStack({base,direction:source.direction,pitchMm,firstLayerMm:pitchMm},bounds);
 }
 
-function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
+function prepareMaterialClaims(inputOwners,{claimAt,onProgress,sharedMaterial}){
+  if(!sharedMaterial)return {owners:inputOwners,notes:[],reports:new Map(),frames:[],
+    allocate(region,claims,{owner,retainUnclaimed}){return allocateChartClaims(region,claims,{principal:owner,retainUnclaimed});}};
   const explicit=inputOwners.filter(o=>o.kind==='part'&&o.within.length),groups=explicit.map(owner=>[owner]),interiors=new Map(),policies=new Map(),notes=[],reports=new Map();
   const interior=members=>{
     const key=members.map(o=>o.id).join('|');
@@ -238,7 +241,7 @@ function failedSlicePreparation(assignment,error){
   if(error.name==='AbortError')throw error;
   error.assignment=assignment.id;throw error;
 }
-export function prepareMaterialRegions(inputOwners, { bands = [], substrate = null, onProgress } = {}) {
+export function prepareMaterialRegions(inputOwners, { bands = [], substrate = null, onProgress, sharedMaterial = false } = {}) {
   const cache = new Map();
   const cached = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
   // A section that does not close joins gaps up to the owner's line width.
@@ -260,8 +263,8 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
     return cuts.length ? cuts.reduce((a, b) => a.length && b.length ? intersect(a, b) : []) : null;
   });
   const claimAt=(owner,layer)=>{const own=material(owner,layer.slice),cut=volume(owner,layer);return cut===null?own:intersect(own,cut);};
-  onProgress?.({stage:'Checking material overlap'});
-  const shared=prepareMaterialClaims(inputOwners,{claimAt,onProgress}),owners=shared.owners;
+  if(sharedMaterial)onProgress?.({stage:'Checking material overlap'});
+  const shared=prepareMaterialClaims(inputOwners,{claimAt,onProgress,sharedMaterial}),owners=shared.owners;
   const explicit = owners.filter(o => o.kind === 'part' && o.within.length), results = [];
   const characterAt=(owner,point)=>{
     const ray=cached('ray|'+owner.id,()=>prepareSliceRay(owner.referenceStack.base,owner.referenceStack.direction)),hits=sliceRayIntersections(ray,point);

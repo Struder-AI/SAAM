@@ -11,8 +11,7 @@ builder context is missing. It returns this manual, maker context, skill authori
 and the digest, plus the named area's contract or map. Reuse returned context;
 read individual manuals only as needed.
 
-**Builders inherit maker responsibilities.** Builder onboarding includes
-[MAKERS.md](MAKERS.md) for the person-facing workflow being extended and exercised.
+**Builders inherit [maker responsibilities](MAKERS.md), including supported [material claims](MAKERS.md#toolpaths).**
 Developers orient by the map and DEVELOPER-CONTEXT.md, loading this file, maker
 workflow or skill authoring as needed. Read consumed [component contracts](#implementation-reference);
 use the [map](#maps-and-local-documentation) when investigating structure. Reading
