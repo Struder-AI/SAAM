@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Publish SAAM 0.3.9
+
+- Published v0.3.9 at exact source db9053138bad0079cac633d6d941cb1f298d71a0 after pushing the integrated branch. All three clean-snapshot packages pass builder dependency/import/Geometry/Studio checks; official Node v24.19.0 provenance is verified. macOS module checks run on the Windows host; native Mac execution is not claimed. Published ZIP sizes: Windows 42,530,592 bytes, Apple Silicon 47,777,555 bytes, Intel 49,128,998 bytes. All seven published asset digests and the release tag match local evidence.
+- Deployed the existing release service with all three verified offers (deployment fb0ab863-8f8c-4966-ae19-487017c1b51a); an authenticated installation receives exactly that manifest. The rotated fresh cladding variant also passes strict all-positive-bead replay: 25,598 moves, 25,478 positive sections, zero findings or unresolved checks. Evidence: .local/0.3.9-release-evidence.json, .local/0.3.9-relay-offer-evidence.json and .local/sp2-final-cladding-oblique-strict-report.json.
+- Owner requested live maker-agent/Studio experiences after the corrections and release. Supported local Update is the next step; no manual reinstall or source-orchestrator bypass. Live waiting/handback and feature experience, plus running map regeneration, remain before goal completion. No physical machine action or whole suite ran.
+
 ## 2026-10-16 — Finish physical SP2 transitions and execution cuts
 
 - Continuous atomic course seams now publish shared width/feed/full-frame endpoints over finite physical windows before source identity; Geometry's certified arc-length inversion supplies those windows and scheduler cuts. Near-endpoint cuts shift within print resolution, adjacent cuts coalesce, full source coverage remains exact and contacts are re-solved. Precision-exhausted ordering reports uncertainty instead of claiming a proved conflict. Material bounds, integration and redistribution share prepared interval pieces; localized changes no longer force needless global subdivision. Retained legacy width/feed steps use their nearby geometry boundary once.
