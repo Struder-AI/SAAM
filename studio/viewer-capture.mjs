@@ -9,11 +9,12 @@ export function createViewerCapture({notify,waitMs=15_000}){
     pending.delete(id);clearTimeout(request.timer);
     if(error)request.reject(error);else request.resolve(frame);
   }
-  function capture({bundleId,target,stage}){
+  function capture({bundleId,target,stage,waitForViewer=false}){
     return new Promise((resolve,reject)=>{
       const id=randomUUID(),timer=setTimeout(()=>finish(id,Error('Studio viewer did not return its visual check within '+waitMs/1000+' seconds.')),waitMs);
-      pending.set(id,{bundleId,target,stage,timer,resolve,reject});
-      if(!notify({kind:'visual-check',id,bundleId,target,stage}))finish(id,Error('No Studio viewer is connected; no visual check was captured.'));
+      const request={bundleId,target,stage,timer,resolve,reject,sent:false};pending.set(id,request);
+      request.sent=notify({kind:'visual-check',id,bundleId,target,stage});
+      if(!request.sent&&!waitForViewer)finish(id,Error('No Studio viewer is connected; no visual check was captured.'));
     });
   }
   function accept(data){
@@ -29,6 +30,10 @@ export function createViewerCapture({notify,waitMs=15_000}){
     if(png.length<24||png.readUInt32BE(0)!==0x89504e47)throw Error('Studio returned an invalid PNG frame.');
     finish(data.id,null,{png,phases:data.phases});
   }
+  function connected(){
+    for(const [id,request]of pending)if(!request.sent)
+      request.sent=notify({kind:'visual-check',id,bundleId:request.bundleId,target:request.target,stage:request.stage});
+  }
   function close(){for(const id of pending.keys())finish(id,Error('Studio closed before returning its visual check.'));}
-  return {capture,accept,close};
+  return {capture,accept,connected,close};
 }

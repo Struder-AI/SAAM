@@ -164,14 +164,15 @@ export function planDepositRange(input,source,reader,course,prepared=null){
   requireThat(input.sourcePathId,'Source-range planning requires a compact source identity.');
   const known=prepared?.range;
   const range=known&&known.lengthMm[1]-known.lengthMm[0]<=PRINT_RESOLUTION_MM?known:curveRange(reader,course.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM});
-  const end=prepared?.end??curveAt(reader,course.curveId,to,{side:'left'}),profile=source.curves[course.curveId].profiles.speedMmS;
+  const end=course.reverse?(prepared?.start??curveAt(reader,course.curveId,from)):
+    (prepared?.end??curveAt(reader,course.curveId,to,{side:'left'})),profile=source.curves[course.curveId].profiles.speedMmS;
   const maximum=typeof profile==='number'?profile:Math.max(...profile.knots.map(([,value])=>value));
   const seconds=maximum>0?range.lengthMm[0]/maximum:0;
   const lower=input.stats.printMmBounds??[input.stats.printMm,input.stats.printMm];
   const printMmBounds=[lower[0]+range.lengthMm[0],lower[1]+range.lengthMm[1]];
   const state={...input,position:end.point,pose:end.pose,parked:false,layerSeconds:input.layerSeconds+seconds,
     stats:{...input.stats,printMmBounds,printMm:(printMmBounds[0]+printMmBounds[1])/2}};
-  return appendAction(state,{kind:'deposit',courseId:course.id,from,to,phase:state.phase,layer:state.layer,
+  return appendAction(state,{kind:'deposit',courseId:course.id,from,to,...(course.reverse?{reverse:true}:{}),phase:state.phase,layer:state.layer,
     layerId:state.layerId,operation:state.operationId,...(course.role?{role:course.role}:{})});
 }
 

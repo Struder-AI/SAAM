@@ -172,14 +172,19 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
     const required=group.filter(([,priority])=>priority===2);
     return required.length?required:[group.reduce((chosen,candidate)=>candidate[1]>chosen[1]?candidate:chosen)];
   });
+  const boundaries=[from];
   for(const [end,priority] of cuts){
     const remaining=curve.geometry.kind==='polyline'?curve.geometry.length*(to-end):
       numericalCurveRange(curve.geometry,end,to).lengthMm[1];
     if(priority<2&&(numericalCurveRange(curve.geometry,state.start,end).lengthMm[1]<=options.positionToleranceMm||
       remaining<=options.positionToleranceMm))continue;
-    yield* boundedSpans(handle,curveId,curve,state.start,end,from,to,options);state.start=end;
+    boundaries.push(end);state.start=end;
   }
-  yield* boundedSpans(handle,curveId,curve,state.start,to,from,to,options);
+  boundaries.push(to);
+  for(let i=0;i<boundaries.length-1;i++){
+    const at=options.reverse?boundaries.length-2-i:i;
+    yield* boundedSpans(handle,curveId,curve,boundaries[at],boundaries[at+1],from,to,options);
+  }
 }
 function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
   const allocated=options.volumeToleranceMm3*(to-from)/(rangeTo-rangeFrom);
@@ -196,8 +201,8 @@ function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
     yield {from,to,start,end,range,positionErrorMm:geometry.interpolationErrorMm};return;
   }
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Curve subdivision cannot reach requested precision.');
-  yield* boundedSpans(handle,id,curve,from,mid,rangeFrom,rangeTo,options);
-  yield* boundedSpans(handle,id,curve,mid,to,rangeFrom,rangeTo,options);
+  const halves=[[from,mid],[mid,to]];
+  for(const [a,b] of options.reverse?halves.toReversed():halves)yield* boundedSpans(handle,id,curve,a,b,rangeFrom,rangeTo,options);
 }
 function sourceCourses(deposition){
   const courses=new Map();
@@ -218,12 +223,12 @@ export function* linearizePath(view,options){
       const {course,operation}=found;
       requireThat(entry.from>=course.from&&entry.to<=course.to,'Execution range leaves source course.');
       const segments=course.provenance?.segments??[],labelCuts=segments.flatMap(segment=>[segment.from,segment.to]),state={context:null};
-      for(const span of attributeSpans(source,course.curveId,entry.from,entry.to,resolution,labelCuts)){
+      for(const span of attributeSpans(source,course.curveId,entry.from,entry.to,{...resolution,reverse:entry.reverse},labelCuts)){
         const labels=courseLabels(source,course.curveId,segments,span,options.positionToleranceMm);
         const context={kind:'context',phase:operation.phase??'deposit',layer:labels.layer??operation.layer??0,layerId:operation.layerId,
           operation:labels.operation??operation.id,role:labels.role??course.role??null,travel:null,connector:labels.connector??null,region:operation.regionId??null};
         if(!state.context||Object.keys(context).some(key=>context[key]!==state.context[key])){yield context;state.context=context;}
-        yield {...spanMove(span),sourceRange:{curveId:course.curveId,from:span.from,to:span.to}};
+        yield {...spanMove(span,entry.reverse),sourceRange:{curveId:course.curveId,from:span.from,to:span.to,...(entry.reverse?{reverse:true}:{})}};
       }
     }else if(entry.kind==='travel'){
       for(const span of attributeSpans(motion,entry.curveId,entry.from,entry.to,resolution))yield {...spanMove(span),
@@ -277,13 +282,15 @@ function* linearAttributeSpans(handle,id,span,from,to,options,speedScale){
     materialShift<=Math.max(0,options.positionToleranceMm-span.positionErrorMm);
   if(smooth){yield span;return;}
   const mid=(span.from+span.to)/2;requireThat(mid>span.from&&mid<span.to,'Attribute view cannot reach requested precision.');
-  for(const [a,b] of [[span.from,mid],[mid,span.to]]){
+  const halves=[[span.from,mid],[mid,span.to]];
+  for(const [a,b] of options.reverse?halves.toReversed():halves){
     const childOptions={...options,volumeToleranceMm3:options.volumeToleranceMm3*(b-a)/(to-from)/2};
     for(const child of curveSpans(handle,id,a,b,childOptions))yield* linearAttributeSpans(handle,id,child,from,to,options,speedScale);
   }
 }
-function spanMove(span){
-  const {start,end,range}=span,volumeMm3=range.volumeMm3?interpolateScalar(...range.volumeMm3,.5):0;
+function spanMove(span,reverse=false){
+  const {range}=span,start=reverse?span.end:span.start,end=reverse?span.start:span.end;
+  const volumeMm3=range.volumeMm3?interpolateScalar(...range.volumeMm3,.5):0;
   const width=start.widthMm===undefined?undefined:interpolateScalar(start.widthMm,end.widthMm,.5);
   return {kind:'move',to:end.point,pose:end.pose,speedMmS:interpolateScalar(start.speedMmS,end.speedMmS,.5),volumeMm3,
     speedFromMmS:start.speedMmS,speedToMmS:end.speedMmS,

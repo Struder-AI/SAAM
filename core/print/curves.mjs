@@ -43,6 +43,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   }
   for(const curve of a.curves){
     requireThat(curve&&typeof curve.closed==='boolean','Each authored curve needs closed true or false.');
+    requireThat(curve.directionRequired===undefined||typeof curve.directionRequired==='boolean','Curve directionRequired must be boolean.');
     requireThat(curve.after===undefined||Array.isArray(curve.after)&&curve.after.every(id=>named.has(id)&&id!==curve.id),
       'Curve after must name distinct predecessor curves in this Trace.');
     if(stackRepeat)requireThat(curve.uv?.reference?.kind==='slice'&&curve.uv.reference.assignment===a.repeat.stack&&curve.uv.reference.index===undefined,'Stack repeats need UV curves on that slice stack without a fixed slice index.');
@@ -72,7 +73,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
 // two distinct vertices (three when closed) is null: it prints nothing. Speed
 // and flow need only be finite: zero flow moves along the curve without
 // depositing; a negative flow fails within its assignment's deposition boundary.
-const CURVE_FIELDS=['id','after','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
+const CURVE_FIELDS=['id','after','directionRequired','points','nurbs','uv','closed','role','beadWidthMm','heightMm','speedMmS','flowMultiplier','repetitions','vary','widthRule','sampleStepMm','toleranceMm','contact','depositionAction','segmentMetadata'];
 const POSITIVE_FIELDS=['beadWidthMm','heightMm','sampleStepMm','toleranceMm'];
 export function readAuthoredCurve(source){
   const read=Object.fromEntries(Object.entries(source).filter(([key,value])=>CURVE_FIELDS.includes(key)&&(!POSITIVE_FIELDS.includes(key)||Number.isFinite(value)&&value>0)

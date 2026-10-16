@@ -45,16 +45,14 @@ IDs are stable within one Bundle path identity; they never encode surface JSON. 
   Trace without a native slice has `layerId:null`; do not invent one by height.
 - A moving operation is `{id,kind:'deposit',layerId,processId,filament,after,
   interruptible,courses,...}`. Each course is `{id,curveId,from,to,interruptible,
-  role?,provenance?,after?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
+  role?,provenance?,after?,directionRequired?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
   Each whole course is initially one scheduling unit; vertices and profile keys
   do not create execution boundaries. Curves/profile data are referenced, never copied into refinements.
   `processes` deduplicates the existing resolved process records; `planning`
   retains its existing defaults, explicit start and motion settings.
 - Operation `after` names whole source operations; course `after` names source-wide courses.
   Every predecessor must finish before its successor starts. Construction lowers local curve names, including parallel expansions, to these IDs. These are unbreakable manufacturing requirements, never convenience or travel choices.
-  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder,
-  preserving each piece's forward direction and all physical/declared constraints. Splitting cannot relax an
-  authored continuous chain; connected atomic chains belong to an atomic operation.
+  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal with material and poses attached to their source locations; omission preserves authored direction. Ordinary Slice emits false, causal fronts retain direction, and Trace defaults true. Atomic/continuous operations retain their authored traversal.
 - A stationary operation has `kind:'inject'`, no courses, and
   `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
   occupied geometry, process selection, scoped `nozzleC`/`restoreNozzleC` and
@@ -67,8 +65,7 @@ returns `{schema:'saam-schedule/1',sourcePathId,initialPosition,initialPose,
 motionCurves,execution,summary,completion}`. It performs no Bundle I/O.
 Bundle supplies the exact source identity, saves source and schedule separately, and joins them for readers as `{sourcePathId,deposition,schedule}`. Identity mismatch is an error; editing source invalidates its schedule and checked program.
 
-`execution` is ordered data. `{kind:'deposit',courseId,from,to}` references a
-subset of that source course. `{kind:'travel',curveId,from,to,durationSeconds?}`
+`execution` is ordered data. `{kind:'deposit',courseId,from,to,reverse?}` references a source subset; bounds stay increasing, and `reverse:true` traverses from `to` to `from` with positive material. `{kind:'travel',curveId,from,to,durationSeconds?}`
 references `motionCurves`, using the same curve/profile representation.
 `{kind:'inject',operationId}` references its source injection. Fan, temperature,
 toolChange, retract, recover, dwell and context retain their current action fields
@@ -99,7 +96,7 @@ it does not assert that curve and chord share linear timing. `poseCone` is
 `curveSpans` and `linearizePath` require positive `positionToleranceMm`,
 `orientationToleranceRad`, `volumeToleranceMm3`; these bound chord deviation,
 full-frame deviation from endpoint interpolation, and total volume error over the
-requested range/path. Source breaks remain queryable. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
+requested range/path. Source breaks remain queryable. Reverse views enumerate source spans backwards; each span retains increasing source bounds. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
 Subdivision certifies convergent length/volume bounds; zero deposition stays exact.
 Shared numerical shape calculations delegate to Geometry; path/material semantics
 stay here. Consumers can request different resolutions without changing identity,
@@ -108,7 +105,7 @@ Geometry/profile/material knots are query information, not compulsory output mov
 
 ## Scheduler obligations
 
-Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps. Skills supply manufacturing requirements and deposition geometry. Scheduling owns travel, entry and traversal; connected courses, fill cells and native layer order suggest relaxable choices, not additional requirements.
+Prove whole native slices before opening unresolved courses or source intervals; enclosing bounds never fill sparse material gaps. Skills supply manufacturing requirements and deposition geometry. Scheduling owns travel, entry and traversal. Connected courses and fill cells form temporary chunks; actual entry distance and internal transfers choose permitted traversals. A witnessed conflict splits a chunk or rejects an unsafe traversal, preserving mandatory requirements. Native layer order remains a relaxable choice.
 Local substrate follows material normals; nozzle access follows explicit tool poses. Explicit process prerequisites, continuity, required material and layer cooling
 remain constraints. Cadence is prepared material intent, not a substitute for
 physical scheduling.
@@ -127,7 +124,7 @@ turn an unresolved case into success. Keep dependency graphs sparse; bounded cac
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source contract `saam-deposition/25` and completion `saam-neutral-motion/12` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
+Source contract `saam-deposition/26` and completion `saam-neutral-motion/13` invalidate earlier generated paths for regeneration; exact saved programs remain readable. This document owns the seam. Numerical curve queries belong in Geometry.
 
 New writers use compact source and execution only. Existing saved paths/programs remain readable through one centralized compatibility reader; regeneration is
 required for current-contract scheduling. Preserve the exact reviewed/exported

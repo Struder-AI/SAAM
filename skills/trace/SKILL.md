@@ -9,7 +9,7 @@ Trace deposits along curves stored in [geometry](../../GEOMETRY.md); its recipe 
 
 Add `construction:"curves"` to `plan.slices.assignments` with the existing `slice` tool or bulk recipe edit. Supply `id`, `curves`, and common `part`, `filament`, `process`, `after` settings; [print nozzle rules](../../core/print/USAGE.md#nozzle-selection) apply.
 
-Each curve has `closed` and XYZ `points`, `nurbs`, or surface `uv`; [line-text](../line-text/SKILL.md) compiles XYZ curves. Optional local `id` and `after:[ids]` declare required deposition predecessors within each repetition. Parallel expansion waits for every predecessor bead. Helpers add these only for manufacturing needs, such as anchors before a bridge; absent or skipped predecessors fail. Convenience ordering stays optional; Scheduling owns travel and traversal.
+Each curve has `closed` and XYZ `points`, `nurbs`, or surface `uv`; [line-text](../line-text/SKILL.md) compiles XYZ curves. Local `id` and `after:[ids]` declare required predecessors within each repetition, including every expanded parallel bead; missing predecessors fail. Helpers add these only for manufacturing needs. `directionRequired` preserves essential authored direction (Trace defaults true). Scheduling owns travel and optional traversal; [the path contract](../../core/path/README.md) owns these distinctions.
 
 Scalar beadWidthMm, heightMm, speedMmS and flowMultiplier override process defaults. `vary` supplies increasing normalized-parameter `[t,value]` samples spanning 0–1 for those values. Unread fields, malformed profiles, width rules and non-positive widths are ignored and listed in `limitations`; repeated vertices are dropped, and collapsed curves print nothing.
 

@@ -59,15 +59,30 @@ export function slicePartitions(operations,prerequisites){
   const native=new Set(operations.filter(op=>op.layerId!==null&&op.layerId!==undefined).map(op=>op.layerId));
   const refinedSlices=[...native].filter(id=>{const ids=slices.get(id);return ids.some(id=>membership.get(id)!==membership.get(ids[0]));}).length;
   return {groups:state.groups,summary:{slices:native.size,wholeSlices:native.size-refinedSlices,refinedSlices,
-    executionUnits:state.groups.length,courses:operations.filter(op=>!op.barrier).length}};
+    executionUnits:state.groups.length,courses:operations.filter(op=>!op.barrier).reduce((sum,op)=>sum+(op.ranges?.length??1),0)}};
 }
 
+export function selectTraversal(operation,cursor,verify=null){
+  const entryCost=(entry,process)=>distance(cursor.point,entry?.point??cursor.point)+
+    (cursor.axis&&entry?.pose?.toolAxis?(process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*entry.pose.toolAxis[i],0)):0);
+  if(operation.barrier||!operation.traversals?.length)return entryCost(operation.entry,operation.process);
+  const remaining=[...operation.traversals],cost=variant=>entryCost(variant.entry,operation.process)+variant.extraDistance;
+  let failure;
+  while(remaining.length){
+    const choice=remaining.reduce((best,variant)=>cost(variant)<cost(best)-PRINT_RESOLUTION_MM?variant:best);
+    remaining.splice(remaining.indexOf(choice),1);
+    Object.assign(operation,{ranges:choice.ranges,entry:choice.entry,exit:choice.exit,traversalChoice:choice});
+    try{verify?.(operation);return cost(choice);}catch(error){
+      if(error.code!=='CONTINUOUS_NOZZLE_CONFLICT'&&error.code!=='CURVE_CLEARANCE_UNRESOLVED')throw error;
+      failure=error;
+    }
+  }
+  throw failure;
+}
 function nearest(ready,cursor){
-  const score=node=>{const point=node.op.entry?.point??cursor.point,axis=node.op.entry?.pose?.toolAxis;
-    return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
   const best={index:0,cost:Infinity};
   for(const [i,node] of ready.entries()){
-    const cost=score(node),previous=ready[best.index];
+    const cost=selectTraversal(node.op,cursor),previous=ready[best.index];
     if(cost<best.cost-PRINT_RESOLUTION_MM||Math.abs(cost-best.cost)<=PRINT_RESOLUTION_MM&&
       (node.result<previous.result||node.result===previous.result&&node.index<previous.index)){best.index=i;best.cost=cost;}
   }

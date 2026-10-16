@@ -56,7 +56,9 @@ export function buildGeometryView(geometry,creaseDeg=35){
       const alignment=dot(n,candidate);
       if(Math.abs(alignment)>cosine)sum=add(sum,scale(candidate,other.weight*(alignment<0?-1:1)));
     }
-    return length(sum)>1e-12?normalize(sum):n;
+    // Angle weights are dimensionless; their magnitude can be below the CAD
+    // coordinate guard even when their direction is well-defined.
+    const magnitude=length(sum);return magnitude>1e-12?scale(sum,1/magnitude):n;
   }));
   const triangles=[],surface=[],outlines=[];
   faces.forEach((face,f)=>{

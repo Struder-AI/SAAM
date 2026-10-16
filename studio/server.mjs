@@ -671,7 +671,7 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   // An agent generates through the edit it already holds on this Studio's print.
   server.generate=async({development=false,trigger='agent',directory=dir}={})=>generate(await resolveBundle(directory),{development,trigger,directory});
   server.applicationStopping=reason=>lifetime.notify('studio-update',{kind:'application-stopping',reason});
-  const lifetime=viewerLifetime(server,{onViewers:count=>note(count?'viewer-opened':'viewer-closed',{viewers:count}),onClosing:()=>{
+  const lifetime=viewerLifetime(server,{onViewers:count=>{note(count?'viewer-opened':'viewer-closed',{viewers:count});if(count)viewerCapture.connected();},onClosing:()=>{
     closed=true;importController?.abort(Object.assign(Error('Import cancelled because Studio closed.'),{name:'AbortError',code:'IMPORT_CANCELLED'}));
     if(!generationRun?.committing)generationRun?.controller.abort(cancelledGeneration());
   },

@@ -558,7 +558,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
           try{
             if(!workError&&episode&&call.result&&typeof call.result==='object'&&!Array.isArray(call.result)){
               const visualStudio=view?.server??associated?.server;
-              const visualCheck=await resultImages.capture(visualStudio,input.bundleId,before,call.saved,definition.resultStage,ownerId);
+              const visualCheck=await resultImages.capture(visualStudio,input.bundleId,before,call.saved,definition.resultStage,ownerId,{waitForViewer:view?.browserOpenRequested});
               if(visualCheck)call.result={...call.result,visualCheck};
             }
           }finally{
@@ -1007,7 +1007,9 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const url=session.url+viewPath;
     // An open viewer is rebound in place; only a Studio nobody is viewing opens a tab.
     const browserOpenRequested = await show(session,url);
-    return { ...summary(bundleId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested };
+    const stage=startAt||state.outputId||state.review?.path?'toolpath':'geometry';
+    const visualCheck=await resultImages.capture(session.server,bundleId,null,state.workEvidence,stage,ownerId,{waitForViewer:browserOpenRequested});
+    return { ...summary(bundleId, state),studioInstanceId:session.server.agentSession().instanceId, url, browserOpenRequested,visualCheck };
   }
   operation('close_studio_session','Close one Studio instance owned by this agent without affecting other instances or the shared print bundle.',{studioInstanceId:z.string()},false);
   async function closeStudioSession({studioInstanceId}){

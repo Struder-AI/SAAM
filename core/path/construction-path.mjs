@@ -155,7 +155,7 @@ export function constructionPath({results,planning,composition,summary,generator
         localCourses.get(stroke.id).push(id);
       }
       const published=publishedCurve(stroke,process);curves[curveId]=published.curve;
-      return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,role:stroke.role,
+      return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,directionRequired:stroke.directionRequired??true,role:stroke.role,
         ...(published.provenance?{provenance:published.provenance}:{})};
     });
     // Mapping and parallel bead construction may expand one named curve into

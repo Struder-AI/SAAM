@@ -7,8 +7,8 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/25'; // Local curve requirements survive parallel expansion and source publication.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/12'; // Manufacturing constraints and relaxable local traversal.
+export const PATH_CONTRACT='saam-deposition/26'; // Required curve dependencies/direction and retained fill-cell identity.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/13'; // Scheduler-owned traversal chunks and reversible source ranges.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

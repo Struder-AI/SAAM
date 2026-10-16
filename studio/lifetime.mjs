@@ -32,8 +32,9 @@ export function viewerLifetime(server,{onShutdown=async()=>{},onViewers=()=>{},o
     },
     attach(res){
       if(lifetime.closing){res.writeHead(503);res.end('Studio is closing.');return;}
-      viewers.add(res);onViewers(viewers.size);
+      viewers.add(res);
       res.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-store'});res.write(': viewer connected\n\n');
+      onViewers(viewers.size);
       const pulse=setInterval(()=>res.write(': connected\n\n'),15_000);pulse.unref();
       res.once('close',()=>{clearInterval(pulse);viewers.delete(res);onViewers(viewers.size);});
     }};

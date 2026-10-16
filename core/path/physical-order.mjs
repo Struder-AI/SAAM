@@ -275,7 +275,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     cache.set(key,{record,bytes});stats.cacheBytes+=bytes;stats.peakCacheBytes=Math.max(stats.peakCacheBytes,stats.cacheBytes);return record;
   }
   function interval(ref){
-    const key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to]);
+    const key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to,...(ref.reverse?[true]:[])]);
     const root=roots.get(key);if(root){stats.rootHits++;return root;}
     const known=cache.get(key);
     if(known){cache.delete(key);cache.set(key,known);stats.rangeCacheHits++;return known.record;}
@@ -335,7 +335,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     // Unit roots are already retained by the scene. Reuse that same record
     // directly instead of re-querying it after a numerical cache eviction.
     for(const record of records){
-      const ref=record.ref,key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to]);
+      const ref=record.ref,key=JSON.stringify([ref.id,ref.curveId,ref.from,ref.to,...(ref.reverse?[true]:[])]);
       if(!roots.has(key)){roots.set(key,record);stats.rootBytes+=2048+record.range.breaks.length*8;}
       const held=cache.get(key);if(held){stats.cacheBytes-=held.bytes;cache.delete(key);}
     }
@@ -618,7 +618,8 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       while(pending.length){
         const next=pending.pop();if(!convexIntersects(nozzle(next).shape,material(next).shape,ROUNDING_MM))continue;
         requireTangent(next);const children=divide(next);if(!children)throw unresolved(next,next);
-        const hit=pair(children[1],children[0]);if(hit)conflict(hit);pending.push(...children);
+        const first=next.ref.reverse?children[1]:children[0],last=next.ref.reverse?children[0]:children[1];
+        const hit=pair(last,first);if(hit)conflict(hit);pending.push(...children);
       }
     }
   }

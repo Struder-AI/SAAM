@@ -27735,6 +27735,31 @@
       "owner": "scheduling",
       "reason": "Scheduling canonicalizes execution cuts by physical resolution and re-solves source contacts."
     },
+    "core/path/compose.mjs::prepareSourceUnits": {
+      "owner": "scheduling",
+      "reason": "Scheduling forms temporary traversal chunks independently of required manufacturing dependencies."
+    },
+    "core/path/compose.mjs::prepareSourceUnits::node": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::prepareSourceUnits::flush": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::preferNativeLayers": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::relaxOrderChoices": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::resolveSourceOrder": {
+      "owner": "scheduling"
+    },
+    "core/path/course-order.mjs::selectTraversal": {
+      "owner": "scheduling"
+    },
+    "core/path/course-order.mjs::selectTraversal::entryCost": {
+      "owner": "scheduling"
+    },
     "studio/adapter-resolution.mjs::bundleLoader": {
       "owner": "studio",
       "reason": "One schema dispatch boundary reads schema-free shell drafts with current defaults and still rejects unknown explicit formats."

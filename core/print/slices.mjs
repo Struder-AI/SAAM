@@ -39,7 +39,7 @@ function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCoun
     for(const [group,found] of [['walls',strokes.walls],['infill',strokes.infill],['fill',strokes.fill]]){
       if(!found.length)continue;
       const roles=s.roles??settings.roles;
-      const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
+      const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,directionRequired:group!=='walls'&&s.fillOrder?.kind==='fronts',role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
       if(!deposited)continue;
       const lifted=deposited.strokes,heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planar=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
       const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;

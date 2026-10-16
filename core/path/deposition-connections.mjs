@@ -40,6 +40,7 @@ function connectionStroke(previous,next,policy){
   const metadata={...next.segmentMetadata?.[0],role:next.role,connector:true,
     beadWidthMm:next.segmentMetadata?.[0]?.beadWidthMm??next.beadWidthMm};
   const stroke={points:[from,to],closed:false,role:next.role,beadWidthMm:metadata.beadWidthMm,
+    directionRequired:previous.directionRequired!==false||next.directionRequired!==false,
     speedMmS:metadata.speedMmS??next.speedMmS,volumesMm3:[distance(from,to)*area],segmentMetadata:[metadata]};
   // Preserve endpoint frames where both producers supply them. Never invent a
   // chart coordinate across unrelated charts or an authored curve parameter.

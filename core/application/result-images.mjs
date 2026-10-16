@@ -21,16 +21,16 @@ export function createResultImages(){
     await retire();return file;
   }
   return {
-    async capture(studio,bundleId,before,after,resultStage,ownerId='local'){
-      const geometry=Boolean(after?.geometryKey)&&(resultStage==='geometry'||after.geometryKey!==before?.geometryKey);
-      const toolpath=Boolean(after?.generationKey)&&(resultStage==='toolpath'||after.generationKey!==before?.generationKey);
+    async capture(studio,bundleId,before,after,resultStage,ownerId='local',{waitForViewer=false}={}){
+      const geometry=resultStage!=='toolpath'&&Boolean(after?.geometryKey)&&(resultStage==='geometry'||after.geometryKey!==before?.geometryKey);
+      const toolpath=resultStage!=='geometry'&&Boolean(after?.generationKey)&&(resultStage==='toolpath'||after.generationKey!==before?.generationKey);
       if(!geometry&&!toolpath)return null;
       const result={source:'studio-viewer'};
       for(const stage of ['geometry','toolpath']){
         if(stage==='geometry'&&!geometry||stage==='toolpath'&&!toolpath)continue;
         try{
           if(!studio)throw Error('No Studio is attached to this result.');
-          const frame=await studio.captureView({bundleId,target:after,stage});
+          const frame=await studio.captureView({bundleId,target:after,stage,waitForViewer});
           result[stage]=await write(ownerId,bundleId,stage,frame.png);
           if(frame.phases)result.phases=frame.phases;
         }catch(error){result[stage+'Error']=error.message;}

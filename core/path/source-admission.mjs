@@ -26,6 +26,7 @@ export function admitSource(source){
     if(operation.kind==='deposit'){
       requireThat(Array.isArray(operation.courses)&&operation.courses.length>0,'Moving operation needs courses.');
       for(const course of operation.courses){
+        requireThat(course.directionRequired===undefined||typeof course.directionRequired==='boolean','Course directionRequired must be boolean.');
         requireThat(id(course.id)&&!courses.has(course.id)&&Object.hasOwn(source.curves,course.curveId)&&interval(course.from,course.to)&&typeof course.interruptible==='boolean',
           'Invalid or duplicated source course.');courses.add(course.id);
         requireThat(source.curves[course.curveId].geometry.kind!=='point'&&source.curves[course.curveId].profiles.material,'Moving deposition needs material on a moving curve.');
@@ -66,7 +67,7 @@ export function admitSchedule(schedule){
       typeof material.areaMm2==='number'?material.areaMm2===0:material.areaMm2.knots.every(([,value])=>value===0),'Travel cannot deposit material.');
   }
   for(const entry of schedule.execution){
-    if(entry.kind==='deposit')requireThat(id(entry.courseId)&&interval(entry.from,entry.to),'Invalid execution source range.');
+    if(entry.kind==='deposit')requireThat(id(entry.courseId)&&interval(entry.from,entry.to)&&(entry.reverse===undefined||typeof entry.reverse==='boolean'),'Invalid execution source range.');
     else if(entry.kind==='travel')requireThat(Object.hasOwn(schedule.motionCurves,entry.curveId)&&interval(entry.from,entry.to)&&
       (entry.durationSeconds===undefined||Number.isFinite(entry.durationSeconds)&&entry.durationSeconds>0),'Invalid execution travel.');
     else if(entry.kind==='inject')requireThat(id(entry.operationId),'Invalid execution injection.');
@@ -91,7 +92,9 @@ export function validateExecutionSource(source,schedule){
   for(const [index,entry] of schedule.execution.entries()){
     if(entry.kind==='deposit'){
       const found=courses.get(entry.courseId);requireThat(found&&entry.from>=found.course.from&&entry.to<=found.course.to,'Execution references an unknown course or leaves its range.');
-      const start=curveAt(reader,found.course.curveId,entry.from),end=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
+      requireThat(!entry.reverse||found.course.directionRequired===false&&found.operation.interruptible&&!found.operation.continuous,'Execution cannot reverse required deposition direction.');
+      const low=curveAt(reader,found.course.curveId,entry.from),high=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
+      const start=entry.reverse?high:low,end=entry.reverse?low:high;
       requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
       const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,index});coverage.set(entry.courseId,pieces);
       const chronology=courseIndices.get(entry.courseId);
