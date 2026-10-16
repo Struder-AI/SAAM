@@ -32,9 +32,11 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     const key=JSON.stringify([context.phase,context.operation,context.layer]);
     if(key!==legacyKey){legacyKey=key;legacyRun++;}
     const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer];
+    const from=pose??UPRIGHT,next=action.kind==='extrude'?from:action.pose??UPRIGHT;
     const row={line:line+1,phase:context.phase,layer:context.layer,layerId:context.layerId??null,legacyRun,operation:context.operation??'',
       sliceStack:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length,
       fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time,
+      ...(posed?{toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp}:{}),
       surfaceNormal:action.surfaceNormal??[0,0,0],beadHeightMm:action.beadHeightMm??NaN};
     if(action.kind==='extrude'){
       const durationSeconds=action.volumeMm3/action.flowMm3S;
@@ -47,9 +49,7 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     // A move with no positive speed has no known time; playback shows it at once.
     const durationSeconds=action.durationSeconds??(action.speedMmS>0?distance/action.speedMmS:0);
     if(!Number.isFinite(durationSeconds)||durationSeconds<0)throw Error('Invalid saved SAAMpath motion.');
-    const from=pose??UPRIGHT,next=action.pose??UPRIGHT;
-    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:width(action,filament),
-      ...(posed?{toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp}:{})});
+    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:width(action,filament)});
     volumeMm3+=action.volumeMm3;position=to;pose=action.pose??pose;time+=durationSeconds;
   }
   return {moves,events,summary:{moves:moves.length,motionSeconds:time,volumeMm3,inspection:metadata??null},volumeMm3};
