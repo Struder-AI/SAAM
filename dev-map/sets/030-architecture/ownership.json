@@ -27578,6 +27578,10 @@
     },
     "core/geom/solid-operations.mjs::mappedExtrusion::<callback@111:32>::q": {
       "owner": "geometry-leaf-c8d4e9d26294"
+    },
+    "core/path/curve-profiles.mjs::interpolateScalar": {
+      "owner": "toolpath",
+      "reason": "Source scalar profiles and bounded local estimates share finite, monotone interpolation with exact endpoints."
     }
   },
   "retiredAssignments": [
