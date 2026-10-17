@@ -472,12 +472,19 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       const bundle=await opened;
       // The drawn path: a completed output's SAAMpath, else the saved SAAMpath.
       if(req.method==='GET'&&url.pathname==='/api/path'){
-        const {state}=await bundle.loadBundleSnapshot(readDir,{program:true}),output=state.completedOutput;
-        if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==(output?output.id:String(state.revision))
-          ||url.searchParams.get('id')!==(output?output.id:state.review?.path?.id)||output&&!completedOutputState(state).available)
-          throw Error('The displayed path changed. Reload before viewing.');
-        const bytes=await bundle.readDrawnPath(state);
-        res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
+        const controller=new AbortController(),cancelPreview=()=>controller.abort(Error('Toolpath preview request closed.'));
+        res.once('close',cancelPreview);
+        try{
+          const {state}=await bundle.loadBundleSnapshot(readDir,{program:true}),output=state.completedOutput;
+          if(readDir!==dir||url.searchParams.get('printId')!==readId||url.searchParams.get('revision')!==(output?output.id:String(state.revision))
+            ||url.searchParams.get('id')!==(output?output.id:state.review?.path?.id)||output&&!completedOutputState(state).available)
+            throw Error('The displayed path changed. Reload before viewing.');
+          if(res.destroyed)cancelPreview();
+          const bytes=await bundle.readDrawnPath(state,{signal:controller.signal});
+          res.writeHead(200,{'Content-Type':'application/json','Content-Length':bytes.length});res.end(bytes);return;
+        }catch(error){if(!res.destroyed)throw error;}
+        finally{res.off('close',cancelPreview);}
+        return;
       }
       if(req.method==='GET'&&url.pathname==='/api/state') {
         const condition=req.headers['if-none-match'];

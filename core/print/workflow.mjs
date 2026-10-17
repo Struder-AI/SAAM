@@ -1,7 +1,8 @@
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {retainCompletedOutput,readCompletedOutput} from './completed-output.mjs';
-import {saamPath,saamPathText,joinSaamPath} from '../path/saampath.mjs';
+import {saamPathText,joinSaamPath} from '../path/saampath.mjs';
+import {readPathArtifact,readMotionArtifact} from './path-artifact.mjs';
 import {pathSummary} from '../path/curve-path.mjs';
 import {schedulePath} from '../path/schedule.mjs';
 import {completedOutputState} from './review-state.mjs';
@@ -12,7 +13,6 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { exportProgram, programReadiness, settingsRows } from '../export/registry.mjs';
-import {placedPath} from '../path/placement.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import { loadMachine,currentMachineSnapshot } from '../machine/profile.mjs';
 import {resolveNozzleGeometry} from '../machine/nozzle.mjs';
@@ -532,15 +532,6 @@ async function prepareToolpath(state,{onProgress,source}={}){
   try{return await result;}catch(error){if(pathPreparation?.result===result)pathPreparation=null;throw error;}
 }
 
-async function readPathArtifact(dir,artifact){
-  const path=JSON.parse(await readFile(resolve(dir,artifact.file)));
-  return path.schema==='saampath/2'?saamPath(path):path;
-}
-async function readMotionArtifact(dir,artifact){
-  if(!artifact.scheduleFile)return JSON.parse(await readFile(resolve(dir,artifact.motionFile??artifact.file)));
-  const deposition=await readPathArtifact(dir,artifact),schedule=JSON.parse(await readFile(resolve(dir,artifact.scheduleFile)));
-  return joinSaamPath({sourcePathId:artifact.id,deposition,schedule});
-}
 async function readConstructedPath(state){
   const artifact=state.completedOutput?.path??state.review.path;
   requireThat(artifact,'No saved SAAMpath.');
@@ -552,11 +543,13 @@ function partFramePath(artifact){return artifact.contract===contract||artifact.c
 // What Studio and the result image draw: the SAAMpath itself, a completed
 // output's else the saved one, current or not, at its recipe's placement.
 // Paths made before part-frame deposition were built already placed.
-async function readDrawnPath(state){
+async function readDrawnPath(state,{signal}={}){
   const output=state.completedOutput,artifact=output?output.path:state.review.path;
   requireThat(artifact,'No saved SAAMpath.');
-  const path=await readMotionArtifact(state.dir,artifact);
-  return Buffer.from(JSON.stringify(partFramePath(artifact)?placedPath(path,(output?.plan??state.plan).placement):path));
+  const bytes=await runComputationJob(new URL('./path-artifact-worker.mjs',import.meta.url),{
+    directory:state.dir,artifact,placement:partFramePath(artifact)?(output?.plan??state.plan).placement:null,
+  },{signal,subject:'Saved toolpath preview'});
+  return Buffer.from(bytes.buffer,bytes.byteOffset,bytes.byteLength);
 }
 
 // Chat-driven adjustment: the agent applies a patch and dependent output

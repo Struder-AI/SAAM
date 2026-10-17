@@ -1826,6 +1826,14 @@
     "core/geom/cubic-bezier.mjs": {
       "owner": "geometry",
       "reason": "Bounded cubic construction from surface-composition Bernstein proof coefficients."
+    },
+    "core/print/path-artifact.mjs": {
+      "owner": "bundle",
+      "reason": "Saved path admission and cancellable preview transport stay with Bundle."
+    },
+    "core/print/path-artifact-worker.mjs": {
+      "owner": "bundle",
+      "reason": "Saved path admission and cancellable preview transport stay with Bundle."
     }
   },
   "leaves": {
@@ -8051,10 +8059,6 @@
     "studio/app.mjs::onclick": {
       "owner": "studio",
       "reason": "Dependency/history increment: explicit reviewed declaration responsibility."
-    },
-    "core/print/workflow.mjs::createBundleWorkflow::readPathArtifact": {
-      "owner": "bundle",
-      "reason": "Validates persisted content-addressed SAAMpath references before reuse or commit."
     },
     "core/geom/curve-ops.mjs::curveCrossings::segment": {
       "owner": "geometry-leaf-54512fc1eb06"
@@ -28176,6 +28180,19 @@
     },
     "core/path/curve-path.mjs::querySpans::search": {
       "owner": "toolpath"
+    },
+    "core/print/path-artifact.mjs::readPathArtifact": {
+      "owner": "bundle",
+      "reason": "Validates persisted content-addressed SAAMpath references before reuse or commit."
+    },
+    "core/print/path-artifact.mjs::readMotionArtifact": {
+      "owner": "bundle"
+    },
+    "core/print/workflow.mjs::createBundleWorkflow::readDrawnPath::bytes": {
+      "owner": "bundle"
+    },
+    "studio/server.mjs::createStudio::cancelPreview": {
+      "owner": "studio"
     }
   },
   "retiredAssignments": [

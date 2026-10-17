@@ -82,13 +82,12 @@ artifacts without extension code. Changed loaded scripts require restarting SAAM
 Preparation leaves the manifest unchanged; commit checks sources and revision.
 Saved paths survive restarts/history; delivery copies the confirmed checked bytes.
 
-`loadBundleSnapshot` supplies Studio one persisted revision, artifact currency,
-history, review and checked program, tagged by `revision` and by a presentation
-tag (edit revision, geometry id, output id) that delivery and mode leave unchanged.
-Studio owns polling, pending requests and job progress separately; no subscription
-API or click-time Export gate is implied. `generateBundle` runs the generation
-worker under the caller's reservation; its `signal` cancels before any output,
-check or review write, until `beforeCommit` is acknowledged; then commit finishes.
+`loadBundleSnapshot` supplies persisted state, artifact currency, history, review
+and checked bytes. `revision` tags every commit; presentation tags (edit revision,
+geometry id, output id) exclude delivery/mode changes. Studio owns polling and progress.
+`readDrawnPath(state,{signal})` admits and serializes saved previews in a cancellable
+worker; preview disconnect cancels it. `generateBundle` runs under the caller's reservation;
+its signal cancels before output/check/review writes until acknowledged `beforeCommit`; commit then finishes.
 
 ## Validate at the boundary that owns the data
 
