@@ -317,10 +317,6 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         const completed=access.visited.size;access.visited.add(unit.id);
         if(accessLayers.has(unit.layerId))continue;
         onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
-        try{state.scene.verifySelf(unit);}catch(error){
-          if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
-          throw error;
-        }
         for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&!state.scene.proofs.clear(unit.layerId,graph.byId.get(id).layerId)&&
           !precedes(unit.id,id))){
           if(!hit.witness?.provisional){
@@ -350,9 +346,10 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges],cooling});
       for(const unit of ordered.operations)if(!unit.barrier){
         const body=state.scene.byId.get(unit.id);
-        if(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
-          record.ref.to===unit.ranges[i].to&&Boolean(record.ref.reverse)===Boolean(unit.ranges[i].reverse)))continue;
-        body.records=unit.ranges.map(state.scene.interval);
+        // Certify the selected traversal after external ordering has settled;
+        // conflict refinement can split these convenience chunks beforehand.
+        if(!(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
+          record.ref.to===unit.ranges[i].to&&Boolean(record.ref.reverse)===Boolean(unit.ranges[i].reverse))))body.records=unit.ranges.map(state.scene.interval);
         try{state.scene.verifySelf(unit);}catch(error){
           if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
           throw error;
