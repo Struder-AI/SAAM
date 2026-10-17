@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Preserve course openings across later curve cuts
+
+- The marbled source exposed a nonmonotone refinement bug: opening oblique-cross-grain:11 courses 2 and 4 yielded five units, but cutting course 7 rebuilt its chunk under a different range-list key and merged both opened courses into a seven-course unit. Openings now belong to immutable source course IDs, so later physical cuts preserve them. The same disposable repro now grows from five to eight units and both courses remain isolated. Unaffected soft runs and hard manufacturing dependencies remain intact.
+- The retained pair-cache eviction cursor is refreshed after a working set of hits. This bounds obsolete Map-table retention during hit-only LRU promotion; the disposable million-hit diagnostic retains about 10 MB instead of 56 MB, with identical first eviction. No geometry, nozzle dimensions or 0.2 mm forgiveness changes.
+- Targeted actual-source interface ordering, hard prerequisites inside soft chunks, remote-run preservation, collision/cycle rejection and original/rotated interruptible-return replay pass. Independent replay finds zero hits or uncertainties. Repository/whitespace checks pass; path guidance stays 147 lines with fewer words. No permanent tests or whole suite. The full marbled solve remains pending; obsolete public/diagnostic runs were cancelled rather than represented as successful verification. No push, release or hardware output.
+
 ## 2026-10-16 — Resolve curve breaks before clearance refinement
 
 - The larger marbled study exposed subdivision starvation in nozzle ordering: a material interval retained 16 internal breaks while its estimated envelope error was smaller than the receiver's rounding floor. The pair selector kept bisecting the receiver down to adjacent float64 parameters; the pending material breaks prevented conservative order-choice admission. A paused diagnostic captured the exact courses and interval data in .local/marbled-inspect.json.

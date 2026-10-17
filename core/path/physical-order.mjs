@@ -455,7 +455,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   function knownPair(key){
     const known=pairResults.entries.get(key);
-    if(known){pairResults.entries.delete(key);pairResults.entries.set(key,known);}
+    if(known){
+      pairResults.entries.delete(key);pairResults.entries.set(key,known);
+      pairResults.hits=(pairResults.hits??0)+1;
+      if(pairResults.hits>=pairResults.entries.size){pairResults.oldest=pairResults.entries.keys();pairResults.hits=0;}
+    }
     return known;
   }
   function rememberPair(key,witness){

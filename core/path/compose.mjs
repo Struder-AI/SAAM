@@ -75,7 +75,7 @@ function courseCuts(reader,course,values){
   }
   return [...retained].sort((a,b)=>a-b);
 }
-export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),chunkBreaks=new Map()}={}){
+export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),openedCourses=new Set()}={}){
   const operations=Object.values(source.operations),bySource=new Map(operations.map(op=>[op.id,op]));
   const declared=prepareOperationDependencies(operations,bySource,source.composition);
   const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
@@ -150,7 +150,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
       let pending=[];
       function appendChunk(ranges){
         if(!ranges.length)return;
-        const key=JSON.stringify(ranges.map(course=>[course.id,course.from,course.to])),opened=chunkBreaks.get(key);
+        const key=JSON.stringify(ranges.map(course=>[course.id,course.from,course.to])),opened=openedCourses;
         if(opened?.size&&ranges.some(course=>opened.has(course.id))){
           const segment={from:0};
           for(const [i,course] of ranges.entries())if(opened.has(course.id)){
@@ -259,14 +259,14 @@ function retainedNozzleEdges(graph,requirements){
 }
 
 export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry}={}){
-  const cuts=new Map(),relaxed=new Set(),relaxedChunks=new Set(),chunkBreaks=new Map(),blockedTraversals=new Set(),supportPrecision=new Map(),history={solves:0,refinements:0};
+  const cuts=new Map(),relaxed=new Set(),relaxedChunks=new Set(),openedCourses=new Set(),blockedTraversals=new Set(),supportPrecision=new Map(),history={solves:0,refinements:0};
   const selfProofs={entries:new Map(),bytes:0};
   const nozzleRequirements=new Map();
   const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
   const sourceDependencies=prepareOperationDependencies(Object.values(source.operations),new Map(Object.entries(source.operations)),source.composition);
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
-    const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,chunkBreaks}),choices=preferNativeLayers(source,graph,relaxed);
+    const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,openedCourses}),choices=preferNativeLayers(source,graph,relaxed);
     const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:retainedNozzleEdges(graph,nozzleRequirements)};history.solves++;
     for(const edge of state.edges)graph.prerequisites.get(edge.after).add(edge.before);
     try{
@@ -369,16 +369,16 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
     }catch(error){
       if(error.traversalChoice&&!blockedTraversals.has(error.traversalChoice)){blockedTraversals.add(error.traversalChoice);continue;}
       if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
-      const implicated=new Set(error.refinementCourses??error.operations??[]),before=relaxedChunks.size;
+      const implicated=new Set(error.refinementCourses??error.operations??[]),before=openedCourses.size;
       const witnesses=error.witness?[error.witness]:(error.physicalDependencies??[]).map(edge=>edge.witness).filter(Boolean);
       const involved=new Set(witnesses.flatMap(witness=>[witness.receiver?.id,witness.material?.id]).filter(Boolean));
       for(const unit of graph.units)if(implicated.has(unit.id)&&unit.traversalKey){
         const opened=new Set(unit.ranges.filter(range=>involved.has(range.id)).map(range=>range.id));
         if(!opened.size)continue;
-        chunkBreaks.set(unit.traversalKey,opened);
+        for(const id of opened)openedCourses.add(id);
         relaxedChunks.add(unit.traversalKey);
       }
-      if(relaxedChunks.size>before)continue;
+      if(openedCourses.size>before)continue;
       if(relaxOrderChoices(error,choices,relaxed))continue;
       if(!state.scene){
         if(!state.edges.length)throw error;
