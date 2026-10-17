@@ -27820,7 +27820,7 @@
     "core/path/physical-order.mjs::prepareRangeScene::queryPair": {
       "owner": "scheduling"
     },
-    "core/path/physical-order.mjs::prepareRangeScene::pairProofs": {
+    "core/path/physical-order.mjs::prepareRangeScene::pairResults": {
       "owner": "scheduling"
     },
     "core/path/physical-order.mjs::prepareRangeScene::knownSelf": {
