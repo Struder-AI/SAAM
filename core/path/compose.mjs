@@ -416,10 +416,13 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       const uncertain=reasons.filter(edge=>edge.witness?.provisional);
       if(uncertain.length){
+        const tightened=new Set();
         for(const edge of uncertain){
           const witness=edge.witness,key=JSON.stringify([...(edge.kind==='nozzle-access'?['nozzle-access']:[]),witness.receiver.id,witness.material?.id??null]);
-          if(witness.precision<=ROUNDING_MM)throw Object.assign(Error('Contact order is unresolved at numerical precision.'),{code:edge.kind==='nozzle-access'?'CURVE_CLEARANCE_UNRESOLVED':'SUPPORT_CONTACT_UNRESOLVED',witness});
-          supportPrecision.set(key,witness.precision/2);
+          if(tightened.has(key))continue;
+          const precision=Math.min(witness.precision,supportPrecision.get(key)??Infinity);
+          if(!(precision>ROUNDING_MM))throw Object.assign(Error('Contact order is unresolved at numerical precision.'),{code:edge.kind==='nozzle-access'?'CURVE_CLEARANCE_UNRESOLVED':'SUPPORT_CONTACT_UNRESOLVED',witness});
+          supportPrecision.set(key,precision/2);tightened.add(key);
         }
         continue;
       }

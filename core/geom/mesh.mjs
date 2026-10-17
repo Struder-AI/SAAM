@@ -305,32 +305,36 @@ export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
 const columnIndexes=new WeakMap();
 function meshColumnIndex(mesh){
   if(columnIndexes.has(mesh))return columnIndexes.get(mesh);
-  const index=triangleBVH(mesh.vertices,mesh.triangles);columnIndexes.set(mesh,index);return index;
+  const index={tree:triangleBVH(mesh.vertices,mesh.triangles),faces:[]};columnIndexes.set(mesh,index);return index;
 }
 // Bounded physical distance to the original mesh boundary, sharing its index.
 export function meshBoundaryDistance(mesh,point,limitMm){
   requireThat(point?.length===3&&point.every(Number.isFinite)&&Number.isFinite(limitMm)&&limitMm>0,'Mesh boundary distance needs finite XYZ and a positive physical limit.');
   const state={squared:Infinity};
   const measure=i=>{const t=mesh.triangles[i];state.squared=Math.min(state.squared,pointTriangleDistanceSquared(point,mesh.vertices[t[0]],mesh.vertices[t[1]],mesh.vertices[t[2]]));};
-  meshColumnIndex(mesh).query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
+  meshColumnIndex(mesh).tree.query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
   return state.squared<=limitMm*limitMm?Math.sqrt(state.squared):Infinity;
 }
 // Every non-vertical triangle the vertical line through (x, y) crosses.
 export function meshCrossingsAt(mesh,x,y) {
-  const crossings=[],candidates=[];
+  const crossings=[],candidates=[],index=meshColumnIndex(mesh);
   const collect=i=>candidates.push(i);
-  meshColumnIndex(mesh).query([x,y,mesh.bounds.min[2]],[x,y,mesh.bounds.max[2]],collect);
+  index.tree.query([x,y,mesh.bounds.min[2]],[x,y,mesh.bounds.max[2]],collect);
   candidates.sort((a,b)=>a-b);
   for(const i of candidates) {
-    const t=mesh.triangles[i];
-    const [a,b,c]=t.map(k=>mesh.vertices[k]);
-    const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-    if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;
-    const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
-    const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
+    if(!index.faces[i]){
+      const t=mesh.triangles[i],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]];
+      const by=b[1]-c[1],bx=c[0]-b[0],ay=c[1]-a[1],ax=a[0]-c[0],det=by*ax-bx*ay;
+      const offset=i*3,sign=mesh.faceNormals[offset+2]<0?-1:1;
+      const normal=[sign*mesh.faceNormals[offset],sign*mesh.faceNormals[offset+1],sign*mesh.faceNormals[offset+2]];
+      index.faces[i]={a,b,c,by,bx,ay,ax,det,normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI};
+    }
+    const face=index.faces[i];if(Math.abs(face.det)<MESH_DEGENERATE_MM2)continue;
+    const {a,b,c}=face;
+    const u=(face.by*(x-c[0])+face.bx*(y-c[1]))/face.det;
+    const v=(face.ay*(x-c[0])+face.ax*(y-c[1]))/face.det,w=1-u-v;
     if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
-    const n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
-    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI,feature:`triangle:${i}`,patch:`triangle:${i}`});
+    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal:[...face.normal],slopeDeg:face.slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`});
   }
   return crossings;
 }

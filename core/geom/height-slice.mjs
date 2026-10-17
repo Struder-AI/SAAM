@@ -79,12 +79,14 @@ export function heightSlice(reference,{offsetMm=0,normalDepthMm=0,sampleStepMm=.
 const referenceSamples=new WeakMap();
 export function referenceHeight(reference,x,y) {
   const source=reference.kind==='roof'?reference.geometry:reference.patch;
-  let samples=referenceSamples.get(source);
-  if(!samples){samples=new Map();referenceSamples.set(source,samples);}
+  if(!referenceSamples.has(source)){
+    const samples=new Map();referenceSamples.set(source,{samples,oldest:samples.keys()});
+  }
+  const {samples,oldest}=referenceSamples.get(source);
   const key=`${x},${y}`;
   if(samples.has(key))return samples.get(key);
   const value=evaluateReferenceHeight(reference,x,y);
-  if(samples.size>=100000)samples.delete(samples.keys().next().value);
+  if(samples.size>=100000)samples.delete(oldest.next().value);
   samples.set(key,value);return value;
 }
 

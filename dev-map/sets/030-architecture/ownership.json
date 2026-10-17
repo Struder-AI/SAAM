@@ -1829,6 +1829,25 @@
     }
   },
   "leaves": {
+    "core/geom/height-slice.mjs::referenceHeight::samples": {
+      "owner": "geometry",
+      "reason": "Identity-bound height samples and persistent eviction cursor."
+    },
+    "core/path/physical-order.mjs::sliceNozzleProofs::oldestClearPair": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::oldestRange": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::sampleSections": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::sampleCones": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::oldestRegion": {
+      "owner": "scheduling"
+    },
     "core/agent/layers.mjs::@module": {
       "owner": "context"
     },

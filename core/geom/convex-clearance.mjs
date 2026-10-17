@@ -49,29 +49,39 @@ export const boundsOverlap=(a,b,slack=PRINT_RESOLUTION_MM)=>
   a.min[1]<=b.max[1]+slack&&a.max[1]>=b.min[1]-slack&&
   a.min[2]<=b.max[2]+slack&&a.max[2]>=b.min[2]-slack;
 
-// Closest point in a simplex, by its feasible affine faces. At most four
-// vertices, so this also handles degenerate/coplanar simplexes explicitly.
+// Closest point on a simplex's vertices, edges and triangle interiors. Explicit
+// projections avoid allocating and eliminating a matrix for every affine face.
+// Degenerate faces fall back to their edges; an enclosing tetrahedron is zero.
 function simplexClosest(points){
-  const best={distance:Infinity,point:null,points:null};
-  for(let mask=1;mask<2**points.length;mask++){
-    const selected=points.filter((_,i)=>mask&(1<<i)),base=selected[0],edges=selected.slice(1).map(p=>subtract(p,base));
-    const matrix=edges.map(a=>[...edges.map(b=>dot(a,b)),-dot(a,base)]),count=edges.length;
-    const solve={valid:true};
-    for(let column=0;column<count;column++){
-      const pivot=matrix.reduce((found,row,i)=>i>=column&&Math.abs(row[column])>Math.abs(matrix[found][column])?i:found,column);
-      if(Math.abs(matrix[pivot][column])<=ROUNDING_MM**2){solve.valid=false;break;}
-      [matrix[column],matrix[pivot]]=[matrix[pivot],matrix[column]];
-      const divisor=matrix[column][column];
-      for(let j=column;j<=count;j++)matrix[column][j]/=divisor;
-      for(let i=0;i<count;i++)if(i!==column){const factor=matrix[i][column];for(let j=column;j<=count;j++)matrix[i][j]-=factor*matrix[column][j];}
-    }
-    if(!solve.valid)continue;
-    const weights=matrix.map(row=>row[count]),first=1-weights.reduce((sum,v)=>sum+v,0),all=[first,...weights];
-    if(all.some(v=>v<0))continue;
-    const point=selected.reduce((sum,p,i)=>add(sum,scale(p,all[i])),[0,0,0]),distance=length(point);
-    if(distance<best.distance)Object.assign(best,{distance,point,points:selected.filter((_,i)=>all[i]>0)});
+  const best={squared:Infinity,point:null,points:null};
+  for(const point of points){
+    const squared=dot(point,point);
+    if(squared<best.squared)Object.assign(best,{squared,point,points:[point]});
   }
-  return best;
+  for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++){
+    const a=points[i],b=points[j],edge=subtract(b,a),squaredLength=dot(edge,edge);
+    if(squaredLength<=ROUNDING_MM**2)continue;
+    const u=-dot(a,edge)/squaredLength;if(u<=0||u>=1)continue;
+    const point=add(a,scale(edge,u)),squared=dot(point,point);
+    if(squared<best.squared)Object.assign(best,{squared,point,points:[a,b]});
+  }
+  for(let i=0;i<points.length;i++)for(let j=i+1;j<points.length;j++)for(let k=j+1;k<points.length;k++){
+    const a=points[i],b=points[j],c=points[k],ab=subtract(b,a),ac=subtract(c,a),normal=cross(ab,ac),normalSquared=dot(normal,normal);
+    if(normalSquared<=ROUNDING_MM**2*Math.max(dot(ab,ab),dot(ac,ac)))continue;
+    const u=-dot(a,cross(ac,normal))/normalSquared,v=-dot(a,cross(normal,ab))/normalSquared;
+    if(u<0||v<0||u+v>1)continue;
+    const point=add(add(a,scale(ab,u)),scale(ac,v)),squared=dot(point,point);
+    if(squared<best.squared)Object.assign(best,{squared,point,points:[a,b,c]});
+  }
+  if(points.length===4){
+    const a=points[0],ab=subtract(points[1],a),ac=subtract(points[2],a),ad=subtract(points[3],a),opposite=scale(a,-1);
+    const normal=cross(ac,ad),determinant=dot(ab,normal);
+    if(determinant!==0){
+      const u=dot(opposite,normal)/determinant,v=dot(ab,cross(opposite,ad))/determinant,w=dot(ab,cross(ac,opposite))/determinant;
+      if(u>=0&&v>=0&&w>=0&&u+v+w<=1)return {distance:0,point:[0,0,0],points};
+    }
+  }
+  return {distance:Math.sqrt(best.squared),point:best.point,points:best.points};
 }
 
 // GJK separation. A finite threshold permits a proved separating-plane exit;
@@ -125,6 +135,15 @@ function fixedConePrismIntersects(sweep,prism,toleranceMm){
   // A crossed flat face or finite upper cap needs the general convex predicate.
   if(high>sweep.motion.lengthMm||sweep.body.radius>0&&low<0)return null;
   const sideTolerance=toleranceMm+c*sweep.body.radius;
+  // One supporting plane of the cone can separate the whole zonotope. Use
+  // its centre's radial direction before constructing all vertices/edges.
+  const centre=generators.reduce((point,g)=>add(point,scale(g,.5)),origin),height=dot(centre,axis);
+  const radial=subtract(centre,scale(axis,height)),radialLength=length(radial);
+  if(radialLength>ROUNDING_MM){
+    const direction=subtract(scale(radial,c/radialLength),scale(axis,s));
+    const minimum=dot(centre,direction)-generators.reduce((sum,g)=>sum+Math.abs(dot(g,direction))/2,0);
+    if(minimum>sideTolerance+ROUNDING_MM)return false;
+  }
   const vertices=Array.from({length:2**generators.length},(_,mask)=>{
     const point=generators.reduce((q,g,k)=>mask&(1<<k)?add(q,g):q,origin),z=dot(point,axis);
     return {point,z,r2:Math.max(0,dot(point,point)-z*z)};
@@ -170,6 +189,9 @@ export function convexIntersects(a,b,toleranceMm=PRINT_RESOLUTION_MM){
     const hit=fixedConePrismIntersects(sweep,prism,expanded);
     if(hit===false)return false;
     if(hit!==null&&x.margin+y.margin===0)return hit;
+    // The core bodies are contained in their inflated envelopes. An actual
+    // core intersection proves envelope intersection without a simplex query.
+    if(hit===true&&fixedConePrismIntersects(sweep,prism,toleranceMm)===true)return true;
   }
   return convexSeparation(a,b,toleranceMm)<=toleranceMm;
 }

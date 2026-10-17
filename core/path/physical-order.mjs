@@ -167,6 +167,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
   const {includedAngleDeg,tipDiameterMm}=nozzleGeometry;
   const slices=new Map(),queries={reader},halfAngle=includedAngleDeg*Math.PI/360;
   const sine=Math.sin(halfAngle),clearPairs=new Map(),positionBounds=new Map();
+  const oldestClearPair=clearPairs.keys();
   const clearPairLimit=4*1024*1024/128;
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
   if(!queries.reader)queries.reader=prepareCurvePath(source);
@@ -183,7 +184,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
     const key=receiver.ordinal+':'+material.ordinal,known=clearPairs.get(key);
     if(known!==undefined){clearPairs.delete(key);clearPairs.set(key,known);return known;}
     const clear=nozzleBoundsClear(receiver.positions,receiver.poseCone,material.material,NOZZLE_FORGIVENESS_MM,tipDiameterMm,includedAngleDeg);
-    while(clearPairs.size>=clearPairLimit)clearPairs.delete(clearPairs.keys().next().value);
+    while(clearPairs.size>=clearPairLimit)clearPairs.delete(oldestClearPair.next().value);
     clearPairs.set(key,clear);return clear;
   }
   function rangeOf(course){
@@ -272,11 +273,13 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   pairResults.oldest??=pairResults.entries.keys();
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
+  const oldestRange=cache.keys(),sampleSections=new WeakMap(),sampleCones=new WeakMap();
+  selfProofs.oldest??=selfProofs.entries.keys();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   function remember(key,record){
     const bytes=2048+record.range.breaks.length*8;
     if(bytes>cacheLimit)return record;
-    while(stats.cacheBytes+bytes>cacheLimit&&cache.size){const first=cache.keys().next().value;stats.cacheBytes-=cache.get(first).bytes;cache.delete(first);}
+    while(stats.cacheBytes+bytes>cacheLimit&&cache.size){const first=oldestRange.next().value;stats.cacheBytes-=cache.get(first).bytes;cache.delete(first);}
     cache.set(key,{record,bytes});stats.cacheBytes+=bytes;stats.peakCacheBytes=Math.max(stats.peakCacheBytes,stats.cacheBytes);return record;
   }
   function interval(ref){
@@ -385,6 +388,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     return proxy.query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest,boundsOnly:true}).map(index=>bodies[index]);
   }
   const regionalIndexes=new Map(),regionalLimit=16*1024*1024;
+  const oldestRegion=regionalIndexes.keys();
   function sectionScale(record){return Math.max(PRINT_RESOLUTION_MM,record.range.widthMm[0]/4,record.depth[1]);}
   function regionalMaterial(body,shape){
     let local=regionalIndexes.get(body.unit.id);
@@ -400,7 +404,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       stats.materialIndexBuilds++;stats.materialIndexCells+=cells.length;
       if(local.bytes<=regionalLimit){
         while(stats.materialIndexBytes+local.bytes>regionalLimit&&regionalIndexes.size){
-          const first=regionalIndexes.keys().next().value;stats.materialIndexBytes-=regionalIndexes.get(first).bytes;regionalIndexes.delete(first);
+          const first=oldestRegion.next().value;stats.materialIndexBytes-=regionalIndexes.get(first).bytes;regionalIndexes.delete(first);
         }
         regionalIndexes.set(body.unit.id,local);stats.materialIndexBytes+=local.bytes;
         stats.peakMaterialIndexBytes=Math.max(stats.peakMaterialIndexBytes,stats.materialIndexBytes);
@@ -419,13 +423,17 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   function samples(record){return [[record.ref.from,record.start],[(record.ref.from+record.ref.to)/2,midpoint(record)],[record.ref.to,record.end]];}
   function section(at){
+    if(sampleSections.has(at))return sampleSections.get(at);
     if(!at.tangent||!(at.areaMm2>0))return null;
     const projected=subtract(at.materialNormal,scale(at.tangent,dot(at.materialNormal,at.tangent)));
     if(length(projected)<=ROUNDING_RELATIVE)return null;
-    return rectangularSection(at.point,at.tangent,at.materialNormal,at.widthMm/2,at.areaMm2/at.widthMm);
+    const shape=rectangularSection(at.point,at.tangent,at.materialNormal,at.widthMm/2,at.areaMm2/at.widthMm);
+    sampleSections.set(at,shape);return shape;
   }
   function cone(at,forgivenessMm=NOZZLE_FORGIVENESS_MM){
-    return nozzleAt(at.point,scale(at.pose.toolAxis,-1),nozzleSweepReach(stock,at.point,at.point,at.pose,at.pose),nozzleGeometry.includedAngleDeg,forgivenessMm,nozzleGeometry.tipDiameterMm);
+    if(forgivenessMm===NOZZLE_FORGIVENESS_MM&&sampleCones.has(at))return sampleCones.get(at);
+    const shape=nozzleAt(at.point,scale(at.pose.toolAxis,-1),nozzleSweepReach(stock,at.point,at.point,at.pose,at.pose),nozzleGeometry.includedAngleDeg,forgivenessMm,nozzleGeometry.tipDiameterMm);
+    if(forgivenessMm===NOZZLE_FORGIVENESS_MM)sampleCones.set(at,shape);return shape;
   }
   function unresolved(a,b){return Object.assign(Error('Curve clearance is unresolved at numerical precision.'),
     {code:'CURVE_CLEARANCE_UNRESOLVED',receiver:a?.ref,material:b?.ref});}
@@ -696,7 +704,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   function rememberSelf(key){
     const bytes=key.length*2+128;
     if(bytes<=cacheLimit){
-      while(selfProofs.bytes+bytes>cacheLimit){const first=selfProofs.entries.keys().next().value;selfProofs.bytes-=selfProofs.entries.get(first);selfProofs.entries.delete(first);}
+      while(selfProofs.bytes+bytes>cacheLimit){const first=selfProofs.oldest.next().value;selfProofs.bytes-=selfProofs.entries.get(first);selfProofs.entries.delete(first);}
       selfProofs.entries.set(key,bytes);selfProofs.bytes+=bytes;
     }
   }

@@ -129,7 +129,9 @@ export function sweepSurfaceOffset(patch,prepared){
     const ray=[uv];
     while(travel<radius) {
       h=Math.min(h,radius-travel);
+      requireThat(travel+h>travel,'Surface offset integration cannot advance at floating-point precision.');
       const full=rk4(state,h),half=rk4(rk4(state,h/2),h/2);
+      requireThat(half.some((value,k)=>value!==state[k]),'Surface offset integration cannot advance at coordinate precision.');
       if(constraint!==null){
         const start=state.slice(0,2);
         let end=stopAtBoundary(start,half.slice(0,2));
@@ -152,6 +154,7 @@ export function sweepSurfaceOffset(patch,prepared){
       }
       const a=frameAtState(full.slice(0,2)),b=frameAtState(half.slice(0,2));
       const err=distance(a.point,b.point);
+      requireThat(Number.isFinite(err),'Surface offset integration produced a non-finite position.');
       if(err>toleranceMm*h/Math.max(radius,1)*0.05) {
         h/=2; requireThat(travel+h>travel,'Surface offset integration cannot resolve the requested tolerance.');continue;
       }

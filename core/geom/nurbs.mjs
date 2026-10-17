@@ -85,6 +85,17 @@ export function findSpan(knots, count, order, t) {
 export function basisDerivatives(knots, span, t, order, count) {
   requireSplineDegree(order-1);
   const degree = order - 1;
+  if(count===0)return [basisFunctions(knots,span,t,order)];
+  // First derivatives are differences of adjacent lower-degree bases. Most
+  // surface queries need only these, so omit the higher derivative tableau.
+  if(count===1){
+    const values=basisFunctions(knots,span,t,order),lower=order===2?Float64Array.of(1):basisFunctions(knots,span,t,order-1),first=new Float64Array(order);
+    for(let i=0;i<order;i++){
+      const index=span-degree+i,left=knots[index+degree]-knots[index],right=knots[index+degree+1]-knots[index+1];
+      first[i]=(i>0&&left>0?degree*lower[i-1]/left:0)-(i<degree&&right>0?degree*lower[i]/right:0);
+    }
+    return [values,first];
+  }
   const ndu = [], a = [[], []], left = [], right = [], ders = [];
   for (let i = 0; i <= degree; i++) ndu.push(new Float64Array(degree + 1));
   ndu[0][0] = 1;
