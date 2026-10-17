@@ -462,7 +462,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   function queryPair(receiver,materialRecord,solid,{localize,allowChoice}){
     const pending=[[receiver,materialRecord]];
     while(pending.length){
-      const [a,b]=pending.pop(),nb=nozzle(a),mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;
+      const [a,b]=pending.pop(),mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;
+      // Only nozzle points within this candidate's enclosing bounds can hit.
+      // The same cone needs less reach here than in the whole-scene index.
+      const nb=nozzleCurveEnvelope({from:a.start.point,to:a.end.point,bounds:a.range.bounds,
+        chordErrorMm:a.chordErrorMm,poseCone:a.poseCone},mb.bounds??=convexBounds(mb.shape),nozzleGeometry);
       stats.nozzlePairs++;
       if(!convexIntersects(nb.shape,mb.shape,ROUNDING_MM))continue;
       if(nb.exact&&mb.exact&&!localize)return {receiver:a.ref,material:b?.ref??null};
