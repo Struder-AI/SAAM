@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Certify atomic cycles and retain completed course proofs
+
+- A nozzle cycle skipped the later substrate pass, hiding the certificate that an atomic substrate also blocks its dependent deposition. The unchanged atomic return-and-comb example spent 63.9 seconds refining before SOURCE_ORDER_UNRESOLVED. Discovery now checks that atomic blocker for actual substrate contact as soon as its nozzle edge closes a cycle. The same source rejects with NOZZLE_SUBSTRATE_CONFLICT in 57 ms, and its rotated counterpart in 18 ms, with zero refinement. The certificate uses the existing strict geometric check; no requirement, allowance or failure budget changed.
+- Nozzle discovery now retains each completed course clearance proof even if a later course in the same chunk blocks. The spatial candidate/witness order is unchanged. A curved clear-prefix/blocked-tail reproduction previously repeated two interval comparisons after rebuilding the scene; it now repeats zero and returns the identical blocker. The same bounded cache owns these proofs; no transient cell-miss cache was added.
+- Actual-source four-course admission, hard-order chunk interleaving, atomic/self/declared/reciprocal rejection and original/rotated interruptible replay pass. Independent replay finds zero hits and uncertainties. The marbled investigation remains incomplete and bounded to three-minute measurements with an external 210-second stop. No permanent tests, whole suite, installation, push, release or physical output. Full map verification remains pending.
+
 ## 2026-10-16 — Bound repeated dependency searches
 
 - Cancelled the marbled Studio generation after 105 minutes at the owner's direction; diagnostic runs now stop within four minutes. A fresh 20-second worker profile spent 14.1 seconds in dependency search. The old bounded pair memo could retain only about 131,000 answers across a growing graph of roughly 10,000 nodes, so repeated searches displaced useful reachability.

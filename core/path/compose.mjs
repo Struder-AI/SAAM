@@ -332,6 +332,15 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
               nozzleRequirements.set(JSON.stringify([a.id,a.from,a.to,a.at,b.id,b.from,b.to,b.at]),hit.witness);
             }
           }
+          // A nozzle cycle can hide its confirming substrate edge. Certify an
+          // atomic blocker before subdividing the receiver to print resolution.
+          if(precedes(hit.unit.id,unit.id)&&(!hit.unit.operation.interruptible||hit.unit.ranges.every(range=>!range.interruptible))){
+            for(const support of state.scene.supportHits(unit,id=>id===hit.unit.id)){
+              const witness=state.scene.atomicSupportConflict(hit.witness,support.witness);
+              if(witness)throw Object.assign(Error('A source section needs an atomic substrate whose deposited material blocks its nozzle.'),
+                {code:'NOZZLE_SUBSTRATE_CONFLICT',witness,operations:[hit.unit.sourceOperation,unit.sourceOperation]});
+            }
+          }
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }

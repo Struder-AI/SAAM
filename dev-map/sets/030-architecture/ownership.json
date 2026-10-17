@@ -27820,7 +27820,10 @@
     "core/path/physical-order.mjs::prepareRangeScene::nozzleHits::remaining": {
       "owner": "scheduling"
     },
-    "core/path/physical-order.mjs::prepareRangeScene::nozzleHits::ids": {
+    "core/path/physical-order.mjs::prepareRangeScene::nozzleHits::courses": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::nozzleHits::remember": {
       "owner": "scheduling"
     },
     "core/path/physical-order.mjs::prepareRangeScene::courseFacts": {

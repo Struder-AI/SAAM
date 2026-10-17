@@ -576,13 +576,18 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       if(!state.witness){
         const remaining=other.records.filter(candidate=>!knownCourseClear(record.ref,candidate.ref)).map(candidate=>({candidate,key:pairKey(record,candidate,{allowChoice:true})})).filter(query=>knownPair(query.key)?.witness!==null);
         if(!remaining.length)continue;
-        const ids=new Set(remaining.map(query=>query.candidate.ref.id));
-        for(const candidate of regionalMaterial(other,nozzle(record).shape))if(ids.has(candidate.ref.id)){
-          state.witness=pair(record,candidate,null,{allowChoice:true,cacheClear:false});if(state.witness)break;
+        const courses=new Map();for(const query of remaining){
+          const id=query.candidate.ref.id;if(!courses.has(id))courses.set(id,{queries:[],pending:0});courses.get(id).queries.push(query);
         }
-        // The enclosing nozzle and material index excluded every other cell.
-        // Keep the completed course proofs, rather than transient cell misses.
-        if(!state.witness)for(const query of remaining)if(!rememberCourseClear(record.ref,query.candidate.ref))rememberPair(query.key,null);
+        const cells=regionalMaterial(other,nozzle(record).shape).filter(candidate=>courses.has(candidate.ref.id));
+        for(const candidate of cells)courses.get(candidate.ref.id).pending++;
+        // Keep each completed course proof even when a later course blocks.
+        function remember(group){for(const query of group.queries)if(!rememberCourseClear(record.ref,query.candidate.ref))rememberPair(query.key,null);}
+        for(const group of courses.values())if(!group.pending)remember(group);
+        for(const candidate of cells){
+          state.witness=pair(record,candidate,null,{allowChoice:true,cacheClear:false});if(state.witness)break;
+          const group=courses.get(candidate.ref.id);if(!--group.pending)remember(group);
+        }
       }
       if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
     }
