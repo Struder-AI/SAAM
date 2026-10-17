@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Publish SAAM 0.3.11 and its relay offer
+
+- Published v0.3.11 at exact source ce8ee5ab8bfb704f3f5f47bc6205f4f2cdd843a4 with Windows, Apple Silicon and Intel Mac packages, checksums and INSTALL.md. All seven GitHub asset digests match local files; the tag resolves to the built source. Preserved Node v24.19.0 binaries match recorded release hashes; no new runtime download completed. Builder checks passed on Windows, including Mac modules on host Node; native Mac execution remains unverified.
+- Deployed the existing relay as 3c1036b6-fcde-4c55-b4f1-a7b466c223ff and authenticated its exact three-platform 0.3.11 offer. Evidence: .local/0.3.11-release-evidence.json and .local/0.3.11-relay-offer-evidence.json. Deployment maps regenerated; installed SAAM was not changed.
+- Owner, 2026-10-16, on additional release trials: "No checks we are just going to keep working". No additional trial, whole suite or physical machine action ran. Full marbled scheduling, live lifecycle acceptance and the final influence-map refresh remain unresolved as disclosed in the release notes.
+
 ## 2026-10-16 — Certify atomic cycles and retain completed course proofs
 
 - A nozzle cycle skipped the later substrate pass, hiding the certificate that an atomic substrate also blocks its dependent deposition. The unchanged atomic return-and-comb example spent 63.9 seconds refining before SOURCE_ORDER_UNRESOLVED. Discovery now checks that atomic blocker for actual substrate contact as soon as its nozzle edge closes a cycle. The same source rejects with NOZZLE_SUBSTRATE_CONFLICT in 57 ms, and its rotated counterpart in 18 ms, with zero refinement. The certificate uses the existing strict geometric check; no requirement, allowance or failure budget changed.
