@@ -267,6 +267,9 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
 // open children; the cache may evict numerical work without changing the scene.
 export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY,selfProofs={entries:new Map(),bytes:0}}={}){
   const pairResults=selfProofs.pairs??={entries:new Map(),bytes:0};
+  // Retain the eviction cursor: restarting Map iteration repeatedly scans
+  // deleted entries. Live cache entries keep this cursor from exhausting.
+  pairResults.oldest??=pairResults.entries.keys();
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
@@ -455,7 +458,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     if(key){
       const bytes=2*(key.length+JSON.stringify(witness).length)+128;
       if(bytes<=cacheLimit){
-        while(pairResults.bytes+bytes>cacheLimit){const first=pairResults.entries.keys().next().value;pairResults.bytes-=pairResults.entries.get(first).bytes;pairResults.entries.delete(first);}
+        while(pairResults.bytes+bytes>cacheLimit){const first=pairResults.oldest.next().value;pairResults.bytes-=pairResults.entries.get(first).bytes;pairResults.entries.delete(first);}
         pairResults.entries.set(key,{witness,bytes});pairResults.bytes+=bytes;
       }
     }
