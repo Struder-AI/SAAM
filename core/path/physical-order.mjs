@@ -499,10 +499,10 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return null;
   }
-  // Broad-phase a curved receiver locally before comparing it with every
-  // material course. These numerical regions never become scheduling units.
-  // The section scale chooses query work only; final clearance/contact proofs
-  // retain their own tolerances and continue subdividing as needed.
+  // Keep nozzle filtering coarse: pair refinement uses material-local reach.
+  // A stock-sized rotating cone needlessly refines far-away uncertainty at
+  // bead scale here. The thin substrate band retains local subdivision.
+  // These numerical regions never become scheduling units.
   function* queryRegions(root,kind,acceptGroup){
     const pending=[root];
     while(pending.length){
@@ -511,7 +511,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       const shape=kind==='support'?underside(record):body.shape,others=candidates(shape,acceptGroup);
       if(!others.length)continue;
       const scale=sectionScale(record);
-      if(body.errorMm>scale){const children=divide(record);if(children){pending.push(...children);continue;}}
+      if(kind==='support'&&body.errorMm>scale){const children=divide(record);if(children){pending.push(...children);continue;}}
       yield {record,others};
     }
   }
