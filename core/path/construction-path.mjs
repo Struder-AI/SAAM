@@ -9,6 +9,8 @@ import {keyed,profileAt,interpolateScalar} from './curve-profiles.mjs';
 import {constructionCurve} from './construction-curves.mjs';
 import {compactCurveProfiles,materialParameterError} from './compact-profiles.mjs';
 import {ROUNDING_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {publishManufacturing} from './manufacturing.mjs';
+import {certifyConstruction} from './construction-access.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function channel(values,parameters,interpolation){
@@ -134,7 +136,7 @@ function continuousProfiles(curves,courses,{requiredOnly=false}={}){
     }
   }
 }
-export function constructionPath({results,planning,composition,summary,generatorVersion}){
+export function constructionPath({results,planning,composition,summary,generatorVersion,onProgress}){
   const curves={},layers={},surfaces={},processes={},operations={},surfaceIds=new Map(),processIds=new Map();
   const compaction={mappedCurves:0,fittedCurves:0,positionErrorMm:0,normalErrorRad:0,volumeErrorMm3:0,normalKeysBefore:0,normalKeysAfter:0,materialKeysBefore:0,materialKeysAfter:0};
   function processId(process){
@@ -143,12 +145,12 @@ export function constructionPath({results,planning,composition,summary,generator
     const id='process:'+processIds.size;processIds.set(key,id);processes[id]=process;return id;
   }
   function layerId(result,operation){
-    if(!operation.slice)return null;
+    if(!operation.slice||typeof operation.layerId!=='string')return null;
     const stackId=operation.stackId??result.stackId??result.id,index=operation.ownershipIndex??operation.layer;
-    const reference=surfaceReferenceRecord(operation.slice),id=stackId+':layer:'+index,key=JSON.stringify(reference);
+    const reference=surfaceReferenceRecord(operation.slice),id=operation.layerId,key=JSON.stringify(reference);
     const surfaceId=surfaceIds.get(key)??'surface:'+surfaceIds.size;
     if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}
-    if(layers[id])requireThat(layers[id].surfaceId===surfaceId,'Native layer identity refers to different surfaces.');
+    if(layers[id])requireThat(layers[id].surfaceId===surfaceId&&layers[id].stackId===stackId&&layers[id].index===index,'Native layer identity refers to different surfaces or stack positions.');
     else layers[id]={stackId,index,surfaceId};
     return id;
   }
@@ -156,7 +158,7 @@ export function constructionPath({results,planning,composition,summary,generator
     requireThat(operation.order==='given'&&!operation.connectNearby,'Deposition must be finalized before publication.');
     const {strokes,process,materialGeometry}=operation;
     const metadata=Object.fromEntries(['phase','layer','layerIndex','layerCount','rank','nominalRank','filament','fanPercent',
-      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','requiredMaterial','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
+      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','referenceLayer','requiredMaterial','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
     const interruptible=operation.interruptible??!operation.continuous;
     const shared={...metadata,...(operation.part===undefined&&result.report?.part!==undefined?{part:result.report.part}:{}),
       id:operation.id,layerId:layerId(result,operation),processId:processId(process),
@@ -200,7 +202,8 @@ export function constructionPath({results,planning,composition,summary,generator
     continuousProfiles(curves,courses,{requiredOnly:interruptible});
     operations[operation.id]={...shared,kind:'deposit',courses};
   }
-  return saamPath({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
-    operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
-      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}});
+  const manufacturing=publishManufacturing(results,operations,layers);
+  return saamPath(certifyConstruction({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
+    ...manufacturing,operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
+      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}},{onProgress}));
 }

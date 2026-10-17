@@ -1,0 +1,36 @@
+{
+  "status": "diagnosed; product fix not implemented",
+  "runtime": "Installed SAAM 0.3.11",
+  "bundleId": "concentric-groove-fidget-20261017",
+  "sourcePathId": "725b72f5-cfc9-4a2f-b326-5d9045b1a0a0",
+  "input": {"operations":156,"curves":14217,"layers":76,"polylinePoints":97396,"initialScheduleUnits":986},
+  "reproduction": {
+    "entrypoint":"C:/SAAM/app/core/path/schedule.mjs:schedulePath",
+    "optimizedProfile":"scheduler-optimized.cpuprofile",
+    "observed":"Curve bounds and whole-slice proof preparation complete in 2-3 seconds. A 30-second optimized run remains in the first nozzle-access unit.",
+    "debuggerEvidence":"scheduler-pair-evidence.json",
+    "unoptimized15SecondSnapshot":{"visitedUnits":1,"graphSolves":1,"graphRefinements":0,"clearAccessLayers":2,"supportLayers":0,"nozzlePairs":66795,"rangeSubdivisions":34634,"rangeQueries":23472,"materialIndexBuilds":130,"rangeCacheBytes":16775568},
+    "sampleReceiver":"outer-ring:body:0:walls:course:0",
+    "sampleMaterial":"inner-disc:body:23:walls:course:2"
+  },
+  "control": {
+    "command":"node tmp/fidget-ring/profile-scheduler.mjs --outer-only --order-only",
+    "change":"Diagnostic in-memory source contains outer-ring operations only; saved bundle is untouched.",
+    "entrypoint":"C:/SAAM/app/core/path/compose.mjs:resolveSourceOrder",
+    "scheduleUnits":539,
+    "clearAccessLayers":38,
+    "totalLayers":38,
+    "orderCompletedMs":1716.8512,
+    "scope":"Ordering only; no transfer planning, generation, export or physical validation."
+  },
+  "cause": "Native-layer order is recognized within a stack. The two components have different stacks. Whole-slice enclosing bounds overlap across the empty annular space, so only two of 76 layers receive a complete access proof. Fine nozzle-access discovery then compares the first outer-ring layer to many later inner-ring layers, repeatedly subdividing circular paths and testing conservative convex envelopes. This is expensive forward discovery of cross-component ordering/clearance, not a witnessed collision, deadlock or retry cycle in the captured interval.",
+  "code": [
+    {"path":"C:/SAAM/app/core/path/compose.mjs","symbol":"resolveSourceOrder / nativeBefore / accessLayers / nozzleHits","description":"Same-stack native order does not settle the nested components' cross-stack access queries."},
+    {"path":"C:/SAAM/app/core/path/physical-order.mjs","symbol":"sliceNozzleProofs / queryPair / nozzleHits","description":"Coarse enclosing bounds cannot prove separation across an annulus; detailed curve-envelope refinement dominates."},
+    {"path":"C:/SAAM/app/core/geom/convex-clearance.mjs","symbol":"simplexClosest / fixedConePrismIntersects / convexSeparation","description":"Main sampled CPU hotspots reached by detailed clearance queries."},
+    {"path":"C:/SAAM/app/core/print/generation-worker.mjs","symbol":"reportProgress","description":"Only changed stages or integer percentages are emitted; lengthy work inside the first unit produces no visible progress."}
+  ],
+  "nextImplementationObligation":"Resolve cross-producer ordering and clearance at aggregate/native-slice granularity before opening individual curves, retaining actual sparse material, arbitrary orientations and continuous-clearance guarantees. Verify the complete two-ring case; the outer-only control is not a fix.",
+  "workspace":"Concurrent product changes already existed in core/path and related files. This investigation added only scratch diagnostic inputs, scripts and evidence under tmp/fidget-ring. No product files, commits, new tests, full test suites or releases were made.",
+  "studio":"The person cancelled the original Studio generation during investigation. The saved model and source remain available."
+}

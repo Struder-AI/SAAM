@@ -76,6 +76,6 @@ export async function exportProgram(path,plan,locked,release){
   const {bytes,report}=adapter.export(prepared,{machine,setup:plan.setup,process:plan.process,output:plan.output,release,defaultProcess:settingsDefaults(machine).process}),totals=pathTotals(prepared);
   const untimed=report.seconds===undefined?totals.untimedMoves:report.untimedMoves??0;
   const limitations=[...notes,...prepared.notes,...report.limitations??[],...(untimed?[`The time estimate excludes ${untimed} move(s) with no positive speed.`]:[])];
-  return {bytes,report:{...report,limitations,moves:totals.moves,seconds:report.seconds??totals.seconds,
+  return {bytes,...(prepared.schedule?{executionSchedule:prepared.schedule}:{}),report:{...report,limitations,moves:totals.moves,seconds:report.seconds??totals.seconds,
     volumeMm3:report.volumeMm3??totals.volumeMm3,shortTravel:preparedTravelAdvisory(prepared,plan)}};
 }

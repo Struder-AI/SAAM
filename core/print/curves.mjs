@@ -16,7 +16,7 @@ import {operationPrerequisite} from './operation-references.mjs';
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
   requireThat(construction==='curves','Trace uses explicit curves; retired technique records require migration.');
-  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],curves:[],repeat:null,sequence:false,ordered:false,repetitionIds:null,repetitionAfter:null,maxExcursionMm:null,source:null,toolPose:null,...options});
+  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],substrate:null,curves:[],repeat:null,sequence:false,ordered:false,repetitionIds:null,repetitionAfter:null,maxExcursionMm:null,source:null,toolPose:null,...options});
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
@@ -26,7 +26,8 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
-  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Curve after must list operation ids.');
+  requireThat(Array.isArray(a.after)&&a.after.every(operationPrerequisite),'Curve after must select manufactured work.');
+  requireThat(a.substrate===null||operationPrerequisite(a.substrate),'Trace substrate must select manufactured work.');
   const translationRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='count,translation'&&Number.isInteger(a.repeat.count)&&a.repeat.count>0&&point(a.repeat.translation);
   const stackRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='indices,stack'&&typeof a.repeat.stack==='string'&&a.repeat.stack.length&&(a.repeat.indices===null||Array.isArray(a.repeat.indices)&&a.repeat.indices.length&&new Set(a.repeat.indices).size===a.repeat.indices.length&&a.repeat.indices.every(n=>Number.isInteger(n)&&n>=0));
   requireThat(a.repeat===null||translationRepeat||stackRepeat,'Curve repeat needs {count,translation:XYZ} or {stack,indices:null|slice indices}.');
@@ -143,7 +144,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
-    const native=nativeTraceLayer(active,{assignment,sourceLayer,referenceStack,references,index});
+    const native=traceReferenceLayer(active,{assignment,sourceLayer,referenceStack,references,index});
     const name=assignment.repetitionIds?.[repetition]??repetition;
     const required=assignment.repetitionAfter&&Object.hasOwn(assignment.repetitionAfter,name)?assignment.repetitionAfter[name]:[];
     const spec={key:sourceLayer?.key??name,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
@@ -162,8 +163,8 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
   return traceResult(assignment,{batches,process,sequential:false,report:{construction:'curves',repetitions:count,...noted}});
 }
 
-// Trace retains an explicitly referenced Slice identity, never one inferred by height.
-function nativeTraceLayer(curves,{assignment,sourceLayer,referenceStack,references,index}){
+// A chart reference supplies geometry and provenance, not stack membership.
+function traceReferenceLayer(curves,{assignment,sourceLayer,referenceStack,references,index}){
   if(sourceLayer?.slice)return {slice:sourceLayer.slice,stackId:sourceLayer.stackId,ownershipIndex:sourceLayer.index};
   const refs=curves.map(curve=>curve.uv?.reference);
   if(!refs.length||!refs.every(ref=>ref?.kind==='slice'))return null;

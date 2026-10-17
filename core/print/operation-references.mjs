@@ -3,7 +3,9 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
 export function operationPrerequisite(value){
-  return typeof value==='string'&&value.length>0||Boolean(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).join()==='assignment'&&typeof value.assignment==='string'&&value.assignment.length);
+  return typeof value==='string'&&value.length>0||Boolean(value&&typeof value==='object'&&!Array.isArray(value)&&
+    Object.keys(value).every(key=>['assignment','index','part'].includes(key))&&typeof value.assignment==='string'&&value.assignment.length&&
+    (value.index===undefined||Number.isSafeInteger(value.index)&&value.index>=0)&&(value.part===undefined||value.part===null||typeof value.part==='string'));
 }
 
 function selectedOperation(assignments,target){

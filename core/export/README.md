@@ -12,7 +12,7 @@ Catalog presence is not export support.
 ### Short-travel advisory
 
 Export attaches `shortTravel` to every program's report, computed on the
-prepared program path. Studio draws the neutral SAAMpath. A travel is a maximal sequence of
+prepared program path. Studio reopens the output's saved execution. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
 The check flags straight-line XYZ distance
@@ -46,11 +46,9 @@ filter skills, reject tool poses or synthesize poses from the selected machine.
 Slice optionally derives upright orientation (default) or its surface normal; FIELD
 can vary either enabled output. Toolpath publishes every full pose explicitly.
 
-[Export preparation](./prepare-path.mjs) adds installation startup and priming,
-material-change clearance and axis-feed limits without mutating the authored path.
+[Export preparation](./prepare-path.mjs) resolves actual-tool access and transfers, then installation startup/priming, material changes and axis-feed limits. It preserves neutral source; Bundle saves the resolved execution with its program.
 Only adapters enforce installed nozzle/material compatibility and required setup.
-Studio draws the neutral SAAMpath; the program report names added startup travel,
-priming and machine service, with estimates scoped to the commands written.
+Studio uses that saved execution for a completed output; the report names installation startup/priming and machine service, with estimates scoped to written commands.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |

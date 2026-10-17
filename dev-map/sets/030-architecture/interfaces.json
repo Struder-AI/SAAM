@@ -2463,7 +2463,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Select numerical dimensions from the supplied immutable machine/setup; Bundle stores them and Export rejects a mismatched saved schedule."
+      "evidence": "Resolve supplied setup dimensions; neutral construction and scheduling no longer depend on selected machine dimensions."
     },
     {
       "contract": "settings-nozzle-export",
@@ -2471,7 +2471,135 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Select numerical dimensions from the supplied immutable machine/setup; Bundle stores them and Export rejects a mismatched saved schedule."
+      "evidence": "Resolve supplied setup dimensions; neutral construction and scheduling no longer depend on selected machine dimensions."
+    },
+    {
+      "contract": "construction-access-order",
+      "target": "core/path/compose.mjs::resolveSourceOrder",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "construction-access-order",
+      "target": "core/path/physical-order.mjs::sliceNozzleProofs",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "geometry-export-clearance",
+      "target": "core/geom/convex-clearance.mjs::nozzleMotionRoute",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "settings-nozzle-export",
+      "target": "core/machine/nozzle.mjs::resolveNozzleGeometries",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/compose.mjs::resolveSourceOrder",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/physical-order.mjs::prepareRangeScene",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/schedule.mjs::planExecutionPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::createPlanningState",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planningPath",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planningResult",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::ActionAccumulator",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planMove",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planRetraction",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planRecovery",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planDepositRange",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "export-access-order",
+      "target": "core/path/planning.mjs::planExtrusion",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
     }
   ],
   "retiredBindings": [

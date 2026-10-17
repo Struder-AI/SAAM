@@ -28,7 +28,7 @@ export function dependencyComponents(nodes,parents){
 export function slicePartitions(operations,prerequisites){
   const slices=new Map(),membership=new Map(),state={groups:[]};
   for(const op of operations){
-    const id=op.layerId??op.operation??op;
+    const id=op.barrier?op.id:op.layerId??op.sourceOperation??op.id;
     if(!slices.has(id))slices.set(id,[]);
     slices.get(id).push(op.id);
   }

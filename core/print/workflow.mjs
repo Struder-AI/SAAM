@@ -15,7 +15,6 @@ import { randomUUID } from 'node:crypto';
 import { exportProgram, programReadiness, settingsRows } from '../export/registry.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import { loadMachine,currentMachineSnapshot } from '../machine/profile.mjs';
-import {resolveNozzleGeometry} from '../machine/nozzle.mjs';
 import {runComputationJob} from './computation-job.mjs';
 import {heldBundleInstance} from './studio-ownership.mjs';
 import {replaceFile} from '../file-write.mjs';
@@ -116,7 +115,7 @@ export function createBundleWorkflow(adapter) {
   // Bundle is the only writer: a commit that changes plan, machine or geometry
   // mints a new edit revision, and new geometry-input and path-input ids when
   // those parts changed. Programs and paths record the ids they were made from.
-  const pathInput=(plan,machine)=>canonicalJson({deposition:adapter.pathDependencies?adapter.pathDependencies({...plan,geometry:null}):{...plan,geometry:null},nozzleGeometry:resolveNozzleGeometry(machine,plan)});
+  const pathInput=plan=>canonicalJson(adapter.pathDependencies?adapter.pathDependencies({...plan,geometry:null}):{...plan,geometry:null});
   const manufacturingKey=plan=>canonicalJson(adapter.manufacturingInput?.(plan)??null);
   function inputIds(state,next){
     const current={editRevision:state.editRevision,geometryInputId:state.geometryInputId,pathInputId:state.pathInputId};
@@ -365,8 +364,7 @@ async function readBundleInput(directory) {
 async function describeBundle(input,program) {
   const {dir,plan,machine,geometryArtifact,review,revision,editRevision,geometryInputId,pathInputId,deferRememberSetup,phaseColours,recipeNotes}=input;
   const geometry=adapter.presentGeometry?await adapter.presentGeometry(plan,geometryArtifact?.descriptor??null):geometryArtifact?.descriptor??null;
-  const pathCurrent=Boolean(review.path)&&review.path.inputId===pathInputId&&review.path.contract===contract&&
-    canonicalJson(review.path.nozzleGeometry??null)===canonicalJson(resolveNozzleGeometry(machine,plan));
+  const pathCurrent=Boolean(review.path)&&review.path.inputId===pathInputId&&review.path.contract===contract;
   const artifacts={geometry:geometry?'current':'absent',path:!review.path?'absent':pathCurrent?'current':'stale',
     program:!review.generation?'absent':pathCurrent&&review.generation.editRevision===editRevision&&review.generation.contract===contract?'current':'stale'};
   const geometryId=geometryArtifact?.id??null;
@@ -459,7 +457,10 @@ async function prepareGeneration(directory,{onProgress}={}){
     const missing=await programReadiness(state.plan,state.machine);
     if(missing)return {pathArtifact:artifact,summary:pathSummary(path),missing};
     onProgress?.({stage:'Writing machine commands'});
-    try{return {pathArtifact:artifact,summary:pathSummary(path),...await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE})};}
+    try{
+      const output=await exportProgram(path,state.plan,state.machine,{generatorVersion:VERSION,buildDate:BUILD_DATE});
+      return {pathArtifact:artifact,summary:pathSummary(output.executionSchedule?{...path,schedule:output.executionSchedule}:path),...output};
+    }
     catch(error){error.stage='export';return {pathArtifact:artifact,summary:pathSummary(path),exportError:error};}
   }).catch(error=>{candidate.result=null;throw error;});
   const result=await candidate.result;
@@ -504,8 +505,7 @@ async function requireGenerationSource(state,expected){
 }
 
 async function prepareToolpath(state,{onProgress,source}={}){
-  const nozzleGeometry=resolveNozzleGeometry(state.machine,state.plan);
-  const key=JSON.stringify([state.dir,state.pathInputId,nozzleGeometry,source.release,source.hash??state.review.path?.source?.hash]);
+  const key=JSON.stringify([state.dir,state.pathInputId,source.release,source.hash??state.review.path?.source?.hash]);
   if(pathPreparation?.key===key){onProgress?.({stage:'Reusing neutral SAAMpath'});return pathPreparation.result;}
   const result=(async()=>{
     const saved=state.review.path;
@@ -520,10 +520,10 @@ async function prepareToolpath(state,{onProgress,source}={}){
     const stored=await readPathArtifact(state.dir,{file});
     const scheduleFile=`paths/${id}.schedule.json`;
     onProgress?.({stage:'Scheduling saved deposition'});
-    const schedule=schedulePath(stored,{sourcePathId:id,onProgress,nozzleGeometry});
+    const schedule=schedulePath(stored,{sourcePathId:id,onProgress});
     joinSaamPath({sourcePathId:id,deposition:stored,schedule});
     await save(resolve(state.dir,scheduleFile),saamPathText(schedule));
-    const artifact={id,file,scheduleFile,inputId:state.pathInputId,contract,nozzleGeometry,
+    const artifact={id,file,scheduleFile,inputId:state.pathInputId,contract,
       ...(source.hash!==null?{source:{release:source.release,hash:source.hash}}:{}),
       ...(stored.summary.limitations?.length?{limitations:stored.summary.limitations}:{})};
     return {path:await readMotionArtifact(state.dir,artifact),artifact};
@@ -674,11 +674,14 @@ function generationChecks(state,{report,summary},development){
   };
 }
 
-async function persistGeneratedProgram(state,{bytes,report,summary,pathArtifact},checks){
+async function persistGeneratedProgram(state,{bytes,report,summary,pathArtifact,executionSchedule},checks){
   const id=randomUUID(),file=exportArtifactPath(state.plan,state.machine,id);
   await save(resolve(state.dir,file),bytes);
+  const machineScheduleFile=executionSchedule?`paths/${id}.machine.schedule.json`:null;
+  if(machineScheduleFile)await save(resolve(state.dir,machineScheduleFile),saamPathText(executionSchedule));
+  const outputPath=machineScheduleFile?{...pathArtifact,scheduleFile:machineScheduleFile}:pathArtifact;
   const generation=await retainCompletedOutput(state,{id,mode:checks.mode,editRevision:state.editRevision,geometryInputId:state.geometryInputId,contract,
-    summary,version:VERSION,file,checks,programMetadata:report},pathArtifact);
+    summary,version:VERSION,file,checks,programMetadata:report},outputPath);
   const review={...state.review,path:pathArtifact,generation,
     history:[...state.review.history,{event:'generated',mode:checks.mode,time:new Date().toISOString(),outputId:id}]};
   await commitState(state,{review});

@@ -2,6 +2,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareCurvePath,curveAt} from './curve-path.mjs';
 import {validatePose,samePose} from './pose.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
+import {validateManufacturing} from './manufacturing.mjs';
 
 const table=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const id=value=>typeof value==='string'&&value.length>0;
@@ -16,10 +17,15 @@ export function serializableSource(value){
 export function admitSource(source){
   for(const key of ['curves','layers','surfaces','processes','operations'])requireThat(table(source[key])&&Object.keys(source[key]).every(id),'Source needs ID keyed '+key+'.');
   const reader=prepareCurvePath(source);
+  const nativeLayers=new Set();
   for(const layer of Object.values(source.layers))requireThat(id(layer.stackId)&&Number.isInteger(layer.index)&&Object.hasOwn(source.surfaces,layer.surfaceId),'Layer must retain a native stack, index and surface.');
+  for(const layer of Object.values(source.layers)){
+    const key=JSON.stringify([layer.stackId,layer.index]);requireThat(!nativeLayers.has(key),'A native stack position has one slice identity.');nativeLayers.add(key);
+    if(source.manufacturing)requireThat(source.completions?.[layer.completionId]?.kind==='slice','A manufactured native slice needs its completion record.');
+  }
   const courses=new Set();
   for(const [key,operation] of Object.entries(source.operations)){
-    requireThat(operation.id===key&&Array.isArray(operation.after)&&operation.after.every(previous=>previous!==key&&Object.hasOwn(source.operations,previous)),
+    requireThat(operation.id===key&&Array.isArray(operation.after)&&operation.after.every(previous=>previous!==key&&(Object.hasOwn(source.operations,previous)||Object.hasOwn(source.completions??{},previous))),
       'Operation needs its source identity and existing predecessors.');
     requireThat(Object.hasOwn(source.processes,operation.processId)&&(operation.layerId===null||Object.hasOwn(source.layers,operation.layerId))&&typeof operation.interruptible==='boolean',
       'Operation needs process, native layer or null, and interruptibility.');
@@ -52,13 +58,17 @@ export function admitSource(source){
       requireThat(local<0||local<index,'An atomic operation must retain its required course sequence.');
     }
   }
-  const visited=new Set(),active=new Set();
-  function visit(key){
-    if(visited.has(key))return;requireThat(!active.has(key),'Source dependencies contain a cycle.');active.add(key);
-    for(const previous of source.operations[key].after)visit(previous);
-    active.delete(key);visited.add(key);
+  validateManufacturing(source);
+  if(source.manufacturing){
+    const validity=source.manufacturing;
+    requireThat(validity.contract==='saam-construction-access/1'&&table(validity.accessGeometry)&&table(validity.courseTraversal),
+      'Manufacturing validity needs its access model and permitted traversal exceptions.');
+    requireThat(Number.isFinite(validity.accessGeometry.includedAngleDeg)&&validity.accessGeometry.includedAngleDeg>0&&validity.accessGeometry.includedAngleDeg<180&&
+      Number.isFinite(validity.accessGeometry.tipDiameterMm)&&validity.accessGeometry.tipDiameterMm>=0,'Invalid construction access geometry.');
+    requireThat(Object.values(source.operations).every(operation=>id(operation.construction)),'Certified work must retain its producer identity.');
+    for(const [key,policy] of Object.entries(validity.courseTraversal))requireThat(courses.has(key)&&Array.isArray(policy.directions)&&policy.directions.length>0&&
+      policy.directions.every(direction=>typeof direction==='boolean')&&typeof policy.seamFree==='boolean','Invalid construction traversal permission.');
   }
-  for(const key of Object.keys(source.operations))visit(key);
   requireThat(table(source.planning)&&table(source.summary),'Source needs planning and summary records.');
   return source;
 }
@@ -99,6 +109,8 @@ export function validateExecutionSource(source,schedule){
     if(entry.kind==='deposit'){
       const found=courses.get(entry.courseId);requireThat(found&&entry.from>=found.course.from&&entry.to<=found.course.to,'Execution references an unknown course or leaves its range.');
       requireThat(!entry.reverse||found.course.directionRequired===false&&found.operation.interruptible&&!found.operation.continuous,'Execution cannot reverse required deposition direction.');
+      const policy=source.manufacturing?.courseTraversal?.[entry.courseId];
+      requireThat(!policy||policy.directions.includes(Boolean(entry.reverse)),'Execution leaves the producer-certified traversal directions.');
       const low=curveAt(reader,found.course.curveId,entry.from),high=curveAt(reader,found.course.curveId,entry.to,{side:'left'});
       const start=entry.reverse?high:low,end=entry.reverse?low:high;
       requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
@@ -117,7 +129,8 @@ export function validateExecutionSource(source,schedule){
   }
   for(const {course} of courses.values()){
     const pieces=coverage.get(course.id)??[],first=pieces[0];
-    if(course.seamRequired===true)requireThat(first&&(first.reverse?first.to===course.to:first.from===course.from),'Execution violates a required course seam.');
+    if(course.seamRequired===true||course.seamRequired===false&&source.manufacturing?.courseTraversal?.[course.id]?.seamFree===false)
+      requireThat(first&&(first.reverse?first.to===course.to:first.from===course.from),'Execution violates a required or producer-certified course seam.');
     pieces.sort((a,b)=>a.from-b.from);
     requireThat(pieces.length>0&&pieces[0].from===course.from&&pieces.at(-1).to===course.to&&pieces.every((piece,i)=>!i||piece.from===pieces[i-1].to),
       'Execution must cover each course exactly once without gaps.');
@@ -125,9 +138,23 @@ export function validateExecutionSource(source,schedule){
     for(const previous of course.after??[])requireThat(courseIndices.get(previous)?.last<courseIndices.get(course.id).first,
       'Execution violates a required course dependency.');
   }
+  const completionIndices=new Map();
+  function completionRange(id){
+    if(completionIndices.has(id))return completionIndices.get(id);
+    const operation=operationIndices.get(id);
+    if(operation)return [operation[0],operation.at(-1)];
+    const completion=source.completions?.[id];requireThat(completion,'Execution prerequisite names absent work.');
+    const range=[Infinity,-Infinity];
+    for(const member of completion.members){const bounds=completionRange(member);range[0]=Math.min(range[0],bounds[0]);range[1]=Math.max(range[1],bounds[1]);}
+    completionIndices.set(id,range);return range;
+  }
+  for(const [id,completion] of Object.entries(source.completions??{})){
+    const range=completionRange(id);
+    for(const previous of completion.after)requireThat(completionRange(previous)[1]<range[0],'Execution violates a required completion dependency.');
+  }
   for(const operation of Object.values(source.operations)){
     const indices=operationIndices.get(operation.id);requireThat(indices?.length>0,'Source operation is missing from execution.');
-    for(const predecessor of operation.after){const previous=operationIndices.get(predecessor);requireThat(previous?.at(-1)<indices[0],'Execution violates an explicit source dependency.');}
+    for(const predecessor of operation.after)requireThat(completionRange(predecessor)[1]<indices[0],'Execution violates an explicit source dependency.');
     if(!operation.interruptible){
       const first=indices[0],last=indices.at(-1);
       for(const [other,found] of operationIndices)if(other!==operation.id)requireThat(found.every(index=>index<first||index>last),'An atomic operation cannot interleave.');

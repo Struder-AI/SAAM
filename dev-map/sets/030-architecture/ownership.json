@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Whole-slice scheduling and adaptive stroke interruption, 2026-10-15. Shared-material construction remains experimental; general non-edge-on construction is unfinished.",
+  "status": "Producer-owned prerequisites and construction access; neutral scheduling and selected-machine transfers, 2026-10-17. Extension dependency policies remain under interactive review.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -317,7 +317,7 @@
     },
     "core/path/compose.mjs": {
       "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation. Declaration overrides identify mixed responsibilities."
+      "reason": "Shared numeric access ordering, authored prerequisites, cooling and entry choices; consumers supply scope and nozzle models."
     },
     "core/path/placement.mjs": {
       "owner": "bundle-path",
@@ -1557,7 +1557,7 @@
     },
     "core/path/schedule.mjs": {
       "owner": "scheduling",
-      "reason": "Scheduling reads saved Bundle operation data and prepares neutral travel, retraction and cooling."
+      "reason": "Choose ready deposition and publish machine-independent transfer intents."
     },
     "core/print/slice-material.mjs": {
       "owner": "material-regions",
@@ -1813,7 +1813,7 @@
     },
     "core/machine/nozzle.mjs": {
       "owner": "settings",
-      "reason": "Resolve selected installation nozzle dimensions into a numerical scheduling envelope."
+      "reason": "Resolve actual logical-material nozzle models for selected-machine Export."
     },
     "skills/bridge-supports/scripts/brim.mjs": {
       "owner": "extensions",
@@ -1834,6 +1834,18 @@
     "core/print/path-artifact-worker.mjs": {
       "owner": "bundle",
       "reason": "Saved path admission and cancellable preview transport stay with Bundle."
+    },
+    "core/path/manufacturing.mjs": {
+      "owner": "path-finalize",
+      "reason": "Publish and validate minimal producer completion prerequisites."
+    },
+    "core/path/construction-access.mjs": {
+      "owner": "path-finalize",
+      "reason": "Certify producer internal validity before source publication."
+    },
+    "core/export/transfer-planning.mjs": {
+      "owner": "export",
+      "reason": "Resolve selected-tool access and physical transfers against deposited source ranges."
     }
   },
   "leaves": {
@@ -4251,10 +4263,6 @@
       "owner": "scheduling",
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
-    "core/path/compose.mjs::prepareOperationDependencies": {
-      "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
-    },
     "core/path/compose.mjs::prepareOperationPriorities": {
       "owner": "scheduling",
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
@@ -4484,14 +4492,6 @@
       "reason": "Extensions own technique configuration, source invocation and implementation dependencies; core construction remains in Slice, Trace and Inject."
     },
     "core/path/finished-surface.mjs::@module": {
-      "owner": "path-finalize",
-      "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation."
-    },
-    "core/path/finished-surface.mjs::consumeFinishedSurface": {
-      "owner": "path-finalize",
-      "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation."
-    },
-    "core/path/finished-surface.mjs::consumeFinishedSurface::at": {
       "owner": "path-finalize",
       "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation."
     },
@@ -4780,10 +4780,6 @@
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
     "core/path/planning.mjs::planNozzle": {
-      "owner": "scheduling",
-      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
-    },
-    "core/path/planning.mjs::planPark": {
       "owner": "scheduling",
       "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
     },
@@ -27578,10 +27574,6 @@
       "owner": "extensions",
       "reason": "Feature inputs and saved authoring records stay with Extensions; shared construction stays in Geometry."
     },
-    "core/print/curves.mjs::nativeTraceLayer": {
-      "owner": "trace",
-      "reason": "Trace retains the explicit native Slice reference used to construct its curves."
-    },
     "core/path/curve-path.mjs::preparedCurves": {
       "owner": "toolpath",
       "reason": "Prepared geometry/profile queries stay private behind an opaque cached reader handle."
@@ -27803,12 +27795,6 @@
       "owner": "scheduling"
     },
     "core/path/compose.mjs::prepareSourceUnits::flush": {
-      "owner": "scheduling"
-    },
-    "core/path/compose.mjs::preferNativeLayers": {
-      "owner": "scheduling"
-    },
-    "core/path/compose.mjs::relaxOrderChoices": {
       "owner": "scheduling"
     },
     "core/path/compose.mjs::retainedNozzleEdges": {
@@ -29641,6 +29627,32 @@
       "owner": "path-finalize",
       "reason": "SP2 operation boundary: compact source publication and saved path consistency.",
       "retired": "Replaced by the shared material law and physically bounded view generation, 2026-10-16."
+    },
+    "core/path/compose.mjs::prepareOperationDependencies": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
+    },
+    "core/path/finished-surface.mjs::consumeFinishedSurface": {
+      "owner": "path-finalize",
+      "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation."
+    },
+    "core/path/finished-surface.mjs::consumeFinishedSurface::at": {
+      "owner": "path-finalize",
+      "reason": "Private Toolpath machinery computes and finalizes beads, connections, contact and published deposition for Slice, Trace, Inject and Modulation."
+    },
+    "core/path/planning.mjs::planPark": {
+      "owner": "scheduling",
+      "reason": "Scheduling owns downstream dependencies, execution order, travel, retraction and cooling; current construction calls remain visible for separation."
+    },
+    "core/print/curves.mjs::nativeTraceLayer": {
+      "owner": "trace",
+      "reason": "Trace retains the explicit native Slice reference used to construct its curves."
+    },
+    "core/path/compose.mjs::preferNativeLayers": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::relaxOrderChoices": {
+      "owner": "scheduling"
     }
   }
 }

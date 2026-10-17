@@ -1,0 +1,316 @@
+{
+  "bundleId": "cartoon-bear-face-20261017",
+  "action": "create",
+  "request": {
+    "points": [
+      {
+        "positionMm": [
+          0,
+          0,
+          -29
+        ],
+        "reachMm": 84,
+        "strength": 1
+      },
+      {
+        "positionMm": [
+          -25,
+          25,
+          -7
+        ],
+        "reachMm": 28,
+        "strength": 1
+      },
+      {
+        "positionMm": [
+          25,
+          25,
+          -7
+        ],
+        "reachMm": 28,
+        "strength": 1
+      },
+      {
+        "positionMm": [
+          -16,
+          -8,
+          3.5
+        ],
+        "reachMm": 20,
+        "strength": 0.32
+      },
+      {
+        "positionMm": [
+          16,
+          -8,
+          3.5
+        ],
+        "reachMm": 20,
+        "strength": 0.32
+      },
+      {
+        "positionMm": [
+          -5,
+          -10,
+          12
+        ],
+        "reachMm": 16,
+        "strength": 0.7
+      },
+      {
+        "positionMm": [
+          5,
+          -10,
+          12
+        ],
+        "reachMm": 16,
+        "strength": 0.7
+      },
+      {
+        "positionMm": [
+          -1.6,
+          -6.3,
+          21.525
+        ],
+        "reachMm": 6.8,
+        "strength": 0.65
+      },
+      {
+        "positionMm": [
+          1.6,
+          -6.3,
+          21.525
+        ],
+        "reachMm": 6.8,
+        "strength": 0.65
+      },
+      {
+        "positionMm": [
+          0,
+          -8.1,
+          21.225
+        ],
+        "reachMm": 5.2,
+        "strength": 0.45
+      },
+      {
+        "positionMm": [
+          -25.6,
+          26.3,
+          11.65
+        ],
+        "reachMm": 13,
+        "strength": -0.75
+      },
+      {
+        "positionMm": [
+          25.6,
+          26.3,
+          11.65
+        ],
+        "reachMm": 13,
+        "strength": -0.75
+      },
+      {
+        "positionMm": [
+          -11.8,
+          6.3,
+          12.475
+        ],
+        "reachMm": 6.6,
+        "strength": -1.05
+      },
+      {
+        "positionMm": [
+          11.8,
+          6.3,
+          12.475
+        ],
+        "reachMm": 6.6,
+        "strength": -1.05
+      },
+      {
+        "positionMm": [
+          0,
+          -10.7,
+          23.65
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          0,
+          -11.5,
+          22.349999999999998
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          0,
+          -12.3,
+          21.375
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          0,
+          -13.1,
+          21.025
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -0.8,
+          -13.7,
+          20.799999999999997
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -1.6,
+          -14.15,
+          20.599999999999998
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -2.4,
+          -14.45,
+          20.45
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -3.2,
+          -14.55,
+          20.375
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -4,
+          -14.45,
+          20.4
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -4.8,
+          -14.15,
+          20.5
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -5.6,
+          -13.7,
+          20.625
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          -6.25,
+          -13.05,
+          20.775
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          0.8,
+          -13.7,
+          20.799999999999997
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          1.6,
+          -14.15,
+          20.599999999999998
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          2.4,
+          -14.45,
+          20.45
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          3.2,
+          -14.55,
+          20.375
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          4,
+          -14.45,
+          20.4
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          4.8,
+          -14.15,
+          20.5
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          5.6,
+          -13.7,
+          20.625
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      },
+      {
+        "positionMm": [
+          6.25,
+          -13.05,
+          20.775
+        ],
+        "reachMm": 2.8,
+        "strength": -0.22
+      }
+    ],
+    "threshold": 0.25,
+    "edgeMm": 0.45
+  }
+}

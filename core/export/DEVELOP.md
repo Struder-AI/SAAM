@@ -1,8 +1,6 @@
 # Exporter implementation
 
-The core side of the machine plug. [Adding a machine](../../machines/README.md#adding-a-machine)
-owns the adapter interface and standards; [the export manual](README.md) owns shared
-output semantics; each machine's `SKILL.md` owns its dialect and evidence.
+[Adding a machine](../../machines/README.md#adding-a-machine) owns adapter interfaces/standards; [the export manual](README.md) owns shared output semantics; each machine's `SKILL.md` owns its dialect and evidence.
 
 - `registry.mjs`: `Export`, the operations offered to adapters; `machineAdapter` loads
   the selected output's adapter from the machine extension shipping the profile
@@ -11,6 +9,7 @@ output semantics; each machine's `SKILL.md` owns its dialect and evidence.
   estimates, short-travel advisory); `programReadiness` names what writing still needs;
   `settingsRows` gives Studio the adapter's rows. Adapters translate the SAAMpath into
   programs and draw nothing: Studio draws the SAAMpath.
+- `transfer-planning.mjs`: selected-tool ordering through the shared solver; checked continuous transfers against deposited prefixes, process parking and retraction; compact execution saved with the output.
 - `prepare-path.mjs`: placement offset, `validateSetup` (common setup, logical materials, then the
   adapter's `validate`), pose refusal by the adapter's `poses`, startup, priming,
   material changes by the output's `materialChangeMode`, axis-feed limits.

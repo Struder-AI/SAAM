@@ -137,7 +137,8 @@ export function applyDeclaredDependencies(plan,results){
   return applyResultDependencies(results,changes);
 }
 
-// Lower assignment completion references only after every producer has constructed.
+// Resolve operation identities here; compact completion references are published
+// with the source, after the producer's exact native slices are known.
 // No geometry, coordinate rank or construction order substitutes for identity.
 export function resolveOperationReferences(plan,results){
   const all=results.flatMap(result=>result.operations),ids=new Set(all.map(op=>op.id)),byAssignment=new Map();
@@ -164,7 +165,7 @@ export function resolveOperationReferences(plan,results){
       if(typeof previous==='string')return [previous];
       const named=byAssignment.get(previous.assignment);
       requireThat(named?.length,'Required assignment produced no operations: '+previous.assignment);
-      return named;
+      return [previous];
     }))];
     requireThat(!after.includes(operation.id),'An operation cannot require its own completion: '+operation.id);
     return {...operation,after};
@@ -266,5 +267,5 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   for(const result of results)for(const operation of result.operations)for(const target of [operation.nozzleC,operation.restoreNozzleC])
     if(target!==undefined)requireThat(authoredTemperatures.has(target),'Unplanned operation temperature.');
   return constructionPath({results,planning:{process,selection:selections?.[defaultFilament]??null,selections},
-    composition:plan.composition,summary,generatorVersion:VERSION});
+    composition:plan.composition,summary,generatorVersion:VERSION,onProgress});
 }

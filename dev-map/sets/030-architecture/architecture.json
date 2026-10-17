@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "date": "2026-10-02",
-  "description": "Toolpath boundary revised from owner direction, 2026-10-13: Slice, Trace, Inject and Modulation own deposition; Material regions is upstream and Scheduling downstream. Recipe, Extensions, Geometry and Application have explicit independent responsibilities. Bundle owns saved SAAMpath. Generated influence depicts current source, including crossings that violate these interfaces; ownership is not implementation conformance.",
+  "description": "Construction publishes valid deposition and minimal manufacturing prerequisites. Scheduling selects ready work and neutral transfer intents; Export resolves actual-tool access and physical transfers. Bundle retains exact source and saved output schedules. Generated crossings remain findings, not blanket permission.",
   "actors": {
     "user": {
       "label": "User",
@@ -522,8 +522,8 @@
     {
       "id": "compose",
       "index": "13.1",
-      "label": "Schedule & complete motion",
-      "description": "Read saved Bundle construction data, schedule its exact prerequisites and complete travel/retraction/cooling without changing deposition.",
+      "label": "Schedule deposition",
+      "description": "Schedule saved source using hard completion prerequisites and hierarchical numerical access proofs.",
       "type": "component",
       "source": {
         "file": "core/path/schedule.mjs",
@@ -544,7 +544,7 @@
       "id": "path-finalize",
       "index": "3.5",
       "label": "Private deposition machinery",
-      "description": "Shared bead calculation, contact and finalization used by the three construction families and modulation; not another construction family.",
+      "description": "Finalize deposition, publish minimal manufacturing completions and certify internal access under the explicit construction model.",
       "type": "component",
       "source": {
         "file": "core/print/finalize.mjs"
@@ -553,8 +553,8 @@
     {
       "id": "path-motion",
       "index": "13.2",
-      "label": "Travel & process planning",
-      "description": "Downstream neutral travel, retraction, cooling and motion planning.",
+      "label": "Neutral process planning",
+      "description": "Publish endpoint transfers and process actions; selected-machine Export realizes clearance and parking.",
       "type": "component",
       "source": {
         "file": "core/path/planning.mjs"
@@ -1033,11 +1033,11 @@
       "id": "export",
       "index": "8",
       "label": "Export",
-      "description": "Translate saved neutral SAAMpath for the selected machine and check the exact program; Bundle access uses its explicit contract.",
+      "description": "Resolve selected-tool access, physical transfers and machine adaptation, then check the exact program.",
       "type": "component",
       "notes": [
-        "Installation startup/priming, physical tools, machine-specific clearance and output limits belong here; neutral deposition and motion remain in 3. Export preparation never changes the saved neutral path.",
-        "Geometry supplies public frame mathematics under the owner-approved narrow contract. Studio reviews and delivers the same checked bytes."
+        "Selected tools, physical transfers, startup, priming and machine limits belong here. Preserve saved neutral source and schedule; save the realized output schedule separately.",
+        "Public Geometry sweeps check transfers against deposited material using explicit numerical tool models."
       ]
     },
     {
@@ -10924,7 +10924,7 @@
       "id": "scheduling",
       "index": "13",
       "label": "Scheduling",
-      "description": "Downstream dependency ordering, travel and cooling over constructed deposition. Does not own geometry construction or material allocation.",
+      "description": "Preserve producer prerequisites; resolve external interference, cooling and entry choices without world-axis assumptions. Publish endpoint transfer intents.",
       "type": "component"
     },
     {
@@ -20089,13 +20089,14 @@
       "from": "settings",
       "to": "export",
       "label": "selected nozzle dimensions",
-      "direction": "Settings supplies a numerical envelope from the supplied machine/setup snapshot; Export queries it to compare with saved scheduling dimensions.",
+      "direction": "Settings supplies actual logical-material nozzle models from explicit machine/setup snapshots.",
       "operations": [
-        "resolveNozzleGeometry"
+        "resolveNozzleGeometry",
+        "resolveNozzleGeometries"
       ],
       "inputs": "Immutable selected machine profile and recipe material/tool selection.",
-      "outputs": "Included angle, external flat-tip diameter and provenance; a conservative envelope for differing selected tools.",
-      "effects": "Pure resolution over supplied values; no profile lookup, Bundle writes or scheduling.",
+      "outputs": "Default and per-filament models plus a conservative enclosing model for broad-phase proofs.",
+      "effects": "Pure resolution; no source mutation, Bundle writes or implicit machine lookup.",
       "failure": "Invalid numerical geometry is rejected; missing geometry uses the labelled generic fallback.",
       "excludes": "No tool traversal, process geometry, machine motion or silent snapshot updates.",
       "access": [
@@ -20109,6 +20110,84 @@
         "core/export/prepare-path.mjs::prepareExportPath"
       ],
       "status": "Owner-authorized machine-nozzle integration, 2026-10-16."
+    },
+    {
+      "id": "construction-access-order",
+      "from": "scheduling",
+      "to": "path-finalize",
+      "label": "Scoped construction access solve",
+      "direction": "scheduling supplies explicit results to path-finalize.",
+      "operations": [
+        "resolveSourceOrder",
+        "sliceNozzleProofs"
+      ],
+      "inputs": "Exclusively owned finalized source, internal producer scope and explicit neutral access model.",
+      "outputs": "Internal contact prerequisites, valid traversal choices and interval refinement.",
+      "effects": "Private numerical working state only; no Bundle or saved-source mutation.",
+      "failure": "Reject contradictory prerequisites, blocked access or unresolved numerical precision.",
+      "excludes": "No selected machine, export, geometry repair or cooling policy.",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "scheduling"
+        }
+      ],
+      "status": "Authorized architecture implementation, 2026-10-17."
+    },
+    {
+      "id": "export-access-order",
+      "from": "scheduling",
+      "to": "export",
+      "label": "Selected-tool access and execution planning",
+      "direction": "scheduling supplies explicit results to export.",
+      "operations": [
+        "resolveSourceOrder",
+        "prepareRangeScene",
+        "planExecutionPath",
+        "createPlanningState",
+        "planningPath",
+        "planningResult",
+        "ActionAccumulator",
+        "planMove",
+        "planRetraction",
+        "planRecovery",
+        "planDepositRange",
+        "planExtrusion"
+      ],
+      "inputs": "Immutable saved source, actual numerical nozzle models and explicit execution state.",
+      "outputs": "Access-valid deposition order, range scene and planned execution actions.",
+      "effects": "Private numerical working state only; no Bundle or saved-source mutation.",
+      "failure": "Reject contradictory prerequisites, blocked access or unresolved numerical precision.",
+      "excludes": "No implicit machine/profile lookup, shared source mutation or adapter-specific service motion.",
+      "access": [
+        {
+          "from": "export",
+          "to": "scheduling"
+        }
+      ],
+      "status": "Authorized architecture implementation, 2026-10-17."
+    },
+    {
+      "id": "geometry-export-clearance",
+      "from": "geometry",
+      "to": "export",
+      "label": "Continuous numerical transfer clearance",
+      "direction": "geometry supplies explicit results to export.",
+      "operations": [
+        "nozzleMotionRoute"
+      ],
+      "inputs": "Explicit occupied-prefix index/bounds, endpoint poses, numerical tool dimensions and clearance distance.",
+      "outputs": "Checked continuous transfer segments or actual obstruction witnesses.",
+      "effects": "Private numerical working state only; no Bundle or saved-source mutation.",
+      "failure": "Reject contradictory prerequisites, blocked access or unresolved numerical precision.",
+      "excludes": "No recipe/tool selection, machine kinematics, process defaults or program generation.",
+      "access": [
+        {
+          "from": "export",
+          "to": "geometry"
+        }
+      ],
+      "status": "Authorized architecture implementation, 2026-10-17."
     }
   ],
   "layout": {

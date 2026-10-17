@@ -2,7 +2,7 @@ import {requireThat,distance} from '../private/export/numeric.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {validateSetup,toolBounds,startupPosition,startupRetracted} from '../machine/rules.mjs';
 import {materialProcess,materialTool} from '../machine/filaments.mjs';
-import {resolveNozzleGeometry} from '../machine/nozzle.mjs';
+import {resolveNozzleGeometry,resolveNozzleGeometries} from '../machine/nozzle.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 import {samePose,uprightPose} from '../path/pose.mjs';
 import {placedPath} from '../path/placement.mjs';
@@ -10,6 +10,7 @@ import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import {moveSeconds} from '../path/saampath.mjs';
 import {pathActions,pathSummary,pathInitialPosition,pathInitialPose,pathCompletion} from '../path/curve-path.mjs';
+import {prepareMachineExecution} from './transfer-planning.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
 const upright=pose=>!pose||samePose(pose,uprightPose());
@@ -67,12 +68,11 @@ function adaptationMotion(start,plan,machine,block,oriented){
 export function prepareExportPath(saved,plan,machine,adapter){
   requireThat((saved?.deposition?.schema==='saampath/2'||saved?.schema==='saampath/1')&&pathCompletion(saved)?.contract===NEUTRAL_PATH_CONTRACT,
     'Export requires a current neutral SAAMpath. Generate the toolpath first.');
-  const scheduled=pathCompletion(saved).nozzleGeometry,selected=resolveNozzleGeometry(machine,plan);
-  requireThat(scheduled?.includedAngleDeg===selected.includedAngleDeg&&scheduled?.tipDiameterMm===selected.tipDiameterMm,
-    'Selected nozzle geometry differs from the saved schedule. Regenerate the toolpath.');
-  const path=placedPath(saved,plan.placement);
   validateSetup(plan,machine,{required:true,adapter});
   const oriented=adapter.poses===true,block=plan.setup[adapter.settings?.key];
+  const selected=resolveNozzleGeometry(machine,plan);
+  const realized=saved.deposition?prepareMachineExecution(saved,selected,{nozzleGeometries:resolveNozzleGeometries(machine,plan),retreatMm:block?.retreatMm}):saved;
+  const path=placedPath(realized,plan.placement);
   requireThat(oriented||uprightPath(path),
     'Selected output cannot represent non-upright tool orientation.');
   const bounds=toolBounds(machine,plan.setup.tool);

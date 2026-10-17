@@ -36,7 +36,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(resolvedRecords.has(context))return;
     const a=context.assignment;
     requireThat(!active.has(context),'Prepared reference dependencies form a cycle.');active.add(context);
-    const names=[a.source?.assignment,a.repeat?.stack,...(a.curves??[]).map(curve=>curve.uv?.reference?.assignment)].filter(Boolean);
+    const names=[a.source?.assignment,a.substrate?.assignment,a.repeat?.stack,...(a.curves??[]).map(curve=>curve.uv?.reference?.assignment)].filter(Boolean);
     const hosts=contexts.filter(record=>names.includes(record.owner.assignment.id)||names.includes(record.spec.id));
     for(const host of hosts)resolve(host);
     if(a.source){
@@ -103,12 +103,15 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
     const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires.filter(key=>key!==node.parentKey)),defaults=new Set();
-    const references=node.construction==='curves'?[assignment.repeat?.stack,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
+    const references=node.construction==='curves'?[
+      ...(assignment.repeat?.stack?(assignment.repeat.indices??[undefined]).map(index=>({assignment:assignment.repeat.stack,index})):[]),
+      ...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference?.assignment)]:[];
     for(const other of nodes){
       if(other===node)continue;
       const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
       if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part))){needs.add(other.key);execution.add(other.key);}
-      if(references.includes(other.sourceId)||references.includes(other.record?.spec.id))needs.add(other.key);
+      if(references.some(reference=>(reference.assignment===other.sourceId||reference.assignment===other.record?.spec.id)&&
+        (reference.index===undefined||reference.index===other.index)))needs.add(other.key);
       if(node.kind==='slice'&&node.record.reference&&other.part===node.part){
         if(node.record.reference.source!==null&&other.sourceId===node.record.reference.source)needs.add(other.key);
         if(node.record.reference.source===null&&(other.providesSurface||other.kind==='slice'&&!other.record.reference))defaults.add(other.key);

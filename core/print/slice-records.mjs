@@ -20,7 +20,7 @@ export {SLICE_DEFAULTS,SLICE_PRESETS} from './slice-settings.mjs';
 
 export const SLICE_VERSION = 1;
 
-const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby','operationAfter'];
+const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby','operationAfter','substrate'];
 
 const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack','join','fillOrder','dependencies','description','contact','toolPose'];
 
@@ -33,6 +33,7 @@ const between = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && 
 const loopsList = loops => Array.isArray(loops) && loops.length > 0 && loops.every(loop => Array.isArray(loop) && loop.length >= 3 && loop.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)));
 
 function validateStackContact(a){
+  requireThat(a.substrate===undefined||a.substrate===null||operationPrerequisite(a.substrate),'Slice substrate must select manufactured work.');
   requireThat(a.contact===null||a.contact&&Object.keys(a.contact).join()==='source'&&(a.contact.source===null||typeof a.contact.source==='string'&&a.contact.source!==a.id),'Slice contact needs a distinct source assignment or null.');
   const p=a.toolPose;
   requireThat(p===null||p&&Object.keys(p).join()==='alignToSliceNormal'&&typeof p.alignToSliceNormal==='boolean','Slice toolPose is null or {alignToSliceNormal:boolean}; poses are derived from the slice, not authored samples.');

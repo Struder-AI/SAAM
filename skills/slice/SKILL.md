@@ -12,7 +12,7 @@ Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../
 `plan.slices` is `{version:1,assignments:[...]}`. `slice` and bulk `adjust_recipe`
 edit this same list. Ordinary `body` uses two loops, 20% fill and three solid
 slices at the top and bottom. Dependencies name prepared material work; construction waits for those prerequisites.
-Slice never reads completed deposition. Stack spacing determines each local normal gap; agents do not supply an independent gap parameter. The experimental adaptation flag applies only to Trace.
+Slice publishes immediate-predecessor completion and internal access validity, independent of world Z. `substrate:{assignment,index?,part?}` selects a manufactured base. Stack spacing supplies local gaps; Slice reads prepared material, while completed-deposition adaptation remains experimental Trace work.
 
 ## Settings
 
@@ -36,7 +36,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `loopInsetMm`, `roles` | Optional | Signed physical first-loop inset and stroke-role names. |
 | `fillOrder` | `null` | Ordinary patterns, physical chart cells or seeded fronts; independent of stack choice. |
 | `contact`, `toolPose` | `null` | Prepared-material source and optional derived poses, below. |
-| `dependencies`, `description` | Empty lists/text | Explicit `after`, `afterParts`, `beforeParts` and intent. |
+| `substrate`, `dependencies`, `description` | Null, empty lists/text | Manufactured base, explicit requirements and intent. |
 
 ## Regions and references
 

@@ -5,13 +5,12 @@ import {CONTEXT_KEYS,sameContext} from './action-context.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {validatePose,samePose} from './pose.mjs';
-import {nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 
-export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null,nozzleGeometry}) {
+export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
   requireThat(typeof sourcePathId==='string'&&sourcePathId.length>0,'Planning requires an exact compact source identity.');
   validatePose(motion?.initialPose);
-  return {sourcePathId,nozzleGeometry,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:structuredClone(motion.initialPose),selection,selections,defaultFilament:selection?.filament,
+  return {sourcePathId,nextTravelId:0,start:[...start],position:[...start],process,baseProcess:process,generatorVersion,motion:{retreatMm:motion?.retreatMm??process.liftMm},initialPose:structuredClone(motion.initialPose),selection,selections,defaultFilament:selection?.filament,
     pose:structuredClone(motion.initialPose),fanPercent:null,nozzleC:selection?.nozzleC??null,retraction:retracted?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null,phase:'start',layer:0,parked:false,
     stats:{travelMm:0,retractions:0,printMm:0}};
 }
@@ -103,30 +102,11 @@ export function planDwell(state,seconds) {
   return seconds>0?appendAction(state,{kind:'dwell',seconds,phase:state.phase,layer:state.layer}):planningResult(state);
 }
 
-export function planPark(state,scene) {
-  if(state.parked)return planRetraction(state);
-  const pose=state.pose,target=state.position.map((v,i)=>v-pose.toolAxis[i]*state.motion.retreatMm);
-  const retracted=planRetraction(state),parked=planTravel(retracted.state,target,scene,pose,{recover:false});
-  return planningResult({...parked.state,parked:true},{chunks:[retracted.actions,parked.actions]});
-}
-
-export function planTravel(state,target,scene,targetPose,{recover=true}={}){
-  requireThat(scene?.index&&scene.occupied,'Travel needs the scheduler-owned deposited material scene.');
+export function planTransfer(state,target,targetPose){
   validatePose(targetPose);
-  const route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,state.pose,targetPose,{withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes,...scene.nozzleGeometry});
-  if(route.blocked){
-    const operations=[...new Set(route.blocked.map(id=>scene.operationOf(id)))];
-    throw Object.assign(Error('Nozzle access is blocked by deposited courses: '+operations.join(', ')),{code:'NOZZLE_ACCESS_BLOCKED',operations,target});
-  }
-  const travelKind=route.length>1?'routed':'direct';
-  const retracted=travelKind==='routed'?planRetraction(state):planningResult(state),actions=new ActionAccumulator();
-  actions.add(retracted.actions);const cursor={state:retracted.state};
-  for(const next of route){
-    const moved=planMove(cursor.state,next.point,state.process.travelSpeedMmS,0,{pose:next.pose});
-    cursor.state=moved.state;actions.add(moved.actions);
-  }
-  const recovered=recover?planRecovery(cursor.state):planningResult(cursor.state);actions.add(recovered.actions);
-  return planningResult(recovered.state,actions.finish(),{travelKind});
+  // Endpoint intent is realized by Export.prepareMachineExecution, which solves
+  // selected-nozzle access and routes every transfer against deposited ranges.
+  return planMove(state,target,state.process.travelSpeedMmS,0,{pose:targetPose});
 }
 export function materializeActions(chunks){const collector=new ActionAccumulator();collector.add({chunks});return collector.finish().append;}
 export function planningPath(state,chunks,summary={},completion){

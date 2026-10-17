@@ -411,14 +411,17 @@ export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose,options
   if(!nozzleMotionHits(index,occupied,from,to,fromPose,toPose,options).length)return [{point:to,pose:toPose}];
   const targetHits=nozzleMotionHits(index,occupied,to,to,toPose,toPose,options);
   if(targetHits.length)return {blocked:targetHits};
-  const center=index.bounds.min.map((v,i)=>(v+index.bounds.max[i])/2),radius=length(subtract(index.bounds.max,index.bounds.min))/2+PRINT_RESOLUTION_MM;
+  const bounds=options.bounds??index.bounds,center=bounds.min.map((v,i)=>(v+bounds.max[i])/2);
+  const radius=length(subtract(bounds.max,bounds.min))/2,gap=Math.max(PRINT_RESOLUTION_MM,options.clearanceMm??PRINT_RESOLUTION_MM);
   const outwardA=scale(fromPose.toolAxis,-1),outwardB=scale(toPose.toolAxis,-1);
-  const state={clearance:radius*2+1};
+  const fixedAxis=length(subtract(outwardA,outwardB))<=ROUNDING_MM;
+  const top=bounds.min.reduce((sum,v,i)=>sum+(outwardA[i]>=0?bounds.max[i]-center[i]:v-center[i])*outwardA[i],0);
+  const state={clearance:fixedAxis?top+gap:radius/Math.cos(Math.PI/8)+gap};
   for(;;){
     const a=add(from,scale(outwardA,Math.max(0,state.clearance-dot(subtract(from,center),outwardA))));
     const b=add(to,scale(outwardB,Math.max(0,state.clearance-dot(subtract(to,center),outwardB))));
     const route=[{point:a,pose:fromPose}];
-    if(length(subtract(outwardA,outwardB))<=ROUNDING_MM){route.push({point:b,pose:toPose},{point:to,pose:toPose});}
+    if(fixedAxis){route.push({point:b,pose:toPose},{point:to,pose:toPose});}
     else{
       const ra=normalize(subtract(a,center)),rb=normalize(subtract(b,center)),pa=radialPose(ra,fromPose.toolUp);
       const perpendicular=cross(ra,rb),sine=length(perpendicular),cosine=Math.max(-1,Math.min(1,dot(ra,rb))),angle=Math.atan2(sine,cosine);
