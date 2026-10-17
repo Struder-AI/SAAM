@@ -138,8 +138,10 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   }
   if(scheduled.length!==operations.length){
     const cycle=dependencyCycle(operations,prerequisites);
-    const ids=new Set(cycle),reasons=physicalEdges.filter(edge=>ids.has(edge.before)&&ids.has(edge.after));
-    const refinementCourses=dependencyComponents(operations.map(op=>op.id),prerequisites).filter(part=>part.length>1).flat();
+    const components=dependencyComponents(operations.map(op=>op.id),prerequisites).filter(part=>part.length>1);
+    const membership=new Map(components.flatMap(part=>part.map(id=>[id,part])));
+    const reasons=physicalEdges.filter(edge=>membership.has(edge.before)&&membership.get(edge.before)===membership.get(edge.after));
+    const refinementCourses=components.flat();
     throw Object.assign(Error('Print ordering contains a cycle: '+cycle.map(id=>byId.get(id).op.label??id).join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:cycle,physicalDependencies:reasons,refinementCourses});
   }
   return scheduled;

@@ -236,8 +236,8 @@ function preferNativeLayers(source,graph,relaxed){
 }
 
 function relaxOrderChoices(error,edges,relaxed){
-  const affected=new Set(error.refinementCourses??error.operations??[]),before=relaxed.size;
-  for(const edge of edges)if(affected.has(edge.before)&&affected.has(edge.after))relaxed.add(edge.key);
+  const affected=new Set((error.physicalDependencies??[]).map(edge=>edge.key).filter(Boolean)),before=relaxed.size;
+  for(const edge of edges)if(affected.has(edge.key))relaxed.add(edge.key);
   return relaxed.size>before;
 }
 
@@ -309,8 +309,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       Object.assign(state.scene.proofs.summary,{resolvedAccessLayers:accessLayers.size,resolvedSupportLayers:supportLayers.size});
       if(!progress.cyclic)onProgress?.({stage:'Resolving slice nozzle access',completed:accessLayers.size,total:graph.layerGroups.size});
-      // Follow discovered blockers before unrelated source work so opposing
-      // requirements reach the cycle resolver without scanning a whole region.
+      // Follow discovered blockers first, then collect independent conflicts
+      // in this graph before rebuilding its relaxed chunks and layer choices.
       const access={pending:graph.units.toReversed(),visited:new Set()};
       if(!progress.cyclic)while(access.pending.length){
         const unit=access.pending.pop();if(access.visited.has(unit.id))continue;
@@ -329,10 +329,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
               {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[unit.sourceOperation,hit.unit.sourceOperation]});
           }
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
-          if(progress.cyclic)break;
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }
-        if(progress.cyclic)break;
       }
       if(!progress.cyclic)for(const [completed,unit] of graph.units.entries()){
         if(supportLayers.has(unit.layerId))continue;
