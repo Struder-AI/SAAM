@@ -273,7 +273,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         // An explicit source operation is also a useful relaxable aggregate.
         // This does not invent a native layer for a standalone Trace.
         const native=graph.layerGroups.get(hit.unit.layerId),layer=native??graph.groups.get(hit.unit.sourceOperation);
-        if(progress.cyclic||!layer||unit.sourceOperation===hit.unit.sourceOperation||unit.layerId!==null&&unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
+        if(!layer||unit.sourceOperation===hit.unit.sourceOperation||unit.layerId!==null&&unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
         const group=graph.groups.get(unit.sourceOperation),before=group.end.id;
         const key=JSON.stringify([native?'operation-layer':'operation-operation',unit.sourceOperation,native?hit.unit.layerId:hit.unit.sourceOperation]);
         if(relaxed.has(key)||precedes(before,layer.begin.id)||precedes(layer.begin.id,before))return;
