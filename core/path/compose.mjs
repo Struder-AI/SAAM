@@ -241,18 +241,37 @@ function relaxOrderChoices(error,edges,relaxed){
   return relaxed.size>before;
 }
 
+function retainedNozzleEdges(graph,requirements){
+  const courses=new Map(),edges=[];
+  for(const unit of graph.units)for(const range of unit.ranges){
+    if(!courses.has(range.id))courses.set(range.id,[]);
+    courses.get(range.id).push({unit,range});
+  }
+  for(const witness of requirements.values()){
+    const receiver=witness.receiver,material=witness.material;
+    const a=courses.get(receiver.id)?.find(({range})=>range.from<=receiver.from&&range.to>=receiver.to);
+    const b=courses.get(material.id)?.find(({range})=>range.from<=material.from&&range.to>=material.to);
+    // A chunk change preserves the witnessed intervals. A cut through either
+    // interval needs a fresh contact query instead of lifting the old edge.
+    if(a&&b&&a.unit!==b.unit)edges.push({before:a.unit.id,after:b.unit.id,kind:'nozzle-access',witness});
+  }
+  return edges;
+}
+
 export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry}={}){
   const cuts=new Map(),relaxed=new Set(),relaxedChunks=new Set(),chunkBreaks=new Map(),blockedTraversals=new Set(),supportPrecision=new Map(),history={solves:0,refinements:0};
   const selfProofs={entries:new Map(),bytes:0};
+  const nozzleRequirements=new Map();
   const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
   const sourceDependencies=prepareOperationDependencies(Object.values(source.operations),new Map(Object.entries(source.operations)),source.composition);
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
     const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,chunkBreaks}),choices=preferNativeLayers(source,graph,relaxed);
-    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[]};history.solves++;
+    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:retainedNozzleEdges(graph,nozzleRequirements)};history.solves++;
+    for(const edge of state.edges)graph.prerequisites.get(edge.after).add(edge.before);
     try{
       // Establish native groups and process barriers before any fine occupancy.
-      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:choices});
+      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:[...choices,...state.edges]});
       state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry,selfProofs});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
@@ -308,6 +327,10 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
             const witness=state.scene.mutualConflict(hit.witness?.receiver,hit.witness?.material);
             if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
               {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[unit.sourceOperation,hit.unit.sourceOperation]});
+            if(hit.witness?.receiver&&hit.witness.material){
+              const a=hit.witness.receiver,b=hit.witness.material;
+              nozzleRequirements.set(JSON.stringify([a.id,a.from,a.to,a.at,b.id,b.from,b.to,b.at]),hit.witness);
+            }
           }
           addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
@@ -357,7 +380,10 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       if(relaxedChunks.size>before)continue;
       if(relaxOrderChoices(error,choices,relaxed))continue;
-      if(!state.scene)throw error;
+      if(!state.scene){
+        if(!state.edges.length)throw error;
+        state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry,selfProofs});
+      }
       const reasons=error.physicalDependencies??[];
       if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&!edge.witness?.provisional&&authored.has(graph.byId.get(edge.after).sourceOperation,graph.byId.get(edge.before).sourceOperation)))throw error;
       for(const edge of reasons)if(edge.kind==='nozzle-access'&&!edge.witness?.provisional){

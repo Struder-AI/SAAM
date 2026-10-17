@@ -27781,6 +27781,18 @@
     "core/path/compose.mjs::relaxOrderChoices": {
       "owner": "scheduling"
     },
+    "core/path/compose.mjs::retainedNozzleEdges": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::retainedNozzleEdges::courses": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::retainedNozzleEdges::edges": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::resolveSourceOrder::nozzleRequirements": {
+      "owner": "scheduling"
+    },
     "core/path/compose.mjs::resolveSourceOrder": {
       "owner": "scheduling"
     },
