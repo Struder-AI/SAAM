@@ -266,6 +266,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
 export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY,selfProofs={entries:new Map(),bytes:0}}={}){
+  const pairProofs=selfProofs.pairs??={entries:new Map(),bytes:0};
   const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,supportPairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map();
   const stock={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
@@ -443,6 +444,22 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       Math.min(NOZZLE_FORGIVENESS_MM,a.range.widthMm[0],b?.range.widthMm[0]??Infinity)/2);
   }
   function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false}={}){
+    // A retry changes grouping/order, not these source intervals. Retain only
+    // proven clearance or actual contact; possible contact must be tightened.
+    const key=solid?null:JSON.stringify([localize,allowChoice,...[receiver,materialRecord].map(record=>[record.ref.id,record.ref.from,record.ref.to,Boolean(record.ref.reverse)])]);
+    const known=key&&pairProofs.entries.get(key);
+    if(known){pairProofs.entries.delete(key);pairProofs.entries.set(key,known);return known.witness;}
+    const witness=queryPair(receiver,materialRecord,solid,{localize,allowChoice});
+    if(key&&!witness?.provisional){
+      const bytes=2*(key.length+JSON.stringify(witness).length)+128;
+      if(bytes<=cacheLimit){
+        while(pairProofs.bytes+bytes>cacheLimit){const first=pairProofs.entries.keys().next().value;pairProofs.bytes-=pairProofs.entries.get(first).bytes;pairProofs.entries.delete(first);}
+        pairProofs.entries.set(key,{witness,bytes});pairProofs.bytes+=bytes;
+      }
+    }
+    return witness;
+  }
+  function queryPair(receiver,materialRecord,solid,{localize,allowChoice}){
     const pending=[[receiver,materialRecord]];
     while(pending.length){
       const [a,b]=pending.pop(),nb=nozzle(a),mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;

@@ -27811,6 +27811,12 @@
     "core/path/physical-order.mjs::prepareRangeScene::selfProofKey": {
       "owner": "scheduling"
     },
+    "core/path/physical-order.mjs::prepareRangeScene::queryPair": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::pairProofs": {
+      "owner": "scheduling"
+    },
     "core/path/physical-order.mjs::prepareRangeScene::knownSelf": {
       "owner": "scheduling"
     },
