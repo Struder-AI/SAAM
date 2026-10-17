@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-16 — Bound repeated dependency searches
+
+- Cancelled the marbled Studio generation after 105 minutes at the owner's direction; diagnostic runs now stop within four minutes. A fresh 20-second worker profile spent 14.1 seconds in dependency search. The old bounded pair memo could retain only about 131,000 answers across a growing graph of roughly 10,000 nodes, so repeated searches displaced useful reachability.
+- Scheduling now retains bounded bit rows. Complete rows prove both presence and absence; edge insertion extends affected ancestors from a complete successor or reopens them while preserving proven positives. Sparse edges remain authoritative, and cache eviction cannot change answers. The 16 MiB cache budget, geometry, source ownership, hard requirements and 0.2 mm nozzle allowance are unchanged.
+- A three-minute captured workload replays 1,710,332 queries with identical answers in 0.349 seconds versus 3.312 seconds. A separate captured 2,352-node conflict subgraph replays 120,000 queries in 0.088 versus 1.048 seconds. These measure dependency lookup, not full generation. Independent incremental traversal checks cover 712,890 queries plus 307,200 mixed cyclic/acyclic queries with zero, one-row, small and full caches. Hard/soft chunk interleaving, actual-source four-course admission, atomic collision and declared-cycle rejection pass.
+- The unchanged 10,375-course flat source schedules and joins in 14.4 seconds, with all 240 slices whole, one solve and no refinement. Syntax, repository and whitespace checks pass. No permanent tests, whole suite, push, release or hardware output. The full marbled toolpath remains unverified; 0.3.11 is not ready. The previous map solve died during the disk-space incident; a fresh full solve remains pending until this investigation finishes.
+
 ## 2026-10-16 — Retain compact whole-course clearance proofs
 
 - The full marbled run filled a 128 MiB interval-pair cache with roughly 400,000 predominantly clear answers. Whole-course directed clearance now uses lazy bit rows within a separate 16 MiB budget; contained subintervals inherit only completed clearance proofs. Unknown bits remain unknown; actual/provisional witnesses retain interval and precision keys in the existing 16 MiB pair cache. Geometry, source ownership and nozzle dimensions are unchanged. The isolated prototype and integrated checks retain actual contact, repeat tightened provisional queries, and reuse whole-course clearance after regrouping/cutting without rebuilding material indexes.

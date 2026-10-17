@@ -17762,7 +17762,7 @@
       "owner": "scheduling",
       "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
     },
-    "core/path/precedence.mjs::reachability::memo": {
+    "core/path/precedence.mjs::reachability::rowFor": {
       "owner": "scheduling"
     },
     "core/path/precedence.mjs::prerequisiteProofs": {
