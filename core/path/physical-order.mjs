@@ -266,7 +266,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
 // Compact source intervals remain the scene's leaves. Only unresolved queries
 // open children; the cache may evict numerical work without changing the scene.
 export function prepareRangeScene(source,reader,units,{onProgress,supportPrecision=null,nozzleGeometry=DEFAULT_NOZZLE_GEOMETRY,selfProofs={entries:new Map(),bytes:0}}={}){
-  const pairResults=selfProofs.pairs??={entries:new Map(),bytes:0},pairCacheLimit=128*1024*1024;
+  const pairResults=selfProofs.pairs??={entries:new Map(),bytes:0},pairCacheLimit=16*1024*1024;
   // Retain the eviction cursor: restarting Map iteration repeatedly scans
   // deleted entries. Live cache entries keep this cursor from exhausting.
   pairResults.oldest??=pairResults.entries.keys();
@@ -356,6 +356,27 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   }
   const proxy=convexSpatialIndex(boxes,{groups:bodies.map(body=>body.unit.id),partitions:bodies.map(body=>body.unit.layerId??body.unit.operation)});
   const originalCourses=new Map(Object.values(source.operations).flatMap(op=>(op.courses??[]).map(course=>[course.id,course])));
+  // A clear whole-course pair also clears every contained pair of intervals.
+  // Sparse bit rows retain those proofs without allocating strings per pair.
+  const courseFacts=selfProofs.courseFacts??={rows:new Map(),bytes:0,index:new Map([...originalCourses.keys()].map((id,i)=>[id,i]))};
+  courseFacts.oldest??=courseFacts.rows.keys();
+  function knownCourseClear(a,b){
+    const x=originalCourses.get(a.id),y=originalCourses.get(b.id);
+    if(!x||!y||a.from<x.from||a.to>x.to||b.from<y.from||b.to>y.to)return false;
+    const row=courseFacts.rows.get(a.id),i=courseFacts.index.get(b.id);
+    return Boolean(row&&(row[i>>>5]&(1<<(i&31))));
+  }
+  function rememberCourseClear(a,b){
+    const x=originalCourses.get(a.id),y=originalCourses.get(b.id);
+    if(!x||!y||a.from!==x.from||a.to!==x.to||b.from!==y.from||b.to!==y.to)return false;
+    const words=Math.ceil(originalCourses.size/32),bytes=words*4+128;
+    if(bytes>cacheLimit)return false;
+    if(!courseFacts.rows.has(a.id)){
+      while(courseFacts.bytes+bytes>cacheLimit){const first=courseFacts.oldest.next().value;courseFacts.rows.delete(first);courseFacts.bytes-=bytes;}
+      courseFacts.rows.set(a.id,new Uint32Array(words));courseFacts.bytes+=bytes;
+    }
+    const row=courseFacts.rows.get(a.id),i=courseFacts.index.get(b.id);row[i>>>5]|=1<<(i&31);return true;
+  }
   const fullRanges=new Map([...byId.values()].flatMap(body=>body.records.filter(record=>{
     const original=originalCourses.get(record.ref.id);return original.from===record.ref.from&&original.to===record.ref.to;
   }).map(record=>[record.ref.id,record.range])));
@@ -472,9 +493,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
   }
   function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false,cacheClear=true}={}){
+    if(!solid&&knownCourseClear(receiver.ref,materialRecord.ref))return null;
     const key=solid?null:pairKey(receiver,materialRecord,{localize,allowChoice}),known=key&&knownPair(key);
     if(known)return known.witness;
     const witness=queryPair(receiver,materialRecord,solid,{localize,allowChoice});
+    if(!witness&&!solid&&rememberCourseClear(receiver.ref,materialRecord.ref))return null;
     if(key&&(witness||cacheClear))rememberPair(key,witness);
     return witness;
   }
@@ -551,7 +574,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       const state={witness:null};
       for(const solid of other.solids){state.witness=pair(record,null,solid,{allowChoice:true});if(state.witness)break;}
       if(!state.witness){
-        const remaining=other.records.map(candidate=>({candidate,key:pairKey(record,candidate,{allowChoice:true})})).filter(query=>knownPair(query.key)?.witness!==null);
+        const remaining=other.records.filter(candidate=>!knownCourseClear(record.ref,candidate.ref)).map(candidate=>({candidate,key:pairKey(record,candidate,{allowChoice:true})})).filter(query=>knownPair(query.key)?.witness!==null);
         if(!remaining.length)continue;
         const ids=new Set(remaining.map(query=>query.candidate.ref.id));
         for(const candidate of regionalMaterial(other,nozzle(record).shape))if(ids.has(candidate.ref.id)){
@@ -559,7 +582,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         }
         // The enclosing nozzle and material index excluded every other cell.
         // Keep the completed course proofs, rather than transient cell misses.
-        if(!state.witness)for(const query of remaining)rememberPair(query.key,null);
+        if(!state.witness)for(const query of remaining)if(!rememberCourseClear(record.ref,query.candidate.ref))rememberPair(query.key,null);
       }
       if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
     }

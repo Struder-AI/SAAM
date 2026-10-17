@@ -8,6 +8,7 @@ function reachability(ids,cacheBytes){
   const positions=new Map(ids.map((id,i)=>[id,i])),count=ids.length;
   requireThat(positions.size===count,'Precedence needs unique course IDs.');
   const following=Array(count),parents=Array(count),cache=new Map();
+  const memo={oldest:cache.keys(),hits:0};
   const forwardSeen=new Uint32Array(count),backwardSeen=new Uint32Array(count);
   const cacheLimit=Math.max(0,Math.floor(cacheBytes/CACHED_PAIR_BYTES));
   let revision=0,stamp=0,rank=null;
@@ -17,7 +18,11 @@ function reachability(ids,cacheBytes){
     if(following[a].has(b))return true;
     if(rank&&rank[a]>=rank[b])return false;
     const key=a+':'+b,known=cache.get(key);
-    if(known===true||known===revision){cache.delete(key);cache.set(key,known);return known===true;}
+    if(known===true||known===revision){
+      cache.delete(key);cache.set(key,known);
+      if(++memo.hits>=cache.size){memo.oldest=cache.keys();memo.hits=0;}
+      return known===true;
+    }
     stamp=(stamp+1)>>>0;
     if(stamp===0){forwardSeen.fill(0);backwardSeen.fill(0);stamp=1;}
     const forward=[a],backward=[b];forwardSeen[a]=stamp;backwardSeen[b]=stamp;
@@ -33,8 +38,9 @@ function reachability(ids,cacheBytes){
     }
     if(cacheLimit){
       cache.delete(key);
-      while(cache.size>=cacheLimit)cache.delete(cache.keys().next().value);
+      while(cache.size>=cacheLimit)cache.delete(memo.oldest.next().value);
       cache.set(key,found?true:revision);
+      if(++memo.hits>=cache.size){memo.oldest=cache.keys();memo.hits=0;}
     }
     return found;
   }

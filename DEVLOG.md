@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-16 — Retain compact whole-course clearance proofs
+
+- The full marbled run filled a 128 MiB interval-pair cache with roughly 400,000 predominantly clear answers. Whole-course directed clearance now uses lazy bit rows within a separate 16 MiB budget; contained subintervals inherit only completed clearance proofs. Unknown bits remain unknown; actual/provisional witnesses retain interval and precision keys in the existing 16 MiB pair cache. Geometry, source ownership and nozzle dimensions are unchanged. The isolated prototype and integrated checks retain actual contact, repeat tightened provisional queries, and reuse whole-course clearance after regrouping/cutting without rebuilding material indexes.
+- A live 20-second profile spent about five seconds in dependency search; a paused frame identified repeated fresh Map iteration during memo eviction. Dependency memoization now retains its eviction cursor and refreshes it after a working set of mutations, preserving graph authority and revision-sensitive negative answers. A disposable 712,890-query comparison against independent graph traversal passes with a five-entry cache, incremental edges and cycle detection.
+- Actual-source interface ordering, original/rotated interruption replay, atomic/reciprocal collision rejection and interval-cache probes pass. The complete current-code marbled solve is pending; neither a successful toolpath nor release readiness is claimed. No permanent tests, whole suite, installation, push or hardware output. Existing full map solve remains active; later-edit coverage is pending.
+
 ## 2026-10-16 — Preserve course openings across later curve cuts
 
 - The marbled source exposed a nonmonotone refinement bug: opening oblique-cross-grain:11 courses 2 and 4 yielded five units, but cutting course 7 rebuilt its chunk under a different range-list key and merged both opened courses into a seven-course unit. Openings now belong to immutable source course IDs, so later physical cuts preserve them. The same disposable repro now grows from five to eight units and both courses remain isolated. Unaffected soft runs and hard manufacturing dependencies remain intact.

@@ -17762,6 +17762,9 @@
       "owner": "scheduling",
       "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
     },
+    "core/path/precedence.mjs::reachability::memo": {
+      "owner": "scheduling"
+    },
     "core/path/precedence.mjs::prerequisiteProofs": {
       "owner": "scheduling",
       "reason": "Bounded order proofs and refinement of interruptible deposition preserve authored material and explicit prerequisites."
@@ -27818,6 +27821,15 @@
       "owner": "scheduling"
     },
     "core/path/physical-order.mjs::prepareRangeScene::nozzleHits::ids": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::courseFacts": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::knownCourseClear": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::rememberCourseClear": {
       "owner": "scheduling"
     },
     "core/path/physical-order.mjs::prepareRangeScene": {
