@@ -649,8 +649,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       {code:'CONTINUOUS_NOZZLE_CONFLICT',operation:unit.id,refinementCourses:[unit.id],witness});}
     for(const [i,record] of records.entries()){
       for(const previous of records.slice(0,i)){
-        const pairKey=selfProofKey('pair',[record.ref,previous.ref]);if(knownSelf(pairKey))continue;
-        const hit=pair(record,previous);if(hit)conflict(hit);rememberSelf(pairKey);
+        const hit=pair(record,previous);if(hit)conflict(hit);
       }
       const courseKey=selfProofKey('course',[record.ref]);if(knownSelf(courseKey))continue;
       if(!material(record)){rememberSelf(courseKey);continue;}
