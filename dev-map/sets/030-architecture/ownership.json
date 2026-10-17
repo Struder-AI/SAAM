@@ -28143,6 +28143,39 @@
     },
     "studio/mesh-view.mjs::geometryCornerNormal": {
       "owner": "studio"
+    },
+    "core/geom/height-slice.mjs::sampledChartRegion::worldPoint": {
+      "owner": "geometry"
+    },
+    "core/geom/height-slice.mjs::sampledChartRegion::refine::endpoints": {
+      "owner": "geometry"
+    },
+    "core/geom/level-set.mjs::extractLevelSet::crossings": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh.mjs::meshColumnTree": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh.mjs::meshColumnTree::faces": {
+      "owner": "geometry"
+    },
+    "core/geom/mesh.mjs::meshColumnTree::boxes": {
+      "owner": "geometry"
+    },
+    "core/geom/nurbs.mjs::surfaceBases": {
+      "owner": "geometry"
+    },
+    "core/geom/nurbs.mjs::evaluate::cached": {
+      "owner": "geometry"
+    },
+    "core/path/curve-path.mjs::prepareCurve::priorities": {
+      "owner": "toolpath"
+    },
+    "core/path/curve-path.mjs::prepareCurve::viewCuts": {
+      "owner": "toolpath"
+    },
+    "core/path/curve-path.mjs::querySpans::search": {
+      "owner": "toolpath"
     }
   },
   "retiredAssignments": [

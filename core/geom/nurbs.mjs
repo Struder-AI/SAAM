@@ -163,6 +163,10 @@ export function basisFunctions(knots, span, t, order) {
 
 // Point, first derivatives and unit normal at (u, v). Rational surfaces use the
 // quotient rule on the homogeneous form.
+// Chart grids repeat one coordinate while advancing the other. Retain just the
+// last basis in each direction of an immutable prepared patch, with fixed
+// storage independent of the number of queries and no coordinate quantization.
+const surfaceBases=new WeakMap();
 export function evaluate(patch, u, v, wantDerivatives = true) {
   const { nu, nv, orderU, orderV, knotsU, knotsV, cp } = patch;
   const du = clamp(u, patch.domainU), dv = clamp(v, patch.domainV);
@@ -180,8 +184,11 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
     }
     return { point: [sw[0] / sw[3], sw[1] / sw[3], sw[2] / sw[3]] };
   }
-  const bu = basisDerivatives(knotsU, spanU, du, orderU, 1);
-  const bv = basisDerivatives(knotsV, spanV, dv, orderV, 1);
+  const cached=surfaceBases.get(patch)??{};
+  if(!surfaceBases.has(patch))surfaceBases.set(patch,cached);
+  if(cached.u?.parameter!==du||cached.u.span!==spanU)cached.u={parameter:du,span:spanU,values:basisDerivatives(knotsU,spanU,du,orderU,1)};
+  if(cached.v?.parameter!==dv||cached.v.span!==spanV)cached.v={parameter:dv,span:spanV,values:basisDerivatives(knotsV,spanV,dv,orderV,1)};
+  const bu=cached.u.values,bv=cached.v.values;
   for (let i = 0; i < orderU; i++) {
     const iu = spanU - orderU + 1 + i;
     for (let j = 0; j < orderV; j++) {

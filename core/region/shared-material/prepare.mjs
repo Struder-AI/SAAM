@@ -76,6 +76,7 @@ function retimeLayers(owner,others,heightMm,claimAt,onProgress){
     const first=from+step;
     for(let offset=first;previous<to-PRINT_RESOLUTION_MM;offset+=step){
       const end=Math.min(offset,to),advance=end-previous,transition=Math.abs(advance-step)>PRINT_RESOLUTION_MM;
+      if(!(Number.isFinite(end)&&advance>0))throw Object.assign(Error('Shared layer retiming cannot advance at floating-point precision.'),{code:'SHARED_LAYER_PRECISION'});
       if(transition)transitions++;
       const character=nominal.slice(i,last+1).reduce((best,candidate)=>Math.abs(candidate.offsetMm-end)<Math.abs(best.offsetMm-end)?candidate:best,nominal[i]);
       layers.push({...nominal[i],offsetMm:end,slice:translateSlice(stack.base,stack.direction.map(v=>v*end)),translationMm:advance,

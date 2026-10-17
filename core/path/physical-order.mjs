@@ -167,7 +167,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
   const {includedAngleDeg,tipDiameterMm}=nozzleGeometry;
   const slices=new Map(),queries={reader},halfAngle=includedAngleDeg*Math.PI/360;
   const sine=Math.sin(halfAngle),clearPairs=new Map(),positionBounds=new Map();
-  const oldestClearPair=clearPairs.keys();
+  const oldestClearPair={iterator:clearPairs.keys(),hits:0};
   const clearPairLimit=4*1024*1024/128;
   const first=Object.values(source.operations).find(op=>op.kind==='deposit')?.courses[0];
   if(!queries.reader)queries.reader=prepareCurvePath(source);
@@ -182,9 +182,13 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
   function boundsClear(a,b){
     const receiver=slices.get(a),material=slices.get(b);if(!receiver?.bounded||!material?.bounded)return false;
     const key=receiver.ordinal+':'+material.ordinal,known=clearPairs.get(key);
-    if(known!==undefined){clearPairs.delete(key);clearPairs.set(key,known);return known;}
+    if(known!==undefined){
+      clearPairs.delete(key);clearPairs.set(key,known);
+      if(++oldestClearPair.hits>=clearPairs.size){oldestClearPair.iterator=clearPairs.keys();oldestClearPair.hits=0;}
+      return known;
+    }
     const clear=nozzleBoundsClear(receiver.positions,receiver.poseCone,material.material,NOZZLE_FORGIVENESS_MM,tipDiameterMm,includedAngleDeg);
-    while(clearPairs.size>=clearPairLimit)clearPairs.delete(oldestClearPair.next().value);
+    while(clearPairs.size>=clearPairLimit)clearPairs.delete(oldestClearPair.iterator.next().value);
     clearPairs.set(key,clear);return clear;
   }
   function rangeOf(course){
@@ -699,7 +703,10 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
   function selfProofKey(kind,ranges){return JSON.stringify([kind,...ranges.map(ref=>[ref.id,ref.from,ref.to,Boolean(ref.reverse)])]);}
   function knownSelf(key){
     const bytes=selfProofs.entries.get(key);if(bytes===undefined)return false;
-    selfProofs.entries.delete(key);selfProofs.entries.set(key,bytes);return true;
+    selfProofs.entries.delete(key);selfProofs.entries.set(key,bytes);
+    selfProofs.hits=(selfProofs.hits??0)+1;
+    if(selfProofs.hits>=selfProofs.entries.size){selfProofs.oldest=selfProofs.entries.keys();selfProofs.hits=0;}
+    return true;
   }
   function rememberSelf(key){
     const bytes=key.length*2+128;

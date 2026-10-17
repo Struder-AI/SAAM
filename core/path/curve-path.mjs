@@ -54,7 +54,13 @@ function prepareCurve(curve){
   const breaks=[...new Set([...geometry.breaks,...Object.values(profiles).flatMap(p=>keyed(p)?p.knots.map(([u])=>u):[]),
     ...(material?.kind==='area'&&keyed(material.areaMm2)?material.areaMm2.knots.map(([u])=>u):material?.kind==='cumulative'?material.knots.map(([u])=>u):[])])]
     .filter(u=>u>0&&u<1).sort((a,b)=>a-b);
-  const prepared={geometry,profiles,breaks,material:prepareMaterialProfile(material)};
+  const priorities=new Map(geometry.breaks.map(u=>[u,1]));
+  // View boundaries belong to the prepared curve. Execution can visit a short
+  // interval thousands of times; do not rescan its entire vertex/profile table.
+  for(const profile of [profiles.widthMm,profiles.speedMmS])if(keyed(profile)&&profile.interpolation==='step')
+    for(const [i,[u,value]] of profile.knots.entries())if(i&&value!==profile.knots[i-1][1])priorities.set(u,2);
+  const viewCuts=[...priorities].sort(([a],[b])=>a-b);
+  const prepared={geometry,profiles,breaks,viewCuts,material:prepareMaterialProfile(material)};
   if(material?.kind==='cumulative'){
     const range=materialRange(prepared,0,1,numericalCurveRange(geometry,0,1),{});
     requireThat(range.areaMm2.every(Number.isFinite)&&range.volumeMm3.every(Number.isFinite),'Material density and volume must be bounded and finite.');
@@ -160,13 +166,16 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
   const curve=selected(handle,curveId),state={start:from};
   // Geometry and labels are useful view candidates. Profile/material keys are
   // query information, not an instruction to emit one move between every key.
-  const priorities=new Map([...labels.map(u=>[u,0]),...curve.geometry.breaks.map(u=>[u,1])]);
+  const priorities=new Map(labels.filter(u=>u>from&&u<to).map(u=>[u,0]));
   // Older explicit scalar steps retain their meaning. When a step and a
   // geometry vertex are physically coincident, use the step once and certify
   // the geometry across it; do not emit the microscopic interval between them.
-  for(const profile of [curve.profiles.widthMm,curve.profiles.speedMmS])if(keyed(profile)&&profile.interpolation==='step')
-    for(const [i,[u,value]] of profile.knots.entries())if(i&&value!==profile.knots[i-1][1])priorities.set(u,2);
-  const candidates=[...priorities].filter(([u])=>u>from&&u<to).sort(([a],[b])=>a-b),groups=[];
+  const search={lo:0,hi:curve.viewCuts.length};
+  while(search.lo<search.hi){const mid=Math.floor((search.lo+search.hi)/2);if(curve.viewCuts[mid][0]<=from)search.lo=mid+1;else search.hi=mid;}
+  for(let i=search.lo;i<curve.viewCuts.length&&curve.viewCuts[i][0]<to;i++){
+    const [u,priority]=curve.viewCuts[i];priorities.set(u,priority);
+  }
+  const candidates=[...priorities].sort(([a],[b])=>a-b),groups=[];
   for(const candidate of candidates){
     const group=groups.at(-1);
     if(group&&numericalCurveRange(curve.geometry,group[0][0],candidate[0]).lengthMm[1]<=options.positionToleranceMm)group.push(candidate);

@@ -101,31 +101,36 @@ export function extractLevelSet(field, level, { output = 'region', refine = null
   const { xs, ys } = field;
   requireThat(xs.length > 1 && ys.length > 1, 'A level set needs a sampled grid.');
   requireThat(output==='region'||output==='curves','Choose level-set region or curves.');
-  const interiorSegments=levelSetInteriorSegments(field,level,refine);
+  const crossings=new Map();
+  const interiorSegments=levelSetInteriorSegments(field,level,refine,crossings);
   if(output==='curves')return chain(interiorSegments,output,precision);
-  const boundarySegments=levelSetBoundarySegments(field,level,refine);
+  const boundarySegments=levelSetBoundarySegments(field,level,refine,crossings);
   return chain([...interiorSegments,...boundarySegments],output,precision);
 }
 
-function crossingPoint(p,q,level,refine){
+function crossingPoint(p,q,level,refine,crossings){
+  // Adjacent cells share the same grid edge. Its refined intersection belongs
+  // to the field, so construct it once in the same inside-to-outside order.
+  const key=p.index<q.index?p.index+':'+q.index:q.index+':'+p.index;
+  if(crossings.has(key))return crossings.get(key);
   const sentinel=Math.abs(p.value)>=SENTINEL||Math.abs(q.value)>=SENTINEL;
   if(sentinel&&refine){
     const point=p.value>=level?refine([p.x,p.y],[q.x,q.y]):refine([q.x,q.y],[p.x,p.y]);
-    if(point)return point;
+    if(point){crossings.set(key,point);return point;}
   }
   const t=(level-p.value)/(q.value-p.value);
-  return [p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t];
+  const point=[p.x+(q.x-p.x)*t,p.y+(q.y-p.y)*t];crossings.set(key,point);return point;
 }
 
-function levelSetInteriorSegments({xs,ys,values},level,refine){
+function levelSetInteriorSegments({xs,ys,values},level,refine,crossings){
   const segments = [];
   for (let i = 0; i < xs.length - 1; i++)
     for (let j = 0; j < ys.length - 1; j++) {
       const corners = [
-        { x: xs[i], y: ys[j], value: values[i][j] },
-        { x: xs[i + 1], y: ys[j], value: values[i + 1][j] },
-        { x: xs[i + 1], y: ys[j + 1], value: values[i + 1][j + 1] },
-        { x: xs[i], y: ys[j + 1], value: values[i][j + 1] }
+        { x: xs[i], y: ys[j], value: values[i][j], index:i*ys.length+j },
+        { x: xs[i + 1], y: ys[j], value: values[i + 1][j], index:(i+1)*ys.length+j },
+        { x: xs[i + 1], y: ys[j + 1], value: values[i + 1][j + 1], index:(i+1)*ys.length+j+1 },
+        { x: xs[i], y: ys[j + 1], value: values[i][j + 1], index:i*ys.length+j+1 }
       ];
       // An undefined scalar outside a partial chart cannot define a contour
       // segment. Retain the open boundary at the declared sampling scale.
@@ -139,7 +144,7 @@ function levelSetInteriorSegments({xs,ys,values},level,refine){
         const p = corners[e], q = corners[(e + 1) % 4];
         const above = p.value >= level, next = q.value >= level;
         if (above === next) continue;
-        const point=crossingPoint(p,q,level,refine);
+        const point=crossingPoint(p,q,level,refine,crossings);
         (above ? exits : entries).push(point);
       }
       for (let k = 0; k < Math.min(exits.length, entries.length); k++) segments.push([exits[k], entries[k]]);
@@ -147,11 +152,11 @@ function levelSetInteriorSegments({xs,ys,values},level,refine){
   return segments;
 }
 
-function levelSetBoundarySegments({xs,ys,values},level,refine){
+function levelSetBoundarySegments({xs,ys,values},level,refine,crossings){
   // A level set can meet the sampled domain boundary. Close its high side
   // along that boundary instead of implicitly joining an open contour by a chord.
   const border=[],segments=[];
-  const sample=(i,j)=>({x:xs[i],y:ys[j],value:values[i][j]});
+  const sample=(i,j)=>({x:xs[i],y:ys[j],value:values[i][j],index:i*ys.length+j});
   for(let i=0;i<xs.length-1;i++)border.push(sample(i,0));
   for(let j=0;j<ys.length-1;j++)border.push(sample(xs.length-1,j));
   for(let i=xs.length-1;i>0;i--)border.push(sample(i,ys.length-1));
@@ -160,7 +165,7 @@ function levelSetBoundarySegments({xs,ys,values},level,refine){
     const p=border[i],q=border[(i+1)%border.length],above=p.value>=level,next=q.value>=level;
     if(!above&&!next)continue;
     if(above&&next){segments.push([[p.x,p.y],[q.x,q.y]]);continue;}
-    const point=crossingPoint(p,q,level,refine);
+    const point=crossingPoint(p,q,level,refine,crossings);
     segments.push(above?[[p.x,p.y],point]:[point,[q.x,q.y]]);
   }
   return segments;
