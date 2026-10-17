@@ -446,22 +446,32 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     return supportPrecision?.get(key)??Math.max(PRINT_RESOLUTION_MM/8,
       Math.min(NOZZLE_FORGIVENESS_MM,a.range.widthMm[0],b?.range.widthMm[0]??Infinity)/2);
   }
-  function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false}={}){
+  function pairKey(receiver,materialRecord,{localize=false,allowChoice=false}={}){
     // External interval geometry is independent of traversal direction.
     // Possible contact is reusable only at the same requested precision;
     // tightening a cyclic choice changes its key and performs a fresh query.
-    const key=solid?null:JSON.stringify([localize,allowChoice,allowChoice?contactPrecision(receiver,materialRecord,true):null,
+    return JSON.stringify([localize,allowChoice,allowChoice?contactPrecision(receiver,materialRecord,true):null,
       ...[receiver,materialRecord].map(record=>[record.ref.id,record.ref.from,record.ref.to])]);
-    const known=key&&pairResults.entries.get(key);
-    if(known){pairResults.entries.delete(key);pairResults.entries.set(key,known);return known.witness;}
-    const witness=queryPair(receiver,materialRecord,solid,{localize,allowChoice});
-    if(key){
-      const bytes=2*(key.length+JSON.stringify(witness).length)+128;
-      if(bytes<=cacheLimit){
-        while(pairResults.bytes+bytes>cacheLimit){const first=pairResults.oldest.next().value;pairResults.bytes-=pairResults.entries.get(first).bytes;pairResults.entries.delete(first);}
-        pairResults.entries.set(key,{witness,bytes});pairResults.bytes+=bytes;
-      }
+  }
+  function knownPair(key){
+    const known=pairResults.entries.get(key);
+    if(known){pairResults.entries.delete(key);pairResults.entries.set(key,known);}
+    return known;
+  }
+  function rememberPair(key,witness){
+    const bytes=2*(key.length+JSON.stringify(witness).length)+128;
+    if(bytes<=cacheLimit){
+      const previous=pairResults.entries.get(key);
+      if(previous){pairResults.bytes-=previous.bytes;pairResults.entries.delete(key);}
+      while(pairResults.bytes+bytes>cacheLimit){const first=pairResults.oldest.next().value;pairResults.bytes-=pairResults.entries.get(first).bytes;pairResults.entries.delete(first);}
+      pairResults.entries.set(key,{witness,bytes});pairResults.bytes+=bytes;
     }
+  }
+  function pair(receiver,materialRecord,solid=null,{localize=false,allowChoice=false,cacheClear=true}={}){
+    const key=solid?null:pairKey(receiver,materialRecord,{localize,allowChoice}),known=key&&knownPair(key);
+    if(known)return known.witness;
+    const witness=queryPair(receiver,materialRecord,solid,{localize,allowChoice});
+    if(key&&(witness||cacheClear))rememberPair(key,witness);
     return witness;
   }
   function queryPair(receiver,materialRecord,solid,{localize,allowChoice}){
@@ -536,7 +546,17 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
       if(seen.has(other.unit.id)||!acceptGroup(other.unit.id))continue;
       const state={witness:null};
       for(const solid of other.solids){state.witness=pair(record,null,solid,{allowChoice:true});if(state.witness)break;}
-      if(!state.witness)for(const candidate of regionalMaterial(other,nozzle(record).shape)){state.witness=pair(record,candidate,null,{allowChoice:true});if(state.witness)break;}
+      if(!state.witness){
+        const remaining=other.records.map(candidate=>({candidate,key:pairKey(record,candidate,{allowChoice:true})})).filter(query=>knownPair(query.key)?.witness!==null);
+        if(!remaining.length)continue;
+        const ids=new Set(remaining.map(query=>query.candidate.ref.id));
+        for(const candidate of regionalMaterial(other,nozzle(record).shape))if(ids.has(candidate.ref.id)){
+          state.witness=pair(record,candidate,null,{allowChoice:true,cacheClear:false});if(state.witness)break;
+        }
+        // The enclosing nozzle and material index excluded every other cell.
+        // Keep the completed course proofs, rather than transient cell misses.
+        if(!state.witness)for(const query of remaining)rememberPair(query.key,null);
+      }
       if(state.witness){seen.add(other.unit.id);yield {unit:other.unit,witness:state.witness};}
     }
     return hits;
