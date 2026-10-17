@@ -2,7 +2,7 @@
 // (homogeneous [xw, yw, zw, w] controls), in their first two coordinates:
 // trimming, joining, reversal, Bezier spans, root isolation, crossings and
 // winding numbers.
-import {findSpan,evaluateCurve} from './nurbs.mjs';
+import {findSpan,evaluateCurve,requireSplineDegree} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
 import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
@@ -35,6 +35,7 @@ export function extract(curve,a,b){
 
 // B continues A at A's end once its parameter is shifted; the joint is C0.
 export function join(A,B,shift){
+  requireSplineDegree(A.order-1);requireSplineDegree(B.order-1);
   const knots=Float64Array.from([...A.knots.subarray(0,A.n),...Array(A.order-1).fill(A.domain[1]),...[...B.knots.subarray(B.order)].map(k=>k+shift)]);
   const cp=new Float64Array((A.n+B.n-1)*4);cp.set(A.cp);cp.set(B.cp.subarray(4),A.n*4);
   return {n:A.n+B.n-1,order:A.order,knots,cp,domain:[A.domain[0],B.domain[1]+shift]};
@@ -42,6 +43,7 @@ export function join(A,B,shift){
 
 // The same curve traversed backwards, parameter t mapped to sum - t.
 export function reverseCurve(curve,sum=curve.domain[0]+curve.domain[1]){
+  requireSplineDegree(curve.order-1);
   const {n,order,knots,cp,domain}=curve,out=new Float64Array(n*4);
   for(let i=0;i<n;i++)out.set(cp.subarray((n-1-i)*4,(n-i)*4),i*4);
   return {n,order,knots:Float64Array.from([...knots].reverse().map(t=>sum-t)),cp:out,domain:[sum-domain[1],sum-domain[0]]};
@@ -49,6 +51,7 @@ export function reverseCurve(curve,sum=curve.domain[0]+curve.domain[1]){
 
 // The same curve moved by [du, dv] in its first two coordinates.
 export function translateCurve(curve,[du,dv]){
+  requireSplineDegree(curve.order-1);
   const cp=Float64Array.from(curve.cp);
   for(let i=0;i<curve.n;i++){cp[i*4]+=du*cp[i*4+3];cp[i*4+1]+=dv*cp[i*4+3];}
   return {...curve,cp};

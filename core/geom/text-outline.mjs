@@ -1,6 +1,7 @@
 import {requireThat} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {create} from 'fontkit';
+import {requireSplineDegree} from './nurbs.mjs';
 
 import {union} from '../region/intersection.mjs';
 import {offsetRegion} from '../region/offset.mjs';
@@ -15,6 +16,7 @@ const distanceToSegment=(p,a,b)=>{
 // reaches for any finite curve. The only real failure is a parameter interval
 // too small to halve again, which is reported as such.
 export function flattenBezier(points,toleranceMm){
+  requireSplineDegree(points.length-1);
   const samples=[],parameters=[];
   function subdivide(control,t0,t1){
     requireThat(control.every(p=>p.every(Number.isFinite)),'Text curve control point is not finite.');

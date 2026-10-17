@@ -16,26 +16,28 @@ import {tessellateSurfaceShell} from '../geom/surface-tessellate.mjs';
 import {displayGeometry} from '../geom/boolean-solid.mjs';
 import {spatialPreview,validateSpatial} from '../geom/spatial.mjs';
 import {normalizeAuthoredGeometry} from '../geom/mesh-source.mjs';
+import {executeGeometry} from '../geom/execution.mjs';
 
-const admissions=new WeakMap(),preparations=new WeakMap();
-function normalizeGeometry(parameters,previousGeometry,key){
-  const cached=admissions.get(parameters);
-  if(cached?.key===key)return cached.admitted;
-  const admitted=normalizeAuthoredGeometry(parameters,previousGeometry);
-  admissions.set(parameters,{key,admitted});
-  admissions.set(admitted.geometry,{key:admitted.geometry===parameters?key:canonicalHash(admitted.geometry),admitted});return admitted;
-}
-export async function createGeometry(parameters,{previousGeometry}={}){
-  const key=canonicalHash(parameters),cached=preparations.get(parameters);
+const preparations=new WeakMap();
+export async function createGeometry(parameters,{previousGeometry,...execution}={}){
+  execution.signal?.throwIfAborted();
+  const key=canonicalHash(parameters),owned=Boolean(execution.signal||execution.timeoutMs),cached=owned?null:preparations.get(parameters);
   if(cached?.key===key)return cached.preparation;
-  const admitted=normalizeGeometry(parameters,previousGeometry,key);
-  const preparation=createGeometryArtifact(admitted.geometry).then(artifact=>{
-    if(admitted.reports.length)artifact.descriptor.meshNormalization=admitted.reports;
+  const preparation=executeGeometry('geometry-artifact',{parameters,previousGeometry},{subject:'Geometry artifact construction',...execution}).then(artifact=>{
+    const admitted=artifact.descriptor.parameters;
+    if(!owned)preparations.set(admitted,{key:canonicalHash(admitted),preparation});
     return artifact;
   });
-  preparations.set(parameters,{key,preparation});
-  preparations.set(admitted.geometry,{key:admitted.geometry===parameters?key:canonicalHash(admitted.geometry),preparation});
-  try{return await preparation;}catch(error){preparations.delete(parameters);preparations.delete(admitted.geometry);throw error;}
+  if(!owned)preparations.set(parameters,{key,preparation});
+  try{return await preparation;}catch(error){if(!owned&&preparations.get(parameters)?.preparation===preparation)preparations.delete(parameters);throw error;}
+}
+// Admission, native lifetime, tessellation and encoded-byte verification share
+// one calculation lease. The application only caches its completed artifact.
+export async function prepareGeometryArtifactValue(parameters,{previousGeometry}={}){
+  const admitted=normalizeAuthoredGeometry(parameters,previousGeometry);
+  const artifact=await createGeometryArtifact(admitted.geometry);
+  if(admitted.reports.length)artifact.descriptor.meshNormalization=admitted.reports;
+  return artifact;
 }
 
 const directMesh=parameters=>parameters?.shape==='spatial'?directMesh(parameters.solid)
@@ -43,7 +45,7 @@ const directMesh=parameters=>parameters?.shape==='spatial'?directMesh(parameters
 // Source parameters are the recipe authority; cached display data cannot supply a second shape.
 export async function geometryDescriptor(parameters,descriptor){
   if(!descriptor)return null;
-  if(descriptor.parameters&&canonicalHash(descriptor.parameters)!==canonicalHash(parameters))return (await createGeometryArtifact(parameters)).descriptor;
+  if(descriptor.parameters&&canonicalHash(descriptor.parameters)!==canonicalHash(parameters))return (await createGeometry(parameters)).descriptor;
   const mesh=directMesh(parameters);
   if(mesh)return {...descriptor,schema:'saam-shell-geometry/1',parameters,vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.triangles.map(()=>'mesh'),
     boundsMm:parameters.shape==='spatial'?descriptor.boundsMm:mesh.vertices.length?{min:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[axis]),Infinity)),max:[0,1,2].map(axis=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[axis]),-Infinity))}:{min:[0,0,0],max:[0,0,0]}};
@@ -67,7 +69,6 @@ export async function receiveGeometry(record){
   requireThat(record?.schema==='saam-geometry-transfer/1','Incompatible Geometry worker result. Reload the source runtime.');
   const parameters=record.parameters,key=canonicalHash(parameters);
   const descriptor=await geometryDescriptor(parameters,record.view),artifact={bytes:record.bytes,descriptor};
-  admissions.set(parameters,{key,admitted:{geometry:parameters,reports:descriptor.meshNormalization??[]}});
   preparations.set(parameters,{key,preparation:Promise.resolve(artifact)});return parameters;
 }
 

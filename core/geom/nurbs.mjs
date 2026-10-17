@@ -13,10 +13,16 @@
 import { requireThat, cross, length, TOLERANCE } from './tolerance.mjs';
 import { ROUNDING_MM } from '../dimensions.mjs';
 
+// Straight/ruled geometry is linear; curved geometry is quadratic or cubic.
+export function requireSplineDegree(degree){
+  requireThat(degree===1||degree===2||degree===3,'Spline degree must be 1 (straight/ruled), 2 or 3; use more quadratic/cubic spans for additional shape detail.');
+}
+
 // Admit the shared positive-weight, full-knot authored curve representation.
 export function authoredNurbs(record,dimension=3){
   requireThat(record&&Object.keys(record).every(k=>['degree','knots','controlPoints','weights'].includes(k)),'Unexpected NURBS curve fields.');
   const {degree,knots,controlPoints,weights}=record;
+  requireSplineDegree(degree);
   requireThat(Number.isInteger(degree)&&degree>=1&&Array.isArray(controlPoints)&&controlPoints.length>degree&&
     controlPoints.every(p=>Array.isArray(p)&&p.length===dimension&&p.every(Number.isFinite)),'NURBS needs a degree and finite control points.');
   const n=controlPoints.length,order=degree+1;
@@ -27,6 +33,7 @@ export function authoredNurbs(record,dimension=3){
 }
 
 export function nurbsCurveRecord(curve,dimension=3){
+  requireSplineDegree(curve.order-1);
   return {degree:curve.order-1,knots:[...curve.knots],controlPoints:Array.from({length:curve.n},(_,i)=>Array.from({length:dimension},(_,k)=>curve.cp[i*4+k]/curve.cp[i*4+3])),weights:Array.from({length:curve.n},(_,i)=>curve.cp[i*4+3])};
 }
 
@@ -35,6 +42,7 @@ export function patchFromSurface(surface, name = 'patch') {
   requireThat(ns, `Surface "${name}" has no NURBS form.`);
   const points = ns.points(), nu = points.countU, nv = points.countV;
   const orderU = ns.orderU, orderV = ns.orderV;
+  requireSplineDegree(orderU-1);requireSplineDegree(orderV-1);
   const cp = new Float64Array(nu * nv * 4);
   for (let i = 0; i < nu; i++) {
     for (let j = 0; j < nv; j++) {
@@ -61,6 +69,7 @@ function fullKnots(list, count, order, name) {
 }
 
 export function findSpan(knots, count, order, t) {
+  requireSplineDegree(order-1);
   const degree = order - 1, low = degree, high = count;
   if (t >= knots[high]) return high - 1;
   if (t <= knots[low]) return low;
@@ -74,6 +83,7 @@ export function findSpan(knots, count, order, t) {
 
 // Basis functions and their derivatives (The NURBS Book, algorithm A2.3).
 export function basisDerivatives(knots, span, t, order, count) {
+  requireSplineDegree(order-1);
   const degree = order - 1;
   const ndu = [], a = [[], []], left = [], right = [], ders = [];
   for (let i = 0; i <= degree; i++) ndu.push(new Float64Array(degree + 1));
@@ -122,6 +132,7 @@ export function basisDerivatives(knots, span, t, order, count) {
 // sectioner evaluates g millions of times per part and needs no derivatives, so
 // this path avoids the derivative table entirely.
 export function basisFunctions(knots, span, t, order) {
+  requireSplineDegree(order-1);
   const out = new Float64Array(order);
   out[0] = 1;
   for (let j = 1; j < order; j++) {

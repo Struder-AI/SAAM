@@ -1,7 +1,7 @@
 // A solid authored as named NURBS patches: the agent writes the
 // control nets and SAAM measures where they close. Nothing here is a template;
 // every patch is exactly what the recipe says.
-import {patchFromSurface} from './nurbs.mjs';
+import {patchFromSurface,requireSplineDegree} from './nurbs.mjs';
 import {makeShell} from './shell.mjs';
 import {requireThat} from './tolerance.mjs';
 import {loopArea,pointInRegion} from '../region/region2d.mjs';
@@ -16,7 +16,10 @@ export const splineSolidTemplate=()=>({shape:'spline',patches:[]});
 
 // Clamped uniform knots when a direction supplies none; a full vector
 // (count + degree + 1 values) otherwise, as in the reference-surface contract.
-export const clampedKnots=(count,degree)=>Array.from({length:count+degree+1},(_,i)=>i<=degree?0:i>=count?1:(i-degree)/(count-degree));
+export function clampedKnots(count,degree){
+  requireSplineDegree(degree);
+  return Array.from({length:count+degree+1},(_,i)=>i<=degree?0:i>=count?1:(i-degree)/(count-degree));
+}
 
 export function validateSplineSolid(geometry){
   requireThat(Object.keys(geometry).every(k=>['shape','patches'].includes(k)),'A spline solid has only shape and patches.');
@@ -28,8 +31,10 @@ export function validateSplineSolid(geometry){
     names.add(patch.name);
     const net=patch.controlPoints,nu=net?.length,nv=net?.[0]?.length;
     requireThat(Array.isArray(net)&&net.every(row=>Array.isArray(row)&&row.length===nv),`Patch ${patch.name} needs a rectangular control net (rows along U, points along V).`);
-    for(const [degree,count,axis] of [[patch.degreeU,nu,'U'],[patch.degreeV,nv,'V']])
-      requireThat(Number.isInteger(degree)&&degree>=1&&count>degree,`Patch ${patch.name}: degree${axis} must be positive and less than its control count.`);
+    for(const [degree,count,axis] of [[patch.degreeU,nu,'U'],[patch.degreeV,nv,'V']]){
+      requireSplineDegree(degree);
+      requireThat(count>degree,`Patch ${patch.name}: degree${axis} must be less than its control count.`);
+    }
     requireThat(net.every(row=>row.every(p=>Array.isArray(p)&&[3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length===3||p[3]>0))),
       `Patch ${patch.name}: control points are [x,y,z] or [x,y,z,weight] with a positive weight.`);
     for(const [knots,count,degree,axis] of [[patch.knotsU,nu,patch.degreeU,'U'],[patch.knotsV,nv,patch.degreeV,'V']]){

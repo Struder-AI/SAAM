@@ -1,4 +1,4 @@
-// Retain exact native images of piecewise straight chart paths. Process fields
+// Retain bounded cubic images of piecewise straight chart paths. Process fields
 // and scheduling never enter this boundary; altered/unsupported mappings stay
 // with their finalized sampled geometry.
 import {surfaceSegmentCurves} from './surface-curves.mjs';
@@ -76,7 +76,7 @@ export function mappedSurfacePath(surface,chart,points){
     if(!(length>0))return null;lengths.push(lengths.at(-1)+length);
   }
   const parameters=lengths.map(value=>value/lengths.at(-1)),mapped=chart.map(uv=>evaluate(patch,uv[0],uv[1],false).point),pieces=[];
-  const error={positionMm:0};
+  const error={positionMm:0,sourceMm:0};
   for(const [i,point] of points.entries()){
     error.positionMm=Math.max(error.positionMm,distance(point,mapped[i]));
     if(error.positionMm>ROUNDING_MM)return null;
@@ -85,6 +85,7 @@ export function mappedSurfacePath(surface,chart,points){
   for(let i=1;i<kept.length;i++){
     const a=kept[i-1],b=kept[i];
     for(const curve of surfaceSegmentCurves(patch,chart[a],chart[b])){
+      error.sourceMm=Math.max(error.sourceMm,curve.positionErrorMm);
       const rows=reduce(Array.from({length:curve.n},(_,j)=>Array.from(curve.cp.slice(j*4,j*4+4))));
       pieces.push({rows,from:parameters[a]+curve.domain[0]*(parameters[b]-parameters[a]),to:parameters[a]+curve.domain[1]*(parameters[b]-parameters[a])});
     }
@@ -97,7 +98,7 @@ export function mappedSurfacePath(surface,chart,points){
   }
   const geometry={kind:'nurbs',degree,knots,controlPoints:controls.map(row=>row.slice(0,3).map(value=>value/row[3])),weights:controls.map(row=>row[3])};
   if(geometry.weights.every(weight=>Math.abs(weight-1)<=FLOAT64_EPSILON*32))delete geometry.weights;
-  error.positionMm=Math.max(error.positionMm,positionBound(pieces,parameters,points));
+  error.positionMm=Math.max(error.positionMm,positionBound(pieces,parameters,points))+error.sourceMm;
   if(error.positionMm>PRINT_RESOLUTION_MM)return null;
   return {geometry,parameters,points,positionErrorMm:error.positionMm};
 }

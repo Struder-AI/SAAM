@@ -5,12 +5,17 @@ import {setTimeout as delay} from 'node:timers/promises';
 import {heapCeilingMb} from '../memory.mjs';
 const RESPONSIVENESS={pollMs:10,progressMs:25,shutdownMs:1000};
 const runtime={supervisor:null};
+const calculation={context:null};
 
 export function geometryMemoryError(error,subject,{detail='',code='GEOMETRY_MEMORY_EXHAUSTED',heapMb}={}){
   if(error?.code!=='ERR_WORKER_OUT_OF_MEMORY')return error;
   return Object.assign(Error(`${subject} ran out of memory${detail}: its ${heapMb?`${(heapMb/1024).toFixed(1)} GiB `:''}heap, sized to available memory, was exhausted. Nothing is simplified automatically; a machine with more RAM can finish it.`),{code,cause:error});
 }
 export async function executeGeometry(operation,input,options={}){
+  // Nested asynchronous capabilities remain in their owning calculation lease;
+  // the supervisor retains cancellation, deadline and memory ownership.
+  if(calculation.context&&options.timeoutMs===undefined&&(!options.signal||options.signal===calculation.context.signal))
+    return calculateGeometry(operation,input,{...calculation.context,...options});
   const session=beginExecution(operation,input,options);
   try{for(;;){const outcome=pollExecution(session);if(outcome){if(outcome.error)throw outcome.error;return outcome.value;}await delay(RESPONSIVENESS.pollMs);}}
   finally{closeExecution(session);}
@@ -141,13 +146,15 @@ async function executeLease({port,control}){
     const request=await new Promise(resolve=>port.once('message',resolve));
     port.on('message',message=>{const entry=pending.get(message.id);if(entry){pending.delete(message.id);entry.resolve();}});
     abort();controller.signal.throwIfAborted();
-    const value=await calculateGeometry(request.operation,request.input,{signal:controller.signal,progress,...(request.geometry?{onGeometry}:{})});
+    calculation.context={signal:controller.signal,progress,...(request.geometry?{onGeometry}:{})};
+    const value=await calculateGeometry(request.operation,request.input,calculation.context);
     controller.signal.throwIfAborted();port.postMessage({type:'result',value});
   }catch(error){state.retire=error instanceof RangeError||error instanceof WebAssembly.RuntimeError;port.postMessage({type:'error',error:errorRecord(error),progress:state.progress});}
-  finally{clearInterval(timer);port.close();parentPort.postMessage({completed:true,retire:state.retire});}
+  finally{calculation.context=null;clearInterval(timer);port.close();parentPort.postMessage({completed:true,retire:state.retire});}
 }
 async function calculateGeometry(operation,input,context){
   switch(operation){
+    case 'geometry-artifact': {const {prepareGeometryArtifactValue}=await import('../print/geometry.mjs');return prepareGeometryArtifactValue(input.parameters,{previousGeometry:input.previousGeometry});}
     case 'surface-boolean': {const {constructSurfaceBoolean}=await import('./surface-boolean-kernel.mjs');return constructSurfaceBoolean(input.operation,input.operands,{...input.options,onPhase:context.progress});}
     case 'stl-repair': {const {prepareSTLRepairValue}=await import('./stl-repair.mjs');return prepareSTLRepairValue(input.source,{...input.options,...context});}
     case 'stl-source': {const {prepareSTLSourceValue}=await import('./import-stl.mjs');return prepareSTLSourceValue(input.source,{...input.options,...context});}

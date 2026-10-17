@@ -3,7 +3,7 @@
 // All uses of a curve split at the same parameters and share vertex identities.
 import {evaluate,nurbsCurveRecord} from './nurbs.mjs';
 import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
-import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
+import {surfaceIsoCurve,curvePoint,surfaceSegmentLineError} from './surface-curves.mjs';
 import {patchDomain} from './surface-trim.mjs';
 import {prepareCurveLoops} from './curve-loops.mjs';
 import {curveCorrespondence} from './surface-coincidence.mjs';
@@ -159,8 +159,7 @@ function splitVertexFans(vertices,edges,contacts){
 
 function chartSegmentCollapsed(patch,a,b){
   const first=evaluate(patch,...a,false).point;
-  return distance(first,evaluate(patch,...b,false).point)<=ROUNDING_MM&&
-    distance(first,evaluate(patch,...interpolate(a,b,.5),false).point)<=ROUNDING_MM;
+  return surfaceSegmentLineError(patch,a,b,first,first)<=ROUNDING_MM;
 }
 
 // A retraced chart boundary can cancel itself. Periodic seam coedges occupy
@@ -225,9 +224,8 @@ function nativeBoundaryUse(patch,a,b,curves,toleranceMm){
 
 function nativeBoundaryMapping(patch,a,b,curves,toleranceMm,{matchIntersections=true}={}){
   const shared=matchIntersections?geometricBoundaryUse(patch,a,b,curves,toleranceMm):null;if(shared)return shared;
-  const first=evaluate(patch,...a,false).point,last=evaluate(patch,...b,false).point,middle=evaluate(patch,...interpolate(a,b,.5),false).point;
-  const length=distance(first,last),d=last.map((v,k)=>v-first[k]);
-  if(length>ROUNDING_MM&&distance(middle,interpolate(first,last,.5))<=ROUNDING_MM){
+  const first=evaluate(patch,...a,false).point,last=evaluate(patch,...b,false).point;
+  if(distance(first,last)>ROUNDING_MM&&surfaceSegmentLineError(patch,a,b,first,last)<=ROUNDING_MM){
     return lineUse(curves,first,last,toleranceMm);
   }
   const axis=Math.abs(a[0]-b[0])<=ROUNDING_RELATIVE?0:Math.abs(a[1]-b[1])<=ROUNDING_RELATIVE?1:null;
@@ -302,8 +300,7 @@ function chartSegmentsWithin(segments,bounds){
 
 function faithfulChartSegment(patch,a,b,first,last,toleranceMm){
   if(!a||!b)return false;
-  const middle=evaluate(patch,...interpolate(a,b,.5),false).point;
-  return distance(middle,interpolate(first,last,.5))<=toleranceMm;
+  return surfaceSegmentLineError(patch,a,b,first,last)<=toleranceMm;
 }
 
 function nearCurveParameters(patch,uv,curve,chart,toleranceMm){

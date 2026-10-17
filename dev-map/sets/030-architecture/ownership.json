@@ -1822,6 +1822,10 @@
     "core/path/cooling-order.mjs": {
       "owner": "scheduling",
       "reason": "Scheduler-owned recent-deposition neighborhoods rank available slices and courses without dwelling or changing feed."
+    },
+    "core/geom/cubic-bezier.mjs": {
+      "owner": "geometry",
+      "reason": "Bounded cubic construction from surface-composition Bernstein proof coefficients."
     }
   },
   "leaves": {

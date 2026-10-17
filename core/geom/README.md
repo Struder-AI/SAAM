@@ -4,8 +4,8 @@
 
 [execution.mjs](execution.mjs) owns Geometry worker lifecycle, communication, memory policy,
 cancellation, deadlines, progress and errors. Named capabilities hide this machinery from clients.
-One bootstrap serves supervision and leased calculations, reusing an idle calculation. Supervision stays responsive.
-Boolean owns fuzzy matching and perturbations; execution enforces caller deadlines and cancellation. Construction has no elapsed-time refusal.
+Artifact admission, encoding and display tessellation share a lease; nested asynchronous capabilities reuse it.
+One bootstrap supervises and reuses calculations. Boolean owns recovery; execution enforces caller deadlines and cancellation without construction time limits.
 Progress callback errors cancel work. Geometry chunks await their matching acknowledgement.
 Async calls settle after calculation stops, including cancellation and worker allocation failures.
 Callers own scratch directories and publication; calculations may write only their supplied staging
@@ -83,7 +83,7 @@ Plane sections accept `side:'negative'|'positive'` for one-sided limits along th
 | Operation | Current consumers and contract |
 |---|---|
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
-| [surfaceCurveImages](surface-curve-image.mjs) | Given a numerical patch and an ordinary UV `points`/`nurbs` curve, return `{nurbs,uvNurbs}` pieces split at native knot crossings. Bernstein composition retains exact rational images; extensions use them for matching ruled walls, and trim sections use them for curve/plane roots. |
+| [surfaceCurveImages](surface-curve-image.mjs) | Map ordinary UV `points`/`nurbs` curves to `{nurbs,uvNurbs,positionErrorMm}` pieces. Exact UV intervals pair with images of degree ≤3; subdivision bounds physical error over each interval (default print resolution / 4). Extensions build matching ruled walls; trims find plane roots. |
 | [evaluateSurface / mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | Native units, derivatives and chart identity survive numerical serialization. References retain original factory inputs; preparation reuses their evaluators, including [contact charts](contact-chart.mjs). Out-of-domain and singular samples retain their errors. |
 | [prepareNumericalCurve / numericalCurveAt / numericalCurveRange](curve-query.mjs) | Native NURBS, polylines and points share conservative position, tangent, speed, chord-error and convergent arc-length bounds. Geometry also supplies direction/full-frame cones. [Construction sampling](curve-sampling.mjs) uses probes, preserving observed crossings and breaks; unsampled crossings remain unknown. |
 | [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Root assemblies retain parts; Boolean operands resolve placed physical unions. Presence uses construction proofs or an explicit mesh query. Opaque numerical inputs support mesh output only. |

@@ -3,12 +3,15 @@ import {requireGeometry} from './query.mjs';
 import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,cross,normalize} from './tolerance.mjs';
 import {DIRECTION_TOLERANCE} from './frame.mjs';
+import {requireSplineDegree} from './nurbs.mjs';
 
 export function referencePatch(spec){
   const {degreeU,degreeV,controlPoints}=spec;
   requireThat(Array.isArray(controlPoints)&&controlPoints.length>=2,'Reference needs a rectangular control net.');
   const nu=controlPoints.length,nv=controlPoints[0]?.length;
-  for(const [d,n] of [[degreeU,nu],[degreeV,nv]])requireThat(Number.isInteger(d)&&d>=1&&d<=5&&n>d,'Reference spline degree must be 1–5 and less than its control count.');
+  for(const [d,n] of [[degreeU,nu],[degreeV,nv]]){
+    requireSplineDegree(d);requireThat(n>d,'Reference spline degree must be less than its control count.');
+  }
   requireThat(controlPoints.every(row=>Array.isArray(row)&&row.length===nv&&row.every(p=>Array.isArray(p)&&[3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length===3||p[3]>0))),'Reference points must be XYZ or XYZ plus positive weight.');
   const knotsU=fullKnots(nu,degreeU,spec.knotsU),knotsV=fullKnots(nv,degreeV,spec.knotsV);
   const cp=Float64Array.from(controlPoints.flatMap(row=>row.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,p[2]*w,w];})));
@@ -26,7 +29,8 @@ function fullKnots(n,d,supplied){
 // [x, y, z] or [x, y, z, w]. A periodic curve supplies its unclamped knots and
 // repeats its first `degree` controls at the end.
 export function referenceCurve({degree,controlPoints,knots}){
-  requireThat(Array.isArray(controlPoints)&&Number.isInteger(degree)&&degree>=1&&degree<=5&&controlPoints.length>degree,'Curve degree must be 1–5 and less than its control count.');
+  requireSplineDegree(degree);
+  requireThat(Array.isArray(controlPoints)&&controlPoints.length>degree,'Curve degree must be less than its control count.');
   requireThat(controlPoints.every(p=>Array.isArray(p)&&[2,3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length<4||p[3]>0)),'Curve points must be XY, XYZ or XYZ plus positive weight.');
   const n=controlPoints.length,k=fullKnots(n,degree,knots);
   const cp=Float64Array.from(controlPoints.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}));

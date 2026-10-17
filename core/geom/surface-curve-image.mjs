@@ -1,13 +1,15 @@
-// Exact rational composition of a UV curve with a tensor-product surface.
-// Knot crossings partition native spans; Bernstein products form each image.
+// Bounded cubic images of a UV curve on a tensor-product surface. Native UV
+// intervals remain exact, paired with each image's physical position bound.
 import {preparePlanarCurve} from './curve-loops.mjs';
 import {bezierSpans,bezierRoots,extract} from './curve-ops.mjs';
 import {bezierPieces} from './surface-intersection.mjs';
 import {evaluateCurve,nurbsCurveRecord} from './nurbs.mjs';
 import {bernsteinProductWeights} from './bezier-net.mjs';
 import {requireThat} from './tolerance.mjs';
+import {cubicBezierPieces} from './cubic-bezier.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
-export function surfaceCurveImages(patch,definition){
+export function surfaceCurveImages(patch,definition,{toleranceMm=PRINT_RESOLUTION_MM/4}={}){
   requireThat(patch.cp&&patch.knotsU&&patch.knotsV,'Surface curve images need a prepared native patch.');
   const cells=bezierPieces(patch),results=[];
   for(const curve of preparePlanarCurve(definition))for(const span of bezierSpans(curve)){
@@ -25,7 +27,10 @@ export function surfaceCurveImages(patch,definition){
         const mid=(a+b)/2;requireThat(mid>a&&mid<b,'Surface curve image cannot resolve positive rational weights at parameter precision.');
         pending.unshift([a,mid],[mid,b]);continue;
       }
-      results.push({nurbs:controlRecord(controls),uvNurbs:controlRecord(Array.from({length:piece.n},(_,i)=>Array.from(piece.cp.slice(i*4,i*4+4))),2)});
+      for(const image of cubicBezierPieces(controls,{from:a,to:b,toleranceMm})){
+        const uvPiece=extract(piece,image.from,image.to);
+        results.push({nurbs:controlRecord(image.rows),uvNurbs:controlRecord(Array.from({length:uvPiece.n},(_,i)=>Array.from(uvPiece.cp.slice(i*4,i*4+4))),2),positionErrorMm:image.positionErrorMm});
+      }
     }
   }
   return results;

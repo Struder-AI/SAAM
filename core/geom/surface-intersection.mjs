@@ -17,7 +17,7 @@
 // bounds audit the remaining cells to chord/solve accuracy. Unresolved connected
 // contacts larger than that accuracy fail, allowing Geometry recovery to retry.
 // Tangencies and incomplete traces fail early; a collapsed pole is not a curve.
-import { evaluate } from './nurbs.mjs';
+import { evaluate,requireSplineDegree } from './nurbs.mjs';
 import {intersect} from '../region/intersection.mjs';
 import { cross, dot, subtract, distance, length, TOLERANCE } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
@@ -71,6 +71,7 @@ function refineRow(points, knots, degree) {
 // rows along U, with their parameter ranges.
 const PIECES = new WeakMap();
 export function bezierPieces(patch) {
+  requireSplineDegree(patch.orderU-1);requireSplineDegree(patch.orderV-1);
   if (!PIECES.has(patch)) PIECES.set(patch, extractPieces(patch));
   return PIECES.get(patch);
 }

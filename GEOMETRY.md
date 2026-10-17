@@ -8,7 +8,7 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 `geometry: {shape: "spline", patches: [...]}` retains patches `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`.
 `controlPoints` has rows along U and points along V: `[x,y,z]` or `[x,y,z,weight]`.
-Degrees are positive and below the control count. Knots default to clamped uniform; supplied vectors are complete (count + degree + 1).
+Curves and surface axes use degree 2 or 3; straight/ruled geometry may use degree 1. Add spans for detail. Knots default to clamped uniform; supplied vectors are complete (count + degree + 1).
 Each `trimLoops` entry is a UV polyline or `{curves:[{points:UV[]}|{nurbs:{degree,knots,controlPoints,weights?}},…]}`.
 Curves join into closed loops inside the knot domain: outer loops counterclockwise, holes clockwise; no crossings or touching.
 Trimmed shells use outward `normalSide: 1` (default) or `-1` for reversed `du × dv`; untrimmed shells infer orientation.

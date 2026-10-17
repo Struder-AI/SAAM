@@ -1,5 +1,5 @@
 // Ordinary closed spline construction from corresponding numerical profiles.
-import {authoredNurbs} from './nurbs.mjs';
+import {authoredNurbs,requireSplineDegree} from './nurbs.mjs';
 import {point,rigid,validateRigid} from './frame.mjs';
 import {requireThat,distance} from './tolerance.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
@@ -50,6 +50,7 @@ export function boxGeometry(size){
 // Transform a physical geometry value; feature authoring records stay with clients.
 export function transformGeometry(geometry,transform){
   validateRigid(transform);
+  for(const patch of geometry.patches??[]){requireSplineDegree(patch.degreeU);requireSplineDegree(patch.degreeV);}
   if(geometry.solid)return transformGeometry(geometry.solid,transform);
   if(geometry.shape==='spline')return {shape:'spline',patches:geometry.patches.map(p=>({...p,controlPoints:p.controlPoints.map(row=>row.map(v=>[...point(transform,v.slice(0,3)),...v.slice(3)]))}))};
   if(geometry.shape==='boolean')return {...geometry,operands:geometry.operands.map(g=>transformGeometry(g,transform))};

@@ -118,7 +118,7 @@ test('coincident caps and face/edge/point contacts keep regularized solid topolo
   assert.equal(G.combineSolids('union',[source,opposite]).patches.length,6);
 });
 test('curved coincidence survives basis refinement, elevation and periodic partial overlap',async()=>{
-  const recipe=splineBlock({runMm:16,widthMm:16,heightsMm:[[8,8,8,8],[8,10,10,8],[8,10,10,8],[8,8,8,8]]});
+  const recipe=splineBlock({runMm:16,widthMm:16,heightsMm:[[8,8,8],[8,10,8],[8,8,8]]});
   const split=points=>{
     const state={row:points},left=[],right=[];
     while(state.row.length){
