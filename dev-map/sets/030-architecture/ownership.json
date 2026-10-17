@@ -27811,6 +27811,9 @@
     "core/path/physical-order.mjs::prepareRangeScene::selfProofKey": {
       "owner": "scheduling"
     },
+    "core/path/course-order.mjs::slicePartitions::material": {
+      "owner": "scheduling"
+    },
     "core/path/course-order.mjs::orderReadyOperations::components": {
       "owner": "scheduling"
     },

@@ -56,10 +56,11 @@ export function slicePartitions(operations,prerequisites){
     if(!change.split)break; // A course-level cycle is reported by the ordinary solver.
     state.groups=next;for(const group of next)for(const id of group)membership.set(id,group);
   }
-  const native=new Set(operations.filter(op=>op.layerId!==null&&op.layerId!==undefined).map(op=>op.layerId));
-  const refinedSlices=[...native].filter(id=>{const ids=slices.get(id);return ids.some(id=>membership.get(id)!==membership.get(ids[0]));}).length;
+  const material=new Set(operations.filter(op=>!op.barrier).map(op=>op.id));
+  const native=new Set(operations.filter(op=>material.has(op.id)&&op.layerId!==null&&op.layerId!==undefined).map(op=>op.layerId));
+  const refinedSlices=[...native].filter(id=>{const ids=slices.get(id).filter(id=>material.has(id));return ids.some(id=>membership.get(id)!==membership.get(ids[0]));}).length;
   return {groups:state.groups,summary:{slices:native.size,wholeSlices:native.size-refinedSlices,refinedSlices,
-    executionUnits:state.groups.length,courses:new Set(operations.filter(op=>!op.barrier).flatMap(op=>op.ranges?.map(range=>range.id)??[op.id])).size}};
+    executionUnits:state.groups.filter(group=>group.some(id=>material.has(id))).length,courses:new Set(operations.filter(op=>!op.barrier).flatMap(op=>op.ranges?.map(range=>range.id)??[op.id])).size}};
 }
 
 export function selectTraversal(operation,cursor,verify=null){

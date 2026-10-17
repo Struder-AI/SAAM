@@ -249,39 +249,24 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
   const authored=precedenceLookup(Object.keys(source.operations),[...sourceDependencies].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
     const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,chunkBreaks}),choices=preferNativeLayers(source,graph,relaxed);
-    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[],promotions:[]};history.solves++;
+    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:[]};history.solves++;
     try{
       // Establish native groups and process barriers before any fine occupancy.
       const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:choices});
       state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,supportPrecision,nozzleGeometry,selfProofs});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
-      const promoted=new Map();
       function nativeBefore(before,after){
         const a=graph.nativeRuns.get(before),b=graph.nativeRuns.get(after);
         return Boolean(a&&b&&a.run===b.run&&a.index<b.index);
       }
       function precedes(before,after){
-        return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after)||(promoted.get(before)??[]).some(id=>id===after||proofs.proves(id,after));
+        return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
       }
       function addEdge(before,after,kind,witness){
         if(before===after||graph.prerequisites.get(after).has(before))return;
         if(precedes(after,before))progress.cyclic=true;
         graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness});
-      }
-      function preferWholeGroup(unit,hit){
-        // An explicit source operation is also a useful relaxable aggregate.
-        // This does not invent a native layer for a standalone Trace.
-        const native=graph.layerGroups.get(hit.unit.layerId),layer=native??graph.groups.get(hit.unit.sourceOperation);
-        if(!layer||unit.sourceOperation===hit.unit.sourceOperation||unit.layerId!==null&&unit.layerId===hit.unit.layerId||precedes(layer.begin.id,unit.id))return;
-        const group=graph.groups.get(unit.sourceOperation),before=group.end.id;
-        const key=JSON.stringify([native?'operation-layer':'operation-operation',unit.sourceOperation,native?hit.unit.layerId:hit.unit.sourceOperation]);
-        if(relaxed.has(key)||precedes(before,layer.begin.id)||precedes(layer.begin.id,before))return;
-        addEdge(before,layer.begin.id,native?'access-layer-choice':'access-operation-choice',null);
-        const edge=state.edges.at(-1);edge.key=key;state.promotions.push(edge);
-        for(const member of group.members){
-          if(!promoted.has(member.id))promoted.set(member.id,[]);promoted.get(member.id).push(layer.begin.id);
-        }
       }
       for(const unit of graph.units){
         for(const requirement of unit.operation.requiredMaterial??[]){
@@ -324,7 +309,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
             if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
               {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[unit.sourceOperation,hit.unit.sourceOperation]});
           }
-          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);preferWholeGroup(unit,hit);
+          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }
       }
@@ -337,7 +322,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           if(a&&b&&(unit.layerId===other.layerId||a.surfaceId===b.surfaceId||a.stackId===b.stackId&&b.index>=a.index))return false;
           return true;
         })){
-          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);preferWholeGroup(hit.unit,{unit});
+          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
           if(progress.cyclic)break;
         }
         if(progress.cyclic)break;
@@ -357,20 +342,21 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,hierarchy:ordered.hierarchy,cooling:cooling.summary,
         edges:state.edges,refinement:{...history,relaxedOrderChoices:relaxed.size,relaxedTraversalChunks:relaxedChunks.size,rejectedTraversals:blockedTraversals.size,
-          wholeLayerChoices:state.promotions.filter(edge=>edge.kind==='access-layer-choice').length,wholeOperationChoices:state.promotions.filter(edge=>edge.kind==='access-operation-choice').length,splitCourses:cuts.size}};
+          splitCourses:cuts.size}};
     }catch(error){
       if(error.traversalChoice&&!blockedTraversals.has(error.traversalChoice)){blockedTraversals.add(error.traversalChoice);continue;}
       if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
-      if(relaxOrderChoices(error,[...choices,...state.promotions],relaxed))continue;
       const implicated=new Set(error.refinementCourses??error.operations??[]),before=relaxedChunks.size;
       const witnesses=error.witness?[error.witness]:(error.physicalDependencies??[]).map(edge=>edge.witness).filter(Boolean);
       const involved=new Set(witnesses.flatMap(witness=>[witness.receiver?.id,witness.material?.id]).filter(Boolean));
       for(const unit of graph.units)if(implicated.has(unit.id)&&unit.traversalKey){
         const opened=new Set(unit.ranges.filter(range=>involved.has(range.id)).map(range=>range.id));
-        if(opened.size)chunkBreaks.set(unit.traversalKey,opened);
+        if(!opened.size)continue;
+        chunkBreaks.set(unit.traversalKey,opened);
         relaxedChunks.add(unit.traversalKey);
       }
       if(relaxedChunks.size>before)continue;
+      if(relaxOrderChoices(error,choices,relaxed))continue;
       if(!state.scene)throw error;
       const reasons=error.physicalDependencies??[];
       if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&!edge.witness?.provisional&&authored.has(graph.byId.get(edge.after).sourceOperation,graph.byId.get(edge.before).sourceOperation)))throw error;
