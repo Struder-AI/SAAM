@@ -27802,6 +27802,21 @@
     "core/path/physical-order.mjs::prepareRangeScene::mutualConflict": {
       "owner": "scheduling"
     },
+    "core/path/compose.mjs::prepareSourceUnits::appendChunk": {
+      "owner": "scheduling"
+    },
+    "core/path/compose.mjs::resolveSourceOrder::chunkBreaks": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::selfProofKey": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::knownSelf": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::rememberSelf": {
+      "owner": "scheduling"
+    },
     "core/path/course-order.mjs::selectTraversal": {
       "owner": "scheduling"
     },

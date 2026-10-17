@@ -610,18 +610,33 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
     }
     return hits;
   }
+  function selfProofKey(kind,ranges){return JSON.stringify([kind,...ranges.map(ref=>[ref.id,ref.from,ref.to,Boolean(ref.reverse)])]);}
+  function knownSelf(key){
+    const bytes=selfProofs.entries.get(key);if(bytes===undefined)return false;
+    selfProofs.entries.delete(key);selfProofs.entries.set(key,bytes);return true;
+  }
+  function rememberSelf(key){
+    const bytes=key.length*2+128;
+    if(bytes<=cacheLimit){
+      while(selfProofs.bytes+bytes>cacheLimit){const first=selfProofs.entries.keys().next().value;selfProofs.bytes-=selfProofs.entries.get(first);selfProofs.entries.delete(first);}
+      selfProofs.entries.set(key,bytes);selfProofs.bytes+=bytes;
+    }
+  }
   function verifySelf(unit){
     if(unit.operation.kind==='inject'||proofs.clear(unit.layerId,unit.layerId)||proofs.unitClear(unit,unit))return;
     // The solve retains one immutable source and nozzle. Every scene reach
-    // covers this material, so self clearance depends only on its traversal.
-    const key=JSON.stringify(unit.ranges.map(ref=>[ref.id,ref.from,ref.to,Boolean(ref.reverse)])),known=selfProofs.entries.get(key);
-    if(known!==undefined){selfProofs.entries.delete(key);selfProofs.entries.set(key,known);return;}
+    // covers this material. Keep course/pair proofs when a chunk is split.
+    const key=selfProofKey('unit',unit.ranges);if(knownSelf(key))return;
     const records=byId.get(unit.id).records;
     function conflict(witness){throw Object.assign(Error('A continuous source course blocks its own nozzle access: '+unit.operation.id),
       {code:'CONTINUOUS_NOZZLE_CONFLICT',operation:unit.id,refinementCourses:[unit.id],witness});}
     for(const [i,record] of records.entries()){
-      for(const previous of records.slice(0,i)){const hit=pair(record,previous);if(hit)conflict(hit);}
-      if(!material(record))continue;
+      for(const previous of records.slice(0,i)){
+        const pairKey=selfProofKey('pair',[record.ref,previous.ref]);if(knownSelf(pairKey))continue;
+        const hit=pair(record,previous);if(hit)conflict(hit);rememberSelf(pairKey);
+      }
+      const courseKey=selfProofKey('course',[record.ref]);if(knownSelf(courseKey))continue;
+      if(!material(record)){rememberSelf(courseKey);continue;}
       const pending=[record];
       while(pending.length){
         const next=pending.pop();if(!convexIntersects(nozzle(next).shape,material(next).shape,ROUNDING_MM))continue;
@@ -629,12 +644,9 @@ export function prepareRangeScene(source,reader,units,{onProgress,supportPrecisi
         const first=next.ref.reverse?children[1]:children[0],last=next.ref.reverse?children[0]:children[1];
         const hit=pair(last,first);if(hit)conflict(hit);pending.push(...children);
       }
+      rememberSelf(courseKey);
     }
-    const bytes=key.length*2+128;
-    if(bytes<=cacheLimit){
-      while(selfProofs.bytes+bytes>cacheLimit){const first=selfProofs.entries.keys().next().value;selfProofs.bytes-=selfProofs.entries.get(first);selfProofs.entries.delete(first);}
-      selfProofs.entries.set(key,bytes);selfProofs.bytes+=bytes;
-    }
+    rememberSelf(key);
   }
   function cutsForWitness(witness){
     const result=[];
