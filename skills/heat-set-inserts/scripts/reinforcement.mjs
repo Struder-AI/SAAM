@@ -29,8 +29,29 @@ export function heatSetFinSheets(feature,shift=[0,0,0]){
   });
 }
 
+// A two-bead fin must retain at least half a bead of overlap between layers.
+// The local across-fin drift is normal layer gap * cot(sheet/slice angle).
+function finRetainsOverlap(sheet,cut,source,width,Geometry){
+  const [a,b]=sheet.controlPoints[0],c=sheet.controlPoints[1][0];
+  const u=b.map((v,k)=>v-a[k]),v=c.map((x,k)=>x-a[k]);
+  const cross=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const length=Math.hypot(...cross),normal=cross.map(x=>x/length);
+  const direction=source.direction,step=source.translationMm;
+  const dot=(a,b)=>a.reduce((sum,x,k)=>sum+x*b[k],0);
+  return cut.curves.every(curve=>curve.points.every((point,i)=>{
+    const samples=i?[point,point.map((x,k)=>(x+curve.points[i-1][k])/2)]:[point];
+    return samples.every(uv=>{
+      const n=Geometry.evaluateSurface(source.slice,uv).normal;
+      if(!n)return false;
+      const cosine=Math.min(1,Math.abs(dot(normal,n))),sine=Math.sqrt(Math.max(0,1-cosine*cosine));
+      const gap=direction&&Number.isFinite(step)?step*Math.abs(dot(n,direction))/Math.hypot(...direction):source.heightMm??source.process.layerMm;
+      return sine>0&&1.5*width*sine>=gap*cosine;
+    });
+  }));
+}
+
 export function heatSetTraceSource({Geometry,Toolpath}){
-  const needed=['buildGeometry','revolvedProfile','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','union','intersect','difference','loopArea','regionArea'];
+  const needed=['buildGeometry','revolvedProfile','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','evaluateSurface','union','intersect','difference','loopArea','regionArea'];
   requireThat(needed.every(k=>typeof Geometry[k]==='function'),'Heat-set reinforcement needs the general Geometry layer-source connectors.');
   requireThat(typeof Toolpath?.fillSliceRegion==='function','Heat-set blind pads need the general Toolpath region-fill connector.');
   const cache=new Map();
@@ -70,7 +91,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
     const first=loops&&inherited?Math.max(pitch,((inherited.beadWidthMm??width)+width)/2):
       loops?Math.max(inset+loops*pitch,wallBand+width/2):width/2;
     const curves=[],clipping=[],notes=[];
-    let finCount=0;
+    let finCount=0,skippedShallowFins=0;
     // Fin sheets can cross a layer that misses the seat entirely (for example,
     // above or below a sideways bore). They still contribute on that layer.
     for(let i=0;i<added;i++){
@@ -80,12 +101,9 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         for(const sheet of construction.sheets){
           const cut=Geometry.intersectSurfaceSheet(slice,sheet,options);
           if(cut.report?.notes?.length)notes.push(...cut.report.notes);
-          if(cut.regionsUv?.length){
-            const region=Geometry.intersect(cut.regionsUv,room);
-            if(region.length){const filled=Toolpath.fillSliceRegion(region,{source,role:'heat-set-fin'});curves.push(...filled.curves);if(filled.curves.length)finCount++;}
-            continue;
-          }
+          if(cut.report?.coincident){skippedShallowFins++;continue;}
           if(!cut.curves.length)continue;
+          if(!finRetainsOverlap(sheet,cut,source,width,Geometry)){skippedShallowFins++;continue;}
           const footprint=Geometry.strokeSliceRegion(slice,cut.curves,width/2,options).loops;
           // A physical half-width buffer gives the two fin bead centerlines,
           // separated by one bead width. Union joins their return into the wall.
@@ -129,7 +147,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
     }
     if(feature.finWidthMm!==null)notes.push('Legacy finWidthMm is retained for reading; the star uses two touching beads at the inherited layer width.');
     return {curves,sliceMember:true,report:{feature:feature.id,sourceLoops:loops,targetLoops:total,addedLoops:added,curves:curves.length,openFragments:curves.filter(c=>!c.closed).length,
-      pad,outsideSeat:!seat.length,finIntersections:finCount,finSheets:construction.sheets.length,widthMm:width,pitchMm:pitch,clipping,notes,
+      pad,outsideSeat:!seat.length,finIntersections:finCount,skippedShallowFins,finSheets:construction.sheets.length,widthMm:width,pitchMm:pitch,clipping,notes,
       boreBoundary:matched.length?'source material hole':'open cutter section',infillOverlap:'added walls and star fins intentionally overlap the unchanged main infill'}};
   }};
 }

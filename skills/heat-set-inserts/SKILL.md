@@ -64,8 +64,8 @@ The loop target is limited by available host material.
 
 Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
 omitted source selection, and an explicit override affects only the named hole.
-Vase-only deposition has no source Slice. Coincident fin/layer sheets contribute
-finite-area fill; skipped fins and singular charts are reported.
+Vase-only deposition has no source Slice. Parallel fins, or shallow fins whose
+successive traces cannot retain half a bead of overlap, are omitted and reported.
 
 Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
 Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind pads

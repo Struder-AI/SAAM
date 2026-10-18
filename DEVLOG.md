@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-18 - Restore side-insert fins and omit shallow intersections
+
+- Fin sheets now contribute on layers that miss the finite bore seat; the seat guard had discarded side-insert reinforcement above and below the bore. This first correction rode along in shared checkpoint 61496d8e. Keep native Slice completion membership and unchanged main deposition.
+- Owner requires half a bead of overlap between successive two-bead fin footprints. Use local slice normal, stack advance and sheet angle to limit across-fin drift to 1.5 bead widths; omit parallel/coincident fins instead of area-filling them. Production-connector probes omit 0/1/18 degrees and retain 19/45 degrees for a .2 mm gap and .4 mm width. Manual remains 74 lines.
+- Completed unchanged wavy cube plus side M3-long insert in 366,008 ms; restored star paths span Z 6.844..18.536 mm on layers 39..96 (94 courses). Sampled layer residual is at most .000154 mm. Switching only body.surface to horizontal yields 127 XY layers in 8,982 ms, same geometry/heat set/process, 96 star courses and exactly zero layer deviation across all curve controls. Both saved paths current; flat result displayed and handed back in Studio. No new stored tests, whole suite, Export, physical print or full map solve. Private evidence: .local/heatset-layer-diagnosis.md and heatset-layer-residuals.json.
+- Several interrupted regenerations preceded acceptance; changing an extension comment during a run invalidated its publication source and caused avoidable wasted work. Final source was frozen and runtime reloaded before the accepted runs.
+
 ## 2026-10-18 - Replace deposition-backed edge selection with geometric references
 
 - Delete manufactured-edges and its complete-model retrieval. Geometry queries select saved XYZ curves or prepared owned Slice boundaries, carrying symbolic readiness separately. Retired deposition/ring selectors reject compactly. Generation and queries share prepareModelGeometry (process cuts, material bands and ownership); only explicit construction loads deposition runtimes. The existing assignmentGeneration registry owns one declared/actual admission sequence for both callers. No filtered generation, second failure graph or parallel nominal/finalized selector.
