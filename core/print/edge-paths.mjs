@@ -37,11 +37,11 @@ export async function constructEdgePaths(plan,request){
     let rows,referenceNormal=normal;
     if(target){
       requireThat(target.reference,'Both bridge bounds must name printed edges; a geometric target is sufficient only for a wave.');
-      const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal}),at=Geometry.referenceSurface(pair.surface);
+      const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal}),surface=Geometry.referenceSurface(pair.surface);
       const first=Geometry.sampleSpatialCurve(base.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm}),second=Geometry.sampleSpatialCurve(target.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm});
       const count=Math.max(1,Math.ceil(Math.max(Geometry.curveLength(first.samples.map(s=>s.point)),Geometry.curveLength(second.samples.map(s=>s.point)))/spacing));
-      rows=Array.from({length:count+(base.closed?0:1)},(_,i)=>[at(i/count,0).point,at(i/count,1).point]);
-      referenceNormal??=at(.37,.5).normal;after.push(target.reference);
+      rows=Array.from({length:count+(base.closed?0:1)},(_,i)=>[Geometry.evaluateSurface(surface,[i/count,0]).point,Geometry.evaluateSurface(surface,[i/count,1]).point]);
+      referenceNormal??=Geometry.evaluateSurface(surface,[.37,.5]).normal;after.push(target.reference);
     }else ({rows,normal:referenceNormal}=Geometry.closedEdgeSpans(base.curve,{spacingMm:spacing,normal,angleDeg:request.angleDeg,sampleStepMm}));
     requireThat(rows.length,'The selected boundary produces no bridge spans.');
     const shifted=rows.map((row,i)=>{

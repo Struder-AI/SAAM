@@ -26,6 +26,8 @@ export function offsetSurfaceChart(chart,depth,{shell,selection,tightness=1}={})
   }}:selectedChart;
   const reference=offsetChart(depth);
   const exactAt=depth&&chart.at.derivatives?(u,v)=>chart.at.derivatives(u,v,{normalMm:depth}):(u,v)=>evaluateSurface(chart,[u,v],depth);
+  exactAt.covers=chart.at.covers;
+  if(!offsetField&&!depth&&chart.at.nativeImage)exactAt.nativeImage=chart.at.nativeImage;
   if(!offsetField&&chart.at.derivatives)exactAt.derivatives=(u,v,{normalMm=0,...options}={})=>chart.at.derivatives(u,v,{...options,normalMm:depth+normalMm});
   const output=offsetField?reference:{...chart,at:exactAt};
   return {...output,referenceRecord:{representation:'offset-chart',source:surfaceReferenceRecord(chart),depthMm:depth,

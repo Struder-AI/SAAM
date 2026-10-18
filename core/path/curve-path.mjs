@@ -9,8 +9,9 @@ import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 // saved identity. A caller can request a different bounded view.
 export const PATH_VIEW_TOLERANCES=Object.freeze({positionToleranceMm:PRINT_RESOLUTION_MM,
   orientationToleranceRad:PRINT_RESOLUTION_MM/BUILD_SCALE_MM,
-  // Process volume: moving a one-mm2 material section by print resolution.
-  volumeToleranceMm3:PRINT_RESOLUTION_MM});
+  // Relative quadrature uncertainty scales with deposited material, independent
+  // of job/course counts. Authored cumulative material remains exact.
+  volumeToleranceRatio:1/1000});
 export function pathSummary(view){
   const summary=view?.summary??(view?.schedule?{...view.deposition.summary,...view.schedule.summary}:undefined);
   const dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0,bounds=summary?.boundsMm;
@@ -123,9 +124,10 @@ function materialRange(curve,from,to,geometric,options){
   const mean=interpolateScalar(...inward,.5)*(to-from);
   const volumeMm3=[Math.max(densityRange[0]*geometric.lengthMm[0],mean*geometric.speed[0]),
     Math.min(densityRange[1]*geometric.lengthMm[1],mean*geometric.speed[1])];
-  if(!options.volumeToleranceMm3||volumeMm3[1]-volumeMm3[0]<=options.volumeToleranceMm3)return {volumeMm3,areaMm2};
+  const budget=options.volumeToleranceMm3??(options.volumeToleranceRatio===undefined?undefined:options.volumeToleranceRatio*volumeMm3[0]);
+  if(budget===undefined||volumeMm3[1]-volumeMm3[0]<=budget)return {volumeMm3,areaMm2};
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Material integral cannot reach requested precision.');
-  const child={...options,volumeToleranceMm3:options.volumeToleranceMm3/2};
+  const child={...options,...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3/2})};
   const a=localRange(curve,from,mid,child),b=localRange(curve,mid,to,child);
   return {volumeMm3:[a.volumeMm3[0]+b.volumeMm3[0],a.volumeMm3[1]+b.volumeMm3[1]],areaMm2};
 }
@@ -144,7 +146,7 @@ function interiorBreaks(breaks,from,to){
 }
 export function curveRange(handle,curveId,from,to,options={}){
   requireThat(rangeValid(from,to),'Invalid curve interval.');
-  for(const key of ['lengthToleranceMm','volumeToleranceMm3'])if(options[key]!==undefined)requireThat(positive(options[key]),'Curve range tolerance must be positive.');
+  for(const key of ['lengthToleranceMm','volumeToleranceMm3','volumeToleranceRatio'])if(options[key]!==undefined)requireThat(positive(options[key]),'Curve range tolerance must be positive.');
   return localRange(selected(handle,curveId),from,to,options);
 }
 export function curveHasLength(handle,curveId,from,to,minimumMm){
@@ -160,7 +162,9 @@ export function curveClosestParameter(handle,curveId,from,to,point,options={}){
   return numericalCurveClosestParameter(selected(handle,curveId).geometry,from,to,point,options);
 }
 function tolerances(options){
-  for(const key of ['positionToleranceMm','orientationToleranceRad','volumeToleranceMm3'])requireThat(positive(options?.[key]),'Local views need positive '+key+'.');
+  for(const key of ['positionToleranceMm','orientationToleranceRad'])requireThat(positive(options?.[key]),'Local views need positive '+key+'.');
+  requireThat(positive(options.volumeToleranceMm3)||positive(options.volumeToleranceRatio),'Local views need a positive absolute or relative volume tolerance.');
+  for(const key of ['volumeToleranceMm3','volumeToleranceRatio'])if(options[key]!==undefined)requireThat(positive(options[key]),'Local views need positive '+key+'.');
 }
 export function* curveSpans(handle,curveId,from,to,options){
   yield* querySpans(handle,curveId,from,to,options);
@@ -204,8 +208,8 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
   }
 }
 function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
-  const allocated=options.volumeToleranceMm3*(to-from)/(rangeTo-rangeFrom);
-  const settings={lengthToleranceMm:options.positionToleranceMm*(to-from)/(rangeTo-rangeFrom),volumeToleranceMm3:allocated};
+  const settings={lengthToleranceMm:options.positionToleranceMm,volumeToleranceRatio:options.volumeToleranceRatio,
+    ...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3*(to-from)/(rangeTo-rangeFrom)})};
   const geometry=numericalCurveRange(curve.geometry,from,to,settings),range=localRange(curve,from,to,settings);
   const start=curveAt(handle,id,from),end=curveAt(handle,id,to,{side:'left'});
   const moves=start.point.some((value,i)=>value!==end.point[i]);
@@ -232,8 +236,8 @@ export function* linearizePath(view,options){
   requireThat(view?.deposition?.schema==='saampath/2'&&view.schedule?.schema==='saam-schedule/1'&&view.sourcePathId===view.schedule.sourcePathId,
     'Compact path needs its exact source/schedule identity.');
   const {deposition,schedule}=view,source=prepareCurvePath(deposition),motion=prepareCurvePath({curves:schedule.motionCurves}),courses=sourceCourses(deposition);
-  const ranges=schedule.execution.reduce((count,entry)=>count+(entry.kind==='deposit'||entry.kind==='travel'?1:0),0);
-  const resolution={...options,volumeToleranceMm3:options.volumeToleranceMm3/Math.max(1,ranges)};
+  const ranges=options.volumeToleranceMm3===undefined?1:schedule.execution.reduce((count,entry)=>count+(entry.kind==='deposit'||entry.kind==='travel'?1:0),0);
+  const resolution={...options,...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3/Math.max(1,ranges)})};
   for(const entry of schedule.execution){
     if(entry.kind==='deposit'){
       const found=courses.get(entry.courseId);requireThat(found,'Unknown execution course.');
@@ -268,7 +272,7 @@ function courseLabels(handle,id,segments,span,tolerance){
   return segment&&segment.from<=span.from&&segment.to>span.from?segment.labels:{};
 }
 function* attributeSpans(handle,id,from,to,options,labels=[]){
-  const integral={...options,volumeToleranceMm3:options.volumeToleranceMm3/2};
+  const integral={...options,...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3/2})};
   const speedScale=Math.max(...scalarRange(selected(handle,id).profiles.speedMmS,from,to).map(Math.abs));
   for(const span of querySpans(handle,id,from,to,integral,labels))yield* linearAttributeSpans(handle,id,span,from,to,options,speedScale);
 }
@@ -301,7 +305,7 @@ function* linearAttributeSpans(handle,id,span,from,to,options,speedScale){
   const mid=(span.from+span.to)/2;requireThat(mid>span.from&&mid<span.to,'Attribute view cannot reach requested precision.');
   const halves=[[span.from,mid],[mid,span.to]];
   for(const [a,b] of options.reverse?halves.toReversed():halves){
-    const childOptions={...options,volumeToleranceMm3:options.volumeToleranceMm3*(b-a)/(to-from)/2};
+    const childOptions={...options,...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3*(b-a)/(to-from)/2})};
     for(const child of curveSpans(handle,id,a,b,childOptions))yield* linearAttributeSpans(handle,id,child,from,to,options,speedScale);
   }
 }

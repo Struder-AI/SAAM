@@ -49,7 +49,7 @@ export function strokeSurfaceRegion(patch,paths,radiusMm,settings={}){
 }
 
 export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
-  toleranceMm=SURFACE_OFFSET_CHORD_MM, maxStepMm=0.5, precisionUv=UV_GRID,
+  toleranceMm=SURFACE_OFFSET_CHORD_MM, maxStepMm=Math.max(Math.abs(deltaMm),toleranceMm), precisionUv=UV_GRID,
   constraintLoopsUv=null,normalMm=0
 }={}) {
   requireThat(Number.isFinite(deltaMm), 'Surface offset distance must be finite.');
@@ -192,7 +192,7 @@ export function sweepSurfaceOffset(patch,prepared){
     while(radius-travel>completionTolerance) {
       h=Math.min(h,radius-travel);
       requireThat(travel+h>travel,'Surface offset integration cannot advance at floating-point precision.');
-      const full=rk4(state,h),half=rk4(rk4(state,h/2),h/2);
+      const full=rk4(state,h),middle=rk4(state,h/2),half=rk4(middle,h/2);
       requireThat(half.some((value,k)=>value!==state[k]),'Surface offset integration cannot advance at coordinate precision (step '+h+' mm, remaining '+(radius-travel)+' mm).');
       if(constraint!==null){
         const start=state.slice(0,2);
@@ -222,12 +222,16 @@ export function sweepSurfaceOffset(patch,prepared){
       const err=(distance(a.point,b.point)+Math.max(0,radius-travel-h)*distance(velocity(a,full),velocity(b,half)))/15;
       const allowance=toleranceMm/8*h/radius;
       requireThat(Number.isFinite(err),'Surface offset integration produced a non-finite position.');
-      if(err>allowance) {
+      // Rays become UV polygon edges. Bound their mapped chord separately
+      // from endpoint integration error, including straight XYZ directions on
+      // nonlinear charts. Deposition sampling does not choose solver steps.
+      const chordError=distance(frameAtState(middle.slice(0,2)).point,frameAtState(midpoint(state.slice(0,2),half.slice(0,2))).point);
+      if(err>allowance||chordError>toleranceMm/8) {
         h/=2; requireThat(travel+h>travel,'Surface offset integration cannot resolve the requested tolerance.');continue;
       }
       state=half;travel+=h;integrations++;ray.push(state.slice(0,2));
       // RK4 local error scales with the fifth power of step length.
-      if(err<allowance/32)h=Math.min(h*2,maxStepMm);
+      if(err<allowance/32&&chordError<toleranceMm/32)h=Math.min(h*2,maxStepMm);
     }
     if(constraint!==null&&ray.length>1){
       // Keep boundary-tangent fronts attached to the same boundary. A tiny

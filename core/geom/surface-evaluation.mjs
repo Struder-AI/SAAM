@@ -47,11 +47,12 @@ export function evaluateSurface(surface,[u,v],normalMm=0){
 
 // Coverage is explicit for partial height references and bounded native charts.
 export function surfaceChartCovers(surface,uv){
+  if(surface.representation)return surfaceChartCovers(prepareSurfaceReference(surface),uv);
   if(surface.kind==='slice-chart')return surfaceChartCovers(surface.slice,uv);
   if(surface.kind==='height-field')return Boolean(referenceHeight(surface.reference,...uv));
   const native=surface.kind==='patch'?surface.patch:surface;
   if(native.cp&&native.trimLoops)return faceContainsUv(native,...uv);
-  return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter);
+  return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter)&&(!surface.at?.covers||surface.at.covers(...uv));
 }
 // An affine chart selection preserves native parameters and derivative units.
 export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=false}={}){
@@ -67,6 +68,11 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
   // Differential capability belongs to this evaluator's identity. A wrapper
   // replacing at cannot accidentally inherit derivatives of the old geometry.
   const prepared=surface.representation?prepareSurfaceReference(surface):surface,native=prepared.patch??prepared;
+  at.covers=(u,v)=>surfaceChartCovers(surface,[u,v].map((x,k)=>bounds[k][0]+(x-domain[k][0])*scale[k]));
+  if(native.cp||prepared.at?.nativeImage)at.nativeImage=chart=>{
+    const coordinates=chart.map(uv=>uv.map((x,k)=>bounds[k][0]+(x-domain[k][0])*scale[k]));
+    return native.cp?{surface:native,chart:coordinates}:prepared.at.nativeImage(coordinates);
+  };
   const differential=native.cp?(u,v,options)=>surfaceDerivatives(native,u,v,options):prepared.at?.derivatives;
   if(differential)at.derivatives=(u,v,{normalMm=0,...options}={})=>{
     const coordinates=[u,v];
@@ -77,6 +83,6 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
       duv:e.duv.map(x=>x*scale[0]*scale[1]),dvv:e.dvv.map(x=>x*scale[1]**2),normal:e.normal.map(x=>x*normalSide),
       uvOf:vector=>e.uvOf(vector).map((x,k)=>x/scale[k])};
   };
-  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(surface.knotsU,bounds[0],0),breaksV:breaks(surface.knotsV,bounds[1],1),periodicU,
+  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(native.knotsU??prepared.breaksU,bounds[0],0),breaksV:breaks(native.knotsV??prepared.breaksV,bounds[1],1),periodicU,
     referenceRecord:{representation:'mapped-surface',source:surfaceReferenceRecord(surface),bounds,domain,normalSide,periodicU}};
 }

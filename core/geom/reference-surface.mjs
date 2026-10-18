@@ -1,6 +1,6 @@
 // Open spline references are independent of printable, closed part geometry.
 import {requireGeometry} from './query.mjs';
-import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
+import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,cross,normalize} from './tolerance.mjs';
 import {DIRECTION_TOLERANCE} from './frame.mjs';
 import {requireSplineDegree} from './nurbs.mjs';
@@ -49,10 +49,8 @@ export function referenceSurface(spec,part){
   if(spec.kind==='top'){
     requireThat(part,'Top reference needs an original part; use a plane or spline for standalone text.');
     requireGeometry(part,['top-surface']);
-    return (x,y)=>{
-      const e=evaluateSurface({kind:'height-field',reference:{kind:'roof',geometry:part},offsetMm:0,normalDepthMm:0},[x,y]);
-      return {...e,normal:e.normal.map(n=>n*normalSide)};
-    };
+    const bounds=[0,1].map(k=>[part.bounds.min[k],part.bounds.max[k]]);
+    return mappedSurface({kind:'height-field',reference:{kind:'roof',geometry:part},offsetMm:0,normalDepthMm:0},bounds,bounds,{normalSide});
   }
   if(spec.kind==='plane'){
     const {origin,xAxis,yAxis}=spec;
@@ -60,7 +58,7 @@ export function referenceSurface(spec,part){
     const x=normalize(xAxis),y=normalize(yAxis);
     requireThat(Math.abs(x.reduce((sum,v,i)=>sum+v*y[i],0))<DIRECTION_TOLERANCE,'Plane axes must be perpendicular.');
     const n=normalize(cross(x,y)).map(v=>v*normalSide);
-    return (a,b)=>evaluateSurface({kind:'plane',origin,xAxis:x,yAxis:y,normal:n},[a,b]);
+    return {kind:'plane',origin,xAxis:x,yAxis:y,normal:n};
   }
   const patch=spec.kind==='spline'?referencePatch(spec):part?.patches?.find(p=>p.name===spec.patch);
   requireThat(patch,'Selected text reference patch is missing; mesh parts need an independent plane or spline reference.');
@@ -68,5 +66,5 @@ export function referenceSurface(spec,part){
   requireThat(Array.isArray(size)&&size.length===2&&size.every(v=>Number.isFinite(v)&&v>0),'Spline mapping needs positive sizeMm [width,height].');
   const bounds=spec.uvBounds??[patch.domainU,patch.domainV];
   requireThat(Array.isArray(bounds)&&bounds.length===2&&bounds.every((b,i)=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]&&b[0]>=[patch.domainU,patch.domainV][i][0]&&b[1]<=[patch.domainU,patch.domainV][i][1]),'Text reference UV bounds exceed the patch.');
-  return mappedSurface(patch,bounds,[[0,size[0]],[0,size[1]]],{normalSide}).at;
+  return mappedSurface(patch,bounds,[[0,size[0]],[0,size[1]]],{normalSide});
 }

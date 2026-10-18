@@ -56,6 +56,8 @@ export function surfaceRegion(shell,spec){
   const chart=spec.kind==='spline'?splinePatchChart(shell,spec):meshStripChart(shell,spec);
   const sample=(u,v)=>{requireThat(u>=0&&u<=1&&v>=0&&v<=1,'Surface sample outside selected region.');return chart.at(u,v);};
   if(chart.at.derivatives)sample.derivatives=chart.at.derivatives;
+  if(chart.at.nativeImage)sample.nativeImage=chart.at.nativeImage;
+  sample.covers=chart.at.covers;
   if(spec.periodicU)for(let j=0;j<=16;j++){
     const a=sample(0,j/16),b=sample(1,j/16);
     // Same point at print resolution; the normal match is a direction judgement whose value

@@ -43,11 +43,7 @@ export function curveProfile(values,t,fallback){
 
 function referenceEntry(reference,references,repetition){
   if(reference.kind==='surface'){
-    const spec=reference.surface,at=referenceSurface(spec,references?.[`part:${reference.part??''}`]?.shell);
-    if(['plate','plane'].includes(spec.kind)){
-      const frame=at(0,0);return {kind:'plane',origin:frame.point,xAxis:frame.du,yAxis:frame.dv,normal:frame.normal};
-    }
-    return {at,...(spec.sizeMm?{domainU:[0,spec.sizeMm[0]],domainV:[0,spec.sizeMm[1]]}:{})};
+    return referenceSurface(reference.surface,references?.[`part:${reference.part??''}`]?.shell);
   }
   const key=reference.kind==='patch'?`patch:${reference.part??''}:${reference.name}`:`${reference.kind}:${reference.assignment}`;
   const found=references?.[key];requireThat(found,`Curve reference ${key} is unavailable.`);

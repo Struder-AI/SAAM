@@ -2,7 +2,7 @@
 // losing its parameter or silently smoothing a feature beyond print accuracy.
 // Bernstein hulls bound the complete difference on every original edge.
 import {distance,requireThat} from './tolerance.mjs';
-import {ROUNDING_MM,PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
+import {ROUNDING_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 // Numerical geometry serializes as ASCII. Include representation keys and
 // numeric digits when choosing storage, rather than counting scalar values.
@@ -66,7 +66,8 @@ function differenceBound(rows,points,parameters,first,last){
   }
   return state;
 }
-export function fitSampledCurve(points,{toleranceMm=PRINT_RESOLUTION_MM/2,forceNative=false,planeNormal=null}={}){
+export function fitSampledCurve(points,{toleranceMm,forceNative=false,planeNormal=null}={}){
+  requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Curve fitting needs a positive physical error budget.');
   if(points.length<2)return null;
   const plane=planeNormal?{normal:planeNormal.map(v=>v/Math.hypot(...planeNormal)),origin:points[0]}:null;
   if(plane){

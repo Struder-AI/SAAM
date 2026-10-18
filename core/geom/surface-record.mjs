@@ -36,6 +36,7 @@ export function prepareSurfaceReference(record){
   const surface=constructReference(data);references.set(record,surface);return surface;
 }
 function constructReference(record){
+  if(!record.representation)return record;
   if(record.representation==='surface-region')return surfaceRegion(record.geometry,record.selection);
   if(record.representation==='mapped-surface')return mappedSurface(record.source,record.bounds,record.domain,{normalSide:record.normalSide,periodicU:record.periodicU});
   if(record.representation==='offset-chart')return offsetSurfaceChart(record.source.representation?prepareSurfaceReference(record.source):record.source,record.depthMm,

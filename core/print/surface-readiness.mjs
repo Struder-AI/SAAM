@@ -72,8 +72,8 @@ export function traceSurfaceReadiness(assignment,contexts,shells){
       if(reference.kind==='slice')required=[{assignment:reference.assignment,index:reference.index??index}];
       else if(reference.kind==='surface'&&['part','top'].includes(reference.surface?.kind)){
         const part=reference.part??assignment.part??null,shell=shells.find(([key])=>key===part)?.[1];
-        const at=referenceSurface(reference.surface,shell),input=curve.uv;
-        const {samples}=sampleSpatialCurve({points:input.points,nurbs:input.nurbs,closed:curve.closed,surface:{at}},
+        const surface=referenceSurface(reference.surface,shell),input=curve.uv;
+        const {samples}=sampleSpatialCurve({points:input.points,nurbs:input.nurbs,closed:curve.closed,surface},
           {toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm:assignment.process?.lineWidthMm??.2});
         required=manufacturedSurfaceReadiness(contexts,[samples.map(sample=>sample.point)],{part,exclude:assignment.id});
       }

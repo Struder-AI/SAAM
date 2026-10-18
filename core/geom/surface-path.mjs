@@ -1,6 +1,7 @@
 // Retain bounded cubic images of piecewise straight chart paths. Process fields
 // and scheduling never enter this boundary; altered/unsupported mappings stay
 // with their finalized sampled geometry.
+import {prepareSurfaceReference} from './surface-record.mjs';
 import {surfaceSegmentCurves} from './surface-curves.mjs';
 import {evaluate} from './nurbs.mjs';
 import {restrictBezierLine} from './bezier-net.mjs';
@@ -67,6 +68,11 @@ function positionBound(pieces,parameters,points){
   return state.error;
 }
 export function mappedSurfacePath(surface,chart,points){
+  if(surface?.representation)surface=prepareSurfaceReference(surface);
+  if(surface?.kind==='slice-chart')return mappedSurfacePath(surface.slice,chart,points);
+  if(chart&&surface?.at?.nativeImage){
+    const native=surface.at.nativeImage(chart);return mappedSurfacePath(native.surface,native.chart,points);
+  }
   const record=surface?.kind==='patch'?surface.patch:surface?.cp?surface:null;
   if(!record||!chart||chart.length!==points.length||points.length<2)return null;
   const patch=ArrayBuffer.isView(record.cp)?record:{...record,cp:Float64Array.from(record.cp),knotsU:Float64Array.from(record.knotsU),knotsV:Float64Array.from(record.knotsV)};

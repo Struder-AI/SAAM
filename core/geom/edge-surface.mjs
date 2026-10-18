@@ -2,6 +2,7 @@
 // These operations know no producer identity, dependencies, nozzle or machine.
 import {matchCurveControls} from './curve-controls.mjs';
 import {sampleSpatialCurve} from './spatial-curve.mjs';
+import {evaluateSurface} from './surface-evaluation.mjs';
 import {referenceSurface} from './reference-surface.mjs';
 import {planeSlice} from './slice.mjs';
 import {dot,cross,normalize,subtract,requireThat} from './tolerance.mjs';
@@ -17,7 +18,7 @@ export function curvePairSurface(base,target,{correspondence={},normal=null}={})
   const averageAdvanceMm=baseControls.slice(0,count).reduce((sum,p,i)=>sum+Math.hypot(...subtract(xyz(landingControls[i]),xyz(p))),0)/count;
   const surface={kind:'spline',degreeU:matched.degree,degreeV:1,knotsU:matched.knots,knotsV:[0,0,1,1],
     controlPoints:baseControls.map((p,i)=>[weighted(p),weighted(landingControls[i])]),sizeMm:[1,1]};
-  if(normal&&dot(referenceSurface(surface)(.37,.5).normal,normal)<0)surface.normalSide=-1;
+  if(normal&&dot(evaluateSurface(referenceSurface(surface),[.37,.5]).normal,normal)<0)surface.normalSide=-1;
   return {surface,averageAdvanceMm,matched,
     curveAt(t){return {closed:matched.closed,nurbs:{degree:matched.degree,knots:matched.knots,
       controlPoints:baseControls.map((p,i)=>xyz(p.map((v,k)=>v+t*(landingControls[i][k]-v)))),

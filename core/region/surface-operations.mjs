@@ -60,13 +60,13 @@ export function offsetSliceRegion(slice,loops,distanceMm,{sampleStepMm=0.2,bound
   if(distanceMm===0)return loops;
   const chart=offsetChart(slice,loops.flat(),Math.abs(distanceMm),boundsUv);
   const constraintLoopsUv=settings.constraintLoopsUv??(distanceMm>0?chartDomainRegion(chart):null);
-  return offsetSurfaceRegion(chart,loops,distanceMm,{...settings,constraintLoopsUv,maxStepMm:sampleStepMm}).loopsUv;
+  return offsetSurfaceRegion(chart,loops,distanceMm,{...settings,constraintLoopsUv}).loopsUv;
 }
 
 export function strokeSliceRegion(slice,paths,radiusMm,{sampleStepMm=0.2,boundsUv=null,...settings}={}){
   if(!paths.length)return {loops:[],report:{method:'geodesic-bands-clipper2',empty:true}};
   const chart=offsetChart(slice,paths.flatMap(p=>p.points),radiusMm,boundsUv),constraintLoopsUv=settings.constraintLoopsUv??(slice.kind==='plane'?null:chartDomainRegion(chart));
-  const result=strokeSurfaceRegion(chart,paths,radiusMm,{...settings,constraintLoopsUv,maxStepMm:sampleStepMm});
+  const result=strokeSurfaceRegion(chart,paths,radiusMm,{...settings,constraintLoopsUv});
   return {loops:result.loopsUv,report:result.report};
 }
 
@@ -152,7 +152,7 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
   let chart=offsetChart(surface,points,spacingMm,global);
   const rectangle=[[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]]];
   const options={precisionMm:UV_GRID,origin:[global[0][0],global[1][0]]};
-  const prepared=prepareSurfaceOffset(chart,[],0,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:rectangle});
+  const prepared=prepareSurfaceOffset(chart,[],0,{toleranceMm,constraintLoopsUv:rectangle});
   if(prepared.atlas)chart={...chart,atlas:prepared.atlas};
   const allowed=prepared.atlas?intersect(rectangle,union(prepared.atlas.faces.map(face=>face.vertices.map(v=>v.uv)),[],options),options):rectangle;
   const target=intersect(region,allowed,options),positions=target.flat().map(uv=>dot(across,evaluateSurface(chart,uv).point));
@@ -185,13 +185,13 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
   for(const sign of [-1,1]){
     let source=sign===1?seed:difference(allowed,seed,options),lineIndex=0;
     while(difference(target,source,options).length){
-      const result=offsetSurfaceRegion(chart,source,spacingMm,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:allowed});
+      const result=offsetSurfaceRegion(chart,source,spacingMm,{toleranceMm,constraintLoopsUv:allowed});
       report.offsets++;report.evaluations+=result.report.evaluations;report.integrationSteps+=result.report.integrationSteps;
       if(!difference(result.loopsUv,source,options).length){
         // Integer topology can retain long, subresolution boundary slivers.
         // Only an actually resolvable remainder warrants a progress failure.
         const remainder=difference(target,source,options);
-        const unresolved=offsetSurfaceRegion(chart,remainder,-toleranceMm,{toleranceMm,maxStepMm:sampleStepMm}).loopsUv;
+        const unresolved=offsetSurfaceRegion(chart,remainder,-toleranceMm,{toleranceMm}).loopsUv;
         requireThat(!unresolved.length,'Surface row offset cannot advance over the remaining chart region.');
         report.subresolutionRemainders=(report.subresolutionRemainders??0)+remainder.length;break;
       }

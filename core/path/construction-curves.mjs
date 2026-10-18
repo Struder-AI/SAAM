@@ -5,6 +5,7 @@ import {mappedSurfacePath} from '../geom/surface-path.mjs';
 import {fitSampledCurve,curveStorageReduced} from '../geom/curve-fit.mjs';
 import {strokeRange} from './deposition.mjs';
 import {prepareNumericalCurve,numericalCurveRegular} from '../geom/curve-query.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 function regularGeometry(geometry){
   return numericalCurveRegular(prepareNumericalCurve(geometry));
@@ -28,7 +29,14 @@ export function constructionCurve(input,surface){
   const normalAt=i=>stroke.normals?.[i]??stroke.frameSamples?.[i]?.normal??stroke.segmentMetadata?.[Math.min(i,points.length-2)]?.surfaceNormal;
   const normal=normalAt(0);
   if(!normal||points.some((_,i)=>normalAt(i)?.some((value,k)=>value!==normal[k])??true))return null;
-  const fitted=fitSampledCurve(points,{planeNormal:normal});
+  // Reserve at most 5 microns for fitting, tightened to 1/80 of the smallest
+  // deposited dimension. Geometry certifies this caller-owned physical budget;
+  // native witnesses above never pass through the sampled-curve fitter.
+  let toleranceMm=5*PRINT_RESOLUTION_MM;
+  for(const record of [stroke,...stroke.segmentMetadata??[]])
+    for(const value of [record.beadWidthMm,record.beadHeightMm,record.normalGapMm])
+      if(Number.isFinite(value)&&value>0)toleranceMm=Math.min(toleranceMm,value/80);
+  const fitted=fitSampledCurve(points,{planeNormal:normal,toleranceMm});
   return fitted?{...fitted,fitted:true}:null;
 }
 export function retainConstructionCurves(result){

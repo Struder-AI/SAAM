@@ -37,8 +37,8 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
   }else if(reference){
     requireThat(['part','spline','plane','plate'].includes(reference.kind),'Line text reference must be a manufactured slice, part patch, build plate, independent plane or spline.');
     const shell=reference.kind==='part'?(await Geometry.resolveGeometrySelections(source.geometry,[{selection:part}]))[0]:null;
-    const atSurface=Geometry.referenceSurface(reference,shell);
-    for(const curve of compiled.assignment.curves)for(const [x,y] of curve.points)atSurface(x+origin[0],y+origin[1]);
+    const surface=Geometry.referenceSurface(reference,shell);
+    for(const curve of compiled.assignment.curves)for(const [x,y] of curve.points)Geometry.evaluateSurface(surface,[x+origin[0],y+origin[1]]);
   }
   const substrate=Object.hasOwn(request,'substrate')?request.substrate:reference?.kind==='slice'?{assignment:reference.assignment,index:reference.index}:null;
   const curveReference=reference?.kind==='slice'?reference:{kind:'surface',surface:reference,part};

@@ -18059,7 +18059,7 @@
         "referenceSurface"
       ],
       "inputs": "Native geometry, supporting surface/chart and operation-specific physical/parameter tolerances.",
-      "outputs": "Oriented planar/curved loops, point/normal/derivative samples, source parameters and diagnostics.",
+      "outputs": "Prepared numerical surface reference with evaluation, domains, trim coverage and supported native/differential capabilities.",
       "effects": "Query-local state only.",
       "failure": "Report unsupported topology with geometry evidence.",
       "excludes": "No deposition policy, display-to-manufacturing substitution or trimmed-surface output.",
