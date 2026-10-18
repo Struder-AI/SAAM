@@ -105,7 +105,7 @@ recognized defects and reports cancellable progress.
 blob-field, gridfinity or Boolean solids in the same coordinates. `union` joins,
 `intersection` keeps shared material, and `difference` subtracts later operands.
 Closed spline operands use [native surface construction](core/geom/README.md#native-boolean-construction), with automatic recovery reported in notes.
-Mesh/mixed inputs combine sections; empty results stay empty. Named-patch operations need a plain spline.
+Mesh/mixed inputs combine sections; empty results stay empty. [Named faces](core/geom/reference-surface.mjs) retain source charts through cuts, bounded by surviving regions and holes.
 `displayOperand` selects a zero-based preview operand; manufacturing uses the full Boolean. Choices nest.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
 Repeats append; display-selected solids stay nested. Apply text/heat-set metadata afterward.

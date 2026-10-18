@@ -14,7 +14,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 |---|---|
 | [slice](slice/SKILL.md) | Deposit loops and fill in owned regions over slice stacks. |
 | [trace](trace/SKILL.md) | Deposit along explicit XYZ, NURBS or surface UV curves with varying bead and process. |
-| [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
+| [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow and hold. |
 
 ## Guidance manuals
 
