@@ -1822,6 +1822,18 @@
     "core/print/surface-readiness.mjs": {
       "owner": "build-evaluate",
       "reason": "Translate selected manufactured surfaces and prepared material ownership into minimal native slice prerequisites."
+    },
+    "core/geom/edge-surface.mjs": {
+      "owner": "geometry",
+      "reason": "Compatible edge surfaces and spatial straight-span construction; no producer identities or execution."
+    },
+    "core/print/edge-paths.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Resolve actual selected edges and publish ordinary span/front Trace prerequisites."
+    },
+    "core/print/recipe-tools.mjs": {
+      "owner": "build-evaluate",
+      "reason": "One recipe authoring interface shared by geometry and deposition extension hosts."
     }
   },
   "leaves": {

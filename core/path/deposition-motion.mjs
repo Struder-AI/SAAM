@@ -37,7 +37,9 @@ export function prepareReferenceMotion(result){
       const sourceNormal=curve.normals?.[i]??curve.frameSamples?.[i]?.normal;
       requireThat(sourceNormal,'Slice-normal pose output needs a produced normal at every point.');
       const n=normalize(sourceNormal),axis=n.map(v=>-v);
-      const along=curve.referenceAlong?.[i]??curve.frameSamples?.[i]?.v??(Math.abs(n[1])<.9?[0,1,0]:[1,0,0]);
+      // Aligning the normal does not request chart-dependent roll. Producers
+      // that own a roll direction supply referenceAlong explicitly.
+      const along=curve.referenceAlong?.[i]??(Math.abs(n[1])<.9?[0,1,0]:[1,0,0]);
       const up=normalize(subtract(along,scale(axis,dot(along,axis))));
       return validatePose({toolAxis:axis,toolUp:up});
     });

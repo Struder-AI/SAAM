@@ -4,12 +4,13 @@ export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,compo
   if(!baseOnBed)return {requestedPasses:3,curves:0,notes:['Bed brim omitted on a printed base; author adhesion contours supported by that base.']};
   const width=assignment.curves[0].beadWidthMm,height=source.process.firstLayerMm??source.process.layerMm;
   const tolerance=width/400,origin=[component?.xMm??0,component?.yMm??0,component?.zMm??0],z=height-origin[2];
-  const sample=curve=>Geometry.sampleSpatialCurve(curve.geometry?source.geometry.curves.find(c=>c.id===curve.geometry):curve,{toleranceMm:tolerance,sampleStepMm:width/2}).samples.map(s=>s.point);
+  const sample=curve=>{const input=curve.geometry?source.geometry.curves.find(c=>c.id===curve.geometry):curve;return Geometry.sampleSpatialCurve(input.uv?{...input.uv,closed:input.closed,surface:{at:Geometry.referenceSurface(input.uv.reference.surface)}}:input,{toleranceMm:tolerance,sampleStepMm:width/2}).samples.map(s=>s.point);};
   const first=assignment.curves.filter(c=>c.repetitions.includes(0)).map(c=>({closed:c.closed,points:sample(c).map(([x,y])=>[x,y,z])}));
   const blocked=[];
   if(source.geometry){
-    const [material]=await Geometry.resolveMaterialGeometry([source.geometry]);
-    for(const level of [height/2,height])blocked.push(...Geometry.section(material,Geometry.horizontalSlice(level)).loops.map(loop=>loop.map(([x,y])=>[x-origin[0],y-origin[1]])));
+    const solid=source.geometry.shape==='spatial'?source.geometry.solid:source.geometry;
+    const [material]=solid?await Geometry.resolveGeometrySelections(solid,[{}]):[];
+    if(material)for(const level of [height/2,height])blocked.push(...Geometry.section(material,Geometry.horizontalSlice(level)).loops.map(loop=>loop.map(([x,y])=>[x-origin[0],y-origin[1]])));
   }
   for(const other of otherAssignments){
     if(other.construction!=='curves'||other.id===assignment.id)continue;
@@ -32,7 +33,7 @@ export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,compo
       const free=Geometry.difference([[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]],obstacles);
       const pieces=Geometry.clipPlanarCurveToRegion({closed:true,points},free,{toleranceMm:tolerance});
       if(pieces.length!==1||!pieces[0].closed)report.clippedPasses++;
-      for(const piece of pieces)brim.push({...piece,points:piece.points.map(([x,y])=>[x,y,z]),role:'breakaway-brim',directionRequired:false,seamRequired:false,beadWidthMm:width,heightMm:height,speedMmS:source.process.firstLayerSpeedMmS??assignment.curves[0].speedMmS,repetitions:[0]});
+      for(const {points,...piece} of pieces)brim.push({...piece,uv:{reference:{kind:'surface',surface:{kind:'plane',origin:[0,0,z],xAxis:[1,0,0],yAxis:[0,1,0]}},points},role:'breakaway-brim',directionRequired:false,seamRequired:false,beadWidthMm:width,heightMm:height,speedMmS:source.process.firstLayerSpeedMmS??assignment.curves[0].speedMmS,repetitions:[0]});
     }
   }
   report.curves=brim.length;

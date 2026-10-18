@@ -1,3 +1,5 @@
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {curvePairSurface,closedEdgeSpans} from './edge-surface.mjs';
 // Every extension host supplies these same CAD operations. Backend loading and
 // native objects stay here; callers supply ordinary geometry and explicit options.
 import {compileBlobField} from './blob-field-compile.mjs';
@@ -41,7 +43,7 @@ import {loftProfiles,roundedRectangleProfile,transformGeometry} from './solid-pr
 import {geometrySelections} from './selections.mjs';
 
 function buildGeometry(geometry){return buildShell(null,geometry,{native:false});}
-const operations=Object.freeze({compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
+const operations=Object.freeze({resolutionMm:PRINT_RESOLUTION_MM,curvePairSurface,closedEdgeSpans,compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
     resolveGeometrySelections,resolveMaterialGeometry,translateShell,mappedRegionMaterial,textOutlines,textLayout,
     matchCurveControls,ribbon,loftPolygons,topAt,createSectionQuery,containsPoint,
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,

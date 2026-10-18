@@ -1,62 +1,50 @@
 ---
 name: hole-transitions
-description: Experimental. Add a drill-through membrane, stepped reduction or seeded wave shoulder using ordinary Slice.
+description: Experimental. Edge-based membranes and advancing shoulders, with stepped reduction.
 metadata:
   saam-kind: extension
 ---
 
 # Hole transitions
 
-The [four-option guidance](../hole-supports/SKILL.md) owns choice and finishing. Call
-`apply_extension` with `extensionId:"hole-transitions"`, the current Bundle revision
-and a request below. `sourceAssignment` supplies part, material and process; other
-assignments remain. Use new IDs; undo with a Bundle revision before rebuilding.
+The [hole-support guidance](../hole-supports/SKILL.md) owns choice and finishing.
+Call `apply_extension` with `extensionId:"hole-transitions"` and an unused `id`.
 
-## Membrane or stepped reduction
+## Membrane and wave
 
-```json
-{"strategy":"stepped-reduction","id":"screw-hole","sourceAssignment":"body",
- "centerMm":[0,0,4],"boreRadiusMm":2,"counterboreRadiusMm":5,
- "angleDeg":0,"speedMmS":20}
-```
+Select an existing printed `base` edge: `{assignment,index,edge:{loop,ring:0}}`
+for Slice, or `{assignment,repetition,edge:{curve}}` for Trace. Optional `part`
+disambiguates a producer's component. Use `intersect_geometry`'s `edges` request
+for discovery. Geometry and prerequisites resolve automatically.
 
-`centerMm` is the shoulder in part-local XYZ. Use an unbounded planar Slice owner,
-horizontal or tilted, including oblique stack translations; no curved membranes or
-steps. Its normal/chart axes define the bore axis/angles. Match the shoulder grid
-within `toleranceMm` (default 0.01mm), retaining one bore layer for membrane or four
-for stepped reduction. Layer gaps, width, material and pose inherit the source.
+`strategy:"membrane"` uses one closed base boundary, or `base` and `target`
+printed bounds for a loft. Straight strands preserve the actual 3D endpoint
+positions, including nonplanar boundaries. This is the same construction and
+manufacturing wiring as [bridging](../bridging/SKILL.md), with no special hole
+geometry or continuation wall IDs. The generated Trace requires its supporting
+edge or edges. It leaves part geometry unchanged.
 
-Stepped reduction cuts the exemplar's slot, tangent square and tangent octagon into
-three overhang courses, bridging at `angleDeg`, +90° and +45°, then resumes the bore.
-Both strategies' guides reach the source's last supporting wall using its count,
-inset and spacing; local dense zero-loop owners replace the body's fill there.
-The report names native indices. Angle defaults to 0; speed inherits the source.
+`strategy:"wave"` requires `base` and a final `target` edge. The target can be a
+printed-edge selector or `{geometry:"existing-spatial-curve-id",part:null}` for
+an existing XYZ curve. It defines geometry and is never a printed prerequisite.
+Interpolated fronts require the base, then only the previous front. No seed
+regions, source stack, continuation wiring, offsets, brim or plate base are used.
 
-Use the same request with `strategy:"membrane"` for one straight dense fill at the
-shoulder, anchored on the preceding rim. A thin wafer closes the bore for later
-piercing or drilling. The helper wires rim walls → membrane → first bore walls;
-stepped reduction wires rim walls → stages → first round-bore walls. Both require
-source wall loops at their boundaries. `after` adds prerequisites. Fill traversal
-is a soft preference; the scheduler owns entry and travel.
+Both use `spacingMm` (default bead width), `layerHeightMm`, `beadWidthMm`,
+`speedMmS` and `sampleStepMm` overrides. Process inherits the base edge.
+`correspondence` chooses paired-curve directions/seams; `angleDeg` chooses the
+single-boundary membrane's span direction. `normalSide` is 1 or -1. Regenerate and
+review after changes. Bridge endpoints rise one bead height above their support;
+wave geometry follows the selected base-to-target surface.
 
-## Experimental wave shoulder
+## Stepped reduction
 
-Supply `strategy:"wave"`, `id`, `sourceAssignment`, `surface`, `domainUv` and `seedUv`.
-Place an ordinary Slice spline reference or native patch at the **top of the last
-wave course**. The domain has a CCW outer loop, CW bore hole and anchoring rim.
-The seed denotes already printed material in the same chart, not new deposition.
+The current stepped helper still uses `sourceAssignment`, `centerMm`,
+`boreRadiusMm`, `counterboreRadiusMm`, `angleDeg`, `speedMmS` and `toleranceMm`.
+It requires a planar source shoulder and four continuing bore layers. It cuts
+three intermediate openings and publishes their native slice order. This older
+construction remains scheduled for replacement by the common edge mechanism;
+the membrane/wave interfaces above do not use it.
 
-`layers` defaults to 1; height inherits the source stack/process. Geometry stays unchanged. Defaults: spacing 0.3mm, propagation step 0.1mm, tolerance 0.01mm,
-sample step 0.5mm, speed 5mm/s and fan 100%; fields are `lineSpacingMm`, `propagationStepMm`, `toleranceMm`, `sampleStepMm`,
-`speedMmS` and `fanPercent` (experimental values).
-`direction` accepts an XYZ translation direction; omission uses the reference's
-mean normal. `toolPose` inherits the source or accepts `{alignToSliceNormal:true}`.
-Curved charts use existing [wave fill](../wave-overhangs/SKILL.md) spacing, calibrated
-gaps, residuals and limits; no implicit final perimeter, normal-offset stacks,
-singular/folded charts or multi-chart stitching.
-
-`seedFrom` selects printed seed material and `boreTo` continuing walls; either accepts a selector or array:
-`{assignment,index,group:"walls"}` for native Slice, or `{assignment,repetition}`
-for explicit Trace. Both boundaries are required (`after` can replace seedFrom).
-The helper wires seed → wave completion → selected walls, independently of world Z.
-Review contact and residuals; [examples](examples/README.md) establish no physical result.
+Saved [examples](examples/README.md) are ordinary recipe records, not physical
+qualification. Review cooling, span, attachment and finishing.

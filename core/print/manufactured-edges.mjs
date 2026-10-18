@@ -39,6 +39,7 @@ export async function manufacturedEdges(plan,queries,{includeGeometry=true}={}){
         const nativeGeometry=stroke.nativePath?.geometry;
         const curve=nativeGeometry?.kind==='nurbs'?{closed,nurbs:{degree:nativeGeometry.degree,knots:nativeGeometry.knots,controlPoints:nativeGeometry.controlPoints,...(nativeGeometry.weights?{weights:nativeGeometry.weights}:{})}}:{closed,points};
         found.push({reference,closed,...(includeGeometry?{curve}:{}),widthMm:stroke.beadWidthMm??operation.process.lineWidthMm,
+          heightMm:stroke.beadHeightMm??stroke.segmentMetadata?.[0]?.beadHeightMm??operation.process.layerMm,
           materialNormal:stroke.normals?.[0]??stroke.frameSamples?.[0]?.normal??stroke.segmentMetadata?.[0]?.surfaceNormal,
           process:operation.process});
       }
@@ -53,4 +54,17 @@ export async function selectManufacturedEdge(plan,reference){
   const result=await manufacturedEdges(plan,[reference]);
   requireThat(result.edges.length===1,'Selected edge was split or belongs to several components; choose an individual printed edge.');
   return result.edges[0];
+}
+
+// A saved geometry curve can define a future target without becoming printed
+// work. Printed-edge selectors retain their exact manufactured prerequisite.
+export async function selectEdge(plan,selection){
+  if(!selection?.geometry)return selectManufacturedEdge(plan,selection);
+  requireThat(Object.keys(selection).every(key=>['geometry','part'].includes(key))&&typeof selection.geometry==='string',
+    'Select an existing spatial geometry curve by geometry id and optional part.');
+  const curve=plan.geometry?.shape==='spatial'?plan.geometry.curves?.find(curve=>curve.id===selection.geometry):null;
+  requireThat(curve,'Selected spatial geometry edge is absent: '+selection.geometry);
+  requireThat((curve.points||curve.nurbs)&&typeof curve.closed==='boolean','Select a spatial XYZ curve; resolve mapped geometry to an edge first.');
+  return {selection,reference:null,part:selection.part??null,closed:curve.closed,
+    curve:{closed:curve.closed,...(curve.points?{points:curve.points}:{nurbs:curve.nurbs})},process:plan.process};
 }

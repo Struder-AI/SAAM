@@ -97,69 +97,22 @@ async function stepped(plan,request,parent,Geometry){
   return {assignments,report:{strategy:'stepped-reduction',part,stages,dependencies:{anchor:anchorOperation,terminal,continuation:wallOperation(parent,boreIndex)},scope:'Planar references, including tilted planes and oblique translation directions; no curved slices.',notes:['Transition openings enlarge the original bore locally. Rebuild from a prior Bundle revision after layer, width or strategy changes.']}};
 }
 
-async function membrane(plan,request,parent,Geometry){
-  check(Object.keys(request).every(k=>['strategy','id','sourceAssignment','centerMm','boreRadiusMm','counterboreRadiusMm','angleDeg','speedMmS','after','toleranceMm'].includes(k)),'Unknown membrane setting.');
-  const {part,owner,h,width,toleranceMm,R,angle,speed,reference,at,frame}=await planarHole(plan,request,parent,Geometry,1);
-  check(at>0,'A membrane needs a preceding rim layer on the selected source stack.');
-  const anchorIndex=reference.layers[at-1].index,settings=wallSettings(parent,anchorIndex),anchor=wallOperation(parent,anchorIndex),layer=reference.layers[at];
-  const radius=R+(settings.loopInsetMm??width/2)+(settings.loops-1)*width*(settings.spacingFactor??1)+width/2;
-  const geometry={shape:'boolean',operation:'union',operands:[owner.geometry,prism(circle(radius,toleranceMm),frame,-h,0)]};
-  if(owner.setGeometry)owner.setGeometry(geometry);else owner.geometry=geometry;
-  const assignment={...structuredClone(parent),id:request.id,loops:0,fillDensity:1,fillPattern:'rectilinear',fillAnglesDeg:[angle],rotateFill:false,
-    solidTop:0,solidBottom:0,spacingFactor:1,fillOrder:null,connectNearby:false,
-    process:{...parent.process,planarSpeedMmS:speed,firstLayerSpeedMmS:speed},
-    within:[{kind:'geometry',geometry:prism(circle(radius,toleranceMm),frame,-h/4,h/4)}],operationAfter:{},
-    dependencies:{afterParts:[],beforeParts:[],after:[...new Set([anchor,...(request.after??[])])]},
-    description:'Experimental drill-through hole membrane; straight strands bridge from the printed rim.'};
-  delete assignment.sliceOverrides;
-  const terminal=`${part===null?'':part+':'}${request.id}:${layer.index}:fill`,boreIndex=reference.layers[at+1].index;
-  continueWalls(parent,boreIndex,terminal);
-  return {assignments:[assignment],report:{strategy:'membrane',part,layerIndex:layer.index,radiusMm:radius,
-    dependencies:{anchor,terminal,continuation:wallOperation(parent,boreIndex)},
-    scope:'Planar references, including tilted planes and oblique stack translations; no curved membranes.',
-    notes:['The membrane closes the bore for piercing or drilling after printing. Rebuild from a prior Bundle revision after process or strategy changes.']}};
-}
-
-function wave(request,parent,process){
-  check(Object.keys(request).every(k=>['strategy','id','sourceAssignment','surface','domainUv','seedUv','layers','layerHeightMm','direction','lineSpacingMm','propagationStepMm','toleranceMm','sampleStepMm','speedMmS','fanPercent','toolPose','after','seedFrom','boreTo'].includes(k)),'Unknown wave setting.');
-  check(['spline','patch'].includes(request.surface?.kind),'Wave holes need an authored spline reference or named patch.');
-  check(loops(request.domainUv)&&loops(request.seedUv),'Supply the shoulder domainUv and an already supported rim seedUv.');
-  const signedArea=loop=>loop.reduce((sum,p,i)=>sum+p[0]*loop[(i+1)%loop.length][1]-p[1]*loop[(i+1)%loop.length][0],0)/2;
-  check(request.domainUv.some(loop=>signedArea(loop)<0),'The wave domain must retain the bore as a clockwise hole.');
-  const layers=request.layers??1;check(Number.isSafeInteger(layers)&&layers>0,'layers must be a positive integer.');
-  const height=positive(request.layerHeightMm??parent.stack?.layerMm??parent.process?.layerMm??process.layerMm,'layerHeightMm');
-  const assignment={id:request.id,part:parent.part??null,filament:parent.filament??null,
-    process:{...parent.process,planarSpeedMmS:positive(request.speedMmS??5,'speedMmS'),firstLayerSpeedMmS:positive(request.speedMmS??5,'speedMmS'),fanPercent:request.fanPercent??100},
-    loops:0,fillDensity:1,solidTop:0,solidBottom:0,sampleStepMm:positive(request.sampleStepMm??.5,'sampleStepMm'),
-    surface:structuredClone({...request.surface,offsetMm:request.surface.offsetMm??0}),
-    stack:{firstLayerMm:height,layerMm:height,...(request.direction?{direction:request.direction}:{})},
-    within:[{kind:'surface-domain',loopsUv:request.domainUv,fromLayer:-layers,toLayer:0}],
-    fillOrder:{kind:'fronts',seedUv:request.seedUv,lineSpacingMm:positive(request.lineSpacingMm??.3,'lineSpacingMm'),propagationStepMm:positive(request.propagationStepMm??.1,'propagationStepMm'),toleranceMm:positive(request.toleranceMm??.01,'toleranceMm')},
-    toolPose:request.toolPose??parent.toolPose??null,dependencies:{afterParts:[],beforeParts:[],after:request.after??[]},
-    description:'Experimental wave hole shoulder: grow from the supported outer rim toward the retained bore.'};
-  return {assignments:[assignment],report:{strategy:'wave',scope:'Regular injective spline charts and translated stacks; planar or curved. No normal-offset stack, folded chart or multi-chart stitching.',notes:['Place the reference at the top of the last wave course. Domain depth is layers × layerHeightMm in the calibrated stack. The seed denotes existing material and is not extruded again; inspect residuals and contact before continuing the ordinary bore.']}};
-}
-
 export async function editHoleTransition(source,request,Geometry){
   check(request&&['stepped-reduction','membrane','wave'].includes(request.strategy),'Choose stepped-reduction, membrane or wave.');
   check(typeof request.id==='string'&&/^[a-z][a-z0-9-]*$/.test(request.id),'Choose a lowercase hyphenated id.');
+  if(request.strategy==='membrane'||request.strategy==='wave'){
+    const {strategy,...settings}=request;
+    check(Geometry.Recipe?.constructEdgePaths,'Hole transitions need the common printed-edge construction interface.');
+    const prior=source.slices?.assignments??[];check(!prior.some(a=>a.id===request.id),'The transition id already exists.');
+    const made=await Geometry.Recipe.constructEdgePaths({...settings,mode:strategy==='membrane'?'span':'wave'});
+    return {assignmentRequests:[...prior,made.assignment],report:{strategy,...made.report}};
+  }
   check(request.after===undefined||Array.isArray(request.after)&&request.after.every(id=>typeof id==='string'&&id.length),'after names exact supporting operation IDs.');
   const plan=structuredClone(source),prior=plan.slices?.assignments??[],parent=prior.find(a=>a.id===request.sourceAssignment);
   check(parent&&!parent.construction&&!parent.join,'sourceAssignment must name an ordinary Slice owner.');
-  const made=request.strategy==='wave'?wave(request,parent,plan.process):await (request.strategy==='membrane'?membrane:stepped)(plan,request,parent,Geometry);
+  const made=await stepped(plan,request,parent,Geometry);
   check(made.assignments.every(a=>!prior.some(old=>old.id===a.id)),'Transition ids already exist; undo the prior application or choose a distinct hole id.');
   let assignments=[...prior,...made.assignments];
-  if(request.strategy==='wave'){
-    const Recipe=Geometry.Recipe;
-    check(Recipe&&request.boreTo,'Wave holes need boreTo selecting continuing wall operations.');
-    check(!Array.isArray(request.boreTo)||request.boreTo.length,'boreTo cannot be empty.');
-    check(!Array.isArray(request.seedFrom)||request.seedFrom.length,'seedFrom cannot be empty.');
-    check(request.seedFrom||request.after?.length,'Wave holes need seedFrom selecting printed seed material, or explicit after operation IDs.');
-    const anchors=request.seedFrom?(Array.isArray(request.seedFrom)?request.seedFrom:[request.seedFrom]).map(target=>Recipe.operationId(assignments,target)):request.after;
-    made.assignments[0].dependencies.after=[...new Set([...made.assignments[0].dependencies.after,...anchors])];
-    const targets=Array.isArray(request.boreTo)?request.boreTo:[request.boreTo];
-    for(const target of targets)assignments=Recipe.withOperationAfter(assignments,target,[{assignment:request.id}]);
-    made.report.dependencies={anchor:[...made.assignments[0].dependencies.after],terminal:{assignment:request.id},continuation:targets.map(target=>Recipe.operationId(assignments,target))};
-  }
+
   return {geometry:plan.geometry,assignmentRequests:assignments,report:{...made.report,physicalQualification:'Unverified; review cooling, span, attachment and finishing.'}};
 }

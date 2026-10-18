@@ -1,34 +1,40 @@
 ---
 name: bridge-supports
-description: Experimental. Two-loop removable supports between matched base and landing curves, open or closed.
+description: Experimental. Two-loop breakaway supports between selected base and landing edges.
 metadata:
   saam-kind: hybrid
 ---
 
 # Breakaway bridge supports
 
-Use **two adjacent loops per course** for holes and open edges. Prefer a gently
-bowed or kinked bed base where space permits; the bend stiffens the support.
-Taper it toward the actual landing, preserving contact and removal access.
-The helper offsets part edges outward by half a bead; unattached bed bases stay selected.
+Call `apply_extension` with `extensionId:"bridge-supports"` and
+`request:{supports:[{id,base,landing}]}`. Select printed edges using
+`{assignment,index,edge:{loop,ring:0}}` for a native Slice perimeter, or
+`{assignment,repetition,edge:{curve}}` for an authored Trace curve. Optional
+`part` disambiguates a producer's component. Edge discovery is available through
+`intersect_geometry`'s `edges` request. The tool resolves geometry and dependencies.
 
-Call `apply_extension` with `extensionId:"bridge-supports"`, current revision and
-`request:{supports:[{id,part,base,landing,layerHeightMm:0.22,baseFrom,landingTo}]}`.
-Curves are component-local `{closed,points:[XYZ,...]}` or `{closed,nurbs:{degree,knots,controlPoints,weights?}}`.
-`correspondence` sets `baseDirection`/`landingDirection` (`forward`/`reverse`) and
-`baseSeam`/`landingSeam` (normalized, default 0; open curves use 0). Control matching preserves shapes.
-Height defaults to process.layerMm; rounded mean control travel sets divisions and bead height.
-Width/speed inherit process; `beadWidthMm`, `speedMmS`, `sampleStepMm` override them.
-The second loop lies one bead farther from the host; landing contact stays on the first.
+A bed base is explicitly `{kind:"plate",curve:{closed,points:[XYZ,...]}}`, or a
+NURBS curve in place of points. Its curve lies on the canonical build plate.
+A printed base uses the edge selector above. The landing selects its future
+printed edge; that edge automatically requires the final support course.
+The first course requires its printed base, and each later course requires only
+its predecessor. No operation IDs or height-based ordering are authored.
 
-`baseFrom` selects printed base operations; omit for bed bases. `landingTo` selects
-later bridges: `{assignment,index,group:"fill"}` for Slice or `{assignment,repetition}`
-for Trace. Either accepts an array. The helper wires brim/base → courses → landing;
-loop entry and unrelated work stay free. `after` adds base IDs; the report retains
-`lastOperationId` and flags unbound landings. Review chronology and bead/nozzle clearance.
+Two adjacent loops follow each interpolated course. The first lies beside the
+host's bead; the second lies one bead farther out. `baseSide` and `landingSide`
+choose right (`1`, default) or left (`-1`) of the selected curve. Native Slice
+perimeters keep material left, so their exterior is right. Plate bases get three
+clipped adhesion passes. Prefer bowed/kinked bases where space permits.
 
-Always add a few brim loops where they fit. Bed bases get three contour passes,
-clipped clear of first-layer part material and other authored supports; clipping/omission is reported.
-On printed bases, author supported adhesion contours. Do not let brims collide with other work.
-The [hole singleton](examples/removable.json) and [nonplanar ledge](examples/nonplanar.json) use this standard; [hole guidance](../hole-supports/SKILL.md)
-owns alternatives. Rebuild after process changes; review removal. Physical printing remains unqualified.
+`layerHeightMm`, `beadWidthMm`, `speedMmS` and `sampleStepMm` override process
+values. `correspondence` sets base/landing direction (`forward`/`reverse`) and
+normalized seam. Compatible control nets preserve the selected curves; rounded
+mean control travel determines the number of courses. Material frames derive
+from each course ribbon, including tilted constructions. Scheduling owns entry,
+interleaving and transfers; Export checks the selected machine.
+
+Saved [hole](examples/removable.json) and [nonplanar ledge](examples/nonplanar.json)
+examples retain ordinary Trace data. Review attachment, removal and cooling;
+physical printing remains unqualified. [Hole guidance](../hole-supports/SKILL.md)
+owns alternatives.

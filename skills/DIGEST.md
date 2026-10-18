@@ -42,7 +42,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [standard-support](standard-support/SKILL.md) | Experimental authored supports from a selected underside, flat footprint or tree skeleton, closed to the bed and sliced infill-only. |
-| [hole-transitions](hole-transitions/SKILL.md) | Experimental. Add a drill-through membrane, stepped reduction or seeded wave shoulder using ordinary Slice. |
+| [hole-transitions](hole-transitions/SKILL.md) | Experimental. Edge-based membranes and advancing shoulders, with stepped reduction. |
 
 ## Workspace extensions
 

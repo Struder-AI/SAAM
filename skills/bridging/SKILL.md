@@ -7,6 +7,17 @@ metadata:
 
 # Bridging
 
+Call `apply_extension` with `extensionId:"bridging"` and
+`request:{id,base,target?}` using printed-edge selectors
+`{assignment,index,edge:{loop,ring:0}}` or
+`{assignment,repetition,edge:{curve}}`. One closed boundary fills its interior
+with straight spans; two bounds form a loft. Nonplanar endpoints remain in 3D.
+This uses exactly the same geometry and prerequisites as a
+[hole membrane](../hole-transitions/SKILL.md#membrane-and-wave). Supporting edges
+become prerequisites automatically. Process inherits the base; optional
+`spacingMm`, `layerHeightMm`, `beadWidthMm`, `speedMmS`, `sampleStepMm`,
+`angleDeg`, `normalSide` and paired-curve `correspondence` control construction.
+
 Author span and attachment centerlines as ordinary [Trace](../trace/SKILL.md) curves. The helper requires attachment/span order within each one-way row; rows form soft chunks and may reorder independently. Alternating depositing turns require the full run’s sequence. Spans and presses are atomic. `supportBridge` requires its named predecessor; Scheduling owns travel. Trace owns common fields.
 
 Use `contact:{source:null,gapMm:null,sampleStepMm:0.1,referenceZMm:null}` to check expected supporting strands. Contact checks do not create execution dependencies. A press uses an explicit down-and-up curve with `depositionAction:{kind:'press',depthMm}`.

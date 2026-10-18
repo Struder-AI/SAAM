@@ -32,6 +32,8 @@ Source tables are `curves`, `layers`, `surfaces`, `processes`, `operations` and 
   right-continuous except at 1; callers can request a knot's left limit.
   Deposition requires positive width and an explicit material normal. Toolpath
   resolves ordinary three-axis poses explicitly; `materialNormal` never implies pose.
+  Optional normal alignment uses a canonical up direction; only an explicit
+  producer `referenceAlong` requests roll from a reference frame.
   Travel can omit width, normal and material, but always supplies pose and speed.
 - Material has one authority: `{kind:'area',areaMm2:profile}` integrates nonnegative area against arc length;
   `{kind:'cumulative',interpolation:'monotone',knots:[[u,totalMm3],...]}` retains every stored total and interpolates monotone C1 volume. Omitted interpolation retains older linear meaning.
@@ -46,7 +48,7 @@ Source tables are `curves`, `layers`, `surfaces`, `processes`, `operations` and 
   `processes` deduplicates the existing resolved process records; `planning`
   retains its existing defaults, explicit start and motion settings.
 - Operation `after` names operations or completion IDs; course `after` names source-wide courses.
-  Every prerequisite finishes before its consumer starts. Completion records `{kind,members,after}` retain required work without expanding its courses; assignment completion uses terminal work. Recipe selectors `{assignment,index?,part?}` resolve to exact producer/slice completion. `substrate` attaches the selected manufactured base automatically; chart references alone do not. Construction lowers local curve names/parallel expansions and removes transitively implied prerequisites.
+  Every prerequisite finishes before its consumer starts. Completion records `{kind,members,after}` retain required work without expanding its courses; assignment completion uses terminal work. Recipe selectors `{assignment,index?,part?}` resolve to exact producer/slice completion. `substrate` attaches an independently selected manufactured base. Manufactured slice/exterior references derive their actual slice or stack prerequisites automatically; independent geometry charts leave them empty. Construction lowers local curve names/parallel expansions and removes transitively implied prerequisites.
   Consecutive courses sharing `orderGroup` form a soft traversal chunk; internal requirements survive splitting. Slice retains uninterrupted fill cells; splits/merges end cells. Scheduling chooses permitted entry/reversal and transfer endpoints, opening implicated courses for external interference. Later cuts preserve those openings. Group names impose no hard precedence.
   `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal; `seamRequired:false` permits cyclic entry changes on interruptible closed courses. Material and poses retain their source locations. A required seam stays first even after refinement. Construction certifies permitted directions/seams; ordinary Slice normally frees both. Causal fronts, Trace and atomic/continuous work retain authored requirements.
 - A stationary operation has `kind:'inject'`, no courses, and
