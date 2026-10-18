@@ -1,7 +1,8 @@
+import {TOLERANCE,ROUNDING_MM,CHORD_TOLERANCE_MM} from '../core/dimensions.mjs';
 import {DEFAULT_PHASE_COLOURS,phaseColour} from '../core/print/phase-colours.mjs';
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
-export const VIEWER_TOLERANCE_MM=0.02;
+export const VIEWER_TOLERANCE_MM=CHORD_TOLERANCE_MM;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
 // Inspection owns repetition identity; motion retains its geometric layer
@@ -129,7 +130,7 @@ export function layerEndSeconds(view,index){
   const group=view.groups[clamped],move=view.moves.at(group.last),end=move.startSeconds+move.durationSeconds;
   const next=view.groups[clamped+1];
   // Display only: a microsecond before the next group starts.
-  return next?Math.min(end,view.moves.at(next.first).startSeconds-1e-6):end;
+  return next?Math.min(end,view.moves.at(next.first).startSeconds-TOLERANCE.domainFraction):end;
 }
 export function stepLayerIndex(view,seconds,direction){
   return Math.max(0,Math.min(layerIndexAt(view,seconds)+direction,view.groups.length-1));
@@ -170,10 +171,10 @@ export function representativeLayer(view,{feature='contour'}={}){
       if(!move.extruding||!/walls|perimeter/.test(move.operation??move.role??'')){previous=null;continue;}
       first??=move;walls++;
       // Display only: consecutive wall moves that share an end are drawn as one.
-      if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<1e-6)){
+      if(previous&&previous.operation===move.operation&&previous.to.every((v,k)=>Math.abs(v-move.from[k])<ROUNDING_MM)){
         const a=previous.to.map((v,k)=>v-previous.from[k]),b=move.to.map((v,k)=>v-move.from[k]);
         const lengths=Math.hypot(...a)*Math.hypot(...b);
-        if(lengths&&a.reduce((sum,v,k)=>sum+v*b[k],0)/lengths<.94)corners++;
+        if(lengths&&a.reduce((sum,v,k)=>sum+v*b[k],0)/lengths<0.94)corners++;
       }
       previous=move;
     }

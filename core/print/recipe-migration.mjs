@@ -4,7 +4,7 @@ import {ordinarySliceAssignment} from './slice-settings.mjs';
 
 function legacyRimAssignment({id,part=null,filament=null,process=null,after=[],source=null,steps=[2],minFeatureMm=.4}){
   return ordinarySliceAssignment({id,part,filament,process,loops:steps,fillDensity:0,solidTop:0,solidBottom:0,
-    surface:{kind:'terminal',assignment:source,minFeatureMm},contact:{source},dependencies:{afterParts:[],beforeParts:[],after}});
+    surface:{kind:'slice',assignment:source},contact:{source},dependencies:{afterParts:[],beforeParts:[],after}});
 }
 
 
@@ -17,9 +17,18 @@ function migrateAssignmentTerms(assignment){
 
 // One assignment in its current form, with what changed; throws when an old
 // form has no automatic reading.
-function currentAssignmentForm(assignment,index){
+function currentAssignmentForm(assignment,index,assignments){
   const changes=[];
   let source=assignment;
+  if(source.surface?.kind==='terminal'){
+    const producer=assignments.find(item=>item.id===source.surface.assignment);
+    requireThat(producer&&(!producer.construction&&!producer.join||producer.construction==='rim'||
+      producer.construction==='sleeve'&&producer.endTransition==='level'&&!producer.join),
+    `Deprecated terminal surface reference: ${assignment.id}.`);
+    const surface={kind:'slice',assignment:source.surface.assignment};
+    source={...source,surface};
+    changes.push({path:`slices.assignments.${index}.surface`,assignment:assignment.id,before:assignment.surface,after:surface,meaning:'Prepared surface in declared sequence.'});
+  }
   if(source.substrate?.kind==='discover'){
     source={...source,substrate:null};
     changes.push({path:`slices.assignments.${index}.substrate`,assignment:assignment.id,before:assignment.substrate,after:null,
@@ -44,7 +53,7 @@ export function currentAssignmentForms(plan){
   const changes=[],notes=[],unread=[],failures=[];
   const assignments=authored.map((assignment,index)=>{
     try{
-      const read=currentAssignmentForm(assignment,index);
+      const read=currentAssignmentForm(assignment,index,authored);
       if(read.changes.length){changes.push(...read.changes);notes.push(`${assignment.id} is read in its current form (${[...new Set(read.changes.map(change=>change.path.split('.').slice(3).join('.')||change.to))].join(', ')}); the next save or migrate_bundle records it.`);}
       return read.assignment;
     }catch(error){

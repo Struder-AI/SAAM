@@ -3,7 +3,8 @@
 export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,component,otherAssignments}){
   if(!baseOnBed)return {requestedPasses:3,curves:0,notes:['Bed brim omitted on a printed base; author adhesion contours supported by that base.']};
   const width=assignment.curves[0].beadWidthMm,height=source.process.firstLayerMm??source.process.layerMm;
-  const tolerance=width/400,origin=[component?.xMm??0,component?.yMm??0,component?.zMm??0],z=height-origin[2];
+  // Scale the print-resolution budget with bead width (0.4 mm reference bead).
+  const tolerance=width/(0.4/Geometry.dimensions.PRINT_RESOLUTION_MM),origin=[component?.xMm??0,component?.yMm??0,component?.zMm??0],z=height-origin[2];
   const sample=curve=>{const input=curve.geometry?source.geometry.curves.find(c=>c.id===curve.geometry):curve;return Geometry.sampleSpatialCurve(input.uv?{...input.uv,closed:input.closed,surface:Geometry.referenceSurface(input.uv.reference.surface)}:input,{toleranceMm:tolerance,sampleStepMm:width/2}).samples.map(s=>s.point);};
   const first=assignment.curves.filter(c=>c.repetitions.includes(0)).map(c=>({closed:c.closed,points:sample(c).map(([x,y])=>[x,y,z])}));
   const blocked=[];

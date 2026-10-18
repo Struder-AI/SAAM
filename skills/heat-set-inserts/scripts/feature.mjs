@@ -38,7 +38,7 @@ export function borePoint(f,r,a,s){
   const v=[d[1]*u[2]-d[2]*u[1],d[2]*u[0]-d[0]*u[2],d[0]*u[1]-d[1]*u[0]];
   return f.positionMm.map((c,i)=>c+s*d[i]+r*(Math.cos(a)*u[i]+Math.sin(a)*v[i]));
 }
-export const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
+export const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:record.toleranceMm,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
 export function validateHeatSetRecord(record){
   requireThat(Object.keys(record).sort().join()===Object.keys(heatSetTemplate(record)).sort().join(),'Unexpected heat-set geometry fields.');
   requireThat(record.base&&Array.isArray(record.features)&&record.features.length>0,'Heat-set geometry needs a base and nonempty feature list.');

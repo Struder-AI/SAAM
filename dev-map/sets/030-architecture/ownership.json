@@ -3,6 +3,14 @@
   "status": "Producer-validity, owned Slice regions, compact completion, lazy inspection and canonical skill retirement remediation, 2026-10-17. Full influence analysis and warm/cold solving remain owner-deferred; no complete static conformance claim.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "core/geom/section-contact.mjs": {
+      "owner": "geometry",
+      "reason": "Numerical section contact footprints and union coverage intervals in local frames."
+    },
+    "core/path/bead-qualification.mjs": {
+      "owner": "scheduling",
+      "reason": "Intermittent bead contact and bridge qualification over available manufactured material."
+    },
     "core/geom/surface-extend.mjs": {
       "owner": "geometry",
       "reason": "Tangent continuation of spline reference surfaces in native parameters."
@@ -187,10 +195,6 @@
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
     },
-    "core/geom/height-slice.mjs": {
-      "owner": "geometry",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/geom/prepared-contours.mjs": {
       "owner": "geometry",
       "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
@@ -266,10 +270,6 @@
     "core/region/perimeters.mjs": {
       "owner": "slice",
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners. Declaration overrides identify mixed responsibilities."
-    },
-    "core/region/roof-region.mjs": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
     },
     "core/region/surface-curves.mjs": {
       "owner": "slice",
@@ -553,7 +553,7 @@
     },
     "machines/dobot/dobot.mjs": {
       "owner": "export",
-      "reason": "Machine dialect export and interpretation."
+      "reason": "Selected machine adapter and controller numeric precision."
     },
     "machines/dobot/debug/verify.mjs": {
       "owner": "export",
@@ -565,7 +565,7 @@
     },
     "machines/denso/denso.mjs": {
       "owner": "export",
-      "reason": "Machine dialect export and interpretation."
+      "reason": "Selected machine adapter and controller numeric precision."
     },
     "machines/denso/debug/verify.mjs": {
       "owner": "export",
@@ -790,14 +790,6 @@
     "core/local-extension.mjs": {
       "owner": "extensions",
       "reason": "Existing local extension loading/dispatch; target general extension host still needs extraction."
-    },
-    "core/print/surface-domains.mjs": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
-    },
-    "core/print/terminal-boundary.mjs": {
-      "owner": "material-regions",
-      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "skills/deposition.mjs": {
       "owner": "extensions",
@@ -1357,7 +1349,7 @@
     },
     "scripts/check-repo.mjs": {
       "owner": "development",
-      "reason": "Repository documentation link, anchor and digest-freshness check; development tooling."
+      "reason": "Repository policy, including literal/default tolerance checks."
     },
     "scripts/setup-check.mjs": {
       "owner": "application",
@@ -1822,6 +1814,18 @@
     "core/print/geometric-references.mjs": {
       "owner": "build-evaluate",
       "reason": "Select geometric edges and owned Slice boundaries with symbolic readiness, never deposition construction."
+    },
+    "core/geom/chart-region.mjs": {
+      "owner": "geometry",
+      "reason": "Native-chart predicate regions at physical sampling accuracy."
+    },
+    "core/geom/surface-neighborhood.mjs": {
+      "owner": "geometry",
+      "reason": "Finite tangent continuation and certified local metric bounds for requested surface-offset neighborhoods."
+    },
+    "core/print/prepared-surface.mjs": {
+      "owner": "recipe",
+      "reason": "Prepared surface selection in declared sequence with separate symbolic completion prerequisites."
     }
   },
   "leaves": {

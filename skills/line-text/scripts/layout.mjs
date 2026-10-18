@@ -1,4 +1,8 @@
-import {fontMetrics, kernUnits, PRINT_RESOLUTION_MM} from './strokefont.mjs';
+
+export function createTextLayout(Geometry,strokeFont){
+const {fontMetrics,kernUnits}=strokeFont;
+const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
+
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -6,7 +10,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 // `heightMm` is the measured capital height of the font, so "6 mm text" means the
 // same physical letter height in every font. Characters the font lacks are left
 // out and listed in `missing`.
-export function layoutText(font, text, {heightMm, letterSpacingMm = 0, lineHeightFactor = 1.4, align = 'left', kerning = true} = {}) {
+function layoutText(font, text, {heightMm, letterSpacingMm = 0, lineHeightFactor = 1.4, align = 'left', kerning = true} = {}) {
   requireThat(typeof text === 'string' && text.length > 0, 'Line text needs a non-empty string.');
   requireThat(Number.isFinite(heightMm) && heightMm > 0, 'Line text needs a positive heightMm.');
   const metrics = fontMetrics(font), scale = heightMm / metrics.capHeight;
@@ -39,7 +43,7 @@ export function layoutText(font, text, {heightMm, letterSpacingMm = 0, lineHeigh
   return {strokes: placed, lines: lineInfo, scale, heightMm, metrics, bounds: strokeBounds(placed), missing: [...missing]};
 }
 
-export function strokeBounds(strokes) {
+function strokeBounds(strokes) {
   const points = strokes.flatMap(s => s.points);
   if (!points.length) return {min: [0, 0], max: [0, 0]};
   return {
@@ -48,7 +52,7 @@ export function strokeBounds(strokes) {
   };
 }
 
-export const translateStrokes = (strokes, dx, dy) => strokes.map(s => ({...s, points: s.points.map(([x, y]) => [x + dx, y + dy])}));
+const translateStrokes = (strokes, dx, dy) => strokes.map(s => ({...s, points: s.points.map(([x, y]) => [x + dx, y + dy])}));
 
 const gap = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 
@@ -56,7 +60,7 @@ const gap = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 // begins), so a joined word deposits as one bead instead of a start and stop at
 // every junction. Only endpoint to endpoint joins within toleranceMm; the chain
 // keeps every original point and adds no connector geometry.
-export function chainStrokes(strokes, toleranceMm) {
+function chainStrokes(strokes, toleranceMm) {
   const open = strokes.filter(s => !s.closed && !s.dot).map(s => ({...s, points: [...s.points]}));
   const rest = strokes.filter(s => s.closed || s.dot);
   const used = new Set(), result = [];
@@ -84,4 +88,7 @@ export function chainStrokes(strokes, toleranceMm) {
   }
   // Preserve reading order: strokes sort by the glyph they start in.
   return [...result, ...rest].sort((a, b) => (a.glyph.line - b.glyph.line) || (a.glyph.index - b.glyph.index) || (a.glyph.stroke - b.glyph.stroke));
+}
+
+return {layoutText,strokeBounds,translateStrokes,chainStrokes};
 }

@@ -114,7 +114,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     const index=indices?.[repetition]??repetition;
     const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
     if(!active.length)continue;
-    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:index,offset:translation.map(v=>repetition*v)}).map(constructed=>({...constructed,sourceCurve:sourceCurves.get(curve)})));
+    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:referenceStack?index:null,offset:translation.map(v=>repetition*v)}).map(constructed=>({...constructed,sourceCurve:sourceCurves.get(curve)})));
     const heightMm=sourceLayer?.heightMm??(repetition===0?process.firstLayerMm:process.layerMm),speedMmS=sourceLayer?.speedMmS??(repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS);
     if(referenceStack){const layer=referenceStack.layers.find(l=>l.index===(indices?.[repetition]??repetition));
       for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{
@@ -149,9 +149,9 @@ function traceReferenceLayer(curves,{assignment,sourceLayer,referenceStack,refer
   if(sourceLayer?.slice)return {slice:sourceLayer.slice,stackId:sourceLayer.stackId,ownershipIndex:sourceLayer.index};
   const refs=curves.map(curve=>curve.uv?.reference);
   if(!refs.length||!refs.every(ref=>ref?.kind==='slice'))return null;
-  const first=refs[0],layerIndex=first.index??index;
-  if(!refs.every(ref=>ref.assignment===first.assignment&&(ref.index??index)===layerIndex))return null;
-  const stack=referenceStack??references['slice:'+first.assignment],layer=stack?.layers.find(layer=>layer.index===layerIndex);
+  const first=refs[0],stack=referenceStack??references['slice:'+first.assignment],layerIndex=first.index??(referenceStack?index:stack?.layers.findLast(layer=>layer.slice)?.index);
+  if(!refs.every(ref=>ref.assignment===first.assignment&&(ref.index??(referenceStack?index:layerIndex))===layerIndex))return null;
+  const layer=stack?.layers.find(layer=>layer.index===layerIndex);
   return layer?{slice:layer.slice,stackId:stack.stackId??first.assignment,ownershipIndex:layerIndex}:null;
 }
 

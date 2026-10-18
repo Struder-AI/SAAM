@@ -1,10 +1,12 @@
+import {CONSTRUCTION_TOLERANCE_MM,CHORD_TOLERANCE_MM} from '../core/dimensions.mjs';
 // Structural records used to store and view supplied bundle values. Technique
 // validation runs on regeneration through the selected extension copy.
+import * as dimensions from '../core/dimensions.mjs';
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const sleeveDefaults={zStartMm:0,zEndMm:null,endTransition:'level',pattern:null,pathMode:'continuous',meshSleeve:null,
-  sampleStepMm:1,toleranceMm:0.02,boundaryToleranceMm:0.02,minFeatureMm:0.4,sleeveToleranceMm:0.08};
+  sampleStepMm:1,toleranceMm:CHORD_TOLERANCE_MM,boundaryToleranceMm:CHORD_TOLERANCE_MM,minFeatureMm:0.4,sleeveToleranceMm:(8*CONSTRUCTION_TOLERANCE_MM)};
 const sleeveAssignment=({id,...options})=>structuredClone({id,construction:'sleeve',part:null,filament:null,process:null,after:[],...sleeveDefaults,...options});
 const sameFields=(value,template)=>value&&typeof value==='object'&&!Array.isArray(value)&&
   Object.keys(value).sort().join()===Object.keys(template).sort().join();
@@ -18,10 +20,10 @@ export const ASSIGNMENT_RECORDS=Object.freeze({
     family:()=> 'trace'}
 });
 
-const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:0.02,maxEdgeMm:1,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]}),materialParts:[],
+const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:CHORD_TOLERANCE_MM,maxEdgeMm:1,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]}),materialParts:[],
   ...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
 const gridfinityTemplate=(record={})=>({shape:'gridfinity',parameters:null,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
-const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:0.01,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
+const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:CONSTRUCTION_TOLERANCE_MM,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
 const meshRecord=(record,template)=>{
   if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).sort().join()!==Object.keys(template(record)).sort().join())
     throw Error(`Unexpected ${record?.shape} geometry fields.`);
@@ -82,7 +84,7 @@ export async function validateSelectedExtensionRecipe(plan){
     const patterns=sleeves.filter(assignment=>assignment.pattern!==null&&!failures.some(failure=>failure.assignment===assignment.id));
     if(patterns.length){
       try{
-        const advanced=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))();
+        const advanced=(await loadExtensionEntry('advanced-vase-wall','record-runtime'))({dimensions});
         for(const assignment of patterns)try{advanced.validateSleevePattern(assignment.pattern,assignment.pathMode);}catch(error){
           if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
           failures.push({assignment:assignment.id,message:error.message});

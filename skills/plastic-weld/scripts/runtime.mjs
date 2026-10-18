@@ -1,8 +1,6 @@
 // Plastic weld authors process cavities and material envelopes as ordinary
 // rational geometry, then uses the shared Boolean and Inject operations.
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
 export const PLASTIC_WELD_DEFAULTS={enabled:false,sites:[],shaftDiameterMm:1.2,basinDiameterMm:3,
   basinHeightMm:1.2,wallMm:1.2,floorMm:.8,seatDepthMm:0,volumeFactor:1,flowMm3S:.5,holdSeconds:1,nozzleC:null};
 const positive=(value,name)=>requireThat(Number.isFinite(value)&&value>0,'plastic-weld '+name+' must be positive.');
@@ -40,6 +38,7 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
 }
 
 export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configuration}){
+  const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
   const settings={...PLASTIC_WELD_DEFAULTS,...configuration};
   requireThat(Array.isArray(settings.sites),'Plastic-weld sites must be an array.');
   const declarations=settings.sites.map(site=>{

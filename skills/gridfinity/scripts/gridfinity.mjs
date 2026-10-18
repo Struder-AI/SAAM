@@ -2,7 +2,7 @@
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Dimensional sources and height conventions live in the skill manual.
-const COMMON={kind:'bin',xUnits:1,yUnits:1,toleranceMm:0.03};
+const COMMON={kind:'bin',xUnits:1,yUnits:1,toleranceMm:null};
 const OPTIONS={
   bin:{heightUnits:3,wallMm:1.2,floorMm:2.25,compartmentsX:1,compartmentsY:1,stackingLip:true,magnetHoles:false},
   blank:{heightUnits:1,magnetHoles:false},
@@ -15,11 +15,11 @@ export function editedGridfinityParameters(previous,changes){
     :Object.fromEntries(Object.entries(previous).filter(([key])=>key!=='kind'&&Object.hasOwn(COMMON,key)));
   return {...kept,...changes};
 }
-export function gridfinityParameters(input={}){
+export function gridfinityParameters(input={},toleranceMm){
   requireThat(input&&typeof input==='object'&&!Array.isArray(input),'Gridfinity parameters must be an object.');
   const kind=input.kind??'bin';
   requireThat(Object.hasOwn(OPTIONS,kind),'Gridfinity kind must be bin, blank or baseplate.');
-  const template={...COMMON,kind,...OPTIONS[kind]};
+  const template={...COMMON,kind,...OPTIONS[kind],toleranceMm};
   requireThat(Object.keys(input).every(key=>Object.hasOwn(template,key)),'Unknown or inapplicable gridfinity parameter.');
   const p={...template,...input};
   const range=(key,min,max,integer=false)=>requireThat(Number.isFinite(p[key])&&p[key]>=min&&p[key]<=max&&(!integer||Number.isInteger(p[key])),`${key} must be ${integer?'an integer ':''}between ${min} and ${max}.`);
@@ -42,9 +42,9 @@ export function gridfinityParameters(input={}){
 }
 
 // -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
-export async function compileGridfinity(input={}, {constructGeometry,roundedRectangleProfile,loftProfiles}={}){
+export async function compileGridfinity(input={}, {constructGeometry,roundedRectangleProfile,loftProfiles,dimensions}={}){
   requireThat([constructGeometry,roundedRectangleProfile,loftProfiles].every(value=>typeof value==='function'),'Gridfinity needs shared Geometry construction and profile operations.');
-  const p=gridfinityParameters(input);
+  const p=gridfinityParameters(input,dimensions.FEATURE_TOLERANCE_MM);
   const loft=(levels,cx,cy)=>loftProfiles({profiles:levels.map(([z,widthMm,heightMm,radiusMm])=>roundedRectangleProfile({widthMm,heightMm,radiusMm,centerMm:[cx,cy,z]})),centers:[[cx,cy,levels[0][0]],[cx,cy,levels.at(-1)[0]]]});
   const block=(w,d,r,z0,z1,cx,cy)=>loft([[z0,w,d,r],[z1,w,d,r]],cx,cy);
   const union=operands=>({operation:'union',operands});

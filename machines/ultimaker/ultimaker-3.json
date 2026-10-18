@@ -12,7 +12,6 @@
     "source": "https://github.com/Ultimaker/Ultimaker3/blob/master/2103/2103-E/2103-E.STEP",
     "note": "Outer tip radius 0.5 mm at the outlet plane; external taper half-angle 45 degrees. Infinite taper is a clearance envelope; heater block and carriage are not modeled."
   },
-  "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "capabilities": [
     "xyz-extrusion",

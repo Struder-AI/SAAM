@@ -11,7 +11,6 @@
     "quality": "estimated",
     "note": "Owner-selected provisional dimensions, 2026-10-16; replace when measured parameters are available. Flat diameter is independent of extrusion-orifice diameter."
   },
-  "planarWallToleranceMm": 0.01,
   "ams": {
     "units": 4,
     "slotsPerUnit": 4,

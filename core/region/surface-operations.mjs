@@ -6,14 +6,13 @@ import {surfacePlane} from '../geom/surface-coincidence.mjs';
 import {faceTrimRegion,planarFaceRegion} from '../geom/surface-trim.mjs';
 import {evaluateSurface,surfaceChartCovers} from '../geom/surface-evaluation.mjs';
 import {sectionSurface} from '../geom/section.mjs';
-import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {clipChartCurveToRegion,clipLineToRegion} from '../geom/curve-region.mjs';
 import {requireThat,dot,cross,distance,normalize} from '../geom/tolerance.mjs';
-import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,FLOAT64_EPSILON,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {offsetRegion} from './offset.mjs';
 import {intersect,union,difference,clipOpenPaths} from './intersection.mjs';
 import {pointInRegion,pointSegmentDistance} from './region2d.mjs';
-import {sampledChartRegion} from '../geom/height-slice.mjs';
+import {sampledChartRegion} from '../geom/chart-region.mjs';
 import {offsetSurfaceRegion,strokeSurfaceRegion,prepareSurfaceOffset,UV_GRID} from './surface-offset.mjs';
 
 export function surfaceChartBounds(surface,points=[],boundsUv=null){
@@ -21,7 +20,6 @@ export function surfaceChartBounds(surface,points=[],boundsUv=null){
   if(boundsUv)return boundsUv;
   if(native.domainU&&native.domainV)return [native.domainU,native.domainV];
   if(surface.kind==='slice-chart')return surfaceChartBounds(surface.slice,points);
-  if(surface.kind==='height-field'&&!points.length){const b=heightReferenceBounds(surface.reference);return [[b.min[0],b.max[0]],[b.min[1],b.max[1]]];}
   requireThat(points.length,'Unbounded surface operation needs chart points or boundsUv.');
   return [0,1].map(k=>[Math.min(...points.map(p=>p[k])),Math.max(...points.map(p=>p[k]))]);
 }
@@ -56,7 +54,7 @@ function chartDomainRegion(chart){
 }
 export function offsetSliceRegion(slice,loops,distanceMm,{sampleStepMm=0.2,boundsUv=null,metric='physical',...settings}={}){
   requireThat(metric==='physical'||metric==='projected','Surface offset metric must be physical or projected.');
-  requireThat(metric!=='projected'||!slice||slice.kind==='plane'||slice.kind==='height-field','Projected offset needs a millimetre plane or height chart.');
+  requireThat(metric!=='projected'||!slice||slice.kind==='plane','Projected offset needs an explicit millimetre plane.');
   if(!loops.length)return [];
   if(!slice||slice.kind==='plane'||metric==='projected')return offsetRegion(loops,distanceMm,metric==='physical'?{arcToleranceMm:PRINT_RESOLUTION_MM,...settings}:settings);
   if(distanceMm===0)return loops;
@@ -93,7 +91,7 @@ export function intersectSurfaceSheet(slice,sheet,{boundsUv=null,sampleStepMm=0.
   // crossing surfaces always retain their actual zero-thickness intersection.
   if(parallelBandMm){
     const native=slice.patch??slice,plane=affineSurface(slice)?evaluateSurface(slice,bounds.map(([lo,hi])=>(lo+hi)/2)):native.cp?surfacePlane(native):null;
-    if(plane&&Math.abs(Math.abs(dot(normal,plane.normal))-1)<=Number.EPSILON*64){
+    if(plane&&Math.abs(Math.abs(dot(normal,plane.normal))-1)<=FLOAT64_EPSILON*64){
       const distanceMm=dot(normal,plane.point.map((v,k)=>v-origin3d[k]));
       if(Math.abs(distanceMm)<=parallelBandMm)origin3d=origin3d.map((v,k)=>v+distanceMm*normal[k]);
     }
@@ -149,7 +147,7 @@ export function clipSliceCurves(slice,curves,region,{precisionUv=UV_GRID,toleran
 
 // Physical parallel rows: the affine case is an exact line translation;
 // curved fronts advance through the same intrinsic offset owner as perimeters.
-export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction=null,sampleStepMm=.2,toleranceMm=.01}={}){
+export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction=null,sampleStepMm=.2,toleranceMm=CONSTRUCTION_TOLERANCE_MM}={}){
   requireThat(Number.isFinite(spacingMm)&&spacingMm>0,'Surface rows need positive physical spacing.');
   if(!region.length)return {rows:[],report:{offsets:0}};
   const points=region.flat(),extent=[0,1].map(k=>points.reduce(([lo,hi],p)=>[Math.min(lo,p[k]),Math.max(hi,p[k])],[Infinity,-Infinity]));

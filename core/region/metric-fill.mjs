@@ -1,7 +1,7 @@
 // Physical parallel cells on an evaluated chart. This operation has no stack,
 // source-result, ownership or deposition lifecycle; any slice surface can use it.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {sampleSurfaceCurve} from './normal-surface.mjs';
 import {sampledPositiveIntervals} from '../geom/curve-sampling.mjs';
 import {lineSpacing,spacingFactor} from '../path/spacing.mjs';
@@ -10,7 +10,7 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {connectScanlineCells} from './region2d.mjs';
 
 // Process scale: default sampling step and chord tolerance (a fortieth of a 0.4 mm line).
-export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFactor:spacing=1,sampleStepMm=.5,toleranceMm=.01,direction='axial',heightMm=.2,speedMmS,startU=0,axialStart=0,layoutChart=chart}){
+export function metricFillStrokes(chart,region,{widthMm:w,density=1,spacingFactor:spacing=1,sampleStepMm=.5,toleranceMm=CONSTRUCTION_TOLERANCE_MM,direction='axial',heightMm=.2,speedMmS,startU=0,axialStart=0,layoutChart=chart}){
   if(!region.length||density===0)return {strokes:[],report:{points:0},nextU:startU,nextAxial:axialStart};
   // Cell coordinates are normalized locally; authored charts keep their domains.
   if(chart.kind!=='surface-chart'){

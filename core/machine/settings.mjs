@@ -1,3 +1,4 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 // Reusable machine/material/installation settings. Consumers keep selected
 // snapshots; reading a bundle never consults this store. The owner supplies the
 // store folder (`machineSetups`); without one, nothing is remembered or recalled.
@@ -6,6 +7,7 @@ import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
+import {DEFAULT_MINIMUM_BRIDGE_RATIO} from '../path/process-controls.mjs';
 
 const setupFor=(machineSetups,machine)=>resolve(machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
@@ -61,10 +63,10 @@ export function settingsDefaults(machine){
     setup:structuredClone(machine?.defaultSetup??GENERIC_SETUP),
     process:{
       lineWidthMm:0.4,
-      planarWallToleranceMm:machine?.planarWallToleranceMm??0.01,
+      planarWallToleranceMm:machine?.planarWallToleranceMm??CONSTRUCTION_TOLERANCE_MM,
       planarSpeedMmS:20,skinSpeedMmS:10,firstLayerSpeedMmS:12,travelSpeedMmS:60,zSpeedMmS:5,
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
-      fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,
+      fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,minimumBridgeRatio:DEFAULT_MINIMUM_BRIDGE_RATIO,
       experimentalDeposition:false,primeLine:null,clearanceResponsibility:'operator',
       clearanceNote:'Nozzle clearance uses the saved geometry envelope; carriage, fixtures and physical qualification remain the operator’s responsibility.',
       ...structuredClone(machine?.defaultProcess??{}),firstLayerMm:0.2,layerMm:0.2

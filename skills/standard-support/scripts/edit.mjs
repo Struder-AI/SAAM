@@ -1,10 +1,10 @@
-import {STANDARD_SUPPORT,footprintRoofs,treeSolids,supportSolid,supportSlice} from './support-geometry.mjs';
+import {supportGeometry} from './support-geometry.mjs';
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const SOURCES=['roof','triangleIndices','footprint','tree'];
 
 // One support source becomes one closed solid: a selected or copied roof, or a
 // flat footprint, lowered by the gap and closed to the bed; or a tree skeleton.
-function sourceSolid(request,original,{gapMm,chordMm,bedZMm},closeMeshPatchToPlane){
+function sourceSolid(request,original,{gapMm,chordMm,bedZMm},closeMeshPatchToPlane,{footprintRoofs,treeSolids}){
   if(request.tree!==undefined){
     const built=treeSolids(request.tree,{gapMm,chordMm,bedZMm});
     const contacts=request.tree.filter(node=>!request.tree.some(child=>child.parent===node.id)).flatMap(node=>{
@@ -27,7 +27,9 @@ function sourceSolid(request,original,{gapMm,chordMm,bedZMm},closeMeshPatchToPla
 
 // The support is an independent solid supplied to an ordinary Slice assignment;
 // saved geometry and Slice settings regenerate without this extension.
-export function editStandardSupport(source,request,{closeMeshPatchToPlane}){
+export function editStandardSupport(source,request,Geometry){
+  const {closeMeshPatchToPlane}=Geometry;
+  const helpers=supportGeometry(Geometry),{STANDARD_SUPPORT,supportSolid,supportSlice}=helpers;
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Standard support needs a request.');
   requireThat(Object.keys(request).every(key=>['id','part',...SOURCES,'gapMm','fillDensity','angleDeg','baseLayers','chordMm','description'].includes(key)),'Unknown standard-support request field.');
   const {id,part=null,gapMm,fillDensity,angleDeg,baseLayers,chordMm,description}={...STANDARD_SUPPORT,...request};
@@ -47,7 +49,7 @@ export function editStandardSupport(source,request,{closeMeshPatchToPlane}){
   // Recipe Z is above the build plate; only an assembly component has a local
   // Z origin, and a raised part's support still reaches the real bed.
   const original=component?component.geometry:native,bedZMm=-(component?.zMm??0);
-  const {solids,contacts,notes}=sourceSolid(request,original,{gapMm,chordMm,bedZMm},closeMeshPatchToPlane),solid=supportSolid(solids);
+  const {solids,contacts,notes}=sourceSolid(request,original,{gapMm,chordMm,bedZMm},closeMeshPatchToPlane,helpers),solid=supportSolid(solids);
   const supported=assignments.map(assignment=>!assignment.construction&&!assignment.geometry&&!assignment.join&&
     (assignment.part===part||assignment.part===null&&native?.shape==='assembly')?{...assignment,contact:{...(assignment.contact??{source:null}),
       surfaces:[...(assignment.contact?.surfaces??[]),{source:{assignment:id,part},part,triangles:contacts,offsetMm:[0,0,-gapMm]}]}}:assignment);

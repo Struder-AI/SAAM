@@ -5,7 +5,7 @@ import {surfaceIsoCurve} from '../geom/surface-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {clipLineToRegion} from '../geom/curve-region.mjs';
 import {surfaceChartBounds,surfaceChartStep} from './surface-operations.mjs';
-import {sectionHeightSlice,sampledChartRegion} from '../geom/height-slice.mjs';
+import {sampledChartRegion} from '../geom/chart-region.mjs';
 import {chartPrismContains} from '../geom/chart-prism.mjs';
 import {sectionShell} from '../geom/shell.mjs';
 import {meshSectionIndex,sectionMeshIndex,meshFaceNormal,meshBoundaryDistance} from '../geom/mesh.mjs';
@@ -570,10 +570,6 @@ function sectionLoops(geometry, slice, options) {
     if(low>PRINT_RESOLUTION_MM||high<-PRINT_RESOLUTION_MM)return {loops:[],nudgedByMm:0};
   }
   if(geometry.kind==='chart-prism'){
-    if(slice.kind==='height-field'&&slice.reference===geometry.reference.reference){
-      const offset=slice.offsetMm-geometry.reference.offsetMm;
-      return {loops:offset>geometry.fromMm+PRINT_RESOLUTION_MM&&offset<=geometry.toMm+PRINT_RESOLUTION_MM?geometry.loopsUv:[],nudgedByMm:0};
-    }
     if(slice.kind==='patch'&&slice.referencePatch===geometry.reference.referencePatch){
       const delta=(slice.translation??[0,0,0]).map((v,k)=>v-(geometry.reference.translation?.[k]??0)),offset=dot(delta,geometry.direction);
       if(Math.hypot(...delta.map((v,k)=>v-offset*geometry.direction[k]))<=PRINT_RESOLUTION_MM)return {loops:offset>geometry.fromMm+PRINT_RESOLUTION_MM&&offset<=geometry.toMm+PRINT_RESOLUTION_MM?geometry.loopsUv:[],nudgedByMm:0};
@@ -597,7 +593,6 @@ function sectionLoops(geometry, slice, options) {
   }
   if (geometry.kind === 'boolean') return combine(geometry.operation, geometry.operands.map(o => sectionLoops(o, slice, options)));
   if (geometry.kind === 'assembly') return combine('union', geometry.components.map(c => sectionLoops(c, slice, options)));
-  if (slice.kind === 'height-field') return sectionHeightSlice(geometry, slice, options);
   if (slice.kind === 'patch') {
     const solid = geometry.kind === 'prepared-mesh' ? geometry.mesh : geometry;
     // Print material on a native chart and faceted solid uses the same physical

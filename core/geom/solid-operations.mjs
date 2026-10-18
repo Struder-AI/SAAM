@@ -1,3 +1,4 @@
+import {CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 // One construction pipeline retains ordinary geometry. Mesh output is an
 // explicit derived result; only operations requiring a mesh allocate the kernel.
 import {solidKernel,solidFromMesh,meshFromSolid,discardSolidKernel,KERNEL_TRIANGLE_CAPACITY} from './solid.mjs';
@@ -70,7 +71,7 @@ export async function constructGeometry(requests,options={}){
   const present=await materialPresence(prepared.map(result=>result.solid),options);
   return prepared.map((result,i)=>({geometry:present[i]?result.geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},empty:!present[i],notes:result.notes}));
 }
-export async function constructSolids(requests,{toleranceMm=.02}={}){
+export async function constructSolids(requests,{toleranceMm=CHORD_TOLERANCE_MM}={}){
   const prepared=await prepareConstructions(requests),kernel=await solidKernel(),meshes=[];
   for(const result of prepared){
     const mesh=await tessellateSolid(result.solid,{toleranceMm}),solid=solidFromMesh(kernel,mesh);

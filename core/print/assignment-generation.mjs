@@ -9,7 +9,7 @@ function requiredReferences(a){
   return [...list(a.after),...list(a.dependencies?.after),
     ...settings.flatMap(s=>[...Object.values(s.operationAfter??{}).flatMap(list),...list(s.edgeAfter).flatMap(e=>list(e.after))]),
     a.substrate,a.source?.assignment&&{assignment:a.source.assignment},a.repeat?.stack&&{assignment:a.repeat.stack},
-    a.surface?.kind==='terminal'&&{assignment:a.surface.assignment},source(a.contact?.source),
+    ['slice','terminal'].includes(a.surface?.kind)&&{assignment:a.surface.assignment},source(a.contact?.source),
     ...list(a.contact?.surfaces).map(s=>source(s.source)),
     ...list(a.curves).flatMap(c=>[c.uv?.reference?.assignment&&{assignment:c.uv.reference.assignment},source(c.contact?.source)])].filter(Boolean);
 }

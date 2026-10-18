@@ -1,3 +1,4 @@
+import {COARSE_CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 import {canonicalHash} from '../canonical-json.mjs';
 // Native geometry for a shell print: the 3DM the maker's part is stored as.
 //
@@ -170,7 +171,7 @@ export async function createSpatialGeometry(parameters,solidDescriptor){
 // every quad carries the name of the face it came from and stays selectable.
 async function proxyMesh(shell) {
   if(shell.kind==='surface-solid'){
-    const mesh=await tessellateSurfaceShell(shell,{toleranceMm:.05});
+    const mesh=await tessellateSurfaceShell(shell,{toleranceMm:COARSE_CHORD_TOLERANCE_MM});
     // Frame the visible face region, rather than discarded supporting controls.
     const boundsMm=mesh.vertices.length?{min:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.min(bound,p[k]),Infinity)),max:[0,1,2].map(k=>mesh.vertices.reduce((bound,p)=>Math.max(bound,p[k]),-Infinity))}:shell.bounds;
     return {vertices:mesh.vertices,faces:mesh.triangles,labels:mesh.faceIndices.map(face=>shell.patches[face].name),cornerNormals:mesh.cornerNormals,boundsMm,notes:mesh.notes};

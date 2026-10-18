@@ -1,3 +1,4 @@
+import {ROUNDING_MM} from '../dimensions.mjs';
 // Coordinate conversion and one native-memory boundary for planar offsets,
 // booleans and surface-offset cleanup. Native handles never leave this module.
 import createClipper from 'clipper2-wasm';
@@ -6,7 +7,7 @@ const clipper=await createClipper();
 
 // Boolean coordinate grid, a rounding quantity. Deferred value: by class it is
 // ROUNDING_MM, kept until every region boolean and its fixtures are rerun on that grid.
-export const CLIPPER_PRECISION = 1e-9;
+export const CLIPPER_PRECISION = ROUNDING_MM*(1/1000);
 const LIMIT = 2 ** 50; // headroom within exactly representable JS integer coordinates
 const round=value=>value<0?-Math.round(-value):Math.round(value);
 

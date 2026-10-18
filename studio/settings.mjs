@@ -98,9 +98,8 @@ export function sliceSummary(a){
   if(a.construction==='inject')return a.points.length+' injection point(s) · '+a.points.reduce((sum,p)=>sum+p.volumeMm3,0)+' mm³ authored volume';
   if(a.construction==='sleeve')return pathModeName(a)+' · '+a.zStartMm+'–'+(a.zEndMm??'geometry top')+' mm';
   if(a.construction==='curves')return a.curves.length+' centerline(s) · '+((a.repeat?.stack??a.repeat?.family)&&a.repeat.indices===null?'all referenced slices':(a.repeat?.indices?.length??a.repeat?.count??1)+' repetition(s)');
-  if(a.surface?.kind==='terminal')return a.loops.join(', ')+' rings per slice · source '+a.surface.assignment;
+  if(a.surface?.kind==='slice')return (Array.isArray(a.loops)?a.loops.join(', '):a.loops)+' rings per slice · source '+a.surface.assignment;
   if(a.stack?.direction==='normal')return a.stack.layerMm+' mm normal pitch · '+a.fillOrder.directions.join(' / ');
-  if(a.surface?.kind==='roof')return 'Roof slices · '+a.stack.layerMm+' mm mean normal gap';
   if(a.fillOrder?.kind==='fronts')return 'Seeded surface fronts · '+a.fillOrder.lineSpacingMm+' mm spacing';
   if(a.preset==='brim')return a.loops+(a.loops===1?' loop':' loops')+' around the first-layer outline';
   const fill=a.fillDensity>=1?'solid':a.fillDensity===0?'no fill':Math.round(a.fillDensity*100)+'% '+a.fillPattern+' fill';
@@ -143,8 +142,7 @@ function injectionRows(a,plan){
 function sliceReferenceName(surface){
   if(!surface||surface.kind==='horizontal')return 'Horizontal plane';
   if(surface.kind==='plane')return 'Plane at '+surface.origin.join(', ')+' mm · normal '+surface.normal.join(', ');
-  if(surface.kind==='terminal')return 'Terminal closed boundary of '+surface.assignment;
-  if(surface.kind==='roof')return 'Part roof · vertical offset '+surface.offsetMm+' mm';
+  if(surface.kind==='slice')return 'Prepared surface of '+surface.assignment+(surface.index===undefined?' · last in sequence':' · slice '+surface.index);
   return surface.kind==='mesh-strip'?'Explicit mesh strip':surface.kind+' surface · '+(typeof surface.patch==='string'?surface.patch:surface.patch?.name??'authored patch');
 }
 function curveAssignmentRows(a,plan){

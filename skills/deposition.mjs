@@ -40,7 +40,7 @@ export async function extensionDeposition({plan,componentShells,shells,volumes,s
       const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes,sources});}catch(error){return {error};}})();
       if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
       const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
-      return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
+      return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,boundaryToleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,meshSleeve:null},
         startMm:prepared.startMm,endMm:prepared.endMm,geometry:{referenceStack:()=>referenceStack,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
           speedMmS:context.process.planarSpeedMmS,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
         construct:vaseWork,providesSurface:true,kind:'trace'};
@@ -56,13 +56,19 @@ export async function extensionDeposition({plan,componentShells,shells,volumes,s
     const geometry={...prepared,referenceStack:()=>stack},parts=current.assignment.part===null&&componentShells?[null,...componentShells.keys()]:[current.assignment.part];
     // A continuous wall owns its side frontier. An open pattern advertises
     // its terminal boundary only; its guiding sheet is not filled material.
-    const selected=current.assignment.pattern===null?stack.layers:stack.layers.slice(-1),layers=selected.map(layer=>{
+    const preparedLayers=stack.layers.map(layer=>({...layer,region:layer.curves.map(curve=>curve.points.map(point=>{
+      const p=point.map((value,k)=>value-layer.slice.origin[k]);
+      return [layer.slice.xAxis,layer.slice.yAxis].map(axis=>axis.reduce((sum,value,k)=>sum+value*p[k],0));
+    }))}));
+    const selected=current.assignment.pattern===null?preparedLayers:preparedLayers.slice(-1),layers=selected.map(layer=>{
       const {origin,xAxis,normal}=layer.slice,yAxis=layer.slice.yAxis;
       const loops=engines.Geometry.widenPlanarStrokes(layer.curves,current.process.lineWidthMm/2,{origin,xAxis,normal,arcToleranceMm:engines.Geometry.resolutionMm});
       const project=point=>{const p=point.map((v,k)=>v-origin[k]);return [p.reduce((sum,v,k)=>sum+v*xAxis[k],0),p.reduce((sum,v,k)=>sum+v*yAxis[k],0)];};
       return {...layer,region:loops.map(loop=>loop.map(project)),direction:stack.direction};
     });
-    return {...current,geometry,materialSurfaces:parts.map(part=>({part,reference:{assignment:current.assignment.id,part:current.assignment.part},layers}))};
+    return {...current,geometry,...(current.assignment.endTransition==='level'&&geometry.terminalBoundary!==false?
+      {preparedSurfaces:{...stack,layers:preparedLayers,prerequisite:{assignment:current.assignment.id,part:current.assignment.part}}}:{}),
+      materialSurfaces:parts.map(part=>({part,reference:{assignment:current.assignment.id,part:current.assignment.part},layers}))};
   };
   const curveSources=[],sourceRuntimes=new Map();
   for(const context of contexts.filter(({assignment})=>assignment.construction==='curves'&&assignment.source)){

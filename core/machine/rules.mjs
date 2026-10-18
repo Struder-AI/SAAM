@@ -1,3 +1,4 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 
 import {validateTemperatureC} from '../private/export/temperature.mjs';
@@ -9,7 +10,7 @@ export const toolFor=(machine,index)=>{
 };
 export const toolBounds=(machine,index)=>toolFor(machine,index).bounds??machine.bounds;
 // Read the approved default without changing saved machine snapshot identity.
-export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?0.01:machine.planarWallToleranceMm;
+export const planarWallTolerance=machine=>machine?.planarWallToleranceMm===undefined?CONSTRUCTION_TOLERANCE_MM:machine.planarWallToleranceMm;
 
 // Common setup fields and logical materials, then the selected adapter's own
 // block (plan.setup[settings.key]) through its settings.validate. Null installation fields permit geometry

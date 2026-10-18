@@ -1,6 +1,5 @@
 {
   "schema":"saam-machine/1", "id":"denso-vs068a4-rc8a", "name":"DENSO VS-068A4 / RC8A + rotary", "revision": 4, "units":"mm",
-  "planarWallToleranceMm":0.01,
   "kinematics":"six-axis-arm-plus-external-rotary; controller-owned inverse kinematics",
   "motionChecks":"deferred",
   "bounds":{"min":[-250,-250,0],"max":[250,250,500]},

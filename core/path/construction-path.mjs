@@ -156,7 +156,11 @@ export function constructionPath({results,planning,composition,summary,generator
       if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}
     }
     if(layers[id])requireThat(layers[id].surfaceId===surfaceId&&layers[id].stackId===stackId&&layers[id].index===index,'Native layer identity refers to different surfaces or stack positions.');
-    else layers[id]={stackId,index,surfaceId};
+    else {
+      const sequence=operation.layerIndex??result.referenceStack?.layers.findIndex(layer=>layer.index===index);
+      requireThat(Number.isSafeInteger(sequence)&&sequence>=0,'Native layer needs its declared stack sequence position.');
+      layers[id]={stackId,index,sequence,surfaceId};
+    }
     return id;
   }
   for(const [resultIndex,result] of results.entries())for(const operation of result.operations){

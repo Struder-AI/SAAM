@@ -8,16 +8,16 @@ import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {evaluate,evaluateCurve} from './nurbs.mjs';
 import {surfaceIsoCurve,surfaceSegmentCurves} from './surface-curves.mjs';
 import {distance,dot,requireThat} from './tolerance.mjs';
-import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
-export async function tessellateSurfaceSolid(solid,{toleranceMm=.02}={}){
+export async function tessellateSurfaceSolid(solid,{toleranceMm=CHORD_TOLERANCE_MM}={}){
   requireThat(solid.kind==='surface-solid'&&solid.topology&&!solid.topology.unmatched.length,'Tessellation needs a closed native surface boundary.');
   return tessellateSurfaceShell(solid,{toleranceMm});
 }
 
 // Open authored shells still display their trimmed faces; material conversion
 // uses the closed-solid entry above. Both derive the same conforming boundary.
-export async function tessellateSurfaceShell(solid,{toleranceMm=.02}={}){
+export async function tessellateSurfaceShell(solid,{toleranceMm=CHORD_TOLERANCE_MM}={}){
   requireThat(solid.topology&&Array.isArray(solid.patches),'Tessellation needs native surface boundary topology.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Tessellation tolerance must be positive.');
   if(solid.empty)return {vertices:[],triangles:[],faceIndices:[],cornerNormals:[],notes:[...(solid.notes??[])]};

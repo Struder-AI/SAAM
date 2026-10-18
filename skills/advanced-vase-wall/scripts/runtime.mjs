@@ -1,10 +1,10 @@
 // Authored sleeve pattern and Trace composition over named public operations.
 // Numerical contour and fitted-reference construction belongs to Geometry.
 export function advancedVaseRuntime({Geometry,Toolpath},vase){
+  const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
-  // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-  const PRINT_RESOLUTION_MM=1e-3;
+
   // Pattern heights are clamped to the sleeve interval, the heights its queries
   // accept (core/geom/sleeve); a clamp beyond print resolution is noted.
   const {sampleCurveIntervals}=Geometry;

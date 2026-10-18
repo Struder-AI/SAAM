@@ -1,7 +1,7 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import {pointTriangleDistanceSquared} from './mesh-distance.mjs';
 import { requireThat, cross } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE, PROGRAM_STEP_MM } from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE,PROGRAM_STEP_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 import { orientLoops, closeOpenChains } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
@@ -272,7 +272,7 @@ export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
   // geometric nudge below; genuinely outside layers must still be empty.
-  const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
+  const roundoff=16*FLOAT64_EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
   if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0,open:[]};
   // The requested oriented limit outside an extremum is empty; never replace
   // it by an inward cut. Interior limits use the existing numerical clearance.

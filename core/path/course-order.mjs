@@ -66,7 +66,9 @@ export function slicePartitions(operations,prerequisites){
 export function selectTraversal(operation,cursor,verify=null){
   const entryCost=(entry,process)=>distance(cursor.point,entry?.point??cursor.point)+
     (cursor.axis&&entry?.pose?.toolAxis?(process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*entry.pose.toolAxis[i],0)):0);
-  const choices=operation.barrier?null:operation.traversalsAt?.(cursor.point)??operation.traversals;
+  const proposed=operation.barrier?null:operation.traversalsAt?.(cursor.point)??operation.traversals;
+  const choices=operation.supportAllows?proposed?.filter(choice=>operation.supportAllows(choice.ranges)):proposed;
+  requireThat(!proposed?.length||choices.length,'No permitted traversal starts on qualified material.');
   if(!choices?.length)return entryCost(operation.entry,operation.process);
   operation.traversalAlternatives=choices.length;
   const remaining=[...choices],cost=variant=>entryCost(variant.entry,operation.process)+variant.extraDistance;
@@ -113,7 +115,7 @@ function dependencyCycle(operations,prerequisites){
   return [];
 }
 
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null,groupAccess=null}={}){
+export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null,groupAccess=null,readiness=null}={}){
   const nodes=operations.map(op=>({op,thermalOperations:[op],...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
   const byId=new Map(nodes.map(node=>[node.op.id,node]));
   const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),operations:ids.map(id=>byId.get(id).op),parents:new Set(),following:[],remaining:0,ready:[]}));
@@ -124,9 +126,18 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   for(const unit of units){unit.remaining=unit.parents.size;for(const parent of unit.parents)parent.following.push(unit);for(const node of unit.nodes)if(!node.remaining)unit.ready.push(node);}
   const entry=operations.find(operation=>operation.entry)?.entry;
   requireThat(!operations.length||start||entry,'Ordering needs a source entry position.');
-  const ready=units.filter(unit=>!unit.remaining),scheduled=[],cursor={point:start??entry?.point,axis:null};
+  const ready=units.filter(unit=>!unit.remaining),scheduled=[],available=new Set(),cursor={point:start??entry?.point,axis:null};
   while(ready.length){
-    const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
+    const blocked=[];
+    const qualified=readiness?ready.filter(unit=>{
+      const results=unit.operations.map(op=>({op,result:readiness.check(op,available)})),waiting=results.filter(item=>item.result.status!=='ready');
+      if(waiting.length){blocked.push(...waiting);return false;}
+      for(const {op,result} of results){op.supportAllows=result.permits;op.supportSeams=result.seams;}
+      return true;
+    }):ready;
+    const entries=qualified.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
+    if(!entries.length&&blocked.length)throw Object.assign(Error('Ready work is waiting for qualifying bead contact.'),
+      {code:'BEAD_SUPPORT_WAIT',blocked,available});
     if(!entries.length)break;
     // Prefer ready aggregates that do not leave lower-access work behind.
     // This only proposes an order; the caller proves its whole deposited prefix.
@@ -143,7 +154,7 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
     const unit=choices[nearest(choices,cursor,{cooling,wholeSlice:true}).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
       const next=unit.ready.splice(nearest(unit.ready,cursor,{cooling}).index,1)[0];scheduled.push(next.op);
-      if(!next.op.barrier){cooling?.record(next.op);cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
+      if(!next.op.barrier){available.add(next.op.id);cooling?.record(next.op);cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
       for(const node of next.following)if(!--node.remaining)node.unit.ready.push(node);
     }
     if(unit.nodes.some(node=>node.remaining))break;

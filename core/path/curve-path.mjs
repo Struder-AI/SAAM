@@ -3,7 +3,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveHasLength,numericalCurveParameterAtLength,numericalCurveClosestParameter,normalCone,frameCone} from '../geom/curve-query.mjs';
 import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume,materialProfileDeviation} from './curve-profiles.mjs';
-import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM,TOLERANCE} from '../dimensions.mjs';
 
 // Display/program local views share explicit tolerances, independent of the
 // saved identity. A caller can request a different bounded view.
@@ -11,7 +11,7 @@ export const PATH_VIEW_TOLERANCES=Object.freeze({positionToleranceMm:PRINT_RESOL
   orientationToleranceRad:PRINT_RESOLUTION_MM/BUILD_SCALE_MM,
   // Relative quadrature uncertainty scales with deposited material, independent
   // of job/course counts. Authored cumulative material remains exact.
-  volumeToleranceRatio:1/1000});
+  volumeToleranceRatio:TOLERANCE.unitFraction});
 export function pathSummary(view){
   const summary=view?.summary??(view?.schedule?{...view.deposition.summary,...view.schedule.summary}:undefined);
   const dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0,bounds=summary?.boundsMm;

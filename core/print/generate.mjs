@@ -123,9 +123,8 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   const notes=[...geometryNotes,...extensions.notes,...sliced.notes];
   if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
-  const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
+  const stacks=Object.fromEntries(['slice','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
   if(Object.keys(stacks).length)summary.referenceStacks=stacks;
-  if(stacks.roof){const roofs=stacks.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
   const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
   return {results,summary,survey:null,shells,plan:generation.retain(extensions.plan)};

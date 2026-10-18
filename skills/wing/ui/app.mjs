@@ -1,3 +1,4 @@
+import * as dimensions from '/_saam/dimensions.mjs';
 import {createAssemblyRenderer} from './renderer.mjs';
 const $=id=>document.getElementById(id),renderer=createAssemblyRenderer(),canvas=$('model');
 canvas.replaceWith(renderer.canvas);renderer.canvas.id='model';renderer.canvas.setAttribute('aria-label','Interactive aircraft with printable wing sections');
@@ -19,7 +20,7 @@ function airfoilCard(f){
   const path=document.createElementNS('http://www.w3.org/2000/svg','polygon');path.setAttribute('points',[...f.profile.upper.toReversed(),...f.profile.lower].map(([x,y])=>`${10+x*260},${30-y*190}`).join(' '));svg.append(path);
   // Display only: label a built thickness that differs from the source by a tenth of a percent.
   const metrics=document.createElement('small');metrics.textContent=`Source ${(f.thickness*100).toFixed(1)}% thick · ${(f.camber*100).toFixed(1)}% camber`
-    +(f.id===view.design.airfoil&&Math.abs(view.design.thickness-f.thickness)>.001?` · built ${(view.design.thickness*100).toFixed(1)}% thick`:'');
+    +(f.id===view.design.airfoil&&Math.abs(view.design.thickness-f.thickness)>dimensions.TOLERANCE.unitFraction?` · built ${(view.design.thickness*100).toFixed(1)}% thick`:'');
   const note=document.createElement('p');note.textContent=f.note;
   card.append(head,svg,metrics,note);
   card.onclick=()=>update({...view.design,airfoil:f.id,thickness:f.id==='s1223'?Math.max(.14,+f.thickness.toFixed(5)):+f.thickness.toFixed(5),camber:+f.camber.toFixed(5)});
@@ -109,7 +110,7 @@ function assembly(){
   const parts=view.mode==='print'?[]:[...view.preview.context],chosen=view.preview.pieces.find(p=>p.id===view.selected),list=view.mode==='print'?[chosen]:view.preview.pieces;
   for(const piece of list){
     // Display only: the preview cut that ends this piece.
-    const faces=[],lines=[],index=view.preview.cuts.findIndex(c=>c>=piece.toMm-1e-6)-1;
+    const faces=[],lines=[],index=view.preview.cuts.findIndex(c=>c>=piece.toMm-dimensions.ROUNDING_MM)-1;
     const sense=piece.integratedTip?-1:1;
     const place=(point,span)=>view.mode==='print'?[point[0],piece.hand*sense*point[1],piece.integratedTip?piece.toMm-span:span-piece.fromMm]:[piece.hand*(span+(view.mode==='exploded'?index*28:0)),point[0]+(piece.kind==='flap'&&view.mode==='exploded'?35:0),point[1]];
     for(let i=1;i<piece.sections.length;i++){

@@ -1,9 +1,7 @@
 // Standard continuous wall composition over public Toolpath operations.
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
 // Heights (the part bottom, a layer rank, a sleeve start or end, the layer grid)
 // coincide to print resolution.
-export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress},{prepareContourSleeve}){
+export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zEndMm=null,onProgress},{prepareContourSleeve,dimensions:{PRINT_RESOLUTION_MM}}){
   const base=zStartMm??shell.bounds.min[2]+assignment.zStartMm;
   const firstHeight=Math.abs(base-shell.bounds.min[2])<PRINT_RESOLUTION_MM?process.firstLayerMm:process.layerMm;
   const start=base+firstHeight,end=zEndMm??(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm);

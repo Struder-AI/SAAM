@@ -18,7 +18,7 @@ import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,union,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 import {piecewiseChart,piecewiseChartFrame,piecewiseChartRay,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
-import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 
 // Native spline parameters carry no metric: points coincide or touch an edge within
 // the dimensionless rounding tolerance, and booleans snap to a grid a tenth of it so
@@ -26,7 +26,7 @@ import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from 
 export const UV_ROUNDING=ROUNDING_RELATIVE,UV_GRID=UV_ROUNDING/10;
 // Process scale: the default construction chord of a surface offset (callers pass
 // their own, usually from the print's line width).
-const SURFACE_OFFSET_CHORD_MM=0.01;
+const SURFACE_OFFSET_CHORD_MM=CONSTRUCTION_TOLERANCE_MM;
 
 const plus=(a,b,s=1)=>a.map((x,k)=>x+b[k]*s);
 const midpoint=(a,b)=>a.map((x,k)=>(x+b[k])/2);
@@ -56,7 +56,7 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxStepMm)&&maxStepMm>0,
     'Surface offset toleranceMm and maxStepMm must be positive and finite.');
   requireThat((patch?.cp||['slice-chart','sleeve-chart','surface-chart'].includes(patch?.kind)) && patch.domainU && patch.domainV, 'Surface offset requires a native patch or evaluated chart.');
-  const piecewise=patch.kind==='sleeve-chart'||patch.kind==='slice-chart'&&patch.slice?.reference?.kind==='roof';
+  const piecewise=patch.kind==='sleeve-chart';
   const atlas=patch.atlas??(piecewise?piecewiseChart(patch,{toleranceMm:toleranceMm/4,normalMm}):null);
   if(atlas)patch={...patch,atlas};
   // Geodesic ODE needs a continuous second derivative through internal knots.

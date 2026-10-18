@@ -1,8 +1,9 @@
+import {ROUNDING_RELATIVE,TOLERANCE} from '../core/dimensions.mjs';
 import {add,subtract,scale,dot,normalize} from '../core/private/studio/numeric.mjs';
 import {length} from '../core/private/studio/numeric.mjs';
 import {materialProjection} from './material-view.mjs';
 // Projected-depth bias (not millimetres): a mark on a face counts as in front of it.
-const DEPTH_BIAS=1e-7;
+const DEPTH_BIAS=TOLERANCE.domainFraction/10;
 
 function geometryCornerNormal(geometry,face,corner,fallback){
   const normal=geometry.cornerNormals?.[face]?.[corner];
@@ -41,7 +42,7 @@ export function buildMeshView(geometry,creaseDeg=3) {
     // Patch proxies can have opposite winding: compare their geometric planes.
     const smooth=[a.i,(a.i+1)%faces[a.f].length].every(corner=>{
       const other=faces[b.f].findIndex(v=>weld[v]===weld[faces[a.f][corner]]),first=geometryCornerNormal(geometry,a.f,corner,na),second=geometryCornerNormal(geometry,b.f,other,nb);
-      return first&&second&&Math.abs(dot(first,second))>cosine+1e-12;
+      return first&&second&&Math.abs(dot(first,second))>cosine+(ROUNDING_RELATIVE/1000);
     });
     if(smooth)
       masks[a.f][a.i]=masks[b.f][b.i]=false;
@@ -57,7 +58,7 @@ export function buildGeometryView(geometry,creaseDeg=35){
   const features=[...new Set(labels)],featureIds=new Map(features.map((id,i)=>[id,i]));
   faces.forEach((face,f)=>face.forEach((v,k)=>{
     const a=subtract(vertices[face[(k+face.length-1)%face.length]],vertices[v]),b=subtract(vertices[face[(k+1)%face.length]],vertices[v]);
-    const weight=Math.acos(Math.max(-1,Math.min(1,dot(a,b)/Math.max(1e-20,length(a)*length(b)))));
+    const weight=Math.acos(Math.max(-1,Math.min(1,dot(a,b)/Math.max((ROUNDING_RELATIVE**2/100),length(a)*length(b)))));
     const list=incident.get(weld[v])??[];list.push({f,weight});incident.set(weld[v],list);
   }));
   const cornerNormals=faces.map((face,f)=>face.map((v,k)=>{
@@ -70,7 +71,7 @@ export function buildGeometryView(geometry,creaseDeg=35){
     }
     // Angle weights are dimensionless; their magnitude can be below the CAD
     // coordinate guard even when their direction is well-defined.
-    const magnitude=length(sum);return magnitude>1e-12?scale(sum,1/magnitude):n;
+    const magnitude=length(sum);return magnitude>(ROUNDING_RELATIVE/1000)?scale(sum,1/magnitude):n;
   }));
   const triangles=[],surface=[],outlines=[];
   faces.forEach((face,f)=>{
@@ -125,10 +126,10 @@ function faceAt(view,points,x,y){
   let closest=-Infinity,hit=null;
   for(const triangle of view.triangles){
     const [a,b,c]=triangle.indices.map(i=>points[i]);
-    const d=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(d)<1e-10)continue;
+    const d=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);if(Math.abs(d)<(ROUNDING_RELATIVE/10))continue;
     const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/d;
     const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/d,w=1-u-v;
-    if(Math.min(u,v,w)<-1e-8)continue;
+    if(Math.min(u,v,w)<-TOLERANCE.parameter)continue;
     const depth=u*a[2]+v*b[2]+w*c[2];if(depth>closest){closest=depth;hit=triangle.id;}
   }
   return {id:hit,depth:closest};
@@ -181,9 +182,9 @@ export function pickGeometry(view,project,x,y,{edges=false,radius=6}={}){
     let nearest=radius*radius,hit=null,front=-Infinity;
     for(const edge of view.edgeFeatures.values())for(const pair of edge.segments){
       const [a,b]=pair.map(i=>points[i]),dx=b[0]-a[0],dy=b[1]-a[1],squared=dx*dx+dy*dy;
-      if(squared<1e-10)continue;
+      if(squared<(ROUNDING_RELATIVE/10))continue;
       const t=Math.max(0,Math.min(1,((x-a[0])*dx+(y-a[1])*dy)/squared)),px=a[0]+t*dx,py=a[1]+t*dy,distance=(px-x)**2+(py-y)**2,depth=a[2]+t*(b[2]-a[2]);
-      if(distance>nearest+1e-8||distance>=nearest-1e-8&&depth<front)continue;
+      if(distance>nearest+TOLERANCE.parameter||distance>=nearest-TOLERANCE.parameter&&depth<front)continue;
       if(depth+DEPTH_BIAS<faceAt(view,points,px,py).depth)continue;
       nearest=distance;front=depth;hit=edge.id;
     }
@@ -214,7 +215,7 @@ export function createGeometryRenderer(documentApi=document){
     `#version 300 es
     precision highp float;in vec3 n;flat in float id;uniform vec3 color,light,eye;uniform float selected;uniform bool shadow,edges;out vec4 result;
     void main(){if(shadow){result=vec4(.12,.18,.20,1.);return;}
-      bool highlighted=selected>=0.&&abs(id-selected)<.1;
+      bool highlighted=selected>=0.&&abs(id-selected)<${0.1.toFixed(1)};
       if(edges){float a=highlighted?.95:.22;result=vec4((highlighted?vec3(.92,.35,.12):vec3(.15,.34,.46))*a,a);return;}
       vec3 normal=normalize(n);if(dot(normal,eye)<0.)normal=-normal;
       float diffuse=max(0.,dot(normal,light));float highlight=pow(max(0.,dot(normal,normalize(light+eye))),36.)*.12;

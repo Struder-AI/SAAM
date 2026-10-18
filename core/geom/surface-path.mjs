@@ -71,7 +71,7 @@ export function mappedSurfacePath(surface,chart,points){
   if(surface?.representation)surface=prepareSurfaceReference(surface);
   if(surface?.kind==='slice-chart')return mappedSurfacePath(surface.slice,chart,points);
   if(chart&&surface?.at?.nativeImage){
-    const native=surface.at.nativeImage(chart);return mappedSurfacePath(native.surface,native.chart,points);
+    const native=surface.at.nativeImage(chart);return native?mappedSurfacePath(native.surface,native.chart,points):null;
   }
   const record=surface?.kind==='patch'?surface.patch:surface?.cp?surface:null;
   if(!record||!chart||chart.length!==points.length||points.length<2)return null;

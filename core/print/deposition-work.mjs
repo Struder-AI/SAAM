@@ -61,7 +61,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(resolvedRecords.has(record))return;
     const assignment=record.owner.assignment;
     requireThat(!active.has(record),'Slice reference dependencies form a cycle.');active.add(record);
-    const source=record.reference?.selection.kind==='terminal'?contexts.find(other=>other!==record&&other.owner.assignment.id===record.reference.source&&other.owner.part===record.owner.part)??
+    const source=record.reference?.selection.kind==='slice'?contexts.find(other=>other!==record&&other.owner.assignment.id===record.reference.source&&other.owner.part===record.owner.part)??
       [...constructions,...curveSources].find(other=>other.assignment.id===record.reference.source&&other.assignment.part===record.owner.part):null;
     if(source?.spec)resolve(source);
     else if(source?.assignment.construction==='curves')resolveTrace(source);
@@ -127,8 +127,8 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part)))needs.add(completionKey(other));
       if(references.some(reference=>(reference.assignment===other.sourceId||reference.assignment===other.record?.spec.id)&&
         (reference.index===undefined||reference.index===other.index)))needs.add(other.key);
-      if(node.kind==='slice'&&node.record.reference?.selection.kind==='terminal'&&other.part===node.part&&
-        node.record.reference.source===other.sourceId)needs.add(other.key);
+      if(node.kind==='slice'&&node.record.reference?.selection.kind==='slice'&&other.part===node.part&&
+        node.record.reference.source===other.sourceId&&(node.record.reference.selection.index===undefined||other.index===node.record.reference.selection.index))needs.add(other.key);
 
     }
     if(node.kind==='slice'&&node.first&&typeof node.record.contact?.source==='string')

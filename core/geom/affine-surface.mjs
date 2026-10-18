@@ -7,7 +7,7 @@ export function affineSurface(surface){
   if(surface.kind==='slice-chart')return affineSurface(surface.slice);
   if(surface.kind==='plane')return true;
   const record=surface.referenceRecord??surface;
-  if(['mapped-surface','offset-chart'].includes(record.representation))return affineSurface(record.source);
+  if(['mapped-surface','offset-chart','translated-surface'].includes(record.representation))return affineSurface(record.source);
   if(record.representation==='tangent-extension')return affineSurface(record.patch);
   if(record.representation==='surface-region'&&record.selection.kind==='spline')return affineSurface(selectedSplinePatch(record.geometry,record.selection));
   const patch=surface?.patch??surface;

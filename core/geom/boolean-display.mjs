@@ -6,12 +6,12 @@ import {tessellateSurfaceSolid} from './surface-tessellate.mjs';
 import {requireThat} from './tolerance.mjs';
 import {sewSurfaceBoundary} from './surface-topology.mjs';
 import {outwardSigns} from '../region/section.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,CHORD_TOLERANCE_MM,COARSE_CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 const KERNEL_OPERATION={union:'add',difference:'subtract',intersection:'intersect'};
 
 // -> {vertices, triangles, notes}: no material is an empty mesh with a note.
-export async function booleanDisplayMesh(shell,{toleranceMm=0.05}={}){
+export async function booleanDisplayMesh(shell,{toleranceMm=COARSE_CHORD_TOLERANCE_MM}={}){
   if(shell.kind==='surface-solid')return tessellateSurfaceSolid(shell,{toleranceMm});
   if(shell.empty)return {vertices:[],triangles:[],notes:[...(shell.notes??[]),`The ${shell.operation} leaves no material; check the operands overlap as intended.`]};
   const kernel=await solidKernel(),owned=[],notes=[...(shell.notes??[])];
@@ -30,7 +30,7 @@ export async function booleanDisplayMesh(shell,{toleranceMm=0.05}={}){
   }finally{for(const solid of owned)solid.delete();}
 }
 
-export async function tessellateSolid(shell,{toleranceMm=0.02}={}){
+export async function tessellateSolid(shell,{toleranceMm=CHORD_TOLERANCE_MM}={}){
   if(shell.kind==='surface-solid')return tessellateSurfaceSolid(shell,{toleranceMm});
   if(shell.kind==='boolean')return booleanDisplayMesh(shell,{toleranceMm});
   if(shell.patches?.length&&!shell.closure?.unmatched.length){

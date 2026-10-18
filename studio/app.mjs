@@ -78,7 +78,7 @@ function updateManualControls(sample){
     input.disabled=studioWork.busy||!values?.length||!machinePose.machineSession?.held(playState.seconds);
     if(!values?.length)return;
     input.min=Math.min(controls[i].min,values[i]);input.max=Math.max(controls[i].max,values[i]);input.value=values[i];
-    input.previousElementSibling.value=(Math.abs(values[i])<.05?0:values[i]).toFixed(1)+' '+controls[i].unit;
+    input.previousElementSibling.value=(Math.abs(values[i])<(0.1/2)?0:values[i]).toFixed(1)+' '+controls[i].unit;
   });
   $('#manual-reset').disabled=studioWork.busy||!machinePose.manualValues;
   $('#manual-status').textContent=machinePose.manualValues?(machinePose.machineSession?.error||sample?.snapshot?.diagnostics.map(d=>d.message).join(' · ')||(sample?'Manual pose · playback paused':'Solving pose…')):'';

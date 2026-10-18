@@ -1,7 +1,7 @@
 import {extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments} from '../geom/extruded-segments.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {distance,requireThat,subtract,add,scale,dot,cross,normalize} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,CONSTRUCTION_TOLERANCE_MM,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 
 import {strokeRange} from './deposition.mjs';
@@ -27,7 +27,7 @@ export function depositedCurveSegments(operations,{widthMm,source=null,horizonta
 }
 
 // Process scale: default lateral support tolerance, a small fraction of a line width.
-export function curveSupportsPoint(segments,p,z,{source=null,toleranceMm=.015}={}) {
+export function curveSupportsPoint(segments,p,z,{source=null,toleranceMm=(1.5*CONSTRUCTION_TOLERANCE_MM)}={}) {
   return segments.some(s=>(source===null||s.source===source||s.operationId===source)&&
     p[0]>=Math.min(s.a[0],s.b[0])-s.radius-toleranceMm&&p[0]<=Math.max(s.a[0],s.b[0])+s.radius+toleranceMm&&
     p[1]>=Math.min(s.a[1],s.b[1])-s.radius-toleranceMm&&p[1]<=Math.max(s.a[1],s.b[1])+s.radius+toleranceMm&&
@@ -49,7 +49,7 @@ export function depositedBeadFrames(result){
     const segmentMetadata=points.slice(1).map((b,i)=>{
       const previous=stroke.segmentMetadata?.[i]??{};
       const normal=previous.surfaceNormal??stroke.frameSamples?.[i]?.normal??stroke.normals?.[i]??stroke.poses?.[i]?.toolAxis.map(v=>-v)??(op.slice
-        ?evaluateSurface(op.slice,op.slice.kind==='height-field'?points[i].slice(0,2):[0,0]).normal:[0,0,1]);
+        ?evaluateSurface(op.slice,[0,0]).normal:[0,0,1]);
       return {...previous,surfaceNormal:[...normal]};
     });
     return {...stroke,segmentMetadata};
@@ -73,7 +73,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
       if(boundaryRole!==null&&metadata?.boundaryRole!==boundaryRole)continue;
       const width=metadata?.beadWidthMm??stroke.beadWidthMm??widthMm;
       const normal=metadata?.surfaceNormal??stroke.frameSamples?.[i-1]?.normal??stroke.normals?.[i-1]??stroke.poses?.[i-1]?.toolAxis.map(v=>-v)??(op.slice
-        ?evaluateSurface(op.slice,op.slice.kind==='height-field'?a.slice(0,2):[0,0]).normal:[0,0,1]);
+        ?evaluateSurface(op.slice,[0,0]).normal:[0,0,1]);
       requireThat(Number.isFinite(width)&&width>0,'Deposited bead coverage needs positive width.');
       const tangent=normalize(subtract(b,a));
       const reference=normalize(subtract(normal,scale(tangent,dot(normal,tangent))));
@@ -86,7 +86,7 @@ export function depositedBeadSegments(operations,{widthMm,boundaryRole=null}={})
 
 // Toolpath interprets shape hits as contacts with the producing operation.
 export const depositedBeadBounds=extrudedSegmentBounds;
-export function depositedBeadsContain(segments,point,toleranceMm=.02){
+export function depositedBeadsContain(segments,point,toleranceMm=CHORD_TOLERANCE_MM){
   return extrudedSegmentsContain(segments,point,{toleranceMm});
 }
 export function beadContactAlong(segments,point,direction,options={}){

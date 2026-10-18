@@ -17,9 +17,16 @@ export function serializableSource(value){
 export function admitSource(source){
   for(const key of ['curves','layers','surfaces','processes','operations'])requireThat(table(source[key])&&Object.keys(source[key]).every(id),'Source needs ID keyed '+key+'.');
   const reader=prepareCurvePath(source);
-  const nativeLayers=new Set();
+  for(const process of Object.values(source.processes))requireThat(process.minimumBridgeRatio===undefined||
+    Number.isFinite(process.minimumBridgeRatio)&&process.minimumBridgeRatio>=0&&process.minimumBridgeRatio<=1,'minimumBridgeRatio must be between 0 and 1.');
+  const nativeLayers=new Set(),sequencePositions=new Set();
   for(const layer of Object.values(source.layers))requireThat(id(layer.stackId)&&Number.isSafeInteger(layer.index)&&layer.index>=0&&(layer.surfaceId===null||Object.hasOwn(source.surfaces,layer.surfaceId)),'Layer must retain a construction stack, index and optional reference surface.');
   for(const layer of Object.values(source.layers)){
+    if(layer.sequence!==undefined){
+      const position=JSON.stringify([layer.stackId,layer.sequence]);
+      requireThat(Number.isSafeInteger(layer.sequence)&&layer.sequence>=0&&!sequencePositions.has(position),'A native stack needs distinct declared sequence positions.');
+      sequencePositions.add(position);
+    }
     const key=JSON.stringify([layer.stackId,layer.index]);requireThat(!nativeLayers.has(key),'A native stack position has one slice identity.');nativeLayers.add(key);
     if(source.manufacturing)requireThat(source.completions?.[layer.completionId]?.kind==='slice','A manufactured native slice needs its completion record.');
   }

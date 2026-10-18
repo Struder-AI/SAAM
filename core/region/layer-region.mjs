@@ -12,7 +12,7 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 //                                   computed from neighbouring layers.
 import {sliceChartStep} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
-import { sampledChartRegion, referenceHeight } from '../geom/height-slice.mjs';
+import {sampledChartRegion} from '../geom/chart-region.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import {dot} from '../geom/frame.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
@@ -32,10 +32,6 @@ export function volumeSection(volume, layer, extent) {
 // wholly in the band or wholly out of it, half open as layer heights are.
 function slabSection({ fromMm, toMm, axis = [0, 0, 1] }, slice, extent) {
   if(!(Number.isFinite(fromMm)&&Number.isFinite(toMm)&&toMm>fromMm))throw Error('A slab volume needs fromMm below toMm.');
-  if(slice.kind==='height-field')return sampledChartRegion(extent,slice.sampleStepMm,point=>{
-    if(!referenceHeight(slice.reference,...point))return false;
-    const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+PRINT_RESOLUTION_MM&&h<=toMm+PRINT_RESOLUTION_MM;
-  });
   if(slice.kind==='patch')return sampledChartRegion(extent,sliceChartStep(slice,slice.sampleStepMm??.2),point=>{
     if(point.some((v,k)=>v<extent.min[k]||v>extent.max[k]))return false;
     const h=dot(axis,evaluateSurface(slice,point).point);return h>fromMm+PRINT_RESOLUTION_MM&&h<=toMm+PRINT_RESOLUTION_MM;

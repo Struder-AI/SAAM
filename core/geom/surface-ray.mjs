@@ -1,4 +1,4 @@
-// Bounded evaluated-chart ray queries. Native plane/patch/height queries retain
+// Bounded evaluated-chart ray queries. Native plane/patch queries retain
 // their existing kernels; other regular charts use a sampled projected mesh.
 import {evaluateSurface} from './surface-evaluation.mjs';
 import {surfaceChartBounds,surfaceChartStep} from '../region/surface-operations.mjs';
@@ -7,7 +7,7 @@ import {dot,cross,normalize} from './tolerance.mjs';
 
 export function prepareSurfaceRay(surface,direction,{points=[],sampleStepMm=.2}={}){
   const d=normalize(direction);
-  if(['plane','patch','height-field'].includes(surface.kind))return {native:prepareSliceRay(surface,d),direction:d};
+  if(['plane','patch'].includes(surface.kind))return {native:prepareSliceRay(surface,d),direction:d};
   const bounds=surfaceChartBounds(surface,points),steps=surfaceChartStep(surface,bounds,sampleStepMm);
   const seed=Math.abs(d[0])<.9?[1,0,0]:[0,1,0],x=normalize(seed.map((v,k)=>v-dot(seed,d)*d[k])),axes=[x,cross(d,x),d];
   const counts=bounds.map(([a,b],k)=>Math.max(2,Math.ceil((b-a)/steps[k])));

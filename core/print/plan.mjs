@@ -230,7 +230,7 @@ const stepNote=(id,process,bad)=>`${id}: ${bad.map(key=>`${key} ${JSON.stringify
 // Inject places points; every other construction steps layers and lines.
 function producingAssignment(plan,solid,assignment,notes){
   if(!isRecord(assignment))return true;
-  const id=assignment.id??'An assignment',standalone=['curves','inject'].includes(assignment.construction)||!assignment.construction&&(assignment.geometry||assignment.surface?.kind==='terminal');
+  const id=assignment.id??'An assignment',standalone=['curves','inject'].includes(assignment.construction)||!assignment.construction&&(assignment.geometry||assignment.surface?.kind==='slice');
   if(!solid&&!standalone){notes.push(`${id} slices geometry and the recipe has none; it produces nothing.`);return false;}
   if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent&&(assignment.part??null)===null&&solid?.shape==='assembly'&&hasMesh(solid)){
     notes.push(`${id} needs one surface; this assembly has mesh components, so the whole assembly is not one. Choose its part; ${id} produces nothing.`);return false;

@@ -10,7 +10,7 @@
 // a constructed point takes part. Coplanar overlapping triangles share one 2D
 // triangulation, so their common pieces are identical triangles and opposed copies
 // cancel.
-import {ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 import {closestTrianglePoint,trianglesContact,diagonalPatchBound} from './mesh-spatial.mjs';
 import {separatedTriangles} from './mesh.mjs';
 import {orient2dExact,orient3dExact} from './exact-predicates.mjs';
@@ -21,7 +21,7 @@ function gcd(a,b){a=babs(a);b=babs(b);while(b){const r=a%b;a=b;b=r;}return a;}
 const llround=x=>x<0?-Math.round(-x):Math.round(x);
 // Bounds of the double filters, relative to the permanent
 // (Shewchuk proves about 7.8e-16 and 3.3e-16 for orientation in 3D and 2D).
-const FILTER=2**-50,PLANE_FILTER=2**-48;
+const FILTER=(FLOAT64_EPSILON*4),PLANE_FILTER=(FLOAT64_EPSILON*16);
 
 // ---------------- packed containers ----------------
 // Open-addressing map from three doubles (a point, or a sorted index triple) to an index.
@@ -88,7 +88,7 @@ class PointStore{
   }
   approx(v,w){return Number((v<<64n)/w)*2**-64*2**-this.S;}
   pushExact(X,Y,Z,W){const a=this.approx(X,W),b=this.approx(Y,W),c=this.approx(Z,W);
-    const i=this.push(a,b,c,Math.max(Math.abs(a),Math.abs(b),Math.abs(c))*2**-50+2**-(60+this.S));this.exact[i-this.n0]=[X,Y,Z,W];return i;}
+    const i=this.push(a,b,c,Math.max(Math.abs(a),Math.abs(b),Math.abs(c))*(FLOAT64_EPSILON*4)+2**-(60+this.S));this.exact[i-this.n0]=[X,Y,Z,W];return i;}
   // A constructed point, shared by exact value; an input vertex when it is one.
   add(X,Y,Z,W){
     if(W<0n){X=-X;Y=-Y;Z=-Z;W=-W;}if(W===0n)throw Error('Degenerate construction');
@@ -607,7 +607,7 @@ function improveSliverTriangulation({xyz,tri:T,onSheet,spent,refusedFlips=new Se
   const defer=()=>{for(const id of face)touched[id]=1;report.deferred++;};if(face.some(v=>locked[v])){defer();continue;}let blocked=false,proposed=false;
   for(let k=0;k<3;k++){const h=face[k],t=face[(k+1)%3],v=face[(k+2)%3],support=edges.get(key(h,t));if(support?.length!==2)continue;const g=support.find(id=>id!==f),other=Array.from(T.subarray(3*g,3*g+3)),w=other.find(id=>id!==h&&id!==t);const flipKey=key(h,t)+'>'+key(v,w);if(w!==undefined&&locked[w]){blocked=true;continue;}if(w===undefined||edges.has(key(v,w))||refusedFlips.has(flipKey))continue;
    const fresh=[[v,h,w],[v,w,t]],before=[oldHeight,height(other)].sort(compare),after=fresh.map(height).sort(compare);if(after.some(a=>a[0]<=rounding*a[1]))continue;const oldBad=before.filter(a=>a[0]<limit*a[1]).length,newBad=after.filter(a=>a[0]<limit*a[1]).length;if(newBad>oldBad||newBad===oldBad&&!(compare(after[0],before[0])>0||compare(after[0],before[0])===0&&compare(after[1],before[1])>0))continue;
-   const base=Math.max(spent[f],spent[g]),remaining=(toleranceMm-base)*(1-2**-46);if(!(remaining>0))continue;
+   const base=Math.max(spent[f],spent[g]),remaining=(toleranceMm-base)*(1-(FLOAT64_EPSILON*64));if(!(remaining>0))continue;
    const bound=diagonalPatchBound(xyz,exact,h,t,v,w,remaining);if(bound===null||base+bound>=toleranceMm)continue;
    proposed=true;for(const id of[h,t,v,w])locked[id]=1;proposals.push({faces:[f,g],before:[face,other],after:fresh,spent:[spent[f],spent[g]],value:base+bound,flipKey,quad:[h,t,v,w]});break;
   }
@@ -658,7 +658,7 @@ function mergeMeshVertices({xyz,tri:T,source,onSheet,spent,scan,touched},mergeMm
     let turn=0,eps=0;for(const t of old){const k=t.indexOf(s),a=minus(point(t[(k+1)%3]),S),b=minus(point(t[(k+2)%3]),S),pa=a.map((x,i)=>x-along(a,unit)*unit[i]),pb=b.map((x,i)=>x-along(b,unit)*unit[i]);
       turn+=Math.atan2(along(times(pa,pb),unit),along(pa,pb));for(const v of t)eps=Math.max(eps,Math.abs(along(minus(point(v),S),unit)));}
     return Math.abs(turn-2*Math.PI)<Math.PI?2*eps:Infinity;};
-  const cost=(s,d)=>{let m=0;for(const f of incident[s])m=Math.max(m,spent[f]);return m+Math.min(dist(s,d),flatBound(s,d))*(1+2**-48);},fits=(s,d)=>cost(s,d)<mergeMm*(1-2**-46);
+  const cost=(s,d)=>{let m=0;for(const f of incident[s])m=Math.max(m,spent[f]);return m+Math.min(dist(s,d),flatBound(s,d))*(1+(FLOAT64_EPSILON*16));},fits=(s,d)=>cost(s,d)<mergeMm*(1-(FLOAT64_EPSILON*64));
   // Why collapsing s into d is refused, or null.
   const refusal=(s,d)=>!edges.joined(s,d)?'notJoined':!edges.manifold(s,d)?'manifold':!fits(s,d)?'displacement':
     edges.moved(s,d).some(t=>belowHeightContract(xyz,...t))?'height':null;
@@ -727,7 +727,7 @@ function splitSliverCaps(state,toleranceMm=PRINT_RESOLUTION_MM){
     if([h,t,w,...ring].some(x=>locked[x])){for(const x of t3)state.touched[x]=1;report.deferred++;continue;}
     const p=H.map((x,i)=>x+s*D[i]),height=Math.hypot(...p.map((x,i)=>x-xyz[3*v+i]));
     let base=spent[g];for(const e of incident[v])base=Math.max(base,spent[e]);
-    const value=base+height*(1+2**-48);if(!(value<toleranceMm*(1-2**-46)))continue;
+    const value=base+height*(1+(FLOAT64_EPSILON*16));if(!(value<toleranceMm*(1-(FLOAT64_EPSILON*64))))continue;
     for(const x of [h,t,w,...ring])locked[x]=1;proposals.push({f,g,h,t,v,w,p,value,moved:incident[v].filter(e=>e!==f)});
   }
   if(!proposals.length)return report;

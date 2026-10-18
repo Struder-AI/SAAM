@@ -2,7 +2,7 @@
 // meshes or evaluator closures. Preparation reuses the original operations.
 import {requireThat} from './tolerance.mjs';
 import {surfaceRegion} from './surface-region.mjs';
-import {mappedSurface} from './surface-evaluation.mjs';
+import {mappedSurface,translatedSurface} from './surface-evaluation.mjs';
 import {offsetSurfaceChart} from './offset-chart.mjs';
 import {contactChart} from './contact-chart.mjs';
 import {extendSurface} from './surface-extend.mjs';
@@ -39,10 +39,11 @@ export function prepareSurfaceReference(record){
 function constructReference(record){
   if(!record.representation)return record;
   if(record.representation==='tangent-extension')return extendSurface(record.patch,record.boundsUv);
-  if(record.representation==='surface-region')return surfaceRegion(record.geometry,record.selection);
+  if(record.representation==='translated-surface')return translatedSurface(prepareSurfaceReference(record.source),record.translation);
+  if(record.representation==='surface-region')return surfaceRegion(record.geometry,record.selection,record.neighborhood);
   if(record.representation==='mapped-surface')return mappedSurface(record.source,record.bounds,record.domain,{normalSide:record.normalSide,periodicU:record.periodicU});
   if(record.representation==='offset-chart')return offsetSurfaceChart(record.source.representation?prepareSurfaceReference(record.source):record.source,record.depthMm,
-    {shell:record.geometry,selection:record.selection,tightness:record.tightness});
+    {shell:record.geometry,selection:record.selection,nativePatch:record.nativePatch,tightness:record.tightness});
   if(record.representation==='contact-chart')return contactChart(prepareSurfaceReference(record.source),record.segments,{toleranceMm:record.toleranceMm});
   throw Error('Unknown native surface reference representation.');
 }

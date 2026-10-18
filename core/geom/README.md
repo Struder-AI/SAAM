@@ -10,7 +10,7 @@ Progress callback errors cancel work. Geometry chunks await their matching ackno
 Async calls settle after calculation stops, including cancellation and worker allocation failures.
 Callers own scratch directories and publication; calculations may write only their supplied staging
 file. Payloads pass directly to calculation ports. No geometry is simplified for memory or transport.
-[Regions](../region/README.md) documents offsets/intersections; [composition](../path/README.md) consumes them.
+[Regions](../region/README.md) owns offsets/intersections; [composition](../path/README.md) consumes them. [Section contact](section-contact.mjs) measures local contact footprints and union width intervals; Scheduling owns qualification.
 
 ## Planar line/region clipping
 
@@ -87,7 +87,7 @@ Plane and native-patch sections accept `side:'negative'|'positive'` for material
 |---|---|
 | [surfaceIsoCurve](surface-curves.mjs) | Shell closure, conforming tessellation and sleeve offsets use ordinary rational curves retaining knots, weights, native domain and source surface coordinates. |
 | [surfaceCurveImages](surface-curve-image.mjs) | Map ordinary UV `points`/`nurbs` curves to `{nurbs,uvNurbs,positionErrorMm}` pieces. Exact UV intervals pair with images of degree ≤3; subdivision bounds physical error over each interval (default print resolution / 4). Extensions build matching ruled walls; trims find plane roots. |
-| [selectedFace / referenceSurface](reference-surface.mjs), [mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [extendSurface](surface-extend.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | A retained face keeps its name and native chart through cuts; surviving regions and holes bound it, including mixed mesh cuts. Introduced faces receive a namespace on collision. Records retain controls, domains and trims. `extendSurface(patch,boundsUv)` continues untrimmed open edges tangentially with bilinear corners. Derivatives/native images follow evaluator identity (`at.derivatives`, `at.nativeImage`); restoration uses the same factories. Extension stencils stay within their strips; singularities remain errors. |
+| [selectedFace / referenceSurface](reference-surface.mjs), [mappedSurface](surface-evaluation.mjs), [surfaceDerivatives](surface-derivatives.mjs), [extendSurface](surface-extend.mjs), [surfaceReferenceRecord / prepareSurfaceReference](surface-record.mjs) | A retained face keeps its name and native chart through cuts; surviving regions and holes bound it, including mixed mesh cuts. Introduced faces receive a namespace on collision. Records retain controls, domains and trims. `extendSurface(patch,boundsUv)` continues native chart edges tangentially with bilinear corners. Derivatives/native images follow evaluator identity (`at.derivatives`, `at.nativeImage`); restoration uses the same factories. Offset stacks use [finite neighborhoods](surface-neighborhood.mjs): native interior, tangent continuation, operation-derived reach, interval metric proofs and specific failures at print resolution. |
 | [prepareNumericalCurve / numericalCurveAt / numericalCurveRange](curve-query.mjs) | Native NURBS, polylines and points share conservative position, tangent, speed, chord-error and convergent arc-length bounds. Geometry also supplies direction/full-frame cones and derivative-hull tangent projections. [Construction sampling](curve-sampling.mjs) uses probes, preserving observed crossings and breaks; unsampled crossings remain unknown. |
 | [constructGeometry / constructSolids / materialPresence](solid-operations.mjs) | One pipeline accepts ordinary geometry or box/cylinder/loft/translate/Boolean/mapped-extrusion requests. `constructGeometry` returns `{geometry,empty,notes}` retaining serializable source solids; `constructSolids` explicitly derives meshes or null. Root assemblies retain parts; Boolean operands resolve placed physical unions. Presence uses construction proofs or an explicit mesh query. Opaque numerical inputs support mesh output only. |
 | [loftProfiles / roundedRectangleProfile / transformGeometry](solid-profiles.mjs) | Corresponding closed NURBS profiles yield rational side surfaces and radial caps with explicit or averaged centers; caps require a star-shaped region about those centers. Rounded rectangles retain exact arcs. Rigid transforms apply to physical solids, leaving feature recipes with their authors. Concave polygon lofts retain [triangulated caps](loft.mjs). |
@@ -107,7 +107,7 @@ chart endpoint matching and point cleanup at print resolution. Only regions add 
 can end there. Uniform high/low fields yield no curves and domain/empty regions. `levelSetCoverage`
 classifies without extraction. Sampling may miss detail; field/deposition choices remain caller policy.
 
-Geodesic offsets keep their C2/domain limits; roofs/sleeves retain explicit creases.
+Geodesic offsets keep their differential limits; native continuations and sleeve atlases retain joins.
 Manufacturing geometry is authoritative; display retains its identity. Geometry owns
 [containment and ray queries](extruded-segments.mjs); Toolpath interprets contacts.
 
@@ -132,8 +132,7 @@ of candidate pairs tested is whatever the mesh's own overlapping bounds and
 shared vertices produce; there is no work allowance on it. Adjacent
 facets sharing vertices are excluded from the intersection pass, so this is not
 a complete solid-kernel validity proof. [Mesh repair](#explicit-mesh-repair) also
-reports adjacent faces folded onto each other. Normals at equal-height creases use the steeper facet. Drape requires a continuous accessible roof; discontinuities or sampled
-segments above its angle limit are rejected. Sampling and bead-width limits remain.
+reports adjacent faces folded onto each other. Sampling and bead-width limits remain.
 
 Equivalent mesh/spline fixtures and mixed assemblies exercise shared skills,
 regions, machine checks and exact-byte S5 export delivery. Add equivalent backend tests for each general skill.
@@ -335,11 +334,7 @@ and verifies deposition above the source roof for all five letters after
 B-spline control net, a plane, or a named original-part patch. A flat rectangle
 maps explicitly to a UV rectangle; local scale/distortion belongs to that mapping.
 They do not become printable material. Rigid glyph mode places each glyph on its
-local tangent plane. `kind: top` instead uses the shared [top-surface query](./query.mjs)
-on the retained original spline or mesh: layout XY stays in physical millimetres,
-with the highest surface height and normal at that column. Missing roof columns
-fail. It creates no sampled copy of the surface; folds, ridges and discontinuous
-normals retain the query and text-mapping limitations.
+local tangent plane. Select the actual named face and its native chart.
 
 [Shared text layout](./text-layout.mjs) composes straight, Bezier and circular
 baselines with placement, rotation and mirroring before surface mapping. Circle

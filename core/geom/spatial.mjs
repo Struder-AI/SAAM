@@ -1,3 +1,4 @@
+import {CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 // Authored spatial inputs may be solids, curves and points. Visibility is a
 // presentation choice; every entry remains available to manufacturing.
 import {requireThat} from './tolerance.mjs';
@@ -42,7 +43,7 @@ export function spatialPreview(geometry){
   const curves=geometry.curves.filter(c=>c.visible&&!c.uv).map(c=>{
     if(c.points)return {id:c.id,points:c.closed?[...c.points,c.points[0]]:c.points};
     const native=authoredNurbs(c.nurbs),cuts=[...native.knots].filter(t=>t>native.domain[0]&&t<native.domain[1]).map(t=>(t-native.domain[0])/(native.domain[1]-native.domain[0]));
-    const samples=sampleCurveIntervals({at:t=>({point:curvePoint(native,t)}),cuts:[0,1,...cuts],stepMm:1,toleranceMm:.02});
+    const samples=sampleCurveIntervals({at:t=>({point:curvePoint(native,t)}),cuts:[0,1,...cuts],stepMm:1,toleranceMm:CHORD_TOLERANCE_MM});
     return {id:c.id,points:samples.map(s=>s.point)};
   });
   return {curves,points:geometry.points.filter(p=>p.visible).map(({id,point})=>({id,point}))};

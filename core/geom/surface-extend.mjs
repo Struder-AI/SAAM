@@ -6,10 +6,10 @@ import {evaluatedSurfaceDerivatives} from './evaluated-surface.mjs';
 import {numericalGeometryRecord} from './surface-record.mjs';
 import {requireThat,cross,dot} from './tolerance.mjs';
 import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {faceContainsUv} from './surface-trim.mjs';
 
 export function extendSurface(patch,boundsUv){
   requireThat(patch?.cp&&patch.domainU&&patch.domainV,'Tangent extension needs a numerical spline patch.');
-  requireThat(!patch.trimLoops,'Tangent extension needs an untrimmed patch.');
   const domains=[patch.domainU,patch.domainV];
   requireThat(Array.isArray(boundsUv)&&boundsUv.length===2&&boundsUv.every((b,k)=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[0]<=domains[k][0]&&b[1]>=domains[k][1]),
     'Extension UV bounds must contain the original patch domain.');
@@ -22,12 +22,16 @@ export function extendSurface(patch,boundsUv){
     const point=e.point.map((p,k)=>p+x*e.du[k]+y*e.dv[k]+x*y*e.duv[k]);
     const du=e.du.map((p,k)=>p+y*e.duv[k]),dv=e.dv.map((p,k)=>p+x*e.duv[k]);
     const area=cross(du,dv),det=dot(area,area);
-    requireThat(Number.isFinite(det)&&det>dot(du,du)*dot(dv,dv)*ROUNDING_RELATIVE**2,'Tangent extension has a singular physical metric; change its bounds or reference.');
+    if(!(Number.isFinite(det)&&det>dot(du,du)*dot(dv,dv)*ROUNDING_RELATIVE**2))throw Object.assign(Error('Tangent continuation has a singular physical metric in the required extent.'),
+      {code:'SURFACE_EXTENSION_SINGULAR',uv:[u,v],boundsUv:bounds});
     return {point,du,dv,normal:area.map(n=>n/Math.sqrt(det))};
   };
   // Difference stencils stay on one side of a tangent join. The native
   // interior retains its analytic metric, including exact normal offsets.
   const sample=(u,v)=>at(u,v);
+  at.covers=(u,v)=>[u,v].every((value,k)=>value>=bounds[k][0]&&value<=bounds[k][1])&&
+    (![u,v].every((value,k)=>value>=domains[k][0]&&value<=domains[k][1])||!patch.trimLoops||faceContainsUv(patch,u,v));
+  at.nativeImage=chart=>chart.every(uv=>uv.every((value,k)=>value>=domains[k][0]&&value<=domains[k][1]))?{surface:patch,chart}:null;
   at.derivatives=(u,v,options)=>{
     if([u,v].every((x,k)=>x>=domains[k][0]&&x<=domains[k][1]))return surfaceDerivatives(patch,u,v,options);
     const cell=[u,v].map((x,k)=>x<domains[k][0]?[bounds[k][0],domains[k][0]]:x>domains[k][1]?[domains[k][1],bounds[k][1]]:domains[k]);

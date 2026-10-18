@@ -41,7 +41,7 @@ export async function editHeatSet(source,request,geometryOperations){
     requireThat(next.insertId,'Choose an exact insertId from the heat-set manual size/profile table.');
     if(index>=0)features[index]=next;else features.push(next);
   }
-  const bored=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??0.01}):{geometry:base,notes:[]};
+  const bored=features.length?await compileHeatSet(base,features,{...geometryOperations,toleranceMm:request.toleranceMm??old?.toleranceMm??geometryOperations.dimensions.CONSTRUCTION_TOLERANCE_MM}):{geometry:base,notes:[]};
   const lettered=await rebuildTextGeometry(bored.geometry,layers,geometryOperations);
   owner.geometry=lettered.geometry;
   if(!request.part&&plan.geometry.shape==='spatial')plan.geometry.solid=owner.geometry;
@@ -80,7 +80,7 @@ export async function editHeatSet(source,request,geometryOperations){
       requireThat(parent,'Heat-set sourceAssignments must name matching ordinary Slice owners.');
       const id=index===0?primary:canonical+'--source-'+sourceId;
       return {id,construction:'curves',part,source:{extension:'heat-set-inserts',assignment:parent.id,
-        parameters:{feature,toleranceMm:bored.geometry.toleranceMm??request.toleranceMm??.01}}};
+        parameters:{feature,toleranceMm:bored.geometry.toleranceMm??request.toleranceMm??geometryOperations.dimensions.CONSTRUCTION_TOLERANCE_MM}}};
     });
   })];
   return {geometry:plan.geometry,assignmentRequests,...(notes.length?{report:{notes}}:{})};

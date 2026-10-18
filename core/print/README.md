@@ -244,12 +244,12 @@ of that establishes clearance, surface quality, or that any part prints.
 
 Material preparation expands translated or normal-offset stacks into native-chart
 regions and local normal gaps. Solid masks and generated Trace sources share this
-owned material intent; Trace can also supply terminal reference geometry.
+owned material intent; Trace can also supply a prepared surface with a closed boundary.
 
 Slice has one surface-pattern/deposition route. It measures no physical area and
 reconstructs no unused coverage; Geometry supplies footprint/height queries only
 for depositing connections. Flatness/wrapping are geometry properties; lips use
-zero infill and ordinary inward loops. Terminal selectors do not widen regions.
+zero infill and ordinary inward loops. Prepared references retain their bounded regions.
 Slice never reads completed deposition, even with experimental adaptation enabled.
 Current fitted/pointwise normal offsets still lack general self-intersection
 trimming; this remains a Geometry limitation.

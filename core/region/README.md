@@ -12,7 +12,7 @@ and a signed distance: positive expands material, negative erodes it. Pass the
 whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
 The `region2d.mjs` compatibility export is an alias to this exact function. Slices,
-roof slices, vase-wall and shared rim coverage/travel all use it.
+native slices, vase-wall and shared rim coverage/travel all use it.
 
 Offsets return closed material polygons; an inset yields remaining material.
 
@@ -45,7 +45,7 @@ takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}
 `loops` holds corresponding XYZ points. No Rhino output comparison or equivalence is established.
 
 One engine owns physical surface offsets for native patches, evaluated charts
-and authored sleeve/roof atlases. Boundaries are closed UV polylines or
+and authored sleeve atlases. Boundaries are closed UV polylines or
 `{curve}` native NURBS records in chart coordinates; native curves are sampled
 by physical chord error before the same topology stage. Inputs retain their
 controls, weights and degree; results are derived UV/XYZ loops. Open centerline
@@ -121,7 +121,7 @@ Slices, skin reservations and construction assignments import this tool directly
 including vase/cap transitions. Planar offsets and surface-offset swept-band
 cleanup use this same kernel. Mesh/spline sectioning and sampled level sets
 retain their separate geometry-construction roles. Sampled fields use Geometry's
-[extractLevelSet](../geom/level-set.mjs): roof/reservation consumers request
+[extractLevelSet](../geom/level-set.mjs): sampled chart predicates request
 bounded regions, while gyroid clips genuine contours to its material mask.
 Slice fill's bead-coverage expansion uses the existing 0.001 mm `TOLERANCE.chord`
 arc target. This construction avoids artificial corner gaps without deleting
@@ -160,19 +160,10 @@ sections them on each reference; they do not claim deposited coverage.
 [Plastic weld](../../skills/plastic-weld/SKILL.md) declares its cavity/enclosure;
 Scheduling owns material prerequisites and nozzle access through the saved path.
 
-Skin survey, curve mapping and local gaps are shared stages in
-[roof-region.mjs](./roof-region.mjs), [layer-strokes.mjs](./layer-strokes.mjs)
-and [surface-curves.mjs](./surface-curves.mjs). Wave and bridge geometry uses the common geometric-edge construction with separate readiness before Trace deposition.
-Mapping preserves surface normals and checks physical sample spacing and chord
-error. Only actual exporters enforce machine orientation compatibility.
-
-A skin's `supportFrom` selects a finalized source and prerequisites.
-Experimental `plan.experimental.substrateAdaptation` defaults OFF: use nominal
-reference gaps without final-bead queries. ON selects nominal predecessor slices per chart column and measures actual bead gaps;
-missing required substrate rejects; exporters enforce machine limits. A course with no material below keeps its nominal bead, one
-running into material deposits nothing there, and `limitations` lists each span. This changes volume, not authored slice XYZ.
-3D-printing support assignment is a separate judgment. Absent named sources and
-dependency cycles remain invalid in either mode.
+Slice maps prepared native regions with [layer-strokes.mjs](./layer-strokes.mjs)
+and [surface-curves.mjs](./surface-curves.mjs). Geometry owns finite offset
+neighborhoods and local frames; completion prerequisites remain symbolic.
+Wave and bridge construction uses selected geometric edges before Trace.
 
 [Finalization](../print/finalize.mjs) applies modulation before dependent
 construction and republishes boundaries from final strokes.
@@ -187,5 +178,5 @@ Topology and contact are sampled; features between samples can be missed.
 Single-valued height fields exclude arbitrary undercuts, and no swept-head
 clearance model is implied. The synthetic
 [stack fixture](../tests/fixtures/regional-stack.mjs) combines slab owners,
-a sleeve, cap, body and wavy skin through this pipeline. Fixture execution and
+a sleeve, cap and body through this pipeline. Fixture execution and
 machine-path checks do not authorize hardware.

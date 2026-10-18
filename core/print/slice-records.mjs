@@ -46,10 +46,6 @@ function validateStackContact(a){
     'Slice contact selects a distinct source or finite manufactured contact surfaces.');
   const p=a.toolPose;
   requireThat(p===null||p&&Object.keys(p).join()==='alignToSliceNormal'&&typeof p.alignToSliceNormal==='boolean','Slice toolPose is null or {alignToSliceNormal:boolean}; poses are derived from the slice, not authored samples.');
-  for(const v of a.within??[])if(v.kind==='surface-domain'){
-    requireThat(v.maxSlopeDeg===undefined||Number.isFinite(v.maxSlopeDeg)&&v.maxSlopeDeg>0&&v.maxSlopeDeg<=90,'Surface domain slope must be greater than 0 and at most 90 degrees.');
-    requireThat(v.sampleStepMm===undefined||Number.isFinite(v.sampleStepMm)&&v.sampleStepMm>0,'Surface survey step must be positive.');
-  }
 }
 
 export function validateSlices(slices) {
@@ -115,7 +111,7 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
         || v?.kind === 'geometry' && keys === 'geometry,kind' && v.geometry && typeof v.geometry === 'object'
         || v?.kind === 'normal-band'&&keys==='fromMm,kind,toMm'&&Number.isFinite(v.fromMm)&&Number.isFinite(v.toMm)&&v.toMm>v.fromMm
         || v?.kind === 'outline' && keys === 'kind'
-        || v?.kind==='surface-domain'&&Object.keys(v).every(k=>['kind','loopsUv','fromLayer','toLayer','maxSlopeDeg','sampleStepMm'].includes(k))&&(loopsList(v.loopsUv)||v.loopsUv===null&&a.surface.kind==='roof')&&Number.isInteger(v.fromLayer)&&Number.isInteger(v.toLayer)&&v.fromLayer<v.toLayer&&['spline','patch','roof'].includes(a.surface.kind),
+        || v?.kind==='surface-domain'&&Object.keys(v).every(k=>['kind','loopsUv','fromLayer','toLayer'].includes(k))&&loopsList(v.loopsUv)&&Number.isInteger(v.fromLayer)&&Number.isInteger(v.toLayer)&&v.fromLayer<v.toLayer&&['spline','patch'].includes(a.surface.kind),
       `Slice ${a.id} has an invalid spatial volume.`);
     }
     requireThat(a.stack?.direction!=='normal'||a.within.filter(v=>v.kind==='normal-band').length===1&&a.within.every(v=>['normal-band','geometry'].includes(v.kind)),'A normal stack needs one finite normal-depth volume and optional geometry clips.');
@@ -124,19 +120,21 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
 }
 
 export function validateSliceSurface(surface, id) {
-  if(surface?.kind==='terminal'){
-    requireThat(Object.keys(surface).sort().join()==='assignment,kind,minFeatureMm'&&typeof surface.assignment==='string'&&surface.assignment!==id&&surface.assignment.length&&Number.isFinite(surface.minFeatureMm)&&surface.minFeatureMm>0,'A prepared-boundary reference needs another assignment and positive minFeatureMm.');return;
+  requireThat(surface?.kind!=='roof',`Deprecated roof surface: ${id}.`);
+  if(surface?.kind==='slice'){
+    requireThat(Object.keys(surface).every(key=>['kind','assignment','index'].includes(key))&&typeof surface.assignment==='string'&&surface.assignment!==id&&surface.assignment.length&&
+      (surface.index===undefined||Number.isSafeInteger(surface.index)&&surface.index>=0), 'A slice reference needs another assignment and optional native slice index.');return;
   }
   if(surface?.kind==='mesh-strip'||surface?.kind==='spline'&&(typeof surface.patch==='string'||surface.uvBounds!==undefined)){validateSurfaceSelection(surface);return;}
   if (surface?.kind === 'horizontal' && Object.keys(surface).join() === 'kind') return;
   if(surface?.kind==='patch'){requireThat(Object.keys(surface).sort().join()==='kind,offsetMm,patch'&&typeof surface.patch==='string'&&Number.isFinite(surface.offsetMm),'A native patch reference needs patch name and offsetMm.');return;}
-  if(['roof','spline'].includes(surface?.kind)){
-    const fields=surface.kind==='roof'?['kind','offsetMm']:['kind','offsetMm','patch'];
+  if(surface?.kind==='spline'){
+    const fields=['kind','offsetMm','patch'];
     requireThat(Object.keys(surface).sort().join()===fields.sort().join()&&Number.isFinite(surface.offsetMm),`Slice ${id}: height references need finite offsetMm and a spline needs its authored patch.`);
-    if(surface.kind==='spline')validateSplineSolid({shape:'spline',patches:[surface.patch]});
+    validateSplineSolid({shape:'spline',patches:[surface.patch]});
     return;
   }
-  requireThat(surface?.kind === 'plane' && Object.keys(surface).every(k => ['kind', 'origin', 'normal', 'xAxis'].includes(k)), `Slice ${id}: expected a horizontal, plane, roof or spline reference.`);
+  requireThat(surface?.kind === 'plane' && Object.keys(surface).every(k => ['kind', 'origin', 'normal', 'xAxis'].includes(k)), `Slice ${id}: expected a horizontal, plane, prepared slice or native surface reference.`);
   const plane = planeSlice(surface);
   requireThat(Math.hypot(...plane.normal)>0, `Slice ${id}: plane needs a normal.`);
 }

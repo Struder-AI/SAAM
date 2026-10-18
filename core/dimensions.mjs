@@ -1,42 +1,43 @@
-// The dimensions SAAM works at and the tolerance classes derived from them, in mm.
-// core/README.md#dimensions-and-tolerances owns the reasoning; every tolerance in
-// SAAM is one of these classes or derived from the print's own line width or layer
-// height, and names which.
+// The four independent accuracy controls. Edit here and restart SAAM.
+// Derived quantities below and process-relative budgets at their callers preserve
+// the default behavior; core/README.md#dimensions-and-tolerances owns the units.
+export const TOLERANCE_POLICY = Object.freeze({
+  printResolutionMm: 1e-3,
+  constructionMm: 0.01,
+  programDecimals: 5,
+  roundingMm: 1e-6
+});
 
-// Machine reach bounds every coordinate: beds up to 350 mm, the Denso arm 500 mm.
+export const PRINT_RESOLUTION_MM = TOLERANCE_POLICY.printResolutionMm;
+export const CONSTRUCTION_TOLERANCE_MM = TOLERANCE_POLICY.constructionMm;
+export const PROGRAM_DECIMALS = TOLERANCE_POLICY.programDecimals;
+export const ROUNDING_MM = TOLERANCE_POLICY.roundingMm;
+
+// A physical reference span (beds <=350 mm, arm reach 500 mm), not an accuracy.
 export const BUILD_SCALE_MM = 1000;
-
-// Print resolution: geometry differences below this cannot change a print. It is
-// 10x below the best machine repeatability (about 0.01 mm), 60x below the thinnest
-// layer (0.06 mm) and 400x below the narrowest line (0.4 mm). Shape judgements
-// (coincident, touching, thin, closed) use it.
-export const PRINT_RESOLUTION_MM = 1e-3;
-
-// Native Boolean accuracy, in mm. This is the one construction setting to tune.
-// Curve chords use a quarter of it; boundary matching uses half, leaving room
-// for both approximations. Root solving and rounding guards stay finer.
-export const BOOLEAN_TOLERANCE_MM = 0.005;
-
-// Rounding guards: the slack that absorbs floating-point rounding in a predicate
-// or a division, derived from the functional tolerance it protects. A thousandth
-// of print resolution (agent-determined, 2026-10-06): float64 rounding at build
-// scale (1.1e-13 mm per operation) sits seven orders below it, and it sits three
-// orders below every shape judgement, so a guard never decides shape.
-export const ROUNDING_MM = PRINT_RESOLUTION_MM / 1000;
-// The same guard for dimensionless quantities (cosines, unit vectors, fractions of
-// a span): a rounding guard across the build scale.
+// Native Booleans get half the construction budget; their chords and boundary
+// matching subdivide this again at the kernel boundary.
+export const BOOLEAN_TOLERANCE_MM = CONSTRUCTION_TOLERANCE_MM / 2;
+// Shared construction bins: ordinary chords, coarse/display chords and loose contact.
+export const CHORD_TOLERANCE_MM = 2 * CONSTRUCTION_TOLERANCE_MM;
+export const FEATURE_TOLERANCE_MM = 3 * CONSTRUCTION_TOLERANCE_MM;
+export const COARSE_CHORD_TOLERANCE_MM = 5 * CONSTRUCTION_TOLERANCE_MM;
+export const CONTACT_TOLERANCE_MM = 10 * CONSTRUCTION_TOLERANCE_MM;
 export const ROUNDING_RELATIVE = ROUNDING_MM / BUILD_SCALE_MM;
-// Float64 spacing at unity; numerical error estimates scale it by operation count.
-export const FLOAT64_EPSILON = Number.EPSILON;
-
-// Fine program/geometry resolution: filament length and internal construction
-// keep five decimals (1e-5 mm). Written XYZ commands use their approved coarser
-// precision below; rates, time and orientation use their own units/effect.
-export const PROGRAM_DECIMALS = 5;
-// Written XYZ command positions, approved 2026-10-12; filament amounts keep
-// five decimals with their rounding remainder. Geometry/admission stay finer.
-export const XYZ_PROGRAM_DECIMALS = 3;
-// One step of program resolution, and the slack for a value that passed through a
-// few rounded program numbers (a retraction and its recovery, a written bound).
+export const FLOAT64_EPSILON = Number.EPSILON; // float64 format fact
 export const PROGRAM_STEP_MM = 10 ** -PROGRAM_DECIMALS;
 export const PROGRAM_SLACK_MM = 10 * PROGRAM_STEP_MM;
+// XYZ writes two fewer decimals than filament/internal geometry (3 versus 5).
+export const XYZ_PROGRAM_DECIMALS = Math.max(0, PROGRAM_DECIMALS - 2);
+
+export const TOLERANCE = Object.freeze({
+  chord: PRINT_RESOLUTION_MM,
+  constructionFraction: CONSTRUCTION_TOLERANCE_MM / 1, // native unit-length reference
+  unitFraction: PRINT_RESOLUTION_MM / 1, // dimensionless budget across a 1 mm reference
+  parameter: PROGRAM_STEP_MM / BUILD_SCALE_MM,
+  domainFraction: PRINT_RESOLUTION_MM / BUILD_SCALE_MM
+});
+
+// Changing any control invalidates future generation through the existing source
+// identity. Saved programs retain their exact bytes.
+export const GENERATION_PARAMETERS = TOLERANCE_POLICY;

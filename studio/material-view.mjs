@@ -1,3 +1,4 @@
+import {ROUNDING_MM,TOLERANCE} from '../core/dimensions.mjs';
 import {subtract,scale,dot,cross,length,normalize} from '../core/private/studio/numeric.mjs';
 // Display-only material geometry, derived from interpreted moves. No slicing,
 // machine commands, approval data or reference part mesh is changed here.
@@ -26,12 +27,8 @@ function beadFrame(move,plan,geometry,assignment){
     const normal=point=>{const t=Math.min(1,length(subtract(point,move.from))/span);return normalize(move.toolAxisFrom.map((v,i)=>-(v+(move.toolAxisTo[i]-v)*t)));};
     return {normal,height:move.layer===0?assignment.stack.firstLayerMm:assignment.stack.layerMm,centered:true};
   }
-  if(move.phase==='inclined'&&geometry.roof){
-    const roofNormal=()=>normalize([-geometry.roof.a,-geometry.roof.b,1]);
-    return {normal:roofNormal,height:p.skinNormalMm,centered:false};
-  }
   // Older source without material frames retains its labelled line fallback.
-  if(['skin','fronts','draped-skin','wave-overhangs'].includes(move.phase))return null;
+  if(!assignment)return null;
   if(assignment?.surface.kind==='plane')return {normal:()=>normalize(assignment.surface.normal),height:p.layerMm,centered:false};
   if(assignment&&assignment.surface.kind!=='horizontal')return null;
   const layerNormal=()=>[0,0,1];
@@ -39,7 +36,7 @@ function beadFrame(move,plan,geometry,assignment){
 }
 
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
-  if(!move.extruding||length(subtract(to,from))<1e-9)return null;
+  if(!move.extruding||length(subtract(to,from))<(ROUNDING_MM/1000))return null;
   const p=plan.process,tangent=normalize(subtract(to,from));
   const assignment=plan.slices.assignments.find(a=>!a.construction&&move.operation?.startsWith((a.part===null?'':a.part+':')+a.id+':'));
   const frame=beadFrame(move,plan,geometry,assignment);
@@ -47,13 +44,13 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
   const centered=frame.centered;let height=frame.height;
   if(!(height>0))return null;
   const originalLength=length(subtract(move.to,move.from));
-  const area=originalLength>1e-9?(move.commandedVolumeMm3??move.volumeMm3)/originalLength:NaN;
+  const area=originalLength>(ROUNDING_MM/1000)?(move.commandedVolumeMm3??move.volumeMm3)/originalLength:NaN;
   if(!centered&&Number.isFinite(move.lineWidthMm)&&move.lineWidthMm>0&&Number.isFinite(area)&&area>0)height=area/move.lineWidthMm;
   const width=Number.isFinite(area)&&area>0?area/height:p.lineWidthMm;
   const displayWidth=gap?Math.max(width-CURRENT_LAYER_GAP_MM,width*.5):width;
   function end(point){
     const n=frame.normal(point),projected=subtract(n,scale(tangent,dot(n,tangent)));
-    if(length(projected)<1e-8)return null;
+    if(length(projected)<TOLERANCE.parameter)return null;
     const short=normalize(projected),wide=normalize(cross(short,tangent));
     return {center:centered?point:subtract(point,scale(n,height/2)),
       wide:scale(wide,displayWidth/2),short:scale(short,height/2)};
@@ -92,7 +89,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
     const move=read(i);if(!move.extruding)continue;
     // Stationary deposition is shown by its source event marker, not a bead
     // with an invented direction or a missing surface-frame warning.
-    if(length(subtract(move.to,move.from))<1e-9){supported[i]=1;continue;}
+    if(length(subtract(move.to,move.from))<(ROUNDING_MM/1000)){supported[i]=1;continue;}
     beads++;
     for(const point of [move.from,move.to])point.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
     const key=materialKey(move);let group=byKey.get(key);
@@ -189,7 +186,7 @@ export function createMaterialRenderer(documentApi=document){
       vec3 n=normalize(abs(vertex.w)>.5?normalize(b-a)*vertex.w:u*normalUV.x/dot(u,u)+v*normalUV.y/dot(v,v));
       vec2 rounded=vertex.yz;
       // Display only: shader guard against a zero section coordinate.
-      vec2 square=rounded/max(1e-6,max(abs(rounded.x),abs(rounded.y)));
+      vec2 square=rounded/max(${TOLERANCE.domainFraction.toExponential()},max(abs(rounded.x),abs(rounded.y)));
       vec2 section=mix(square,rounded,detailed);
       gl_Position=projection*vec4(mix(a,b,vertex.x)+u*section.x+v*section.y,1.);
       float diffuse=max(0.,dot(n,light));shade=.38+.62*diffuse;
@@ -238,7 +235,7 @@ export function createMaterialRenderer(documentApi=document){
       // A fitted bead may be narrower than one screen pixel. Render enough
       // samples across it before downsampling, instead of allowing its oval
       // facets to alternate between visible and missing as the camera moves.
-      const sampling=Math.max(ratio,Math.min(4,2/Math.max(.01,(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
+      const sampling=Math.max(ratio,Math.min(4,2/Math.max((1/100),(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
       const resolution=sampling*(quality>=2?1/3:quality>=1?.5:1);
       const w=Math.max(1,Math.round(width*resolution)),h=Math.max(1,Math.round(height*resolution));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);

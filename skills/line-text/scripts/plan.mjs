@@ -1,14 +1,19 @@
-import {textFusion} from './measure.mjs';
-import {FONTS,loadFont} from './catalog.mjs';
-import {PRINT_RESOLUTION_MM} from './strokefont.mjs';
+
+export function createTextPlan(Geometry,measure,catalog){
+const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
+const {textFusion}=measure;
+const {FONTS,loadFont}=catalog;
+
+
+
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // A single centerline receives one bead. A local builder may replace this
 // planning operation and compiler construction to make another policy.
-export const WEIGHTS=Object.freeze({light:.05,regular:.08,bold:.13});
+const WEIGHTS=Object.freeze({light:.05,regular:.08,bold:.13});
 
-export function planLineText({font,text,heightMm,weight='regular',stemRatio,beadRangeMm,
+function planLineText({font,text,heightMm,weight='regular',stemRatio,beadRangeMm,
   clearanceFactor=.5,onInfeasible='reduce',strokeTopology}){
   requireThat(Number.isFinite(heightMm)&&heightMm>0,'Line text needs a positive heightMm.');
   requireThat(Array.isArray(beadRangeMm)&&beadRangeMm.length===2&&beadRangeMm.every(w=>Number.isFinite(w)&&w>0)&&beadRangeMm[1]>=beadRangeMm[0],
@@ -39,7 +44,7 @@ export function planLineText({font,text,heightMm,weight='regular',stemRatio,bead
     limit:{maxStrokeMm:Number.isFinite(limitMm)?+limitMm.toFixed(3):null,limitingGlyph:fusion.char,minHeightMm:+minHeightMm.toFixed(2)},warnings};
 }
 
-export function rankFonts({text,heightMm,intent=[],weight='regular',stemRatio,beadRangeMm,fonts=FONTS.map(f=>f.id),strokeTopology}){
+function rankFonts({text,heightMm,intent=[],weight='regular',stemRatio,beadRangeMm,fonts=FONTS.map(f=>f.id),strokeTopology}){
   const words=new Set(intent.map(w=>String(w).toLowerCase())),rows=[];
   for(const id of fonts){
     const entry=FONTS.find(f=>f.id===id),font=loadFont(id);
@@ -52,9 +57,12 @@ export function rankFonts({text,heightMm,intent=[],weight='regular',stemRatio,be
   return rows.sort((a,b)=>(b.feasible-a.feasible)||(b.score-a.score)||(Math.abs(1-a.keptWeight)-Math.abs(1-b.keptWeight)));
 }
 
-export function depositionEstimate({beadWidthMm,layerMm,planarSpeedMmS,beadLengthMm=null,layers=1}){
+function depositionEstimate({beadWidthMm,layerMm,planarSpeedMmS,beadLengthMm=null,layers=1}){
   const area=beadWidthMm*layerMm,speed=planarSpeedMmS;
   return {beadAreaMm2:+area.toFixed(4),planarSpeedMmS,effectiveSpeedMmS:+speed.toFixed(2),
     flowAtSpeedMm3S:+(area*speed).toFixed(2),
     ...(beadLengthMm===null?{}:{printMinutes:+(beadLengthMm*layers/speed/60).toFixed(1)})};
+}
+
+return {WEIGHTS,planLineText,rankFonts,depositionEstimate};
 }

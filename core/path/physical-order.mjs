@@ -7,6 +7,7 @@ import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_GEOMETR
 import {add,scale,dot,cross,subtract,length,requireThat} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {frameCone,prepareNumericalCurve,numericalCurveTangentProjection} from '../geom/curve-query.mjs';
+import {sectionContactPolygons,planeContactPolygons} from '../geom/section-contact.mjs';
 
 const equalVector=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 function constantVector(profile,select=value=>value){
@@ -137,10 +138,10 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
     clear:(a,b)=>clear(slices.get(a),slices.get(b)),producerClear:(a,b)=>clear(producers.get(a),producers.get(b)),
     supportApart(a,b){
       const p=slices.get(a),q=slices.get(b);if(!p||!q||p.cosine<=0||q.cosine<=0)return false;
-      // A side/bottom crossing does not supply an exposed supporting top.
-      // Project the existing support-band allowances through both normal cones.
-      const mutual=p.cosine*q.cosine-Math.sqrt(Math.max(0,1-p.cosine*p.cosine))*Math.sqrt(Math.max(0,1-q.cosine*q.cosine));
-      return mutual>0&&q.topMin-p.underHigh>PRINT_RESOLUTION_MM*8*metric/mutual+ROUNDING_MM;
+      // Bound the whole candidate section: its exposed side can also meet a
+      // differently oriented receiver. A top-only bound would miss that contact.
+      const allowance=PRINT_RESOLUTION_MM*8*metric+ROUNDING_MM;
+      return q.min-p.max>allowance||p.min-q.max>allowance;
     },
     orderedClear(ids){
       const prefix={max:-Infinity};
@@ -305,12 +306,12 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
     const material=slices.get(layerId);if(!material)return false;
     const outward=scale(pose.toolAxis,-1/length(pose.toolAxis));
     if(material.eligible&&material.courses){
-      const tip=dot(point,material.normal)+nozzleReferenceFloorMm(dot(outward,material.normal),0,includedAngleDeg,0,tipDiameterMm);
+      const tip=dot(point,material.normal)+nozzleReferenceFloorMm(dot(outward,material.normal),0,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm);
       if(tip>material.maxMaterial+ROUNDING_MM)return true;
     }
     if(!material.bounded)return false;
     const p=local(point),reference={toolAxis:local(pose.toolAxis),toolUp:local(pose.toolUp)};
-    return nozzleBoundsClear({min:p,max:p},{reference,halfAngleRad:0},material.material,0,tipDiameterMm,includedAngleDeg);
+    return nozzleBoundsClear({min:p,max:p},{reference,halfAngleRad:0},material.material,NOZZLE_FORGIVENESS_MM,tipDiameterMm,includedAngleDeg);
   }
   return {slices,stationaryClear,summary:{slices:slices.size,producerGroups:producerGroups.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
     rangeClear:(a,b)=>graph?.rangeClear(a,b)??false,supportApart:(a,b)=>graph?.supportApart(a,b)??false,frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
@@ -351,7 +352,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
   // Retain the eviction cursor: restarting Map iteration repeatedly scans
   // deleted entries. Live cache entries keep this cursor from exhausting.
   pairResults.oldest??=pairResults.entries.keys();
-  const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,substratePairs:0,cacheBytes:0,peakCacheBytes:0,materialRegionQueries:0,materialRegionCells:0};
+  const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,contactPairs:0,contactCacheHits:0,cacheBytes:0,peakCacheBytes:0,materialRegionQueries:0,materialRegionCells:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map(),occupiedIds=new Set();
   const depositedBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   const oldestRange=cache.keys(),sampleSections=new WeakMap(),sampleCones=new WeakMap();
@@ -662,7 +663,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     if(unit.operation.kind==='inject'){
       const injection=unit.operation.injection,point=injection.at;
       const tool=nozzleCurveEnvelope({from:point,to:point,bounds:{min:point,max:point},chordErrorMm:0,
-        poseCone:{reference:injection.pose,halfAngleRad:0}},stock,{...geometryForFilament(unit.operation.filament??source.planning.selection?.filament),forgivenessMm:0}).shape;
+        poseCone:{reference:injection.pose,halfAngleRad:0}},stock,geometryForFilament(unit.operation.filament??source.planning.selection?.filament)).shape;
       for(const other of candidates(tool,acceptGroup)){
         const solid=other.solids.some(shape=>convexIntersects(tool,shape,ROUNDING_MM));
         if(solid){yield {unit:other.unit,witness:{receiver:null,material:null,stationaryTool:tool}};continue;}
@@ -699,81 +700,87 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
   }
   // Unbound work is placed from actual deposited sections. A chart is neither
   // solid material nor evidence that a producer has finished.
-  function underside(record){
-    const body=material(record);if(!body)return null;if(!body.frame)return body.shape;
-    const depth=(record.depth[0]+record.depth[1])/2,n=body.frame.normal,slack=Math.min(PRINT_RESOLUTION_MM,record.depth[1]/4);
-    const shape={a:add(record.start.point,scale(n,-depth+slack)),b:add(record.end.point,scale(n,-depth+slack)),normal:n,
-      side:body.frame.side,radius:Math.max(record.range.widthMm[1]/4,record.range.widthMm[1]/2-PRINT_RESOLUTION_MM),depth:PRINT_RESOLUTION_MM+slack};
-    const margin=(body.sphericalErrorMm??body.errorMm)+(record.depth[1]-record.depth[0])/2+PRINT_RESOLUTION_MM*body.normalError,radialMargin=body.planarErrorMm??0;
-    return margin||radialMargin?{parts:[shape],margin,...(radialMargin?{radialMargin,radialNormal:n}:{})}:shape;
+  function contactBand(record){
+    const body=material(record);if(!body)return null;
+    const margin=PRINT_RESOLUTION_MM*2+(body.sphericalErrorMm??body.errorMm);
+    return {parts:[body.shape],margin};
   }
-  function sectionBody(at){
-    const face=section(at);if(!face)return null;
-    return {a:at.point,b:at.point,normal:face.frame.normal,side:face.frame.side,radius:at.widthMm/2,depth:at.areaMm2/at.widthMm};
-  }
-  function exposedSupport(shape,candidate){
-    if(!shape||!candidate)return false;
-    const n=shape.normal,delta=subtract(shape.b,shape.a),size=length(delta),along=size>ROUNDING_MM?scale(delta,1/size):[0,0,0];
-    const inset=Math.min(PRINT_RESOLUTION_MM,size/4),slack=Math.min(PRINT_RESOLUTION_MM,shape.depth/4),base=add(shape.a,scale(n,-shape.depth)),level=dot(base,n);
-    const under={a:add(add(base,scale(n,slack)),scale(along,inset)),b:add(add(shape.b,scale(n,-shape.depth+slack)),scale(along,-inset)),
-      normal:n,side:shape.side,radius:Math.max(shape.radius/2,shape.radius-PRINT_RESOLUTION_MM),depth:PRINT_RESOLUTION_MM+slack};
-    if(!convexIntersects(under,candidate,ROUNDING_MM))return false;
-    if(dot(candidate.normal,n)>ROUNDING_RELATIVE&&convexIntersects(under,{...candidate,depth:0},ROUNDING_MM)&&
-      !convexIntersects({...shape,depth:shape.depth/2},candidate,ROUNDING_MM))return true;
-    const gap=dot(convexSupport(candidate,n),n)-level,backDepth=-Math.min(0,dot(candidate.normal,n))*candidate.depth;
-    return gap>=-PRINT_RESOLUTION_MM*2&&gap<=Math.min(PRINT_RESOLUTION_MM*2,shape.depth/2)&&
-      (backDepth<=ROUNDING_MM||gap-backDepth>=-Math.min(PRINT_RESOLUTION_MM*2,backDepth/2));
-  }
-  // A candidate's side or bottom can intersect the receiver's underside while
-  // its exposed top is elsewhere. Reject that case before fine subdivision.
-  function possibleSupport(a,b,am,under){
-    if(!am.frame)return true;
-    const n=am.frame.normal,cosine=Math.max(-1,1-am.normalError**2/2);
-    const projection=(bounds,high)=>n.reduce((sum,v,k)=>sum+v*bounds[(v>=0)===high?'max':'min'][k],0);
-    const levelHi=projection(a.range.bounds,true)-(cosine>=0?a.depth[0]:a.depth[1])*cosine+a.range.widthMm[1]/2*am.normalError;
-    if(projection(b.range.bounds,false)-levelHi<=Math.min(PRINT_RESOLUTION_MM*2,a.depth[1]/2)+ROUNDING_MM)return true;
-    b.top??=rectangularSweepEnvelope({from:b.start.point,to:b.end.point,bounds:b.range.bounds,
-      chordErrorMm:b.chordErrorMm,tangentCone:b.tangentCone,normalCone:b.normalCone,
-      radius:b.range.widthMm.map(width=>width/2),depth:[0,0]});
-    return convexIntersects(under,b.top.shape,ROUNDING_MM);
-  }
-  function substratePair(receiver,candidate){
-    const pending=[[receiver,candidate]];
+  const contactCache=selfProofs.contacts??={entries:new Map(),bytes:0};
+  contactCache.oldest??=contactCache.entries.keys();
+  function* contactPieces(root,possible){
+    const pending=[root],endpointScore=record=>Math.min(record.ref.from-root.ref.from,root.ref.to-record.ref.to);
     while(pending.length){
-      const [a,b]=pending.pop();if(a.depth[1]===0||b.depth[1]===0)continue;
-      stats.substratePairs++;
-      // The contact band reaches at most print resolution below a section;
-      // retain the existing two-resolution support allowance plus rounding.
-      if(!boundsOverlap(materialBounds(a),materialBounds(b),PRINT_RESOLUTION_MM*2+ROUNDING_MM))continue;
-      const am=material(a),bm=material(b);if(!am||!bm)continue;
-      const under=underside(a);
-      if(!convexIntersects(under,bm.shape,ROUNDING_MM)||!possibleSupport(a,b,am,under))continue;
-      if(am.exact&&bm.exact){if(exposedSupport(am.shape,bm.shape))return {receiver:a.ref,material:b.ref,substrate:true};continue;}
-      for(const [u,at] of samples(a)){
-        const face=sectionBody(at);if(!face)continue;
-        if(bm.exact&&exposedSupport(face,bm.shape))return {receiver:localWitness(a,u),material:b.ref,substrate:true};
-        for(const [v,value] of samples(b))if(exposedSupport(face,sectionBody(value)))
-          return {receiver:localWitness(a,u),material:localWitness(b,v),substrate:true};
+      const next=pending.reduce((best,record,i)=>endpointScore(record)<endpointScore(pending[best])?i:best,0);
+      const record=pending.splice(next,1)[0],body=material(record);if(!body)continue;
+      if(!possible(record))continue;
+      if(record.range.breaks.length||body.errorMm>PRINT_RESOLUTION_MM/4){
+        requireTangent(record);const children=divide(record);
+        if(children){pending.push(...children);continue;}
+        throw unresolved(record,null);
       }
-      let splitA=a.range.breaks.length>0||!b.range.breaks.length&&!am.exact&&(bm.exact||am.errorMm>=bm.errorMm),chosen=splitA?a:b;
-      let children=divide(chosen);
-      if(!children){splitA=!splitA;chosen=splitA?a:b;children=divide(chosen);}
-      if(!children)throw unresolved(a,b);requireTangent(chosen);
-      for(const child of children)pending.push(splitA?[child,b]:[a,child]);
+      if(body.frame&&length(subtract(record.end.point,record.start.point))>ROUNDING_MM)yield record;
     }
-    return null;
   }
-  function* substrateHits(unit,acceptGroup){
-    spatialIndex();
-    const body=byId.get(unit.id),seen=new Set();
-    if(!Number.isFinite(body.bounds.min[0])||!candidates(convexBox(body.bounds),acceptGroup).length)return;
-    for(const root of body.records){
-      const under=underside(root);if(!under)continue;
-      for(const other of candidates(under,acceptGroup))for(const candidate of regionalMaterial(other,under)){
-        const key=JSON.stringify([root.ref.id,root.ref.from,root.ref.to,candidate.ref.id,candidate.ref.from,candidate.ref.to]);
-        if(seen.has(key))continue;
-        const witness=substratePair(root,candidate);if(!witness)continue;
-        seen.add(key);yield {unit:other.unit,witness};
+  function contactPolygons(receiver,candidate){
+    const key=JSON.stringify([receiver.ref.id,receiver.ref.from,receiver.ref.to,candidate.ref.id,candidate.ref.from,candidate.ref.to]);
+    const cached=contactCache.entries.get(key);if(cached){stats.contactCacheHits++;return cached.polygons;}
+    stats.contactPairs++;
+    const a=material(receiver),b=material(candidate),shape=a.shape.parts?.[0]??a.shape,other=b.shape.parts?.[0]??b.shape;
+    const polygons=sectionContactPolygons(shape,other,{toleranceMm:PRINT_RESOLUTION_MM*2+a.errorMm+b.errorMm});
+    const bytes=128+polygons.reduce((sum,polygon)=>sum+polygon.length*16,0);
+    while(contactCache.bytes+bytes>cacheLimit&&contactCache.entries.size){
+      const first=contactCache.oldest.next().value;contactCache.bytes-=contactCache.entries.get(first).bytes;contactCache.entries.delete(first);
+    }
+    if(bytes<=cacheLimit){contactCache.entries.set(key,{polygons,bytes});contactCache.bytes+=bytes;}
+    return polygons;
+  }
+  function* contactCells(unit,acceptGroup,acceptRange,available){
+    onProgress?.({stage:'Qualifying bead contact',assignment:unit.sourceOperation});
+    function endpointDistance(body,record){
+      return Math.min(...[record.start.point,record.end.point].map(point=>Math.hypot(...point.map((v,k)=>
+        Math.max(body.bounds.min[k]-v,0,v-body.bounds.max[k])))));
+    }
+    function possibleReceiver(record){
+      const band=contactBand(record),bounds=convexBounds(band);
+      if(bounds.min[2]<=PRINT_RESOLUTION_MM*2&&bounds.max[2]>=-PRINT_RESOLUTION_MM*2)return true;
+      return available.size>0&&candidates(band,acceptGroup).length>0;
+    }
+    function plateCovers(root){
+      const envelope=material(root),shape=envelope.shape.parts?.[0]??envelope.shape;
+      if(!envelope.frame)return false;
+      const depth=(root.depth[0]+root.depth[1])/2,face={...shape,depth:0};
+      const radial=envelope.planarErrorMm?{radialMargin:envelope.planarErrorMm,radialNormal:shape.normal}:{};
+      const margin=envelope.sphericalErrorMm??envelope.errorMm;
+      const top=convexBounds({parts:[face],margin,...radial});
+      const bottom=convexBounds({parts:[{...face,a:add(face.a,scale(shape.normal,-depth)),b:add(face.b,scale(shape.normal,-depth))}],
+        margin:margin+(root.depth[1]-root.depth[0])/2,...radial});
+      // A real plate crossing every section proves full width contact. Its
+      // normal is environmental geometry, independent of the slice orientation.
+      return shape.normal[2]>envelope.normalError&&top.min[2]>=-PRINT_RESOLUTION_MM*2&&bottom.max[2]<=PRINT_RESOLUTION_MM*2;
+    }
+    for(const root of byId.get(unit.id).records){
+      if(!acceptRange(root.ref))continue;
+      if(plateCovers(root)){
+        yield {ref:root.ref,wholePlate:true,contacts:[{provider:null}]};continue;
+      }
+      const bounds=materialBounds(root),plateApart=bounds.min[2]>PRINT_RESOLUTION_MM*2||bounds.max[2]<-PRINT_RESOLUTION_MM*2;
+      if(plateApart&&(!available.size||!candidates(contactBand(root),acceptGroup).length))continue;
+      for(const record of contactPieces(root,possibleReceiver)){
+        const body=material(record),shape=body.shape.parts?.[0]??body.shape,size=length(subtract(shape.b,shape.a));
+        const contacts=planeContactPolygons(shape).map(polygon=>({provider:null,polygon}));
+        const cell={ref:record.ref,size,fromPoint:shape.a,toPoint:shape.b,widthMm:record.range.widthMm[1]};
+        if(contacts.length)yield {...cell,contacts};
+        if(contacts.length&&contacts[0].polygon.length===4&&contacts[0].polygon.every(([x,y])=>
+          (x===0||x===size)&&Math.abs(y)===shape.radius))continue;
+        const band=contactBand(record),nearby=candidates(band,acceptGroup).sort((a,b)=>
+          Number(available.has(b.unit.id))-Number(available.has(a.unit.id))||endpointDistance(a,record)-endpointDistance(b,record));
+        const possibleMaterial=record=>convexIntersects(band,material(record).shape,PRINT_RESOLUTION_MM*2);
+        for(const other of nearby)for(const candidate of regionalMaterial(other,band))for(const piece of contactPieces(candidate,possibleMaterial)){
+          if(!boundsOverlap(materialBounds(record),materialBounds(piece),PRINT_RESOLUTION_MM*2))continue;
+          const witness={receiver:record.ref,material:piece.ref,substrate:true};
+          const found=contactPolygons(record,piece).map(polygon=>({provider:other.unit.id,polygon,witness}));
+          if(found.length)yield {...cell,contacts:found};
+        }
       }
     }
   }
@@ -875,19 +882,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
       return result;
     }
     if(!witness?.receiver||!witness.material)return result;
-    if(witness.substrate){
-      const a=interval(witness.receiver),b=interval(witness.material),am=material(a),bm=material(b);
-      if(!am?.exact||!bm?.exact)return result;
-      if(a.affine){
-        const band=underside({...a,end:a.start}),contact=translationContactInterval(band,subtract(a.end.point,a.start.point),bm.shape);
-        if(contact)result.push({courseId:a.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(a.ref,u))});
-      }
-      if(b.affine){
-        const face=section(b.start),contact=face&&translationContactInterval(face,subtract(b.end.point,b.start.point),underside(a));
-        if(contact)result.push({courseId:b.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(b.ref,u))});
-      }
-      return result;
-    }
+    if(witness.substrate)return witness.contactCuts;
     const a=interval(witness.receiver),b=interval(witness.material),am=nozzle(a),bm=material(b);
     if(!am.exact||!bm?.exact)return result;
     if(a.affine){
@@ -940,7 +935,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     if(!occupiedIds.has(id))for(const solid of body.solids)includeDeposit(convexBounds(solid));
     occupiedIds.add(id);deposited.set(id,count);
   }
-  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,substrateHits,requiredHits,verifySelf,cutsForWitness,materialAccessConflict,mutualConflict,
+  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,contactCells,requiredHits,verifySelf,cutsForWitness,materialAccessConflict,mutualConflict,
     interval,pair,deposited,occupied:occupiedIds,depositedBounds,recordDeposit,withinGroups:null,groupPrefixes:null,
     operationOf:id=>byId.get(id)?.unit.sourceOperation??id};
 }

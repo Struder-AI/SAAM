@@ -3,7 +3,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {compileRecipe} from './plan.mjs';
-import {preparePathGeometry,prepareModelGeometry} from './generate.mjs';
+import {preparePathGeometry,prepareModelInputs} from './generate.mjs';
 import {prepareSliceContexts,prepareOwnedSliceRegions} from './slice-material.mjs';
 import {prepareReferenceSliceStack} from './slice-stacks.mjs';
 import {assignmentGeneration} from './assignment-generation.mjs';
@@ -16,8 +16,7 @@ export async function preparedSlices(input,{assignment,part}){
   requireThat(typeof assignment==='string'&&assignment.length,'Choose a geometric Slice assignment.');
   const compiled=compileRecipe(input),plan=compiled.plan,selected=plan.slices.assignments.find(a=>a.id===assignment);
   requireThat(selected&&!selected.construction&&!selected.join,'Choose an ordinary Slice assignment: '+assignment+'.');
-  if(selected.surface.kind==='terminal')throw Error('Deprecated deposition-boundary selector: '+assignment+'.');
-  const geometry=await preparePathGeometry(plan),prepared=await prepareModelGeometry(plan,geometry);
+  const geometry=await preparePathGeometry(plan),prepared=await prepareModelInputs(plan,geometry);
   const generation=assignmentGeneration(compiled.intent,compiled.failures);
   generation.admit({...prepared,failures:[...prepared.processFailures,...prepared.geometryFailures]});
   requireThat(!generation.hasFailed(assignment),generation.notes().join(' '));
@@ -25,7 +24,18 @@ export async function preparedSlices(input,{assignment,part}){
   const sliced=prepareSliceContexts({...prepared,plan:retained,bands:active(prepared.bands),geometryCuts:active(prepared.geometryCuts),solidVolumes:active(prepared.solidVolumes)});
   const contexts=sliced.contexts.filter(record=>record.owner.assignment.id===assignment&&(part===undefined||record.owner.part===part));
   requireThat(contexts.length===1,'Select one Slice stack and its part.');
-  const record=contexts[0].reference?prepareOwnedSliceRegions(prepareReferenceSliceStack(contexts[0])):contexts[0];
+  const resolved=new Map(),activeReferences=new Set();
+  function resolve(record){
+    if(resolved.has(record))return resolved.get(record);
+    requireThat(!activeReferences.has(record),'Prepared surface references form a cycle.');activeReferences.add(record);
+    const reference=record.reference?.selection;
+    const source=reference?.kind==='slice'?sliced.contexts.find(other=>other.owner.assignment.id===reference.assignment&&other.owner.part===record.owner.part)??
+      prepared.constructions.find(other=>other.assignment.id===reference.assignment&&other.assignment.part===record.owner.part):null;
+    const selected=record.reference?prepareOwnedSliceRegions(prepareReferenceSliceStack(record,{source:source?.spec?resolve(source):
+      source?.prepare?source.prepare(source):source})):record;
+    activeReferences.delete(record);resolved.set(record,selected);return selected;
+  }
+  const record=resolve(contexts[0]);
   return {assignment,part:record.owner.part,process:record.context.process,notes:[...prepared.notes,...sliced.notes,...generation.notes()],
     layers:record.spec.layers.map(layer=>({index:layer.index,slice:layer.slice,region:layer.region,direction:layer.direction,
       translationMm:layer.translationMm,heightMm:layer.heightMm}))};

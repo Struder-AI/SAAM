@@ -1,6 +1,6 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,dot,cross,normalize,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 import {sampleAuthoredCurve} from './authored-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
@@ -45,7 +45,7 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
 
 // Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm
 // line; widthMm is in scope but the defaults are kept so existing spirals do not move.
-function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,role}){
+function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=CHORD_TOLERANCE_MM,role}){
   const n=referenceStack.layers.length,sleeve=referenceStack.boundary?null:boundarySleeve(referenceStack);
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
   const foundationHeightMm=referenceStack.layers[0].heightMm??firstHeightMm;

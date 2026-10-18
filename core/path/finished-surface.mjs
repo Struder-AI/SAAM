@@ -1,3 +1,4 @@
+import {CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 import {POSE_RESOLUTION_DEG} from './pose.mjs';
 // Nominal finished boundaries carry ownership and prerequisites independently
 // of the deposition strategy. They are not measured bead-surface reconstructions.
@@ -10,7 +11,7 @@ import {depositedBeadSegments,depositedBeadsContain,depositedBeadBounds} from '.
 
 // Process scale: toleranceMm is the default height slack of a top boundary, a
 // twentieth of a 0.4 mm line.
-export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=.02,maxSlopeDeg=90,contains=null}){
+export function publishFinishedBoundary(result,{shell,startMm=shell.bounds.min[2],endMm=shell.bounds.max[2],boundary='shell',coverage='nominal',toleranceMm=CHORD_TOLERANCE_MM,maxSlopeDeg=90,contains=null}){
   const sourceOperationIds=result.operations.filter(op=>op.strokes.length).map(op=>op.id);
   // Owned state of this boundary test: the section search data is built on first side
   // use, and the loops it returns are cached by Z.

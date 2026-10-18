@@ -1,4 +1,5 @@
 import {prepareSurfaceRay,surfaceRayIntersections} from './surface-ray.mjs';
+import * as dimensions from '../dimensions.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {curvePairSurface,closedEdgeSpans} from './edge-surface.mjs';
 // Every extension host supplies these same CAD operations. Backend loading and
@@ -45,7 +46,7 @@ import {geometrySelections} from './selections.mjs';
 import {extendSurface} from './surface-extend.mjs';
 
 function buildGeometry(geometry){return buildShell(null,geometry,{native:false});}
-const operations=Object.freeze({prepareSurfaceRay,surfaceRayIntersections,resolutionMm:PRINT_RESOLUTION_MM,curvePairSurface,closedEdgeSpans,compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
+const operations=Object.freeze({prepareSurfaceRay,surfaceRayIntersections,resolutionMm:PRINT_RESOLUTION_MM,dimensions:Object.freeze({...dimensions}),curvePairSurface,closedEdgeSpans,compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
     resolveGeometrySelections,resolveMaterialGeometry,translateShell,mappedRegionMaterial,textOutlines,textLayout,
     matchCurveControls,ribbon,loftPolygons,topAt,createSectionQuery,containsPoint,
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,

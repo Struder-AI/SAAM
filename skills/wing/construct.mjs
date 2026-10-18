@@ -1,10 +1,15 @@
-import {wingDesign,wingSections,wingStation,sectionRoute,foil,wingletThickness} from './design.mjs';
 import {aircraftContext} from './aircraft.mjs';
-import {airfoilProfile,PRINT_RESOLUTION_MM} from './airfoils.mjs';
+
+export function createWingConstruction(Geometry,design,airfoils){
+const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
+const {wingDesign,wingSections,wingStation,sectionRoute,foil,wingletThickness}=design;
+const {airfoilProfile}=airfoils;
+
+
 // Spans, heights and path points coincide to print resolution. The small chord
 // fractions in wingEnvelope keep it off the leading and trailing edges: shape, not tolerance.
 
-export function wingEnvelope(d,piece,span,{samples=60}={}){
+function wingEnvelope(d,piece,span,{samples=60}={}){
   const s=wingStation(d,piece,span),points=[],n=samples;
   const plate=piece.integratedTip&&span>=piece.toMm-wingletThickness(d)-PRINT_RESOLUTION_MM;
   // The integrated endplate has a connected, filled bed face even when a
@@ -26,7 +31,7 @@ export function wingEnvelope(d,piece,span,{samples=60}={}){
   return points;
 }
 
-export async function pieceGeometry(d,piece,{loftPolygons}){
+async function pieceGeometry(d,piece,{loftPolygons}){
   const sense=piece.integratedTip?-1:1,stations=sectionStations(d,piece);
   if(piece.integratedTip)stations.reverse();
   return loftPolygons(stations.map(span=>({z:piece.integratedTip?piece.toMm-span:span-piece.fromMm,points:wingEnvelope(d,piece,span).map(([x,y])=>[x,piece.hand*sense*y])})));
@@ -38,7 +43,7 @@ function sectionStations(d,piece,stepMm=5){
   return [...new Set(stations)].sort((a,b)=>a-b);
 }
 
-export function continuousWingCurve(d,piece,{clipLineToRegion}){
+function continuousWingCurve(d,piece,{clipLineToRegion}){
   const height=piece.toMm-piece.fromMm,points=[],pitch=d.layerMm;let skinSpeed=d.speedMmS;
   const sense=piece.integratedTip?-1:1,spanAt=z=>piece.integratedTip?piece.toMm-z:piece.fromMm+z;
   const append=p=>{const q=points.at(-1);if(!q||Math.hypot(...p.map((v,i)=>v-q[i]))>PRINT_RESOLUTION_MM)points.push(p);};
@@ -103,7 +108,7 @@ export function continuousWingCurve(d,piece,{clipLineToRegion}){
     report:{points:points.length,lengthMm,maxRiseDeg:maxRise,maxStepMm:maxStep,continuous:true,minimumTurnSeconds:6,bedFace:piece.integratedTip?'flat outer winglet face':'section joint',wingletThicknessMm:piece.integratedTip?wingletThickness(d):null}};
 }
 
-export async function wingHandoff(input,pieceId,Geometry){
+async function wingHandoff(input,pieceId,Geometry){
   const d=wingDesign(input),layout=wingSections(d),piece=layout.pieces.find(p=>p.id===pieceId);
   if(!piece)throw Error('Unknown wing section: '+pieceId);
   const geometry=await pieceGeometry(d,piece,Geometry),{curves,report}=continuousWingCurve(d,piece,Geometry);
@@ -113,14 +118,14 @@ export async function wingHandoff(input,pieceId,Geometry){
     requirements:{orientation:piece.integratedTip?'flat-winglet-face-down':'span-up',continuousExtrusion:true,axes:3,assembly:d.sweepDeg?'glue; separate straight rods for each swept half-wing; root joint strength unqualified':'glue',geometryRole:'reference envelope; Trace curves define the hollow skin, rod webs and filled winglet'},report};
 }
 
-export function validateWingDesign(input){
+function validateWingDesign(input){
   const design=wingDesign(input);
   for(const piece of wingSections(design).pieces)
     for(const span of sectionStations(design,piece))sectionRoute(design,piece,span);
   return design;
 }
 
-export function wingPreview(input,{interactive=false}={}){
+function wingPreview(input,{interactive=false}={}){
   const d=validateWingDesign(input),layout=wingSections(d);
   const pieces=layout.pieces.map(piece=>{
     // Only transient viewer meshes become lighter while a slider is moving.
@@ -129,4 +134,7 @@ export function wingPreview(input,{interactive=false}={}){
     return {...piece,sections,route:sectionRoute(d,piece,(piece.fromMm+piece.toMm)/2)};
   });
   return {...layout,pieces,rodEndMm:d.spanMm/2-wingletThickness(d)-4,rods:layout.rods.map(r=>({...r,centerMm:foil(d,r.xMm,d.chordMm).center})),context:aircraftContext(d)};
+}
+
+return {wingEnvelope,pieceGeometry,continuousWingCurve,wingHandoff,validateWingDesign,wingPreview};
 }

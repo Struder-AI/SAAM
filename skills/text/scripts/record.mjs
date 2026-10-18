@@ -4,7 +4,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Every record carries its derived material partitions. standalone is present
 // only on a reference body, so it stays optional.
-export const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:0.02,maxEdgeMm:1,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]}),materialParts:[],
+export const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:record.toleranceMm,maxEdgeMm:1,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]}),materialParts:[],
   ...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
 export function validateTextRecord(record){
   requireThat(Object.keys(record).sort().join()===Object.keys(textTemplate(record)).sort().join(),'Unexpected text geometry fields.');

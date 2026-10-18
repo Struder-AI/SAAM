@@ -20,7 +20,7 @@
 import { evaluate,requireSplineDegree } from './nurbs.mjs';
 import {intersect} from '../region/intersection.mjs';
 import { cross, dot, subtract, distance, length, TOLERANCE } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import { DIRECTION_TOLERANCE } from './frame.mjs';
 import {faceTrimRegion} from './surface-trim.mjs';
 import {splitBezierNet,restrictBezierNet,bernsteinProductWeights} from './bezier-net.mjs';
@@ -34,7 +34,7 @@ import {splitBezierNet,restrictBezierNet,bernsteinProductWeights} from './bezier
 const PARAMETER_EPSILON = TOLERANCE.parameter, POINT_TOLERANCE = PROGRAM_STEP_MM, TANGENT_LIMIT = DIRECTION_TOLERANCE;
 const stalled = (x, step) => step.every((d, k) => x[k] + d === x[k]);
 // An edge-coincidence probe steps this fraction of the edge's domain (a probe offset, not a tolerance).
-const PROBE_FRACTION = 1e-4;
+const PROBE_FRACTION = (100*TOLERANCE.domainFraction);
 
 // ---------------------------------------------------------------- Bezier pieces
 

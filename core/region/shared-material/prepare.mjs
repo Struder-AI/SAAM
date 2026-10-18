@@ -11,7 +11,7 @@ import {prepareSharedInterior} from './depth.mjs';
 import {boundaryCaps} from './caps.mjs';
 import {sliceKey,planeSlice,sliceBoundaryEdges,sliceStack,translateSlice,prepareSliceRay,sliceRayIntersections,sliceChartStep} from '../../geom/slice.mjs';
 import {evaluateSurface} from '../../geom/surface-evaluation.mjs';
-import {sampledChartRegion} from '../../geom/height-slice.mjs';
+import {sampledChartRegion} from '../../geom/chart-region.mjs';
 import {volumeSection} from '../layer-region.mjs';
 import {dot} from '../../geom/frame.mjs';
 
@@ -228,7 +228,6 @@ import {prepareSection,section} from '../section.mjs';
 import {lineSpacing} from '../../path/spacing.mjs';
 function chartExtent(owner, slice) {
   if(slice.kind==='patch')return {min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};
-  if(slice.kind==='height-field')return {min:owner.shell.bounds.min.slice(0,2),max:owner.shell.bounds.max.slice(0,2)};
   const corners = Array.from({ length: 8 }, (_, i) => [0, 1, 2].map(k => ((i >> k) & 1 ? owner.shell.bounds.max[k] : owner.shell.bounds.min[k]) - slice.origin[k]));
   const points = corners.map(p => [slice.xAxis, slice.yAxis].map(axis => axis.reduce((n, v, k) => n + v * p[k], 0)));
   const box = regionBox([points]);

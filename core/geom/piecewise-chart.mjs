@@ -1,6 +1,5 @@
 import {distance,dot,cross,normalize,requireThat,TOLERANCE} from './tolerance.mjs';
-import {tessellateShell} from './tessellate.mjs';
-import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {DIRECTION_TOLERANCE} from './frame.mjs';
 
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
@@ -8,17 +7,15 @@ const add=(a,b,s=1)=>a.map((x,k)=>x+s*b[k]);
 const cross2=(a,b)=>a[0]*b[1]-a[1]*b[0];
 const dot2=(a,b)=>a[0]*b[0]+a[1]*b[1];
 const norm2=a=>Math.hypot(a[0],a[1]);
-// Same point / on an edge in chart coordinates: a roof chart is XY mm (print
-// resolution); a sleeve chart is perimeter fraction by layer index, unit domains whose
-// share worth print resolution is the domain fraction.
-const uvTolerance=chart=>chart.periodic?TOLERANCE.domainFraction:PRINT_RESOLUTION_MM;
+// Sleeve chart coordinates are perimeter fractions and declared layer positions.
+const uvTolerance=()=>TOLERANCE.domainFraction;
 // Sign of a 2D cross product of two chart vectors, up to relative rounding.
 const crossSlack=(a,b)=>ROUNDING_RELATIVE*norm2(a)*norm2(b);
 
-// A local, indexed chart atlas for the two piecewise references SAAM authors:
-// contour sleeves and a mesh roof's visible facets. It preserves seams, creases
-// and missing facets; it does not recognize or parameterize arbitrary meshes.
-export function piecewiseChart(surface,{toleranceMm=.01/* process scale default: atlas chord tolerance */,normalMm=0}={}){
+// A local indexed atlas for declared contour sleeves, preserving their seams
+// and creases without inferring a surface from arbitrary mesh facets.
+export function piecewiseChart(surface,{toleranceMm=CONSTRUCTION_TOLERANCE_MM/* process scale default: atlas chord tolerance */,normalMm=0}={}){
+  requireThat(surface.kind==='sleeve-chart','Piecewise mapping needs an explicit sleeve chart.');
   const triangles=[];
   if(surface.kind==='sleeve-chart'){
     const rings=surface.layers.map(layer=>{
@@ -48,66 +45,10 @@ export function piecewiseChart(surface,{toleranceMm=.01/* process scale default:
           triangles.push([q[0],q[1],q[2]],[q[0],q[2],q[3]]);
         }
     }
-  }else{
-    const slice=surface.slice,mesh=tessellateShell(slice.reference.geometry,{toleranceMm});
-    triangles.push(...roofChartTriangles(mesh,slice));
   }
   requireThat(triangles.length,'Piecewise chart has no nondegenerate surface facets.');
   const periodic=surface.kind==='sleeve-chart',base=chartFromTriangles(triangles,periodic);
-  return normalMm?roundedChart(base,{normalMm,toleranceMm}):{...base,toleranceMm,method:periodic?'ruled-sleeve-facet-unfolding':'authored-roof-facet-unfolding'};
-}
-
-// A roof is the upper envelope, not the set of facets whose centroids happen
-// to be visible. Clip each planar facet against every higher overlapping
-// facet's half planes; convex remainders retain exact crossing boundaries.
-function roofChartTriangles(mesh,slice){
-  const facets=mesh.triangles.map(indices=>{
-    const points=indices.map(i=>mesh.vertices[i]),raw=cross(sub(points[1],points[0]),sub(points[2],points[0]));
-    if(raw[2]<=ROUNDING_MM**2)return null;
-    const normal=normalize(raw),polygon=points.map(p=>p.slice(0,2)),origin=points[0];
-    return {normal,polygon,min:[0,1].map(k=>Math.min(...polygon.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...polygon.map(p=>p[k]))),height:p=>origin[2]-(normal[0]*(p[0]-origin[0])+normal[1]*(p[1]-origin[1]))/normal[2]};
-  }).filter(Boolean);
-  const split=(polygon,field)=>{
-    const inside=[],outside=[];
-    for(let i=0;i<polygon.length;i++){
-      const a=polygon[i],b=polygon[(i+1)%polygon.length],fa=field(a),fb=field(b);
-      if(fa>=0)inside.push(a);if(fa<=0)outside.push(a);
-      if(fa>0&&fb<0||fa<0&&fb>0){const point=add(a,sub(b,a),fa/(fa-fb));inside.push(point);outside.push(point);}
-    }
-    return {inside,outside};
-  };
-  const regions=[];
-  for(const [index,facet] of facets.entries()){
-    let pieces=[facet.polygon];
-    for(const [otherIndex,other] of facets.entries()){
-      if(otherIndex===index||[0,1].some(k=>other.max[k]<=facet.min[k]||other.min[k]>=facet.max[k]))continue;
-      const differences=facet.polygon.map(p=>other.height(p)-facet.height(p));
-      const coplanar=differences.every(d=>Math.abs(d)<PRINT_RESOLUTION_MM);
-      if(Math.max(...differences)<-PRINT_RESOLUTION_MM||coplanar&&otherIndex>index)continue;
-      const fields=other.polygon.map((a,i)=>{const edge=sub(other.polygon[(i+1)%3],a);return p=>cross2(edge,sub(p,a));});
-      if(!coplanar)fields.push(p=>other.height(p)-facet.height(p)+(otherIndex<index?ROUNDING_MM:-ROUNDING_MM));
-      const retained=[];
-      for(const piece of pieces){let remainder=piece;for(const field of fields){if(remainder.length<3)break;const {inside,outside}=split(remainder,field);if(outside.length>=3)retained.push(outside);remainder=inside;}}
-      pieces=retained;if(!pieces.length)break;
-    }
-    for(const polygon of pieces)regions.push({facet,polygon});
-  }
-  const vertices=regions.flatMap(r=>r.polygon),triangles=[];
-  for(const {facet,polygon} of regions){
-    const boundary=[];
-    for(let i=0;i<polygon.length;i++){
-      const a=polygon[i],b=polygon[(i+1)%polygon.length],edge=sub(b,a),length2=dot2(edge,edge);if(length2<ROUNDING_MM**2)continue;
-      const length=Math.sqrt(length2),end=PRINT_RESOLUTION_MM/length;
-      const cuts=[{t:0,point:a}];
-      for(const p of vertices){const v=sub(p,a),t=dot2(v,edge)/length2;if(t>end&&t<1-end&&Math.abs(cross2(edge,v))<=PRINT_RESOLUTION_MM*length)cuts.push({t,point:p});}
-      for(const {point} of cuts.sort((a,b)=>a.t-b.t))if(!boundary.length||distance(point,boundary.at(-1))>PRINT_RESOLUTION_MM)boundary.push(point);
-    }
-    if(boundary.length<3)continue;
-    const center=boundary.reduce((s,p)=>add(s,p,1/boundary.length),[0,0]);
-    const vertex=uv=>({uv,point:[...uv,facet.height(uv)+slice.offsetMm-(slice.normalDepthMm??0)/facet.normal[2]]});
-    for(let i=0;i<boundary.length;i++)if(Math.abs(cross2(sub(boundary[i],center),sub(boundary[(i+1)%boundary.length],center)))>ROUNDING_MM**2)triangles.push([vertex(center),vertex(boundary[i]),vertex(boundary[(i+1)%boundary.length])]);
-  }
-  return triangles;
+  return normalMm?roundedChart(base,{normalMm,toleranceMm}):{...base,toleranceMm,method:'ruled-sleeve-facet-unfolding'};
 }
 
 function chartFromTriangles(triangles,periodic){

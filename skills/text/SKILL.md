@@ -25,11 +25,7 @@ font bytes and hash, so later edits don't depend on installed fonts. For a font
 collection also supply its `postscriptName`. A portable starting font is
 [Abel-Regular.ttf](tests/fixtures/Abel-Regular.ttf), resolved to an absolute path.
 
-For ordinary planar lettering, omit a separate roof-following Slice:
-small glyph roofs are not one continuous surface. Raised letters interrupt
-a wavy roof; to keep the curved finish, use the
-[curved lettering composition](#curved-lettering-above-a-draped-roof) rather than
-silently substituting planar top layers.
+Use the selected face and ordinary Slice ownership for curved lettering.
 
 A request for a 3 mm high part with a horizontal top:
 
@@ -50,8 +46,8 @@ features restores it. Edit lettering only through this tool; `adjust_recipe` on
 its baked recipe is rejected.
 
 `standalone: true` replaces the selected target with standalone text; the
-original body remains only as an editable surface reference, so `top` and `part`
-references still work, with no backing plate. The first feature must be raised;
+original body remains only as an editable surface reference, so named `part` references
+remain available, with no backing plate. The first feature must be raised;
 use zero `overlapMm` for a bottom exactly at the reference. Later features add
 or subtract. A final removal that would leave no geometry is rejected.
 
@@ -59,9 +55,6 @@ or subtract. A final removal that would leave no geometry is rejected.
 
 Coordinates are in the selected part's local millimetres. A reference is:
 
-- `top`: local XY projected onto the original part's upper surface, following
-  wavy roofs directly. It needs an original part and takes no `sizeMm` or UV
-  fields. Raised material follows the local normal.
 - `plane`: `origin`, perpendicular `xAxis` and `yAxis`.
 - `part`: `patch` names a spline patch on the original part, such as `top`.
   `sizeMm: [width,height]` is the flat rectangle mapped to it; optional
@@ -71,8 +64,7 @@ Coordinates are in the selected part's local millimetres. A reference is:
   knots. It never becomes material; use it for another geometry's surface.
 
 `normalSide: 1` or `-1` flips the side. For plane, part and spline references the
-default follows U × V, not an inferred outward normal; `top` uses the upward
-normal. `sizeMm` controls stretching from the flat layout to spline UV and does
+default follows the selected U × V orientation. `sizeMm` controls stretching from the flat layout to spline UV and does
 not preserve distances on a doubly curved surface. Text must stay inside the
 selected patch; move or resize it when the tool reports domain escape.
 
@@ -119,30 +111,23 @@ selectors atomically, supply request-level `assignments` (the complete common
 `plan.slices.assignments`) with `feature` or `remove`. Selections expose material,
 not pattern compatibility; a sleeve can fail at glyph contour transitions.
 
-## Curved lettering above a draped roof
+## Lettering on a selected surface
 
-Apply raised text to the original roof with `reference:{"kind":"top"}`.
-Ordinary assignments own `part:'base'`; add a roof surface-domain Slice assignment
-for its finish, then another selecting `part:'text/label'` with `supportFrom`
-naming that finished roof assignment. Four slices at 0.2 mm spacing fill 0.8 mm lettering.
-
-The lettering consumes finalized roof deposition. Missing support rejects;
-sparse gaps are not filled by a surrogate surface. Inspect counters and thin
-strokes with a survey step smaller than them; disconnected tops need travel,
-and steep sides may be excluded. Software checks do not establish physical
-printing or nozzle clearance.
+Reference the actual named part face with `kind:"part"`, `patch`, `sizeMm` and
+optional `uvBounds`. Slice the resulting text material through ordinary ownership.
+Downstream manufactured-surface references derive their slice prerequisites; an
+independently authored surface leaves placement to Scheduling.
 
 ## Circular lettering
 
-Use a circular baseline with `reference: {"kind":"top"}` on flat, sloped or wavy
-tops; don't rebuild the roof as an annular reference:
+A circular baseline uses the same explicit surface reference:
 
 ```json
 {
   "feature": {
     "id": "circular-name", "text": "groucho", "sizeMm": 12, "align": "center",
     "positionMm": [50, 30], "letterSpacingMm": 0.4, "outlineOffsetMm": 0.18, "depthMm": 0.8,
-    "baseline": {"kind": "circle", "radiusMm": 15}, "reference": {"kind": "top"}
+    "baseline": {"kind": "circle", "radiusMm": 15}, "reference": {"kind": "part", "patch": "top", "sizeMm": [100,100]}
   }
 }
 ```
@@ -152,8 +137,7 @@ points along +X) and clockwise to true, so text centred at the top reads left to
 right. Advance is arc length at `radiusMm`; glyph Y follows the baseline's left
 normal. Font spacing stays intact: adjust spacing, radius or size instead of
 stretching a word around a turn. Avoid overlapping turns and keep glyphs away
-from the centre. On `top` the circle stays circular in XY, so surface arc length
-is not preserved on slopes; ridges, folds and disconnected roofs can fail.
+from the centre. Surface mapping can change physical arc length; inspect distortion on curved faces.
 
 ### Circular underside lettering
 
@@ -167,7 +151,7 @@ TTF, OTF, WOFF/WOFF2 and collections need vector outlines; bitmap/color-only gly
 need separately placed features with explicit shaping; added spacing can break
 connected scripts. Saved solids retain native targets and editable features; mapped
 lettering uses meshes through shared Geometry. Lettering can make sections nonconvex
-or roofs unsuitable for draping.
+or surface regions with disconnected material.
 
 `toleranceMm` (0.02 mm) and `maxEdgeMm` (1 mm) are request-level construction
 controls, not a certified error bound. Tight folds, offset self-intersections,

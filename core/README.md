@@ -48,9 +48,9 @@ order and transitions without duplicate deposition. Report the unsupported
 transition, support need or geometry constraint. A vase-to-cap transition, for
 example, needs a level interface and support/bridging assessment. The user's
 acceptance example is a flat base and vase wall, flat cap, normal walls/infill
-under a wavy roof, draped roof, and flat layers above that roof with a wavy bottom (waiting for
-height-field slices). Region interfaces therefore include nonflat surfaces as well as
-height bands; see [material regions](./region/README.md#material-ownership-and-surface-contact).
+on tilted or nonplanar slice stacks, with subsequent features referencing prepared
+surfaces in their declared sequence. Region interfaces retain native charts and
+local frames; see [material regions](./region/README.md#material-ownership-and-surface-contact).
 
 Mesh and NURBS backends share geometry queries, downstream regions, composition,
 motion, export and review.
@@ -92,24 +92,23 @@ coordination timers and display budgets. These limits are kept:
 
 ## Dimensions and tolerances
 
-Tolerances import their class from [dimensions.mjs](./dimensions.mjs) or derive
-from the print dimensions. Machines repeat to about 0.01 mm:
+[dimensions.mjs](./dimensions.mjs) owns four code-settable controls in `TOLERANCE_POLICY`.
+Edit it and restart SAAM; changes enter Bundle's source identity, while saved programs retain their bytes.
 
-| Class | Value | What it protects |
+| Control | Default | Role |
 |---|---|---|
-| Print resolution, `PRINT_RESOLUTION_MM` | 1e-3 mm | Geometry differences below it cannot change a print. Every shape judgement (same point, joined, touching, on a plane, overlapping, too thin, collinear) uses it. |
-| Process scale | `lineWidthMm`, `layerMm`, or operation accuracy | Chord, sampling and wall-merging accuracy. Native Boolean construction uses the single `BOOLEAN_TOLERANCE_MM` setting ([contract](geom/README.md#native-boolean-construction)). |
-| Construction/admission, `PROGRAM_DECIMALS`, `PROGRAM_STEP_MM`; written XYZ, `XYZ_PROGRAM_DECIMALS` | Fine 5 decimals; XYZ 3 decimals | Geometry and saved SAAMpath retain fine precision; writers use 0.001 mm XYZ and five-decimal filament amounts with residual carry. Other commanded quantities use precision appropriate to their units and positional effect ([standards](../machines/README.md)). |
-| Rounding guards, `ROUNDING_MM`, `ROUNDING_RELATIVE` | print resolution / 1000; / `BUILD_SCALE_MM` | Slack that absorbs floating-point rounding in a predicate or division. Never judges shape. |
+| `printResolutionMm` | 0.001 mm | Shape judgements: coincident, joined, touching, closed, too thin. |
+| `constructionMm` | 0.01 mm | Approximation budgets; shared Boolean/chord/feature/coarse/contact bins derive as 0.5/2/3/5/10 times this. |
+| `programDecimals` | 5 | Fine geometry and filament precision; XYZ/feed use two fewer decimals, robot quantities additional guard digits. |
+| `roundingMm` | 0.000001 mm | Numerical guards; dimensionless and squared guards follow their quantity's reference scale. |
 
-Display budgets never reach geometry or programs. Compare areas to areas; dimensionless
-quantities use `ROUNDING_RELATIVE` or their own scale. Mesh admission merges vertices
-below print resolution and reports constrained exceptions; produced features far below
-resolution are closed and reported. Raw literals cannot exceed [their baseline](../scripts/tolerance-literals.json).
+Only these four settings are independent; recipe/operation tolerances override defaults.
+Process-relative budgets use bead dimensions. Support's 1.5x allowance and sleeve fitting's 8x target stay derived: merging bins changes support membership, fit selection or sampling cost. Compare like units; format facts, design clearances and algorithm steps are not accuracy settings.
+Extensions read `Geometry.dimensions`, machines `Export.kinematics.dimensions`, workspace UI `/_saam/dimensions.mjs`.
+Named raw defaults fail `check-repo`; the [literal ledger](../scripts/tolerance-literals.json) retains shape/UI numbers.
+Mesh admission merges below print resolution with reported exceptions; produced sub-resolution features close with a report.
 
-Developer experiments use these same components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
-is a scoped example. A proposed parallel pipeline needs a reason the shared
-extension cannot serve the task and normally a discussion before building it;
-existing authorization applies. New product commands, artifact formats and
-approval routes require an explicit scope decision. Document a necessary
-exception's reason, limits and boundary tests where a caller encounters it.
+Developer experiments use these components; [historical inspection](../studio/README.md#historical-toolpath-inspection)
+is one example. Parallel pipelines need a reason shared extensions cannot serve the task
+and normally a discussion; existing authorization applies. New commands,
+formats and approval routes require an explicit scope decision; document exceptions at their caller.

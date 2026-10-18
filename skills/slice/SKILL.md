@@ -23,7 +23,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | Field | Default | Meaning |
 |---|---|---|
 | `id`, `part` | Required name, `null` part | Unique lowercase name; selected component/material part, or every component. |
-| `filament`, `process` | `null` | Logical filament; overrides for height, width, speed, fan, `liftMm` and `retractMm` (zero disables extra hop/retraction for this assignment). |
+| `filament`, `process` | `null` | Logical filament; height, width, speed, fan, `liftMm`, `retractMm` (zero disables hop/retraction) and `minimumBridgeRatio` (default 0.8; straight gap / original curve length). |
 | `preset` | `null` | `brim` settings and auxiliary region. |
 | `loops` | `2` | Nonnegative loop count; an array varies the count by slice. |
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |
@@ -48,26 +48,22 @@ Assignments carry the normal fields; optional fields below may be omitted.
 - `slab:{fromMm,toMm}` uses heights above the part bottom; `toMm:null` reaches its top.
 - `geometry:{geometry}` uses a closed authored solid placed with the selected part.
 - `surface-domain:{loopsUv,fromLayer,toLayer}` bounds a translated surface prism.
-  On a roof, `loopsUv:null` surveys it dynamically; optional slope and sample limits
-  control that survey. A thin roof finish uses zero loops, solid fill and a shallow
-  surface-domain interval; assign the body below that volume separately.
+  Supply bounded native UV loops; the selected surface supplies its local frame.
 - `normal-band:{fromMm,toMm}` bounds normal depth on a selected surface.
 - `outline` supplies the brim's auxiliary region.
 
 Volumes use the schemas' `kind`; unbounded owners keep explicit claims' remainder.
 Use disjoint or explicitly partitioned claims under the [role boundary](../../MAKERS.md#toolpaths). Each owner walls its boundaries; solid masks follow the part's material.
 
-References may be horizontal, an authored plane, a roof height chart or a native
-spline patch. Translated stacks calibrate pitch against the whole-reference
-mean normal. A `terminal` reference names a source assignment's closed level
-boundary; loop arrays or `sliceOverrides` vary its subsequent deposition.
-The source can be Slice or Trace, including a geometry-free Trace recipe.
-See [lip authoring](../thick-lip/SKILL.md).
+References select a plane, native surface, or `{kind:"slice",assignment,index?}`.
+Omitting `index` selects the last prepared surface in declared sequence, independent
+of orientation, position or numeric labels. Geometry and minimal completion
+prerequisites remain separate; [lips](../thick-lip/SKILL.md) use the same reference.
 
 `stack.direction:"normal"` uses a spline/mesh-strip chart and one `normal-band`;
 optional `geometry` volumes clip its slices to solids. A spline `patch` is a name
-or authored patch. Set `extend:true` and enlarge `uvBounds` to contain its domain:
-open edges continue tangentially; periodic U stays joined and only V extends.
+or authored patch. Offsets derive a finite tangent neighborhood automatically, preserving
+the native interior. Regularity failures name the required extent; periodic U stays joined.
 `stack.offsetTightness` blends tangent-extended fitted offsets with exact normal offsets of the extended reference ([cladding](../pipe-cladding/SKILL.md)).
 
 Ordinary rectilinear/grid/triangle rows use [physical surface offsets](../../core/region/README.md#shared-offset-functions),

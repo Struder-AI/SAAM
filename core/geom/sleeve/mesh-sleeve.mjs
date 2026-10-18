@@ -8,20 +8,20 @@ import {basisFunctions,findSpan,evaluate} from '../../geom/nurbs.mjs';
 import {leastSquares} from '../../geom/least-squares.mjs';
 import {loopArea,pointInRegion} from '../../region/region2d.mjs';
 import {union} from '../../region/intersection.mjs';
-import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,TOLERANCE,PROGRAM_STEP_MM,CHORD_TOLERANCE_MM} from '../../dimensions.mjs';
 
 // Process scale default: sleeve section tolerance (twenty times print resolution).
-const SECTION_TOLERANCE_MM=.02;
+const SECTION_TOLERANCE_MM=CHORD_TOLERANCE_MM;
 // A bore below this area fraction is classified as a pore. Disconnected outer
 // boundaries are never pores and must not disappear during fitting.
-const SECONDARY_AREA_FRACTION=.001;
+const SECONDARY_AREA_FRACTION=TOLERANCE.unitFraction;
 // A sampled section is one simple counterclockwise loop when a union on a fine grid
 // keeps its area. The grid and the area slack serve that union's integer arithmetic;
-// their values predate the tolerance classes (deferred).
-const UNION_GRID_MM=1e-7;
+// subdivide the numerical guard and use program resolution across a 1 mm strip.
+const UNION_GRID_MM=(ROUNDING_MM/10);
 export function keepsAreaAsSimpleLoop(loop,area){
   const normalized=union([loop],[],{precisionMm:UNION_GRID_MM});
-  return normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max(1e-5,area*1e-8);
+  return normalized.length===1&&loopArea(normalized[0])>0&&Math.abs(loopArea(normalized[0])-area)<Math.max((PROGRAM_STEP_MM * 1 /* mm reference strip */),area*TOLERANCE.parameter);
 }
 
 

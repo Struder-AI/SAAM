@@ -4,20 +4,20 @@ import {isDeepStrictEqual} from 'node:util';
 import {advancedVaseRecordRuntime} from './record.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
-const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
 // The shared mesh sleeve fit's secondary-area allowance (core/geom/sleeve/mesh-sleeve.mjs):
 // an area fraction, not a length tolerance.
-const FITTED_SECONDARY_AREA_FRACTION=.001;
-const {validateSleevePattern}=advancedVaseRecordRuntime();
-const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:.05};
+
+
+
 
 const keys=(value,allowed,label)=>requireThat(value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).every(k=>allowed.includes(k)),`Unknown or invalid ${label} options.`);
 const same=isDeepStrictEqual;
 
 export async function prepareMeshVase(source,options={}, {Geometry,Toolpath}){
+  const {PRINT_RESOLUTION_MM,ROUNDING_MM}=Geometry.dimensions;
+  const FITTED_SECONDARY_AREA_FRACTION=Geometry.dimensions.TOLERANCE.unitFraction;
+  const MESH_SLEEVE_SETTINGS={fidelity:1,contactSide:'inside',circumferentialControls:12,heightControls:6,detailToleranceMm:Geometry.dimensions.COARSE_CHORD_TOLERANCE_MM};
+  const {validateSleevePattern}=advancedVaseRecordRuntime(Geometry);
   const {makeMesh,detectMeshSleeveInterval,horizontalSlice,sliceStack}=Geometry;
   const {defaultSlices,depositionAssignment}=Toolpath;
   keys(options,['meshSleeve','pattern','baseHeightMm','endTransition','detect'],'mesh vase');

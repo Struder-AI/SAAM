@@ -7,14 +7,12 @@ export const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
 // The longest pause one Wait command can express, not a limit on how long a
 // path may pause; a longer pause is split across commands.
 export const WAIT_COMMAND_MS=60000;
-export const num=value=>{requireThat(Number.isFinite(value),'Nonfinite Dobot number.');return Number(value.toFixed(10));};
+export const controllerNumber=(value,decimals)=>{requireThat(Number.isFinite(value),'Nonfinite Dobot number.');return Number(value.toFixed(decimals));};
 export const transform=(p,c)=>[p[0]*c.scaleX+c.offsetXMm,p[1]*c.scaleY+c.offsetYMm,p[2]+c.bedZMm];
 export const inverse=(p,c)=>[(p[0]-c.offsetXMm)/c.scaleX,(p[1]-c.offsetYMm)/c.scaleY,p[2]-c.bedZMm];
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
 // The start pose is compared at print resolution. Rectangular display envelopes
 // do not establish robot reachability and do not constrain the program.
-export const equal=(a,b)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<PRINT_RESOLUTION_MM);
+export const equal=(a,b,PRINT_RESOLUTION_MM)=>a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<PRINT_RESOLUTION_MM);
 
 // Adopted from the selected legacy motion-trace/trace-lib.mjs. No assumed
 // velocity or acceleration: both come from this instance's locked setup.
@@ -73,8 +71,10 @@ const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('h
 const commandSpeed=(action,defaults)=>action.speedMmS>0?action.speedMmS:action.volumeMm3>0?defaults.planarSpeedMmS:defaults.travelSpeedMmS;
 const defaultedNote=(count,defaults)=>count?[`${count} move(s) had no positive speed and are written at the profile default (deposition ${defaults.planarSpeedMmS} mm/s, travel ${defaults.travelSpeedMmS} mm/s).`]:[];
 function exportDobot(path,plan,machine,release,Export){
+  const {PRINT_RESOLUTION_MM,PROGRAM_DECIMALS}=Export.kinematics.dimensions;
+  const num=value=>controllerNumber(value,PROGRAM_DECIMALS+5);
   const c=config(plan,machine);
-  requireThat(equal(path.initialPosition,c.initialPositionMm),'Dobot initial position differs from the locked external start pose.');
+  requireThat(equal(path.initialPosition,c.initialPositionMm,PRINT_RESOLUTION_MM),'Dobot initial position differs from the locked external start pose.');
   const global=`-- SAAM controller XYZ after locked calibration and ${PRINT_RESOLUTION_MM} mm rounding.\nfunction P(x,y,z)\n  return {coordinate={x,y,z,${num(c.rDeg)}},tool=${c.toolFrame},user=${c.userFrame}}\nend\n`;
   const omitted=new Set(),temperatures=new Set(),lines=['-- SAAM experimental stroke relay program','function RunPlan()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`];
   // Timing and the relay estimate use literal calibrated controller XYZ,
@@ -92,9 +92,10 @@ function exportDobot(path,plan,machine,release,Export){
       const speed=commandSpeed(a,plan.defaultProcess);if(speed!==a.speedMmS)defaulted++;
       const designLength=Math.hypot((target[0]-controller[0])/c.scaleX,(target[1]-controller[1])/c.scaleY,target[2]-controller[2]);
       const requested=(designLength>0?controllerLength/designLength:1)*speed/c.maxLinearSpeedMmS*100;
-      // The existing ten-decimal command format has this smallest positive
+      // Percentage commands retain five guard decimals beyond fine program precision.
+      // This format has the following smallest positive
       // SpeedL value; a larger requested feed uses the controller's 100% limit.
-      const percent=Math.max(10**-10,num(Math.min(100,requested)));
+      const percent=Math.max(10**-(PROGRAM_DECIMALS+5),num(Math.min(100,requested)));
       if(percent!==requested)limited++;
       const volume=a.volumeMm3>0?a.volumeMm3+carried:0;if(a.volumeMm3>0)carried=0;
       switchRelay(volume>0);

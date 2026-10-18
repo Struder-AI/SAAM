@@ -12,7 +12,6 @@
     "source": "https://github.com/Ultimaker/Ultimaker2/tree/master/1301_Integrated_nozzle_heater_block_3mm_filament_(x1)",
     "note": "CAD outlet circle radius 0.5 mm; external taper half-angle 45 degrees. Infinite taper is a clearance envelope; heater block and carriage are not modeled."
   },
-  "planarWallToleranceMm": 0.01,
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "capabilities": [
     "xyz-extrusion",

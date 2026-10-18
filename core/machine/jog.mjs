@@ -12,7 +12,7 @@ const JOG_STEP=PRINT_RESOLUTION_MM;
 // Deferred: absolute progress floor for a margin near zero and the smallest
 // correction worth taking; ROUNDING_MM would reject the final approach to a
 // boundary near a singularity, where margin gradients are large.
-const PROGRESS_FLOOR=1e-12,STILL_CORRECTION=1e-9;
+const PROGRESS_FLOOR=(ROUNDING_RELATIVE/1000),STILL_CORRECTION=ROUNDING_RELATIVE;
 export function constrainedJog({from,target,axis,scales,evaluate}){
   if(!Number.isInteger(axis)||axis<0||axis>=from.length||target.length!==from.length||!from.every(Number.isFinite)||!target.every(Number.isFinite))throw Error('Invalid jog request');
   const initial=evaluate(from);if(!initial.valid)throw Error('Jog must start from a reachable pose');

@@ -1,4 +1,4 @@
-import {evaluateSurface} from './surface-evaluation.mjs';
+import {evaluateSurface,translatedSurface} from './surface-evaluation.mjs';
 // Slices: surfaces that cut a solid and give its toolpath a reference. A slice
 // is a plain record with a 2D chart. section(geometry, slice) returns the
 // solid's region on it as loops in that chart (outer loops counterclockwise,
@@ -12,14 +12,11 @@ import {evaluateSurface} from './surface-evaluation.mjs';
 //  patch  {patch}: a NURBS patch; the chart is its (u,v), the curve offset's
 //         surface mode. Its region is where it lies inside the solid
 //         (surface-surface intersection, ../region/section.mjs).
-//  height-field {reference, offsetMm, normalDepthMm}: native roof/spline
-//         evaluation in world XY; sampled topology with refined boundaries.
 //
 // A stack repeats one base surface: layer k is the base translated along a
 // direction, so every layer keeps the same chart and a chart point names the
 // same column of material in every layer. Neighbouring layers therefore
 // compare by 2D booleans alone.
-import { heightSlicePoint, heightReferenceBounds,heightReferenceMetric } from './height-slice.mjs';
 import { evaluate } from './nurbs.mjs';
 import {projectToPatch} from './field.mjs';
 import { regionArea } from '../region/region2d.mjs';
@@ -44,11 +41,6 @@ export function sliceRayIntersections(prepared,point){
   if(slice.kind==='patch'){
     const p=prepared.axes.map(axis=>dot(axis,point));
     return projectToPatch(prepared.patch,p[0],p[1]).map(hit=>({distanceMm:p[2]-hit.point[2],chartPoint:[hit.u,hit.v]}));
-  }
-  if(slice.kind==='height-field'){
-    requireThat(Math.hypot(d[0],d[1])<DIRECTION_TOLERANCE,'A height-field nominal-slice query requires its vertical stack direction.');
-    const chartPoint=point.slice(0,2),surface=heightSlicePoint(slice,chartPoint);
-    return [{distanceMm:(point[2]-surface[2])/d[2],chartPoint}];
   }
   const denominator=dot(slice.normal,d);if(Math.abs(denominator)<ROUNDING_RELATIVE)return [];
   const distanceMm=dot(slice.normal,point.map((v,k)=>v-slice.origin[k]))/denominator,p=point.map((v,k)=>v-distanceMm*d[k]-slice.origin[k]);
@@ -80,11 +72,7 @@ export function patchSlice(patch) {
 export function translateSlice(slice, v) {
   requireThat(vector(v), 'A slice translation is a 3D vector.');
   if (slice.kind === 'plane') return { ...slice, origin: add(slice.origin, v) };
-  if (slice.kind === 'height-field') {
-    requireThat(v[0] === 0 && v[1] === 0, 'Height-reference stacks currently translate along Z only.');
-    return { ...slice, offsetMm: slice.offsetMm + v[2] };
-  }
-  requireThat(slice.kind === 'patch', `Unsupported slice kind ${slice.kind}.`);
+  if(slice.kind!=='patch')return translatedSurface(slice,v);
   const cp = Float64Array.from(slice.patch.cp);
   for (let i = 0; i < cp.length; i += 4) for (let k = 0; k < 3; k++) cp[i + k] += v[k] * cp[i + 3];
   return { ...slice, patch: { ...slice.patch, cp },translation:add(slice.translation??[0,0,0],v) };
@@ -160,25 +148,10 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
 // {base, direction?, pitchMm, firstLayerMm}, {min, max} ->
 // {base, direction, pitchMm, firstLayerMm, layers: [{index, offsetMm, heightMm, slice}]}
 export function sliceStack({ base, direction = null, normalRegion = null, pitchMm, firstLayerMm }, bounds) {
-  requireThat(['plane', 'patch', 'height-field'].includes(base?.kind), 'A slice stack needs a plane, patch or height reference.');
+  requireThat(['plane', 'patch'].includes(base?.kind), 'A slice stack needs a plane or native patch reference.');
   requireThat(Number.isFinite(pitchMm) && pitchMm > 0 && Number.isFinite(firstLayerMm) && firstLayerMm > 0,
     'A slice stack needs a positive pitch and first-layer height; it would never advance.');
   requireThat(vector(bounds?.min) && vector(bounds?.max), 'A slice stack needs the owned volume bounds.');
-  if(base.kind==='height-field') {
-    requireThat(!direction||direction[0]===0&&direction[1]===0&&direction[2]>0,'Height-reference stacks translate along positive Z.');
-    requireThat(!base.normalDepthMm,'Translated height stacks do not imply normal-offset stacks.');
-    const referenceBounds=heightReferenceBounds(base.reference),metric=heightReferenceMetric(base.reference,{sampleStepMm:base.sampleStepMm}),translationStepMm=pitchMm/metric.meanProjection,firstTranslationMm=firstLayerMm/metric.meanProjection,layers=[];
-    const firstIndex=Math.min(0,Math.floor((bounds.min[2]-referenceBounds.max[2]-base.offsetMm-firstTranslationMm)/translationStepMm+ROUNDING_RELATIVE)+1);
-    requireThat(Number.isSafeInteger(firstIndex)&&Number.isSafeInteger(Math.ceil((bounds.max[2]-referenceBounds.min[2]-base.offsetMm-firstTranslationMm)/translationStepMm)),'Height-stack indices exceed exact integer representation.');
-    for(let referenceIndex=firstIndex;;referenceIndex++) {
-      const index=referenceIndex-firstIndex,offsetMm=firstTranslationMm+referenceIndex*translationStepMm;
-      if(referenceBounds.min[2]+base.offsetMm+offsetMm>bounds.max[2]+PRINT_RESOLUTION_MM)break;
-      if(referenceBounds.max[2]+base.offsetMm+offsetMm<=bounds.min[2]+PRINT_RESOLUTION_MM)continue;
-      const translationMm=referenceIndex===0?firstTranslationMm:translationStepMm;
-      layers.push({index,referenceIndex,offsetMm,targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm,heightMm:translationMm,direction:[0,0,1],thicknessMetric:'normal-projection',slice:translateSlice(base,[0,0,offsetMm])});
-    }
-    return {base,direction:[0,0,1],pitchMm,firstLayerMm,translationStepMm,firstTranslationMm,meanProjection:metric.meanProjection,minProjectedGapMm:translationStepMm*metric.minProjection,maxProjectedGapMm:translationStepMm*metric.maxProjection,gapMetric:'area-mean-normal-projection',layers};
-  }
   const metric=base.kind==='patch'?patchMeanNormal(base.patch):null;
   const d = normalize(direction ?? (metric?metric.normal:base.normal));
   const range=metric?patchMeanNormal(base.patch,null,{direction:d}):null;
@@ -223,4 +196,4 @@ function patchExtent(patch, d) {
 // Shared coordinate identity, independent of material ownership or deposition.
 export const horizontal = slice => slice.kind === 'plane' && slice.normal[0] === 0 && slice.normal[1] === 0 && slice.normal[2] === 1
   && slice.xAxis[0] === 1 && slice.xAxis[1] === 0 && slice.yAxis[0] === 0 && slice.yAxis[1] === 1 && slice.origin[0] === 0 && slice.origin[1] === 0;
-export const sliceKey = slice => slice.kind==='patch'?JSON.stringify([slice.kind,slice.patch]):slice.kind==='height-field'?JSON.stringify([slice.kind,slice.reference,slice.offsetMm,slice.normalDepthMm,slice.sampleStepMm]):JSON.stringify([slice.kind, slice.origin, slice.normal, slice.xAxis]);
+export const sliceKey = slice => slice.kind==='patch'?JSON.stringify([slice.kind,slice.patch]):JSON.stringify([slice.kind, slice.origin, slice.normal, slice.xAxis]);

@@ -23,7 +23,12 @@ export function manufacturedSurfaceReadiness(contexts,footprints,{part=null,excl
     const references=[...(record.prerequisites??[]),...record.spec.layers.flatMap(layer=>layer.prerequisites??[])];
     return references.some(reference=>{
       if((reference.part??record.owner.part)!==part)return false;
-      if(reference.assignment===before.assignment)return reference.index===undefined||reference.index>=before.index;
+      if(reference.assignment===before.assignment){
+        if(reference.index===undefined)return true;
+        const stack=contexts.find(other=>other.owner.assignment.id===before.assignment&&other.owner.part===part)?.spec.layers??[];
+        const selected=stack.findIndex(layer=>layer.index===reference.index),target=stack.findIndex(layer=>layer.index===before.index);
+        return selected>=0&&target>=0&&selected>=target;
+      }
       return contexts.some(other=>other.owner.part===part&&other.owner.assignment.id===reference.assignment&&downstream(other,seen));
     });
   }
@@ -32,6 +37,7 @@ export function manufacturedSurfaceReadiness(contexts,footprints,{part=null,excl
     // Native construction order includes every earlier slice. One greatest
     // touched slice is sufficient for this producer, including empty gaps.
     let last,remaining=footprints;
+    const sequence=new Map(record.spec.layers.map((layer,ordinal)=>[layer,ordinal]));
     const materialAt=layer=>{
       let cached=sliceMaterials.get(layer);
       if(!cached||cached.sampleStepMm!==sampleStepMm){cached={sampleStepMm,material:prepareSliceMaterial(layer,{sampleStepMm})};sliceMaterials.set(layer,cached);}
@@ -51,7 +57,7 @@ export function manufacturedSurfaceReadiness(contexts,footprints,{part=null,excl
       if(!remaining.length)break;
       const material=materialAt(layer);if(!material)continue;
       const ownership=subtractSliceMaterial(offsetSliceMaterial(material,material.advance),remaining,{boundary:side!=='upper'});
-      if(ownership.touched&&(!last||layer.index>last.index))last=layer;
+      if(ownership.touched&&(!last||sequence.get(layer)>sequence.get(last)))last=layer;
       remaining=ownership.remaining;
     }
     if(last)required.push(record.prerequisite??{assignment:record.owner.assignment.id,part,index:last.index});
@@ -69,8 +75,13 @@ export function traceSurfaceReadiness(assignment,contexts,shells){
       if(curve.repetitions&&!curve.repetitions.includes(index))continue;
       const reference=curve.uv?.reference;if(!reference)continue;
       let required=[];
-      if(reference.kind==='slice')required=[{assignment:reference.assignment,index:reference.index??index}];
-      else if(reference.kind==='surface'&&['part','top'].includes(reference.surface?.kind)){
+      if(reference.kind==='slice'){
+        const host=contexts.find(record=>record.owner.assignment.id===reference.assignment&&record.owner.part===(assignment.part??null));
+        const selected=reference.index??(assignment.repeat?.stack?index:host?.spec.layers.findLast(layer=>layer.slice)?.index);
+        if(selected===undefined)throw Error('Prepared slice surface is absent: '+reference.assignment+'.');
+        required=[{assignment:reference.assignment,part:host?.owner.part??assignment.part??null,index:selected}];
+      }
+      else if(reference.kind==='surface'&&reference.surface?.kind==='part'){
         const part=reference.part??assignment.part??null,shell=shells.find(([key])=>key===part)?.[1];
         const surface=referenceSurface(reference.surface,shell),input=curve.uv;
         const {samples}=sampleSpatialCurve({points:input.points,nurbs:input.nurbs,closed:curve.closed,surface},
@@ -103,7 +114,7 @@ export function surfaceFootprints(surface,region,{sampleStepMm=.2,normalMm=0}={}
 }
 
 export function referenceSliceReadiness(record,contexts){
-  if(!record.reference||record.reference.selection.kind==='terminal')return record.prerequisites??[];
+  if(!record.reference||record.reference.selection.kind==='slice')return record.prerequisites??[];
   const surface=surfaceRegion(record.context.shell,record.reference.selection);
   const footprint=union(record.spec.layers.flatMap(layer=>layer.region),[]);
   const footprints=footprint.length?surfaceFootprints(surface,footprint,record.spec.settings):[];
@@ -155,7 +166,7 @@ export function nativeBaseReadiness(record,materials){
   if(record.owner.assignment.geometry||record.reference)return record;
   let prior=null;
   const layers=record.spec.layers.map(layer=>{
-    const region=difference(layer.region,prior&&prior.index+1===layer.index?prior.region:[]);prior=layer;
+    const region=difference(layer.region,prior?.region??[]);prior=layer;
     if(!region.length)return layer;
     const direction=layer.direction??layer.slice.normal,depth=layer.heightMm??layer.gap?.normalMm;
     const footprint=surfaceFootprints(layer.slice,region,{...record.spec.settings,normalMm:direction?0:-depth});

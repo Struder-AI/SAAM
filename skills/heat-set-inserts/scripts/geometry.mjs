@@ -4,7 +4,7 @@ const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 // Features choose dimensions and placement. Geometry owns the representation
 // and Boolean construction; the approach stays clear outward from the mouth.
-export async function compileHeatSet(base,features,{buildGeometry,combineSolids,revolvedProfile,materialPresence,toleranceMm=.01}={}){
+export async function compileHeatSet(base,features,{buildGeometry,combineSolids,revolvedProfile,materialPresence,dimensions:policy,toleranceMm=policy.CONSTRUCTION_TOLERANCE_MM}={}){
   requireThat([buildGeometry,combineSolids,revolvedProfile,materialPresence].every(value=>typeof value==='function'),
     'Heat-set needs Geometry buildGeometry, combineSolids, revolvedProfile and materialPresence operations.');
   const normalized=features.map(heatSetFeature),shell=await buildGeometry(base);

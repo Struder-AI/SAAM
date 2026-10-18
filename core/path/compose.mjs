@@ -8,6 +8,7 @@ import {prepareRangeScene} from './physical-order.mjs';
 import {CoolingOrder} from './cooling-order.mjs';
 import {manufacturingDependencies,constructionHistory,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
 import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
+import {prepareBeadQualification} from './bead-qualification.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planTransfer,
   planExtrusion,planDwell,planSelection,planProcess,planDepositRange} from './planning.mjs';
 
@@ -113,20 +114,20 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
         };
         value.traversals=variants.map(traversal).filter(allowed);
         if(loop){
-          const memo={point:null,choices:null};
+          const memo={point:null,choices:null,seams:null};
           value.traversalsAt=point=>{
-            if(memo.point?.every((v,i)=>v===point[i]))return memo.choices;
+            if(memo.seams===value.supportSeams&&memo.point?.every((v,i)=>v===point[i]))return memo.choices;
             const closest=curveClosestParameter(reader,loop.curveId,loop.from,loop.to,point,{toleranceMm:PRINT_RESOLUTION_MM});
             // Moving a cyclic entry needs no microscopic fragment or arc-length
             // inversion. An entry this close to an endpoint keeps that seam.
             const seam=closest>loop.from&&closest<loop.to&&
               curveHasLength(reader,loop.curveId,loop.from,closest,PRINT_RESOLUTION_MM)&&
               curveHasLength(reader,loop.curveId,closest,loop.to,PRINT_RESOLUTION_MM)?closest:null,choices=[...value.traversals];
-            if(seam!==null){
-              const head={...loop,to:seam},tail={...loop,from:seam};choices.push(traversal([tail,head]));
+            for(const entry of new Set([seam,...(value.supportSeams??[])].filter(u=>u!==null&&u>loop.from&&u<loop.to))){
+              const head={...loop,to:entry},tail={...loop,from:entry};choices.push(traversal([tail,head]));
               if(reversible)choices.push(traversal([{...head,reverse:true},{...tail,reverse:true}]));
             }
-            memo.point=[...point];memo.choices=choices.filter(allowed);return memo.choices;
+            memo.point=[...point];memo.seams=value.supportSeams;memo.choices=choices.filter(allowed);return memo.choices;
           };
         }
       }
@@ -145,7 +146,9 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
       let pending=[];
       function appendChunk(ranges){
         if(!ranges.length)return;
-        if(ranges.length>1&&ranges.some(range=>source.manufacturing?.courseTraversal?.[range.id]?.directions.length===1)){
+        const forward=ranges.every(range=>source.manufacturing?.courseTraversal?.[range.id]?.directions.includes(false)??true);
+        const reverse=ranges.every(range=>range.directionRequired===false&&(source.manufacturing?.courseTraversal?.[range.id]?.directions.includes(true)??true));
+        if(ranges.length>1&&!forward&&!reverse){
           for(const range of ranges)members.push(node(operation,[range]));return;
         }
         const key=JSON.stringify(ranges.map(course=>[course.id,course.from,course.to])),opened=openedCourses;
@@ -261,7 +264,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
       function nativeBefore(before,after){
         const a=source.layers[before],b=source.layers[after];
-        return Boolean(a?.completionId&&b?.completionId&&a.stackId===b.stackId&&a.index<b.index);
+        return Boolean(a?.completionId&&b?.completionId&&a.stackId===b.stackId&&construction?.covers(a.completionId,b.completionId));
       }
       function precedes(before,after){
         return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
@@ -317,16 +320,26 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       materialReadiness.slicePrerequisites=materialEdges.size;materialReadiness.refinedSlices=fineScopes.size;
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
       const groupId=unit=>unit.layerId??unit.sourceOperation;
-      const substrateUnits=graph.units.filter(unit=>unbound(unit)&&graph.units.some(other=>
-        producerOf(other)!==producerOf(unit)&&!trustedUnits(unit,other)&&!state.scene.proofs.supportApart(groupId(unit),groupId(other))));
-      for(const [index,unit] of substrateUnits.entries()){
-        onProgress?.({stage:'Resolving material support',completed:index,total:substrateUnits.length,assignment:unit.operation.id});
-        for(const hit of state.scene.substrateHits(unit,id=>id!==unit.id&&!precedes(id,unit.id)&&
-          producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))&&
-          !state.scene.proofs.supportApart(groupId(unit),groupId(graph.byId.get(id)))))
-          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
+      const qualification=prepareBeadQualification(state.scene,{
+        needsQualification:(unit,range)=>unbound(unit)&&!(construction.hasPrerequisites(range.id)??construction.hasPrerequisites(unit.sourceOperation)),
+        acceptMaterial:(unit,other)=>unit.id!==other.id&&producerOf(unit)!==producerOf(other)&&!trustedUnits(unit,other)&&
+          !state.scene.proofs.supportApart(groupId(unit),groupId(other))});
+      function qualifiedOrder(options,refineSupport=true){
+        for(;;){
+          try{return orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{...options,readiness:qualification});}
+          catch(error){
+            if(error.code!=='BEAD_SUPPORT_WAIT')throw error;
+            // An aggregate proposal cannot commit a support alternative before
+            // uncovered nozzle constraints have been resolved.
+            if(!refineSupport)return null;
+            const waiting=error.blocked.map(({op})=>qualification.waiting(op,error.available,id=>!precedes(op.id,id)));
+            const choice=waiting.find(result=>result.status==='waiting');
+            if(!choice)throw Object.assign(Error('Bead contact cannot qualify for '+waiting[0].operation+' / '+waiting[0].failure.courseId+': '+waiting[0].failure.reason+'.'),
+              {code:'BEAD_UNSUPPORTED',...waiting[0]});
+            for(const edge of choice.requirements)addEdge(edge.before,edge.after,edge.kind,edge.witness);
+          }
+        }
       }
-      if(substrateUnits.length)onProgress?.({stage:'Resolving material support',completed:substrateUnits.length,total:substrateUnits.length});
       // Every native slice or unlayered operation is an aggregate query group.
       // An unresolved Inject/Trace group does not disable proofs for its peers.
       const accessGroups=new Set(),queryGroups=new Map();
@@ -337,8 +350,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       // future group in another producer. Construction prerequisites stay hard.
       const useAggregate=certified&&!progress.cyclic&&new Set(graph.units.map(producer)).size>1;
       const aggregateCooling=useAggregate&&graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
-      const aggregate=useAggregate?orderSliceCourses(graph.nodes,priorities,graph.prerequisites,
-        {start,physicalEdges:state.edges,cooling:aggregateCooling,groupAccess:state.scene.proofs}):null;
+      const aggregate=useAggregate?qualifiedOrder(
+        {start,physicalEdges:state.edges,cooling:aggregateCooling,groupAccess:state.scene.proofs},false):null;
       const aggregateClear=Boolean(aggregate?.groupOrder&&state.scene.proofs.orderedClear(aggregate.groupOrder));
       if(aggregateClear)for(const id of ids)accessGroups.add(id);
       state.scene.proofs.summary.orderedWholeGroups=aggregateClear?ids.length:0;
@@ -383,7 +396,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         }
       }
       const cooling=aggregateClear?aggregateCooling:graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
-      const ordered=aggregateClear?aggregate:orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges,cooling});
+      const ordered=aggregateClear?aggregate:qualifiedOrder({start,physicalEdges:state.edges,cooling});
       for(const unit of ordered.operations)if(!unit.barrier&&!certified){
         const body=state.scene.byId.get(unit.id);
         // Certify the selected traversal after external ordering has settled;
@@ -395,7 +408,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           throw error;
         }
       }
-      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,materialReadiness,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
+      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,materialReadiness,beadQualification:qualification.stats,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
         edges:state.edges,refinement:{...history,relaxedTraversalChunks:relaxedChunks?.size??0,rejectedTraversals:blockedTraversals.size,
           splitCourses:cuts.size}};
     }catch(error){
@@ -482,7 +495,7 @@ export function planSourceComposition(initialState,source,reader,onProgress,orde
   }
   const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{
-    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,materialReadiness:solved.materialReadiness,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
+    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,materialReadiness:solved.materialReadiness,beadQualification:solved.beadQualification,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material')+count('substrate')},queries:{...scene.stats}}});
 }
 

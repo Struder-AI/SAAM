@@ -40,7 +40,7 @@ export function publishManufacturing(results,operations,layers){
     stacks.get(layer.stackId).push({id,...layer});
   }
   for(const stack of stacks.values()){
-    stack.sort((a,b)=>a.index-b.index);
+    stack.sort((a,b)=>(a.sequence??0)-(b.sequence??0));
     for(let i=1;i<stack.length;i++)completions[stack[i].completionId].after=[stack[i-1].completionId];
   }
   for(const result of results){

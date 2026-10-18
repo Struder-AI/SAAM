@@ -1,5 +1,5 @@
 import {requireThat,distance,normalize,dot,cross} from './tolerance.mjs';
-import {ROUNDING_MM} from '../dimensions.mjs';
+import {ROUNDING_MM,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {prepareExtrudedSegmentQuery} from './extruded-segments.mjs';
 import {surfaceReferenceRecord} from './surface-record.mjs';
 
@@ -19,7 +19,7 @@ export function prepareSurfaceContact(segments,{toleranceMm=0}={}){
 // tolerance. Where no material lies below, the nominal reference sample and
 // frame stand; interpolation never bridges a hole.
 // Process scale: default contact chord tolerance, a fortieth of a 0.4 mm line.
-const CONTACT_CHORD_MM=.01;
+const CONTACT_CHORD_MM=CONSTRUCTION_TOLERANCE_MM;
 export function contactChart(chart,segments,{toleranceMm=CONTACT_CHORD_MM}={}){
   requireThat(toleranceMm>0,'Contact chart needs positive tolerance.');
   const contact=prepareSurfaceContact(segments),positions=new Map(),frames=new Map();
@@ -36,7 +36,7 @@ export function contactChart(chart,segments,{toleranceMm=CONTACT_CHORD_MM}={}){
     const derivative=axis=>{
       const coordinate=axis===0?u:v,nominal=axis===0?center.du:center.dv;
       // Finite-difference step: square root of the tolerance over the chart scale, capped.
-      let h=Math.min(.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
+      let h=Math.min(0.01,Math.sqrt(toleranceMm/Math.max(1,Math.hypot(...nominal))));
       // A probe beyond the deposited material has no deposited difference: null.
       const estimate=step=>{
         // A periodic seam is interior to the surface. Keep the differentiation

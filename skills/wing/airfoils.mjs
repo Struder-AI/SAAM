@@ -1,15 +1,9 @@
 import {readFileSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-// (the other wing modules import these from here).
-export const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs ROUNDING_MM; this runtime has no release-relative imports
-export const ROUNDING_MM=PRINT_RESOLUTION_MM/1000;
-// copies core/dimensions.mjs BUILD_SCALE_MM; this runtime has no release-relative imports
-const BUILD_SCALE_MM=1000;
-// copies core/dimensions.mjs ROUNDING_RELATIVE; this runtime has no release-relative imports
-const ROUNDING_RELATIVE=ROUNDING_MM/BUILD_SCALE_MM;
+export function createAirfoils(Geometry){
+const {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE}=Geometry.dimensions;
+
 
 const records=JSON.parse(readFileSync(new URL('./data/sources.json',import.meta.url))).records;
 const notes={
@@ -34,7 +28,7 @@ function parseDat(text){
   }
   if(!upper||upper.length<3||lower.length<3)throw Error('Airfoil requires two identifiable surfaces.');
   upper.sort((a,b)=>a[0]-b[0]);lower.sort((a,b)=>a[0]-b[0]);
-  if(Math.abs(upper[0][0])>.01||Math.abs(upper.at(-1)[0]-1)>.01)throw Error('Expected unit-chord coordinates.');
+  if(Math.abs(upper[0][0])>Geometry.dimensions.TOLERANCE.constructionFraction||Math.abs(upper.at(-1)[0]-1)>Geometry.dimensions.CONSTRUCTION_TOLERANCE_MM)throw Error('Expected unit-chord coordinates.');
   if(ordinate({upper,lower},.4,'upper')<ordinate({upper,lower},.4,'lower'))[upper,lower]=[lower,upper];
   return {upper,lower};
 }
@@ -59,15 +53,18 @@ const profiles=new Map(records.map(record=>{
   return [record.id,{...record,note:notes[record.id],profile,sample,thickness,camber}];
 }));
 
-export const airfoilCatalog=()=>[...profiles.values()].map(({sample,...entry})=>entry);
-export const airfoilProfile=id=>{
+const airfoilCatalog=()=>[...profiles.values()].map(({sample,...entry})=>entry);
+const airfoilProfile=id=>{
   const profile=profiles.get(id);if(!profile)throw Error(`Unknown airfoil: ${id}`);
   return profile;
 };
-export function airfoilSection(id,u,thickness,camber){
+function airfoilSection(id,u,thickness,camber){
   const profile=airfoilProfile(id),x=Math.max(0,Math.min(1,u))*1024,i=Math.min(1023,Math.floor(x)),t=x-i;
   const a=profile.sample[i],b=profile.sample[i+1];
   const center=(a[0]+(b[0]-a[0])*t)*(profile.camber?camber/profile.camber:0);
   const half=(a[1]+(b[1]-a[1])*t)*(thickness/profile.thickness);
   return {center,half};
+}
+
+return {airfoilCatalog,airfoilProfile,airfoilSection};
 }

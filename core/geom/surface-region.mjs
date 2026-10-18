@@ -2,10 +2,13 @@
 // spline evaluation or an explicitly mapped triangle strip; no inverse mapping.
 import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,TOLERANCE} from '../dimensions.mjs';
 import {numericalGeometryRecord} from './surface-record.mjs';
 import {referencePatch,selectedFace} from './reference-surface.mjs';
 import {extendSurface} from './surface-extend.mjs';
+import {surfaceNeighborhood} from './surface-neighborhood.mjs';
+import {faceTrimRegion} from './surface-trim.mjs';
+import {intersect} from '../region/intersection.mjs';
 import {validateSplineSolid} from './spline-solid.mjs';
 
 export function validateSurfaceSelection(s){
@@ -27,9 +30,17 @@ export function selectedSplinePatch(shell,spec){
   requireThat(patch,'Selected native spline patch is missing.');
   return patch;
 }
-function splinePatchChart(shell,spec){
+function splinePatchChart(shell,spec,neighborhood){
   const patch=selectedSplinePatch(shell,spec);
   const [u,v]=spec.uvBounds;
+  if(neighborhood){
+    const normalRangeMm=(neighborhood.normalRangeMm??[0,0]).map(value=>value*spec.normalSide).sort((a,b)=>a-b);
+    const prepared=surfaceNeighborhood(patch,{...neighborhood,normalRangeMm,periodicU:spec.periodicU,boundsUv:spec.uvBounds});
+    const domains=prepared.boundsUv.map((bounds,k)=>bounds.map(value=>(value-spec.uvBounds[k][0])/(spec.uvBounds[k][1]-spec.uvBounds[k][0])));
+    const chart=mappedSurface(prepared.surface,prepared.boundsUv,domains,spec);
+    const selected=faceTrimRegion(patch).map(loop=>loop.map(uv=>uv.map((value,k)=>(value-spec.uvBounds[k][0])/(spec.uvBounds[k][1]-spec.uvBounds[k][0]))));
+    return {...chart,regionUv:intersect(selected,[[[0,0],[1,0],[1,1],[0,1]]]),neighborhood:{...prepared.report,boundsUv:prepared.boundsUv,referenceBoundsUv:prepared.referenceBoundsUv}};
+  }
   if(spec.extend){
     requireThat(!spec.periodicU||u[0]===patch.domainU[0]&&u[1]===patch.domainU[1],'A periodic U seam keeps its original domain; extend V only.');
     return mappedSurface(extendSurface(patch,spec.uvBounds),spec.uvBounds,[[0,1],[0,1]],spec);
@@ -66,10 +77,11 @@ function meshStripChart(shell,spec){
   return {at,breaksU:Array.from({length:nu+1},(_,i)=>i/nu),breaksV:Array.from({length:nv+1},(_,i)=>i/nv)};
 }
 
-export function surfaceRegion(shell,spec){
+export function surfaceRegion(shell,spec,neighborhood=null){
   validateSurfaceSelection(spec);
-  const chart=spec.kind==='spline'?splinePatchChart(shell,spec):meshStripChart(shell,spec);
-  const sample=(u,v)=>{requireThat(u>=0&&u<=1&&v>=0&&v<=1,'Surface sample outside selected region.');return chart.at(u,v);};
+  requireThat(!neighborhood||spec.kind==='spline','Automatic offset neighborhoods need a selected native surface.');
+  const chart=spec.kind==='spline'?splinePatchChart(shell,spec,neighborhood):meshStripChart(shell,spec),domains=[chart.domainU??[0,1],chart.domainV??[0,1]];
+  const sample=(u,v)=>{requireThat([u,v].every((value,k)=>value>=domains[k][0]&&value<=domains[k][1]),'Surface sample outside selected neighborhood.');return chart.at(u,v);};
   if(chart.at.derivatives)sample.derivatives=chart.at.derivatives;
   if(chart.at.nativeImage)sample.nativeImage=chart.at.nativeImage;
   sample.covers=chart.at.covers;
@@ -77,8 +89,9 @@ export function surfaceRegion(shell,spec){
     const a=sample(0,j/16),b=sample(1,j/16);
     // Same point at print resolution; the normal match is a direction judgement whose value
     // predates the classes (mesh-strip normals are interpolated, so a stricter bound is deferred).
-    requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<1e-4,'Periodic surface seam must match in position and normal.');
+    requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<(100*TOLERANCE.domainFraction),'Periodic surface seam must match in position and normal.');
   }
-  return {at:sample,breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind,
-    referenceRecord:{representation:'surface-region',geometry:numericalGeometryRecord(shell),selection:spec}};
+  return {at:sample,domainU:domains[0],domainV:domains[1],breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind,
+    ...(chart.neighborhood?{neighborhood:chart.neighborhood,regionUv:chart.regionUv}:{}),
+    referenceRecord:{representation:'surface-region',geometry:numericalGeometryRecord(shell),selection:spec,...(neighborhood?{neighborhood}:{})}};
 }

@@ -1,3 +1,4 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
@@ -29,7 +30,7 @@ export function editModulations(record,{action,id,modifier}) {
   requireThat(action==='remove'?modifier===undefined:modifier&&typeof modifier==='object'&&!Array.isArray(modifier),'Add/edit needs modifier settings; remove takes no modifier.');
   requireThat(modifier?.id===undefined||modifier.id===id,'Modifier id must match id; remove/add to rename.');
   if(action==='remove')return {...record,modifiers:record.modifiers.filter(item=>item.id!==id)};
-  const defaults={id,assignments:null,roles:null,sampleStepMm:.2,tolerance:.01,frame:'world',layers:null,topN:null,phasePerLayerRad:0};
+  const defaults={id,assignments:null,roles:null,sampleStepMm:.2,tolerance:CONSTRUCTION_TOLERANCE_MM,frame:'world',layers:null,topN:null,phasePerLayerRad:0};
   const current=record.modifiers[index];
   const replacement=action==='add'||modifier.channel!==undefined&&modifier.channel!==current.channel;
   const base=replacement?defaults:modifier.field?.kind!==undefined?{...current,field:structuredClone(modifier.field)}:current;

@@ -1,12 +1,26 @@
-import {loadFont} from './catalog.mjs';
-import {lineText} from './compile.mjs';
+import {createStrokeFont} from './strokefont.mjs';
+import {createFontCatalog} from './catalog.mjs';
+import {createTextLayout} from './layout.mjs';
+import {createTextMeasure} from './measure.mjs';
+import {createTextPlan} from './plan.mjs';
+import {createTextCompiler} from './compile.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
+
+const operationsByGeometry=new WeakMap();
+function textOperations(Geometry){
+  if(operationsByGeometry.has(Geometry))return operationsByGeometry.get(Geometry);
+  const strokeFont=createStrokeFont(Geometry),catalog=createFontCatalog(strokeFont),layout=createTextLayout(Geometry,strokeFont);
+  const measure=createTextMeasure(Geometry,strokeFont,layout),plan=createTextPlan(Geometry,measure,catalog);
+  const {loadFont}=catalog,{lineText}=createTextCompiler(Geometry,layout,measure,plan);
+  const operations=Object.freeze({loadFont,lineText});operationsByGeometry.set(Geometry,operations);return operations;
+}
 
 // Replace one identified text assignment while preserving independent work.
 // The returned assignment contains ordinary Trace centerlines and remains
 // printable and viewable without loading this extension later.
 export async function editLineText(source,request,{Geometry,Toolpath,part=null}={}){
+  const {loadFont,lineText}=textOperations(Geometry);
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Line text needs a request.');
   requireThat(Object.keys(request).every(key=>['id','fontId','text','heightMm','weight','stemRatio','beadRangeMm',
     'origin','layers','layerMm','letterSpacingMm','align','chain','onInfeasible','reference','substrate','remove'].includes(key)),

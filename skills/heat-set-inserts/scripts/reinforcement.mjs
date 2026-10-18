@@ -57,7 +57,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
   const cache=new Map();
   return {constructLayer({source,parameters}){
     requireThat(parameters&&Object.keys(parameters).every(k=>['feature','toleranceMm'].includes(k)),'Heat-set Trace source needs an editable feature and bore tolerance.');
-    const toleranceMm=parameters.toleranceMm??.01;
+    const toleranceMm=parameters.toleranceMm??Geometry.dimensions.CONSTRUCTION_TOLERANCE_MM;
     requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Heat-set bore tolerance must be positive.');
     const feature=heatSetFeature(parameters.feature),shift=source.placement?.offset??[0,0,0];
     const key=JSON.stringify([feature,shift,toleranceMm]);let construction=cache.get(key);

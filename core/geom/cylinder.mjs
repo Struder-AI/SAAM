@@ -1,6 +1,7 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 // A circle as a polyline within a chord tolerance.
 import {requireThat} from './tolerance.mjs';
-export function circlePoints(radius,center=[0,0],toleranceMm=0.01){
+export function circlePoints(radius,center=[0,0],toleranceMm=CONSTRUCTION_TOLERANCE_MM){
   requireThat(radius>0&&toleranceMm>0,'Invalid circle dimensions.');
   const count=Math.max(16,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-Math.min(toleranceMm,radius)/radius))));
   requireThat(Number.isSafeInteger(count),'Circle tolerance is too fine to resolve a representable segment count.');
