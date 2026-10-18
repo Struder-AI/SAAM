@@ -2608,6 +2608,230 @@
         "call"
       ],
       "evidence": "Conservative derivative-hull projection for section-frame access proofs; no scheduling policy in Geometry."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/curve-query.mjs::prepareNumericalCurve",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Conservative local material-frame and source-interval bounds."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/curve-query.mjs::numericalCurveTangentProjection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Conservative local material-frame and source-interval bounds."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/convex-clearance.mjs::sectionNormalProjectionBound",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Conservative local material-frame and source-interval bounds."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/convex-clearance.mjs::sectionNormalConeProjectionBound",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Conservative local material-frame and source-interval bounds."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::prepareSliceMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::sliceMaterialSolids",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/slice-material.mjs::sliceMaterialVolumeContact",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/convex-clearance.mjs::convexBounds",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/convex-clearance.mjs::boundsOverlap",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/convex-clearance.mjs::convexIntersects",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal enclosure material ownership and conservative convex contact."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::prepareSliceMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Native nominal material and finite manufactured-contact footprints."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::subtractSliceMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Native nominal material and finite manufactured-contact footprints."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::offsetSliceMaterial",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Native nominal material and finite manufactured-contact footprints."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::clipFootprintsToBounds",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Native nominal material and finite manufactured-contact footprints."
+    },
+    {
+      "contract": "manufactured-surface-geometry",
+      "target": "core/geom/slice-material.mjs::triangleFootprints",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Native nominal material and finite manufactured-contact footprints."
+    },
+    {
+      "contract": "manufactured-surface-readiness",
+      "target": "core/print/surface-readiness.mjs::manufacturedSurfaceReadiness",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Minimal manufactured slice or stack prerequisites from prepared ownership."
+    },
+    {
+      "contract": "manufactured-surface-readiness",
+      "target": "core/print/surface-readiness.mjs::traceSurfaceReadiness",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Minimal manufactured slice or stack prerequisites from prepared ownership."
+    },
+    {
+      "contract": "manufactured-surface-readiness",
+      "target": "core/print/surface-readiness.mjs::referenceSliceReadiness",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Minimal manufactured slice or stack prerequisites from prepared ownership."
+    },
+    {
+      "contract": "manufactured-surface-readiness",
+      "target": "core/print/surface-readiness.mjs::contactSliceReadiness",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Minimal manufactured slice or stack prerequisites from prepared ownership."
+    },
+    {
+      "contract": "manufactured-surface-readiness",
+      "target": "core/print/surface-readiness.mjs::nativeBaseReadiness",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Minimal manufactured slice or stack prerequisites from prepared ownership."
+    },
+    {
+      "contract": "extension-edge-authoring",
+      "target": "core/print/recipe-tools.mjs::recipeTools",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+    },
+    {
+      "contract": "extension-edge-authoring",
+      "target": "core/print/manufactured-edges.mjs::selectEdge",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+    },
+    {
+      "contract": "extension-edge-authoring",
+      "target": "core/print/manufactured-edges.mjs::manufacturedSlices",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+    },
+    {
+      "contract": "extension-edge-authoring",
+      "target": "core/print/edge-paths.mjs::constructEdgePaths",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+    },
+    {
+      "contract": "extension-wall-frontier",
+      "target": "core/geom/stroke-topology.mjs::widenPlanarStrokes",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Nominal wall frontier from selected guide boundaries."
+    },
+    {
+      "contract": "construction-access-order",
+      "target": "core/path/compose.mjs::prepareSourceUnits",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Scoped private enclosure and access inspection."
+    },
+    {
+      "contract": "construction-access-order",
+      "target": "core/path/physical-order.mjs::prepareRangeScene",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Scoped private enclosure and access inspection."
+    },
+    {
+      "contract": "extension-edge-host",
+      "target": "core/print/recipe-tools.mjs::recipeTools",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Geometry and deposition extension hosts receive one shared authoring interface."
     }
   ],
   "retiredBindings": [

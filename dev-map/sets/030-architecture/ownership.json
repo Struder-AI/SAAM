@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Agreed scheduler trust and refinement contract, 2026-10-17. Full consumer/edge construction integration remains active; source proof is not whole-goal completion.",
+  "status": "Implemented scheduler and manufacturing-readiness contract, 2026-10-17. Current-source analysis and warm/cold map regeneration are running; map completeness and conformance remain unverified.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -28210,6 +28210,207 @@
     },
     "core/geom/curve-query.mjs::interiorParameters": {
       "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::@module": {
+      "owner": "geometry"
+    },
+    "core/path/construction-access.mjs::@module": {
+      "owner": "path-finalize"
+    },
+    "core/path/construction-curves.mjs::@module": {
+      "owner": "toolpath"
+    },
+    "core/path/material-readiness.mjs::@module": {
+      "owner": "path-finalize"
+    },
+    "core/print/recipe-tools.mjs::@module": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::@module": {
+      "owner": "build-evaluate"
+    },
+    "core/application/deposition-schemas.mjs::contactProducer": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::edgePrerequisite": {
+      "owner": "application"
+    },
+    "core/application/deposition-schemas.mjs::prerequisite": {
+      "owner": "application"
+    },
+    "core/geom/convex-clearance.mjs::convexVolume": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::convexBox": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::fixedConePrismIntersects": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::roundedBody": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::DEFAULT_NOZZLE_TIP_DIAMETER_MM": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::NOZZLE_FORGIVENESS_MM": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::fixedConeBounds": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::nozzleBoundsClear": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::sectionFrame": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::rectangularSection": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::rectangularSweepEnvelope": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::translationContactInterval": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::referenceHeightGraph": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::sectionNormalProjectionBound": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::movingAxisSupportBound": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::movingSectionBounds": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::curveStorageReduced": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::controls": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::positiveSpeed": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::differenceBound": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-fit.mjs::fitSampledCurve": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-query.mjs::numericalCurveRegular": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::onRegion": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::prepareSliceMaterial": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::materialHits": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::offsetSliceMaterial": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::segmentContacts": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::sliceMaterialTouches": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::subtractSliceMaterial": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::clipFootprintsToBounds": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::sliceMaterialSolids": {
+      "owner": "geometry"
+    },
+    "core/geom/slice-material.mjs::triangleFootprints": {
+      "owner": "geometry"
+    },
+    "core/path/compose.mjs::planSourceComposition": {
+      "owner": "scheduling"
+    },
+    "core/path/construction-access.mjs::permittedTraversal": {
+      "owner": "path-finalize"
+    },
+    "core/path/construction-access.mjs::wholeProducerProofs": {
+      "owner": "path-finalize"
+    },
+    "core/path/construction-access.mjs::certifyConstruction": {
+      "owner": "path-finalize"
+    },
+    "core/path/construction-curves.mjs::regularGeometry": {
+      "owner": "toolpath"
+    },
+    "core/path/construction-curves.mjs::constructionCurve": {
+      "owner": "toolpath"
+    },
+    "core/path/construction-curves.mjs::retainConstructionCurves": {
+      "owner": "toolpath"
+    },
+    "core/path/material-readiness.mjs::resolveMaterialReadiness": {
+      "owner": "path-finalize"
+    },
+    "core/path/physical-order.mjs::equalVector": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::constantVector": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::controlVertices": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::graphNozzleProofs": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::sphereNozzleProofs": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::sliceNozzleProofs": {
+      "owner": "scheduling"
+    },
+    "core/print/generate.mjs::prepareAssignmentGeometry": {
+      "owner": "build-evaluate"
+    },
+    "core/print/recipe-tools.mjs::recipeTools": {
+      "owner": "build-evaluate"
+    },
+    "core/print/slice-records.mjs::contactProducer": {
+      "owner": "recipe"
+    },
+    "core/print/slice-records.mjs::contactOffset": {
+      "owner": "recipe"
+    },
+    "core/print/surface-readiness.mjs::sliceMaterials": {
+      "owner": "build-evaluate"
+    },
+    "core/region/surface-offset.mjs::UV_ROUNDING": {
+      "owner": "geometry"
+    },
+    "core/region/surface-offset.mjs::UV_GRID": {
+      "owner": "geometry"
+    },
+    "core/region/surface-offset.mjs::SURFACE_OFFSET_CHORD_MM": {
+      "owner": "geometry"
+    },
+    "skills/standard-support/scripts/edit.mjs::SOURCES": {
+      "owner": "extensions"
+    },
+    "skills/vase-wall/scripts/runtime.mjs::PRINT_RESOLUTION_MM": {
+      "owner": "extensions"
     }
   },
   "retiredAssignments": [

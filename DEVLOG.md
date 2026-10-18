@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-17 — Bind final architecture interfaces to their implementations
+
+- Added exact ownership for 67 current declarations across 28 affected modules, preserving existing narrower owners. Named ports cover nominal manufactured contacts, common readiness, edge authoring, interval frame proofs and scoped enclosure inspection. All 22 audited interface targets exist and name their declared operations; the complete registry has unique contracts and valid node/actor endpoints.
+- Final current-contract membrane and stepped Studio Export exercises pass with 15,535 and 16,269 bytes respectively, each equal to its saved checked program with stable reopening identity. Revised manuals total 1,182 lines versus 1,184 before this cycle. Current-source full map analysis/solving is running; its large import closures have analyzer time-limit failures, so no full map conformance claim is made. All implementation workstreams remain checkpointed; final map results are still an integration obligation.
+
 ## 2026-10-17 — Complete dependency audit and curved reinforcement checks
 
 - Final producer checks pass for continuous advanced vase (one course) and segmented mode (five predecessor-only native construction slices), their foundation/cap readiness, and top/side/bottom heat-set seats joining main native slice completion without a main-deposition barrier. Curved-stack side reinforcement exposed a sub-rounding terminal integration residual; the shared intrinsic offset now finishes within the smaller of its rounding tolerance and the caller's error budget. Larger unresolved motion still fails. An explicit required-material selection resolving to no produced material now fails instead of leaving an unsupported Inject after its body producer failed. Curved top/side/bottom reinforcement subsequently passes source/schedule, including coincident fin regions. No heat-set cases were added to Slice.
