@@ -130,6 +130,13 @@ export function sweepSurfaceOffset(patch,prepared){
     }
     return a;
   };
+  // An outward edge already coincident with the allowed boundary has no
+  // growing side. Repeated fronts must not re-integrate these fixed edges.
+  const blockedEdge=(a,b)=>deltaMm>0&&constraint!==null&&constraint.some(loop=>loop.some((p,i)=>{
+    const q=loop[(i+1)%loop.length];
+    return (b[0]-a[0])*(q[0]-p[0])+(b[1]-a[1])*(q[1]-p[1])>0&&
+      pointSegmentDistance(a,p,q)<=precisionUv*8&&pointSegmentDistance(b,p,q)<=precisionUv*8;
+  }));
   const frameAtState=uv=>at(constraint===null?uv:uv.map((x,k)=>Math.max([patch.domainU,patch.domainV][k][0],Math.min([patch.domainU,patch.domainV][k][1],x))));
   const radius=Math.abs(deltaMm), bands=[];
   // A sweep cell is bounded by its original rays. Resampling or triangulating
@@ -151,7 +158,22 @@ export function sweepSurfaceOffset(patch,prepared){
   };
   const shoot=(uv,direction,hint=null)=>{
     if(prepared.atlas){const ray=piecewiseChartRay(prepared.atlas,uv,direction,radius,hint);integrations+=ray.length-1;return ray;}
-    const frame=at(uv),velocity=frame.uvOf(normalize(direction));
+    const frame=at(uv);let velocity=frame.uvOf(normalize(direction));
+    // Source simplification may leave an unprintably small tilt at a boundary
+    // contact. Normalize that initial tangent within the full ray's physical
+    // budget, rather than stopping a nominally tangent ray after half a step.
+    if(constraint!==null){
+      const physical=v=>frame.du.map((x,k)=>x*v[0]+frame.dv[k]*v[1]);
+      let error=toleranceMm/4,snapped=null;
+      for(const loop of constraint)for(let i=0;i<loop.length;i++){
+        const a=loop[i],b=loop[(i+1)%loop.length];if(pointSegmentDistance(uv,a,b)>precisionUv*8)continue;
+        const tangent=plus(b,a,-1),mapped=physical(tangent),length=Math.hypot(...mapped);if(length===0)continue;
+        const sign=dot(mapped,physical(velocity))<0?-1:1,candidate=tangent.map(v=>v*sign/length),deviation=radius*distance(physical(velocity),physical(candidate));
+        if(deviation<error){error=deviation;snapped=candidate;}
+      }
+      if(snapped)velocity=snapped;
+    }
+    if(constraint!==null&&distance(stopAtBoundary(uv,plus(uv,velocity,Math.min(maxStepMm,radius))),uv)<=precisionUv*8){boundaryStops++;return [uv];}
     let state=[...uv,...velocity],travel=0,h=Math.min(maxStepMm,radius);
     const ray=[uv];
     // The remaining arc length bounds endpoint error. Finish a sub-rounding
@@ -244,8 +266,10 @@ export function sweepSurfaceOffset(patch,prepared){
     const subdivide=(lo,hi)=>{
       const l=sample(lo),r=sample(hi),mid=(lo+hi)/2;
       const probes=[.25,.5,.75].map(f=>sample(lo+(hi-lo)*f));
-      const error=Math.max(...probes.map(m=>Math.max(physicalChordError(m.point,l.point,r.point),
-        chordError(m.offset.at(-1),l.offset.at(-1),r.offset.at(-1)))));
+      // The input edge is exactly a line in UV, even when its XYZ image curves.
+      // Only the newly constructed front needs approximation here; mapping owns
+      // the later physical chord subdivision of the finished deposition.
+      const error=Math.max(...probes.map(m=>chordError(m.offset.at(-1),l.offset.at(-1),r.offset.at(-1))));
       if(error>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=PROGRAM_STEP_MM)) {
         requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
         subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
@@ -277,7 +301,11 @@ export function sweepSurfaceOffset(patch,prepared){
       return rays.get(angle);
     };
     const sector=(a,b)=>{
-      const p=ray(a).at(-1),q=ray(b).at(-1),m=ray((a+b)/2).at(-1);
+      const middle=ray((a+b)/2),p=ray(a).at(-1),q=ray(b).at(-1),m=middle.at(-1);
+      // Incident obstacle tangents split this fan into angular sectors. A
+      // stopped sector has no arc to refine; its boundary rays bound only the
+      // clipped band, not a discontinuous endpoint curve outside the domain.
+      if(constraint!==null&&middle.length===1){connectRays(ray(a),ray(b));return;}
       if(distance(at(m).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point)>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&radius*Math.abs(b-a)<=PROGRAM_STEP_MM)) { // an arc below one program step
         requireThat((a+b)/2!==a&&(a+b)/2!==b,'Surface offset disk cannot resolve the requested tolerance: the sector is one representable step of angle.');
         subdivisions++;sector(a,(a+b)/2);sector((a+b)/2,b);
@@ -304,7 +332,9 @@ export function sweepSurfaceOffset(patch,prepared){
   if(radius>0)for(const loop of source)for(let i=0;i<loop.length;i++) {
     const a=loop[i],b=loop[(i+1)%loop.length];
     if(distance(a,b)===0)continue;
-    addStrip(a,b);addDisk(a,loop[(i+loop.length-1)%loop.length],b);
+    const previous=loop[(i+loop.length-1)%loop.length],blocked=blockedEdge(a,b);
+    if(!blocked)addStrip(a,b);
+    if(!blocked||!blockedEdge(previous,a))addDisk(a,previous,b);
   }
   if(radius>0)for(const path of prepared.strokePaths??[]){
     const points=path.closed?[...path.points,path.points[0]]:path.points;
@@ -343,7 +373,7 @@ export function finishSurfaceOffset(patch,prepared,swept){
     simplification.collapsedContours+=simplified.collapsedContours;
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
-  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':patch.cp?(settings.normalMm?'analytic-rational-normal-offset':'native-patch'):'adaptive-numerical-surface-chart'),
+  return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.at?.derivatives?'analytic-native-chart':patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':patch.cp?(settings.normalMm?'analytic-rational-normal-offset':'native-patch'):'adaptive-numerical-surface-chart'),
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
     inverseMappings:0,bandPolygons:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv,collapsedContours:simplification.collapsedContours}};

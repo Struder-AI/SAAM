@@ -69,11 +69,11 @@ A selected spline/mesh-strip chart with `stack.direction:"normal"` and a
 Slice settings. `stack.offsetTightness` chooses fitted/exact native normal offsets;
 the older cell-fill spelling remains readable. See [cladding](../pipe-cladding/SKILL.md).
 
-`fillOrder:{kind:"surface-cells",directions:[...],toleranceMm:...}` lays physical
-cells on any resolved chart: axial or circumferential rows on open charts;
-forward/reverse helices need periodic U. Seeds/front propagation are another
-fill algorithm; [wave guidance](../wave-overhangs/SKILL.md) owns its inputs and limits.
-These choices do not select different deposition producers or schedulers.
+Ordinary rectilinear/grid/triangle rows use [physical surface offsets](../../core/region/README.md#shared-offset-functions),
+including wavy references; proven affine charts use exact line translations.
+`fillOrder:{kind:"surface-cells",directions:[...],toleranceMm:...}` explicitly
+chooses axial/circumferential cells or periodic-U helices. [Wave guidance](../wave-overhangs/SKILL.md)
+owns seed/front propagation. All use the same deposition producer and scheduler.
 
 ## Presets
 

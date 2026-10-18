@@ -15,8 +15,7 @@ The `region2d.mjs` compatibility export is an alias to this exact function. Slic
 roof slices, vase-wall and shared rim coverage/travel all use it.
 Draped-skin uses an XY footprint inset.
 
-Offsets return closed material polygons: an inset yields remaining material,
-not a stroke band on both sides of a boundary.
+Offsets return closed material polygons; an inset yields remaining material.
 
 Options are `join: 'round' | 'square' | 'miter'` (round by default),
 `miterLimit: 2`, `arcToleranceMm: 0.02` and `precisionMm: 1e-5`. This 0.00001 mm
@@ -34,11 +33,8 @@ must not import Clipper directly. General `intersect`/`difference`/`union` use
 the [Clipper2 tool](#shared-planar-intersections) directly through
 `core/region/intersection.mjs`; there is no second Boolean import path.
 
-Surface cladding uses native 3D differential offsets through the
-shared surface/section functions. Those are distinct from closed planar polygon
-offsetting and remain there. Native mesh/spline sectioning and scanline stroke
-construction likewise keep their appropriate geometry algorithms; universal
-Clipper2 integration does not mean flattening those operations into polygons.
+Native surface offsets, sections and scanlines retain their geometry kernels;
+shared Clipper2 topology does not flatten their physical measurements.
 
 `perimeterLoops` in [perimeters.mjs](./perimeters.mjs) supplies slice loops. It retains a single central closed track when
 an outer/hole pair meets and material erosion loses that hole, without changing
@@ -47,8 +43,7 @@ variable-width gap fill are unsupported.
 
 **Surface, experimental:** [offsetSurfaceRegion](./surface-offset.mjs)
 takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}`;
-`loops` holds corresponding XYZ points. The construction is experimental SAAM
-code; no Rhino output comparison or equivalence is established.
+`loops` holds corresponding XYZ points. No Rhino output comparison or equivalence is established.
 
 One engine owns physical surface offsets for native patches, evaluated charts
 and authored sleeve/roof atlases. Boundaries are closed UV polylines or
@@ -70,20 +65,26 @@ Options: `toleranceMm: 0.01` (physical local approximation target),
 `maxStepMm: 0.5` (ray integration step cap), `precisionUv: 1e-10` (topology grid)
 and `normalMm: 0`. Native input sampling, simplification and RK4 integration each
 use one eighth of the physical budget; strip/corner chords use one quarter.
-RK4 step doubling estimates position and continuing-direction error, apportioned
-by physical travel. Strips refine at chart/knot breaks and physical chord error,
-rather than acquiring a fixed point density from the integration step. Boundary
-contacts remain fixed during simplification. UV rounding remains separate.
+RK4 step doubling estimates position and continuing-direction error by physical
+travel. Strips refine at chart/knot breaks and physical chord error, independently
+of integration step density. Boundary contacts remain fixed during simplification;
+full-ray deviation bounds tangent normalization. UV rounding remains separate.
 
-All topology uses the shared Clipper2 union/difference owner. No inverse mapping,
-global flatten/warp, evaluation quota or degree elevation is involved. The report
-records actual evaluations, steps, subdivisions, boundary stops, simplification
-and collapsed subresolution contours. Construction refines until it meets the
-local target or floating-point progress fails. This remains experimental:
-arbitrary high curvature, geodesic caustics/cut loci, trimmed multi-patch surfaces
-and global distance-error certification are outside its validated contract.
-The [wave-overhangs skill](../../skills/wave-overhangs/SKILL.md) and curved Slice
-use this owner; planar/projected millimetre regions use `offsetRegion`.
+Topology uses shared Clipper2 union/difference; no inverse mapping, global
+flattening, evaluation quota or degree elevation. Reports count evaluations,
+steps, subdivisions, boundary stops, simplification and collapsed contours.
+Construction refines to the local target or fails at floating-point stagnation.
+Arbitrary high curvature, caustics/cut loci, trimmed multi-patch surfaces and
+global distance-error certification remain outside the validated contract.
+
+[parallelSliceRows](surface-operations.mjs) supplies rectilinear/grid/triangle
+fill with physical spacing: seed the heading once, then advance both fronts
+through this offset owner and clip to the owned region. Proven affine charts
+use exact line translation, including degree-elevated planar control nets.
+Fixed chart-edge strips and stopped fan sectors do not grow; front refinement
+measures physical deviation from its UV chord. Deposition owns XYZ chord sampling.
+[Wave](../../skills/wave-overhangs/SKILL.md), curved Slice walls and rows share
+this engine; projected millimetre regions use `offsetRegion`.
 
 Verification scope, reference regeneration and provenance are in the
 [developer maps](../../scripts/bench/region-reference.md#offset-verification-and-provenance).
@@ -104,8 +105,6 @@ for wing, scanline and travel queries use the separate shared Geometry
 [line/region query](../geom/README.md#planar-lineregion-clipping); it explicitly
 preserves their parity, winding and boundary policies. There is no XOR, UV surface adapter, mesh booleans,
 NURBS intersections or backend-selection framework. Use Clipper2.
-
-Operations are synchronous and need no network at runtime.
 
 Conversion shares the offset adapter's local origin/grid and canonical ordering,
 using one origin for both operands. `precisionMm` defaults to `1e-9`; the range

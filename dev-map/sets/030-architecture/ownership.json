@@ -14324,6 +14324,9 @@
     "core/geom/curve-region.mjs::clipRegionCurve::near": {
       "owner": "geometry"
     },
+    "core/region/surface-operations.mjs::parallelSliceRows": {
+      "owner": "geometry"
+    },
     "core/region/surface-operations.mjs::surfaceChartBounds": {
       "owner": "geometry"
     },

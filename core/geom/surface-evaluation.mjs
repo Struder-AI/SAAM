@@ -1,6 +1,7 @@
 // Existing surface charts share point, normal and first-derivative evaluation.
 // Coordinates retain their native units; offsets are physical millimetres.
 import {evaluate} from './nurbs.mjs';
+import {surfaceDerivatives} from './surface-derivatives.mjs';
 import {heightSlicePoint,heightSliceNormal,referenceHeight} from './height-slice.mjs';
 import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
 import {prepareSurfaceReference,surfaceReferenceRecord} from './surface-record.mjs';
@@ -62,6 +63,19 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
     const uv=coordinates.map((x,k)=>bounds[k][0]+Math.max(0,Math.min(domain[k][1]-domain[k][0],x-domain[k][0]))*scale[k]),e=evaluateSurface(surface,uv);
     requireThat(e.normal,'Surface has a singular tangent at this chart point.');
     return {...e,uv,normal:e.normal.map(x=>x*normalSide),du:e.du?.map(x=>x*scale[0]),dv:e.dv?.map(x=>x*scale[1])};
+  };
+  // Differential capability belongs to this evaluator's identity. A wrapper
+  // replacing at cannot accidentally inherit derivatives of the old geometry.
+  const prepared=surface.representation?prepareSurfaceReference(surface):surface,native=prepared.patch??prepared;
+  const differential=native.cp?(u,v,options)=>surfaceDerivatives(native,u,v,options):prepared.at?.derivatives;
+  if(differential)at.derivatives=(u,v,{normalMm=0,...options}={})=>{
+    const coordinates=[u,v];
+    requireThat(coordinates.every((x,k)=>x>=domain[k][0]-TOLERANCE.parameter&&x<=domain[k][1]+TOLERANCE.parameter),'Surface derivative outside selected region.');
+    const uv=coordinates.map((x,k)=>bounds[k][0]+Math.max(0,Math.min(domain[k][1]-domain[k][0],x-domain[k][0]))*scale[k]);
+    const e=differential(...uv,{...options,normalMm:normalMm*normalSide});
+    return {...e,du:e.du.map(x=>x*scale[0]),dv:e.dv.map(x=>x*scale[1]),duu:e.duu.map(x=>x*scale[0]**2),
+      duv:e.duv.map(x=>x*scale[0]*scale[1]),dvv:e.dvv.map(x=>x*scale[1]**2),normal:e.normal.map(x=>x*normalSide),
+      uvOf:vector=>e.uvOf(vector).map((x,k)=>x/scale[k])};
   };
   return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(surface.knotsU,bounds[0],0),breaksV:breaks(surface.knotsV,bounds[1],1),periodicU,
     referenceRecord:{representation:'mapped-surface',source:surfaceReferenceRecord(surface),bounds,domain,normalSide,periodicU}};

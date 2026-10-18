@@ -1,4 +1,4 @@
-// Presentation preparation calls the production Slice layout, bead and connection stages.
+// Every frame uses the complete production Slice recipe construction pipeline.
 // It caches deposition for display; manufacturing scheduling/export is not part of this movie.
 import {readFile,writeFile,mkdir,cp,readdir,link,rename} from 'node:fs/promises';
 import {resolve,dirname,join,relative} from 'node:path';
@@ -7,7 +7,7 @@ import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {createFrameBuilder,depositionPreview} from './prepare-slice-frame.mjs';
-import {defaults,animationAt,surfaceFor,claddingSpec,bridgeSpec,endingPose,surfaceSpec} from './slice-surface/design.mjs';
+import {defaults,animationAt,claddingSpec,bridgeSpec} from './slice-surface/design.mjs';
 import {geometryOperations} from '../../core/geom/operations.mjs';
 const G=geometryOperations(),output=resolve(process.argv[2]??'.local/presentations/native-showcase/preview.index.json'),directory=dirname(output),frameDirectory=join(directory,'frames');
 await mkdir(frameDirectory,{recursive:true});
@@ -30,7 +30,7 @@ async function prepare(i){
  const file=join(frameDirectory,String(i).padStart(4,'0')+'.json.gz');try{await readFile(file);return;}catch(e){if(e.code!=='ENOENT')throw e;}
  const a=animationAt(i/30),{plan,model}=await build(i);if(model.summary.limitations?.length)throw Error('Frame '+i+': '+model.summary.limitations.join('; '));
  if(new Set(model.results.flatMap(r=>r.operations.map(o=>o.layerId))).size!==1)throw Error('Expected one active slice.');
- const frame={frame:i,sizeMm:24,animation:a,plan,program:depositionPreview(model),contextGeometry:a.context==='tube'?tubeContext:[],bridgeRails:a.context==='bridge'?bridgeRails:[],connections:model.results.reduce((n,r)=>n+(r.report.depositionConnections?.count??0),0),method:'SAAM Slice → native bead deposition → finalizeDepositionResult (including connectors) → unmodified Studio WebGL viewer'};
+ const frame={frame:i,sizeMm:24,animation:a,plan,program:depositionPreview(model),sliceReport:model.summary.slices,contextGeometry:a.context==='tube'?tubeContext:[],bridgeRails:a.context==='bridge'?bridgeRails:[],connections:model.results.reduce((n,r)=>n+(r.report.depositionConnections?.count??0),0),method:'compileRecipe → preparePathGeometry → generateModelResults (complete Slice operation) → unmodified Studio WebGL viewer'};
  const temporary=file+'.tmp';await writeFile(temporary,gzipSync(JSON.stringify(frame),{level:9}));await rename(temporary,file);
 }
 if(process.argv[3]==='worker'){
@@ -38,7 +38,8 @@ if(process.argv[3]==='worker'){
  for(const i of items){await prepare(i);count++;if(count%15===0){await writeFile(join(directory,'progress-'+first+'.json'),JSON.stringify({count,total:items.length,frame:i}));console.log(first,count+'/'+items.length,'frame',i);}}
  await writeFile(join(directory,'progress-'+first+'.json'),JSON.stringify({count,total:items.length,complete:true}));
 }else{
- const workers=Number(process.argv[3]??8);
+ const workers=Number(process.argv[3]??4);
+ await writeFile(output,JSON.stringify({schema:'saam-native-slice-animation/2',design:defaults,canonical,uniqueFrames:unique.length}));
  const tasks=Array.from({length:workers},(_,i)=>new Promise((done,fail)=>{const child=spawn(process.execPath,[fileURLToPath(import.meta.url),output,'worker',String(i),String(workers)],{stdio:['ignore','pipe','pipe'],windowsHide:true});child.stdout.on('data',d=>process.stdout.write(d));child.stderr.on('data',d=>process.stderr.write(d));child.on('exit',code=>code===0?done():fail(Error('Frame worker '+i+' failed: '+code)));}));
  await Promise.all(tasks);
  await writeFile(output,JSON.stringify({schema:'saam-native-slice-animation/2',design:defaults,canonical,uniqueFrames:unique.length}));

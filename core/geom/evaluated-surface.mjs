@@ -9,6 +9,7 @@ export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=
   const domains=[surface.domainU,surface.domainV],coordinates=[u,v];
   requireThat(domains.every((d,k)=>coordinates[k]>=d[0]-TOLERANCE.parameter&&coordinates[k]<=d[1]+TOLERANCE.parameter),'Evaluated surface sample leaves its chart domain.');
   [u,v]=coordinates.map((x,k)=>Math.max(domains[k][0],Math.min(domains[k][1],x)));coordinates[0]=u;coordinates[1]=v;
+  if(surface.at?.derivatives)return surface.at.derivatives(u,v,{normalMm,toleranceMm});
   const pointAt=(a,b)=>evaluateSurface(surface.slice??surface,[a,b],normalMm).point;
   const point=pointAt(u,v);
   const stencil=(axis,h)=>{

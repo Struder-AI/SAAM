@@ -1,5 +1,6 @@
 // Surface-owned construction: chart topology retains native units; every
 // standoff, stroke width, sampling step and clipping measurement is physical.
+import {affineSurface} from '../geom/affine-surface.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
 import {evaluateSurface,surfaceChartCovers} from '../geom/surface-evaluation.mjs';
 import {sectionSurface} from '../geom/section.mjs';
@@ -8,10 +9,10 @@ import {clipChartCurveToRegion,clipLineToRegion} from '../geom/curve-region.mjs'
 import {requireThat,dot,cross,distance,normalize} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {offsetRegion} from './offset.mjs';
-import {intersect} from './intersection.mjs';
-import {pointInRegion,loopArea} from './region2d.mjs';
+import {intersect,union,difference,clipOpenPaths} from './intersection.mjs';
+import {pointInRegion,loopArea,pointSegmentDistance} from './region2d.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
-import {offsetSurfaceRegion,strokeSurfaceRegion,UV_GRID} from './surface-offset.mjs';
+import {offsetSurfaceRegion,strokeSurfaceRegion,prepareSurfaceOffset,UV_GRID} from './surface-offset.mjs';
 
 export function surfaceChartBounds(surface,points=[],boundsUv=null){
   const native=surface.kind==='patch'?surface.patch:surface;
@@ -125,3 +126,69 @@ export function clipSliceCurves(slice,curves,region,{precisionUv=UV_GRID,toleran
   return {curves:result,report:{clipped:before-after>toleranceMm,removedLengthMm:Math.max(0,before-after),clearanceToleranceMm:toleranceMm,inputCurves:curves.length,outputCurves:result.length,openFragments:result.filter(c=>!c.closed).length}};
 }
 
+
+// Physical parallel rows: the affine case is an exact line translation;
+// curved fronts advance through the same intrinsic offset owner as perimeters.
+export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction=null,sampleStepMm=.2,toleranceMm=.01}={}){
+  requireThat(Number.isFinite(spacingMm)&&spacingMm>0,'Surface rows need positive physical spacing.');
+  if(!region.length)return {rows:[],report:{offsets:0}};
+  const points=region.flat(),extent=[0,1].map(k=>points.reduce(([lo,hi],p)=>[Math.min(lo,p[k]),Math.max(hi,p[k])],[Infinity,-Infinity]));
+  let center=extent.map(([lo,hi])=>(lo+hi)/2);
+  if(!surfaceChartCovers(surface,center))center=points[0];
+  const frame=evaluateSurface(surface,center),normal=normalize(direction??frame.normal);
+  const axis=Math.abs(normal[0])<.9?[1,0,0]:[0,1,0],x=normalize(axis.map((v,k)=>v-dot(axis,normal)*normal[k])),y=cross(normal,x),angle=angleDeg*Math.PI/180;
+  const projected=x.map((v,k)=>v*Math.cos(angle)+y[k]*Math.sin(angle)),along=normalize(projected.map((v,k)=>v-dot(projected,frame.normal)*frame.normal[k])),across=normalize(cross(frame.normal,along));
+  if(affineSurface(surface)){
+    const a=dot(across,frame.du),b=dot(across,frame.dv),length2=a*a+b*b,constant=dot(across,frame.point)-a*center[0]-b*center[1];
+    const positions=points.map(uv=>constant+a*uv[0]+b*uv[1]),first=Math.floor(Math.min(...positions)/spacingMm),last=Math.ceil(Math.max(...positions)/spacingMm),rows=[];
+    for(let lineIndex=first;lineIndex<=last;lineIndex++){
+      const c=constant-lineIndex*spacingMm,origin=[-c*a/length2,-c*b/length2],tangent=[-b,a];
+      rows.push({lineIndex,paths:clipLineToRegion(origin,tangent,region).spans.map(span=>span.map(t=>origin.map((v,k)=>v+t*tangent[k])))});
+    }
+    return {rows,along,report:{method:'analytic-affine-surface-offset',offsets:0}};
+  }
+  const global=surfaceChartBounds(surface,points),margin=surfaceChartStep(surface,extent,spacingMm);
+  const bounds=extent.map(([lo,hi],k)=>[Math.max(global[k][0],lo-margin[k]),Math.min(global[k][1],hi+margin[k])]);
+  let chart=offsetChart(surface,points,spacingMm,global);
+  const rectangle=[[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]]];
+  const options={precisionMm:UV_GRID,origin:[global[0][0],global[1][0]]};
+  const prepared=prepareSurfaceOffset(chart,[],0,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:rectangle});
+  if(prepared.atlas)chart={...chart,atlas:prepared.atlas};
+  const allowed=prepared.atlas?intersect(rectangle,union(prepared.atlas.faces.map(face=>face.vertices.map(v=>v.uv)),[],options),options):rectangle;
+  const target=intersect(region,allowed,options),seedOffset=dot(across,frame.point);
+  // Only the initial heading is a plane cut. Its region is construction input;
+  // all later rows are physical offsets, without repeated world-plane sections.
+  const seed=intersect(sampledChartRegion({min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])},surfaceChartStep(chart,bounds,sampleStepMm),uv=>{
+    const bounded=uv.map((v,k)=>Math.max(bounds[k][0],Math.min(bounds[k][1],v)));
+    return surfaceChartCovers(chart,bounded)&&dot(across,evaluateSurface(chart,bounded).point)<=seedOffset;
+  },{surface:chart,precisionUv:UV_GRID}),allowed,options);
+  const edges=allowed.flatMap(loop=>loop.map((p,i)=>[p,loop[(i+1)%loop.length]])),slack=UV_GRID*8;
+  const onEdge=(a,b)=>edges.some(([p,q])=>pointSegmentDistance(a,p,q)<=slack&&pointSegmentDistance(b,p,q)<=slack);
+  const fronts=loops=>{
+    const paths=[];
+    for(const loop of loops){
+      const boundary=loop.findIndex((p,i)=>onEdge(p,loop[(i+1)%loop.length]));
+      if(boundary<0){paths.push([...loop,loop[0]]);continue;}
+      let path=[];
+      for(let j=1;j<=loop.length;j++){
+        const i=(boundary+j)%loop.length,a=loop[i],b=loop[(i+1)%loop.length];
+        if(onEdge(a,b)){if(path.length>1)paths.push(path);path=[];}
+        else{if(!path.length)path.push(a);path.push(b);}
+      }
+      if(path.length>1)paths.push(path);
+    }
+    return clipOpenPaths(paths,target,options);
+  };
+  const rows=[{lineIndex:0,paths:fronts(seed)}],report={method:'geodesic-surface-offset-rows',offsets:0,evaluations:0,integrationSteps:0};
+  for(const sign of [-1,1]){
+    let source=sign===1?seed:difference(allowed,seed,options),lineIndex=0;
+    while(difference(target,source,options).length){
+      const result=offsetSurfaceRegion(chart,source,spacingMm,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:allowed});
+      report.offsets++;report.evaluations+=result.report.evaluations;report.integrationSteps+=result.report.integrationSteps;
+      requireThat(difference(result.loopsUv,source,options).length,'Surface row offset cannot advance over the remaining chart region.');
+      source=result.loopsUv;lineIndex+=sign;rows.push({lineIndex,paths:fronts(source)});
+    }
+  }
+  rows.sort((a,b)=>a.lineIndex-b.lineIndex);
+  return {rows,along,report};
+}
