@@ -6,7 +6,7 @@ import {gzipSync} from 'node:zlib';
 import {createHash} from 'node:crypto';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {createFrameBuilder} from './prepare-slice-frame.mjs';
+import {createFrameBuilder,depositionPreview} from './prepare-slice-frame.mjs';
 import {defaults,animationAt,surfaceFor,claddingSpec,bridgeSpec,endingPose,surfaceSpec} from './slice-surface/design.mjs';
 import {geometryOperations} from '../../core/geom/operations.mjs';
 const G=geometryOperations(),output=resolve(process.argv[2]??'.local/presentations/native-showcase/preview.index.json'),directory=dirname(output),frameDirectory=join(directory,'frames');
@@ -16,23 +16,7 @@ for(let i=0;i<=last;i++){
  const a=animationAt(i/30),key=JSON.stringify(a);
  if(!keys.has(key)){keys.set(key,i);unique.push(i);}canonical.push(keys.get(key));
 }
-function preview(model){
- const moves=[];let seconds=0,volumeMm3=0;
- for(const result of model.results){if(!result.depositionFinalized)throw Error('Deposition is not finalized.');
- for(const op of result.operations)for(const stroke of op.strokes){
-  if(stroke.closed)throw Error('Finalization must make closed strokes explicit.');
-  for(let i=1;i<stroke.points.length;i++){
-   const from=stroke.points[i-1],to=stroke.points[i],length=Math.hypot(...to.map((v,k)=>v-from[k]));if(length<1e-9)continue;
-   const metadata=stroke.segmentMetadata?.[i-1]??{},volume=stroke.volumesMm3?.[i-1]??length*stroke.beadAreaMm2,speed=metadata.speedMmS??stroke.speedMmS,width=metadata.beadWidthMm??stroke.beadWidthMm;
-   const duration=length/speed,normal=metadata.surfaceNormal,height=metadata.beadHeightMm??stroke.beadHeightMm??volume/(length*width);
-   if(![volume,speed,width,height,...normal].every(Number.isFinite)||volume<0||speed<=0||height<=0)throw Error('Invalid native bead.');
-   moves.push({line:moves.length+1,phase:op.phase,layer:op.layer,layerId:op.layerId,sliceStack:op.stackId??result.stackId??result.id,sliceIndex:op.layer,operation:op.id,from,to,extruding:volume>0,volumeMm3:volume,speedMmS:speed,startSeconds:seconds,durationSeconds:duration,lineWidthMm:width,surfaceNormal:normal,beadHeightMm:height,connector:Boolean(metadata.connector),toolAxisFrom:[0,0,-1],toolAxisTo:[0,0,-1],toolUpFrom:[0,1,0],toolUpTo:[0,1,0]});
-   seconds+=duration;volumeMm3+=volume;
-  }
- }}
- if(!moves.length)throw Error('No native deposition.');
- return {moves,events:[],summary:{motionSeconds:seconds,volumeMm3,moves:moves.length}};
-}
+
 function surfaceCurves(spec,tube=false){
  const slice=G.patchSlice(G.buildGeometry({shape:'spline',patches:[spec]}).patches[0]),curves=[];
  for(let v=0;v<=12;v++)curves.push({points:Array.from({length:97},(_,i)=>G.evaluateSurface(slice,[i/96,v/12]).point),alpha:v===0||v===12?.42:.16});
@@ -46,7 +30,7 @@ async function prepare(i){
  const file=join(frameDirectory,String(i).padStart(4,'0')+'.json.gz');try{await readFile(file);return;}catch(e){if(e.code!=='ENOENT')throw e;}
  const a=animationAt(i/30),{plan,model}=await build(i);if(model.summary.limitations?.length)throw Error('Frame '+i+': '+model.summary.limitations.join('; '));
  if(new Set(model.results.flatMap(r=>r.operations.map(o=>o.layerId))).size!==1)throw Error('Expected one active slice.');
- const frame={frame:i,sizeMm:24,animation:a,plan,program:preview(model),contextGeometry:a.context==='tube'?tubeContext:[],bridgeRails:a.context==='bridge'?bridgeRails:[],connections:model.results.reduce((n,r)=>n+(r.report.depositionConnections?.count??0),0),method:'SAAM Slice → native bead deposition → finalizeDepositionResult (including connectors) → unmodified Studio WebGL viewer'};
+ const frame={frame:i,sizeMm:24,animation:a,plan,program:depositionPreview(model),contextGeometry:a.context==='tube'?tubeContext:[],bridgeRails:a.context==='bridge'?bridgeRails:[],connections:model.results.reduce((n,r)=>n+(r.report.depositionConnections?.count??0),0),method:'SAAM Slice → native bead deposition → finalizeDepositionResult (including connectors) → unmodified Studio WebGL viewer'};
  await writeFile(file,gzipSync(JSON.stringify(frame),{level:3}));
 }
 if(process.argv[3]==='worker'){
