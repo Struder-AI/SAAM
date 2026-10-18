@@ -99,6 +99,7 @@ export function constructDepositionResults(args,contexts){
         const raw=constructDepositionWork(node,completed,{...args,contexts}),finalized=finalizeDepositionResult(raw,args.plan);
         return node.kind==='completion'?finalized:publishDepositionWork(node,republishDepositedBoundary(finalized,{widthMm:args.plan.process.lineWidthMm}));
       });
+      args.generation?.captureResult(node,result);
       completed.set(node.key,{node,result});
     }
   }

@@ -142,7 +142,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(key===target)return true;if(seen.has(key))return false;seen.add(key);
     return (declared.find(node=>node.key===key)?.requires??[]).some(prior=>dependsOn(prior,target,seen));
   };
-  const prepared=declared.map(({defaults=[],...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
+  const prepared=declared.map(({defaults=[],...node})=>({...node,hardRequires:[...node.requires],requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
   const byKey=new Map(prepared.map(node=>[node.key,node]));
   const reaches=(key,target,seen=new Set())=>{
     if(key===target)return true;if(seen.has(key))return false;seen.add(key);

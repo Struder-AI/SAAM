@@ -84,19 +84,19 @@ function currentAssignmentForm(assignment,index,process){
 // reading stays as authored, is named in unread, and produces nothing.
 export function currentAssignmentForms(plan){
   const authored=plan.slices?.assignments;
-  if(!Array.isArray(authored))return {plan,changes:[],notes:[],unread:[]};
-  const changes=[],notes=[],unread=[];
+  if(!Array.isArray(authored))return {plan,changes:[],notes:[],unread:[],failures:[]};
+  const changes=[],notes=[],unread=[],failures=[];
   const assignments=authored.map((assignment,index)=>{
     try{
       const read=currentAssignmentForm(assignment,index,plan.process);
       if(read.changes.length){changes.push(...read.changes);notes.push(`${assignment.id} is read in its current form (${[...new Set(read.changes.map(change=>change.path.split('.').slice(3).join('.')||change.to))].join(', ')}); the next save or migrate_bundle records it.`);}
       return read.assignment;
     }catch(error){
-      unread.push(assignment?.id);notes.push(`${assignment?.id??'An assignment'} has an old form with no automatic reading, so it produces nothing: ${error.message}`);
+      failures.push({assignment:assignment?.id,message:error.message});unread.push(assignment?.id);notes.push(`${assignment?.id??'An assignment'} has an old form with no automatic reading, so it produces nothing: ${error.message}`);
       return assignment;
     }
   });
-  return {plan:changes.length?{...plan,slices:{...plan.slices,assignments}}:plan,changes,notes,unread};
+  return {plan:changes.length?{...plan,slices:{...plan.slices,assignments}}:plan,changes,notes,unread,failures};
 }
 
 const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);

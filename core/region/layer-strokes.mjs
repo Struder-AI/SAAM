@@ -43,9 +43,9 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
     const distance = (loopInsetMm??widthMm/2) + ring * pitch;
     const found=offset(boundary,outward?distance:-distance);
     if (!found.length) break;
-    // Simplify only the finished deposition contour to machine precision; the
-    // offset region keeps owning material topology.
-    const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm));
+    // Only plane coordinates are millimetres. Surface offsets already simplify
+    // physically; applying a planar millimetre tolerance to UV destroys that work.
+    const cleaned = !slice||slice.kind==='plane'?found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm)):found;
     for (const [loop,points] of cleaned.entries())
       walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, edge:{loop,ring},closed: true, points, beadWidthMm: widthMm });
   }

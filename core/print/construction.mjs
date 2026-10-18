@@ -3,10 +3,8 @@ import {prepareSliceContexts} from './slice-material.mjs';
 import {AssignmentFailure,constructDepositionResults} from './slice-deposition.mjs';
 import {prepareDepositionWork} from './deposition-work.mjs';
 
-// A language error is a SAAM bug, still reported as the assignment's.
-const INTERNAL_ERRORS=['TypeError','RangeError','ReferenceError','SyntaxError'];
-const failureNote=({assignment,family,cause})=>`${family[0].toUpperCase()+family.slice(1)} ${assignment} produced nothing: ${INTERNAL_ERRORS.includes(cause.name)
-  ?`internal error (${cause.name}: ${cause.message}); this is a SAAM bug, report it with saam call report_bug`:cause.message}`;
+import {finalizeConstructionReferences} from './construction-references.mjs';
+import {assignmentGeneration} from './assignment-generation.mjs';
 
 // Deposition of every assignment. A failing assignment produces nothing and
 // says why; the print is generated again without it, so what the others
@@ -14,30 +12,35 @@ const failureNote=({assignment,family,cause})=>`${family[0].toUpperCase()+family
 // summary, notes}: notes are the slice stacks' notes, each result's report
 // notes (such as its contact spans) and each failure.
 export function finalizedSliceResults(args){
-  const failures=[...(args.geometryFailures??[])].map(([id,error])=>new AssignmentFailure({sourceId:args.assignmentOwners?.get(id)??id,kind:'slice'},error));
+  const generation=args.generation??assignmentGeneration(args.plan);
+  generation.register(args.plan,args.assignmentOwners);
+  for(const [id,error] of args.geometryFailures??[])generation.fail(id,error);
   for(;;){
-    try{return finalizeAssignments(args,failures);}catch(error){
-      if(error.name==='AbortError'||!error.assignment||failures.some(failure=>failure.assignment===error.assignment))throw error;
+    try{const result=finalizeAssignments({...args,generation});if(result)return result;}catch(error){
+      if(error.name==='AbortError'||!error.assignment||generation.hasFailed(error.assignment))throw error;
       const owner=args.assignmentOwners?.get(error.assignment)??error.assignment;
       const failure=owner!==error.assignment?new AssignmentFailure({sourceId:owner,kind:error.family??'slice'},error.cause??error):error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
       args.onProgress?.({stage:'Deposition failed',assignment:failure.assignment,family:failure.family,error:{name:failure.cause.name,message:failure.cause.message,stack:failure.cause.stack}});
-      failures.push(failure);
+      generation.fail(failure.assignment,failure);
     }
   }
 }
-function finalizeAssignments(args,failures){
-  const excluded=new Set(failures.map(failure=>failure.assignment));
-  const ownerOf=id=>args.assignmentOwners?.get(id)??id;
-  const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(ownerOf(a.id)))}};
-  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),
-    geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded.has(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded.has(volume.sourceId))});
+function finalizeAssignments(args){
+  const generation=args.generation,excluded=id=>generation.hasFailed(id);
+  const plan=generation.retain(args.plan);
+  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded(band.sourceId)),
+    geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded(volume.sourceId))});
   const contexts=sliced.contexts;
-  const constructions=(args.constructions??[]).filter(context=>!excluded.has(ownerOf(context.assignment.id)));
-  const work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
-  const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
+  const constructions=(args.constructions??[]).filter(context=>!excluded(context.assignment.id));
+  const work=(args.work??[]).filter(node=>!excluded(node.sourceId??node.key));
+  const curveSources=(args.curveSources??[]).filter(context=>!excluded(context.assignment.id));
   const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells});
+  generation.captureWork(nodes);
+  if(nodes.some(node=>excluded(node.sourceId??node.key)))return null;
   const generated=constructDepositionResults({...args,nodes,curveSources},contexts);
-  const produced=generated.results,nothing=!produced.some(result=>result.operations.length);
-  return {...generated,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...failures.map(failureNote),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
+  const produced=finalizeConstructionReferences(plan,generated.results);
+  if(produced.some(result=>excluded(result.report?.owner??result.id)))return null;
+  const nothing=!produced.some(result=>result.operations.length);
+  return {...generated,results:produced,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...generation.notes(),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
 }
 

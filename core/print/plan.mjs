@@ -68,7 +68,7 @@ export function compileRecipe(plan){
   const key=JSON.stringify(plan);
   if(compiledRecipes.has(key))return compiledRecipes.get(key);
   const read=readRecipe(structuredClone(resolveSpatialPlan(normalizeSpatialPlan(plan))));
-  const value={plan:read.generated,notes:read.notes};
+  const value={plan:read.generated,notes:read.notes,intent:read.plan,failures:read.failures};
   validateRecipeValue(value.plan,read.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
@@ -91,8 +91,8 @@ const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 // generated is what generation uses, and notes name every field filled or
 // ignored, every form rewritten and every piece skipped.
 export function readRecipe(plan,machine=null){
-  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.unread);
-  return {plan:current,generated:generated.plan,notes:[...supports.notes,...forms.notes,
+  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.failures);
+  return {plan:current,generated:generated.plan,failures:generated.failures,notes:[...supports.notes,...forms.notes,
     ...(fields.filled.length?[`Recipe fields filled from current defaults: ${fields.filled.join(', ')}; the next save or migrate_bundle records them.`]:[]),
     ...(fields.ignored.length?[`Recipe fields ignored, not read by this SAAM: ${fields.ignored.join(', ')}; the next save or migrate_bundle drops them.`]:[]),
     ...generated.notes]};
@@ -165,7 +165,7 @@ function currentComposition({order,dependencies,filaments}){
 // uniquely named components, and each piece that cannot produce anything is
 // left out with a note. Never throws: what cannot be built is validation's.
 function generationRecipe(plan,unread=[]){
-  const notes=[];
+  const failures=[...unread],failedIds=new Set(failures.map(f=>f.assignment)),notes=[];
   // A spatial record (curves and points around an optional solid) is resolved at compilation.
   const spatial=plan.geometry?.shape==='spatial',solid=componentGeometry(spatial?plan.geometry.solid:plan.geometry,notes);
   const geometry=spatial?{...plan.geometry,solid:solid??null}:solid;
@@ -174,12 +174,17 @@ function generationRecipe(plan,unread=[]){
   const stepped={...plan,geometry,process};
   const skills=plan.skills;
   const assignments=Array.isArray(plan.slices?.assignments)
-    ?plan.slices.assignments.filter(assignment=>!unread.includes(assignment?.id)&&producingAssignment(stepped,solid,assignment,notes)):plan.slices?.assignments;
+    ?plan.slices.assignments.filter(assignment=>{
+      if(failedIds.has(assignment?.id))return false;
+      const reasons=[],accepted=producingAssignment(stepped,solid,assignment,reasons);
+      if(!accepted){failures.push({assignment:assignment.id,message:reasons.join(' ')});notes.push(...reasons);}
+      return accepted;
+    }):plan.slices?.assignments;
   const generated={...stepped,...(skills?{skills}:{}),modulations:modulations.record,slices:{...plan.slices,assignments}};
   if(!geometry)delete generated.geometry;
-  if(Array.isArray(assignments)&&!assignments.length&&!Object.values(generated.skills??{}).some(settings=>settings?.enabled))
+  if(Array.isArray(generated.slices.assignments)&&!generated.slices.assignments.length&&!Object.values(generated.skills??{}).some(settings=>settings?.enabled))
     notes.push('Nothing to print: no slice, Trace or Inject assignment can produce material.');
-  return {plan:generated,notes:[...notes,...modulations.notes]};
+  return {plan:generated,failures,notes:[...notes,...modulations.notes]};
 }
 
 // Nested assemblies are flattened: component outer holding inner becomes

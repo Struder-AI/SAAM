@@ -194,12 +194,11 @@ Use `examples/prints/` only for explicitly curated examples.
 
 ## Shell pipeline (planar and nonplanar slices)
 
-`core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
-Toolpath supplies completed operations to Bundle; [Scheduling](../path/README.md#retained-construction-interfaces) reads the saved result.
-A failing assignment produces nothing and the rest generates; its error, open sections
-and references ending inside the part are notes in `limitations`.
-Their manuals own supported settings and process limits; software checks do not
-establish successful physical printing. The plan's geometry is authored
+[Bundle](./bundle.mjs) adapts shell plans; [Scheduling](../path/README.md#retained-construction-interfaces) reads saved Toolpath operations.
+[Assignment generation](./assignment-generation.mjs) retains authored prerequisite identities through admission and preparation.
+Construction failures remove hard dependents
+transitively; independent work remains. Final reference resolution shares that boundary; findings appear in `limitations`.
+Manuals own supported settings; software checks establish no physical print success. The plan's geometry is authored
 ([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
 blob fields, [booleans](../../GEOMETRY.md#booleans) of these and an `assembly` of any of them. A boolean is stored
 as its recipe in the native JSON asset with a display mesh; generation sections its operands. An edited or imported 3DM

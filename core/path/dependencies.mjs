@@ -7,7 +7,7 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/44'; // Shared physical surface-offset domain and approximation policy.
+export const PATH_CONTRACT='saam-deposition/45'; // Retain hard prerequisite identity and failure closure through partial generation.
 export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/31'; // Whole-group prefix proofs; Export owns checked machine realization.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.

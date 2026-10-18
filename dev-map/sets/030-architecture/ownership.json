@@ -1814,6 +1814,14 @@
     "core/path/material-readiness.mjs": {
       "owner": "path-finalize",
       "reason": "Resolve enclosure readiness from Geometry-owned nominal slices and actual whole-slice access, retaining only genuinely unresolved material scopes."
+    },
+    "core/print/assignment-generation.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Application retains authored producer identities and propagates failure through hard assignment prerequisites; no operation scheduler or geometry policy."
+    },
+    "core/print/construction-references.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Application resolves final producer references inside the shared assignment failure boundary before immutable source publication."
     }
   },
   "leaves": {
@@ -15658,59 +15666,59 @@
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::changes": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::changes": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::result": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::result": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::assignment": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::assignment": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::dependencies": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::dependencies": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::prior": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::prior": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::after": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::after": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::@scope/forof-1::op": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::@scope/forof-1::op": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::before": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::before": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::other": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::other": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyDeclaredDependencies::@scope/forof-2/forof-1::op": {
+    "core/print/construction-references.mjs::applyDeclaredDependencies::@scope/forof-2/forof-1::op": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyResultDependencies": {
+    "core/print/construction-references.mjs::applyResultDependencies": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyResultDependencies::changesByOperation": {
+    "core/print/construction-references.mjs::applyResultDependencies::changesByOperation": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
-    "core/print/generate.mjs::applyResultDependencies::change": {
+    "core/print/construction-references.mjs::applyResultDependencies::change": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
@@ -24024,19 +24032,19 @@
     "core/print/generate.mjs::generateModelResults::geometryNotes": {
       "owner": "build-evaluate"
     },
-    "core/print/generate.mjs::applyResultDependencies::<callback@136:22>::changed": {
+    "core/print/construction-references.mjs::applyResultDependencies::<callback@136:22>::changed": {
       "owner": "build-evaluate"
     },
-    "core/print/generate.mjs::applyResultDependencies::<callback@136:22>::operations": {
+    "core/print/construction-references.mjs::applyResultDependencies::<callback@136:22>::operations": {
       "owner": "build-evaluate"
     },
-    "core/print/generate.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::changes": {
+    "core/print/construction-references.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::changes": {
       "owner": "build-evaluate"
     },
-    "core/print/generate.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::after": {
+    "core/print/construction-references.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::after": {
       "owner": "build-evaluate"
     },
-    "core/print/generate.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::change": {
+    "core/print/construction-references.mjs::applyResultDependencies::<callback@136:22>::operations.<callback@138:44>::change": {
       "owner": "build-evaluate"
     },
     "core/print/generate.mjs::depositionInspection::traceLayers.<callback@173:76>::layers": {
@@ -27809,7 +27817,7 @@
     "core/print/operation-references.mjs::withOperationAfter": {
       "owner": "recipe"
     },
-    "core/print/generate.mjs::resolveOperationReferences": {
+    "core/print/construction-references.mjs::resolveOperationReferences": {
       "owner": "build-evaluate",
       "reason": "Resolve authored producer completion to constructed operation IDs and reject vanished required targets before publication."
     },
@@ -28290,6 +28298,14 @@
     },
     "core/geom/material-envelope.mjs::surfaceConnectionMaterial::horizontal": {
       "owner": "geometry-surface-connection"
+    },
+    "core/print/assignment-generation.mjs::@module": {
+      "owner": "build-evaluate",
+      "reason": "Application retains authored producer identities and propagates failure through hard assignment prerequisites; no operation scheduler or geometry policy."
+    },
+    "core/print/construction-references.mjs::@module": {
+      "owner": "build-evaluate",
+      "reason": "Application resolves final producer references inside the shared assignment failure boundary before immutable source publication."
     }
   },
   "retiredAssignments": [
