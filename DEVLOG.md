@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-18 - Retire construction-time vase thermal slowdown
+
+- Remove minimum-turn/layer-time feed reduction from the standard spiral and advanced vase repetitions, its host plumbing and speed-only length surveys. Preserve both vase offerings, both advanced path modes, geometric bead gaps and authored/process speed limits. Cooling remains a ready-work ordering preference; no dwell or slowdown is added. Update the advanced manual (one line shorter) and deposition currency /46 -> /47 so old slowed output is regenerated.
+- Actual-source small-vase probe: zero versus six seconds previously changed standard speed 40 -> 2.4 mm/s and advanced speeds to about 2.40023 mm/s. All six standard/advanced continuous/segmented cases now retain 40 mm/s, identical per-case geometry hashes and operation/stroke counts. Existing Export file passes 3/3; repository checks and authored viewer pass (1,298 pages, zero undrawn). No new stored tests, full suite, physical print or full influence/warm/cold analysis (owner-deferred).
+- Owner dispositions: cell-spacing audit item accepted/closed after Studio review; dormant retirement completed in 732f3b3c. Geometry consumers must reference edges/faces/solids/slices, not deposition paths; the audit's operation-scoped deposition-retrieval proposal was insufficient. Native-reference preservation and failure admission remain open. Nontrivial retired forms need no migration; if trivial automatic normalization is insufficient, identify the deprecated form/item in a minimal message. Maker guidance owns further explanation. Record/evidence: .local/thermal-retirement/RECORD.md.
+
 ## 2026-10-18 - Complete dormant reservation retirement
 
 - Remove unused core/region/reservation.mjs, including the sampled reserve/roof clipping and surface-stroke implementations, and query.mjs sampleTopSurface. Current tracked source/test searches find no consumers; the earlier audit's claim of remaining test consumers was inaccurate. Preserve active geometric material claims, slice gaps, explicit coordinate queries and both intended vase modes.

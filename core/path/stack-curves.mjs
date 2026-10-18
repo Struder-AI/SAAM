@@ -45,7 +45,7 @@ export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,
 
 // Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm
 // line; widthMm is in scope but the defaults are kept so existing spirals do not move.
-function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role}){
+function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,role}){
   const n=referenceStack.layers.length,sleeve=referenceStack.boundary?null:boundarySleeve(referenceStack);
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
   const foundationHeightMm=referenceStack.layers[0].heightMm??firstHeightMm;
@@ -72,7 +72,7 @@ function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,
       return {...frame,u,v:cross(normal,u),normal};
     })};
   }
-  const bead=spiralBeadCurve({profile,points:curve.points,turns,role,speedMmS,minimumTurnSeconds});
+  const bead=spiralBeadCurve({profile,points:curve.points,turns,role,speedMmS});
   // A layer gap that reverses (the stack folds back) deposits nothing there.
   const gaps=referenceStack.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
     const a=curve.frameSamples[i].point,b=curve.frameSamples[i+1].point,u=(a[0]+b[0])/2,v=(a[1]+b[1])/2;

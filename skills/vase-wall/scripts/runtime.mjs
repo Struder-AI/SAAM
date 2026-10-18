@@ -24,7 +24,7 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
   const referenceStack=geometry.referenceStack();
   const curve=spiralStackCurve({referenceStack,firstHeightMm:geometry.firstHeight,widthMm:process.lineWidthMm,
     levelEnd:settings.endTransition==='level',sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,
-    speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),minimumTurnSeconds:geometry.minimumTurnSeconds??process.minimumLayerSeconds,role:geometry.role??'vase-wall'});
+    speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),role:geometry.role??'vase-wall'});
   const {profile,notes:stackNotes,...centerline}=curve,levelTop=settings.endTransition==='level';
   const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,sequential:false,batches:[{
     ...geometry.batch,key:geometry.batch?.key??'wall',curves:[centerline],phase:geometry.batch?.phase??'vase-wall',layer:0,rank:geometry.start,

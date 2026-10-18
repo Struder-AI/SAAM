@@ -134,15 +134,13 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
     maximumAngleDeg=Math.max(maximumAngleDeg,maximumPathAngle(points));
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
     paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<PRINT_RESOLUTION_MM&&Math.abs(points[i+1][2]-end)<PRINT_RESOLUTION_MM?{boundaryRole:'rim'}:{})}))});
-    return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
   };
   const total=stack.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern repetitions',completed:0,total});
   for(const repetition of patternRepetitions(stack,{level,spanMm,firstHeightMm:firstHeight,referenceLengthMm})){
-    const first=paths.length;let length=0;
-    for(const {vertices,heights} of repetition.paths)length+=emitPath(vertices,heights,repetition.repeat+(level?2:1),repetition.repeat===(level?-1:0));
-    // The minimum layer time applies to each repeat: a whole turn of a sized pattern.
-    const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
+    const first=paths.length;
+    for(const {vertices,heights} of repetition.paths)emitPath(vertices,heights,repetition.repeat+(level?2:1),repetition.repeat===(level?-1:0));
+    const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS);
     for(let i=first;i<paths.length;i++)paths[i].speedMmS=speed;
     if(!continuous)batches.push({key:`repeat-${completed}`,stackSlice:{stackId:settings.id,index:completed},phase:'segmented-paths',layer:completed,curves:paths.slice(first),fanPercent:process.fanPercent,trimEnd:level&&completed===total-1,travel:{kind:'auto'}});
     completed++;onProgress?.({stage:'Mapping vase pattern repetitions',completed,total});
