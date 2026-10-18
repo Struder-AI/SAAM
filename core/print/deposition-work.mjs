@@ -106,7 +106,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
       construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
-    construct:context.construct,providesSurface:context.providesSurface,sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]}))).concat(work);
+    construct:context.construct,providesSurface:context.providesSurface,sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,materialContexts:materials,requires:[]}))).concat(work);
   const followers=curveSources.flatMap(context=>{
     const source=context.assignment.source,matching=baseNodes.filter(node=>node.kind==='slice'&&(node.sourceId===source.assignment||node.record.spec.id===source.assignment)&&(context.assignment.part===null||context.assignment.part===node.part));
     if(!matching.length)return [{key:'curves:'+context.assignment.id,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:context.assignment.part,context,nominalRank:0,requires:[]}];
@@ -127,10 +127,8 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part))){needs.add(other.key);execution.add(other.key);}
       if(references.some(reference=>(reference.assignment===other.sourceId||reference.assignment===other.record?.spec.id)&&
         (reference.index===undefined||reference.index===other.index)))needs.add(other.key);
-      if(node.kind==='slice'&&node.record.reference&&other.part===node.part){
-        if(node.record.reference.source!==null&&other.sourceId===node.record.reference.source)needs.add(other.key);
-        if(node.record.reference.source===null&&(other.providesSurface||other.kind==='slice'&&!other.record.reference))defaults.add(other.key);
-      }
+      if(node.kind==='slice'&&node.record.reference?.selection.kind==='terminal'&&other.part===node.part&&
+        node.record.reference.source===other.sourceId)needs.add(other.key);
       if(node.kind==='trace'&&assignment.curves?.some(c=>c.contact)&&(other.kind!=='trace'||nodes.indexOf(other)<nodes.indexOf(node)))defaults.add(other.key);
 
     }

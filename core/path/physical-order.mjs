@@ -3,10 +3,10 @@
 import {prepareCurvePath,curveRange,curveAt} from './curve-path.mjs';
 import {convexSupport,convexIntersects,convexSpatialIndex,DEFAULT_NOZZLE_GEOMETRY,NOZZLE_FORGIVENESS_MM,nozzleSideOffsetMm,nozzleReferenceFloorMm,
   convexBounds,convexBox,nozzleBoundsClear,rectangularSection,rectangularSweepEnvelope,nozzleCurveEnvelope,nozzleAt,nozzleSweepReach,
-  nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
+  nozzleIntervalIntersects,translationContactInterval,referenceHeightGraph,sectionNormalProjectionBound,sectionNormalConeProjectionBound,movingAxisSupportBound,movingSectionBounds} from '../geom/convex-clearance.mjs';
 import {add,scale,dot,cross,subtract,length,requireThat} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
-import {frameCone} from '../geom/curve-query.mjs';
+import {frameCone,prepareNumericalCurve,numericalCurveTangentProjection} from '../geom/curve-query.mjs';
 
 const equalVector=(a,b)=>a.length===b.length&&a.every((v,i)=>v===b[i]);
 function constantVector(profile,select=value=>value){
@@ -40,19 +40,38 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
   if(!graph||!Number.isFinite(graph.slope)||graph.slope>=1/Math.tan(includedAngleDeg*Math.PI/360))
     graph=referenceHeightGraph({kind:'linear'},axis);
   const curves=new Map(),frames=new Map(),projections=new Map(),courses=new Map(),slices=new Map(),producers=new Map(),metric=Math.hypot(1,graph.slope);
-  function frameFloor(curveId){
-    if(frames.has(curveId))return frames.get(curveId);
-    const curve=source.curves[curveId];if(curve.geometry.kind!=='polyline'){frames.set(curveId,-1);return -1;}
-    const points=curve.geometry.points,lengths=[0];
-    for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+length(subtract(points[i],points[i-1])));
-    const cuts=[...new Set([...lengths.map(v=>v/lengths.at(-1)),...(curve.profiles.materialNormal.knots??[]).map(([u])=>u)])].sort((a,b)=>a-b);
-    let cosine=1;
-    for(let i=1;i<cuts.length;i++){
-      const a=curveAt(reader,curveId,cuts[i-1]),b=curveAt(reader,curveId,cuts[i],{side:'left'});
-      if(!a.tangent){cosine=-1;break;}
-      cosine=Math.min(cosine,sectionNormalProjectionBound(a.tangent,a.materialNormal,b.materialNormal,graph.axis));
+  function frameFloor(curveId,from=0,to=1){
+    if(!frames.has(curveId)){
+      const curve=source.curves[curveId],geometry=prepareNumericalCurve(curve.geometry);
+      if(geometry.kind==='point'){frames.set(curveId,null);return -1;}
+      const cuts=[...new Set([...geometry.parameters,...(curve.profiles.materialNormal.knots??[]).map(([u])=>u)])].sort((a,b)=>a-b);
+      const normal=constantVector(curve.profiles.materialNormal),size=2**Math.ceil(Math.log2(cuts.length-1)),tree=new Float64Array(size*2).fill(1);
+      for(let i=1;i<cuts.length;i++){
+        if(geometry.kind==='polyline'){
+          const a=curveAt(reader,curveId,cuts[i-1]),b=curveAt(reader,curveId,cuts[i],{side:'left'});
+          tree[size+i-1]=a.tangent?sectionNormalProjectionBound(a.tangent,a.materialNormal,b.materialNormal,graph.axis):-1;
+        }else if(normal){
+          const projection=numericalCurveTangentProjection(geometry,cuts[i-1],cuts[i],normal);
+          const deviation=Math.asin(projection)+Math.acos(Math.max(-1,Math.min(1,dot(normal,graph.axis))));
+          tree[size+i-1]=Math.cos(Math.min(Math.PI,deviation));
+        }else{
+          const range=curveRange(reader,curveId,cuts[i-1],cuts[i]);
+          tree[size+i-1]=sectionNormalConeProjectionBound(range.tangentCone,range.normalCone,graph.axis);
+        }
+      }
+      for(let i=size-1;i;i--)tree[i]=Math.min(tree[i*2],tree[i*2+1]);
+      frames.set(curveId,{cuts,size,tree});
     }
-    frames.set(curveId,cosine);return cosine;
+    const frame=frames.get(curveId);if(!frame)return -1;
+    const {cuts,size,tree}=frame;
+    const locate=(value,upper)=>{
+      let low=0,high=cuts.length;
+      while(low<high){const mid=(low+high)>>1;if(cuts[mid]<value||upper&&cuts[mid]===value)low=mid+1;else high=mid;}
+      return low;
+    };
+    let low=size+Math.max(0,locate(from,true)-1),high=size+Math.min(cuts.length-1,locate(to,false)),cosine=1;
+    while(low<high){if(low&1)cosine=Math.min(cosine,tree[low++]);if(high&1)cosine=Math.min(cosine,tree[--high]);low>>=1;high>>=1;}
+    return cosine;
   }
   for(const operation of Object.values(source.operations)){
     if(operation.kind!=='deposit')continue;
@@ -94,13 +113,16 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
     sweepTips.set(sweep,tip);return tip;
   }
   return {slope:graph.slope,courses:courses.size,rangeClear(a,b){
-      // An affine reference needs only interval position bounds plus the
-      // already-certified whole-course bead and nozzle projection margins.
-      // This proves clear ordered prefixes without comparing their segments.
-      if(graph.slope!==0)return false;
-      const receiver=courses.get(a.ref.id),material=courses.get(b.ref.id);if(!receiver||!material)return false;
+      // Local cones avoid a single steep section pessimizing an entire
+      // continuous curve. These remain interval bounds, never contact probes.
+      if(graph.slope!==0||!a.range.poseCone||!b.range.widthMm||!b.range.areaMm2)return false;
+      const cosine=Math.max(sectionNormalConeProjectionBound(b.tangentCone,b.normalCone,graph.axis),frameFloor(b.ref.curveId,b.ref.from,b.ref.to));
+      const sine=cosine>=0?Math.sqrt(Math.max(0,1-cosine*cosine)):1;
+      const depth=b.range.areaMm2[1]/b.range.widthMm[0],materialLift=b.range.widthMm[1]/2*sine-Math.min(0,cosine*depth);
+      const reference=scale(a.range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+a.range.poseCone.halfAngleRad;
+      const tipLift=nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),0,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm);
       const project=(bounds,high)=>graph.axis.reduce((sum,v,k)=>sum+v*bounds[(v>=0)===high?'max':'min'][k],0);
-      return project(a.range.bounds,false)+receiver.tipLift>project(b.range.bounds,true)+material.materialLift+ROUNDING_MM;
+      return project(a.range.bounds,false)+tipLift>project(b.range.bounds,true)+materialLift+ROUNDING_MM;
     },frameBounds(id){
       const course=courses.get(id);if(!course)return null;
       if(!projections.has(course.curveId)){

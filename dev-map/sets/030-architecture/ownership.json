@@ -28171,6 +28171,45 @@
     },
     "core/path/compose.mjs::resolveSourceOrder::trustedUnits": {
       "owner": "scheduling"
+    },
+    "core/print/generate.mjs::prepareModelInputs": {
+      "owner": "build-evaluate"
+    },
+    "core/print/manufactured-edges.mjs::manufacturedSlices": {
+      "owner": "build-evaluate"
+    },
+    "core/print/manufactured-edges.mjs::selectEdge": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::manufacturedSurfaceReadiness": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::traceSurfaceReadiness": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::surfaceFootprints": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::referenceSliceReadiness": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::contactSliceReadiness": {
+      "owner": "build-evaluate"
+    },
+    "core/print/surface-readiness.mjs::nativeBaseReadiness": {
+      "owner": "build-evaluate"
+    },
+    "core/geom/slice-material.mjs::sliceMaterialVolumeContact": {
+      "owner": "geometry"
+    },
+    "core/geom/convex-clearance.mjs::sectionNormalConeProjectionBound": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-query.mjs::numericalCurveTangentProjection": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-query.mjs::interiorParameters": {
+      "owner": "geometry"
     }
   },
   "retiredAssignments": [

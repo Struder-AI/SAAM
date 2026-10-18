@@ -38,7 +38,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   // stack completion and certifies internal access before scheduling.
   const after=[...new Set((node.executionRequires??node.requires).flatMap(prerequisiteIds))];
   let result;
-  if(node.construct)result=node.construct({node,plan,onProgress,materialReadiness:footprints=>manufacturedSurfaceReadiness(contexts,footprints,{part:node.part,exclude:node.sourceId,side:'upper'})});
+  if(node.construct)result=node.construct({node,plan,onProgress,materialReadiness:footprints=>manufacturedSurfaceReadiness(node.materialContexts??contexts,footprints,{part:node.part,exclude:node.sourceId,side:'upper'})});
   else if(node.kind==='slice'){
     result=sliceContextResult(node.record,{layerIndex:node.index});
   }else if(node.kind==='trace'){

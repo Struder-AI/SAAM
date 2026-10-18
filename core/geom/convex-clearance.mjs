@@ -642,6 +642,18 @@ export function sectionNormalProjectionBound(tangent,fromNormal,toNormal,axis){
   return Math.max(-1,dot(frame.normal,axis)-error);
 }
 
+// Projection of an orthogonalized section normal from bounded tangent/normal
+// cones. The projection operator changes by at most sin(tangent angle); a
+// ball around its reference vector bounds the resulting direction angle.
+export function sectionNormalConeProjectionBound(tangentCone,normalCone,axis){
+  if(!tangentCone||!normalCone)return -1;
+  const frame=sectionFrame(tangentCone.axis,normalCone.axis);if(!frame)return -1;
+  const error=2*Math.sin(normalCone.halfAngleRad/2)+Math.sin(Math.min(Math.PI/2,tangentCone.halfAngleRad));
+  if(error>=frame.projectedSize)return -1;
+  const angle=Math.acos(Math.max(-1,Math.min(1,dot(frame.normal,axis))))+Math.asin(error/frame.projectedSize);
+  return Math.cos(Math.min(Math.PI,angle));
+}
+
 // Lower-bound the tip's support along its moving outward axis relative to a
 // reference center. Position is affine and the frame follows one SO(3) arc.
 // |(P.n)''| <= 2|P'|*angle + max|P-center|*angle², so the endpoint scalar

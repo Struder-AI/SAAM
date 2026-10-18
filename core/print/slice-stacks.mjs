@@ -10,7 +10,7 @@ import {surfaceRegion} from '../geom/surface-region.mjs';
 import {terminalBoundaryReference} from './terminal-boundary.mjs';
 
 export function referenceSliceContext({assignment,shell,process,volumes}){
-  const source=assignment.surface.kind==='terminal'?assignment.surface.assignment:assignment.contact?.source??null;
+  const source=assignment.surface.kind==='terminal'?assignment.surface.assignment:null;
   const stack=assignment.stack??process,band=assignment.within.find(v=>v.kind==='normal-band');
   let layers=[];
   if(band){

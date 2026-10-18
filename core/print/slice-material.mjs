@@ -1,4 +1,5 @@
 // Upstream material claims and reference contexts; no deposition execution.
+import {intersect,difference} from '../region/intersection.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize} from '../private/toolpath/numeric.mjs';
 import {resolveSurfaceDomain} from './surface-domains.mjs';
@@ -112,6 +113,20 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
   const owners = sliceOwners(assignments, { shells:processShells, processes, materials, volumes, sources, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
   for(const owner of owners)owner.publicationShell??=shells.find(([part])=>part===owner.part)?.[1];
   const owned = prepareMaterialRegions(owners, { bands, onProgress, sharedMaterial:plan.experimental?.sharedMaterial===true });
+  // Native-chart masks alter owned material before layout, material readiness
+  // or generated layer consumers. They never claim material outside the owner.
+  for(const record of owned){
+    for(const layer of record.layers){
+      const mask=record.owner.assignment.sliceOverrides?.[layer.characterIndex??layer.index]?.regionUv??record.owner.assignment.regionUv;
+      if(mask===undefined)continue;
+      const kept=intersect(layer.region,mask),removed=difference(layer.region,kept);
+      layer.region=kept;layer.material=difference(layer.material??record.material.get(layer.index)??[],removed);
+      record.material.set(layer.index,difference(record.material.get(layer.index)??[],removed));
+    }
+    for(const layer of record.layers)if(layer.materialGrid)layer.materialGrid={...layer.materialGrid,
+      layers:layer.materialGrid.layers.map(entry=>({...entry,region:record.material.get(entry.index)??entry.region}))};
+    record.layers=record.layers.filter(layer=>layer.region.length);
+  }
   const contexts=[],notes=[...new Set([...processShells.flatMap(([,shell])=>shell.notes??[]),...owned.flatMap(stack=>stack.notes)])];
   for (const { owner, referenceStack, stackId, layers, material, substrate, sharedReport } of owned) {
     const { assignment } = owner;

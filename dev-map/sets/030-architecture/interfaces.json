@@ -2600,6 +2600,14 @@
         "call"
       ],
       "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+    },
+    {
+      "contract": "geometry-toolpath-numerics",
+      "target": "core/geom/curve-query.mjs::numericalCurveTangentProjection",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Conservative derivative-hull projection for section-frame access proofs; no scheduling policy in Geometry."
     }
   ],
   "retiredBindings": [

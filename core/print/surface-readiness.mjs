@@ -101,11 +101,11 @@ export function referenceSliceReadiness(record,contexts){
 // regeneration derives current native identities; the recipe stores no stale
 // slice indices and the agent supplies no operation dependency wiring.
 export function contactSliceReadiness(record,contexts,plan){
-  const contact=record.spec.settings.contact,explicit=contact?.source&&typeof contact.source==='object';
+  const contact=record.spec.settings.contact,explicit=contact?.source!==null&&contact?.source!==undefined;
   if(!contact?.surfaces?.length&&!explicit)return record;
   const selected=plan.geometry?geometrySelections(plan.geometry).get(record.owner.part):null;
   const placement=[selected?.xMm??0,selected?.yMm??0,selected?.zMm??0],byLayer=new Map();
-  const sources=contact.surfaces??(explicit?[{source:contact.source,part:record.owner.part,offsetMm:contact.offsetMm??[0,0,0]}]:[]);
+  const sources=contact.surfaces??(explicit?[{source:typeof contact.source==='string'?{assignment:contact.source}:contact.source,part:record.owner.part,offsetMm:contact.offsetMm??[0,0,0]}]:[]);
   for(const surface of sources){
     if(surface.part!==record.owner.part)continue;
     const reference=surface.source,sourcePart=Object.hasOwn(reference,'part')?reference.part:record.owner.part;
@@ -147,7 +147,7 @@ export function nativeBaseReadiness(record,materials){
     const footprint=surfaceFootprints(layer.slice,region,{...record.spec.settings,normalMm:direction?0:-depth});
     const base=direction?footprint.map(row=>row.map(point=>point.map((v,k)=>v-(layer.translationMm??depth)*direction[k]))):footprint;
     const required=manufacturedSurfaceReadiness(materials,base,{part:record.owner.part,exclude:record.owner.assignment.id,side:'upper'});
-    return required.length?{...layer,prerequisites:[...(layer.prerequisites??[]),...required]}:layer;
+    return required.length?{...layer,onSubstrate:true,firstBedLayer:false,gap:{...layer.gap,substrate:null},prerequisites:[...(layer.prerequisites??[]),...required]}:layer;
   });
   return {...record,spec:{...record.spec,layers}};
 }

@@ -7,44 +7,43 @@ metadata:
 
 # Hole transitions
 
-The [hole-support guidance](../hole-supports/SKILL.md) owns choice and finishing.
-Call `apply_extension` with `extensionId:"hole-transitions"` and an unused `id`.
+[Hole guidance](../hole-supports/SKILL.md) owns choice and finishing. Call
+`apply_extension` with `extensionId:"hole-transitions"` and a lowercase `id`.
+
+## Select edges
+
+Use a printed `base`: `{assignment,index,edge:{loop,ring:0}}` for Slice, or
+`{assignment,repetition,edge:{curve}}` for Trace. Optional `part` disambiguates
+components; `intersect_geometry`'s `edges` request discovers them. A geometric
+`target` can also select `{geometry:"existing-spatial-curve-id",part:null}`.
+The tool derives geometry and prerequisites; no operation IDs are authored.
 
 ## Membrane and wave
 
-Select an existing printed `base` edge: `{assignment,index,edge:{loop,ring:0}}`
-for Slice, or `{assignment,repetition,edge:{curve}}` for Trace. Optional `part`
-disambiguates a producer's component. Use `intersect_geometry`'s `edges` request
-for discovery. Geometry and prerequisites resolve automatically.
+`strategy:"membrane"` uses one closed boundary, or two printed bounding edges.
+Its straight spans preserve 3D endpoints, including nonplanar bounds. This is
+[bridging](../bridging/SKILL.md)'s exact construction and dependency wiring.
+`strategy:"wave"` interpolates fronts from base to target. Only the base and
+previous front are required; the target defines geometry. Both retain the solid.
 
-`strategy:"membrane"` uses one closed base boundary, or `base` and `target`
-printed bounds for a loft. Straight strands preserve the actual 3D endpoint
-positions, including nonplanar boundaries. This is the same construction and
-manufacturing wiring as [bridging](../bridging/SKILL.md), with no special hole
-geometry or continuation wall IDs. The generated Trace requires its supporting
-edge or edges. It leaves part geometry unchanged.
-
-`strategy:"wave"` requires `base` and a final `target` edge. The target can be a
-printed-edge selector or `{geometry:"existing-spatial-curve-id",part:null}` for
-an existing XYZ curve. It defines geometry and is never a printed prerequisite.
-Interpolated fronts require the base, then only the previous front. No seed
-regions, source stack, continuation wiring, offsets, brim or plate base are used.
-
-Both use `spacingMm` (default bead width), `layerHeightMm`, `beadWidthMm`,
-`speedMmS` and `sampleStepMm` overrides. Process inherits the base edge.
-`correspondence` chooses paired-curve directions/seams; `angleDeg` chooses the
-single-boundary membrane's span direction. `normalSide` is 1 or -1. Regenerate and
-review after changes. Bridge endpoints rise one bead height above their support;
-wave geometry follows the selected base-to-target surface.
+Process inherits the base. Overrides: `spacingMm` (bead width), `layerHeightMm`,
+`beadWidthMm`, `speedMmS`, `sampleStepMm`, seam/direction `correspondence`,
+`angleDeg` for one-boundary spans, and `normalSide` (1 or -1). Membrane endpoints
+rise one bead height; waves follow the selected base-to-target surface.
 
 ## Stepped reduction
 
-The current stepped helper still uses `sourceAssignment`, `centerMm`,
-`boreRadiusMm`, `counterboreRadiusMm`, `angleDeg`, `speedMmS` and `toleranceMm`.
-It requires a planar source shoulder and four continuing bore layers. It cuts
-three intermediate openings and publishes their native slice order. This older
-construction remains scheduled for replacement by the common edge mechanism;
-the membrane/wave interfaces above do not use it.
+`strategy:"stepped-reduction"` selects a closed native Slice base and a final
+edge on a later slice of that stack. Partial bridge bands become ordinary
+`sliceOverrides.regionUv` material masks with dense, alternating row fill.
+Only native predecessor order applies; no duplicate producer or target
+prerequisite is added. The design solid stays unchanged.
 
-Saved [examples](examples/README.md) are ordinary recipe records, not physical
-qualification. Review cooling, span, attachment and finishing.
+The final aperture must be convex, fit inside the base and finish within half a
+bead width of the last stage; select a later target for more stages. Concave
+passages need explicit bridge bands. Tilted/nonplanar charts use the same query,
+physical offsets and masks. Optional `angleDeg`, `sampleStepMm` and `toleranceMm`
+control layout. Reapply from the prior recipe after edge or stack-spacing edits.
+
+[Examples](examples/README.md) verify software construction only. Review span,
+cooling, attachment, machine access and finishing.

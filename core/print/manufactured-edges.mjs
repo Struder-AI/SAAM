@@ -3,7 +3,8 @@
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {compileRecipe} from './plan.mjs';
-import {preparePathGeometry,generateModelResults} from './generate.mjs';
+import {preparePathGeometry,prepareModelInputs,generateModelResults} from './generate.mjs';
+import {prepareSliceContexts} from './slice-material.mjs';
 import {edgeReference} from './operation-references.mjs';
 
 export async function manufacturedEdges(plan,queries,{includeGeometry=true}={}){
@@ -67,4 +68,18 @@ export async function selectEdge(plan,selection){
   requireThat((curve.points||curve.nurbs)&&typeof curve.closed==='boolean','Select a spatial XYZ curve; resolve mapped geometry to an edge first.');
   return {selection,reference:null,part:selection.part??null,closed:curve.closed,
     curve:{closed:curve.closed,...(curve.points?{points:curve.points}:{nurbs:curve.nurbs})},process:plan.process};
+}
+
+// Native nominal regions for authoring. No deposited course or schedule is read.
+export async function manufacturedSlices(plan,{assignment,part}){
+  requireThat(typeof assignment==='string'&&assignment.length,'Choose a native Slice producer.');
+  plan=compileRecipe(plan).plan;
+  const prepared=await prepareModelInputs(plan,await preparePathGeometry(plan));
+  const contexts=prepareSliceContexts(prepared).contexts.filter(record=>record.owner.assignment.id===assignment&&
+    (part===undefined||record.owner.part===part));
+  requireThat(contexts.length===1&&!contexts[0].reference,'Choose one native Slice stack and its part.');
+  const record=contexts[0];
+  return {assignment,part:record.owner.part,process:record.context.process,layers:record.spec.layers.map(layer=>({
+    index:layer.index,slice:layer.slice,region:layer.region,direction:layer.direction,
+    translationMm:layer.translationMm,heightMm:layer.heightMm}))};
 }

@@ -1,6 +1,6 @@
 // One geometry retention boundary for Slice, authored/generated Trace and
 // modulation. Native witnesses survive non-geometric edits; changed positions
-// receive a new bounded NURBS construction, never the old curve's identity.
+// receive certified new geometry or retain their faithful samples.
 import {mappedSurfacePath} from '../geom/surface-path.mjs';
 import {fitSampledCurve,curveStorageReduced} from '../geom/curve-fit.mjs';
 import {strokeRange} from './deposition.mjs';
@@ -20,7 +20,15 @@ export function constructionCurve(input,surface){
   const mapped=reference?mappedSurfacePath(reference,chart,translation.every(value=>value===0)?points:points.map(point=>point.map((value,k)=>value-translation[k]))):null;
   const geometry=mapped?{...mapped.geometry,controlPoints:mapped.geometry.controlPoints.map(point=>point.map((value,k)=>value+translation[k]))}:null;
   if(mapped&&curveStorageReduced(geometry,points)&&regularGeometry(geometry))return {...mapped,geometry,points,mapped:true};
-  const fitted=fitSampledCurve(points);
+  // A positional fit alone does not certify the material frame: a near-stop
+  // can tilt an orthogonalized bead despite tiny centerline error. Automatic
+  // fitting of sampled deposition therefore retains a constant material plane.
+  // Unproved frames keep the original polyline; native/mapped witnesses above
+  // already carry their own construction geometry.
+  const normalAt=i=>stroke.normals?.[i]??stroke.frameSamples?.[i]?.normal??stroke.segmentMetadata?.[Math.min(i,points.length-2)]?.surfaceNormal;
+  const normal=normalAt(0);
+  if(!normal||points.some((_,i)=>normalAt(i)?.some((value,k)=>value!==normal[k])??true))return null;
+  const fitted=fitSampledCurve(points,{planeNormal:normal});
   return fitted?{...fitted,fitted:true}:null;
 }
 export function retainConstructionCurves(result){

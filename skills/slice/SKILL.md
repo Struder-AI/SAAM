@@ -12,6 +12,8 @@ Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../
 `plan.slices` is `{version:1,assignments:[...]}`. `slice` and bulk `adjust_recipe`
 edit this same list. Ordinary `body` uses two loops, 20% fill and three solid
 slices at the top and bottom. Dependencies name prepared material work; construction waits for those prerequisites.
+`regionUv` optionally clips owned material in its native chart, globally or in `sliceOverrides`; it cannot add material or claim another owner. Geometry masks precede layout and readiness.
+
 Slice publishes immediate-predecessor completion and internal access validity, independent of world Z. `substrate:{assignment,index?,part?}` selects a manufactured base. Stack spacing supplies local gaps; Slice reads prepared material, while completed-deposition adaptation remains experimental Trace work.
 
 ## Settings

@@ -2,8 +2,8 @@
 // losing its parameter or silently smoothing a feature beyond print accuracy.
 // Bernstein hulls bound the complete difference on every original edge.
 import {restrictBezierLine} from './bezier-net.mjs';
-import {distance} from './tolerance.mjs';
-import {PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
+import {distance,requireThat} from './tolerance.mjs';
+import {ROUNDING_MM,PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 // Numerical geometry serializes as ASCII. Include representation keys and
 // numeric digits when choosing storage, rather than counting scalar values.
@@ -41,15 +41,24 @@ function differenceBound(rows,points,parameters,first,last){
   }
   return state;
 }
-export function fitSampledCurve(points,{toleranceMm=PRINT_RESOLUTION_MM/2,forceNative=false}={}){
+export function fitSampledCurve(points,{toleranceMm=PRINT_RESOLUTION_MM/2,forceNative=false,planeNormal=null}={}){
   if(points.length<2)return null;
+  const plane=planeNormal?{normal:planeNormal.map(v=>v/Math.hypot(...planeNormal)),origin:points[0]}:null;
+  if(plane){
+    requireThat(plane.normal.length===3&&plane.normal.every(Number.isFinite),'A fitted material plane needs a finite nonzero normal.');
+    if(points.some(point=>Math.abs(point.reduce((sum,v,k)=>sum+(v-plane.origin[k])*plane.normal[k],0))>ROUNDING_MM))return null;
+  }
   const lengths=[0];
   for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+distance(points[i-1],points[i]));
   if(!(lengths.at(-1)>0)||lengths.some((value,i)=>i&&value===lengths[i-1]))return null;
   const parameters=lengths.map(value=>value/lengths.at(-1)),pieces=[],pending=[[0,points.length-1]],maximum={error:0};
   while(pending.length){
     const [first,last]=pending.pop(),line=[points[first],points[last]],straight=differenceBound(line,points,parameters,first,last);
-    const rows=straight.error<=toleranceMm?line:controls(points,parameters,first,last);
+    const candidate=straight.error<=toleranceMm?line:controls(points,parameters,first,last);
+    const rows=plane?candidate.map(point=>{
+      const distance=point.reduce((sum,v,k)=>sum+(v-plane.origin[k])*plane.normal[k],0);
+      return point.map((v,k)=>v-distance*plane.normal[k]);
+    }):candidate;
     const bound=rows===line?straight:differenceBound(rows,points,parameters,first,last);
     if(last===first+1||bound.error<=toleranceMm&&positiveSpeed(rows)){
       pieces.push({rows,from:parameters[first],to:parameters[last]});maximum.error=Math.max(maximum.error,bound.error);continue;

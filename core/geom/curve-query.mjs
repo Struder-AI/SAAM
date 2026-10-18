@@ -61,7 +61,7 @@ export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=
   consider(from);consider(to);
   if(curve.kind==='point')return best.distance<=maxDistanceMm?best.u:null;
   if(curve.kind==='polyline'){
-    const cuts=[from,...curve.breaks.filter(u=>u>from&&u<to),to];
+    const cuts=[from,...interiorParameters(curve.breaks,from,to),to];
     for(let i=1;i<cuts.length;i++){
       const a=numericalCurveAt(curve,cuts[i-1]).point,b=numericalCurveAt(curve,cuts[i],'left').point,delta=b.map((v,k)=>v-a[k]),length2=dot(delta,delta);
       const t=length2?Math.max(0,Math.min(1,dot(point.map((v,k)=>v-a[k]),delta)/length2)):0;
@@ -132,6 +132,29 @@ function nativePiece(curve,from,to){
     tangentCone:directions.length?normalCone(directions):{axis:[1,0,0],halfAngleRad:Math.PI},interpolationErrorMm,
     chordErrorMm:Math.max(...points.map(point=>pointChordDistance(point,points[0],points.at(-1))))+rounding};
 }
+// Absolute unit-tangent projection from derivative Bernstein hulls. Positive
+// weights cancel in the ratio. A separating derivative direction supplies a
+// norm lower bound even when a world-coordinate box contains the origin.
+export function numericalCurveTangentProjection(curve,from,to,axis){
+  if(curve.kind==='point')return 1;
+  const cuts=[from,...interiorParameters(curve.breaks,from,to),to];let maximum=0;
+  for(let i=1;i<cuts.length;i++){
+    if(curve.kind==='polyline'){
+      maximum=Math.max(maximum,Math.abs(dot(numericalCurveAt(curve,(cuts[i-1]+cuts[i])/2).tangent,axis)));continue;
+    }
+    const prepared=preparedNativePiece(curve,nativeSpan(curve,cuts[i-1])),span=prepared.to-prepared.from;
+    const coefficients=restrictBezierLine(prepared.coefficients,[(cuts[i-1]-prepared.from)/span,(cuts[i]-prepared.from)/span]);
+    const center=coefficients.reduce((sum,p)=>sum.map((v,k)=>v+p[k]),[0,0,0]),size=Math.hypot(...center);
+    if(!size)return 1;
+    const direction=center.map(v=>v/size),weight=Math.max(...prepared.rows.map(p=>p[3]));
+    const guard=prepared.rounding*weight**2+FLOAT64_EPSILON*32*Math.max(...coefficients.map(p=>Math.hypot(...p)));
+    const lower=Math.min(...coefficients.map(p=>dot(p,direction)))-guard;
+    if(lower<=0)return 1;
+    const upper=Math.max(...coefficients.map(p=>Math.abs(dot(p,axis))))+guard;
+    maximum=Math.max(maximum,Math.min(1,upper/lower));
+  }
+  return maximum;
+}
 function boundedNativePiece(curve,from,to,tolerance){
   const whole=nativePiece(curve,from,to);
   if(!tolerance||whole.lengthMm[1]-whole.lengthMm[0]<=tolerance)return whole;
@@ -139,6 +162,11 @@ function boundedNativePiece(curve,from,to,tolerance){
   const left=boundedNativePiece(curve,from,mid,tolerance/2),right=boundedNativePiece(curve,mid,to,tolerance/2);
   return {...whole,lengthMm:[left.lengthMm[0]+right.lengthMm[0],left.lengthMm[1]+right.lengthMm[1]],
     speed:[Math.min(left.speed[0],right.speed[0]),Math.max(left.speed[1],right.speed[1])]};
+}
+function interiorParameters(parameters,from,to){
+  const find=(value,upper)=>{let low=0,high=parameters.length;
+    while(low<high){const mid=(low+high)>>1;if(parameters[mid]<value||upper&&parameters[mid]===value)low=mid+1;else high=mid;}return low;};
+  return parameters.slice(find(from,true),find(to,false));
 }
 export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
   if(curve.kind==='point')return {bounds:{min:curve.point,max:curve.point},lengthMm:[0,0],speed:[0,0],tangentCone:null,chordErrorMm:0,interpolationErrorMm:0};
@@ -157,7 +185,7 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
     const length=curve.length*(to-from);
     return {bounds,lengthMm:[length,length],speed:[curve.length,curve.length],tangentCone:normalCone(directions),chordErrorMm:state.error,interpolationErrorMm:state.interpolationError};
   }
-  const cuts=[from,...curve.breaks.filter(u=>u>from&&u<to),to],pieces=cuts.slice(1).map((end,i)=>
+  const cuts=[from,...interiorParameters(curve.breaks,from,to),to],pieces=cuts.slice(1).map((end,i)=>
     boundedNativePiece(curve,cuts[i],end,lengthToleranceMm?lengthToleranceMm*(end-cuts[i])/(to-from):null));
   const bounds={min:[0,1,2].map(k=>Math.min(...pieces.map(p=>p.bounds.min[k]))),max:[0,1,2].map(k=>Math.max(...pieces.map(p=>p.bounds.max[k])))};
   // The distance to a fixed segment is convex, hence its maximum on every
