@@ -21,10 +21,10 @@ async function stepped(source,request,Geometry){
   check(Object.keys(request).every(key=>['strategy','id','base','target','angleDeg','sampleStepMm','toleranceMm'].includes(key)),
     'Stepped reduction selects a printed base and a final edge, with optional angle and geometric resolution.');
   const base=await Geometry.Recipe.selectEdge(request.base),target=await Geometry.Recipe.selectEdge(request.target);
-  check(base.reference?.index!==undefined&&base.closed&&target.closed,'Stepped reduction needs a closed native Slice base and closed target edge.');
-  const part=base.reference.part??null;
-  check((target.reference?.part??target.part??null)===part,'The transition edges must use the same part frame.');
-  const parent=source.slices.assignments.find(a=>a.id===base.reference.assignment);
+  check(base.selection.slice?.index!==undefined&&base.closed&&target.closed,'Stepped reduction needs a closed native Slice base and closed target edge.');
+  const part=base.selection.slice.part??null;
+  check((target.selection.slice?.part??target.part??null)===part,'The transition edges must use the same part frame.');
+  const parent=source.slices.assignments.find(a=>a.id===base.selection.slice.assignment);
   check(parent&&!parent.construction&&!parent.join,'The base must belong to an ordinary Slice stack.');
   const stack=await Geometry.Recipe.slices({assignment:parent.id,part}),width=stack.process.lineWidthMm;
   const sampleStepMm=request.sampleStepMm??width/2,toleranceMm=request.toleranceMm??Geometry.resolutionMm;
@@ -39,21 +39,19 @@ async function stepped(source,request,Geometry){
       check(hits.length,'An edge leaves the selected native stack chart.');return hits[0];
     });
   };
-  const terminal=target.reference?.assignment===parent.id&&target.reference.index!==undefined?
-    stack.layers.find(layer=>layer.index===target.reference.index):stack.layers.map(layer=>({layer,error:Math.max(...projected(layer,last).map(hit=>Math.abs(hit.distanceMm)))})).toSorted((a,b)=>a.error-b.error)[0]?.layer;
+  const terminal=target.selection.slice?.assignment===parent.id&&target.selection.slice.index!==undefined?
+    stack.layers.find(layer=>layer.index===target.selection.slice.index):stack.layers.map(layer=>({layer,error:Math.max(...projected(layer,last).map(hit=>Math.abs(hit.distanceMm)))})).toSorted((a,b)=>a.error-b.error)[0]?.layer;
   check(terminal&&Math.max(...projected(terminal,last).map(hit=>Math.abs(hit.distanceMm)))<=toleranceMm,
     'The target edge must lie on a native slice of the base stack.');
-  const layers=stack.layers.filter(layer=>layer.index>base.reference.index&&layer.index<terminal.index);
-  check(layers.length&&layers.length===terminal.index-base.reference.index-1,'Keep native transition slices between the base and final edge.');
+  const layers=stack.layers.filter(layer=>layer.index>base.selection.slice.index&&layer.index<terminal.index);
+  check(layers.length&&layers.length===terminal.index-base.selection.slice.index-1,'Keep native transition slices between the base and final edge.');
   const plan=structuredClone(source),owner=plan.slices.assignments.find(a=>a.id===parent.id),stages=[];
   const overrides=owner.sliceOverrides??[];
   owner.sliceOverrides=Array.from({length:Math.max(overrides.length,terminal.index)},(_,i)=>({...overrides[i]}));
   for(const [ordinal,layer] of layers.entries()){
     const boundary=(edge,points)=>{
       const loop=projected(layer,points).map(hit=>hit.chartPoint),region=Geometry.union([loop],[]);
-      // Slice perimeter edges are bead centerlines; recover their inner free
-      // aperture. A saved geometric edge already defines the aperture itself.
-      return edge.reference?.edge?.loop!==undefined?Geometry.offsetSliceRegion(layer.slice,region,-edge.widthMm/2,{sampleStepMm}):region;
+      return region;
     };
     const opening=boundary(base,first),goal=boundary(target,last);
     check(opening.length===1&&goal.length===1&&area(Geometry.difference(goal,opening))<=toleranceMm**2,'The final aperture must fit inside the base aperture.');
@@ -82,7 +80,7 @@ async function stepped(source,request,Geometry){
     stages.push({index:layer.index,angleDeg,apertureAreaChart2:area(aperture)});
   }
   check(parent.fillOrder===null,'Stepped reduction uses ordinary row fill, not causal-front or cell fill.');
-  return {assignmentRequests:plan.slices.assignments,report:{strategy:'stepped-reduction',base:base.reference,target:target.reference??target.selection,
+  return {assignmentRequests:plan.slices.assignments,report:{strategy:'stepped-reduction',base:base.selection,target:target.selection,
     stages,prerequisites:'Native predecessor slices; the target is geometry, not printed readiness.',
     geometry:'Partial apertures are saved Slice material masks; the design solid is unchanged.',physicalQualification:'Unverified; review bridge span, cooling and removal.'}};
 }
@@ -90,7 +88,7 @@ async function stepped(source,request,Geometry){
 export async function editHoleTransition(source,request,Geometry){
   check(request&&['stepped-reduction','membrane','wave'].includes(request.strategy),'Choose stepped-reduction, membrane or wave.');
   check(typeof request.id==='string'&&/^[a-z][a-z0-9-]*$/.test(request.id),'Choose a lowercase hyphenated id.');
-  check(Geometry.Recipe?.constructEdgePaths&&Geometry.Recipe?.slices,'Hole transitions need the common printed-edge and native-slice interfaces.');
+  check(Geometry.Recipe?.constructEdgePaths&&Geometry.Recipe?.slices,'Hole transitions need the common geometric-edge and native-slice interfaces.');
   if(request.strategy==='stepped-reduction')return stepped(source,request,Geometry);
   const {strategy,...settings}=request,prior=source.slices?.assignments??[];
   check(!prior.some(a=>a.id===request.id),'The transition id already exists.');

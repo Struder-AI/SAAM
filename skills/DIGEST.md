@@ -34,7 +34,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 |---|---|
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Extension that fits a sleeve, repeats authored patterns and calls Trace. |
 | [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Trace spiral wall and optional solid base. |
-| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, using the shared printed-edge construction. |
+| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, using the shared geometric-edge construction. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Catalog heat-set bores with reinforcement following actual Slice layers. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |

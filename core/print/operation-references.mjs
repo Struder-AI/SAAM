@@ -23,7 +23,7 @@ export function operationPrerequisite(value){
 export function validateEdgeAfter(value,assignment){
   requireThat(value===undefined||Array.isArray(value)&&value.every(entry=>entry&&Object.keys(entry).sort().join()==='after,target'&&
     edgeReference(entry.target)&&entry.target.assignment===assignment&&Array.isArray(entry.after)&&entry.after.length&&entry.after.every(operationPrerequisite)),
-    'edgeAfter binds selected printed edges in this assignment to required manufacturing work.');
+    'edgeAfter binds symbolic course targets in this assignment to required manufacturing work.');
 }
 
 function selectedOperation(assignments,target){
@@ -60,7 +60,12 @@ export function withOperationAfter(assignments,target,after){
     const assignment={...selected,edgeAfter:entries};validateEdgeAfter(entries,selected.id);
     return assignments.map(prior=>prior===selected?assignment:prior);
   }
-  const selected=selectedOperation(assignments,target),assignment=structuredClone(selected.assignment);
+  const wholeSlice=target&&typeof target==='object'&&Number.isSafeInteger(target.index)&&target.index>=0&&
+    Object.keys(target).every(key=>['assignment','index','part'].includes(key));
+  const owner=wholeSlice?assignments.find(a=>a.id===target.assignment):null;
+  if(wholeSlice)requireThat(owner&&!owner.construction&&!owner.join&&(target.part??owner.part)===(owner.part??null),
+    'Select an ordinary, part-specific Slice target.');
+  const selected=wholeSlice?{assignment:owner,key:'all',index:target.index,id:null}:selectedOperation(assignments,target),assignment=structuredClone(selected.assignment);
   requireThat(Array.isArray(after)&&after.length,'Supply required predecessors.');
   const required=after.map(value=>operationPrerequisite(value)?value:operationId(assignments,value));
   requireThat(required.every(value=>value!==selected.id&&value?.assignment!==assignment.id),'An operation cannot depend on itself or its enclosing assignment.');

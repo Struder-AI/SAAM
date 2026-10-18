@@ -42,7 +42,7 @@ function resolveOperationReferences(plan,results){
     }else if(!assignment.construction){
       for(const [index,settings] of (assignment.sliceOverrides??[]).entries())for(const [group,after] of Object.entries(settings.operationAfter??{})){
         if(!after.length||JSON.stringify(after)===JSON.stringify(assignment.operationAfter?.[group]))continue;
-        const targets=(byAssignment.get(assignment.id)??[]).filter(id=>id.endsWith(':'+assignment.id+':'+index+':'+group)||id===assignment.id+':'+index+':'+group);
+        const targets=(byAssignment.get(assignment.id)??[]).filter(id=>group==='all'?id.includes(':'+assignment.id+':'+index+':')||id.startsWith(assignment.id+':'+index+':'):id.endsWith(':'+assignment.id+':'+index+':'+group)||id===assignment.id+':'+index+':'+group);
         requireThat(targets.length,'Required Slice target was not constructed: '+assignment.id+':'+index+':'+group);
       }
     }

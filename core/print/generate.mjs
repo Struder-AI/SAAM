@@ -2,7 +2,8 @@ import {prepareSliceMaterial,sliceMaterialSolids} from '../geom/slice-material.m
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
-import {extensionDeposition,extensionSummary} from '../../skills/deposition.mjs';
+import {extensionDeposition,extensionMaterialBands,extensionSummary} from '../../skills/deposition.mjs';
+import {prepareProcessSources} from '../extensions/process-sources.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared deposition
 // and their finalized-material consumers.
@@ -71,24 +72,27 @@ async function prepareAssignmentGeometry(plan,assignments,geometry){
   return {placed,componentShells,shells,volumes,sources,geometryFailures};
 }
 
-// Survey every selected skin before body ownership, then finalize each
-// supporting producer before constructing surface consumers.
-// Prepare the same geometry/material inputs for generation and authoring.
-// No deposition or execution is constructed here.
-export async function prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()}){
-  // An assembly construction with no component chosen uses the whole assembly.
+// Geometry/material intent is prepared once, independently of deposition
+// runtimes. Authoring queries and construction consume this same boundary.
+export async function prepareModelGeometry(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()}){
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,sources,contexts,engines:await extensionEngines(),
-    processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
-  const expanded={...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...extensions.assignments]}};
-  const contributedGeometry=await prepareAssignmentGeometry(expanded,extensions.assignments,{placed,componentShells,shells,volumes,sources,geometryFailures});
-  const contributed=extensions.assignments.filter(assignment=>assignment.construction).map(assignment=>({assignment,
-    shell:shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(expanded,assignment).process}));
+  const engines=await extensionEngines(),processes=await prepareProcessSources({plan,placed,componentShells,
+    processForAssignment:assignment=>assignmentPlan(plan,assignment).process},engines);
+  const expanded={...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...processes.assignments]}};
+  const geometry=await prepareAssignmentGeometry(expanded,processes.assignments,{placed,componentShells,shells,volumes,sources,geometryFailures});
+  return {...geometry,plan:expanded,...processes,contexts,engines,bands:extensionMaterialBands(contexts),combineSolids:engines.Geometry.combineSolids};
+}
+
+export async function prepareModelInputs(plan,geometry){
+  const prepared=await prepareModelGeometry(plan,geometry),{contexts,engines}=prepared;
+  const extensions=await extensionDeposition({...prepared,plan,contexts,engines});
+  const contributed=prepared.assignments.filter(assignment=>assignment.construction).map(assignment=>({assignment,
+    shell:prepared.shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(prepared.plan,assignment).process}));
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source),...contributed];
-  return {...contributedGeometry,plan:expanded,...extensions,constructions};
+  return {...prepared,...extensions,constructions};
 }
 
 export async function generateModelResults(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map(),generation},onProgress) {
@@ -98,11 +102,7 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   plan=generation.retain(plan);
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const extensions=await prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures});
-  generation.register({...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...extensions.declarations]}},extensions.assignmentOwners);
-  generation.register(extensions.plan,extensions.assignmentOwners);
-  for(const [id,error] of extensions.processFailures)generation.fail(id,error);
-  for(const [id,error] of extensions.geometryFailures)generation.fail(id,error);
-  generation.seal();
+  generation.admit({...extensions,failures:[...extensions.processFailures,...extensions.geometryFailures]});
   const sliced=finalizedSliceResults({...extensions,generation,onProgress});
   if(extensions.materialRequirements.size)for(const result of sliced.results){
     result.materialReadiness=[];

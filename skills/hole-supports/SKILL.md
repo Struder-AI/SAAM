@@ -11,7 +11,7 @@ Choose in chat for a recess narrowing into a bore above air; review removal acce
 
 | Construction | Treatment and finishing | Reference scope |
 |---|---|---|
-| [Removable landing support](../bridge-supports/SKILL.md) · [example](../bridge-supports/examples/removable.json) | Printed base or explicit plate → two-loop support courses → selected landing edge. Remove afterward. | Existing printed edges; open or closed, with matched geometry. Plate bases are explicit. |
+| [Removable landing support](../bridge-supports/SKILL.md) · [example](../bridge-supports/examples/removable.json) | Printed base or explicit plate → two-loop support courses → selected landing edge. Remove afterward. | Geometric boundaries with separate readiness; open or closed. Plate bases are explicit. |
 | [Drill-through membrane](../hole-transitions/SKILL.md) · [example](examples/membrane.json) | Printed boundary → straight bridge spans. Pierce or drill through afterward. | One closed edge or two loft bounds, including nonplanar geometry; identical to general bridging. |
 | [Stepped reduction](../hole-transitions/SKILL.md) · [example](../hole-transitions/examples/stepped.json) | Partial bridge stages retain an open passage, then resume the bore. | Select the printed base and final edge; ordinary native Slice masks own the partial bridge stages. |
 | [Wave shoulder](../hole-transitions/SKILL.md) · [example](../hole-transitions/examples/wave.json) | Printed base edge → interpolated fronts toward a final geometric edge. | Paired edges, including nonplanar geometry. Only the base edge is an external prerequisite. |

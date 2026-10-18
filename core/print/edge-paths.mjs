@@ -1,6 +1,6 @@
 // One manufacturing boundary for membrane/bridge spans and advancing fronts.
 // Geometry builds the same edge surface; wrappers choose process and terminology.
-import {selectManufacturedEdge,selectEdge} from './manufactured-edges.mjs';
+import {selectEdge} from './geometric-references.mjs';
 import {curveAssignment} from './curves.mjs';
 import {geometryOperations} from '../geom/operations.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
@@ -15,14 +15,15 @@ export async function constructEdgePaths(plan,request){
   requireThat(['span','wave'].includes(request.mode),'Choose span or wave edge construction.');
   requireThat(request.normalSide===undefined||[1,-1].includes(request.normalSide),'normalSide must be 1 or -1.');
   requireThat(request.correspondence===undefined||Object.keys(request.correspondence).every(key=>['baseDirection','landingDirection','baseSeam','landingSeam'].includes(key)),'Correspondence selects edge directions and seams.');
-  const Geometry=geometryOperations(),base=await selectManufacturedEdge(plan,request.base),target=request.target?await selectEdge(plan,request.target):null;
-  const part=base.reference.part??null;
-  requireThat(!target||(target.reference?.part??target.part??null)===part,'Bounding edges must use the same part frame.');
+  const Geometry=geometryOperations(),base=await selectEdge(plan,request.base),target=request.target?await selectEdge(plan,request.target):null;
+  const part=base.part??null;
+  requireThat(!target||(target.part??null)===part,'Bounding edges must use the same part frame.');
   const process={...plan.process,...base.process},height=positive(request.layerHeightMm??process.layerMm,'layerHeightMm');
   const width=positive(request.beadWidthMm??process.lineWidthMm,'beadWidthMm'),speed=positive(request.speedMmS??process.planarSpeedMmS,'speedMmS');
   const spacing=positive(request.spacingMm??width,'spacingMm'),sampleStepMm=positive(request.sampleStepMm??width/2,'sampleStepMm');
   const normal=base.materialNormal?.map(v=>v*(request.normalSide??1));
-  const curves=[],after=[base.reference],repetitionIds=[],repetitionAfter={};
+  requireThat(base.readiness,'A base edge needs separate manufacturing readiness.');
+  const curves=[],after=[base.readiness],repetitionIds=[],repetitionAfter={};
   if(request.mode==='wave'){
     requireThat(target,'An advancing front needs its base edge and final geometric edge.');
     const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal});
@@ -36,12 +37,12 @@ export async function constructEdgePaths(plan,request){
   }else{
     let rows,referenceNormal=normal;
     if(target){
-      requireThat(target.reference,'Both bridge bounds must name printed edges; a geometric target is sufficient only for a wave.');
+      requireThat(target.readiness,'Both bridge bounds need manufacturing readiness.');
       const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal}),surface=Geometry.referenceSurface(pair.surface);
       const first=Geometry.sampleSpatialCurve(base.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm}),second=Geometry.sampleSpatialCurve(target.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm});
       const count=Math.max(1,Math.ceil(Math.max(Geometry.curveLength(first.samples.map(s=>s.point)),Geometry.curveLength(second.samples.map(s=>s.point)))/spacing));
       rows=Array.from({length:count+(base.closed?0:1)},(_,i)=>[Geometry.evaluateSurface(surface,[i/count,0]).point,Geometry.evaluateSurface(surface,[i/count,1]).point]);
-      referenceNormal??=Geometry.evaluateSurface(surface,[.37,.5]).normal;after.push(target.reference);
+      referenceNormal??=Geometry.evaluateSurface(surface,[.37,.5]).normal;after.push(target.readiness);
     }else ({rows,normal:referenceNormal}=Geometry.closedEdgeSpans(base.curve,{spacingMm:spacing,normal,angleDeg:request.angleDeg,sampleStepMm}));
     requireThat(rows.length,'The selected boundary produces no bridge spans.');
     const shifted=rows.map((row,i)=>{
@@ -65,6 +66,6 @@ export async function constructEdgePaths(plan,request){
   }
   return {assignment:curveAssignment({id:request.id,part,filament:null,after,curves,toolPose:{alignToSliceNormal:true},
     ...(repetitionIds.length?{repeat:{count:repetitionIds.length,translation:[0,0,0]},repetitionIds,repetitionAfter}:{})}),
-    report:{mode:request.mode,base:base.reference,...(target?{target:target.reference??target.selection}:{}),curves:curves.length,
+    report:{mode:request.mode,base:base.readiness,...(target?{target:target.readiness??target.selection}:{}),curves:curves.length,
       prerequisites:after,scope:request.mode==='wave'?'Only the base edge is a printed prerequisite; the target defines geometry.':'Straight spans require their supporting boundary edges.'}};
 }

@@ -2710,23 +2710,23 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+      "evidence": "Geometric edges, owned Slice regions and separate readiness."
     },
     {
       "contract": "extension-edge-authoring",
-      "target": "core/print/manufactured-edges.mjs::selectEdge",
+      "target": "core/print/geometric-references.mjs::selectEdge",
       "kinds": [
         "call"
       ],
-      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+      "evidence": "Geometric edges, owned Slice regions and separate readiness."
     },
     {
       "contract": "extension-edge-authoring",
-      "target": "core/print/manufactured-edges.mjs::manufacturedSlices",
+      "target": "core/print/geometric-references.mjs::preparedSlices",
       "kinds": [
         "call"
       ],
-      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+      "evidence": "Geometric edges, owned Slice regions and separate readiness."
     },
     {
       "contract": "extension-edge-authoring",
@@ -2734,7 +2734,7 @@
       "kinds": [
         "call"
       ],
-      "evidence": "Existing printed edges, native slice geometry and ordinary edge constructions."
+      "evidence": "Geometric edges, owned Slice regions and separate readiness."
     },
     {
       "contract": "extension-wall-frontier",

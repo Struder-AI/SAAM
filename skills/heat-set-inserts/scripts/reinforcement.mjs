@@ -71,7 +71,9 @@ export function heatSetTraceSource({Geometry,Toolpath}){
       loops?Math.max(inset+loops*pitch,wallBand+width/2):width/2;
     const curves=[],clipping=[],notes=[];
     let finCount=0;
-    for(let i=0;seat.length&&i<added;i++){
+    // Fin sheets can cross a layer that misses the seat entirely (for example,
+    // above or below a sideways bore). They still contribute on that layer.
+    for(let i=0;i<added;i++){
       let outline=Geometry.offsetSliceRegion(slice,origin,first+i*pitch,options);
       if(i===added-1&&construction.sheets.length){
         let finRegion=[];
@@ -93,6 +95,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         }
         if(finRegion.length)outline=Geometry.union(outline,finRegion);
       }
+      if(!outline.length)continue;
       const requested=outline.map(points=>({closed:true,points}));
       const clipped=Geometry.clipSliceCurves(slice,requested,room,options);
       clipping.push(clipped.report);

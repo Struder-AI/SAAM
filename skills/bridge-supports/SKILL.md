@@ -8,21 +8,19 @@ metadata:
 # Breakaway bridge supports
 
 Call `apply_extension` with `extensionId:"bridge-supports"` and
-`request:{supports:[{id,base,landing}]}`. Select printed edges using
-`{assignment,index,edge:{loop,ring:0}}` for a native Slice perimeter, or
-`{assignment,repetition,edge:{curve}}` for an authored Trace curve. Optional
-`part` disambiguates a producer's component. Edge discovery is available through
-`intersect_geometry`'s `edges` request. The tool resolves geometry and dependencies.
+`request:{supports:[{id,base,landing}]}`. Use
+[geometric selectors](../bridging/SKILL.md): native Slice boundaries or saved
+XYZ edges with explicit normal/readiness. Discovery uses `intersect_geometry.edges`;
+no deposition is generated to retrieve geometry.
 
 A bed base is explicitly `{kind:"plate",curve:{closed,points:[XYZ,...]}}`, or a
 NURBS curve in place of points. Its curve lies on the canonical build plate.
-A printed base uses the edge selector above. The landing selects its future
-printed edge; that edge automatically requires the final support course.
-The first course requires its printed base, and each later course requires only
-its predecessor. No operation IDs or height-based ordering are authored.
+The landing's readiness target requires the final support course. The first
+course requires its base's readiness; later courses require their predecessor.
+A Slice landing waits as a whole slice. Use part-specific Slice assignments.
 
 Two adjacent loops follow each interpolated course. The first lies beside the
-host's bead; the second lies one bead farther out. `baseSide` and `landingSide`
+geometric boundary; the second lies one bead farther out. `baseSide` and `landingSide`
 choose right (`1`, default) or left (`-1`) of the selected curve. Native Slice
 perimeters keep material left, so their exterior is right. Plate bases get three
 clipped adhesion passes. Prefer bowed/kinked bases where space permits.

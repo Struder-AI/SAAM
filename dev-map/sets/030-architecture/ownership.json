@@ -1787,10 +1787,6 @@
       "owner": "export",
       "reason": "Resolve selected-tool access and physical transfers against deposited source ranges."
     },
-    "core/print/manufactured-edges.mjs": {
-      "owner": "build-evaluate",
-      "reason": "Resolve printed-edge geometry and symbolic readiness from source construction, independent of scheduling and machine selection."
-    },
     "core/geom/slice-material.mjs": {
       "owner": "geometry",
       "reason": "Nominal material membership in native slice volumes; no emitted beads or execution state."
@@ -1822,6 +1818,10 @@
     "core/print/construction-references.mjs": {
       "owner": "build-evaluate",
       "reason": "Application resolves final producer references inside the shared assignment failure boundary before immutable source publication."
+    },
+    "core/print/geometric-references.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Select geometric edges and owned Slice boundaries with symbolic readiness, never deposition construction."
     }
   },
   "leaves": {
@@ -27819,15 +27819,6 @@
     "core/print/operation-references.mjs::validateEdgeAfter": {
       "owner": "recipe"
     },
-    "core/print/manufactured-edges.mjs::manufacturedEdges": {
-      "owner": "build-evaluate"
-    },
-    "core/print/manufactured-edges.mjs::selectManufacturedEdge": {
-      "owner": "build-evaluate"
-    },
-    "core/print/manufactured-edges.mjs::@module": {
-      "owner": "build-evaluate"
-    },
     "core/path/manufacturing.mjs::constructionHistory": {
       "owner": "path-finalize"
     },
@@ -27838,12 +27829,6 @@
       "owner": "scheduling"
     },
     "core/print/generate.mjs::prepareModelInputs": {
-      "owner": "build-evaluate"
-    },
-    "core/print/manufactured-edges.mjs::manufacturedSlices": {
-      "owner": "build-evaluate"
-    },
-    "core/print/manufactured-edges.mjs::selectEdge": {
       "owner": "build-evaluate"
     },
     "core/print/surface-readiness.mjs::manufacturedSurfaceReadiness": {
@@ -28235,6 +28220,28 @@
     },
     "core/path/material-readiness.mjs::bindMaterialSlices": {
       "owner": "path-finalize"
+    },
+    "core/print/geometric-references.mjs::@module": {
+      "owner": "build-evaluate"
+    },
+    "core/print/geometric-references.mjs::preparedSlices": {
+      "owner": "build-evaluate"
+    },
+    "core/print/geometric-references.mjs::geometricEdges": {
+      "owner": "build-evaluate"
+    },
+    "core/print/geometric-references.mjs::selectEdge": {
+      "owner": "build-evaluate"
+    },
+    "core/print/generate.mjs::prepareModelGeometry": {
+      "owner": "build-evaluate"
+    },
+    "skills/deposition.mjs::extensionMaterialBands": {
+      "owner": "extensions"
+    },
+    "core/print/assignment-generation.mjs::assignmentGeneration::admit": {
+      "owner": "build-evaluate",
+      "reason": "One declared/actual preparation admission sequence feeds the existing failure registry for generation and authoring queries."
     }
   },
   "retiredAssignments": [

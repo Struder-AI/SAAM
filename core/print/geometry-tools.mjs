@@ -8,7 +8,7 @@ import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {resolveMaterialGeometry} from '../geom/build.mjs';
-import {manufacturedEdges} from './manufactured-edges.mjs';
+import {geometricEdges} from './geometric-references.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
@@ -90,11 +90,11 @@ function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
 export async function intersectRequest(directory,request){
   requireThat(request&&typeof request==='object'&&Object.keys(request).every(k=>INTERSECT_FIELDS.includes(k)),`An intersect request has ${INTERSECT_FIELDS.join(', ')}.`);
   const {geometry,part,edges,...query}=request;
-  requireThat(!edges||!geometry,'Manufactured edge references need saved recipe producers.');
+  requireThat(!edges||!geometry,'Saved geometric edges need a bundle.');
   if(geometry)return intersectGeometry(geometry,query);
   requireThat(directory,'Name a print, or supply geometry to query.');
   const plan=(await loadBundle(directory,{program:false})).plan;
-  const selected=edges?await manufacturedEdges(plan,edges.map(edge=>Object.hasOwn(edge,'part')||part===undefined?edge:{...edge,part}),{includeGeometry:query.includeLoops===true}):null;
+  const selected=edges?await geometricEdges(plan,edges.map(edge=>part===undefined?edge:edge.slice?{...edge,slice:{...edge.slice,part:edge.slice.part??part}}:{...edge,part:edge.part??part}),{includeGeometry:query.includeLoops===true}):null;
   if(selected&&!['sectionsAtZ','topsAtXY','surfaces','stacks'].some(key=>query[key]?.length))return selected;
   const solid=solidGeometry(plan.geometry),owner=part?solid?.parts?.find(p=>p.id===part):{geometry:solid};
   requireThat(owner,'Unknown part.');

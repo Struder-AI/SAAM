@@ -12,13 +12,13 @@ metadata:
 
 ## Select edges
 
-Select `base` with [printed-edge selectors](../bridging/SKILL.md); the tool
-derives geometry and prerequisites. `target` may also select
-`{geometry:"existing-spatial-curve-id",part:null}`.
+Use [geometric selectors](../bridging/SKILL.md) for `base` and `target`.
+The base needs readiness; a wave target may be an unprinted saved curve.
+Slice boundaries describe material edges, independently of bead width.
 
 ## Membrane and wave
 
-`strategy:"membrane"` uses one closed boundary, or two printed bounding edges.
+`strategy:"membrane"` uses one closed boundary, or two ready geometric boundaries.
 Its straight spans preserve 3D endpoints, including nonplanar bounds. This is
 [bridging](../bridging/SKILL.md)'s exact construction and dependency wiring.
 `strategy:"wave"` interpolates fronts from base to target. Only the base and

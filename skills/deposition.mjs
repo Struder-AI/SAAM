@@ -1,15 +1,19 @@
 // Extension compositions prepare geometry, material intent and work dependencies.
 // The build owns execution and the bundle.
 import {loadExtensionEntry} from '../core/extensions/library.mjs';
-import {prepareProcessSources} from '../core/extensions/process-sources.mjs';
 
 async function depositionRuntime(id,engines,dependency){
   try{const create=await loadExtensionEntry(id,'deposition-runtime');return {runtime:await create(engines,dependency),error:null};}
   catch(error){if(error.name==='AbortError')throw error;return {runtime:null,error};}
 }
 
-export async function extensionDeposition({plan,placed,componentShells,shells,volumes,sources,contexts,processForAssignment,engines}){
-  const processes=await prepareProcessSources({plan,placed,componentShells,processForAssignment},engines);
+export function extensionMaterialBands(contexts){
+  return contexts.filter(({assignment})=>assignment.construction==='sleeve'&&!assignment.join).map(({assignment,shell})=>({
+    sourceId:assignment.id,part:assignment.part,startMm:shell?shell.bounds.min[2]+assignment.zStartMm:0,
+    endMm:shell?(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm):0}));
+}
+
+export async function extensionDeposition({plan,componentShells,shells,volumes,sources,contexts,bands,engines}){
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
   const vase=vaseLoaded.runtime;
@@ -43,9 +47,8 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
     }
     const {assignment,shell}=context;
     if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},providesSurface:true,kind:'trace'};
-    return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
-      endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
-      construct:vaseWork,providesSurface:true,kind:'trace'};
+    const band=bands.find(band=>band.sourceId===assignment.id&&band.part===assignment.part);
+    return {...context,startMm:band.startMm,endMm:band.endMm,construct:vaseWork,providesSurface:true,kind:'trace'};
   });
   for(const context of sleeves)context.prepare=current=>{
     if(vaseLoaded.error)throw vaseLoaded.error;
@@ -71,11 +74,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
     const loaded=sourceRuntimes.get(id);
     curveSources.push({...context,curveSource:loaded.runtime,sourceError:loaded.error});
   }
-  return {...processes,curveSources,
-    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    combineSolids:engines.Geometry.combineSolids,
-    constructions:sleeves
-  };
+  return {curveSources,constructions:sleeves};
 }
 
 export function extensionSummary(results){

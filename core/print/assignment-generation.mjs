@@ -79,6 +79,15 @@ export function assignmentGeneration(intent,failures=[]){
       if(![...records].some(([other,record])=>other!==id&&record.parts.has(part)))fail(id,Error('Required part has no producer: '+part+'.'));
     flush();
   };
+  // All preparation consumers admit declared intent before actual records and
+  // failures. Callers do not reproduce the ordering needed by failure closure.
+  const admit=({plan,declarations=[],assignmentOwners=new Map(),failures=[]})=>{
+    const authored=list(plan.slices?.assignments).filter(a=>!assignmentOwners.has(a.id));
+    register({...plan,slices:{...plan.slices,assignments:[...authored,...declarations]}},assignmentOwners);
+    register(plan,assignmentOwners);
+    for(const [id,error] of failures)fail(id,error);
+    seal();
+  };
   const captureWork=nodes=>{
     const byKey=new Map(nodes.map(node=>[node.key,owner(node.sourceId??node.key)]));
     for(const node of nodes){
@@ -98,6 +107,6 @@ export function assignmentGeneration(intent,failures=[]){
   register(intent);
   for(const failure of failures)fail(failure.assignment,Error(failure.message));
   flush();
-  return {register,fail,retain,seal,captureWork,captureResult,hasFailed:id=>failed.has(owner(id)),
+  return {register,admit,fail,retain,seal,captureWork,captureResult,hasFailed:id=>failed.has(owner(id)),
     notes:()=>[...failed.values()].map(assignmentFailureNote)};
 }

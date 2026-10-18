@@ -20051,11 +20051,11 @@
       "id": "extension-edge-authoring",
       "from": "build-evaluate",
       "to": "extensions",
-      "label": "Existing printed edges, native slice geometry and ordinary edge constructions",
+      "label": "Geometric edges, owned Slice regions and separate readiness",
       "operations": [
         "recipeTools",
         "selectEdge",
-        "manufacturedSlices",
+        "preparedSlices",
         "constructEdgePaths"
       ],
       "direction": "Provider supplies explicit computed values; consumer invokes these named operations.",
@@ -20066,7 +20066,7 @@
         }
       ],
       "inputs": "Explicit immutable geometry/source values and numerical tolerances.",
-      "outputs": "Existing printed edges, native slice geometry and ordinary edge constructions.",
+      "outputs": "Geometric edges, owned Slice regions and separate readiness.",
       "effects": "Private numerical preparation only; no saved source, recipe, Bundle or selected-machine mutation.",
       "failure": "Reject absent selections, invalid geometry, contradictory requirements or unresolved precision.",
       "excludes": "No extra entry points or implicit machine, travel, producer-order or support-generation policy.",
@@ -20110,7 +20110,7 @@
         }
       ],
       "inputs": "Explicit immutable geometry/source values and numerical tolerances.",
-      "outputs": "Existing printed edges, native slice geometry and ordinary edge constructions.",
+      "outputs": "Geometric edges, owned Slice regions and separate readiness.",
       "effects": "Private numerical preparation only; no saved source, recipe, Bundle or selected-machine mutation.",
       "failure": "Reject absent selections, invalid geometry, contradictory requirements or unresolved precision.",
       "excludes": "No extra entry points or implicit machine, travel, producer-order or support-generation policy.",

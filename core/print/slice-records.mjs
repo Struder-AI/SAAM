@@ -89,8 +89,8 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
     for(const key of ['afterParts','beforeParts'])requireThat(Array.isArray(a.dependencies[key])&&a.dependencies[key].every(part=>parts?.length?parts.includes(part):part===null),'Slice dependency part is not selected geometry.');
     requireThat(Array.isArray(a.dependencies.after)&&a.dependencies.after.every(id=>typeof id==='string'&&id.length),'Slice after dependencies name operation IDs.');
     requireThat(a.operationAfter===undefined||a.operationAfter&&typeof a.operationAfter==='object'&&!Array.isArray(a.operationAfter)&&
-      Object.entries(a.operationAfter).every(([group,after])=>['walls','infill','fill'].includes(group)&&Array.isArray(after)&&after.every(operationPrerequisite)),
-      'Slice operationAfter maps walls, infill or fill to required operation IDs or {assignment}.');
+      Object.entries(a.operationAfter).every(([group,after])=>['all','walls','infill','fill'].includes(group)&&Array.isArray(after)&&after.every(operationPrerequisite)),
+      'Slice operationAfter maps all, walls, infill or fill to required operation IDs or {assignment}.');
     if(a.fillOrder!==null){
       const fill=a.fillOrder;
       requireThat(fill.kind==='surface-cells'&&Object.keys(fill).every(key=>['kind','directions','toleranceMm','offsetTightness'].includes(key))&&
