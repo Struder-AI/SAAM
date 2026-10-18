@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-18 - Match intersection traces at their physical accuracy
+
+- Replace cell-scaled UV candidate padding with physical segment bounds expanded by the existing chord/solve accuracy. Contracted cells near a cylinder quadrant had rejected traces they already geometrically recognized. Bounds only select candidates; geometric coverage and interval root certification remain authoritative. Remove the former UV-padding calculation; retain .001 mm accuracy.
+- The exact failing wavy-slice/weld-shaft pair retains two curves and passes, with discovery subdivisions 36 -> 6. The existing surface-intersection file passes 3/4; its coincident boundary-edge case also fails with unchanged HEAD loaded read-only. No new stored tests or whole suite.
+- Actual four-feature cube now constructs all 131 wavy layers, 294 heat-set courses, six cursive courses and the unchanged 7.577521 mm3 weld Inject. Scheduling subsequently fails with CURVE_CLEARANCE_UNRESOLVED after 472,271 ms; the flat baseline completed in 10,096 ms. No completed wavy timing, Export or physical-print claim. Wavy recipe and all four feature definitions retained; Studio handed back on geometry. Evidence: .local/wavy-four-fix-verification.json and saved source d069f429-526e-404c-903f-73891c351f21.
+
 ## 2026-10-18 - Trace heat-set backing disks on the actual layers
 
 - Owner clarified the base must intersect construction disks with inherited layers, like fins. Replace finite-volume sliver fill with clipped disk/surface curves; preserve the backing depth, dense-coverage exclusion and native Slice completion. A physical half-thickness query covers parallel planar layers through the same Geometry operation, including nonaffine planar spline charts; no heat-set branch in Slice.

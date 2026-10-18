@@ -520,15 +520,19 @@ function cellMeetsFace(patch,piece){
 
 const traceSegmentCache=new WeakMap();
 function localTraceSegments(a,b,curves,toleranceMm){
-  const ranges=[a.u,a.v,b.u,b.v],extents=[a.extentU,a.extentV,b.extentU,b.extentV];
-  const slack=ranges.map(([low,high],k)=>toleranceMm*(high-low)/Math.max(toleranceMm,extents[k])),segments=[];
+  const box=intersectionBox(a,b),segments=[];
+  if(!box)return segments;
+  // Traces have a physical chord error. Contracted parameter cells can be much
+  // narrower than that error, so UV overlap can discard an already traced root.
+  // These bounds select candidates; coverage and root proofs still certify them.
   for(const curve of curves){
     if(!traceSegmentCache.has(curve))traceSegmentCache.set(curve,curve.points.slice(1).map((point,i)=>{
       const first=[...curve.uvA[i],...curve.uvB[i]],last=[...curve.uvA[i+1],...curve.uvB[i+1]];
-      return {first,last,min:first.map((value,k)=>Math.min(value,last[k])),max:first.map((value,k)=>Math.max(value,last[k])),firstPoint:curve.points[i],lastPoint:point};
+      const firstPoint=curve.points[i];
+      return {first,last,min:point.map((value,k)=>Math.min(value,firstPoint[k])),max:point.map((value,k)=>Math.max(value,firstPoint[k])),firstPoint,lastPoint:point};
     }));
     for(const segment of traceSegmentCache.get(curve)){
-      if(ranges.every(([low,high],k)=>segment.min[k]<=high+slack[k]&&segment.max[k]>=low-slack[k]))segments.push(segment);
+      if(box.min.every((low,k)=>segment.min[k]<=box.max[k]+toleranceMm&&segment.max[k]>=low-toleranceMm))segments.push(segment);
     }
   }
   return segments;
