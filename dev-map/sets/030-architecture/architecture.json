@@ -19333,7 +19333,8 @@
         "curveAssignment",
         "injectionAssignment",
         "ordinarySliceAssignment",
-        "workspaceConstructionIdentity"
+        "workspaceConstructionIdentity",
+        "resolveSpatialPlan"
       ],
       "inputs": "Explicit extension-authored construction records.",
       "outputs": "Recipe values and construction identity; no access to Bundle state.",
@@ -19450,7 +19451,13 @@
       "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
       "direction": "Causal influence: Geometry supplies the stated values to Toolpath.",
       "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
-      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "access": [
+        {
+          "from": "path-finalize",
+          "to": "geometry"
+        }
+      ]
     },
     {
       "id": "geometry-scheduling",
@@ -19473,7 +19480,13 @@
       "status": "Owner-directed target boundary, 2026-10-13. Current source crossings remain implementation findings.",
       "direction": "Causal influence: Geometry supplies the stated values to Scheduling.",
       "failure": "Report missing, malformed or unsupported explicit inputs at the consuming operation; retain partial-result limitations and original cancellation.",
-      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority."
+      "excludes": "No additional operations, shared mutable aliases, implicit recipe/machine defaults or selected-machine compatibility authority.",
+      "access": [
+        {
+          "from": "scheduling",
+          "to": "geometry"
+        }
+      ]
     },
     {
       "id": "recipe-export",
@@ -20284,6 +20297,28 @@
       "failure": "Reject absent selections, invalid geometry, contradictory requirements or unresolved precision.",
       "excludes": "No extra entry points or implicit machine, travel, producer-order or support-generation policy.",
       "status": "Owner-authorized scheduler integration, 2026-10-17."
+    },
+    {
+      "id": "geometry-extension-spatial",
+      "from": "geometry",
+      "to": "extension-run",
+      "label": "Replace an authored solid preserving auxiliary geometry",
+      "operations": [
+        "replaceSolid"
+      ],
+      "access": [
+        {
+          "from": "extension-run",
+          "to": "geometry"
+        }
+      ],
+      "direction": "Geometry supplies transformed values; the extension host invokes this named operation.",
+      "inputs": "Existing authored spatial geometry and its replacement solid.",
+      "outputs": "A new geometry value retaining curve/point identities and visibility.",
+      "effects": "No caller mutation or persistence.",
+      "failure": "Caller validates the resulting authored geometry.",
+      "excludes": "No toolpath, Bundle identity, scheduler or machine policy.",
+      "status": "Owner-authorized common authoring-host integration, 2026-10-17."
     }
   ],
   "layout": {

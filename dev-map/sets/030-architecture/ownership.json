@@ -10400,7 +10400,8 @@
       "owner": "bundle"
     },
     "core/print/spatial-inputs.mjs::resolveSpatialPlan": {
-      "owner": "bundle"
+      "owner": "recipe",
+      "reason": "Pure lowering of stable recipe geometry identities to engine values; no Bundle persistence or shared-state mutation."
     },
     "skills/standard-support/scripts/edit.mjs::@module": {
       "owner": "extensions"

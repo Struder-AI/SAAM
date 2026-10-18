@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-17 — Preserve authored edge identities through the real edit host
+
+- A Bundle-level `apply_extension` exercise exposed that the geometry-edit caller stripped the spatial store before constructing Recipe selectors, losing named geometric wave targets. The common host now resolves solid/curve inputs for editors while keeping the full authored recipe for selectors, and composes solid replacements without losing auxiliary curves/points. Removed duplicate wrapping/resolution from the Bundle caller. Pure reference lowering belongs to Recipe, with exact host/Geometry ports; no skill-specific case or extra option was added.
+- The saved-target wave now passes the actual Bundle edit → source → schedule → selected S5 program flow (4,329 bytes), retaining its target and base-only prerequisite. A heat-set edit preserves unrelated spatial curve/point identities, and top/side/bottom source/schedule checks still pass. Repository checks pass. The map run was stopped before this necessary host correction and will reuse successful source analyses on restart; final map completeness/conformance remains explicitly unverified.
+
 ## 2026-10-17 — Bind final architecture interfaces to their implementations
 
 - Added exact ownership for 67 current declarations across 28 affected modules, preserving existing narrower owners. Named ports cover nominal manufactured contacts, common readiness, edge authoring, interval frame proofs and scoped enclosure inspection. All 22 audited interface targets exist and name their declared operations; the complete registry has unique contracts and valid node/actor endpoints.

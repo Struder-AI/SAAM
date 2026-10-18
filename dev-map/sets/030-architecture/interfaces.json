@@ -2832,6 +2832,22 @@
         "call"
       ],
       "evidence": "Geometry and deposition extension hosts receive one shared authoring interface."
+    },
+    {
+      "contract": "recipe-extensions",
+      "target": "core/print/spatial-inputs.mjs::resolveSpatialPlan",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Common editor host separates resolved engine values from full authored identity context."
+    },
+    {
+      "contract": "geometry-extension-spatial",
+      "target": "core/geom/spatial.mjs::replaceSolid",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Common editor host separates resolved engine values from full authored identity context."
     }
   ],
   "retiredBindings": [

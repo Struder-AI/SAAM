@@ -7,12 +7,10 @@ import {selectSettings} from '../machine/settings.mjs';
 import {prepareExtensionRecipe} from './extension-recipe.mjs';
 import {prepareExtensionGeometry} from '../extensions/geometry-edits.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
-import {resolveSpatialPlan,normalizeSpatialPlan} from './spatial-inputs.mjs';
-import {replaceSolid} from '../geom/spatial.mjs';
+import {normalizeSpatialPlan} from './spatial-inputs.mjs';
 
 async function prepareExtensionEdit(source,extension,request,options){
-  const contribution=await prepareExtensionGeometry(resolveSpatialPlan(source),extension,request,options);
-  const geometryContribution=contribution?{...contribution,plan:{...contribution.plan,geometry:replaceSolid(source.geometry,contribution.plan.geometry??null)}}:null;
+  const geometryContribution=await prepareExtensionGeometry(source,extension,request,options);
   if(geometryContribution&&geometryContribution.assignments===undefined&&geometryContribution.assignmentRequests===undefined)return geometryContribution;
   return prepareExtensionRecipe(source,extension,request,{...options,geometryContribution});
 }
