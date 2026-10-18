@@ -25,9 +25,9 @@ Sources: [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) (agent wording
 
 Summary: Trace deposits along curves; surface producers supply curves and their coordinate references. Geometry stores Trace curves and Inject points; solid-free bundles can show them before generation, with auxiliary geometry hidden when appropriate (owner approval, 2026-10-12).
 
-[Breakaway bridge supports](../skills/bridge-supports/SKILL.md) interpolate matched control nets between selected base and landing curves, open or closed, into ordinary Trace. Bases may be on the bed or printed material. Part edges receive an outward half-bead ribbon before interpolation; the factor is code-tunable, not agent-facing. Requested average layer height determines divisions. Dependencies name the actual supporting base and later bridge, allowing support and part to advance together. Membranes remain ordinary Slice guidance; stepped reduction is excluded.
+[Breakaway bridge supports](../skills/bridge-supports/SKILL.md) interpolate matched control nets between selected base and landing curves, open or closed, into ordinary Trace. Bases may be on the bed or printed material. Part edges receive an outward half-bead ribbon before interpolation; the factor is code-tunable, not agent-facing. Requested average layer height determines divisions. Dependencies name the actual supporting base and later bridge, allowing support and part to advance together. Membrane and bridging share printed-edge straight spans. Waves interpolate from a printed base to a final geometric edge; stepped reduction masks ordinary native slices.
 
-[Heat-set reinforcement](../skills/heat-set-inserts/SKILL.md) keeps Boolean bore walls from the main Slice. Trace adds walls to reach max(4,N+1), with the star in the final added wall. Fixed fin sheets intersect actual inherited layers; physical offsets and every boundary's wall band clip their curves. Added walls/fins overlap unchanged main infill. Blind pads exclude existing dense coverage. Each heat Trace follows its main layer before its successor.
+[Heat-set reinforcement](../skills/heat-set-inserts/SKILL.md) keeps Boolean bore walls from the main Slice. Trace adds walls to reach max(4,N+1), with the star in the final added wall. Fixed fin sheets intersect actual inherited layers; physical offsets and every boundary's wall band clip their curves. Added walls/fins overlap unchanged main infill. Blind pads exclude existing dense coverage. Reinforcement joins its native slice completion; the successor waits for both, with no main-layer barrier.
 
 Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension); owner, 2026-10-03 (Codex 01a102ba, 18:25/18:32 UTC), on curve/point geometry and visibility; owner, 2026-10-12: "That statement seems fine."; owner, Codex 01a1324b, 2026-10-12/13, control-point supports, edge contacts and fixed-fin/shared-layer reinforcement.
 
@@ -69,7 +69,7 @@ Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40
 >
 > "I don't feel like we've seen eye-to-eye yet on slab under skin. After restart, you should explain to me in more depth what is going on there." — owner, 2026-10-05 (Claude 98e25b54 15:43)
 
-Summary: operations that do the same thing share one wiring. **Owner question pending**: no dedicated slab-under-skin mechanism exists (a slab and a draped skin are ordinary Slice assignments); the explanation the owner asked for is not recorded.
+Summary: equivalent operations share one wiring. Owner clarification, 2026-10-17: standard support is an independent solid and ordinary Slice, with common manufactured-contact readiness; the part owns its underside. Membrane and bridging share edge construction. Draped skin is removed.
 
 Sources: [0.3.3 "One wiring for slab-under-skin"](../plans/0.3.3.md) (retired); `.local/team/questions.md` (after-restart note).
 

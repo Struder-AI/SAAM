@@ -15,7 +15,7 @@ import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,union,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 import {piecewiseChart,piecewiseChartFrame,piecewiseChartRay,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
-import {PROGRAM_STEP_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 // Native spline parameters carry no metric: points coincide or touch an edge within
 // the dimensionless rounding tolerance, and booleans snap to a grid a tenth of it so
@@ -127,11 +127,15 @@ export function sweepSurfaceOffset(patch,prepared){
     const frame=at(uv),velocity=frame.uvOf(normalize(direction));
     let state=[...uv,...velocity],travel=0,h=Math.min(maxStepMm,radius);
     const ray=[uv];
-    while(travel<radius) {
+    // The remaining arc length bounds endpoint error. Finish a sub-rounding
+    // residual within the caller's error budget before RK state increments
+    // disappear at coordinate precision.
+    const completionTolerance=Math.min(ROUNDING_MM,toleranceMm/8);
+    while(radius-travel>completionTolerance) {
       h=Math.min(h,radius-travel);
       requireThat(travel+h>travel,'Surface offset integration cannot advance at floating-point precision.');
       const full=rk4(state,h),half=rk4(rk4(state,h/2),h/2);
-      requireThat(half.some((value,k)=>value!==state[k]),'Surface offset integration cannot advance at coordinate precision.');
+      requireThat(half.some((value,k)=>value!==state[k]),'Surface offset integration cannot advance at coordinate precision (step '+h+' mm, remaining '+(radius-travel)+' mm).');
       if(constraint!==null){
         const start=state.slice(0,2);
         let end=stopAtBoundary(start,half.slice(0,2));

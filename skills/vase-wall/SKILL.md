@@ -32,13 +32,10 @@ that depositing work and does not inspect completed foundation beads.
 ## Input geometry: normally a solid
 
 Use a validated closed mesh or a supported untrimmed closed spline shell. The
-spiral follows sections with one outer boundary whose inset is one closed loop;
-bores and concave sections are fine. Layers with several islands, or whose inset
-splits or collapses, print plain (each island one closed loop, a narrower one
-nothing), and a note names them; the spiral joins the longest run of followed
-layers, interpolated between them when any layer is plain. Patterns and a
-fitted `meshSleeve` still need one outer boundary throughout. Arbitrary trimmed
-CAD faces and open uncapped meshes are unsupported.
+spiral follows sections with one outer boundary whose inset stays one closed
+loop; bores and concave sections are fine. Disconnected or collapsed boundaries
+reject with a geometry finding. Arbitrary trimmed CAD faces and open uncapped
+meshes are unsupported.
 
 Mesh sections are fitted to a periodic NURBS **sleeve**: a reference surface open
 along its height, never itself deposited. Horizontal sections are offset inward

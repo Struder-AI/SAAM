@@ -48,7 +48,8 @@ is the normal confirmation. Fit, tool access and printable support need review.
 ## Deposition and composition
 
 The main Slice keeps its bore, walls and infill; a generated [Trace](../trace/SKILL.md)
-follows each prepared source layer.
+uses each prepared source layer and joins its native completion. The successor
+waits for both; there is no main-layer-to-reinforcement barrier.
 For N main loops it adds max(4,N+1)-N walls: one becomes four, eight become nine.
 The last wall follows fins; added walls/fins overlap unchanged main infill.
 
@@ -63,8 +64,8 @@ The loop target is limited by available host material.
 
 Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
 omitted source selection, and an explicit override affects only the named hole.
-Vase-only deposition has no source Slice; coincident fin/layer sheets have no unique
-intersection. Skipped fins and singular charts are reported.
+Vase-only deposition has no source Slice. Coincident fin/layer sheets contribute
+finite-area fill; skipped fins and singular charts are reported.
 
 Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
 Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind pads

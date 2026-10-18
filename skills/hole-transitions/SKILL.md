@@ -12,11 +12,9 @@ metadata:
 
 ## Select edges
 
-Use a printed `base`: `{assignment,index,edge:{loop,ring:0}}` for Slice, or
-`{assignment,repetition,edge:{curve}}` for Trace. Optional `part` disambiguates
-components; `intersect_geometry`'s `edges` request discovers them. A geometric
-`target` can also select `{geometry:"existing-spatial-curve-id",part:null}`.
-The tool derives geometry and prerequisites; no operation IDs are authored.
+Select `base` with [printed-edge selectors](../bridging/SKILL.md); the tool
+derives geometry and prerequisites. `target` may also select
+`{geometry:"existing-spatial-curve-id",part:null}`.
 
 ## Membrane and wave
 

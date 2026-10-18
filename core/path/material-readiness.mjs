@@ -46,7 +46,7 @@ export function resolveMaterialReadiness(source,reader,materials){
 
   for(const operation of Object.values(source.operations)){
     if(operation.kind!=='inject'||!operation.requiredMaterial?.length)continue;
-    const remaining=[];
+    const remaining=[];let matched=false;
     for(const requirement of operation.requiredMaterial){
       const bounds=convexBounds(requirement.volume),fine=new Set();
       const unknown=new Set(Object.values(source.operations).filter(other=>other.id!==operation.id&&(other.part??null)===(requirement.part??null)&&!known.has(key(other.part,other.layerId))).map(other=>other.layerId));
@@ -56,17 +56,20 @@ export function resolveMaterialReadiness(source,reader,materials){
         if(!contact)for(const query of material.queries){const hit=sliceMaterialVolumeContact(query,requirement.volume);if(hit===true){contact=true;break;}if(hit===null)unknown=true;}
         if(!contact&&!unknown)continue;
         if(wholeSliceClear(operation,material.layerId)){
-          if(contact||actualMaterial(requirement,material.layerId))operation.after.push(source.layers[material.layerId].completionId);
-        }else {fine.add(material.layerId);refined.add(key(operation.id,material.layerId));}
+          if(contact||actualMaterial(requirement,material.layerId)){operation.after.push(source.layers[material.layerId].completionId);matched=true;}
+        }else if(actualMaterial(requirement,material.layerId)){fine.add(material.layerId);refined.add(key(operation.id,material.layerId));matched=true;}
       }
       for(const layerId of unknown){
-        if(layerId&&wholeSliceClear(operation,layerId)){
-          if(actualMaterial(requirement,layerId))operation.after.push(source.layers[layerId].completionId);
-        }else {fine.add(layerId);if(layerId)refined.add(key(operation.id,layerId));}
+        if(!actualMaterial(requirement,layerId))continue;
+        matched=true;
+        if(layerId&&wholeSliceClear(operation,layerId))operation.after.push(source.layers[layerId].completionId);
+        else {fine.add(layerId);if(layerId)refined.add(key(operation.id,layerId));}
       }
       if(fine.size)remaining.push({...requirement,layerIds:[...fine]});
       summary.requirements++;
     }
+    if(!matched)throw Object.assign(Error('Required enclosure material resolves to no produced material for '+operation.id+'.'),
+      {code:'MISSING_REQUIRED_MATERIAL',operation:operation.id});
     operation.requiredMaterial=remaining;
   }
   reduceManufacturing(source);
