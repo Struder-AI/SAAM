@@ -20,7 +20,14 @@ The saved Trace curves regenerate without this extension.
 Use [bundled fonts](scripts/fonts/README.md); for joined cursive choose
 `hershey-script-1`, `ems-allure` (Allura) or `ems-swiss` (Italianno). Review actual
 word joins and counters. The same `id` replaces text; `{"id":"label","remove":true}`
-removes it. Recipe-local `origin` starts two 0.2 mm layers by default. `reference:{kind:'slice',assignment,index}` maps onto a manufactured slice and attaches its completion automatically; part/spline references provide geometry only. Optional `substrate` selects support independently of the chart.
+removes it. Recipe-local `origin` starts two 0.2 mm layers by default.
+`reference:{kind:'plate'}` explicitly selects the build plate, with no printed
+prerequisite. `{kind:'slice',assignment,index}` maps onto a manufactured slice and
+attaches its completion automatically. Independent `plane`/`spline` references
+leave prerequisites empty for scheduler placement. A solid part patch derives the
+necessary native slice prerequisites from its lettering footprint. Later strokes
+require only their own supporting stroke below. Optional `substrate` selects
+support independently of the chart.
 `weight` (`light`, `regular`, `bold`) or numeric `stemRatio` sets stroke weight;
 `letterSpacingMm`, `align` (`left`, `center`, `right`), `chain` and
 `onInfeasible` (`reduce`, `error`) tune layout.

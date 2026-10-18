@@ -70,7 +70,7 @@ export function validateCurveAssignment(a,{parts=null}={}) {
       requireThat(Object.keys(curve.uv).every(k=>['reference','points','nurbs','normalMm'].includes(k))&&['points','nurbs'].filter(k=>curve.uv[k]!==undefined).length===1,'UV curve needs exactly one points or nurbs source.');
       const r=curve.uv.reference;requireThat(r&&['patch','slice','sleeve','surface'].includes(r.kind),'UV curve needs a patch, slice, sleeve or surface reference.');
       const allowed=r.kind==='surface'?['kind','surface','part']:r.kind==='patch'?['kind','name','part']:r.kind==='slice'?['kind','assignment','index']:['kind','assignment'];
-      requireThat(Object.keys(r).every(k=>allowed.includes(k))&&(r.kind==='surface'?r.surface&&['part','spline'].includes(r.surface.kind):r.kind==='patch'?typeof r.name==='string'&&r.name.length:typeof r.assignment==='string'&&r.assignment.length),'Invalid curve reference.');
+      requireThat(Object.keys(r).every(k=>allowed.includes(k))&&(r.kind==='surface'?r.surface&&['plate','plane','part','spline'].includes(r.surface.kind):r.kind==='patch'?typeof r.name==='string'&&r.name.length:typeof r.assignment==='string'&&r.assignment.length),'Invalid curve reference.');
       requireThat(r.part===undefined||r.part===null||typeof r.part==='string','Curve reference part must be null or a component id.');
       requireThat(r.index===undefined||Number.isInteger(r.index)&&r.index>=0,'Slice reference index must be nonnegative.');
       requireThat(curve.uv.normalMm===undefined||Number.isFinite(curve.uv.normalMm),'UV normal distance must be finite.');
@@ -126,11 +126,12 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
   const finalizeInside=!sourceLayer&&(assignment.sequence||assignment.curves.some(c=>c.contact));
   const read=assignment.curves.map(readAuthoredCurve),ignored=read.flatMap(({ignored},i)=>ignored.map(field=>`curves[${i}].${field}`)),authored=read.flatMap(({curve})=>curve?[curve]:[]);
   const batches=[],parts=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=authored.some(curve=>curve.contact)?modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})):[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const sourceCurves=new Map(authored.map((curve,index)=>[curve,curve.id??index]));
   for(let repetition=0;repetition<count;repetition++){
     const index=indices?.[repetition]??repetition;
     const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
     if(!active.length)continue;
-    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:index,offset:translation.map(v=>repetition*v)}));
+    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:index,offset:translation.map(v=>repetition*v)}).map(constructed=>({...constructed,sourceCurve:sourceCurves.get(curve)})));
     const heightMm=sourceLayer?.heightMm??(repetition===0?process.firstLayerMm:process.layerMm),speedMmS=sourceLayer?.speedMmS??(repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS);
     if(referenceStack){const layer=referenceStack.layers.find(l=>l.index===(indices?.[repetition]??repetition));
       for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{

@@ -1,25 +1,23 @@
 ---
 name: slice-surface-animation
-description: Presentation workspace showing a flat slice tilting and becoming a wavy spline surface.
+description: Studio-framed slice, cladding and nonplanar bridge animation.
 metadata:
   saam-kind: workspace
 ---
 # Slice surface animation
 
-This is a presentation asset for developer onboarding. From a source checkout run
-`node examples/presentations/generate-slice-surface.mjs`. It creates calculated
-frames and a self-contained extension under `.local/presentations/slice-surface/extension`.
-Use a fresh output directory when rebuilding changed source.
-Copy that extension to the SAAM home's `local/extensions/slice-surface-animation`,
+From a source checkout run `node examples/presentations/generate-slice-surface.mjs`.
+An optional first argument names an output index in a fresh directory. Preparation
+writes native frames, bounded chunks and a portable `extension` beside that index.
+Copy the extension to the SAAM home's `local/extensions/slice-surface-animation`,
 then `saam call open_workspace --extension-id slice-surface-animation`.
 
-One cubic spline control net supplies a 20-second flat → tilted → wavy → curved
-and tilted sequence. Ordinary Slice recipes use a 0.2 mm first gap and 960 mm
-subsequent spacing, placing one slice through the 24 mm cube. Source preparation
-uses SAAM's existing recipe, region and Slice layout/mapping functions. The
-portable viewer consumes those calculated paths; it never interpolates vertices.
+The 79-second sequence varies planar density/loops, steps alternating layers,
+morphs the infill field into gyroid and back, then tilts/waves a cube slice,
+wraps dense axial cladding, returns, bridges two top edges, and returns again.
+Cube slices use 960 mm spacing; cladding uses one normal-band layer; the bridge
+uses one surface-domain layer. Native layout/mapping and scalar contours own
+all paths; the gyroid transition blends fields. Save snapshots at its endpoints.
 
-A capture of the actual Studio window surrounds the viewport; Studio supplies
-its projection, background, grid and blue paths. Exports have no presentation captions.
-Play/scrub, toggle context/wash, save PNGs, and export silent 1080p 30 fps WebM.
-Preparation packages SAAM’s movie encoder. Frames illustrate slice construction.
+A real Studio-window capture uses its native camera/palette. Play/scrub, toggle
+context/wash, save PNGs and export silent 1080p/30 fps WebM, without captions or printer programs.

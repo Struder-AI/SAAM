@@ -1814,6 +1814,14 @@
     "core/print/manufactured-edges.mjs": {
       "owner": "build-evaluate",
       "reason": "Resolve printed-edge geometry and symbolic readiness from source construction, independent of scheduling and machine selection."
+    },
+    "core/geom/slice-material.mjs": {
+      "owner": "geometry",
+      "reason": "Nominal material membership in native slice volumes; no emitted beads or execution state."
+    },
+    "core/print/surface-readiness.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Translate selected manufactured surfaces and prepared material ownership into minimal native slice prerequisites."
     }
   },
   "leaves": {

@@ -192,7 +192,7 @@ export function constructionPath({results,planning,composition,summary,generator
       for(const key of ['positionErrorMm','normalErrorRad','volumeErrorMm3'])compaction[key]=Math.max(compaction[key],published.compaction[key]);
       for(const key of ['normalKeysBefore','normalKeysAfter','materialKeysBefore','materialKeysAfter'])compaction[key]+=published.compaction[key];
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,directionRequired:stroke.directionRequired??true,role:stroke.role,
-        sourceCurve:stroke.id??i,...(stroke.edge?{edge:stroke.edge}:{}),
+        sourceCurve:stroke.sourceCurve??stroke.id??i,...(stroke.edge?{edge:stroke.edge}:{}),
         ...((stroke.orderGroup??stroke.scanlineCell)===undefined?{}:{orderGroup:stroke.orderGroup??stroke.scanlineCell}),
         ...(stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<=ROUNDING_MM?{seamRequired:stroke.seamRequired??true}:{}),
         ...(published.provenance?{provenance:published.provenance}:{})};

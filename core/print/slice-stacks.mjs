@@ -45,7 +45,7 @@ export function prepareReferenceSliceStack(record,{source,references={}}={}){
       let region=reference.boundary;for(const volume of record.reference.volumes){const cut=volumeSection(volume,{slice},extent);if(cut!==null)region=intersect(region,cut);}
       return {...layer,slice,region,gap:{normalMm:layer.heightMm},onSubstrate:true};
     });
-    return {...record,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers},context:{...record.context,startMm:reference.zStartMm,
+    return {...record,prerequisites:reference.prerequisites,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers},context:{...record.context,startMm:reference.zStartMm,
       endMm:z,report:{...record.context.report,startMm:reference.zStartMm,topMm:z}},layerOrder:layers.map(layer=>({index:layer.index,rank:layer.slice.origin[2]}))};
   }
   const chart=surfaceRegion(shell,selection);

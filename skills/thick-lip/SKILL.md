@@ -40,6 +40,8 @@ Ordinary Slice can follow a source's prepared closed, level boundary:
 Use the normal assignment tool to fill remaining defaults. Each loop count
 selects one slice. Spacing and height use the assignment's process settings.
 The source can be Slice or a closed Trace, including a level-ended vase.
+The terminal reference attaches its required native slice, printed curve or source
+completion automatically; later lip slices require their predecessor.
 A lip uses ordinary inward loops and no infill. Increasing the loop count does not enlarge the target region. Slice never reads finalized beads or performs substrate adaptation. The old `construction:'rim'` record
 is read as these fields.
 

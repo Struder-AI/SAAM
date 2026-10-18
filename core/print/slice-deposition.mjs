@@ -1,3 +1,4 @@
+import {manufacturedSurfaceReadiness} from './surface-readiness.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 // Construct prepared work. Private contact adaptation can use predecessor beads;
 // extensions receive prepared inputs, and authored rank never becomes run order.
@@ -26,7 +27,7 @@ function combineSliceResults(record,sliceResults){
     referenceStack:{...record.referenceStack,layers},finishedSurfaces:sliceResults.flatMap(r=>r.finishedSurfaces??[])},sliceResults);
 }
 
-export function constructDepositionWork(node,completed,{plan,onProgress,shells=[]}){
+export function constructDepositionWork(node,completed,{plan,onProgress,shells=[],contexts=[]}){
   const required=new Set();
   const collect=key=>{if(required.has(key))return;required.add(key);for(const prior of completed.get(key)?.node.requires??[])collect(prior);};
   node.requires.forEach(collect);
@@ -37,7 +38,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   // stack completion and certifies internal access before scheduling.
   const after=[...new Set((node.executionRequires??node.requires).flatMap(prerequisiteIds))];
   let result;
-  if(node.construct)result=node.construct({node,plan,onProgress});
+  if(node.construct)result=node.construct({node,plan,onProgress,materialReadiness:footprints=>manufacturedSurfaceReadiness(contexts,footprints,{part:node.part,exclude:node.sourceId})});
   else if(node.kind==='slice'){
     result=sliceContextResult(node.record,{layerIndex:node.index});
   }else if(node.kind==='trace'){
@@ -50,8 +51,8 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
   const pose=assignment.toolPose??(assignment.source?completed.get(node.parentKey)?.node.record.spec.settings.toolPose:null);
   const motionIntent=pose?{kind:'derived-pose',alignToSliceNormal:pose.alignToSliceNormal}:null;
-  const selected={...result,report:{...result.report,...node.report,depositionFamily:node.kind,construction:result.report.construction??(node.kind==='slice'?undefined:node.construction),owner:node.sourceId,part:node.part,...(node.dependencyNotes?.length?{notes:[...(result.report.notes??[]),...(node.report?.notes??[]),...node.dependencyNotes]}:{})},operations:result.operations.map(op=>({...op,part:node.part,...(motionIntent&&!result.depositionFinalized?{strokes:op.strokes.map(stroke=>({...stroke,motionIntent}))}:{}),
-    after:[...new Set([...(op.after??[]),...after,...(assignment.dependencies?.after??assignment.after??[]),
+  const selected={...result,...(assignment.edgeAfter?{edgeAfter:assignment.edgeAfter}:{}),report:{...result.report,...node.report,depositionFamily:node.kind,construction:result.report.construction??(node.kind==='slice'?undefined:node.construction),owner:node.sourceId,part:node.part,...(node.dependencyNotes?.length?{notes:[...(result.report.notes??[]),...(node.report?.notes??[]),...node.dependencyNotes]}:{})},operations:result.operations.map(op=>({...op,part:node.part,...(motionIntent&&!result.depositionFinalized?{strokes:op.strokes.map(stroke=>({...stroke,motionIntent}))}:{}),
+    after:[...new Set([...(op.after??[]),...after,...(assignment.dependencies?.after??assignment.after??[]),...(node.record?.prerequisites??[]),
       ...(assignment.substrate&&(node.kind!=='slice'||!predecessors.some(item=>item.node.record===node.record&&item.result.operations.length))?[assignment.substrate]:[])])],...(assignment.filament===null?{}:{filament:assignment.filament})}))};
   return selected;
 }
@@ -94,7 +95,7 @@ export function constructDepositionResults(args,contexts){
     for(const node of ready){
       args.onProgress?.({stage:'Constructing deposition',assignment:node.sourceId,layer:node.index,completed:completed.size,total:nodes.length});
       const result=assignmentWork(node,()=>{
-        const raw=constructDepositionWork(node,completed,args),finalized=finalizeDepositionResult(raw,args.plan);
+        const raw=constructDepositionWork(node,completed,{...args,contexts}),finalized=finalizeDepositionResult(raw,args.plan);
         return publishDepositionWork(node,republishDepositedBoundary(finalized,{widthMm:args.plan.process.lineWidthMm}));
       });
       completed.set(node.key,{node,result});

@@ -38,11 +38,14 @@ export function referenceCurve({degree,controlPoints,knots}){
 }
 
 export function referenceSurface(spec,part){
-  requireThat(spec&&['plane','spline','part','top'].includes(spec.kind),'Text reference must be plane, spline, part or top.');
-  const fields={top:['kind','normalSide'],plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
+  requireThat(spec&&['plate','plane','spline','part','top'].includes(spec.kind),'Surface reference must be plate, plane, spline, part or top.');
+  const fields={plate:['kind'],top:['kind','normalSide'],plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
   requireThat(Object.keys(spec).every(k=>fields[spec.kind].includes(k)),'Unknown text reference field.');
   const normalSide=spec.normalSide??1;
   requireThat([1,-1].includes(normalSide),'Reference normalSide must be 1 or -1.');
+  // Plate is a named reference in the canonical print frame; machine placement
+  // is applied downstream. It names no manufactured producer.
+  if(spec.kind==='plate')return referenceSurface({kind:'plane',origin:[0,0,0],xAxis:[1,0,0],yAxis:[0,1,0]});
   if(spec.kind==='top'){
     requireThat(part,'Top reference needs an original part; use a plane or spline for standalone text.');
     requireGeometry(part,['top-surface']);

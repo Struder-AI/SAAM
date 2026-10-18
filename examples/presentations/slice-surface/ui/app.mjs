@@ -58,7 +58,7 @@ async function buildFrames(){
       status('Building real slice paths · '+(index+1)+' / '+(last+1)+' frames');
       if(index%10===0){state.current=index;paint();await new Promise(resolve=>setTimeout(resolve,0));}
     }
-    state.current=0;paint();$('play').disabled=false;status('All '+(last+1)+' frames ready · 20 seconds · 30 fps.');
+    state.current=0;paint();$('play').disabled=false;status('All '+(last+1)+' frames ready · '+state.design.durationSeconds+' seconds · 30 fps.');
   }catch(error){if(error.name==='AbortError')status('Build stopped. Completed frames are retained.');else failure(error);}
   finally{state.job=null;busy(false);}
 }
@@ -70,7 +70,7 @@ async function movie(){
     const blob=await exportMovie({canvas:output,duration:state.design.durationSeconds,speed:1,signal:state.job.signal,
       draw:({seconds})=>drawFrame(output,state.frames.get(Math.min(last,Math.round(seconds*30))),view),
       onProgress:progress=>{status('Encoding video · '+Math.round(progress*100)+'%');$('progress').max=1;$('progress').value=progress;}});
-    download(blob,'saam-slice-surfaces-studio-1080p.webm');status('Video exported · 1920 × 1080 · 30 fps · 22 seconds including final hold.');
+    download(blob,'saam-slice-surfaces-studio-1080p.webm');status('Video exported · 1920 × 1080 · 30 fps · '+(state.design.durationSeconds+2)+' seconds including final hold.');
   }catch(error){if(error.name==='AbortError')status('Video export cancelled.');else failure(error);}
   finally{state.job=null;busy(false);paint();}
 }
@@ -80,12 +80,12 @@ async function saveCache(){
   if(typeof CompressionStream==='function')download(await new Response(blob.stream().pipeThrough(new CompressionStream('gzip'))).blob(),'saam-slice-surfaces.frames.json.gz');
   else download(blob,'saam-slice-surfaces.frames.json');
 }
-async function loadCache(file){
+async function loadCache(file,append=false){
   pause();const bytes=new Uint8Array(await file.arrayBuffer()),compressed=bytes[0]===31&&bytes[1]===139;
   const text=compressed?await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text():new TextDecoder().decode(bytes);
   const data=JSON.parse(text);
   if(data.schema!=='saam-slice-animation/1'||JSON.stringify(data.design)!==JSON.stringify(state.design)||!Array.isArray(data.frames))throw Error('This cache does not match the current animation design.');
-  const frames=new Map();
+  const frames=append?state.frames:new Map();
   for(const frame of data.frames){
     if(!Number.isInteger(frame.frame)||frame.frame<0||frame.frame>state.design.durationSeconds*30||!Array.isArray(frame.paths)||!Array.isArray(frame.boundary)||frame.sizeMm!==state.design.sizeMm||frame.paths.some(path=>!Array.isArray(path.points)||path.points.some(point=>!Array.isArray(point)||point.length!==3||point.some(n=>!Number.isFinite(n)))))throw Error('Invalid cached frame.');
     frames.set(frame.frame,frame);
@@ -115,7 +115,13 @@ async function start(){
   await loadStudioWindow();
   const saved=await api('design');state.design=saved.design;$('timeline').max=state.design.durationSeconds*30;
   await getFrame(0);paint();state.loaded=true;status('Flat slice ready. Select a chapter, or build the complete animation.');
-  const cache=await fetch('/preview.frames.json.gz');
-  if(cache.ok){status('Loading calculated animation…');await loadCache(await cache.blob());}
+  const indexResponse=await fetch('/preview.index.json');
+  if(indexResponse.ok){
+    const index=await indexResponse.json();
+    for(const chunk of index.chunks){
+      status('Loading calculated animation…');const response=await fetch('/'+chunk.file);
+      if(!response.ok)throw Error('Missing frame chunk '+chunk.file);await loadCache(await response.blob(),true);
+    }
+  }
 }
 start().catch(failure);

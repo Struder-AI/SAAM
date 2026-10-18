@@ -64,11 +64,11 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
       const side=range.widthMm[1]/2*Math.min(metric,sine+graph.slope);
       const inward=cosine-graph.slope*sine,depth=[range.areaMm2[0]/range.widthMm[1],range.areaMm2[1]/range.widthMm[0]];
       const low=residual[0]-side-depth[1]*metric;
-      const high=residual[1]+side-Math.min(0,inward*depth[1]);
+      const materialLift=side-Math.min(0,inward*depth[1]),high=residual[1]+materialLift;
       const underHigh=residual[1]+side-(inward>=0?depth[0]:depth[1])*inward+PRINT_RESOLUTION_MM*metric;
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
-      const tip=residual[0]+nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm);
-      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
+      const tipLift=nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm),tip=residual[0]+tipLift;
+      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId,materialLift,tipLift};courses.set(course.id,value);
       const id=operation.layerId??operation.id;
       if(!slices.has(id))slices.set(id,{min:Infinity,max:-Infinity,tip:Infinity});
       const slice=slices.get(id);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
@@ -93,7 +93,15 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
     }
     sweepTips.set(sweep,tip);return tip;
   }
-  return {slope:graph.slope,courses:courses.size,frameBounds(id){
+  return {slope:graph.slope,courses:courses.size,rangeClear(a,b){
+      // An affine reference needs only interval position bounds plus the
+      // already-certified whole-course bead and nozzle projection margins.
+      // This proves clear ordered prefixes without comparing their segments.
+      if(graph.slope!==0)return false;
+      const receiver=courses.get(a.ref.id),material=courses.get(b.ref.id);if(!receiver||!material)return false;
+      const project=(bounds,high)=>graph.axis.reduce((sum,v,k)=>sum+v*bounds[(v>=0)===high?'max':'min'][k],0);
+      return project(a.range.bounds,false)+receiver.tipLift>project(b.range.bounds,true)+material.materialLift+ROUNDING_MM;
+    },frameBounds(id){
       const course=courses.get(id);if(!course)return null;
       if(!projections.has(course.curveId)){
         const vertices=controlVertices(source.curves[course.curveId].geometry);let lo=Infinity,hi=-Infinity;
@@ -264,7 +272,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
   if(!queries.reader)queries.reader=prepareCurvePath(source);
   const graph=graphNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry),sphere=sphereNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry);
   return {slices,summary:{slices:slices.size,producerGroups:producerGroups.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
-    frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
+    rangeClear:(a,b)=>graph?.rangeClear(a,b)??false,frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
     producerClear(a,b){
       if(graph?.producerClear(a,b)||boundsClear(a,b,producerGroups))return true;
       const x=producerGroups.get(a),y=producerGroups.get(b);
@@ -531,9 +539,11 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     return witness;
   }
   function queryPair(receiver,materialRecord,solid,{localize}){
+    if(!solid&&proofs.rangeClear(receiver,materialRecord))return null;
     const pending=[[receiver,materialRecord]];
     while(pending.length){
-      const [a,b]=pending.pop(),mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;
+      const [a,b]=pending.pop();if(!solid&&proofs.rangeClear(a,b))continue;
+      const mb=solid?{shape:solid,exact:true,errorMm:0}:material(b);if(!mb)continue;
       // Only nozzle points within this candidate's enclosing bounds can hit.
       // The same cone needs less reach here than in the whole-scene index.
       const nb=nozzleCurveEnvelope({from:a.start.point,to:a.end.point,bounds:a.range.bounds,
@@ -735,7 +745,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
       if(!material(record)){rememberSelf(courseKey);continue;}
       const pending=[record];
       while(pending.length){
-        const next=pending.pop();if(!convexIntersects(nozzle(next).shape,material(next).shape,ROUNDING_MM))continue;
+        const next=pending.pop();if(proofs.rangeClear(next,next)||!convexIntersects(nozzle(next).shape,material(next).shape,ROUNDING_MM))continue;
         requireTangent(next);const children=divide(next);if(!children)throw unresolved(next,next);
         const first=next.ref.reverse?children[1]:children[0],last=next.ref.reverse?children[0]:children[1];
         const hit=pair(last,first);if(hit)conflict(hit);pending.push(...children);

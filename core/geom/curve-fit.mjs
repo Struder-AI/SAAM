@@ -54,7 +54,11 @@ export function fitSampledCurve(points,{toleranceMm=PRINT_RESOLUTION_MM/2,forceN
     if(last===first+1||bound.error<=toleranceMm&&positiveSpeed(rows)){
       pieces.push({rows,from:parameters[first],to:parameters[last]});maximum.error=Math.max(maximum.error,bound.error);continue;
     }
-    const cut=Math.max(first+1,Math.min(last-1,bound.edge));
+    // Keep error-directed refinement balanced by point count. Repeated turns
+    // can put the largest error next to an endpoint on every pass; peeling one
+    // edge at a time makes fitting quadratic without improving its certificate.
+    const margin=Math.max(1,Math.floor((last-first)/4));
+    const cut=Math.max(first+margin,Math.min(last-margin,bound.edge));
     pending.push([cut,last],[first,cut]);
   }
   const degree=pieces.some(piece=>piece.rows.length===4)?3:1,controlPoints=[],knots=Array(degree+1).fill(0);

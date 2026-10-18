@@ -79,7 +79,7 @@ export function resolveMaterialGeometry(geometries){
 // geometry (a within-volume) uses the selected component/partition's origin.
 // Null selects the whole source, including an assembly, at the source origin.
 export function resolveGeometrySelections(geometry,requests){
-  const selections=geometrySelections(geometry);
+  const selections=geometry?geometrySelections(geometry):new Map();
   const selected=requests.map(({selection=null,geometry:replacement})=>{
     const source=selection===null?{geometry,xMm:0,yMm:0,zMm:0}:selections.get(selection);
     requireThat(source,`Unknown geometry selection ${selection}.`);

@@ -55,7 +55,7 @@ function primeLineResult(plan){
 // places those requests, including within-volumes in their owner's frame.
 export async function preparePathGeometry(plan) {
   plan=compileRecipe(plan).plan;
-  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map(),geometryFailures:new Map()};
+  if(!plan.geometry)return prepareAssignmentGeometry(plan,plan.slices.assignments,{placed:null,componentShells:null,shells:[],volumes:new Map(),sources:new Map(),geometryFailures:new Map()});
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
   const requests=[{},...components.map(selection=>({selection}))];
   const values=await resolveGeometrySelections(plan.geometry,requests);
@@ -160,7 +160,7 @@ export function resolveOperationReferences(plan,results){
       }
     }
   }
-  return results.map(result=>({...result,edgeAfter:plan.slices.assignments.find(assignment=>assignment.id===(result.report?.owner??result.id))?.edgeAfter,operations:result.operations.map(operation=>{
+  return results.map(result=>({...result,edgeAfter:result.edgeAfter??plan.slices.assignments.find(assignment=>assignment.id===(result.report?.owner??result.id))?.edgeAfter,operations:result.operations.map(operation=>{
     const after=[...new Set((operation.after??[]).flatMap(previous=>{
       requireThat(operationPrerequisite(previous),'Invalid operation prerequisite.');
       if(typeof previous==='string')return [previous];

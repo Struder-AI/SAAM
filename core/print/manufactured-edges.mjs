@@ -29,7 +29,7 @@ export async function manufacturedEdges(plan,queries,{includeGeometry=true}={}){
         if(stroke.stationaryExtrusion)continue;
         const native=typeof operation.layerId==='string'&&stroke.edge;
         if(typeof operation.layerId==='string'&&!native&&result.report.depositionFamily!=='trace')continue;
-        const edge=native?stroke.edge:{curve:stroke.id??ordinal};
+        const edge=native?stroke.edge:{curve:stroke.sourceCurve??stroke.id??ordinal};
         const repetition=operation.id.startsWith(query.assignment+':')?operation.id.slice(query.assignment.length+1):null;
         if(!native&&repetition===null)continue;
         const reference={assignment:query.assignment,part,...(typeof operation.layerId==='string'?{index}:{repetition}),edge};

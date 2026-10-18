@@ -18,11 +18,17 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   // A sleeve prepares its geometry as it is constructed, so its failure is its own.
   const vaseWork=args=>{
     if(vaseLoaded.error)throw vaseLoaded.error;
-    const {node,onProgress}=args;
-    if(node.context.assignment.pattern!==null&&advancedLoaded.error)throw advancedLoaded.error;
-    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,onProgress});
+    const {node,onProgress,materialReadiness}=args;
+    const patterned=node.context.assignment.pattern!==null;
+    if(patterned&&advancedLoaded.error)throw advancedLoaded.error;
     const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
-    return vase.standardVaseResult({...node.context,geometry});
+    const stack=geometry.referenceStack(),first=stack.layers[0],direction=stack.direction??[0,0,1];
+    const footprints=first.curves.map(curve=>{
+      const points=curve.points.map(point=>point.map((v,k)=>v-first.heightMm*direction[k]));
+      return curve.closed?[...points,points[0]]:points;
+    });
+    const after=[...(node.context.assignment.after??[]),...materialReadiness(footprints)];
+    return patterned?advanced.advancedVaseResult({...node.context,geometry,after,onProgress}):vase.standardVaseResult({...node.context,geometry,after});
   };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){

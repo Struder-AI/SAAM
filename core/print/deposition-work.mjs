@@ -8,6 +8,7 @@ import {prepareTraceSourceLayer} from './trace-source-preparation.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {AssignmentFailure,assignmentWork} from './assignment-failure.mjs';
+import {traceSurfaceReadiness,referenceSliceReadiness} from './surface-readiness.mjs';
 // Extensions see prepared work only. Core retains the translation from work
 // keys to whichever operations construction actually emits.
 export function depositionWorkDescription(node){
@@ -86,6 +87,9 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   };
   for(const record of contexts)assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>resolve(record));
   for(const context of curveSources)assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>resolveTrace(context));
+  for(const record of contexts)record.prerequisites=assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>referenceSliceReadiness(record,contexts));
+  constructions=constructions.map(context=>context.assignment.construction==='curves'&&!context.assignment.source?
+    {...context,assignment:assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>traceSurfaceReadiness(context.assignment,contexts,shells))}:context);
   const baseNodes=contexts.flatMap(record=>{
     const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,

@@ -17,8 +17,8 @@ Naming an open bundle selects its window; ambiguous windows need a target. An id
 Capture cancels prior unfinished requests and rejects old writes. Studio-first requests survive attachment; a reload reclaims only its own matching dead-process reservation.
 
 Connect says “Mention SAAM in your chat client.” Installed guidance handles attachment. `repair_client_setup` repairs registration; existing clients may need restarting.
-The consented release service observes startup from the home lease, operations, Studio/workspace events and installer stages once; offline, only first-run evidence and the latest network issue wait in `tmp/`. `saam diagnostics` waits for sends and returns the last receipt. Studio's Report a bug and an agent's `report_bug` (with its reason) send the text with window or client, print and runtime as one event the relay must acknowledge.
-[The service](../../packaging/release-service.mjs) owns consent/redaction; Bundle owns revisions and exact-byte export.
+The [release service](../../packaging/release-service.mjs) owns consent/redaction and observes startup, operations, Studio/workspace and installer events once; offline, first-run evidence and the latest network issue wait in `tmp/`. `saam diagnostics` awaits receipts; Bundle owns revisions and exact-byte export.
+Investigate evidence/source before `report_bug`. Use short lines: **Problem** (trigger, actual/expected), **Cause** (confirmed/suspected; investigation limits), **Evidence** (decisive reproduction/observation). Omit transcripts/logs and repeated automatic client/window, print and runtime context. Studio/agent reports share 1000 characters; require relay acknowledgement and show the person the report.
 
 ## Local agent notes
 

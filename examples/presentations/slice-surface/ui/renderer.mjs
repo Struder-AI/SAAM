@@ -26,11 +26,19 @@ export function drawFrame(canvas,frame,{context=true,wash=true}={}){
     path([[coordinate,-10,0],[coordinate,size+10,0]],{color:'#dbe1d4',lineWidth:.6});
     path([[-10,coordinate,0],[size+10,coordinate,0]],{color:'#dbe1d4',lineWidth:.6});
   }
-  if(context)for(let i=1;i<24;i++){
-    const z=size*i/24;path([[0,0,z],[size,0,z],[size,size,z],[0,size,z]],{closed:true,color:'#7b9390',lineWidth:.75,alpha:.18});
+  function box(min,max,alpha=1){
+    if(alpha<=0)return;
+    if(context)for(let i=1;i<24;i++){
+      const z=min[2]+(max[2]-min[2])*i/24;path([[min[0],min[1],z],[max[0],min[1],z],[max[0],max[1],z],[min[0],max[1],z]],{closed:true,color:'#7b9390',lineWidth:.75,alpha:.18*alpha});
+    }
+    const vertices=Array.from({length:8},(_,i)=>[i&1?max[0]:min[0],i&2?max[1]:min[1],i&4?max[2]:min[2]]);
+    for(let i=0;i<8;i++)for(const bit of [1,2,4])if((i&bit)===0)path([vertices[i],vertices[i|bit]],{color:'#718b82',lineWidth:1,alpha:.42*alpha});
   }
-  const vertices=Array.from({length:8},(_,i)=>[i&1?size:0,i&2?size:0,i&4?size:0]);
-  for(let i=0;i<8;i++)for(const bit of [1,2,4])if((i&bit)===0)path([vertices[i],vertices[i|bit]],{color:'#718b82',lineWidth:1,alpha:.42});
+  const a=frame.animation??{cubeContext:1,bridgeContext:0};
+  box([0,0,0],[size,size,size],a.cubeContext);
+  if(a.bridgeContext>0){box([0,0,0],[size/6,size,size/2],a.bridgeContext);box([size*5/6,0,0],[size,size,size/2],a.bridgeContext);}
+  if(context)for(const curve of frame.contextGeometry??[])path(curve.points,{color:'#718b82',lineWidth:.85,alpha:curve.alpha});
+  if(context)for(const curve of frame.previousPaths??[])path(curve.points,{closed:curve.closed,lineWidth:1.4,alpha:frame.animation.previousAlpha,color:'#5b9fd3'});
   if(wash){
     ctx.globalAlpha=.055;ctx.fillStyle='#5b9fd3';
     for(const boundary of frame.boundary){ctx.beginPath();boundary.forEach((p,i)=>{const [px,py]=project(p);if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);});ctx.closePath();ctx.fill();}

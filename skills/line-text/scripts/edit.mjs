@@ -35,7 +35,7 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
     requireThat(typeof reference.assignment==='string'&&Number.isSafeInteger(reference.index)&&reference.index>=0&&
       Object.keys(reference).every(key=>['kind','assignment','index'].includes(key)),'Manufactured lettering surface needs an assignment and native slice index.');
   }else if(reference){
-    requireThat(['part','spline'].includes(reference.kind),'Line text reference must be a part patch or independent spline.');
+    requireThat(['part','spline','plane','plate'].includes(reference.kind),'Line text reference must be a manufactured slice, part patch, build plate, independent plane or spline.');
     const shell=reference.kind==='part'?(await Geometry.resolveGeometrySelections(source.geometry,[{selection:part}]))[0]:null;
     const atSurface=Geometry.referenceSurface(reference,shell);
     for(const curve of compiled.assignment.curves)for(const [x,y] of curve.points)atSurface(x+origin[0],y+origin[1]);
@@ -43,13 +43,18 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
   const substrate=Object.hasOwn(request,'substrate')?request.substrate:reference?.kind==='slice'?{assignment:reference.assignment,index:reference.index}:null;
   const curveReference=reference?.kind==='slice'?reference:{kind:'surface',surface:reference,part};
   const layers=request.layers??2,layerMm=request.layerMm??.2;
-  const curves=reference?Array.from({length:layers},(_,layer)=>compiled.assignment.curves.map(({points,...curve})=>({...curve,
-    heightMm:layerMm,repetitions:[layer],uv:{reference:curveReference,
-      points:points.map(([x,y])=>[x+origin[0],y+origin[1]]),normalMm:origin[2]+layer*layerMm}}))).flat():
-    compiled.assignment.curves.map(curve=>({...curve,points:curve.points.map(([x,y,z])=>[x+origin[0],y+origin[1],z])}));
-  const assignment=Toolpath.curveAssignment({...compiled.assignment,part,curves,substrate:null,
+  const curves=Array.from({length:layers},(_,layer)=>compiled.assignment.curves.map(({points,...curve},stroke)=>({...curve,
+    id:`stroke-${stroke}-layer-${layer}`,heightMm:layerMm,repetitions:[layer],
+    ...(reference?{uv:{reference:curveReference,points:points.map(([x,y])=>[x+origin[0],y+origin[1]]),normalMm:origin[2]+layer*layerMm}}:
+      {points:points.map(([x,y,z])=>[x+origin[0],y+origin[1],z+layer*layerMm])})}))).flat();
+  const edgeAfter=curves.filter(curve=>curve.repetitions[0]>0).map(curve=>{
+    const layer=curve.repetitions[0],stroke=Number(curve.id.split('-')[1]);
+    return {target:{assignment:id,part,repetition:layer,edge:{curve:curve.id}},
+      after:[{assignment:id,part,repetition:layer-1,edge:{curve:`stroke-${stroke}-layer-${layer-1}`}}]};
+  });
+  const assignment=Toolpath.curveAssignment({...compiled.assignment,part,curves,substrate:null,edgeAfter,
     ...(substrate?{operationAfter:{0:[substrate]}}:{}),
-    ...(reference?{repeat:{count:layers,translation:[0,0,0]},sequence:false,toolPose:{alignToSliceNormal:true}}:{})});
+    repeat:{count:layers,translation:[0,0,0]},sequence:false,...(reference?{toolPose:{alignToSliceNormal:true}}:{})});
   if(at<0)assignments.push(assignment);else assignments[at]=assignment;
   return {assignments,report:{id,fontId:font.id,plan:compiled.plan,...compiled.report,
     ...(reference?{reference,layers,notes:[...(compiled.report.notes??[]),'Surface layout maps sizeMm to UV bounds; it does not preserve physical lettering dimensions on a distorted chart.']}: {})}};
