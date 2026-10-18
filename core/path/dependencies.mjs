@@ -8,7 +8,7 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
 export const PATH_CONTRACT='saam-deposition/42'; // Producer validity, owned Slice regions and canonical construction.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/30'; // Neutral endpoint transfers; Export owns checked machine realization.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/31'; // Whole-group prefix proofs; Export owns checked machine realization.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

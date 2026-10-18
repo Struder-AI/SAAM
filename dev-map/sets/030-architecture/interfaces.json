@@ -107,54 +107,6 @@
       "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
     },
     {
-      "contract": "inject-finalize",
-      "target": "core/print/finalize.mjs::finalizeDepositionResult",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "inject-finalize",
-      "target": "core/print/finalize.mjs::combineFinalizedResults",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "trace-finalize",
-      "target": "core/print/finalize.mjs::finalizeDepositionResult",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "trace-finalize",
-      "target": "core/print/finalize.mjs::combineFinalizedResults",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "slice-finalize",
-      "target": "core/print/finalize.mjs::finalizeDepositionResult",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
-      "contract": "slice-finalize",
-      "target": "core/print/finalize.mjs::combineFinalizedResults",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Explicit current entry selected during architecture authoring; schemas/effects remain unchecked."
-    },
-    {
       "contract": "toolpath-bundle-deposition",
       "target": "core/print/finalize.mjs::finalizeDepositionResult",
       "kinds": [
@@ -1063,18 +1015,6 @@
         "call"
       ],
       "evidence": "Bundle generation currency invokes Toolpath-owned digest of current recipe-selected source dependencies; cryptographic and resolver effects remain in the audit."
-    },
-    {
-      "contract": "slice-checked-surface-derivatives",
-      "target": "core/geom/surface-derivatives.mjs::surfaceDerivatives",
-      "kinds": [
-        "call"
-      ],
-      "callers": [
-        "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals",
-        "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"
-      ],
-      "evidence": "Exact reviewed consumer calls; source effects and unresolved callable/alias observations remain visible."
     },
     {
       "contract": "slice-positive-intervals",
@@ -2474,20 +2414,15 @@
       "evidence": "Resolve supplied setup dimensions; neutral construction and scheduling no longer depend on selected machine dimensions."
     },
     {
-      "contract": "construction-access-order",
-      "target": "core/path/compose.mjs::resolveSourceOrder",
-      "kinds": [
-        "call"
-      ],
-      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
-    },
-    {
-      "contract": "construction-access-order",
+      "contract": "inject-enclosure-inspection",
       "target": "core/path/physical-order.mjs::sliceNozzleProofs",
       "kinds": [
         "call"
       ],
-      "evidence": "Exact shared numerical entry used by the scoped construction or selected-machine preparation implementation."
+      "evidence": "Inject enclosure readiness queries shared coarse bounds and opens actual contacts only as needed; no construction-scope scheduling pass.",
+      "callers": [
+        "core/path/material-readiness.mjs::resolveMaterialReadiness"
+      ]
     },
     {
       "contract": "geometry-export-clearance",
@@ -2810,20 +2745,26 @@
       "evidence": "Nominal wall frontier from selected guide boundaries."
     },
     {
-      "contract": "construction-access-order",
+      "contract": "inject-enclosure-inspection",
       "target": "core/path/compose.mjs::prepareSourceUnits",
       "kinds": [
         "call"
       ],
-      "evidence": "Scoped private enclosure and access inspection."
+      "evidence": "Inject enclosure readiness queries shared coarse bounds and opens actual contacts only as needed; no construction-scope scheduling pass.",
+      "callers": [
+        "core/path/material-readiness.mjs::resolveMaterialReadiness"
+      ]
     },
     {
-      "contract": "construction-access-order",
+      "contract": "inject-enclosure-inspection",
       "target": "core/path/physical-order.mjs::prepareRangeScene",
       "kinds": [
         "call"
       ],
-      "evidence": "Scoped private enclosure and access inspection."
+      "evidence": "Inject enclosure readiness queries shared coarse bounds and opens actual contacts only as needed; no construction-scope scheduling pass.",
+      "callers": [
+        "core/path/material-readiness.mjs::resolveMaterialReadiness"
+      ]
     },
     {
       "contract": "extension-edge-host",

@@ -281,20 +281,32 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         if(progress.cyclic)break;
       }
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
+      const groupId=unit=>unit.layerId??unit.sourceOperation;
       const substrateUnits=graph.units.filter(unit=>unbound(unit)&&graph.units.some(other=>
-        producerOf(other)!==producerOf(unit)&&!trustedUnits(unit,other)));
+        producerOf(other)!==producerOf(unit)&&!trustedUnits(unit,other)&&!state.scene.proofs.supportApart(groupId(unit),groupId(other))));
       for(const [index,unit] of substrateUnits.entries()){
         onProgress?.({stage:'Resolving material support',completed:index,total:substrateUnits.length,assignment:unit.operation.id});
         for(const hit of state.scene.substrateHits(unit,id=>id!==unit.id&&!precedes(id,unit.id)&&
-          producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))))
+          producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))&&
+          !state.scene.proofs.supportApart(groupId(unit),groupId(graph.byId.get(id)))))
           addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
       }
       if(substrateUnits.length)onProgress?.({stage:'Resolving material support',completed:substrateUnits.length,total:substrateUnits.length});
       // Every native slice or unlayered operation is an aggregate query group.
       // An unresolved Inject/Trace group does not disable proofs for its peers.
-      const accessGroups=new Set(),queryGroups=new Map(),groupId=unit=>unit.layerId??unit.sourceOperation;
+      const accessGroups=new Set(),queryGroups=new Map();
       for(const unit of graph.units){const id=groupId(unit);if(!queryGroups.has(id))queryGroups.set(id,[]);queryGroups.get(id).push(unit);}
       const ids=[...queryGroups.keys()];
+      // Try a complete native-group order before resolving pairwise exclusions.
+      // A group need only clear the material actually preceding it, not every
+      // future group in another producer. Construction prerequisites stay hard.
+      const useAggregate=certified&&!progress.cyclic&&new Set(graph.units.map(producer)).size>1;
+      const aggregateCooling=useAggregate&&graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
+      const aggregate=useAggregate?orderSliceCourses(graph.nodes,priorities,graph.prerequisites,
+        {start,physicalEdges:state.edges,cooling:aggregateCooling,groupAccess:state.scene.proofs}):null;
+      const aggregateClear=Boolean(aggregate?.groupOrder&&state.scene.proofs.orderedClear(aggregate.groupOrder));
+      if(aggregateClear)for(const id of ids)accessGroups.add(id);
+      state.scene.proofs.summary.orderedWholeGroups=aggregateClear?ids.length:0;
       const peerGroups=new Map();
       for(const id of ids){const unit=queryGroups.get(id)[0],owner=producer(unit);if(!peerGroups.has(owner))
         peerGroups.set(owner,ids.filter(other=>relevant(unit,queryGroups.get(other)[0])));}
@@ -305,7 +317,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       const historyId=id=>source.layers[id]?.completionId??id;
       const trustedGroupPairs=new Set();
-      for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>{
+      if(!aggregateClear)for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>{
         if(related(historyId(id),historyId(other))){trustedGroupPairs.add(JSON.stringify([id,other]));return true;}
         return state.scene.proofs.clear(id,other)||groupBefore(id,other);
       }))accessGroups.add(id);
@@ -335,8 +347,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }
       }
-      const cooling=graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
-      const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges,cooling});
+      const cooling=aggregateClear?aggregateCooling:graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
+      const ordered=aggregateClear?aggregate:orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges,cooling});
       for(const unit of ordered.operations)if(!unit.barrier&&!certified){
         const body=state.scene.byId.get(unit.id);
         // Certify the selected traversal after external ordering has settled;

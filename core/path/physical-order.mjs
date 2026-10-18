@@ -89,8 +89,9 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
       const tipLift=nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm),tip=residual[0]+tipLift;
       const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
       const id=operation.layerId??operation.id;
-      if(!slices.has(id))slices.set(id,{min:Infinity,max:-Infinity,tip:Infinity});
+      if(!slices.has(id))slices.set(id,{min:Infinity,max:-Infinity,tip:Infinity,topMin:Infinity,underHigh:-Infinity,cosine:1});
       const slice=slices.get(id);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
+      slice.topMin=Math.min(slice.topMin,value.topMin);slice.underHigh=Math.max(slice.underHigh,value.underHigh);slice.cosine=Math.min(slice.cosine,value.cosine);
       const producer=source.layers[operation.layerId]?.stackId??operation.construction??operation.id;
       if(!producers.has(producer))producers.set(producer,{max:-Infinity,tip:Infinity});
       const whole=producers.get(producer);whole.max=Math.max(whole.max,value.max);whole.tip=Math.min(whole.tip,value.tip);
@@ -134,6 +135,13 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
     },
     sweepClear:(sweep,unit)=>unit.operation.kind==='deposit'&&!unit.operation.occupied&&unit.ranges.every(ref=>{const material=courses.get(ref.id);return material&&sweepTip(sweep)>material.max+ROUNDING_MM;}),
     clear:(a,b)=>clear(slices.get(a),slices.get(b)),producerClear:(a,b)=>clear(producers.get(a),producers.get(b)),
+    supportApart(a,b){
+      const p=slices.get(a),q=slices.get(b);if(!p||!q||p.cosine<=0||q.cosine<=0)return false;
+      // A side/bottom crossing does not supply an exposed supporting top.
+      // Project the existing support-band allowances through both normal cones.
+      const mutual=p.cosine*q.cosine-Math.sqrt(Math.max(0,1-p.cosine*p.cosine))*Math.sqrt(Math.max(0,1-q.cosine*q.cosine));
+      return mutual>0&&q.topMin-p.underHigh>PRINT_RESOLUTION_MM*8*metric/mutual+ROUNDING_MM;
+    },
     orderedClear(ids){
       const prefix={max:-Infinity};
       for(const id of ids){const row=slices.get(id);if(!row||!(row.tip>Math.max(prefix.max,row.max)+ROUNDING_MM))return false;prefix.max=Math.max(prefix.max,row.max);}
@@ -305,7 +313,7 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
     return nozzleBoundsClear({min:p,max:p},{reference,halfAngleRad:0},material.material,0,tipDiameterMm,includedAngleDeg);
   }
   return {slices,stationaryClear,summary:{slices:slices.size,producerGroups:producerGroups.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
-    rangeClear:(a,b)=>graph?.rangeClear(a,b)??false,frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
+    rangeClear:(a,b)=>graph?.rangeClear(a,b)??false,supportApart:(a,b)=>graph?.supportApart(a,b)??false,frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
     producerClear(a,b){
       if(graph?.producerClear(a,b)||boundsClear(a,b,producerGroups))return true;
       const x=producerGroups.get(a),y=producerGroups.get(b);
@@ -485,7 +493,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     return numericalProofs;
   }
   const proofs={summary:proofSummary};
-  for(const name of ['stationaryClear','rangeClear','frameBounds','unitClear','sweepClear','producerClear','orderedClear','clear'])
+  for(const name of ['stationaryClear','rangeClear','supportApart','frameBounds','unitClear','sweepClear','producerClear','orderedClear','clear'])
     proofs[name]=(...args)=>preparedProofs()[name](...args);
   function candidates(shape,acceptGroup,boundsTest=null){
     return spatialIndex().query(shape,ROUNDING_MM,{acceptGroup,firstPerGroup:true,boundsTest,boundsOnly:true}).map(index=>bodies[index]);

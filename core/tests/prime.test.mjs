@@ -6,6 +6,7 @@ import {startupPosition,startupRetracted,toolBounds} from '../machine/rules.mjs'
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
+import {joinSaamPath} from '../path/saampath.mjs';
 import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {preparePath} from '../export/registry.mjs';
@@ -17,9 +18,10 @@ test('S5 prepared paths recover, sacrificial strokes, then the part on either no
     const machine=loadMachine(),plan=defaults(machine);
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
-    const path=schedulePath(await generatePath(plan,machine));
+    const source=await generatePath(plan,machine),sourcePathId='prime-fixture';
+    const path=joinSaamPath({sourcePathId,deposition:source,schedule:schedulePath(source,{sourcePathId})});
     const prepared=(await preparePath(path,plan,machine)),program={moves:pathPreview(prepared,{plan}).moves,
-      events:prepared.actions.map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
+      events:[...prepared.actions].map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');
     assert.equal(prime.length,3,'two passes and their depositing connector');
     assert.deepEqual(depositing.slice(0,3),prime,'prime is before any model deposition');
@@ -73,5 +75,5 @@ test('profiles without explicit priming and empty deposition preserve their path
   }
   const f=fixture(),start=startupPosition(f.machine,f.plan);
   const prepared=(await preparePath({schema:'saampath/1',initialPosition:start,actions:[],completion:{contract:NEUTRAL_PATH_CONTRACT,inputHash:'test'}},f.plan,f.machine));
-  assert.equal(prepared.actions.filter(a=>a.phase==='prime').length,0,'priming cannot disguise an empty part');
+  assert.equal([...prepared.actions].filter(a=>a.phase==='prime').length,0,'priming cannot disguise an empty part');
 });

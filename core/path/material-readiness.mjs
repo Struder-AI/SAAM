@@ -6,7 +6,7 @@ import {boundsOverlap,convexBounds,convexIntersects} from '../geom/convex-cleara
 import {ROUNDING_MM} from '../dimensions.mjs';
 import {sliceNozzleProofs,prepareRangeScene} from './physical-order.mjs';
 import {prepareSourceUnits} from './compose.mjs';
-import {reduceManufacturing} from './manufacturing.mjs';
+import {reduceManufacturing,constructionHistory} from './manufacturing.mjs';
 
 export function resolveMaterialReadiness(source,reader,materials){
   if(!Object.values(source.operations).some(operation=>operation.kind==='inject'&&operation.requiredMaterial?.length))return;
@@ -20,7 +20,7 @@ export function resolveMaterialReadiness(source,reader,materials){
       if(material.bounds)prior.bounds=prior.bounds?{min:prior.bounds.min.map((v,k)=>Math.min(v,material.bounds.min[k])),max:prior.bounds.max.map((v,k)=>Math.max(v,material.bounds.max[k]))}:material.bounds;
     }
   }
-  const proofs=sliceNozzleProofs(source,{reader}),refined=new Set(),summary={slicePrerequisites:0,refinedSlices:0,requirements:0};
+  const proofs=sliceNozzleProofs(source,{reader}),declared=constructionHistory(source),refined=new Set(),summary={slicePrerequisites:0,refinedSlices:0,requirements:0};
   let scene,units;
   const access=new Map();
   function ensureScene(){
@@ -31,17 +31,18 @@ export function resolveMaterialReadiness(source,reader,materials){
     return ensureScene().requiredHits(requirement,id=>units.byId.get(id)?.layerId===layerId).length>0;
   }
   function wholeSliceClear(operation,layerId){
-    const id=key(operation.id,layerId);if(access.has(id))return access.get(id);
-    let clear=proofs.stationaryClear(operation.injection.at,operation.injection.pose,layerId);
+    const id=key(operation.id,layerId);if(access.has(id))return access.get(id).clear;
+    let clear=proofs.stationaryClear(operation.injection.at,operation.injection.pose,layerId),witness;
     if(!clear){
       // Inconclusive bounds request geometric inspection, not a dependency or
       // execution split. Only an actual nozzle/material contact keeps this
       // slice's enclosure requirement at finer granularity.
       ensureScene();
       const injector=units.units.find(unit=>unit.sourceOperation===operation.id);
-      clear=scene.nozzleHits(injector,id=>units.byId.get(id)?.layerId===layerId).next().done;
+      const contact=scene.nozzleHits(injector,id=>units.byId.get(id)?.layerId===layerId).next();
+      clear=contact.done;witness=contact.value?.witness;
     }
-    access.set(id,clear);return clear;
+    access.set(id,{clear,witness});return clear;
   }
 
   for(const operation of Object.values(source.operations)){
@@ -65,6 +66,9 @@ export function resolveMaterialReadiness(source,reader,materials){
         if(layerId&&wholeSliceClear(operation,layerId))operation.after.push(source.layers[layerId].completionId);
         else {fine.add(layerId);if(layerId)refined.add(key(operation.id,layerId));}
       }
+      for(const layerId of fine)if(layerId&&declared.covers(source.layers[layerId].completionId,operation.id))
+        throw Object.assign(Error('Required whole-slice completion blocks injection access for '+operation.id+'. Select enclosure material before its closing work.'),
+          {code:'MATERIAL_ACCESS_CONFLICT',operation:operation.id,layerId,witness:access.get(key(operation.id,layerId))?.witness});
       if(fine.size)remaining.push({...requirement,layerIds:[...fine]});
       summary.requirements++;
     }

@@ -39,24 +39,27 @@ Shared Geometry methods preserve provenance, preconditions, topology and precisi
 Design references: [Rhino events](https://developer.rhino3d.com/api/rhinoscript/surface_and_polysurface_methods/surfacesurfaceintersection.htm) and [OCCT interferences](https://occt3d.com/dev/doc/overview/html/specification__boolean_operations.html); no kernel code was copied.
 
 ### Native Boolean construction
-The [canonical operations](operations.mjs) own backend selection. Authored unions with
-provably disjoint interiors retain native operands. Operations on native boundaries trim
-them; composed/mixed operands retain queries. Sections and containment accept either form;
-Clipper2 handles UV regions. `BOOLEAN_TOLERANCE_MM` in [dimensions](../dimensions.mjs)
-is the single 0.005 mm setting: chord images use a quarter, sewing half; roots stay finer.
-Rational coefficient proofs handle basis changes and partial/periodic coincidence;
-local chart proofs bound fuzzy matches. General intersections audit control hulls beyond
-0.4 mm starting seeds, using interval exclusion, contraction and root-graph certificates.
-Sub-resolution closures are counted. Coplanar projection keeps native boundaries;
-support planes separate rotated contacts; point/edge contacts retain material sectors.
-Geometry automatically tries original construction, fuzzy matching at a quarter tolerance,
-then growing translations from the original operands after numerical failures. Interruptible workers continue until completion or cancellation.
-Success reports fuzzy accuracy or each actual displacement in notes; jiggles can exceed the default tolerance.
-Exhausted recovery returns its failures. General trimmed normal offsets remain unsupported.
-Mesh/mixed sections also retain operands. Explicit output tessellates native boundaries;
-nonempty checks derive a mesh only when construction has not already proved presence.
-[Regressions](../tests/surface-boolean.test.mjs), [authored examples](../../scripts/bench/boolean-examples/)
-and [benchmarks](../../scripts/bench/surface-boolean.mjs) save correctness/timing evidence.
+The [canonical operations](operations.mjs) own backend selection. Provably disjoint
+native unions retain operands; other native boundaries are trimmed. Composed/mixed
+solids retain queries, and sections/containment accept either form. Clipper2 handles UV.
+`BOOLEAN_TOLERANCE_MM` in [dimensions](../dimensions.mjs) is 0.005 mm: chord images
+use a quarter, sewing half; roots stay finer. Rational coefficient proofs handle basis
+changes and partial/periodic coincidence; local chart proofs bound fuzzy matches.
+General intersections audit control hulls beyond 0.4 mm seeds using interval/root-graph
+proofs. Coplanar projections, support planes and material sectors retain contacts;
+sub-resolution closures are counted. Float64 domain drift is normalized before knot lookup.
+Recovery tries original construction, quarter-tolerance fuzzy matching, then growing
+translations from original operands. Notes name actual displacements, which can exceed
+the default tolerance; inspect them before accepting geometry. Workers remain cancellable.
+Exhausted recovery reports failures. General trimmed normal offsets remain unsupported.
+Known periodic/coincident and near-tangent failures need deliberate authoring choices:
+use one revolved profile for coaxial results, solid sections for coincident boundary cuts,
+and an authored section/loft for a thin lens. For unresolved crossed-surface construction,
+explicitly derive 0.01 mm meshes and use the same solid operations if that accuracy suffices.
+These are maker workarounds, not repaired general native intersection guarantees.
+Explicit output tessellates boundaries; presence derives a mesh only without a prior proof.
+[Regressions](../tests/surface-boolean.test.mjs), [examples](../../scripts/bench/boolean-examples/)
+and [benchmarks](../../scripts/bench/surface-boolean.mjs) retain correctness/timing evidence.
 
 ### Precision belongs to a quantity and an operation
 

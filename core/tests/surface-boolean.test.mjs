@@ -89,11 +89,11 @@ test('both features generate toolpaths with horizontal, tilted and curved stacks
     plan.process.layerMm=2;plan.process.firstLayerMm=2;
     plan.slices.assignments=[sliceAssignment({id:'body',surface,loops:1,fillDensity:.15,solidTop:0,solidBottom:0})];
     const path=await generatePath(plan),limitations=[path.summary.limitations??[]].flat().join('; ');
-    assert.ok(path.operations.some(op=>op.construction==='body'),limitations);
+    assert.ok(Object.values(path.operations).some(op=>op.construction==='body'),limitations);
     assert.ok(!/produced nothing|failed|did not close/.test(limitations),limitations);
-    const inject=path.operations.filter(op=>op.construction==='plastic-weld:anchor');
+    const inject=Object.values(path.operations).filter(op=>op.construction==='plastic-weld:anchor');
     assert.equal(inject.length,kind==='plastic-weld'?1:0);
-    for(const op of inject){assert.ok(op.requiredMaterial.length>0);assert.ok(op.strokes.some(stroke=>stroke.stationaryExtrusion));}
+    for(const op of inject){assert.ok(op.after.length>0||op.requiredMaterial.length>0);assert.equal(op.kind,'inject');assert.ok(op.injection.volumeMm3>0);}
   }
 });
 

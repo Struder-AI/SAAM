@@ -1112,7 +1112,7 @@
       "notes": [
         "Owns reusable profiles, process/material/installation defaults, remembered setup and settings resolution. Bundle stores selected snapshots; reusable changes never silently update existing bundles.",
         "Agent settings commands in core/machine/bundle-settings.mjs read the current Bundle, resolve owned settings, and submit one expected-revision snapshot. Maker context accepts saved capabilities; profile lookup is explicit discovery.",
-        "Approved Extensions \u2192 Settings \u2192 Bundle records supplied dependency configuration only. Current named configurations live in plan.skills; geometry and construction references already encode their dependencies."
+        "Approved Extensions → Settings → Bundle records supplied dependency configuration only. Current named configurations live in plan.skills; geometry and construction references already encode their dependencies."
       ],
       "source": {
         "file": "core/machine/settings.mjs"
@@ -1583,7 +1583,7 @@
     {
       "id": "geometry-leaf-38ed80dc74fe",
       "index": "2.1.2.2.3.6",
-      "label": "preparedCurveAt \u00b7 at",
+      "label": "preparedCurveAt · at",
       "description": "prepareContourFamily::preparedCurveAt::at in core/geom/prepared-contours.mjs.",
       "type": "component",
       "source": {
@@ -1594,7 +1594,7 @@
     {
       "id": "geometry-leaf-0322630ddf91",
       "index": "2.1.2.2.3.7",
-      "label": "preparedCurveAt \u00b7 breakpoints",
+      "label": "preparedCurveAt · breakpoints",
       "description": "prepareContourFamily::preparedCurveAt::breakpoints in core/geom/prepared-contours.mjs.",
       "type": "component",
       "source": {
@@ -1605,7 +1605,7 @@
     {
       "id": "geometry-leaf-6b31181ec1f6",
       "index": "2.1.2.2.3.8",
-      "label": "preparedCurveAt \u00b7 knots",
+      "label": "preparedCurveAt · knots",
       "description": "prepareContourFamily::preparedCurveAt::knots in core/geom/prepared-contours.mjs.",
       "type": "component",
       "source": {
@@ -1627,7 +1627,7 @@
     {
       "id": "geometry-leaf-929f1b127f1a",
       "index": "2.1.2.2.3.10",
-      "label": "select \u00b7 curve",
+      "label": "select · curve",
       "description": "prepareContourFamily::select::curve in core/geom/prepared-contours.mjs.",
       "type": "component",
       "source": {
@@ -1702,7 +1702,7 @@
     {
       "id": "geometry-leaf-73848db77543",
       "index": "2.1.2.3.2.4",
-      "label": "at \u00b7 blend",
+      "label": "at · blend",
       "description": "meshStripChart::at::blend in core/geom/surface-region.mjs.",
       "type": "component",
       "source": {
@@ -2800,7 +2800,7 @@
     {
       "id": "geometry-leaf-f0e7eeb85c18",
       "index": "2.1.4.4.10.3",
-      "label": "componentFromRoot \u00b7 collectDescendants",
+      "label": "componentFromRoot · collectDescendants",
       "description": "regionComponents::componentFromRoot::collectDescendants in core/region/region2d.mjs.",
       "type": "component",
       "source": {
@@ -3106,7 +3106,7 @@
     {
       "id": "geometry-leaf-1cbdc210e0a8",
       "index": "2.1.4.5.11.3",
-      "label": "addDisk \u00b7 ray",
+      "label": "addDisk · ray",
       "description": "sweepSurfaceOffset::addDisk::ray in core/region/surface-offset.mjs.",
       "type": "component",
       "source": {
@@ -3117,7 +3117,7 @@
     {
       "id": "geometry-leaf-c0fb19002468",
       "index": "2.1.4.5.11.4",
-      "label": "addDisk \u00b7 sector",
+      "label": "addDisk · sector",
       "description": "sweepSurfaceOffset::addDisk::sector in core/region/surface-offset.mjs.",
       "type": "component",
       "source": {
@@ -3128,7 +3128,7 @@
     {
       "id": "geometry-leaf-9d6a69f96f6f",
       "index": "2.1.4.5.11.5",
-      "label": "addDisk \u00b7 tangent",
+      "label": "addDisk · tangent",
       "description": "sweepSurfaceOffset::addDisk::tangent in core/region/surface-offset.mjs.",
       "type": "component",
       "source": {
@@ -3150,7 +3150,7 @@
     {
       "id": "geometry-leaf-a68e2112efa8",
       "index": "2.1.4.5.11.7",
-      "label": "addStrip \u00b7 sample",
+      "label": "addStrip · sample",
       "description": "sweepSurfaceOffset::addStrip::sample in core/region/surface-offset.mjs.",
       "type": "component",
       "source": {
@@ -3161,7 +3161,7 @@
     {
       "id": "geometry-leaf-462f31044bbf",
       "index": "2.1.4.5.11.8",
-      "label": "addStrip \u00b7 subdivide",
+      "label": "addStrip · subdivide",
       "description": "sweepSurfaceOffset::addStrip::subdivide in core/region/surface-offset.mjs.",
       "type": "component",
       "source": {
@@ -4705,7 +4705,7 @@
     {
       "id": "geometry-leaf-5f27ca41dc78",
       "index": "2.2.2.1.28.1.7",
-      "label": "pair \u00b7 visit",
+      "label": "pair · visit",
       "description": "curveCrossings::pair::visit in core/geom/curve-ops.mjs.",
       "type": "component",
       "source": {
@@ -4716,7 +4716,7 @@
     {
       "id": "geometry-leaf-d10c460ba842",
       "index": "2.2.2.1.28.1.8",
-      "label": "pair \u00b7 visit \u00b7 within",
+      "label": "pair · visit · within",
       "description": "curveCrossings::pair::visit::within in core/geom/curve-ops.mjs.",
       "type": "component",
       "source": {
@@ -4749,7 +4749,7 @@
     {
       "id": "geometry-leaf-b6daada701f4",
       "index": "2.2.2.1.28.1.11",
-      "label": "segment \u00b7 past",
+      "label": "segment · past",
       "description": "curveCrossings::segment::past in core/geom/curve-ops.mjs.",
       "type": "component",
       "source": {
@@ -5154,7 +5154,7 @@
     {
       "id": "geometry-leaf-74964b80aee3",
       "index": "2.2.2.2.5.5",
-      "label": "offset \u00b7 at",
+      "label": "offset · at",
       "description": "prepareCurveOffsets::offset::at in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
@@ -5165,7 +5165,7 @@
     {
       "id": "geometry-leaf-882b735444f7",
       "index": "2.2.2.2.5.6",
-      "label": "offset \u00b7 forward",
+      "label": "offset · forward",
       "description": "prepareCurveOffsets::offset::forward in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
@@ -5176,7 +5176,7 @@
     {
       "id": "geometry-leaf-700f2948a8a5",
       "index": "2.2.2.2.5.7",
-      "label": "offset \u00b7 shift",
+      "label": "offset · shift",
       "description": "prepareCurveOffsets::offset::shift in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
@@ -7611,7 +7611,7 @@
     {
       "id": "geometry-leaf-e48c153a807b",
       "index": "2.3.2.2.4.5",
-      "label": "nearest \u00b7 visit",
+      "label": "nearest · visit",
       "description": "triangleIndex::nearest::visit in core/geom/mesh-spatial.mjs.",
       "type": "component",
       "retiredSource": {
@@ -9557,7 +9557,7 @@
     {
       "id": "geometry-leaf-fd7bea969ae2",
       "index": "2.2.1.1.6",
-      "label": "buildShapes \u00b7 build",
+      "label": "buildShapes · build",
       "description": "buildShapes::build in core/geom/build.mjs.",
       "type": "component",
       "retiredSource": {
@@ -9568,7 +9568,7 @@
     {
       "id": "geometry-leaf-207eb6ad5c11",
       "index": "2.2.1.1.7",
-      "label": "buildShapes \u00b7 construct",
+      "label": "buildShapes · construct",
       "description": "buildShapes::construct in core/geom/build.mjs.",
       "type": "component",
       "retiredSource": {
@@ -9611,7 +9611,7 @@
     {
       "id": "geometry-leaf-0f09f9cc42b0",
       "index": "2.1.4.8.3",
-      "label": "clipLineToRegion \u00b7 contact",
+      "label": "clipLineToRegion · contact",
       "description": "clipLineToRegion::contact in core/geom/curve-region.mjs.",
       "type": "component",
       "source": {
@@ -9622,7 +9622,7 @@
     {
       "id": "geometry-leaf-50c7c51f21db",
       "index": "2.1.4.8.4",
-      "label": "clipLineToRegion \u00b7 project",
+      "label": "clipLineToRegion · project",
       "description": "clipLineToRegion::project in core/geom/curve-region.mjs.",
       "type": "component",
       "source": {
@@ -9654,7 +9654,7 @@
     {
       "id": "geometry-leaf-10e62b865ae1",
       "index": "2.1.4.7.3",
-      "label": "chain \u00b7 cell",
+      "label": "chain · cell",
       "description": "chain::cell in core/geom/level-set.mjs.",
       "type": "component",
       "source": {
@@ -9665,7 +9665,7 @@
     {
       "id": "geometry-leaf-4e118fcd0a77",
       "index": "2.1.4.7.4",
-      "label": "chain \u00b7 neighbor",
+      "label": "chain · neighbor",
       "description": "chain::neighbor in core/geom/level-set.mjs.",
       "type": "component",
       "source": {
@@ -9709,7 +9709,7 @@
     {
       "id": "geometry-leaf-f3241131a5c5",
       "index": "2.1.4.7.8",
-      "label": "levelSetBoundarySegments \u00b7 sample",
+      "label": "levelSetBoundarySegments · sample",
       "description": "levelSetBoundarySegments::sample in core/geom/level-set.mjs.",
       "type": "component",
       "source": {
@@ -13875,7 +13875,7 @@
         "core/geom/surface-curves.mjs::curvePoint",
         "core/path/authored-curves.mjs::sampleAuthoredCurve"
       ],
-      "status": "Reviewed public operation within the existing Geometry\u2013Toolpath root pair; exact caller operation placement may remain unresolved."
+      "status": "Reviewed public operation within the existing Geometry–Toolpath root pair; exact caller operation placement may remain unresolved."
     },
     {
       "id": "geometry-toolpath-frames",
@@ -15973,7 +15973,7 @@
           "to": "extension-catalog"
         }
       ],
-      "implementation": "Maker context reads catalog metadata; data flow is Extensions \u2192 Context."
+      "implementation": "Maker context reads catalog metadata; data flow is Extensions → Context."
     },
     {
       "id": "read-extension-plastic-weld",
@@ -16904,18 +16904,18 @@
       "label": "produced deposition",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "finalize deposition"
+        "construct raw deposition"
       ],
-      "inputs": "Produced operations, process and prepared fields.",
-      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
-      "effects": "Private computation; no access to another component mutable state.",
+      "inputs": "Explicit prepared producer inputs and process.",
+      "outputs": "Raw deposition batches for one common finalization lifecycle and subsequent work-graph consumers.",
+      "effects": "Producer construction only; the common owner joins, frames, modulates and publishes material once.",
       "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
+      "excludes": "No producer-owned finalization lifecycle or execution-path readback.",
+      "status": "Common finalization lifecycle remediation, 2026-10-18.",
       "access": [
         {
-          "from": "inject",
-          "to": "path-finalize"
+          "from": "path-finalize",
+          "to": "inject"
         }
       ]
     },
@@ -16926,18 +16926,18 @@
       "label": "produced deposition",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "finalize deposition"
+        "construct raw deposition"
       ],
-      "inputs": "Produced operations, process and prepared fields.",
-      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
-      "effects": "Private computation; no access to another component mutable state.",
+      "inputs": "Explicit prepared producer inputs and process.",
+      "outputs": "Raw deposition batches for one common finalization lifecycle and subsequent work-graph consumers.",
+      "effects": "Producer construction only; the common owner joins, frames, modulates and publishes material once.",
       "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
+      "excludes": "No producer-owned finalization lifecycle or execution-path readback.",
+      "status": "Common finalization lifecycle remediation, 2026-10-18.",
       "access": [
         {
-          "from": "trace",
-          "to": "path-finalize"
+          "from": "path-finalize",
+          "to": "trace"
         }
       ]
     },
@@ -16948,18 +16948,18 @@
       "label": "produced deposition",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
       "operations": [
-        "finalize deposition"
+        "construct raw deposition"
       ],
-      "inputs": "Produced operations, process and prepared fields.",
-      "outputs": "Finalized deposition returned to its producer for material-dependent construction.",
-      "effects": "Private computation; no access to another component mutable state.",
+      "inputs": "Explicit prepared producer inputs and process.",
+      "outputs": "Raw deposition batches for one common finalization lifecycle and subsequent work-graph consumers.",
+      "effects": "Producer construction only; the common owner joins, frames, modulates and publishes material once.",
       "failure": "Return an explicit error; preserve the last valid result.",
-      "excludes": "No transitive permission; exact implementation entry bindings are maintained separately.",
-      "status": "proposed boundary; compare observed code in the audit",
+      "excludes": "No producer-owned finalization lifecycle or execution-path readback.",
+      "status": "Common finalization lifecycle remediation, 2026-10-18.",
       "access": [
         {
-          "from": "slice",
-          "to": "path-finalize"
+          "from": "path-finalize",
+          "to": "slice"
         }
       ]
     },
@@ -17329,7 +17329,7 @@
         "core/print/bundle.mjs"
       ],
       "status": "Map-0 causal flow reviewed against source, 2026-10-01; not conformance certification.",
-      "implementation": "Generation workers request engine computation and accept results for a pinned job; result flow is Toolpath \u2192 Bundle."
+      "implementation": "Generation workers request engine computation and accept results for a pinned job; result flow is Toolpath → Bundle."
     },
     {
       "id": "bundle-agent-state",
@@ -17503,7 +17503,7 @@
       "effects": "Data recording only. Settings passes supplied configuration to Bundle. Existing geometry/construction references remain authoritative; no second dependency inventory.",
       "failure": "Reject stale revision or unsupported record target. Availability and complete recipe validity belong to the later consuming operation.",
       "excludes": "No execution, generation, defaults, code hashing, installation lookup, work queue, package/version registry or generated-artifact relay.",
-      "authorship": "Owner approved Extensions \u2192 Settings \u2192 Bundle for recording dependencies only, 2026-10-01.",
+      "authorship": "Owner approved Extensions → Settings → Bundle for recording dependencies only, 2026-10-01.",
       "evidence": [
         "skills/catalog.mjs",
         "core/machine/bundle-settings.mjs",
@@ -17987,7 +17987,7 @@
           "to": "geometry-leaf-a83a087eb1dc"
         }
       ],
-      "authorship": "Owner approved direct Studio \u2192 Geometry import.",
+      "authorship": "Owner approved direct Studio → Geometry import.",
       "evidence": [
         "core/geom/import-stl.mjs::prepareSTLImport"
       ],
@@ -18014,7 +18014,7 @@
           "to": "geometry-leaf-9e131ce4225f"
         }
       ],
-      "authorship": "Owner approved direct Studio \u2192 Geometry import.",
+      "authorship": "Owner approved direct Studio → Geometry import.",
       "evidence": [
         "core/geom/import-stl.mjs::releaseSTLImport"
       ],
@@ -18356,33 +18356,6 @@
         "core/geom/mesh-native.mjs",
         "core/geom/native/mesh-repair.cpp"
       ]
-    },
-    {
-      "id": "slice-checked-surface-derivatives",
-      "from": "geometry-leaf-fec793136ddc",
-      "to": "slice",
-      "label": "checked native differential samples",
-      "direction": "Geometry supplies the named result; the consumer calls the exact operation.",
-      "operations": [
-        "surfaceDerivatives"
-      ],
-      "inputs": "Native homogeneous spline patch, native u/v parameters and optional finite normalMm.",
-      "outputs": "Point, du/dv, duu/duv/dvv, unit normal and uvOf; derivatives retain native parameter units.",
-      "effects": "Local numerical work; no persistence or caller policy lookup.",
-      "failure": "Reject out-of-domain samples, nonpositive weight, singular base tangents or offset focal collapse.",
-      "excludes": "No relaxed validation, deposition residual tolerance choice or generic numerical-kernel access.",
-      "access": [
-        {
-          "from": "slice",
-          "to": "geometry-leaf-fec793136ddc"
-        }
-      ],
-      "evidence": [
-        "core/geom/surface-derivatives.mjs::surfaceDerivatives",
-        "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals",
-        "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals"
-      ],
-      "status": "Exact operation and responsibility reviewed against source for 0.3.1; not conformance certification."
     },
     {
       "id": "slice-positive-intervals",
@@ -20125,29 +20098,28 @@
       "status": "Owner-authorized machine-nozzle integration, 2026-10-16."
     },
     {
-      "id": "construction-access-order",
+      "id": "inject-enclosure-inspection",
       "from": "scheduling",
       "to": "path-finalize",
-      "label": "Scoped construction access solve",
+      "label": "Demand-driven Inject enclosure access",
       "direction": "scheduling supplies explicit results to path-finalize.",
       "operations": [
-        "resolveSourceOrder",
         "sliceNozzleProofs",
         "prepareSourceUnits",
         "prepareRangeScene"
       ],
-      "inputs": "Exclusively owned finalized source, internal producer scope and explicit neutral access model.",
-      "outputs": "Internal contact prerequisites, valid traversal choices and interval refinement.",
-      "effects": "Private numerical working state only; no Bundle or saved-source mutation.",
-      "failure": "Reject contradictory prerequisites, blocked access or unresolved numerical precision.",
-      "excludes": "No selected machine, export, geometry repair or cooling policy.",
+      "inputs": "Immutable finalized source, explicit Inject enclosure volumes and neutral access model.",
+      "outputs": "Whole-slice access bounds or actual enclosure/material contact witnesses for readiness coarsening.",
+      "effects": "Private numerical query state; fine geometry is constructed only after coarse exclusion fails.",
+      "failure": "Propagate numerical failures; blocked whole-slice access retains a finer enclosure requirement. Hard prerequisite conflicts are rejected by readiness.",
+      "excludes": "No generic producer certification, construction scheduling, traversal selection, selected machine, export or cooling policy.",
       "access": [
         {
           "from": "path-finalize",
           "to": "scheduling"
         }
       ],
-      "status": "Authorized architecture implementation, 2026-10-17."
+      "status": "Producer-validity remediation, 2026-10-18."
     },
     {
       "id": "export-access-order",

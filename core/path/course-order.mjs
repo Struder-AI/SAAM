@@ -113,7 +113,7 @@ function dependencyCycle(operations,prerequisites){
   return [];
 }
 
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null}={}){
+export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null,groupAccess=null}={}){
   const nodes=operations.map(op=>({op,thermalOperations:[op],...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
   const byId=new Map(nodes.map(node=>[node.op.id,node]));
   const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),operations:ids.map(id=>byId.get(id).op),parents:new Set(),following:[],remaining:0,ready:[]}));
@@ -128,7 +128,19 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   while(ready.length){
     const entries=ready.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
     if(!entries.length)break;
-    const unit=entries[nearest(entries,cursor,{cooling,wholeSlice:true}).index].unit;ready.splice(ready.indexOf(unit),1);
+    // Prefer ready aggregates that do not leave lower-access work behind.
+    // This only proposes an order; the caller proves its whole deposited prefix.
+    const preferred=groupAccess?entries.filter(node=>{
+      const own=node.unit.operations.find(op=>!op.barrier);if(!own)return true;
+      const a=own.layerId??own.sourceOperation??own.id;
+      return !entries.some(other=>{
+        const peer=other.unit.operations.find(op=>!op.barrier);if(!peer)return false;
+        const b=peer.layerId??peer.sourceOperation??peer.id;
+        return groupAccess.clear(a,b)&&!groupAccess.clear(b,a);
+      });
+    }):entries;
+    const choices=preferred.length?preferred:entries;
+    const unit=choices[nearest(choices,cursor,{cooling,wholeSlice:true}).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
       const next=unit.ready.splice(nearest(unit.ready,cursor,{cooling}).index,1)[0];scheduled.push(next.op);
       if(!next.op.barrier){cooling?.record(next.op);cursor.point=next.op.exit.point;cursor.axis=next.op.exit.pose.toolAxis;}
@@ -150,5 +162,11 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
 
 export function orderSliceCourses(operations,priorities,prerequisites,options={}){
   const partition=slicePartitions(operations,prerequisites);
-  return {operations:orderReadyOperations(operations,priorities,prerequisites,{...options,partitions:partition.groups}),hierarchy:partition.summary};
+  const ordered=orderReadyOperations(operations,priorities,prerequisites,{...options,partitions:partition.groups}),sequence=[];
+  for(const operation of ordered)if(!operation.barrier){
+    const id=operation.layerId??operation.sourceOperation??operation.id;
+    if(sequence.at(-1)!==id)sequence.push(id);
+  }
+  return {operations:ordered,hierarchy:partition.summary,
+    groupOrder:new Set(sequence).size===sequence.length?sequence:null};
 }

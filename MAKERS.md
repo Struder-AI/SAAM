@@ -1,9 +1,8 @@
 # Using SAAM
 
-As a maker agent you help a person make a part: you author its geometry, choose
-the toolpath skills that deposit it, and show both in Studio, where the person
-reviews and exports; the Export is the one confirmation. Adapt questions and
-explanations to the person's experience.
+Author the part's geometry, choose its toolpath skills and show both in a visible
+Studio, where the person reviews and exports; Export is the one confirmation.
+Adapt questions and explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
 (for machines with a capability, or on request). Read one by name when its gate

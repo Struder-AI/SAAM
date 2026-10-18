@@ -38,6 +38,16 @@ export function curvePoint(curve,fraction){
 // Images of straight chart segments retain their parameters. Bernstein
 // composition is reduced to certified cubic pieces before becoming curves.
 function surfaceSegmentPolynomials(patch,a,b){
+  // Chart arithmetic can put an exact boundary a few float64 steps outside its
+  // domain. Normalize only that rounding before selecting knot spans; an actual
+  // out-of-domain segment still fails below. This arithmetic artifact must not
+  // provoke geometric perturbation of the entire authored solid.
+  const domains=[patch.domainU,patch.domainV];
+  const boundary=point=>point.map((value,k)=>{
+    const [low,high]=domains[k],guard=FLOAT64_EPSILON*64*Math.max(1,Math.abs(low),Math.abs(high));
+    return value<low&&low-value<=guard?low:value>high&&value-high<=guard?high:value;
+  });
+  a=boundary(a);b=boundary(b);
   const direction=b.map((value,k)=>value-a[k]),cuts=[0,1];
   for(const [axis,knots] of [patch.knotsU,patch.knotsV].entries()){
     if(!direction[axis])continue;
@@ -47,7 +57,7 @@ function surfaceSegmentPolynomials(patch,a,b){
   for(let i=1;i<ordered.length;i++){
     const from=ordered[i-1],to=ordered[i],mid=a.map((value,k)=>value+(from+to)/2*direction[k]);
     const piece=pieces.find(piece=>mid[0]>=piece.u[0]&&mid[0]<=piece.u[1]&&mid[1]>=piece.v[0]&&mid[1]<=piece.v[1]);
-    requireThat(piece,'Surface segment leaves its native knot spans.');
+    if(!piece)throw Object.assign(Error('Surface segment leaves its native knot spans.'),{segment:{a,b,mid,u:patch.domainU,v:patch.domainV}});
     const ranges=[piece.u,piece.v].map(([low,high],k)=>[from,to].map(t=>(a[k]+t*direction[k]-low)/(high-low)));
     const restricted=restrictBezierNet(piece.net,ranges.map(range=>[Math.min(...range),Math.max(...range)]));
     const rows=ranges[0][1]>=ranges[0][0]?restricted:[...restricted].reverse();

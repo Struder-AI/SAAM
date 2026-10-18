@@ -28306,6 +28306,14 @@
     },
     "core/print/surface-readiness.mjs::manufacturedSurfaceReadiness::downstream": {
       "owner": "build-evaluate"
+    },
+    "core/geom/surface-curves.mjs::surfaceSegmentPolynomials": {
+      "owner": "geometry-leaf-69b71da2365d",
+      "reason": "Native chart-segment composition, including float64-only boundary normalization, belongs to the shared Geometry query."
+    },
+    "core/geom/surface-curves.mjs::surfaceSegmentPolynomials::boundary": {
+      "owner": "geometry-leaf-69b71da2365d",
+      "reason": "Native chart-segment composition, including float64-only boundary normalization, belongs to the shared Geometry query."
     }
   },
   "retiredAssignments": [
