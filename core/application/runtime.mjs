@@ -1324,8 +1324,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       const recovering=Boolean(attachment&&!chats.has(attachment.ownerId));
       const chat=attachment?beginSession({id:attachment.ownerId,name:attachment.name,client:attachment.client,visibility:window.chatVisibility??window.visibility??'visible'}):lobby;
       if(recovering)await chat.requests.recover();
-      const restored=await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,selectionVersion:window.selectionVersion,restoring:true,visibility:window.visibility??'visible'});
-      if(attachment)chat.binding.note('print-opened',{studioInstanceId:window.instanceId,printId:window.printId,selectionVersion:restored.server.agentSession().selectionVersion,restored:true});
+      await chat.startStudio(window.printId?resolve(libraryRoot,window.printId):null,{instanceId:window.instanceId,sessionToken:window.sessionToken,selectionVersion:window.selectionVersion,restoring:true,visibility:window.visibility??'visible'});
       if(attachment)connectedChats.add(chat.id);
     }
   }

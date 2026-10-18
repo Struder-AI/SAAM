@@ -14,7 +14,11 @@ export const EVENT_KINDS=[...DELIVERED_KINDS,...HELD_KINDS];
 const WAKE_KINDS=new Set(['print-opened','import-completed','plan-updated','example-adopted','chat-attached','chat-captured',
   'tour-started','tour-lesson','tour-exited','workspace-opened','workspace-design-updated']);
 export function studioWakeEvent(events){
-  return events.findLast(event=>WAKE_KINDS.has(event.kind)||event.kind==='request-queued'&&event.requestKind!=='advisory')??null;
+  return events.findLast(event=>{
+    // Runtime restoration retains the selection; its observation stays in context.
+    if(event.kind==='print-opened'&&event.restored===true)return false;
+    return WAKE_KINDS.has(event.kind)||event.kind==='request-queued'&&event.requestKind!=='advisory';
+  })??null;
 }
 const clone=({key,...event})=>structuredClone(event);
 

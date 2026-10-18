@@ -1,5 +1,15 @@
 # Development log
 
+## 2026-10-17 — Checkpoint ownership and prioritize spline integration
+
+- Registered the shared edge module, bridge wrappers and source-continuation validator explicitly; current-source ownership audit has zero unowned leaves in changed files, and authored drawings pass all 1,315-page checks. Full influence analysis covers 365 of 394 files; 29 are uncovered through analyzer memory/time limits or failed imports. Full warm/cold solving is deferred at the owner's request, preserving completed analysis. Static code conformance is not established.
+- Owner requested integration of Improve spline operation performance before final testing. Its isolated 27-file worktree diff is saved exactly for three-way application against current scheduler work. The grooved spinner's unchanged recipe generates current source in 20.2 s; scheduling entered actual geometry inspection but was stopped for integration without a result. The original bundle and installed runtime were not edited. This checkpoint also carries concurrent Studio restoration-wake fixes under the standing all-work instruction.
+
+## 2026-10-17 — Keep runtime restoration quiet for idle chats
+
+- Runtime restoration retains the window and selection without emitting a synthetic `print-opened`. The shared wake selector also ignores restored opens retained in durable inboxes or emitted by older runtimes; real selections and requested work keep their wake behavior.
+- A native lifecycle/inbox exercise retained restoration context with no wake, preserved a real selection behind a later restoration, suppressed advisory wakes and delivered an edit-request wake. Syntax/whitespace checks pass; source runtime reload restored its existing window and selection. No full suite or new tests. Influence-map regeneration failed updating a generated cache (`EPERM`); complete map validation remains unverified. The spinner is already reserved by the active scheduler chat, so this chat did not capture or generate it.
+
 ## 2026-10-17 — Refresh authored architecture drawings
 
 - Fresh design-map generation exposed one orphaned authored index, three obsolete source previews and thirteen interface records missing required boundary/failure/direction fields. Rebound the previews to their actual replacements and completed the explicit contract records without adding API permission. Authored identities remain stable.

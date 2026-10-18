@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Implemented scheduler and manufacturing-readiness contract, 2026-10-17. Current-source analysis and warm/cold map regeneration are running; map completeness and conformance remain unverified.",
+  "status": "Implemented scheduler and manufacturing-readiness contract, 2026-10-17. Authored drawings verified; influence analysis is partial (29 files uncovered). Remaining full solving/audit deferred by the owner; no complete static conformance claim.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -28397,6 +28397,46 @@
     },
     "skills/vase-wall/scripts/runtime.mjs::PRINT_RESOLUTION_MM": {
       "owner": "extensions"
+    },
+    "core/geom/edge-surface.mjs::@module": {
+      "owner": "geometry",
+      "reason": "Shared spatial edge correspondence and straight-span geometry; no producer identities or ordering."
+    },
+    "core/geom/edge-surface.mjs::xyz": {
+      "owner": "geometry",
+      "reason": "Shared spatial edge correspondence and straight-span geometry; no producer identities or ordering."
+    },
+    "core/geom/edge-surface.mjs::weighted": {
+      "owner": "geometry",
+      "reason": "Shared spatial edge correspondence and straight-span geometry; no producer identities or ordering."
+    },
+    "core/geom/edge-surface.mjs::curvePairSurface": {
+      "owner": "geometry",
+      "reason": "Shared spatial edge correspondence and straight-span geometry; no producer identities or ordering."
+    },
+    "core/geom/edge-surface.mjs::closedEdgeSpans": {
+      "owner": "geometry",
+      "reason": "Shared spatial edge correspondence and straight-span geometry; no producer identities or ordering."
+    },
+    "skills/bridge-supports/scripts/brim.mjs::@module": {
+      "owner": "extensions",
+      "reason": "Extension recipe policy composes the shared edge construction interface."
+    },
+    "skills/bridge-supports/scripts/brim.mjs::addSupportBrim": {
+      "owner": "extensions",
+      "reason": "Extension recipe policy composes the shared edge construction interface."
+    },
+    "skills/bridging/scripts/edges.mjs::@module": {
+      "owner": "extensions",
+      "reason": "Extension recipe policy composes the shared edge construction interface."
+    },
+    "skills/bridging/scripts/edges.mjs::editEdgeBridge": {
+      "owner": "extensions",
+      "reason": "Extension recipe policy composes the shared edge construction interface."
+    },
+    "core/path/source-admission.mjs::requireContinuation": {
+      "owner": "bundle-path",
+      "reason": "Validate exact source/execution continuation using the existing position and pose contract."
     }
   },
   "retiredAssignments": [
