@@ -5,6 +5,7 @@ import {surfaceRegion} from './surface-region.mjs';
 import {mappedSurface} from './surface-evaluation.mjs';
 import {offsetSurfaceChart} from './offset-chart.mjs';
 import {contactChart} from './contact-chart.mjs';
+import {extendSurface} from './surface-extend.mjs';
 
 export function numericalGeometryRecord(value){
   if(value===undefined)return undefined;
@@ -37,6 +38,7 @@ export function prepareSurfaceReference(record){
 }
 function constructReference(record){
   if(!record.representation)return record;
+  if(record.representation==='tangent-extension')return extendSurface(record.patch,record.boundsUv);
   if(record.representation==='surface-region')return surfaceRegion(record.geometry,record.selection);
   if(record.representation==='mapped-surface')return mappedSurface(record.source,record.bounds,record.domain,{normalSide:record.normalSide,periodicU:record.periodicU});
   if(record.representation==='offset-chart')return offsetSurfaceChart(record.source.representation?prepareSurfaceReference(record.source):record.source,record.depthMm,
@@ -49,6 +51,6 @@ function reviveNumericalGeometry(value){
   if(Array.isArray(value))return value.map(reviveNumericalGeometry);
   if(!value||typeof value!=='object')return value;
   const result={};
-  for(const [key,child] of Object.entries(value))result[key]=Array.isArray(child)&&['cp','knots','knotsU','knotsV'].includes(key)?Float64Array.from(child):reviveNumericalGeometry(child);
+  for(const [key,child] of Object.entries(value))result[key]=Array.isArray(child)&&(key==='cp'||value.cp&&['knots','knotsU','knotsV'].includes(key))?Float64Array.from(child):reviveNumericalGeometry(child);
   return result;
 }

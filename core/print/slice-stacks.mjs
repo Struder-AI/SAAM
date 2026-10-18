@@ -49,9 +49,16 @@ export function prepareReferenceSliceStack(record,{source,references={}}={}){
       endMm:z,report:{...record.context.report,startMm:reference.zStartMm,topMm:z}},layerOrder:layers.map(layer=>({index:layer.index,rank:layer.slice.origin[2]}))};
   }
   const chart=surfaceRegion(shell,selection);
-  const depth=assignment.within[0].toMm,tightness=assignment.stack?.offsetTightness??assignment.fillOrder?.offsetTightness??1;
+  const depth=assignment.within.find(v=>v.kind==='normal-band').toMm,tightness=assignment.stack?.offsetTightness??assignment.fillOrder?.offsetTightness??1;
   const layoutReference=offsetSurfaceChart(chart,depth,{shell,selection,tightness});
-  const layers=record.spec.layers.map(layer=>({...layer,slice:{...offsetSurfaceChart(chart,layer.offsetMm,{shell,selection,tightness}),kind:'surface-chart',domainU:[0,1],domainV:[0,1]},
-    layoutReference,gap:{normalMm:layer.heightMm},onSubstrate:true,settings:{fillDirection:assignment.fillOrder?.directions?.[layer.index%assignment.fillOrder.directions.length],order:'given'}}));
+  const layers=record.spec.layers.map(layer=>{
+    const slice={...offsetSurfaceChart(chart,layer.offsetMm,{shell,selection,tightness}),kind:'surface-chart',domainU:[0,1],domainV:[0,1]};
+    const clipped={region:layer.region};
+    for(const volume of record.reference.volumes)if(volume.kind!=='normal-band'){
+      const cut=volumeSection(volume,{slice},{min:[0,0],max:[1,1]});if(cut!==null)clipped.region=intersect(clipped.region,cut);
+    }
+    return {...layer,slice,region:clipped.region,layoutReference,gap:{normalMm:layer.heightMm},onSubstrate:true,
+      settings:{fillDirection:assignment.fillOrder?.directions?.[layer.index%assignment.fillOrder.directions.length],order:'given'}};
+  });
   return {...record,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers}};
 }

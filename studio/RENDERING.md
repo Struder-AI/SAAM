@@ -13,14 +13,13 @@ The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine 
 
 ## Studio performance and display detail
 
-Studio times interactive redraws. A burst is one continuous orbit, pan, zoom or
-playback run; when it ends the browser posts a summary to
-`POST /api/view-performance`, and `GET /api/view-performance` returns the last 20
-from server memory. Each report carries frame spacing, main-thread draw time,
-material-pass time, per-quality-level timings, canvas size, the material
-renderer's draw statistics and the WebGL renderer string. A renderer named
-Microsoft Basic Render Driver, SwiftShader or llvmpipe means the browser is
-rasterizing on the CPU. Read these reports before instrumenting a page by hand.
+Studio decodes the saved source through the shared reader with display accuracy:
+at most 0.02 mm, line width / 20 and layer height / 10. This drawing budget never
+reaches source geometry or Export. Interactive orbit/pan/zoom/playback bursts post
+timings to `POST /api/view-performance`; GET returns the last 20 reports. They
+include frame spacing, main-thread/material-pass cost, quality levels, canvas size,
+draw statistics and WebGL renderer. Basic Render Driver, SwiftShader or llvmpipe
+indicate CPU rendering. Read these reports before instrumenting the page.
 
 While the toolpath view moves, motion quality follows the measured frame cost:
 above 50 ms it lowers the material render resolution (half, then a third with

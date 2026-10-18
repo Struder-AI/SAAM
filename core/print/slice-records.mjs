@@ -118,7 +118,7 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
         || v?.kind==='surface-domain'&&Object.keys(v).every(k=>['kind','loopsUv','fromLayer','toLayer','maxSlopeDeg','sampleStepMm'].includes(k))&&(loopsList(v.loopsUv)||v.loopsUv===null&&a.surface.kind==='roof')&&Number.isInteger(v.fromLayer)&&Number.isInteger(v.toLayer)&&v.fromLayer<v.toLayer&&['spline','patch','roof'].includes(a.surface.kind),
       `Slice ${a.id} has an invalid spatial volume.`);
     }
-    requireThat(a.stack?.direction!=='normal'||a.within.length===1&&a.within[0].kind==='normal-band','A normal stack needs a finite normal-depth volume.');
+    requireThat(a.stack?.direction!=='normal'||a.within.filter(v=>v.kind==='normal-band').length===1&&a.within.every(v=>['normal-band','geometry'].includes(v.kind)),'A normal stack needs one finite normal-depth volume and optional geometry clips.');
     requireThat(!a.within.some(v=>v.kind==='outline')||a.within.length===1,`Slice ${a.id}: an outline volume stands alone.`);
     requireThat(!a.within.some(v=>v.kind==='surface-domain')||a.within.length===1,'A surface-domain prism is a complete owned volume.');
 }
@@ -127,7 +127,7 @@ export function validateSliceSurface(surface, id) {
   if(surface?.kind==='terminal'){
     requireThat(Object.keys(surface).sort().join()==='assignment,kind,minFeatureMm'&&typeof surface.assignment==='string'&&surface.assignment!==id&&surface.assignment.length&&Number.isFinite(surface.minFeatureMm)&&surface.minFeatureMm>0,'A prepared-boundary reference needs another assignment and positive minFeatureMm.');return;
   }
-  if(surface?.kind==='mesh-strip'||surface?.kind==='spline'&&typeof surface.patch==='string'){validateSurfaceSelection(surface);return;}
+  if(surface?.kind==='mesh-strip'||surface?.kind==='spline'&&(typeof surface.patch==='string'||surface.uvBounds!==undefined)){validateSurfaceSelection(surface);return;}
   if (surface?.kind === 'horizontal' && Object.keys(surface).join() === 'kind') return;
   if(surface?.kind==='patch'){requireThat(Object.keys(surface).sort().join()==='kind,offsetMm,patch'&&typeof surface.patch==='string'&&Number.isFinite(surface.offsetMm),'A native patch reference needs patch name and offsetMm.');return;}
   if(['roof','spline'].includes(surface?.kind)){

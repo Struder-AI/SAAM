@@ -11,9 +11,9 @@ export function sameContext(a,b){
 
 // Stream physical actions and their enclosing context without allocating a
 // second path. Ordinals count physical actions, preserving saved preview lines.
-export function* contextualActions(path){
+export function* contextualActions(path,options){
   let context={},index=0;
-  for(const action of path.actions??pathActions(path)){
+  for(const action of path.actions??pathActions(path,options)){
     if(action.kind==='context'){
       context=action.reset?{}:{...context};
       for(const key of CONTEXT_KEYS)if(Object.hasOwn(action,key)){

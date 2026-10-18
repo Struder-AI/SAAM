@@ -274,16 +274,47 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness,
           beforeOperation:graph.byId.get(before).sourceOperation,afterOperation:graph.byId.get(after).sourceOperation});
       }
+      // Geometry has selected enclosure slices. Scheduling alone chooses the
+      // completion barrier or finer material ranges using this solve's scene.
+      const materialAccess=new Map(),materialReadiness={slicePrerequisites:0,refinedSlices:0};
+      const materialEdges=new Set(),fineScopes=new Set();
       for(const unit of graph.units){
-        for(const requirement of unit.operation.requiredMaterial??[]){
-          for(const hit of state.scene.requiredHits(requirement,id=>{
+        const operation=unit.operation;let matched=false;
+        for(const requirement of operation.requiredMaterial??[]){
+          const fine=new Set();
+          for(const layerId of requirement.layerIds??[]){
+            const key=JSON.stringify([operation.id,layerId]);let access=materialAccess.get(key);
+            if(!access){
+              const tool=state.scene.geometryForFilament(operation.filament??source.planning.selection?.filament);
+              let clear=tool.includedAngleDeg<=accessGeometry.includedAngleDeg&&tool.tipDiameterMm<=accessGeometry.tipDiameterMm&&
+                state.scene.proofs.stationaryClear(operation.injection.at,operation.injection.pose,layerId),witness;
+              if(!clear){const contact=state.scene.nozzleHits(unit,id=>graph.byId.get(id)?.layerId===layerId).next();clear=contact.done;witness=contact.value?.witness;}
+              access={clear,witness};materialAccess.set(key,access);
+            }
+            if(access.clear){
+              const completion=graph.layerGroups.get(layerId);if(!completion)continue;
+              addEdge(completion.end.id,graph.groups.get(operation.id).begin.id,'required-material');materialEdges.add(key);matched=true;
+            }else {fine.add(layerId);fineScopes.add(key);}
+          }
+          // Unscoped envelopes (including non-Slice producers) use the same
+          // scene; no construction-time deposition inspection is needed.
+          if(!requirement.layerIds||fine.size)for(const hit of state.scene.requiredHits(requirement,id=>{
             const other=graph.byId.get(id);
             return other.sourceOperation!==unit.sourceOperation&&(other.operation.part??null)===(requirement.part??null)&&
-              (!requirement.layerIds||requirement.layerIds.includes(other.layerId??null));
-          }))addEdge(hit.unit.id,graph.groups.get(unit.sourceOperation).begin.id,'required-material',hit.witness);
+              (!requirement.layerIds||fine.has(other.layerId??null));
+          })){
+            const layerId=hit.unit.layerId;
+            if(layerId&&construction?.covers(source.layers[layerId].completionId,operation.id))throw Object.assign(
+              Error('Required whole-slice completion blocks injection access for '+operation.id+'. Select enclosure material before its closing work.'),
+              {code:'MATERIAL_ACCESS_CONFLICT',operation:operation.id,layerId,witness:materialAccess.get(JSON.stringify([operation.id,layerId]))?.witness});
+            addEdge(hit.unit.id,graph.groups.get(unit.sourceOperation).begin.id,'required-material',hit.witness);matched=true;
+          }
         }
+        if(operation.requiredMaterial?.length&&!matched)throw Object.assign(Error('Required enclosure material resolves to no produced material for '+operation.id+'.'),
+          {code:'MISSING_REQUIRED_MATERIAL',operation:operation.id});
         if(progress.cyclic)break;
       }
+      materialReadiness.slicePrerequisites=materialEdges.size;materialReadiness.refinedSlices=fineScopes.size;
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
       const groupId=unit=>unit.layerId??unit.sourceOperation;
       const substrateUnits=graph.units.filter(unit=>unbound(unit)&&graph.units.some(other=>
@@ -364,7 +395,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           throw error;
         }
       }
-      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
+      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,materialReadiness,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
         edges:state.edges,refinement:{...history,relaxedTraversalChunks:relaxedChunks?.size??0,rejectedTraversals:blockedTraversals.size,
           splitCourses:cuts.size}};
     }catch(error){
@@ -451,7 +482,7 @@ export function planSourceComposition(initialState,source,reader,onProgress,orde
   }
   const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{
-    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
+    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,materialReadiness:solved.materialReadiness,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
       physicalOrdering:{nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material')+count('substrate')},queries:{...scene.stats}}});
 }
 

@@ -196,8 +196,8 @@ Use `examples/prints/` only for explicitly curated examples.
 
 [Bundle](./bundle.mjs) adapts shell plans; [Scheduling](../path/README.md#retained-construction-interfaces) reads saved Toolpath operations.
 [Assignment generation](./assignment-generation.mjs) retains authored prerequisite identities through admission and preparation.
-Construction failures remove hard dependents
-transitively; independent work remains. Final reference resolution shares that boundary; findings appear in `limitations`.
+Declared process identities survive preparation failure; atomic/hard dependents are removed transitively, independent work remains.
+Final reference resolution shares that registry; nontrivial retired forms reject compactly rather than migrate geometry.
 Manuals own supported settings; software checks establish no physical print success. The plan's geometry is authored
 ([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
 blob fields, [booleans](../../GEOMETRY.md#booleans) of these and an `assembly` of any of them. A boolean is stored

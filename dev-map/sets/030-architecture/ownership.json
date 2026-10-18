@@ -3,6 +3,10 @@
   "status": "Producer-validity, owned Slice regions, compact completion, lazy inspection and canonical skill retirement remediation, 2026-10-17. Full influence analysis and warm/cold solving remain owner-deferred; no complete static conformance claim.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
+    "core/geom/surface-extend.mjs": {
+      "owner": "geometry",
+      "reason": "Tangent continuation of spline reference surfaces in native parameters."
+    },
     "studio/viewer-capture.mjs": {
       "owner": "studio",
       "reason": "Revision-bound capture of a frame from the connected Studio viewer."
@@ -1809,7 +1813,7 @@
     },
     "core/path/material-readiness.mjs": {
       "owner": "path-finalize",
-      "reason": "Resolve enclosure readiness from Geometry-owned nominal slices and actual whole-slice access, retaining only genuinely unresolved material scopes."
+      "reason": "Bind geometric enclosure volumes to owned Slice identities; Scheduling alone inspects access in its existing scene."
     },
     "core/print/assignment-generation.mjs": {
       "owner": "build-evaluate",
@@ -5027,14 +5031,6 @@
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
     },
     "core/print/recipe-migration.mjs::@module": {
-      "owner": "recipe",
-      "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
-    },
-    "core/print/recipe-migration.mjs::explicitSleevePaths": {
-      "owner": "recipe",
-      "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
-    },
-    "core/print/recipe-migration.mjs::explicitSleevePaths::at": {
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
     },
@@ -12582,10 +12578,6 @@
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
     },
-    "core/print/recipe-migration.mjs::migrateAssignmentTerms::rename": {
-      "owner": "recipe",
-      "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
-    },
     "core/print/workflow.mjs::currentPathSummary": {
       "owner": "bundle"
     },
@@ -13156,19 +13148,6 @@
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
     },
-    "core/print/recipe-migration.mjs::joinSupports": {
-      "owner": "recipe",
-      "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
-    },
-    "skills/standard-support/scripts/support-geometry.mjs::retiredTreeSolids": {
-      "owner": "extensions"
-    },
-    "skills/standard-support/scripts/support-geometry.mjs::retiredFootprintSolids": {
-      "owner": "extensions"
-    },
-    "skills/standard-support/scripts/support-geometry.mjs::retiredFootprintSolids::close": {
-      "owner": "extensions"
-    },
     "skills/standard-support/scripts/support-geometry.mjs::solidInFrame": {
       "owner": "extensions"
     },
@@ -13216,9 +13195,6 @@
     },
     "core/print/portable.mjs::repairProblem": {
       "owner": "bundle"
-    },
-    "core/print/recipe-migration.mjs::vertexBounds": {
-      "owner": "geometry"
     },
     "skills/gridfinity/scripts/gridfinity.mjs::editedGridfinityParameters": {
       "owner": "extensions"
@@ -28042,9 +28018,6 @@
     "core/path/construction-curves.mjs::retainConstructionCurves": {
       "owner": "toolpath"
     },
-    "core/path/material-readiness.mjs::resolveMaterialReadiness": {
-      "owner": "path-finalize"
-    },
     "core/path/physical-order.mjs::equalVector": {
       "owner": "scheduling"
     },
@@ -28255,6 +28228,13 @@
     "core/print/construction-references.mjs::@module": {
       "owner": "build-evaluate",
       "reason": "Application resolves final producer references inside the shared assignment failure boundary before immutable source publication."
+    },
+    "core/extensions/process-sources.mjs::prepareProcessSources::fail": {
+      "owner": "extensions",
+      "reason": "Admission transports declared contribution failure; dependency closure remains in assignmentGeneration."
+    },
+    "core/path/material-readiness.mjs::bindMaterialSlices": {
+      "owner": "path-finalize"
     }
   },
   "retiredAssignments": [

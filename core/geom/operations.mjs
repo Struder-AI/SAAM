@@ -42,6 +42,7 @@ import {convexVolume} from './convex-clearance.mjs';
 import {revolvedProfile} from './revolved-profile.mjs';
 import {loftProfiles,roundedRectangleProfile,transformGeometry} from './solid-profiles.mjs';
 import {geometrySelections} from './selections.mjs';
+import {extendSurface} from './surface-extend.mjs';
 
 function buildGeometry(geometry){return buildShell(null,geometry,{native:false});}
 const operations=Object.freeze({prepareSurfaceRay,surfaceRayIntersections,resolutionMm:PRINT_RESOLUTION_MM,curvePairSurface,closedEdgeSpans,compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
@@ -53,7 +54,7 @@ const operations=Object.freeze({prepareSurfaceRay,surfaceRayIntersections,resolu
     evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,surfaceCurveImages,curvePoint,sampleCurveIntervals,
     sampleSpatialCurve,distinctPolyline,curveLength,transportCurveFrames,
     prepareContourSleeve,detectMeshSleeveInterval,strokeTopology,widenPlanarStrokes,
-    referenceSurface,surfaceRegion,prepareSolidDistance,solidDistance,
+    referenceSurface,surfaceRegion,extendSurface,prepareSolidDistance,solidDistance,
     extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery});
 
 export function geometryOperations(){return operations;}

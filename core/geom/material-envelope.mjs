@@ -1,5 +1,6 @@
 // Saved material geometry contains values, never travel rules or callbacks.
 import {evaluateSurface} from './surface-evaluation.mjs';
+import {selectedSplinePatch} from './surface-region.mjs';
 import {referenceHeight,heightReferenceRange} from './height-slice.mjs';
 import {pointInRegion,pointSegmentDistance,segmentIntersection} from '../region/region2d.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
@@ -66,9 +67,10 @@ export function surfaceConnectionMaterial(surface,region,{lineWidthMm=.4,sampleS
     if(native.cp)return flat(Array.from({length:native.cp.length/4},(_,i)=>[0,0,native.cp[4*i+2]/native.cp[4*i+3]]));
     const record=chart.referenceRecord??chart;
     if(['offset-chart','mapped-surface'].includes(record.representation))return horizontal(record.source);
+    if(record.representation==='tangent-extension')return horizontal(record.patch);
     if(record.representation!=='surface-region')return false;
     const {geometry,selection}=record;
-    if(selection.kind==='spline')return horizontal(geometry.patches.find(patch=>patch.name===selection.patch)??{});
+    if(selection.kind==='spline')return horizontal(selectedSplinePatch(geometry,selection));
     return flat(selection.rows.flat().map(index=>geometry.vertices[index]));
   };
   const graph=surface.kind==='height-field'||surface.kind==='plane'&&Math.abs(surface.normal[2])>PRINT_RESOLUTION_MM;

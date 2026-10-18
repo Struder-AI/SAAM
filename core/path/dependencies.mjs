@@ -7,8 +7,8 @@ import {assignedFilaments} from '../machine/filaments.mjs';
 // 16: extensions consume prepared material/work; process cavities are Boolean geometry.
 // 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
 // terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/48'; // Equivalent surface references retain their native numerical geometry.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/31'; // Whole-group prefix proofs; Export owns checked machine realization.
+export const PATH_CONTRACT='saam-deposition/50'; // Geometry binds Inject enclosure slices; Scheduling owns access resolution.
+export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/32'; // Scheduling resolves geometric Inject scopes in its existing access solve.
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

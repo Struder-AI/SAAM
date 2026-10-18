@@ -1,4 +1,5 @@
 import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {selectedSplinePatch} from './surface-region.mjs';
 // A proven affine chart needs no curvature subdivision. This is a geometry
 // property, independent of which representation the author supplied.
 export function affineSurface(surface){
@@ -7,7 +8,8 @@ export function affineSurface(surface){
   if(surface.kind==='plane')return true;
   const record=surface.referenceRecord??surface;
   if(['mapped-surface','offset-chart'].includes(record.representation))return affineSurface(record.source);
-  if(record.representation==='surface-region'&&record.selection.kind==='spline')return affineSurface(record.geometry.patches.find(p=>p.name===record.selection.patch));
+  if(record.representation==='tangent-extension')return affineSurface(record.patch);
+  if(record.representation==='surface-region'&&record.selection.kind==='spline')return affineSurface(selectedSplinePatch(record.geometry,record.selection));
   const patch=surface?.patch??surface;
   if(!patch)return false;
   const {nu,nv,orderU,orderV,knotsU,knotsV,cp}=patch;

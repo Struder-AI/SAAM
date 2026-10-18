@@ -53,7 +53,7 @@ Source tables are `curves`, `layers`, `surfaces`, `processes`, `operations` and 
   `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal; `seamRequired:false` permits cyclic entry changes on interruptible closed courses. Material and poses retain their source locations. A required seam stays first even after refinement. Producers declare permitted directions/seams; ordinary Slice normally frees both. Causal fronts, Trace and atomic/continuous work retain authored requirements.
 - A stationary operation has `kind:'inject'`, no courses, and
   `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
-  occupied geometry, process selection and scoped `nozzleC`/`restoreNozzleC` retain their meanings. Injection is atomic. Nominal material ownership selects enclosure slices; construction publishes a whole-slice prerequisite when access is clear, or selected course/interval completion for a genuine enclosure/closure conflict. Unknown charts retain scoped geometric inspection. A shared required-material/access event is an irreducible cycle.
+  occupied geometry, process selection and scoped `nozzleC`/`restoreNozzleC` retain their meanings. Injection is atomic. Construction binds geometric enclosure volumes to owned slices, without inspecting deposition. Scheduling uses its existing access scene to require whole-slice completion when clear, refining to material ranges only for enclosure/closure conflicts; unscoped volumes retain geometric inspection. A shared required-material/access event is an irreducible cycle.
 
 ## Stored execution: `saam-schedule/1`
 

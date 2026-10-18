@@ -64,10 +64,11 @@ boundary; loop arrays or `sliceOverrides` vary its subsequent deposition.
 The source can be Slice or Trace, including a geometry-free Trace recipe.
 See [lip authoring](../thick-lip/SKILL.md).
 
-A selected spline/mesh-strip chart with `stack.direction:"normal"` and a
-`normal-band` supplies offset references. Fill, loops and per-slice variation remain
-Slice settings. `stack.offsetTightness` chooses fitted/exact native normal offsets;
-the older cell-fill spelling remains readable. See [cladding](../pipe-cladding/SKILL.md).
+`stack.direction:"normal"` uses a spline/mesh-strip chart and one `normal-band`;
+optional `geometry` volumes clip its slices to solids. A spline `patch` is a name
+or authored patch. Set `extend:true` and enlarge `uvBounds` to contain its domain:
+open edges continue tangentially; periodic U stays joined and only V extends.
+`stack.offsetTightness` blends tangent-extended fitted offsets with exact normal offsets of the extended reference ([cladding](../pipe-cladding/SKILL.md)).
 
 Ordinary rectilinear/grid/triangle rows use [physical surface offsets](../../core/region/README.md#shared-offset-functions),
 including wavy references; proven affine charts use exact line translations.
@@ -88,13 +89,11 @@ Supports use ordinary geometry claims and Slice settings; [standard support](../
 | `concentric` | Nested contours; narrow regions collapse. |
 | `gyroid` | Sampled periodic XYZ field; approximate density, more segments. |
 
-Boundary offsets and fill retain their chart's physical metric. Planes use planar
-polygon kernels; native patches use physical offsets/sections; evaluated charts
-use numerical surface kernels. None certifies global geodesic coverage. Folds,
-singular metrics, chart edges and insufficient sampling remain geometric limits.
-Physical offsets and fill spacing follow the surface metric. Features thinner than a bead can vanish;
-there is no general gap fill or collision model. First solid fill over sparse
-material is an unoptimised bridge. See [shared path limits](../../core/path/README.md).
+Offsets and fill retain the chart's physical metric: planar kernels for planes,
+native sections for patches, numerical kernels for evaluated charts. Folds,
+singular metrics, chart edges and sampling limit coverage; sub-bead features can
+vanish. There is no general gap fill or collision model; first solid fill over
+sparse material is unoptimised. See [shared path limits](../../core/path/README.md).
 
 ## Contact, poses and extensions
 

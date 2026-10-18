@@ -17,7 +17,7 @@ export async function prepareProcessSources(input,engines){
     // be safely presented as a successful, empty contribution.
     const create=await loadExtensionEntry(extension,'process-source');
     const runtime=await create({...engines,extensionId:extension,settings:structuredClone(settings)});
-    if(!Array.isArray(runtime.declarations))throw Error('Process source '+extension+' needs contribution declarations.');
+    if(!Array.isArray(runtime?.declarations)||typeof runtime.prepare!=='function')throw Error('Process source '+extension+' needs declarations and prepare.');
     const declared=new Map();
     for(const declaration of runtime.declarations){
       if(typeof declaration?.id!=='string'||!declaration.id||!Array.isArray(declaration.assignments)||

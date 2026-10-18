@@ -131,8 +131,8 @@ function materialRange(curve,from,to,geometric,options){
   const a=localRange(curve,from,mid,child),b=localRange(curve,mid,to,child);
   return {volumeMm3:[a.volumeMm3[0]+b.volumeMm3[0],a.volumeMm3[1]+b.volumeMm3[1]],areaMm2};
 }
-function localRange(curve,from,to,options){
-  const geometry=numericalCurveRange(curve.geometry,from,to,options),profiles=curve.profiles;
+function localRange(curve,from,to,options,geometry=numericalCurveRange(curve.geometry,from,to,options)){
+  const profiles=curve.profiles;
   const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,tangentCone:geometry.tangentCone,chordErrorMm:geometry.chordErrorMm,...materialRange(curve,from,to,geometry,options),
     poseCone:frameCone(profileValues(profiles.pose,from,to)),breaks:interiorBreaks(curve.breaks,from,to)};
   if(profiles.widthMm!==undefined)result.widthMm=scalarRange(profiles.widthMm,from,to);
@@ -210,16 +210,21 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
 function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
   const settings={lengthToleranceMm:options.positionToleranceMm,volumeToleranceRatio:options.volumeToleranceRatio,
     ...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3*(to-from)/(rangeTo-rangeFrom)})};
-  const geometry=numericalCurveRange(curve.geometry,from,to,settings),range=localRange(curve,from,to,settings);
+  // Reject a coarse view candidate before integrating length/material. Child
+  // spans need their own enclosures; precise parent integrals are discarded.
+  const geometry=numericalCurveRange(curve.geometry,from,to);
   const start=curveAt(handle,id,from),end=curveAt(handle,id,to,{side:'left'});
   const moves=start.point.some((value,i)=>value!==end.point[i]);
   // A single frame segment is exact. A span crossing frame keys needs an
   // enclosure certificate; agreeing endpoints alone can hide an entire turn.
   const pose=curve.profiles.pose;
   const frameExact=!keyed(pose)||!interiorKeys(pose.knots,from,to).length;
-  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(frameExact||4*range.poseCone.halfAngleRad<=options.orientationToleranceRad)&&
-    (moves||!(range.volumeMm3?.[1]>0))){
-    yield {from,to,start,end,range,positionErrorMm:geometry.interpolationErrorMm};return;
+  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(frameExact||4*frameCone(profileValues(pose,from,to)).halfAngleRad<=options.orientationToleranceRad)){
+    const measured=geometry.lengthMm[1]-geometry.lengthMm[0]<=settings.lengthToleranceMm?geometry:numericalCurveRange(curve.geometry,from,to,settings);
+    const range=localRange(curve,from,to,settings,measured);
+    if(moves||!(range.volumeMm3?.[1]>0)){
+      yield {from,to,start,end,range,positionErrorMm:geometry.interpolationErrorMm};return;
+    }
   }
   const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Curve subdivision cannot reach requested precision.');
   const halves=[[from,mid],[mid,to]];

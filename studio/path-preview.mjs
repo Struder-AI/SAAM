@@ -1,5 +1,6 @@
 import {contextualActions} from '../core/path/action-context.mjs';
-import {pathInitialPosition,pathInitialPose,pathSummary} from '../core/path/curve-path.mjs';
+import {pathInitialPosition,pathInitialPose,pathSummary,PATH_VIEW_TOLERANCES} from '../core/path/curve-path.mjs';
+import {PRINT_RESOLUTION_MM} from '../core/dimensions.mjs';
 // Studio draws the SAAMpath, never a machine program: the completed output's,
 // else the saved one, at its placement (readDrawnPath), or a mechanism study's
 // authored motion. Times are the path's own requested timing.
@@ -23,7 +24,12 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
   const metadata=pathSummary(path)?.inspection??inspection,nativeLayers=path.deposition?.layers;
   const events=[];let position=pathInitialPosition(path),pose=pathInitialPose(path)??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
   const posed=Boolean(pose)||Boolean(path.deposition)||Array.isArray(path.actions)&&path.actions.some(a=>a.pose);
-  for(const {action,context,index:line} of contextualActions(path)){
+  // A drawing is a bounded view of the same source. Machine-output precision
+  // needlessly expands curved material fields into millions of display moves.
+  // Keep this budget local: Export continues to use its own reader tolerances.
+  const processes=[plan?.process,...Object.values(path.deposition?.processes??{})];
+  const positionToleranceMm=Math.min(20*PRINT_RESOLUTION_MM,...processes.flatMap(process=>[process?.lineWidthMm/20,process?.layerMm/10]).filter(value=>Number.isFinite(value)&&value>0));
+  for(const {action,context,index:line} of contextualActions(path,{...PATH_VIEW_TOLERANCES,positionToleranceMm})){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}
     if(action.kind==='fan'){fan=action.percent;continue;}
     if(action.kind==='dwell'){time+=action.seconds;continue;}

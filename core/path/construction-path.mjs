@@ -10,8 +10,7 @@ import {constructionCurve} from './construction-curves.mjs';
 import {compactCurveProfiles,materialParameterError} from './compact-profiles.mjs';
 import {ROUNDING_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {publishManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
-import {resolveMaterialReadiness} from './material-readiness.mjs';
-import {prepareCurvePath} from './curve-path.mjs';
+import {bindMaterialSlices} from './material-readiness.mjs';
 import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
@@ -216,6 +215,6 @@ export function constructionPath({results,planning,composition,summary,generator
     manufacturing:{contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{}}};
   // Producers own internal validity and traversal permissions. Enclosure
   // readiness is a material requirement, not a second scheduling lifecycle.
-  resolveMaterialReadiness(source,prepareCurvePath(source),results.flatMap(result=>result.materialReadiness??[]));
+  bindMaterialSlices(source,results.flatMap(result=>result.materialReadiness??[]));
   return saamPath(source);
 }

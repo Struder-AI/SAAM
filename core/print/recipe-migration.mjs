@@ -11,7 +11,7 @@ function legacyRimAssignment({id,part=null,filament=null,process=null,after=[],s
 // Renamed fields are read by their current names; both spellings together have no reading.
 function migrateAssignmentTerms(assignment){
   const {assignment:current,conflicts:[conflict]}=currentAssignmentTerms(assignment);
-  requireThat(!conflict,`Both ${conflict?.[0]} and ${conflict?.[1]} are present; resolve the conflicting fields before migration.`);
+  requireThat(!conflict,`Deprecated ${conflict?.[0]} field: ${assignment.id}.`);
   return structuredClone(current);
 }
 
@@ -59,12 +59,12 @@ export function currentAssignmentForms(plan){
 // are trivial to remove; active old forms reject before any geometry is built.
 export function currentSupportForms(plan){
   const trees=plan.skills?.supports;
-  requireThat(!trees?.enabled,`Deprecated tree-support form: ${(trees?.assignments??[]).map(a=>a?.id).join(', ')||'supports'}.`);
+  requireThat(!trees?.enabled,`Deprecated tree-support form: ${(Array.isArray(trees?.assignments)?trees.assignments:[]).map(a=>a?.id).join(', ')||'supports'}.`);
   for(const a of plan.slices?.assignments??[]){
     requireThat(!(a?.preset==='support'&&a.within?.[0]?.kind==='support'),`Deprecated support-footprint form: ${a?.id}.`);
     if(a.construction||a.geometry||a.loops!==0||a.solidTop!==0||a.rotateFill!==false||a.process?.liftMm!==0||a.process?.retractMm!==0||a.within?.length!==1||a.within[0].kind!=='geometry')continue;
     const root=plan.geometry?.shape==='spatial'?plan.geometry.solid:plan.geometry,shape=a.part==null?root:root?.parts?.find(p=>p.id===a.part)?.geometry;
-    requireThat(!(shape?.shape==='boolean'&&shape.operation==='union'&&shape.displayOperand===0&&
+    requireThat(!(shape?.shape==='boolean'&&shape.operation==='union'&&shape.displayOperand===0&&Array.isArray(shape.operands)&&
       shape.operands.some((operand,i)=>i>0&&JSON.stringify(operand)===JSON.stringify(a.within[0].geometry))),`Deprecated embedded-support form: ${a.id}.`);
   }
   if(!Object.hasOwn(plan.skills??{},'supports'))return {plan,notes:[]};
