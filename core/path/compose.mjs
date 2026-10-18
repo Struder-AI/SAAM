@@ -296,12 +296,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
               addEdge(completion.end.id,graph.groups.get(operation.id).begin.id,'required-material');materialEdges.add(key);matched=true;
             }else {fine.add(layerId);fineScopes.add(key);}
           }
-          // Unscoped envelopes (including non-Slice producers) use the same
-          // scene; no construction-time deposition inspection is needed.
-          if(!requirement.layerIds||fine.size)for(const hit of state.scene.requiredHits(requirement,id=>{
+          // Native scopes keep their own completion/closure inspection. Only
+          // envelopes without a native provider discover unlayered material.
+          if(!requirement.layerIds||!requirement.layerIds.length||fine.size)for(const hit of state.scene.requiredHits(requirement,id=>{
             const other=graph.byId.get(id);
             return other.sourceOperation!==unit.sourceOperation&&(other.operation.part??null)===(requirement.part??null)&&
-              (!requirement.layerIds||fine.has(other.layerId??null));
+              (!requirement.layerIds||!requirement.layerIds.length&&other.layerId===null||fine.has(other.layerId));
           })){
             const layerId=hit.unit.layerId;
             if(layerId&&construction?.covers(source.layers[layerId].completionId,operation.id))throw Object.assign(

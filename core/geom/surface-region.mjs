@@ -4,7 +4,7 @@ import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {numericalGeometryRecord} from './surface-record.mjs';
-import {referencePatch} from './reference-surface.mjs';
+import {referencePatch,selectedFace} from './reference-surface.mjs';
 import {extendSurface} from './surface-extend.mjs';
 import {validateSplineSolid} from './spline-solid.mjs';
 
@@ -22,7 +22,7 @@ export function validateSurfaceSelection(s){
 // One chart per backend: the sampler and its knot/cell breaks. The selected
 // chart is chosen once, so the sampled evaluation stays a named stage.
 export function selectedSplinePatch(shell,spec){
-  const patch=typeof spec.patch==='string'?shell.patches?.find(p=>p.name===spec.patch):{...referencePatch(spec.patch),name:spec.patch.name,
+  const patch=typeof spec.patch==='string'?selectedFace(shell,spec.patch):{...referencePatch(spec.patch),name:spec.patch.name,
     ...(spec.patch.trimLoops===undefined?{}:{trimLoops:spec.patch.trimLoops})};
   requireThat(patch,'Selected native spline patch is missing.');
   return patch;

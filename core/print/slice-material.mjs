@@ -13,6 +13,7 @@ import {heightSlice,heightReferencePatch} from "../geom/height-slice.mjs";
 import { geometrySelections } from '../geom/selections.mjs';
 import {horizontalSlice,planeSlice,patchSlice,translateSlice,sliceStack,patchMeanNormal} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
+import {selectedFace} from '../geom/reference-surface.mjs';
 
 import {chartPrism} from '../geom/chart-prism.mjs';
 import {layerStrokes,mapSliceStrokes} from "../region/layer-strokes.mjs";
@@ -38,7 +39,7 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
       if(domain){
         const selectedPlacement=assignment.part===null?null:selections.get(assignment.part),shift=[selectedPlacement?.xMm??0,selectedPlacement?.yMm??0,selectedPlacement?.zMm??0];
         const roof=assignment.surface.kind==='roof';
-        const patch=roof?null:assignment.surface.kind==='patch'?shell.patches?.find(p=>p.name===assignment.surface.patch):heightReferencePatch(assignment.surface.patch,shift);
+        const patch=roof?null:assignment.surface.kind==='patch'?selectedFace(shell,assignment.surface.patch):heightReferencePatch(assignment.surface.patch,shift);
         requireThat(roof||patch,`Slice ${assignment.id} names an absent native patch.`);
         let base=roof?heightSlice({kind:'roof',geometry:shell},{sampleStepMm:assignment.sampleStepMm}):patchSlice(patch),direction=stack.direction??(roof?[0,0,1]:patchMeanNormal(patch).normal);
         base=translateSlice(base,normalize(direction).map(v=>v*assignment.surface.offsetMm));
@@ -60,7 +61,7 @@ export function sliceOwners(assignments, { shells, processes, materials=[], volu
       const selectedPlacement = assignment.part === null ? null : selections.get(assignment.part);
       const shift = [selectedPlacement?.xMm ?? 0, selectedPlacement?.yMm ?? 0, selectedPlacement?.zMm ?? 0];
       const reference=assignment.surface.kind==='roof'?{kind:'roof',geometry:shell}:null;
-      let base = assignment.surface.kind==='patch'?patchSlice(shell.patches?.find(p=>p.name===assignment.surface.patch)):assignment.surface.kind==='spline'?patchSlice(heightReferencePatch(assignment.surface.patch,shift)):reference?heightSlice(reference,{offsetMm:assignment.surface.offsetMm,sampleStepMm:assignment.sampleStepMm}):assignment.surface.kind === 'plane' ? planeSlice({ ...assignment.surface, origin: assignment.surface.origin.map((v, k) => v + shift[k]) }) : horizontalSlice(assignment.stack && slabs.length ? from : bottom);
+      let base = assignment.surface.kind==='patch'?patchSlice(selectedFace(shell,assignment.surface.patch)):assignment.surface.kind==='spline'?patchSlice(heightReferencePatch(assignment.surface.patch,shift)):reference?heightSlice(reference,{offsetMm:assignment.surface.offsetMm,sampleStepMm:assignment.sampleStepMm}):assignment.surface.kind === 'plane' ? planeSlice({ ...assignment.surface, origin: assignment.surface.origin.map((v, k) => v + shift[k]) }) : horizontalSlice(assignment.stack && slabs.length ? from : bottom);
       const direction=stack.direction??(base.kind==='patch'?patchMeanNormal(base.patch,null,{sampleStepMm:assignment.sampleStepMm}).normal:null);
       if(base.kind==='patch'){
         base=translateSlice(base,normalize(direction).map(v=>v*assignment.surface.offsetMm));

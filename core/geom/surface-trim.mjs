@@ -11,6 +11,23 @@ import {curveLoopSamples,prepareCurveLoops} from './curve-loops.mjs';
 import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
 
 const regionViews=new WeakMap();
+// Existing operand faces keep their identities. Introduced faces acquire a
+// namespace only when necessary; disconnected regions retain one face name.
+export function nameOperandFaces(operands){
+  const used=new Set(),faces=[];
+  for(const [operand,patches] of operands.entries()){
+    const names=new Map();
+    for(const patch of patches){
+      if(!names.has(patch.name)){
+        const identity={name:patch.name};
+        while(used.has(identity.name))identity.name='operand-'+operand+'-'+identity.name;
+        names.set(patch.name,identity.name);used.add(identity.name);
+      }
+      faces.push({operand,patch,name:names.get(patch.name)});
+    }
+  }
+  return faces;
+}
 // Polygon-only consumers request a derived view at physical construction
 // accuracy. The patch continues to own its original line/spline trim curves.
 export function faceTrimRegion(patch,{toleranceMm=PRINT_RESOLUTION_MM/4}={}){

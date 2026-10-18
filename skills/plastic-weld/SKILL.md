@@ -16,10 +16,10 @@ A blind shaft widens into a bottom basin and is filled through ordinary
 
 The cavity is a Boolean difference in process geometry before Slice. Geometry's
 [revolved profile and native Boolean](../../core/geom/README.md#native-boolean-construction)
-retain rational surfaces for spline hosts and support any entry axis. Its full
-cylindrical/conical profile determines injection volume, including any portion
-outside the host; placement must provide an enclosed cavity. Finished CAD stays
-unchanged because injection is intended to fill the cavity.
+retain rational surfaces for spline hosts and support any entry axis. The shaft
+clears outward through the host's rim; this entry clearance adds no injection volume.
+The full inward profile determines volume, including portions outside the host;
+placement must enclose it. Finished CAD stays unchanged.
 An ordinary solid volume supplies walls/floor in sparse hosts. Slice retains its
 normal loops/fill/spacing; use spacingFactor 1 for a solid envelope. Nominal
 material ownership selects supporting slices. A whole-slice access proof publishes

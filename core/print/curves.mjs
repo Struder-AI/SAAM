@@ -192,7 +192,6 @@ export function depositionReferences(shells,results){
   const references={};
   for(const [part,shell] of shells){
     references[`part:${part??''}`]={shell};
-    for(const patch of shell.patches??[])references[`patch:${part??''}:${patch.name}`]={patch};
   }
   const referenceStacks=new Map();
   for(const result of results){

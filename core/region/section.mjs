@@ -9,7 +9,8 @@ import {sectionHeightSlice,sampledChartRegion} from '../geom/height-slice.mjs';
 import {chartPrismContains} from '../geom/chart-prism.mjs';
 import {sectionShell} from '../geom/shell.mjs';
 import {meshSectionIndex,sectionMeshIndex,meshFaceNormal,meshBoundaryDistance} from '../geom/mesh.mjs';
-import {touchesSliceEdge} from '../geom/slice.mjs';
+import {touchesSliceEdge,planeSlice} from '../geom/slice.mjs';
+import {affineSurface} from '../geom/affine-surface.mjs';
 // The part of a surface that lies inside a solid, as closed loops in the
 // surface's own (u,v): the region a curved slice owns, or the part of a patch a
 // boolean keeps. Its boundary is where the surface meets the solid's patches
@@ -25,7 +26,7 @@ import { union, intersect, difference } from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
 import { requireThat, dot, cross,normalize,TOLERANCE } from '../geom/tolerance.mjs';
 import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
-import {segmentTrimSpans,faceContainsUv,faceTrimRegion} from '../geom/surface-trim.mjs';
+import {segmentTrimSpans,faceContainsUv,faceTrimRegion,planarFaceRegion} from '../geom/surface-trim.mjs';
 
 const OFF_SURFACE_MM = PRINT_RESOLUTION_MM; // material within print resolution of a sheet is that sheet's side
 
@@ -555,13 +556,14 @@ export function prepareSection(geometry, slice) {
 export function section(geometry, slice, options = {}) {
   requireThat(geometry?.bounds, 'Section needs a solid with bounds.');
   requireThat(options.side===undefined||options.side===null||options.side==='negative'||options.side==='positive','Section side is negative or positive.');
-  requireThat(!options.side||slice.kind==='plane'||slice.kind==='slice-chart'&&slice.slice?.kind==='plane','One-sided section needs an oriented plane.');
+  requireThat(!options.side||slice.kind==='plane'||slice.kind==='patch'||slice.kind==='slice-chart'&&slice.slice?.kind==='plane','One-sided section needs an oriented plane or native patch.');
   const { loops, nudgedByMm, open = [], report } = sectionLoops(geometry, slice, options);
   return { slice, loops, nudgedByMm, touchesEdge: touchesSliceEdge(slice, loops), open,...(report?{report}:{}) };
 }
 
 function sectionLoops(geometry, slice, options) {
   if(options.side&&slice.kind==='slice-chart'&&slice.slice?.kind==='plane')return sectionLoops(geometry,slice.slice,options);
+  if(options.side&&slice.kind==='patch')return oneSidedPatchSection(geometry,slice,options);
   if(slice.kind==='plane'){
     const low=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.min[k]:geometry.bounds.max[k])-slice.origin[k]),0);
     const high=slice.normal.reduce((sum,n,k)=>sum+n*((n>=0?geometry.bounds.max[k]:geometry.bounds.min[k])-slice.origin[k]),0);
@@ -622,6 +624,21 @@ function sectionLoops(geometry, slice, options) {
   return sectionShell(geometry, slice, options);
 }
 
+// Face retention queries the material on either side of the same native chart.
+// Affine faces reuse exact plane sections; curved charts reuse bounded sampling.
+function oneSidedPatchSection(geometry,slice,options){
+  const patch=slice.patch;
+  if(!affineSurface(patch))return sampledSurfaceInside(geometry,slice,options);
+  const uv=[patch.domainU[0],patch.domainV[0]],e=evaluate(patch,...uv),plane=planeSlice({origin:e.point,normal:e.normal,xAxis:e.du});
+  const face=planarFaceRegion(patch,faceTrimRegion(patch),{origin:plane.origin,x:plane.xAxis,y:plane.yAxis},PRINT_RESOLUTION_MM/4);
+  const cut=sectionLoops(geometry,plane,options),loops=intersect(face,cut.loops);
+  const uu=dot(e.du,e.du),uvDot=dot(e.du,e.dv),vv=dot(e.dv,e.dv),det=uu*vv-uvDot*uvDot;
+  return {...cut,loops:loops.map(loop=>loop.map(([x,y])=>{
+    const d=plane.xAxis.map((v,k)=>v*x+plane.yAxis[k]*y),u=dot(d,e.du),v=dot(d,e.dv);
+    return [uv[0]+(u*vv-v*uvDot)/det,uv[1]+(v*uu-u*uvDot)/det];
+  }))};
+}
+
 // Mesh and evaluated-chart sections share point containment on the exact
 // authored reference. Tangential triangle edges need no patch-curve stitching.
 function sampledSurfaceInside(geometry,slice,options){
@@ -631,6 +648,7 @@ function sampledSurfaceInside(geometry,slice,options){
     if(uv.some((v,k)=>v<extent.min[k]||v>extent.max[k])||!surfaceChartCovers(slice,uv))return false;
     const e=evaluateSurface(slice,uv);
     requireThat(e.normal,'Material section requires a regular surface normal.');
+    if(options.side){const offset=options.side==='negative'?-PRINT_RESOLUTION_MM:PRINT_RESOLUTION_MM;return containsPoint(source,e.point.map((v,k)=>v+offset*e.normal[k]));}
     if(containsPoint(source,e.point))return true;
     if(source.kind==='triangle-mesh'&&meshBoundaryDistance(source,e.point,ROUNDING_MM)>ROUNDING_MM)return false;
     return containsPoint(source,e.point.map((v,k)=>v+PRINT_RESOLUTION_MM*e.normal[k]))||containsPoint(source,e.point.map((v,k)=>v-PRINT_RESOLUTION_MM*e.normal[k]));

@@ -101,7 +101,11 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
       const neck=Math.max(0,depth-settings.basinHeightMm),profile=[[0,settings.shaftDiameterMm/2]];
       if(neck>0)profile.push([neck,settings.shaftDiameterMm/2]);
       profile.push([depth,settings.basinDiameterMm/2]);
-      const cavityGeometry=revolvedProfile({positionMm:mouth,axis,profile}),widest=Math.max(settings.basinDiameterMm,settings.shaftDiameterMm)/2;
+      // Clear the entry shaft past the host, including rims above an oblique
+      // mouth plane. Only the inward profile owns fill volume and enclosure.
+      const outwardReach=axis.reduce((sum,c,k)=>sum-c*((c>0?shell.bounds.min[k]:shell.bounds.max[k])-mouth[k]),0);
+      const clearance=Math.max(0,outwardReach)+settings.shaftDiameterMm/2;
+      const cavityGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[-clearance,settings.shaftDiameterMm/2],...profile]}),widest=Math.max(settings.basinDiameterMm,settings.shaftDiameterMm)/2;
       const envelopeGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[0,widest+settings.wallMm],[depth+settings.floorMm,widest+settings.wallMm]]});
       const cavity=await buildGeometry(cavityGeometry),solid=await buildGeometry(envelopeGeometry);
       const cavityVolumeMm3=profile.slice(1).reduce((sum,[s,r],i)=>{

@@ -6,7 +6,7 @@ import {sewSurfaceBoundary} from './surface-topology.mjs';
 import {separatingSurfacePlane} from './surface-support.mjs';
 import {surfaceBoundaryPair,surfaceInside,outwardSigns} from '../region/section.mjs';
 import {union,intersect,difference} from '../region/intersection.mjs';
-import {patchDomain,faceTrimRegion,planarFaceRegion,retainFaceTrimCurves,segmentTrimSpans} from './surface-trim.mjs';
+import {patchDomain,faceTrimRegion,planarFaceRegion,retainFaceTrimCurves,segmentTrimSpans,nameOperandFaces} from './surface-trim.mjs';
 import {surfacePlane,surfaceCorrespondence,correspondingSourceLoops,correspondingSurfaceCharts,projectCoincidentChart,curveCorrespondence} from './surface-coincidence.mjs';
 import {surfaceSegmentCurves} from './surface-curves.mjs';
 import {requireThat,dot,distance,cross,normalize} from './tolerance.mjs';
@@ -32,11 +32,9 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
   // still participate; a zero-area contact needs no transverse trace.
   const separationPlanes=operands.map((a,i)=>operands.map((b,j)=>j>i?separatingSurfacePlane(a,b):null));
   const volumeOverlap=operands.map((_,i)=>operands.map((__,j)=>i===j||!(j>i?separationPlanes[i][j]:separationPlanes[j][i])));
-  const faces=operands.flatMap((solid,operand)=>{
-    const signs=outwardSigns(solid);
-    return solid.patches.map(patch=>({operand,patch,sign:signs.get(patch),hull:surfaceHull(patch),
-      pairs:new Map(),coincident:[],kept:[]}));
-  });
+  const signs=operands.map(outwardSigns);
+  const faces=nameOperandFaces(operands.map(solid=>solid.patches)).map(face=>({...face,sign:signs[face.operand].get(face.patch),hull:surfaceHull(face.patch),
+    pairs:new Map(),coincident:[],kept:[]}));
   const phase={};
   const reportPhase=event=>{Object.assign(phase,event);onPhase({...phase});};
   const reportDiscovery=event=>reportPhase(event);
@@ -98,7 +96,7 @@ export function constructSurfaceBoolean(operation,operands,{seedMm=.4,fuzzyMm=0,
     }
   }
   const unchanged=unchangedOperand(faces,operands,chordMm);
-  const patches=unchanged>=0?faces.filter(face=>face.operand===unchanged).map(face=>({...face.patch,normalSide:face.sign})):faces.flatMap((face,i)=>face.kept.map((kept,j)=>({...face.patch,name:`boolean-${i}-${j}-${face.patch.name}`,
+  const patches=unchanged>=0?faces.filter(face=>face.operand===unchanged).map(face=>({...face.patch,name:face.name,normalSide:face.sign})):faces.flatMap((face,i)=>face.kept.map(kept=>({...face.patch,name:face.name,
     trimLoops:retainFaceTrimCurves(face.patch,kept.loops,{toleranceMm:sewingMm/2}),normalSide:kept.sign,sourceFace:i,sourceName:face.patch.sourceName??face.patch.name,
     boundaryCurves:[...(face.patch.boundaryCurves??[]),...curves.flatMap(curve=>curve.charts.filter(chart=>chart.face===i).map(chart=>({points:curve.points,uv:chart.uv})))]})));
   const bounds=patches.length?combinedBounds(operation,operands):{min:[0,0,0],max:[0,0,0]};

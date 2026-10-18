@@ -33,7 +33,7 @@ import {transportCurveFrames} from './curve-frame.mjs';
 import {prepareContourSleeve} from './sleeve/contour-sleeve.mjs';
 import {detectMeshSleeveInterval} from './sleeve/mesh-sleeve.mjs';
 import {strokeTopology,widenPlanarStrokes} from './stroke-topology.mjs';
-import {referenceSurface} from './reference-surface.mjs';
+import {referenceSurface,selectedFace} from './reference-surface.mjs';
 import {surfaceRegion} from './surface-region.mjs';
 import {prepareSolidDistance,solidDistance} from './solid-distance.mjs';
 import {extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery} from './extruded-segments.mjs';
@@ -54,7 +54,7 @@ const operations=Object.freeze({prepareSurfaceRay,surfaceRayIntersections,resolu
     evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,surfaceCurveImages,curvePoint,sampleCurveIntervals,
     sampleSpatialCurve,distinctPolyline,curveLength,transportCurveFrames,
     prepareContourSleeve,detectMeshSleeveInterval,strokeTopology,widenPlanarStrokes,
-    referenceSurface,surfaceRegion,extendSurface,prepareSolidDistance,solidDistance,
+    referenceSurface,selectedFace,surfaceRegion,extendSurface,prepareSolidDistance,solidDistance,
     extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery});
 
 export function geometryOperations(){return operations;}
