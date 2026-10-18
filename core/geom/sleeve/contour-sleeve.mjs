@@ -74,18 +74,18 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
       loop.length===lastContours[i].length&&loop.every((p,j)=>p[0]===lastContours[i][j][0]&&p[1]===lastContours[i][j][1]))){
       return cacheSection(key,lastValue);
     }
-    // Fitted spline sections already have chord-controlled contours. A second,
+    // Fitted and native spline sections already have chord-controlled contours. A second,
     // coarser per-height RDP pass can switch retained vertices discontinuously
     // and defeat the tighter prepared-map allowance, forcing thousands of
     // offset rebuilds. Keep its original contour; mesh cuts still need removal
     // of collinear triangle seams before quantization and offsets: a raw
     // tessellation seam is a near-collinear step that an inward offset can split
-    // off as a degenerate sliver, leaving the inset with two loops. Patterns
+    // off as a degenerate sliver, leaving the inset with two loops. Mesh patterns
     // re-anchor and grid-round for phase stability through patternContour; the
     // standard wall only needs the seam removed. Fitted-sleeve and native spline
     // cuts are already chord-controlled and keep their exact contour.
     const seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4,meshCut=!reference&&shell.kind==='triangle-mesh';
-    const prepare=raw=>settings.phaseStableContours&&!reference?patternContour(raw,seamTolerance):meshCut?cleanPlanarLoop(raw,seamTolerance):raw;
+    const prepare=raw=>settings.phaseStableContours&&meshCut?patternContour(raw,seamTolerance):meshCut?cleanPlanarLoop(raw,seamTolerance):raw;
     const outers=cut.loops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3).map(prepare);
     const offsetLoops=offsetRegion(outers,centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     const islands=offsetLoops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3);

@@ -4,7 +4,7 @@ import {loadBundle,updatePlan} from './bundle.mjs';
 import {depositionAssignment} from './assignment-records.mjs';
 
 
-import {diagnoseDepositionPlan} from './deposition-diagnostics.mjs';
+import {validatePlan} from './plan.mjs';
 
 const record=value=>value&&typeof value==='object'&&!Array.isArray(value);
 
@@ -49,11 +49,12 @@ export async function applySlice(directory,request,{expectedRevision,expectedEdi
   const previous=await loadBundle(directory,{program:false});
   requireEditRevision(previous,{expectedRevision,expectedEditRevision});
   const slices=editSliceAssignments(previous.plan.slices,request);
-  const plan={...previous.plan,slices},diagnostics=await diagnoseDepositionPlan(plan);
+  const plan={...previous.plan,slices};
+  validatePlan(plan);
   const state=await updatePlan(directory,plan,previous.revision,{expectedEditRevision});
   const changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,assignment:state.plan.slices.assignments.find(a=>a.id===request.id)??null,
-    order:state.plan.slices.assignments.map(a=>a.id),validated:['recipe','geometry'],
-    generationRequired:changed||!state.review.generation,confirmationInvalidated:changed,
-    diagnostics,deferredChecks:['exact exported program interpretation','physical acceptance']}};
+    order:state.plan.slices.assignments.map(a=>a.id),validated:['recipe'],
+    generationRequired:changed||state.artifacts.path!=='current'||Boolean(state.machine)&&state.artifacts.program!=='current',confirmationInvalidated:changed,
+    deferredChecks:['deposition construction','exact exported program interpretation','physical acceptance']}};
 }

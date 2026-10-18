@@ -1,4 +1,4 @@
-import {findSpan,basisFunctions,evaluateCurve,requireSplineDegree} from './nurbs.mjs';
+import {findSpan,basisFunctions,requireSplineDegree} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
 import {bezierPieces} from './surface-intersection.mjs';
 import {restrictBezierNet,bernsteinProductWeights} from './bezier-net.mjs';
@@ -20,8 +20,19 @@ export function surfaceIsoCurve(patch,axis,value){
   return {n:counts[along],order:orders[along],knots:knots[along],cp,domain:[...domains[along]],source:{surface:patch,axis,value}};
 }
 
+// A position query needs only the ordinary basis. Do not construct derivative
+// tables and tangent vectors for contour refinement or point-only consumers.
 export function curvePoint(curve,fraction){
-  return evaluateCurve(curve,curve.domain[0]+fraction*(curve.domain[1]-curve.domain[0])).point;
+  const {n,order,knots,cp,domain}=curve;
+  const t=Math.max(domain[0],Math.min(domain[1],domain[0]+fraction*(domain[1]-domain[0])));
+  const span=findSpan(knots,n,order,t),basis=basisFunctions(knots,span,t,order),point=[0,0,0];
+  let weight=0;
+  for(let i=0;i<order;i++){
+    const index=(span-order+1+i)*4,value=basis[i];
+    for(let k=0;k<3;k++)point[k]+=value*cp[index+k];
+    weight+=value*cp[index+3];
+  }
+  return point.map(value=>value/weight);
 }
 
 // Images of straight chart segments retain their parameters. Bernstein

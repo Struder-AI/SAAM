@@ -305,7 +305,7 @@ async function api(route,data) {
   }finally{if(target===studioWork.generationTarget){studioWork.generationTarget=null;$('#cancel-generation').hidden=true;}}
 }
 async function pollPreparation(){
-  const target=studioWork.generationTarget;if(!target||printSync.progressPolling)return;
+  const target=studioWork.generationTarget;if((!target&&!printSync.state?.outputGenerating)||printSync.progressPolling)return;
   printSync.progressPolling=true;
   try{
     const response=await fetch('/api/preparation');if(!response.ok)return;
@@ -314,9 +314,23 @@ async function pollPreparation(){
   }catch{/* The owning generation call reports failures. */}finally{printSync.progressPolling=false;}
 }
 function applyProgress(job,target=studioWork.generationTarget){
-  if(printSync.state&&job?.printId===printSync.state.printId){printSync.state.outputGenerating=['preparing','generating'].includes(job.status);render();}
-  if(!target||studioWork.generationTarget!==target||!job||job.studioInstanceId&&printSync.state&&job.studioInstanceId!==printSync.state.instanceId
-    ||job.printId!==target.printId||target.editRevision&&job.editRevision!==target.editRevision)return;
+  if(!job||job.studioInstanceId&&printSync.state&&job.studioInstanceId!==printSync.state.instanceId)return;
+  const current=printSync.state&&job.printId===printSync.state.printId;
+  // The server owns this Studio's calculation, whether the browser or agent
+  // started it. Adopt its identity for the same progress/cancellation controls.
+  if(current){
+    printSync.state.outputGenerating=['preparing','generating'].includes(job.status);
+    if(printSync.state.outputGenerating&&(!target||target.printId!==job.printId||target.editRevision&&target.editRevision!==job.editRevision))
+      target=studioWork.generationTarget={printId:job.printId,editRevision:job.editRevision};
+  }
+  if(!target||studioWork.generationTarget!==target||job.printId!==target.printId
+    ||target.editRevision&&job.editRevision!==target.editRevision){if(current)render();return;}
+  target.job=job;
+  if(job.status==='idle'){
+    studioWork.generationTarget=null;clearInterval(studioWork.importElapsedTimer);studioWork.importElapsedTimer=null;
+    $('#cancel-generation').hidden=true;if(current)render();return;
+  }
+  if(current)render();
   target.editRevision??=job.editRevision;
   target.jobId??=job.jobId;
   $('#cancel-generation').hidden=!job.cancellable;
@@ -357,6 +371,10 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   printSync.state=adopted.state;printSync.stateTag=fetchedTag;chatUI.reflect();
+  if(studioWork.generationTarget&&studioWork.generationTarget.printId!==printSync.state.printId){
+    studioWork.generationTarget=null;clearInterval(studioWork.importElapsedTimer);studioWork.importElapsedTimer=null;
+    $('#cancel-generation').hidden=true;
+  }
   return {adopted,loaded,previous,presentationChanged,follow};
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
@@ -382,6 +400,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
     await machinePose.machineSession.sample(playState.seconds,{manual:machinePose.manualValues,jog:machinePose.manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
+  if(printSync.state.outputGenerating)void pollPreparation();
   await acknowledgeDisplayedView(navigation.inspectionFailure);
 }
 async function ensureTourGeneration(follow=false){
@@ -478,7 +497,11 @@ function render() {
     settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan)]});
   if(viewState.tab==='toolpath'&&output.previous)presentation.reviewNote='Previous toolpath — recent edits are not included. '+(presentation.reviewNote??'');
   if(output.generating)presentation.guidance='Preparing your toolpath…';
-  if(!studioWork.busy)activity(output.generating?'Preparing your toolpath…':'');
+  if(!studioWork.busy){
+    const job=studioWork.generationTarget?.job;
+    const progress=job?.printId===printSync.state.printId&&['preparing','generating','importing'].includes(job.status)?job.progress:null;
+    activity(progress?.stage??(output.generating?'Preparing your toolpath…':''),progress?.total>0?progress.completed/progress.total:null);
+  }
   $('#repair-review').hidden=viewState.tab!=='geometry'||!printSync.state.importRepair;
   $('#repair-summary').textContent=printSync.state.importRepair??'';
   // Limitations, including the recipe notes of the current recipe.

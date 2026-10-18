@@ -283,7 +283,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
     try{
     const referenceStack = principal.referenceStack, layers = [], materialMasks = new Map(), findings = [];
     for (const layer of referenceStack.layers) {
-      onProgress?.({ stage: 'Slicing layers', completed: done++, total });
+      onProgress?.({ stage: 'Slicing layers', completed: done++, total, assignment: principal.assignment.id, layer: layer.index });
       const own = material(principal, layer.slice);
       materialMasks.set(layer.index, own);
       findings.push({ layer, cut: partCut(principal, layer.slice) });

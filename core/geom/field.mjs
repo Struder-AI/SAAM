@@ -10,10 +10,10 @@
 
 import { evaluate, clamp } from './nurbs.mjs';
 import { TOLERANCE, distance } from './tolerance.mjs';
-import { ROUNDING_MM, ROUNDING_RELATIVE, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
+import { ROUNDING_MM, ROUNDING_RELATIVE, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, FLOAT64_EPSILON } from '../dimensions.mjs';
 import {faceContainsUv} from './surface-trim.mjs';
 
-const affineProjections = new WeakMap();
+const projectionMaps = new WeakMap();
 const SEEDS = 3;
 const NEWTON_STEPS = 40;
 
@@ -43,10 +43,10 @@ function candidateSpansAt(patch, x, y) {
 }
 
 // Constant-weight nets reproduce linear UV coordinates through Greville
-// abscissae. Certify the entire projected net before using its direct inverse;
-// arbitrary/folded projections retain the multi-seed Newton construction.
-function affineProjection(patch){
-  if(!affineProjections.has(patch)){
+// abscissae. Prepare the direct inverse and a derivative-hull uniqueness proof;
+// unproved/folded projections retain the multi-seed Newton construction.
+function projectionMap(patch){
+  if(!projectionMaps.has(patch)){
     const {nu,nv,orderU,orderV,knotsU,knotsV,cp}=patch;
     const greville=(knots,n,order)=>Array.from({length:n},(_,i)=>Array.from({length:order-1},(_,k)=>knots[i+k+1]).reduce((a,b)=>a+b,0)/(order-1));
     const us=greville(knotsU,nu,orderU),vs=greville(knotsV,nv,orderV),weight=cp[3];
@@ -57,9 +57,36 @@ function affineProjection(patch){
     for(let i=0;i<nu&&affine;i++)for(let j=0;j<nv&&affine;j++){
       affine=cp[(i*nv+j)*4+3]===weight&&xy(i,j).every((v,k)=>Math.abs(v-origin[k]-du[k]*(us[i]-us[0])-dv[k]*(vs[j]-vs[0]))<=ROUNDING_MM);
     }
-    affineProjections.set(patch,affine?{origin,du,dv,determinant,u0:us[0],v0:vs[0]}:null);
+    const constantWeights=cp.every((value,index)=>index%4!==3||value===weight);
+    const projection=constantWeights&&Number.isFinite(determinant)&&Math.abs(determinant)>ROUNDING_MM**2
+      ?{origin,du,dv,determinant,u0:us[0],v0:vs[0],affine}:null;
+    if(projection)projection.injective=affine||projectionInjective(patch,projection);
+    projectionMaps.set(patch,projection);
   }
-  return affineProjections.get(patch);
+  return projectionMaps.get(patch);
+}
+// In affine-inverse coordinates, F(u,v)=(u,v)+g(u,v). A derivative
+// control hull with ||Dg|| < 1 makes F injective on the rectangular domain:
+// integrating Dg along the segment between two parameters proves separation.
+// Constant weights make both derivative nets ordinary polynomial B-splines.
+function projectionInjective(patch,{du,dv,determinant}){
+  const {nu,nv,cp,orderU,orderV,knotsU,knotsV}=patch,errors=[];
+  const inverseNorm=Math.hypot(...du,...dv)/Math.abs(determinant);
+  const determinantError=FLOAT64_EPSILON*64*(Math.abs(du[0]*dv[1])+Math.abs(du[1]*dv[0]))/Math.abs(determinant);
+  for(const axis of [0,1]){
+    const count=axis===0?nu:nv,other=axis===0?nv:nu,degree=(axis===0?orderU:orderV)-1,knots=axis===0?knotsU:knotsV;
+    let maximum=0;
+    for(let i=1;i<count;i++)for(let j=0;j<other;j++){
+      const span=knots[i+degree]-knots[i];if(!(span>0))return false;
+      const a=(axis===0?(i-1)*nv+j:j*nv+i-1)*4,b=(axis===0?i*nv+j:j*nv+i)*4,factor=degree/span;
+      const ax=cp[a]/cp[a+3],ay=cp[a+1]/cp[a+3],bx=cp[b]/cp[b+3],by=cp[b+1]/cp[b+3];
+      const x=(bx-ax)*factor,y=(by-ay)*factor,u=(x*dv[1]-y*dv[0])/determinant,v=(du[0]*y-du[1]*x)/determinant;
+      const rounding=FLOAT64_EPSILON*64*factor*(Math.abs(ax)+Math.abs(ay)+Math.abs(bx)+Math.abs(by))*inverseNorm+determinantError*Math.hypot(u,v);
+      maximum=Math.max(maximum,Math.hypot(u-(axis===0?1:0),v-(axis===1?1:0))+rounding);
+    }
+    errors.push(maximum);
+  }
+  return Math.hypot(...errors)<1;
 }
 const affineUv=({origin,du,dv,determinant,u0,v0},x,y)=>{
   const dx=x-origin[0],dy=y-origin[1];
@@ -68,18 +95,22 @@ const affineUv=({origin,du,dv,determinant,u0,v0},x,y)=>{
 // True only when the patch's certified affine XY projection holds every point,
 // and so their convex hull: the patch then lies above or below all of it.
 export function patchCoversChart(patch,points){
-  const affine=affineProjection(patch);
-  return !!affine&&points.every(([x,y])=>{const [u,v]=affineUv(affine,x,y);return u>=patch.domainU[0]&&u<=patch.domainU[1]&&v>=patch.domainV[0]&&v<=patch.domainV[1];});
+  const projection=projectionMap(patch);
+  return !!projection?.affine&&points.every(([x,y])=>{const [u,v]=affineUv(projection,x,y);return u>=patch.domainU[0]&&u<=patch.domainU[1]&&v>=patch.domainV[0]&&v<=patch.domainV[1];});
 }
 
 // Every point of the patch directly above or below (x, y).
 export function projectToPatch(patch, x, y) {
-  const affine=affineProjection(patch);
-  if(affine){
-    const [u,v]=affineUv(affine,x,y);
+  const projection=projectionMap(patch);
+  if(projection?.affine){
+    const [u,v]=affineUv(projection,x,y);
     if(u<patch.domainU[0]-TOLERANCE.parameter||u>patch.domainU[1]+TOLERANCE.parameter||v<patch.domainV[0]-TOLERANCE.parameter||v>patch.domainV[1]+TOLERANCE.parameter)return [];
     const cu=clamp(u,patch.domainU),cv=clamp(v,patch.domainV),frame=evaluate(patch,cu,cv);
     if(Math.hypot(frame.point[0]-x,frame.point[1]-y)<=PROGRAM_STEP_MM)return [{u:cu,v:cv,point:frame.point,normal:frame.normal}];
+  }
+  if(projection?.injective&&!projection.affine){
+    const [u,v]=affineUv(projection,x,y),solution=newton(patch,x,y,clamp(u,patch.domainU),clamp(v,patch.domainV),{u:patch.domainU,v:patch.domainV});
+    if(solution)return [solution];
   }
   const hits = [];
   for (const span of candidateSpansAt(patch, x, y))

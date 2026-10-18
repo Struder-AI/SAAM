@@ -17,20 +17,25 @@ export function convexVolume(vertices){
 
 export function convexSupport(shape,direction){
   if(shape.translated)return add(convexSupport(shape.translated,direction),shape.offset);
-  if(shape.vertices)return shape.vertices.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
+  if(shape.vertices){
+    let best=shape.vertices[0],score=dot(best,direction);
+    for(let i=1;i<shape.vertices.length;i++){const point=shape.vertices[i],next=dot(point,direction);if(next>score){best=point;score=next;}}
+    return best;
+  }
   if(shape.body){const point=convexSupport(shape.body,direction);return dot(shape.sweep,direction)>0?add(point,shape.sweep):point;}
   if(shape.parts){
-    const points=shape.parts.map(part=>convexSupport(part,direction));
-    let best=points.reduce((best,p)=>dot(p,direction)>dot(best,direction)?p:best);
+    let best=convexSupport(shape.parts[0],direction),score=dot(best,direction);
+    for(let i=1;i<shape.parts.length;i++){const point=convexSupport(shape.parts[i],direction),next=dot(point,direction);if(next>score){best=point;score=next;}}
     if(shape.radialMargin){const radial=subtract(direction,scale(shape.radialNormal,dot(direction,shape.radialNormal))),size=length(radial);
       if(size>0)best=add(best,scale(radial,shape.radialMargin/size));}
     return shape.margin?add(best,scale(normalize(direction),shape.margin)):best;
   }
-  const normal=shape.normal,radial=subtract(direction,scale(normal,dot(direction,normal))),size=length(radial);
+  const normal=shape.normal,normalProjection=dot(direction,normal);
   if(shape.side){
     const end=dot(shape.a,direction)>dot(shape.b,direction)?shape.a:shape.b;
-    return add(add(end,scale(shape.side,dot(shape.side,direction)>=0?shape.radius:-shape.radius)),scale(normal,dot(direction,normal)<0?-shape.depth:0));
+    return add(add(end,scale(shape.side,dot(shape.side,direction)>=0?shape.radius:-shape.radius)),scale(normal,normalProjection<0?-shape.depth:0));
   }
+  const radial=[direction[0]-normal[0]*normalProjection,direction[1]-normal[1]*normalProjection,direction[2]-normal[2]*normalProjection],size=length(radial);
   const useA=dot(shape.a,direction)+shape.radius*size>dot(shape.b,direction)+(shape.endRadius??shape.radius)*size;
   const end=useA?shape.a:shape.b,radius=useA?shape.radius:shape.endRadius??shape.radius;
   const point=add(end,size>ROUNDING_MM?scale(radial,radius/size):[0,0,0]);
@@ -114,11 +119,17 @@ function prismIntersects(a,b,toleranceMm){
   const axesA=[along(a),a.side,a.normal],axesB=[along(b),b.side,b.normal];
   const centerA=add(scale(add(a.a,a.b),.5),scale(a.normal,-a.depth/2)),centerB=add(scale(add(b.a,b.b),.5),scale(b.normal,-b.depth/2));
   const spansA=[length(subtract(a.b,a.a))/2,a.radius,a.depth/2],spansB=[length(subtract(b.b,b.a))/2,b.radius,b.depth/2],offset=subtract(centerB,centerA);
-  for(const axis of [...axesA,...axesB,...axesA.flatMap(x=>axesB.map(y=>cross(x,y)))]){
-    const size=length(axis);if(size<=ROUNDING_RELATIVE)continue;
-    const radiusA=axesA.reduce((sum,v,k)=>sum+Math.abs(dot(v,axis))*spansA[k],0),radiusB=axesB.reduce((sum,v,k)=>sum+Math.abs(dot(v,axis))*spansB[k],0);
-    if(Math.abs(dot(offset,axis))>radiusA+radiusB+toleranceMm*size)return false;
+  // Test face axes before constructing edge crosses. Most separated pairs
+  // finish here; eagerly building all fifteen axes creates avoidable garbage.
+  function separates(axis){
+    const size=length(axis);if(size<=ROUNDING_RELATIVE)return false;
+    let radiusA=0,radiusB=0;
+    for(let k=0;k<3;k++){radiusA+=Math.abs(dot(axesA[k],axis))*spansA[k];radiusB+=Math.abs(dot(axesB[k],axis))*spansB[k];}
+    return Math.abs(dot(offset,axis))>radiusA+radiusB+toleranceMm*size;
   }
+  for(const axis of axesA)if(separates(axis))return false;
+  for(const axis of axesB)if(separates(axis))return false;
+  for(const x of axesA)for(const y of axesB)if(separates(cross(x,y)))return false;
   return true;
 }
 // A fixed-axis translated nozzle against a bead is a cone against a zonotope:
@@ -232,23 +243,24 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
   }
   return {empty:shapes.length===0,bounds:tree.bounds,query(shape,toleranceMm=PRINT_RESOLUTION_MM,{accept=null,acceptGroup=null,firstPerGroup=false,confirm=null,withinGroups=null,groupPrefixes=null,boundsTest=null,boundsOnly=false}={}){
     if(withinGroups)requireThat(groups,'Group selection needs a grouped spatial index.');
-    const box=convexBounds(shape),pending=[tree],found=[],settled=new Set(),token={};
-    const rounded=roundedBody(shape),coneTest=rounded.body.fixed&&rounded.body.motion?fixedConeBounds(rounded.body,toleranceMm+rounded.margin):null;
-    const admitted=bounds=>(!boundsTest||boundsTest(bounds))&&(!coneTest||coneTest(bounds));
+    const region=prepareConvexBoundsQuery(shape,toleranceMm),box=region.bounds,pending=[tree],found=[],settled=new Set(),token={};
+    const admitted=bounds=>(!boundsTest||boundsTest(bounds))&&region.mayIntersect(bounds);
     function eligible(member){
       if(member.token!==token){member.token=token;member.allowed=(!withinGroups||withinGroups.has(member.group))&&(!acceptGroup||acceptGroup(member.group));member.through=groupPrefixes?.get(member.group)??Infinity;}
       return member.allowed;
     }
     while(pending.length){
       const node=pending.pop(),{group,grouped}=node;
-      if(!boundsOverlap(box,node.bounds,toleranceMm)||!admitted(node.bounds))continue;
+      if(!boundsOverlap(box,node.bounds,toleranceMm))continue;
       const status=withinGroups?selected(node.partition,withinGroups):2;if(!status)continue;
       if(grouped&&(firstPerGroup&&settled.has(group)||!eligible(node.member)||node.firstIndex>node.member.through))continue;
+      if(!admitted(node.bounds))continue;
       if(node.items){for(const item of node.items){
-        if(!boundsOverlap(box,item.bounds,toleranceMm)||!admitted(item.bounds))continue;
-        if(item.tree){pending.push(item.tree);continue;}
+        if(!boundsOverlap(box,item.bounds,toleranceMm))continue;
         const group=item.group;
-        if(groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
+        if(!item.tree&&groups&&(firstPerGroup&&settled.has(group)||!eligible(item.member)||item.index>item.member.through))continue;
+        if(!admitted(item.bounds))continue;
+        if(item.tree){pending.push(item.tree);continue;}
         if((!accept||accept(item.index))&&(boundsOnly||convexIntersects(shape,item.shape,toleranceMm))&&(!confirm||confirm(item.shape))){
           found.push(item.index);if(firstPerGroup&&groups)settled.add(group);
         }
@@ -256,6 +268,14 @@ export function convexSpatialIndex(shapes,{groups=null,partitions=null}={}){
     }
     return found;
   }};
+}
+
+// Prepare conservative box admission once for repeated spatial/refinement
+// queries. A positive result is only a candidate, never a contact witness.
+export function prepareConvexBoundsQuery(shape,toleranceMm=ROUNDING_MM){
+  const bounds=convexBounds(shape),rounded=roundedBody(shape);
+  const cone=rounded.body.fixed&&rounded.body.motion?fixedConeBounds(rounded.body,toleranceMm+rounded.margin):null;
+  return {bounds,mayIntersect:box=>boundsOverlap(bounds,box,toleranceMm)&&(!cone||cone(box))};
 }
 
 export const DEFAULT_NOZZLE_INCLUDED_ANGLE_DEG=80;
@@ -350,9 +370,13 @@ function fixedConeBounds(sweep,toleranceMm=ROUNDING_MM){
   const axis=sweep.body.normal,halfAngle=sweep.motion.includedAngleDeg*Math.PI/360,c=Math.cos(halfAngle),s=Math.sin(halfAngle);
   const tip=add(sweep.body.a,scale(sweep.sweep,.5));
   return bounds=>{
-    const q=bounds.min.map((v,k)=>(v+bounds.max[k])/2-tip[k]),z=dot(q,axis),radial=subtract(q,scale(axis,z)),r=length(radial);
-    const gradient=add(scale(axis,-s),r>ROUNDING_MM?scale(radial,c/r):[0,0,0]);
-    const lower=(r>ROUNDING_MM?c*r:0)-c*sweep.body.radius-s*z-bounds.min.reduce((sum,v,k)=>sum+Math.abs(gradient[k])*(bounds.max[k]-v)/2,0)-Math.abs(dot(gradient,sweep.sweep))/2;
+    const x=(bounds.min[0]+bounds.max[0])/2-tip[0],y=(bounds.min[1]+bounds.max[1])/2-tip[1],z=(bounds.min[2]+bounds.max[2])/2-tip[2];
+    const axial=x*axis[0]+y*axis[1]+z*axis[2];
+    const rx=x-axis[0]*axial,ry=y-axis[1]*axial,rz=z-axis[2]*axial,r=Math.hypot(rx,ry,rz),factor=r>ROUNDING_MM?c/r:0;
+    const gx=axis[0]*-s+(factor?rx*factor:0),gy=axis[1]*-s+(factor?ry*factor:0),gz=axis[2]*-s+(factor?rz*factor:0);
+    const boxRadius=Math.abs(gx)*(bounds.max[0]-bounds.min[0])/2+Math.abs(gy)*(bounds.max[1]-bounds.min[1])/2+Math.abs(gz)*(bounds.max[2]-bounds.min[2])/2;
+    const motion=gx*sweep.sweep[0]+gy*sweep.sweep[1]+gz*sweep.sweep[2];
+    const lower=(r>ROUNDING_MM?c*r:0)-c*sweep.body.radius-s*axial-boxRadius-Math.abs(motion)/2;
     return lower<=toleranceMm;
   };
 }

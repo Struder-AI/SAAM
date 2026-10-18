@@ -7,9 +7,8 @@ metadata:
 
 # Surface cladding with Slice
 
-Cladding is ordinary Slice over a selected surface and a normal-depth band.
-Author its substrate with any geometry/deposition combination that supplies the
-selected finished boundary. No machine is required to construct the SAAMpath.
+Cladding is ordinary Slice over a surface and normal-depth band. Its substrate
+must deposit the selected finished boundary. No machine is needed for SAAMpath.
 
 ## Recipe
 
@@ -33,11 +32,12 @@ The four slices at 0.2 mm spacing alternate axial tracks and circumferential hel
 repeats in order. `spacingFactor` changes track pitch without changing bead
 width. `fromMm` and `toMm` select the owned normal-depth interval.
 
-`part` selects an assembly component. A null contact source consumes its
-available finalized producers; an assignment ID selects one. Source operation
-prerequisites are retained. Geometry edits update the reference; the recipe does
-not freeze a mesh or baked machine path. A legacy `construction:'cladding'` record
-has no automatic reading and produces nothing until authored this way.
+For a quicker first check, use `directions:["axial"]` throughout. Large
+mixed-direction jobs can spend minutes resolving nozzle access.
+
+`part` selects a component. A null contact source consumes available finalized
+producers; an assignment ID selects one. Their prerequisites and geometry updates
+are retained. Legacy `construction:'cladding'` records must be rewritten as Slice.
 
 ## Select a surface
 
@@ -48,10 +48,9 @@ has no automatic reading and produces nothing until authored this way.
   with a duplicate final seam row. Every cell matches two native triangles.
   Reordering or replacing mesh vertices requires revising this explicit chart.
 
-Physical cells use a rectangular chart. Open charts support axial and
-circumferential rows; helices require periodic U. This does not unwrap arbitrary
-meshes or certify global geodesic coverage. Fill and per-slice variation are shared
-Slice settings, independent of the normal stack.
+Physical cells use rectangular charts, not arbitrary mesh unwraps or certified
+global geodesic coverage. Open charts support axial/circumferential rows;
+helices require periodic U. Fill variation remains a shared Slice setting.
 
 The source must actually deposit the selected boundary. A vase's unfinished
 spiral only supplies its completed side height; patterns publish their real

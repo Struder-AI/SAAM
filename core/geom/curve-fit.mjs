@@ -1,7 +1,6 @@
 // A numerical polyline can be represented by fewer ordinary NURBS spans without
 // losing its parameter or silently smoothing a feature beyond print accuracy.
 // Bernstein hulls bound the complete difference on every original edge.
-import {restrictBezierLine} from './bezier-net.mjs';
 import {distance,requireThat} from './tolerance.mjs';
 import {ROUNDING_MM,PRINT_RESOLUTION_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 
@@ -28,15 +27,41 @@ function positiveSpeed(rows){
   const chord=rows.at(-1).map((value,k)=>value-rows[0][k]),length=Math.hypot(...chord);
   return length>0&&differences.every(row=>row.reduce((sum,value,k)=>sum+value*chord[k],0)>FLOAT64_EPSILON*length*Math.hypot(...row));
 }
+// The restricted controls of a line/cubic come directly from endpoint values
+// and derivatives. Work in each control's local coordinate frame, reusing small
+// scratch arrays, rather than building two complete de Casteljau triangles for
+// every sampled edge. These are the same Bernstein whole-edge certificates.
 function differenceBound(rows,points,parameters,first,last){
-  const state={error:0,edge:first+1};
+  const state={error:0,edge:first+1},degree=rows.length-1;
+  const errors=new Float64Array(rows.length*3),magnitudes=new Float64Array(rows.length);
+  const from=parameters[first],span=parameters[last]-from;
   for(let i=first+1;i<=last;i++){
-    const range=[parameters[i-1],parameters[i]].map(u=>(u-parameters[first])/(parameters[last]-parameters[first]));
-    const piece=restrictBezierLine(rows,range),degree=piece.length-1;
+    const low=(parameters[i-1]-from)/span,high=(parameters[i]-from)/span,step=high-low;
+    magnitudes.fill(1);
+    for(let k=0;k<3;k++){
+      const origin=rows[0][k],a=points[i-1][k],delta=points[i][k]-a;
+      if(degree===1){
+        const direction=rows[1][k]-origin;
+        errors[k]=origin-a+low*direction;errors[3+k]=origin-a+high*direction-delta;
+      }else{
+        const b=rows[1][k]-origin,c=rows[2][k]-origin,d=rows[3][k]-origin,s=1-low,t=1-high;
+        const left=low*(3*s*s*b+low*(3*s*c+low*d));
+        const right=high*(3*t*t*b+high*(3*t*c+high*d));
+        const firstTangent=s*s*b+2*s*low*(c-b)+low*low*(d-c);
+        const lastTangent=t*t*b+2*t*high*(c-b)+high*high*(d-c);
+        errors[k]=origin-a+left;
+        errors[3+k]=origin-a+left+step*firstTangent-delta/3;
+        errors[6+k]=origin-a+right-step*lastTangent-2*delta/3;
+        errors[9+k]=origin-a+right-delta;
+      }
+      for(let j=0;j<=degree;j++){
+        const on=a+j/degree*delta;
+        magnitudes[j]=Math.max(magnitudes[j],Math.abs(on),Math.abs(on+errors[j*3+k]));
+      }
+    }
     for(let j=0;j<=degree;j++){
-      const on=points[i-1].map((value,k)=>value+j/degree*(points[i][k]-value)),error=distance(piece[j],on);
-      const rounding=FLOAT64_EPSILON*32*Math.max(1,...piece[j].map(Math.abs),...on.map(Math.abs));
-      if(error+rounding>state.error){state.error=error+rounding;state.edge=i;}
+      const error=Math.hypot(errors[j*3],errors[j*3+1],errors[j*3+2])+FLOAT64_EPSILON*32*magnitudes[j];
+      if(error>state.error){state.error=error;state.edge=i;}
     }
   }
   return state;

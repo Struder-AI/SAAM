@@ -31,27 +31,41 @@ function rationalBasis({n,order,knots,cp},t){
   return out;
 }
 
-// Gaussian elimination with partial pivoting on sparse rows (Map column to
-// value). Collocation rows are banded, so fill stays near the band.
+// Sparse collocation elimination with partial pivoting. Column incidence
+// indexes the equations that actually contain a coefficient: a long banded
+// spline costs work proportional to its support, rather than scanning every
+// remaining equation for every control. Equation identity survives pivot swaps.
 function solveSparse(rows,rhs){
-  const n=rows.length;
-  for(let k=0;k<n;k++){
-    let pivot=-1,best=0;
-    for(let i=k;i<n;i++){const v=Math.abs(rows[i].get(k)??0);if(v>best){best=v;pivot=i;}}
-    requireThat(best>ROUNDING_RELATIVE,'Loose curve offset collocation is singular: two controls share a Greville parameter.');
-    [rows[k],rows[pivot]]=[rows[pivot],rows[k]];[rhs[k],rhs[pivot]]=[rhs[pivot],rhs[k]];
-    const head=rows[k].get(k);
-    for(let i=k+1;i<n;i++){
-      const factor=(rows[i].get(k)??0)/head;if(factor===0)continue;
-      for(const [column,value] of rows[k])rows[i].set(column,(rows[i].get(column)??0)-factor*value);
-      rows[i].delete(k);rhs[i]=rhs[i].map((v,c)=>v-factor*rhs[k][c]);
+  const equations=rows.map((values,position)=>({values,rhs:rhs[position],position}));
+  const columns=Array.from({length:rows.length},()=>new Set());
+  for(const equation of equations)for(const [column,value] of equation.values)if(value!==0)columns[column].add(equation);
+  for(let k=0;k<equations.length;k++){
+    const pivot={equation:null,magnitude:0};
+    for(const equation of columns[k]){
+      if(equation.position<k)continue;
+      const magnitude=Math.abs(equation.values.get(k));
+      if(magnitude>pivot.magnitude||magnitude===pivot.magnitude&&equation.position<pivot.equation.position){pivot.equation=equation;pivot.magnitude=magnitude;}
+    }
+    requireThat(pivot.magnitude>ROUNDING_RELATIVE,'Loose curve offset collocation is singular: two controls share a Greville parameter.');
+    const head=pivot.equation,previous=equations[k],position=head.position;
+    equations[k]=head;equations[position]=previous;head.position=k;previous.position=position;
+    for(const equation of [...columns[k]]){
+      if(equation.position<=k)continue;
+      const factor=equation.values.get(k)/head.values.get(k);
+      for(const [column,value] of head.values){
+        const next=(equation.values.get(column)??0)-factor*value;
+        if(next===0){equation.values.delete(column);columns[column].delete(equation);}
+        else{equation.values.set(column,next);columns[column].add(equation);}
+      }
+      equation.values.delete(k);columns[k].delete(equation);
+      equation.rhs=equation.rhs.map((v,c)=>v-factor*head.rhs[c]);
     }
   }
-  const x=new Array(n);
-  for(let k=n-1;k>=0;k--){
-    const sum=rhs[k].slice();
-    for(const [column,value] of rows[k])if(column>k)for(let c=0;c<3;c++)sum[c]-=value*x[column][c];
-    x[k]=sum.map(v=>v/rows[k].get(k));
+  const x=new Array(equations.length);
+  for(let k=equations.length-1;k>=0;k--){
+    const equation=equations[k],sum=equation.rhs.slice();
+    for(const [column,value] of equation.values)if(column>k)for(let c=0;c<3;c++)sum[c]-=value*x[column][c];
+    x[k]=sum.map(v=>v/equation.values.get(k));
   }
   return x;
 }

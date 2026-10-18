@@ -15,7 +15,7 @@ import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
 import {intersect,difference,union,clipOpenPaths} from './intersection.mjs';
 import {pointSegmentDistance} from './region2d.mjs';
 import {piecewiseChart,piecewiseChartFrame,piecewiseChartRay,splitPiecewiseChartPath} from '../geom/piecewise-chart.mjs';
-import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 // Native spline parameters carry no metric: points coincide or touch an edge within
 // the dimensionless rounding tolerance, and booleans snap to a grid a tenth of it so
@@ -71,10 +71,10 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   requireThat(constraint===null||deltaMm>=0,'Constrained surface offsets currently support outward growth only.');
   const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,normalMm,constrained:constraintLoopsUv!==null};
   const {at,samples}=createSurfaceSampler(patch,settings);
-  const simplified=constraint===null?{loops:source,simplificationUv:0}:
+  const simplified=deltaMm===0?{loops:source,simplificationUv:0,collapsedContours:0}:
     simplifySurfaceLoops(source,{constraint,initial,toleranceMm,precisionUv},at);
   return {source:simplified.loops,constraint,initial,settings,atlas,surfaceSamples:samples,
-    work:{evaluations:samples.size,simplificationUv:simplified.simplificationUv}};
+    work:{evaluations:samples.size,simplificationUv:simplified.simplificationUv,collapsedContours:simplified.collapsedContours}};
 }
 
 export function sweepSurfaceOffset(patch,prepared){
@@ -292,19 +292,19 @@ export function finishSurfaceOffset(patch,prepared,swept){
     result=intersect(result,union(domain,[],options),options);
   }
   let simplificationUv=prepared.work.simplificationUv;
-  if(constraint!==null){
-    result=intersect(result,constraint,options);
-    if(difference(constraint,result,options).length){
-      const simplified=simplifySurfaceLoops(result,{constraint,initial,toleranceMm,precisionUv},at);
-      result=intersect(simplified.loops,constraint,options);
-      simplificationUv=Math.max(simplificationUv,simplified.simplificationUv);
-    }
+  const simplification={collapsedContours:prepared.work.collapsedContours};
+  if(constraint!==null)result=intersect(result,constraint,options);
+  if(radius>0&&(constraint===null||difference(constraint,result,options).length)){
+    const simplified=simplifySurfaceLoops(result,{constraint,initial,toleranceMm,precisionUv,closeSubResolution:true},at);
+    result=constraint===null?simplified.loops:intersect(simplified.loops,constraint,options);
+    simplificationUv=Math.max(simplificationUv,simplified.simplificationUv);
+    simplification.collapsedContours+=simplified.collapsedContours;
   }
   const loops=result.map(loop=>loop.map(uv=>[...at(uv).point]));
   return {loopsUv:result,loops,report:{status:'experimental',method:'geodesic-bands-clipper2',normalMm:settings.normalMm??0,metric:prepared.atlas?.method??(patch.kind==='slice-chart'?'adaptive-numerical-slice-chart':patch.cp?(settings.normalMm?'analytic-rational-normal-offset':'native-patch'):'adaptive-numerical-surface-chart'),
     toleranceMm,precisionUv,evaluations:prepared.work.evaluations+swept.work.evaluations+samples.size,
     integrationSteps:swept.work.integrationSteps,subdivisions:swept.work.subdivisions,
-    inverseMappings:0,bandPolygons:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv}};
+    inverseMappings:0,bandPolygons:bands.length,boundaryStops:swept.work.boundaryStops,simplificationUv,collapsedContours:simplification.collapsedContours}};
 }
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
@@ -329,8 +329,8 @@ function createSurfaceSampler(patch,{constrained,deltaMm,precisionUv,normalMm=0,
   return {at,samples};
 }
 
-function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv},at){
-    if(!loops.length)return {loops,simplificationUv:0};
+function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv,closeSubResolution=false},at){
+    if(!loops.length)return {loops,simplificationUv:0,collapsedContours:0};
     // Repeated offsets amplify normals of redundant microscopic segments.
     // Use the kernel's recommended simplification between offsets, with UV
     // epsilon scaled by sampled surface derivatives (not by parameter units).
@@ -340,9 +340,17 @@ function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv}
       stretch=Math.max(stretch,Math.hypot(...frame.du)+Math.hypot(...frame.dv));
     }
     const epsilon=toleranceMm/(8*stretch);
-    const contact=uv=>constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
-    const result=[];
+    const contact=uv=>constraint!==null&&constraint.some(loop=>loop.some((a,i)=>pointSegmentDistance(uv,a,loop[(i+1)%loop.length])<=precisionUv*8));
+    const result=[],collapsed={count:0};
     for(const loop of loops){
+      // A closed contour wholly inside a sub-resolution strip encloses no
+      // printable feature. Close it here and report it, before another offset
+      // spends geodesic work on its artificial corner normals. Authored seeds
+      // remain intact: their next outward offset can be a printable region.
+      if(surfaceLoopWidthBound(loop)*stretch<PRINT_RESOLUTION_MM/4){
+        if(closeSubResolution)collapsed.count++;else result.push(loop);
+        continue;
+      }
       const start=loop.findIndex(contact);
       if(start<0){result.push(...initial.decode(simplifyPaths(initial.encode([loop]),epsilon/precisionUv)));continue;}
       // Preserve boundary contacts exactly. Simplifying a nearly straight
@@ -359,5 +367,14 @@ function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv}
       }
       if(joined.length>=3)result.push(joined);
     }
-    return {loops:result,simplificationUv:epsilon};
+    return {loops:result,simplificationUv:epsilon,collapsedContours:collapsed.count};
+}
+
+// Twice the radius of a capsule containing this entire UV polygon is an upper
+// bound on its strip width. Two farthest-point surveys choose its axis; no
+// area cancellation or projected world-space area judges curved surfaces.
+function surfaceLoopWidthBound(loop){
+  const furthest=point=>loop.reduce((best,next)=>distance(point,next)>distance(point,best)?next:best,loop[0]);
+  const a=furthest(loop[0]),b=furthest(a);
+  return 2*loop.reduce((width,point)=>Math.max(width,pointSegmentDistance(point,a,b)),0);
 }

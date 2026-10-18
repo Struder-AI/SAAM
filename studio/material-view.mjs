@@ -62,10 +62,21 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
 }
 export const beadInstance=section=>new Float32Array([...section.a.center,...section.b.center,...section.a.wide,...section.a.short,...section.b.wide,...section.b.short]);
 
+// Queue a host task instead of a timer: background timer clamping must not
+// turn each short preparation yield into a long wait. Close both ports after
+// delivery so no channel or idle event-loop handle survives the pause.
+function yieldMaterialTask(){
+  return new Promise(resolve=>{
+    const channel=new MessageChannel();
+    channel.port1.onmessage=()=>{channel.port1.close();channel.port2.close();resolve();};
+    channel.port2.postMessage(null);
+  });
+}
+
 // Completed material retains every source curve segment. Rectangular swept
 // sections touch neighboring tracks to form a solid layer appearance. Shared
 // templates and compact instance buffers replace per-bead tessellated meshes.
-export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},yieldTask=()=>new Promise(r=>setTimeout(r,0))}={}){
+export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},yieldTask=yieldMaterialTask}={}){
   const groups=[],byKey=new Map(),unsupported=new Set(),supported=new Uint8Array(moves.length);
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   // Yield to input/painting by elapsed work, not once per operation. Thousands

@@ -9,7 +9,7 @@ import {placedPath} from '../path/placement.mjs';
 import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
 import {moveSeconds} from '../path/saampath.mjs';
-import {pathActions,pathSummary,pathInitialPosition,pathInitialPose,pathCompletion} from '../path/curve-path.mjs';
+import {pathSummary,pathInitialPosition,pathInitialPose,pathCompletion} from '../path/curve-path.mjs';
 import {prepareMachineExecution} from './transfer-planning.mjs';
 
 export const PREPARED_PATH_CONTRACT='saam-export-prepared/1';
@@ -18,14 +18,18 @@ const selection=(plan,machine,index)=>{
   const tool=materialTool(plan,index);
   return {filament:index,tool,process:materialProcess(plan,index),bounds:toolBounds(machine,tool)};
 };
-function hasPrime(path){
-  for(const {context} of contextualActions(path))if(context.phase==='prime')return true;
-  return false;
-}
-function depositionBounds(path,plan){
-  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];let from=pathInitialPosition(path);
-  for(const action of pathActions(path)){
+// These facts all require the same physical-action stream. Inspect it once;
+// native/compact paths can be expensive to linearize even without deposition.
+function inspectPath(path,plan,oriented){
+  const poseMessage='Selected output cannot represent non-upright tool orientation.';
+  requireThat(oriented||upright(pathInitialPose(path)),poseMessage);
+  const min=[Infinity,Infinity,Infinity],max=[-Infinity,-Infinity,-Infinity];
+  let from=pathInitialPosition(path),deposits=false,primed=false;
+  for(const {action,context} of contextualActions(path)){
+    requireThat(oriented||upright(action.pose),poseMessage);
+    if(context.phase==='prime')primed=true;
     if(action.volumeMm3>0){
+      deposits=true;
       const width=action.beadWidthMm??plan.process.lineWidthMm,height=action.normalHeightMm??action.gapMm??plan.process.layerMm;
       for(const point of action.kind==='move'?[from,action.to]:[from])for(let i=0;i<3;i++){
         min[i]=Math.min(min[i],point[i]-(i===2?height:width/2));max[i]=Math.max(max[i],point[i]+(i===2?0:width/2));
@@ -33,14 +37,8 @@ function depositionBounds(path,plan){
     }
     if(action.kind==='move')from=action.to;
   }
-  return min.every(Number.isFinite)?{min,max}:pathSummary(path)?.boundsMm??null;
+  return {bounds:min.every(Number.isFinite)?{min,max}:pathSummary(path)?.boundsMm??null,prime:deposits&&!primed};
 }
-function uprightPath(path){
-  if(!upright(pathInitialPose(path)))return false;
-  for(const action of pathActions(path))if(!upright(action.pose))return false;
-  return true;
-}
-function depositsMaterial(path){for(const action of pathActions(path))if(action.volumeMm3>0)return true;return false;}
 function* limitedFeed(start,actions,machine){
   const cursor={from:start};
   for(const action of actions){
@@ -73,14 +71,13 @@ export function prepareExportPath(saved,plan,machine,adapter){
   const selected=resolveNozzleGeometry(machine,plan);
   const realized=saved.deposition?prepareMachineExecution(saved,selected,{nozzleGeometries:resolveNozzleGeometries(machine,plan),retreatMm:block?.retreatMm}):saved;
   const path=placedPath(realized,plan.placement);
-  requireThat(oriented||uprightPath(path),
-    'Selected output cannot represent non-upright tool orientation.');
+  const inspection=inspectPath(path,plan,oriented);
   const bounds=toolBounds(machine,plan.setup.tool);
   const start=startupPosition(machine,plan,block);
-  const deposited=depositionBounds(path,plan),model=pathSummary(path)?.boundsMm;
+  const deposited=inspection.bounds,model=pathSummary(path)?.boundsMm;
   const geometryBounds=model&&deposited?{min:model.min.map((v,i)=>Math.min(v,deposited.min[i])),
     max:model.max.map((v,i)=>Math.max(v,deposited.max[i]))}:model??deposited;
-  const prime=depositsMaterial(path)&&!hasPrime(path);
+  const prime=inspection.prime;
   const priming=prime?machinePriming(adaptationMotion(start,plan,machine,block,oriented),machine,bounds,geometryBounds):null;
   const settings={path,plan,machine,bounds,start,block,oriented,geometryBounds,prime};
   const actions={*[Symbol.iterator](){yield* limitedFeed(start,adaptedActions(settings),machine);}};

@@ -412,7 +412,11 @@ async function restoreBundleProgram(input,program) {
     state.limitations=[...new Set([...state.limitations,...state.program.limitations])];
     state.pathSummary = currentPathSummary(review.generation.summary);
     state.outputId = output.id;
-    state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(review.path)===canonicalJson(output.path),
+    // Export retains its machine-specific execution beside the same immutable
+    // deposition source. Different schedule files do not invalidate that source.
+    const {scheduleFile:neutralSchedule,...pathSource}=review.path??{};
+    const {scheduleFile:machineSchedule,...outputSource}=output.path??{};
+    state.completedOutput={id:output.id,current:state.artifacts.program==='current'&&canonicalJson(pathSource)===canonicalJson(outputSource),
       plan:output.plan,machine:output.machine,geometry:output.geometry,geometryId:output.geometryId,geometryInputId:output.geometryInputId,editRevision:output.generation.editRevision,
       outputId:output.id,inputRevision:output.generation.inputRevision??null,exportName:exportName(output.plan,output.machine),review:{generation:output.generation},
       settingsRows:await settingsRows(output.plan,output.machine),path:output.path,pathId:output.path?.id??null};

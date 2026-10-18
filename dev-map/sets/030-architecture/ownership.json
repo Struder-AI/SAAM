@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Implemented scheduler and manufacturing-readiness contract, 2026-10-17. Authored drawings verified; influence analysis is partial (29 files uncovered). Remaining full solving/audit deferred by the owner; no complete static conformance claim.",
+  "status": "Scheduler/readiness and integrated spline-performance boundaries updated, 2026-10-17. Earlier authored drawings passed; influence analysis had 29 uncovered files and is now stale after integration. Remaining map regeneration/solving/audit deferred by the owner; no complete static conformance claim.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -448,10 +448,6 @@
       "reason": "Bundle persistence/factory scaffolding; workflow declarations receive explicit responsibility overrides."
     },
     "core/print/bundle.mjs": {
-      "owner": "bundle",
-      "reason": "Bundle generation entry/diagnostics; computational declarations are overridden into engine buckets."
-    },
-    "core/print/deposition-diagnostics.mjs": {
       "owner": "bundle",
       "reason": "Bundle generation entry/diagnostics; computational declarations are overridden into engine buckets."
     },
@@ -1855,9 +1851,6 @@
       "owner": "scheduling"
     },
     "core/path/physical-order.mjs::prepareRangeScene::sampleCones": {
-      "owner": "scheduling"
-    },
-    "core/path/physical-order.mjs::prepareRangeScene::oldestRegion": {
       "owner": "scheduling"
     },
     "core/agent/layers.mjs::@module": {
@@ -4913,12 +4906,6 @@
     "core/print/curves.mjs::validateCurveAssignment": {
       "owner": "recipe",
       "reason": "Recipe owns authored records, defaults, validation, migration and explicit process resolution; no deposition or shared state commit."
-    },
-    "core/print/deposition-diagnostics.mjs::@module": {
-      "owner": "bundle"
-    },
-    "core/print/deposition-diagnostics.mjs::diagnoseDepositionPlan": {
-      "owner": "bundle"
     },
     "core/print/file-snapshot.mjs::@module": {
       "owner": "bundle"
@@ -8253,9 +8240,6 @@
       "owner": "development",
       "reason": "Development tooling (map read/regenerate, sync status, context measurement). Owner decision 2026-10-04: owned by map-0 node 11 Development tooling at declaration level; the file is shared with Maker context onboarding, no file split."
     },
-    "core/export/prepare-path.mjs::depositionBounds": {
-      "owner": "export"
-    },
     "core/export/prepare-path.mjs::limitedFeed": {
       "owner": "export"
     },
@@ -8263,9 +8247,6 @@
       "owner": "export"
     },
     "core/export/prepare-path.mjs::upright": {
-      "owner": "export"
-    },
-    "core/export/prepare-path.mjs::hasPrime": {
       "owner": "export"
     },
     "core/extensions/library.mjs::@module": {
@@ -13084,9 +13065,6 @@
     "scripts/machine-verify.mjs::@module": {
       "owner": "development"
     },
-    "core/geom/field.mjs::affineProjection": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
     "core/geom/field.mjs::affineUv": {
       "owner": "geometry-leaf-a80e76e2e449"
     },
@@ -13249,9 +13227,6 @@
     "core/print/bundle.mjs::readRecipe": {
       "owner": "bundle",
       "reason": "Lazy existing new-recipe proposal entry; no new generation or defaults policy."
-    },
-    "core/print/deposition-diagnostics.mjs::depositionFinding": {
-      "owner": "bundle"
     },
     "core/extensions/library.mjs::machineEntrySource": {
       "owner": "extensions"
@@ -21207,9 +21182,6 @@
     "core/geom/surface-intersection.mjs::traceContains::uvB": {
       "owner": "geometry-leaf-848b797d735b"
     },
-    "core/geom/field.mjs::affineProjections": {
-      "owner": "geometry-leaf-a80e76e2e449"
-    },
     "core/geom/field.mjs::SEEDS": {
       "owner": "geometry-leaf-a80e76e2e449"
     },
@@ -21255,53 +21227,11 @@
     "core/geom/field.mjs::candidateSpansAt::py": {
       "owner": "geometry-leaf-88901895ea46"
     },
-    "core/geom/field.mjs::affineProjection::greville": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::us": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::vs": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::weight": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::xy": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::origin": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::du": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::dv": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::determinant": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::affine": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::i": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
-    "core/geom/field.mjs::affineProjection::j": {
-      "owner": "geometry-leaf-085b9a860af6"
-    },
     "core/geom/field.mjs::affineUv::dx": {
       "owner": "geometry-leaf-a80e76e2e449"
     },
     "core/geom/field.mjs::affineUv::dy": {
       "owner": "geometry-leaf-a80e76e2e449"
-    },
-    "core/geom/field.mjs::patchCoversChart::affine": {
-      "owner": "geometry-leaf-b20773892a60"
-    },
-    "core/geom/field.mjs::projectToPatch::affine": {
-      "owner": "geometry-leaf-d4cc2db5968d"
     },
     "core/geom/field.mjs::projectToPatch::cu": {
       "owner": "geometry-leaf-d4cc2db5968d"
@@ -26327,14 +26257,6 @@
       "owner": "export",
       "reason": "SP2 operation boundary: selected-machine adaptation and streamed program writing."
     },
-    "core/export/prepare-path.mjs::uprightPath": {
-      "owner": "export",
-      "reason": "SP2 operation boundary: selected-machine adaptation and streamed program writing."
-    },
-    "core/export/prepare-path.mjs::depositsMaterial": {
-      "owner": "export",
-      "reason": "SP2 operation boundary: selected-machine adaptation and streamed program writing."
-    },
     "core/export/prepare-path.mjs::drainActions": {
       "owner": "export",
       "reason": "SP2 operation boundary: selected-machine adaptation and streamed program writing."
@@ -28249,7 +28171,8 @@
       "owner": "geometry"
     },
     "core/geom/convex-clearance.mjs::fixedConeBounds": {
-      "owner": "geometry"
+      "owner": "geometry",
+      "reason": "Numerical supporting-plane exclusion for a fixed swept cone against spatial boxes; independent of process/group identities."
     },
     "core/geom/convex-clearance.mjs::nozzleBoundsClear": {
       "owner": "geometry"
@@ -28437,6 +28360,86 @@
     "core/path/source-admission.mjs::requireContinuation": {
       "owner": "bundle-path",
       "reason": "Validate exact source/execution continuation using the existing position and pose contract."
+    },
+    "core/geom/field.mjs::projectionMap": {
+      "owner": "geometry"
+    },
+    "core/geom/field.mjs::projectionMaps": {
+      "owner": "geometry-leaf-a80e76e2e449"
+    },
+    "core/geom/field.mjs::projectionMap::greville": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::us": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::vs": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::weight": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::xy": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::origin": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::du": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::dv": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::determinant": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::affine": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::i": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::projectionMap::j": {
+      "owner": "geometry-leaf-085b9a860af6"
+    },
+    "core/geom/field.mjs::patchCoversChart::projection": {
+      "owner": "geometry-leaf-b20773892a60"
+    },
+    "core/geom/field.mjs::projectToPatch::projection": {
+      "owner": "geometry-leaf-d4cc2db5968d"
+    },
+    "core/geom/curve-ops.mjs::separatedControls": {
+      "owner": "geometry-leaf-c484da2c2f23"
+    },
+    "core/geom/curve-ops.mjs::endpointContact": {
+      "owner": "geometry-leaf-c484da2c2f23"
+    },
+    "core/region/surface-offset.mjs::surfaceLoopWidthBound": {
+      "owner": "geometry-leaf-fc067ff213ee"
+    },
+    "core/geom/curve-query.mjs::polylineTangent": {
+      "owner": "geometry"
+    },
+    "core/geom/field.mjs::projectionInjective": {
+      "owner": "geometry",
+      "reason": "Derivative control hull proves unique numerical XY projection; no manufacturing policy."
+    },
+    "core/geom/convex-clearance.mjs::prepareConvexBoundsQuery": {
+      "owner": "geometry",
+      "reason": "Prepared conservative box admission shared by spatial indexing and adaptive curve refinement; candidates do not prove contact."
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::materialBounds": {
+      "owner": "scheduling",
+      "reason": "One immutable interval owns the conservative section enclosure shared by local support, regional, unit and deposited-prefix admission."
+    },
+    "studio/material-view.mjs::yieldMaterialTask": {
+      "owner": "studio",
+      "reason": "Local bounded host-task yield for material preparation; avoids background timer delays and closes both message ports after each pause."
+    },
+    "core/export/prepare-path.mjs::inspectPath": {
+      "owner": "export",
+      "reason": "One pass owns export preflight orientation, deposition bounds and priming facts from the physical action/context stream."
     }
   },
   "retiredAssignments": [

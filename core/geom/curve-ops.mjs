@@ -4,7 +4,7 @@
 // winding numbers.
 import {findSpan,evaluateCurve,requireSplineDegree} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
-import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,FLOAT64_EPSILON,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 // Boehm knot insertion of t up to multiplicity degree. The control at index
 // `at` is then the curve point at t.
@@ -169,6 +169,50 @@ function box(cp){
 }
 const size=b=>Math.max(b.max[0]-b.min[0],b.max[1]-b.min[1]);
 
+// Adjacent Bezier spans commonly meet at one endpoint. If their complete
+// control hulls lie on opposite sides of a line through that endpoint, their
+// interiors cannot meet. Resolve that contact once instead of subdividing a
+// smooth joint down to root accuracy. Other hull overlap takes the general path.
+function endpointContact(p,q,tol){
+  const countP=p.cp.length/4,countQ=q.cp.length/4;
+  for(const i of [0,countP-1])for(const j of [0,countQ-1]){
+    const a=planar(p.cp,i),b=planar(q.cp,j);
+    if(Math.hypot(a[0]-b[0],a[1]-b[1])>tol)continue;
+    const from=planar(p.cp,countP-1-i),to=planar(q.cp,countQ-1-j),axis=[to[0]-from[0],to[1]-from[1]];
+    const ranges=[{lo:Infinity,hi:-Infinity},{lo:Infinity,hi:-Infinity}];
+    for(const [index,cp] of [p.cp,q.cp].entries())for(let k=0;k<cp.length/4;k++){
+      const point=planar(cp,k),value=(point[0]-a[0])*axis[0]+(point[1]-a[1])*axis[1];
+      ranges[index].lo=Math.min(ranges[index].lo,value);ranges[index].hi=Math.max(ranges[index].hi,value);
+    }
+    // The functional contact tolerance permits endpoint rounding; a strict
+    // interior projection on each side is required to exclude coincident spans.
+    const slack=tol*Math.hypot(...axis);
+    if(ranges[0].hi<=slack&&ranges[0].lo<-slack&&ranges[1].lo>=-slack&&ranges[1].hi>slack)
+      return {s:i===0?p.a:p.b,t:j===0?q.a:q.b,point:a,residual:Math.hypot(a[0]-b[0],a[1]-b[1])};
+  }
+  return null;
+}
+
+// Positive rational weights keep the curve inside its control hull. Project
+// both hulls onto control-edge normals: any separated projection proves the
+// curves disjoint, even when their axis-aligned boxes overlap near a tangency.
+// This is a geometric exclusion, so its slack absorbs arithmetic only; the
+// caller's crossing tolerance controls root accuracy, not a false contact band.
+function separatedControls(one,two){
+  const a=Array.from({length:one.length/4},(_,i)=>planar(one,i));
+  const b=Array.from({length:two.length/4},(_,i)=>planar(two,i)),origin=a[0];
+  for(const points of [a,b])for(let i=0;i<points.length;i++){
+    const p=points[i],q=points[(i+1)%points.length],axis=[q[1]-p[1],p[0]-q[0]];
+    if(axis[0]===0&&axis[1]===0)continue;
+    const project=point=>(point[0]-origin[0])*axis[0]+(point[1]-origin[1])*axis[1];
+    const x=a.map(project),y=b.map(project);
+    const magnitude=Math.max(...a.concat(b).map(point=>(Math.abs(point[0])+Math.abs(origin[0]))*Math.abs(axis[0])+(Math.abs(point[1])+Math.abs(origin[1]))*Math.abs(axis[1])));
+    const rounding=FLOAT64_EPSILON*16*magnitude;
+    if(Math.min(...x)>Math.max(...y)+rounding||Math.min(...y)>Math.max(...x)+rounding)return true;
+  }
+  return false;
+}
+
 // A rational Bezier's tangent is a positive combination of its control
 // differences P_j - P_i (j > i). When those all lie in an open half-plane the
 // piece is monotone in some direction and cannot cross itself.
@@ -225,6 +269,11 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
   const pieces=curves.flatMap((curve,ci)=>monotonePieces(curve).map(p=>({...p,ci})));
   pieces.sort((p,q)=>p.box.min[0]-q.box.min[0]);
   const params=curves.map(()=>[]),points=[],pairs=[];
+  // Crossing accuracy is a rounding guard. Coalesce root estimates within the
+  // corresponding functional resolution, where tangency makes parameter error
+  // much larger than residual error. Require proximity on both parameter arcs
+  // so distinct visits to the same spatial point remain distinct crossings.
+  const contactTolerance=tol*PRINT_RESOLUTION_MM/ROUNDING_MM;
   // Where a curve meets itself or another end to end its tangents are
   // parallel, so Newton converges only linearly and the parameters it returns
   // are good to the coordinate tolerance, not to the floating-point floor:
@@ -237,6 +286,8 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
     // A closed curve continues across its seam, so the gap there wraps.
     if(p.ci===q.ci&&arc(p.ci,hit.s,closed[p.ci]?Math.min(gap,d1-d0-gap):gap))return;
     if(p.ci!==q.ci&&end(p.ci,hit.s)&&end(q.ci,hit.t))return;
+    const near=(c,t,other)=>{const d=evaluateCurve(curves[c],t).derivative;return Math.abs(t-other)*Math.hypot(d[0],d[1])<=contactTolerance;};
+    if(pairs.some(other=>other.a===p.ci&&other.b===q.ci&&near(p.ci,hit.s,other.s)&&near(q.ci,hit.t,other.t)||other.b===p.ci&&other.a===q.ci&&near(p.ci,hit.s,other.t)&&near(q.ci,hit.t,other.s)))return;
     params[p.ci].push(hit.s);params[q.ci].push(hit.t);points.push(hit.point);pairs.push({a:p.ci,s:hit.s,b:q.ci,t:hit.t});
   };
   const overlap=(x,y)=>x.min[0]<=y.max[0]+tol&&y.min[0]<=x.max[0]+tol&&x.min[1]<=y.max[1]+tol&&y.min[1]<=x.max[1]+tol;
@@ -257,9 +308,11 @@ export function curveCrossings(curves,tol,closed=curves.map(()=>false)){
   };
   const pair=(p,q)=>{
     if(straight(p)&&straight(q))return segment(p,q);
+    const contact=endpointContact(p,q,tol);
+    if(contact){record(p,q,contact);return;}
     const hits=[];
     const visit=(x,y)=>{
-      if(!overlap(x.box,y.box))return;
+      if(!overlap(x.box,y.box)||separatedControls(x.cp,y.cp))return;
       const sx=size(x.box),sy=size(y.box),split=sx>tol||sy>tol?(sx>=sy?[halves(x),null]:[null,halves(y)]):[null,null];
       if(split[0])return split[0].forEach(h=>visit(h,y));
       if(split[1])return split[1].forEach(h=>visit(x,h));

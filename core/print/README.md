@@ -30,8 +30,8 @@ Operations report missing prerequisites; opening/retry never generates ordinary 
 Geometry owns admission and reusable preparation from the recipe's single geometry.
 Workers transfer that shape with its owned derived data; Bundle never accepts an
 independently paired artifact. Reports persist in the geometry descriptor; unchanged
-and loaded geometry stay exact. Technique semantics are checked at edit
-and regeneration after prerequisites exist; saved geometry needs no extension rerun.
+and loaded geometry stay exact. Authoring validates recipe structure; explicit
+generation owns construction and its findings. Saved geometry needs no extension rerun.
 
 [Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
 setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact

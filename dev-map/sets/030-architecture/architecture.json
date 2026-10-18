@@ -11070,12 +11070,12 @@
     {
       "id": "geometry-leaf-085b9a860af6",
       "index": "2.1.5.2.8",
-      "label": "affineProjection",
-      "description": "Native geometry operation and its private numerical state.",
+      "label": "projectionMap",
+      "description": "Prepare affine inversion and certified uniqueness for native chart projection.",
       "type": "component",
       "source": {
         "file": "core/geom/field.mjs",
-        "declaration": "affineProjection"
+        "declaration": "projectionMap"
       }
     },
     {
@@ -19472,7 +19472,9 @@
         "prepareNumericalCurve",
         "numericalCurveTangentProjection",
         "sectionNormalProjectionBound",
-        "sectionNormalConeProjectionBound"
+        "sectionNormalConeProjectionBound",
+        "boundsOverlap",
+        "prepareConvexBoundsQuery"
       ],
       "inputs": "Supplied motion regions, positions, orientation and tolerances.",
       "outputs": "Stateless geometry results and private query indexes.",

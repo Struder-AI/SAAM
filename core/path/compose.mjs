@@ -285,10 +285,14 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         if(progress.cyclic)break;
       }
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
-      if(scope==='external')for(const unit of graph.units)if(unbound(unit))
+      const substrateUnits=scope==='external'?graph.units.filter(unbound):[];
+      for(const [index,unit] of substrateUnits.entries()){
+        onProgress?.({stage:'Resolving material support',completed:index,total:substrateUnits.length,assignment:unit.operation.id});
         for(const hit of state.scene.substrateHits(unit,id=>id!==unit.id&&!precedes(id,unit.id)&&
           producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))))
           addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
+      }
+      if(substrateUnits.length)onProgress?.({stage:'Resolving material support',completed:substrateUnits.length,total:substrateUnits.length});
       // Every native slice or unlayered operation is an aggregate query group.
       // An unresolved Inject/Trace group does not disable proofs for its peers.
       const accessGroups=new Set(),queryGroups=new Map(),groupId=unit=>unit.layerId??unit.sourceOperation;

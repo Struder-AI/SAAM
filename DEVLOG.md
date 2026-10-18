@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-17 — Integrate the spline-performance worktree
+
+- Integrated the complete 27-file isolated worktree diff from Improve spline operation performance (base 9f41b7a3, captured patch SHA-256 f3d72c707f52c4e0956409220c6a1a063409aa95e15d4e519721a4e9345bec08). Its source checkout/index are untouched; its 40-finding review record is retained under local integration diagnostics. Changes cover native crossing/offset/fitting/projection/derivative work, query-directed material inspection, cheap authoring with explicit cancellable generation, neutral-path currency, one-pass Export inspection and Studio progress/preview responsiveness.
+- Resolved seven overlapping files. Preserve current blank-dependency placement without discovery flags, local interval frame proofs, stationary enclosure readiness, fitted material-plane certificates and the sub-rounding intrinsic integration guard. Adopt zero-material-child handling and regional query pruning. Current native-mask hole examples supersede the older source-worktree guidance. Shared numerical ports and renamed projection ownership are explicit.
+- All 21 changed JavaScript modules parse; repository checks pass (121 documents, 1,491 links, 51 decisions and digest/private-file checks). The exact grooved-spinner recipe still produces 156 operations, 76 native slices and 14,217 curves; integrated source construction took 9.3 s under the observed load. Its full schedule remains unresolved within the bounded investigation, with time spent in actual curve access; targeted profiling follows. No claim of a successful spinner schedule, installed update, physical print or full-suite pass. Full map work remains owner-deferred.
+
 ## 2026-10-17 — Checkpoint ownership and prioritize spline integration
 
 - Registered the shared edge module, bridge wrappers and source-continuation validator explicitly; current-source ownership audit has zero unowned leaves in changed files, and authored drawings pass all 1,315-page checks. Full influence analysis covers 365 of 394 files; 29 are uncovered through analyzer memory/time limits or failed imports. Full warm/cold solving is deferred at the owner's request, preserving completed analysis. Static code conformance is not established.

@@ -2848,6 +2848,22 @@
         "call"
       ],
       "evidence": "Common editor host separates resolved engine values from full authored identity context."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/convex-clearance.mjs::boundsOverlap",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Prepared conservative numerical admission for adaptive interval inspection; positive admission is not a collision witness."
+    },
+    {
+      "contract": "geometry-scheduling",
+      "target": "core/geom/convex-clearance.mjs::prepareConvexBoundsQuery",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Prepared conservative numerical admission for adaptive interval inspection; positive admission is not a collision witness."
     }
   ],
   "retiredBindings": [

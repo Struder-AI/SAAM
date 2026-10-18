@@ -44,12 +44,18 @@ export function numericalCurveAt(curve,u,side='right'){
     return {point:result.point,tangent:speed>0?result.derivative.map(v=>v/norm):null,speed};
   }
   const i=polylineIndex(curve,u,side),a=curve.points[i],b=curve.points[i+1],t=(u-curve.parameters[i])/(curve.parameters[i+1]-curve.parameters[i]);
-  const norm=distance(a,b);
-  return {point:a.map((v,k)=>v+(b[k]-v)*t),tangent:b.map((v,k)=>(v-a[k])/norm),speed:curve.length};
+  const tangent=polylineTangent(a,b);
+  return {point:[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t],tangent,speed:curve.length};
+}
+function polylineTangent(a,b){
+  const x=b[0]-a[0],y=b[1]-a[1],z=b[2]-a[2],length=Math.hypot(x,y,z);
+  return [x/length,y/length,z/length];
 }
 function pointChordDistance(p,a,b){
-  const delta=b.map((v,i)=>v-a[i]),length2=dot(delta,delta),t=length2?Math.max(0,Math.min(1,dot(p.map((v,i)=>v-a[i]),delta)/length2)):0;
-  return distance(p,a.map((v,i)=>v+t*delta[i]));
+  const x=b[0]-a[0],y=b[1]-a[1],z=b[2]-a[2],length2=x*x+y*y+z*z;
+  const px=p[0]-a[0],py=p[1]-a[1],pz=p[2]-a[2];
+  const t=length2?Math.max(0,Math.min(1,(px*x+py*y+pz*z)/length2)):0;
+  return Math.hypot(px-t*x,py-t*y,pz-t*z);
 }
 // Exact projection for line pieces; positive-weight native bounds prune the
 // remaining search. Tolerance controls optimization accuracy, never geometry.
@@ -99,7 +105,12 @@ function preparedNativePiece(curve,index){
   // Differentiate at the original knot-span scale, then restrict the derivative
   // field. Differencing already restricted positions destroys tiny movement.
   const rounding=FLOAT64_EPSILON*16*piece.order**3*Math.max(1,...points.flat().map(Math.abs));
-  const result={rows,coefficients,rounding,from:curve.parameters[index],to:curve.parameters[index+1]};
+  // A positive-weight degree-one span is a straight segment even when its
+  // rational parameter speed varies. Fix its direction before restriction:
+  // tiny subintervals must not turn roundoff into persistent angular spread.
+  const line=p===1?points[1].map((v,k)=>v-points[0][k]):null,size=line?Math.hypot(...line):0;
+  const lineCone=size>0?{axis:line.map(v=>v/size),halfAngleRad:0}:null;
+  const result={rows,coefficients,rounding,lineCone,from:curve.parameters[index],to:curve.parameters[index+1]};
   curve.pieces.set(index,result);return result;
 }
 function nativePiece(curve,from,to){
@@ -129,8 +140,8 @@ function nativePiece(curve,from,to){
   const interpolationErrorMm=Math.max(...interpolationNumerator.map(vector=>Math.hypot(...vector)))/minWeight+rounding;
   return {bounds:{min:[0,1,2].map(k=>Math.min(...points.map(p=>p[k]))-rounding),max:[0,1,2].map(k=>Math.max(...points.map(p=>p[k]))+rounding)},
     lengthMm:[Math.max(0,distance(points[0],points.at(-1))-rounding,speed[0]*(to-from)),Math.min(speed[1]*(to-from),polygon+rounding)],speed,
-    tangentCone:directions.length?normalCone(directions):{axis:[1,0,0],halfAngleRad:Math.PI},interpolationErrorMm,
-    chordErrorMm:Math.max(...points.map(point=>pointChordDistance(point,points[0],points.at(-1))))+rounding};
+    tangentCone:prepared.lineCone??(directions.length?normalCone(directions):{axis:[1,0,0],halfAngleRad:Math.PI}),interpolationErrorMm,
+    chordErrorMm:p===1?0:Math.max(...points.map(point=>pointChordDistance(point,points[0],points.at(-1))))+rounding};
 }
 // Absolute unit-tangent projection from derivative Bernstein hulls. Positive
 // weights cancel in the ratio. A separating derivative direction supplies a
@@ -180,7 +191,7 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
       state.error=Math.max(state.error,pointChordDistance(point,a,b));
       const fraction=(curve.parameters[i]-from)/(to-from),linear=a.map((v,k)=>v+fraction*(b[k]-v));
       state.interpolationError=Math.max(state.interpolationError,distance(point,linear));
-      directions.push(numericalCurveAt(curve,curve.parameters[i]).tangent);
+      directions.push(polylineTangent(curve.points[i],curve.points[i+1]));
     }
     const length=curve.length*(to-from);
     return {bounds,lengthMm:[length,length],speed:[curve.length,curve.length],tangentCone:normalCone(directions),chordErrorMm:state.error,interpolationErrorMm:state.interpolationError};
@@ -247,10 +258,14 @@ function combinedCones(cones){
   return {axis,halfAngleRad:Math.min(Math.PI,state.angle)};
 }
 export function normalCone(values){
-  const norm=Math.hypot(...values[0]),axis=values[0].map(v=>v/norm);
-  const angle=values.reduce((maximum,v)=>Math.max(maximum,Math.atan2(Math.hypot(...cross(axis,v)),dot(axis,v))),0);
-  const bounded=angle===0?0:angle+ROUNDING_RELATIVE;
-  return {axis,halfAngleRad:bounded>=Math.PI/2?Math.PI:bounded};
+  const norm=Math.hypot(...values[0]),axis=values[0].map(v=>v/norm),state={angle:0};
+  for(const value of values){
+    state.angle=Math.max(state.angle,Math.atan2(Math.hypot(...cross(axis,value)),dot(axis,value)));
+    // This operation already returns the full cone beyond a hemisphere.
+    // Later directions cannot widen it; stop inspecting them once it is full.
+    if(state.angle>0&&state.angle+ROUNDING_RELATIVE>=Math.PI/2)return {axis,halfAngleRad:Math.PI};
+  }
+  return {axis,halfAngleRad:state.angle===0?0:state.angle+ROUNDING_RELATIVE};
 }
 export function frameCone(values){
   const reference=values[0],from=[reference.toolAxis,reference.toolUp,cross(reference.toolAxis,reference.toolUp)];

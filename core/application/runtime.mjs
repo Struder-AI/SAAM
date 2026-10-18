@@ -140,9 +140,10 @@ export function summary(bundleId, state) {
     programChecked,deferRememberSetup:state.deferRememberSetup===true,phaseColours:state.phaseColours??null,
     generation: state.review.generation ? { mode: state.review.generation.mode, current: lifecycle.current } : null,
     programError: state.programError ?? null, outputId: state.outputId ?? null,
+    path:state.review.path?{id:state.review.path.id,current:state.artifacts.path==='current'}:null,
     shortTravel: state.program?.shortTravel ?? null,
     outputAvailability: state.outputAvailability, limitations: state.limitations,
-    nextStep: !state.machine?'Generate the toolpath from the recipe; select a machine to write its program.':lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
+    nextStep: !state.machine?(state.artifacts.path==='current'?'Review the toolpath in Studio; select a machine to write its program.':'Generate the toolpath from the recipe; select a machine to write its program.'):lifecycle.action==='check'?'Open Studio or check_bundle to check the current export.'
       : lifecycle.action==='generate'?'Generate the toolpath from the complete settings.'
       : 'Review settings and the exact toolpath together in Studio; the person exports from Studio.'
   };
@@ -713,13 +714,13 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       ...(!includeGeometry&&state.geometry ? { geometry: { omitted: true, shape: state.plan.geometry?.shape ?? 'unknown',
         nativeFile: state.geometry.nativeFile, boundsMm: state.geometry.boundsMm } } : {}) };
   }
-  operation('create_bundle','Create and show a bundle with authored/imported geometry or standalone Trace/Inject assignments; an unfinished recipe is saved as it is. Missing fields take current defaults (generic without machineId; a machine can be selected later) and unread fields are ignored, both named in limitations; deposition reports what generation makes of it. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string().optional(), plan: objectSchema },false,false,'geometry');
+  operation('create_bundle','Create and show a bundle with authored/imported geometry or standalone Trace/Inject assignments; an unfinished recipe is saved as it is. Missing fields take current defaults (generic without machineId; a machine can be selected later) and unread fields are ignored, both named in limitations. Generate the toolpath when construction feedback is needed. Then request_review.',{ bundleId: bundleIdSchema, kind: kindSchema, machineId: z.string().optional(), plan: objectSchema },false,false,'geometry');
   async function createBundle({ bundleId, kind, machineId, plan }){
       if(machineId)loadMachine(machineId);
       const dir = await directory(bundleId, { create: true }), bundle = await bundleModule();
       await bundle.initBundle(dir, plan, { machineId });
-      const state = await bundle.loadBundle(dir), {depositionFinding} = await import('../print/deposition-diagnostics.mjs');
-      return {...await withMachineHint(bundleId, state, machineId), deposition: await depositionFinding(state.plan)};
+      const state = await bundle.loadBundle(dir);
+      return withMachineHint(bundleId, state, machineId);
     }
 
   operation('migrate_bundle','Tidy a bundle: save its recipe as SAAM reads it (defaults filled, unread fields removed, legacy assignment forms rewritten), clearing its field notes. Generation never requires it; regenerate afterwards. Shows the bundle in Studio.',{bundleId:bundleIdSchema},false);
@@ -838,7 +839,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       if(state.kind!=='shell')throw new Error('Booleans combine shared shell/mesh prints.');
       return summary(bundleId,await combineGeometry(dir,request,{expectedRevision,expectedEditRevision}));
     }
-  operation('slice','Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns saved settings and immediate deposition diagnostics; blocked findings leave valid intermediate recipes editable. No export or confirmation is created.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},false);
+  operation('slice','Add, edit or remove one general deposition assignment in plan.slices. Shared recipe validation; add fills defaults, edit merges objects and replaces arrays. before controls ownership order. Returns validated saved settings; generation reports deposition findings. No export or confirmation is created.',{bundleId:bundleIdSchema,...editIdentitySchema,action:z.enum(['add','edit','remove']),id:z.string().regex(/^[a-z][a-z0-9-]*$/),assignment:slicePatchSchema.optional(),before:z.string().nullable().describe('Existing assignment id to insert before; null appends; omitted retains edit position or appends an add.').optional()},false);
   async function slice({bundleId,expectedRevision,expectedEditRevision,...request}){
       const {dir}=await locate(bundleId),result=await applySlice(dir,request,{expectedRevision,expectedEditRevision});
       return {...summary(bundleId,result.state),edit:result.edit};

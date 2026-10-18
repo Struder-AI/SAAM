@@ -1,4 +1,4 @@
-import {surfaceIsoCurve} from '../../geom/surface-curves.mjs';
+import {surfaceIsoCurve,curvePoint} from '../../geom/surface-curves.mjs';
 import {sampleCurveIntervals} from '../../geom/curve-sampling.mjs';
 import {requireThat,distance} from '../tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
@@ -22,7 +22,7 @@ export function sampleCurveContour(pieces,toleranceMm){
   const points=[];
   for(const curve of pieces){
     const breaks=[...new Set([curve.domain[0],...curve.knots.filter(t=>t>curve.domain[0]&&t<curve.domain[1]),curve.domain[1]])];
-    const samples=sampleCurveIntervals({at:t=>evaluateCurve(curve,t),cuts:breaks,toleranceMm,stepMm:Infinity});
+    const samples=sampleCurveIntervals({at:t=>({point:curvePoint(curve,(t-curve.domain[0])/(curve.domain[1]-curve.domain[0]))}),cuts:breaks,toleranceMm,stepMm:Infinity});
     const first=samples[0].point.slice(0,2);
     if(!points.length)points.push(first);
     else requireThat(distance(points.at(-1),first)<=PRINT_RESOLUTION_MM,'Resolved contour pieces do not meet.');
