@@ -756,6 +756,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     return null;
   }
   function* substrateHits(unit,acceptGroup){
+    spatialIndex();
     const body=byId.get(unit.id),seen=new Set();
     if(!Number.isFinite(body.bounds.min[0])||!candidates(convexBox(body.bounds),acceptGroup).length)return;
     for(const root of body.records){

@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-17 — Verify lazy machine queries and shared Slice material
+
+- The canonical canopy's real Export exercised a lazy-scene substrate query before its index existed. Initialize numerical geometry at that query boundary; source/schedule/selected-machine Export now complete in 3.031 s, 150,615 program bytes, no limitations. Preserve ordinary short-travel advisories (two direct travels, minimum .566 mm); no automatic repair or physical claim. Reference stacks retain their nominal material layers for sparse-cap preparation; reference readiness unions owned footprints before sampling.
+- The previous all-work checkpoint also carried concurrent Slice presentation edits already present in the shared checkout under the owner's standing checkpoint rule; those were not additional remediation scope. Main source runtime was reloaded with no active jobs so the nonplanar fix is available for further Studio testing.
+
 ## 2026-10-17 — Replace certification and retire superseded construction
 
 - Main shared checkout verified clean with d0f26d92/97602e91 integrated; no old patch reapplied. Removed the generic construction collision-certification lifecycle. Producers publish validity and prerequisites; Inject enclosure readiness and external scheduling remain. Native base-readiness excludes known downstream work using exact producer/slice prerequisites. The original alternating axial/circumferential tube now constructs in 5.639 s and schedules in 1.540 s: 2,860 curves, 7,204 execution records, no limitations. A 20 s profile isolated the additional readiness delay in surface-ray queries against the downstream coating; no fixed rejection budget was added.

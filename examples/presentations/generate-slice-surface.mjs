@@ -31,7 +31,7 @@ async function prepare(i){
  const a=animationAt(i/30),{plan,model}=await build(i);if(model.summary.limitations?.length)throw Error('Frame '+i+': '+model.summary.limitations.join('; '));
  if(new Set(model.results.flatMap(r=>r.operations.map(o=>o.layerId))).size!==1)throw Error('Expected one active slice.');
  const frame={frame:i,sizeMm:24,animation:a,plan,program:depositionPreview(model),contextGeometry:a.context==='tube'?tubeContext:[],bridgeRails:a.context==='bridge'?bridgeRails:[],connections:model.results.reduce((n,r)=>n+(r.report.depositionConnections?.count??0),0),method:'SAAM Slice → native bead deposition → finalizeDepositionResult (including connectors) → unmodified Studio WebGL viewer'};
- await writeFile(file,gzipSync(JSON.stringify(frame),{level:3}));
+ await writeFile(file,gzipSync(JSON.stringify(frame),{level:9}));
 }
 if(process.argv[3]==='worker'){
  const first=Number(process.argv[4]),stride=Number(process.argv[5]),items=unique.filter((_,n)=>n%stride===first);let count=0;

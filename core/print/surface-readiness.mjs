@@ -8,7 +8,7 @@ import {surfaceRegion} from '../geom/surface-region.mjs';
 import {surfaceChartBounds,surfaceChartStep} from '../region/surface-operations.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {referenceSurface} from '../geom/reference-surface.mjs';
-import {difference} from '../region/intersection.mjs';
+import {difference,union} from '../region/intersection.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const sliceMaterials=new WeakMap();
@@ -105,7 +105,8 @@ export function surfaceFootprints(surface,region,{sampleStepMm=.2,normalMm=0}={}
 export function referenceSliceReadiness(record,contexts){
   if(!record.reference||record.reference.selection.kind==='terminal')return record.prerequisites??[];
   const surface=surfaceRegion(record.context.shell,record.reference.selection);
-  const footprints=record.spec.layers.flatMap(layer=>surfaceFootprints(surface,layer.region,record.spec.settings));
+  const footprint=union(record.spec.layers.flatMap(layer=>layer.region),[]);
+  const footprints=footprint.length?surfaceFootprints(surface,footprint,record.spec.settings):[];
   return manufacturedSurfaceReadiness(contexts,footprints,
     {part:record.owner.part,exclude:record.owner.assignment.id,sampleStepMm:record.spec.settings.sampleStepMm});
 }

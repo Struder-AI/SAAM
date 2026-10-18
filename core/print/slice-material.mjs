@@ -139,7 +139,7 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
 // terminal references. Layout, readiness and Trace sources read these same
 // owned regions; masking is never an instruction to a deposition backend.
 export function prepareOwnedSliceRegions(record){
-  const {settings}=record.spec,material=new Map(record.spec.material??[]);
+  const {settings}=record.spec,material=new Map(record.spec.material??record.spec.layers.map(layer=>[layer.index,layer.material??layer.region]));
   const layers=record.spec.layers.map(layer=>{
     const mask=settings.sliceOverrides?.[layer.characterIndex??layer.index]?.regionUv??settings.regionUv;
     if(mask===undefined)return layer;
