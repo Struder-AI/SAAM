@@ -1801,8 +1801,8 @@
       ]
     },
     {
-      "contract": "slice-surface-measures",
-      "target": "core/geom/surface-region-measure.mjs::measureSurfaceRegion",
+      "contract": "slice-surface-connection",
+      "target": "core/geom/material-envelope.mjs::surfaceConnectionMaterial",
       "kinds": [
         "call"
       ]

@@ -11005,14 +11005,15 @@
       "description": "One geometric meaning across planar, native and evaluated charts."
     },
     {
-      "id": "geometry-surface-measure",
+      "id": "geometry-surface-connection",
       "index": "2.97",
-      "label": "Surface region measures",
+      "label": "Owned surface connection region",
       "type": "component",
       "source": {
-        "file": "core/geom/surface-region-measure.mjs"
+        "file": "core/geom/material-envelope.mjs",
+        "declaration": "surfaceConnectionMaterial"
       },
-      "description": "One geometric meaning across planar, native and evaluated charts."
+      "description": "Direct owned footprint and height query for depositing connections; no physical area integration or coverage reconstruction."
     },
     {
       "id": "geometry-surface-ray",
@@ -19888,26 +19889,26 @@
       "status": "Implemented common surface contract; geometric numerical limits remain explicit."
     },
     {
-      "id": "slice-surface-measures",
-      "from": "geometry-surface-measure",
+      "id": "slice-surface-connection",
+      "from": "geometry-surface-connection",
       "to": "slice",
-      "label": "measureSurfaceRegion",
+      "label": "Owned footprint and height query",
       "operations": [
-        "measureSurfaceRegion"
+        "surfaceConnectionMaterial"
       ],
       "direction": "Geometry supplies explicit values; the named consumer calls the operation.",
       "access": [
         {
           "from": "slice",
-          "to": "geometry-surface-measure"
+          "to": "geometry-surface-connection"
         }
       ],
-      "inputs": "Supplied surface/region geometry, direction and physical sampling tolerances.",
-      "outputs": "Geometric curves, measures or ray intersections; no deposition or scheduling policy.",
-      "effects": "Local geometric computation only.",
+      "inputs": "Prepared surface and owned native-chart region, line width and physical height-query step.",
+      "outputs": "Planar or height-query connection material, or null for an unsupported connection chart; no area totals.",
+      "effects": "Boundary/control-net work only; no interior grid integration.",
       "failure": "Malformed or singular geometry reports its consuming assignment.",
       "excludes": "No recipe, machine, persistence or completed-deposition lookup.",
-      "status": "Implemented common surface contract; geometric numerical limits remain explicit."
+      "status": "Unused Slice area/coverage retirement, 2026-10-18."
     },
     {
       "id": "prepared-material-surface-rays",

@@ -243,15 +243,14 @@ of that establishes clearance, surface quality, or that any part prints.
 
 ## Prepared Slice work
 
-Material preparation expands translated or normal-offset stacks into individual
-reference/region descriptions. Stack spacing derives their local normal gaps;
-the agent does not author a second gap parameter. Solid masks, fill progression
-and front seeds come from prepared material intent. Generated Trace sources are
-also prepared before construction and can supply terminal reference geometry.
+Material preparation expands translated or normal-offset stacks into native-chart
+regions and local normal gaps. Solid masks and generated Trace sources share this
+owned material intent; Trace can also supply terminal reference geometry.
 
-Slice uses one surface-pattern and deposition route. Flatness and wrapping are
-geometry properties; lips use zero infill and ordinary inward loops. Terminal
-selectors do not expand regions based on wall count. Slice never queries
-completed deposition, including when experimental substrate adaptation is on.
+Slice has one surface-pattern/deposition route. It measures no physical area and
+reconstructs no unused coverage; Geometry supplies footprint/height queries only
+for depositing connections. Flatness/wrapping are geometry properties; lips use
+zero infill and ordinary inward loops. Terminal selectors do not widen regions.
+Slice never reads completed deposition, even with experimental adaptation enabled.
 Current fitted/pointwise normal offsets still lack general self-intersection
 trimming; this remains a Geometry limitation.

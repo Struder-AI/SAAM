@@ -1567,10 +1567,6 @@
       "owner": "geometry-surface-ray",
       "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
-    "core/geom/surface-region-measure.mjs": {
-      "owner": "geometry-surface-measure",
-      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
-    },
     "core/region/surface-patterns.mjs": {
       "owner": "geometry-surface-patterns",
       "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
@@ -17208,12 +17204,6 @@
     "core/geom/surface-ray.mjs::surfaceRayIntersections": {
       "owner": "geometry-surface-ray"
     },
-    "core/geom/surface-region-measure.mjs::@module": {
-      "owner": "geometry-surface-measure"
-    },
-    "core/geom/surface-region-measure.mjs::measureSurfaceRegion": {
-      "owner": "geometry-surface-measure"
-    },
     "core/region/surface-patterns.mjs::@module": {
       "owner": "geometry-surface-patterns"
     },
@@ -17339,17 +17329,6 @@
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
     "core/region/layer-strokes.mjs::layerStrokes::construct": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::loopMaterial": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/layer-strokes.mjs::loopMaterial::offset": {
-      "owner": "slice"
-    },
-    "core/region/layer-strokes.mjs::fillMaterial": {
       "owner": "slice",
       "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
@@ -28314,6 +28293,15 @@
     "core/geom/surface-curves.mjs::surfaceSegmentPolynomials::boundary": {
       "owner": "geometry-leaf-69b71da2365d",
       "reason": "Native chart-segment composition, including float64-only boundary normalization, belongs to the shared Geometry query."
+    },
+    "core/geom/material-envelope.mjs::surfaceConnectionMaterial": {
+      "owner": "geometry-surface-connection"
+    },
+    "core/geom/material-envelope.mjs::surfaceConnectionMaterial::flat": {
+      "owner": "geometry-surface-connection"
+    },
+    "core/geom/material-envelope.mjs::surfaceConnectionMaterial::horizontal": {
+      "owner": "geometry-surface-connection"
     }
   },
   "retiredAssignments": [

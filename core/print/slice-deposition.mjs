@@ -17,7 +17,7 @@ function combineSliceResults(record,sliceResults){
   if(sliceResults.length===1)return sliceResults[0];
   const report={...sliceResults[0].report,...record.context.report};
   report.topMm=sliceResults.reduce((top,result)=>result.operations.reduce((top,operation)=>operation.strokes.reduce((top,stroke)=>stroke.points.reduce((top,p)=>Math.max(top,p[2]),top),top),top),-Infinity);
-  for(const key of ['layers','skippedLayers','areaMm2','loops','fillRows','solidAreaMm2','areaChart2','solidAreaChart2','uncoveredContactSamples','substrateContactQueries'])report[key]=sliceResults.reduce((sum,r)=>sum+(r.report[key]??0),0);
+  for(const key of ['layers','skippedLayers','loops','fillRows','uncoveredContactSamples','substrateContactQueries'])report[key]=sliceResults.reduce((sum,r)=>sum+(r.report[key]??0),0);
   const notes=sliceResults.flatMap(r=>r.report.notes??[]);
   if(notes.length)report.notes=notes;
   const contacts=sliceResults.filter(r=>r.report.contactSamples);

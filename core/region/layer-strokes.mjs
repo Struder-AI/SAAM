@@ -83,21 +83,6 @@ export function layerStrokes(region, options) {
 
 }
 
-// Material the loops of a layer cover: the band inward from the loop boundary,
-// one ring per loop when loops are spaced wider than a bead, within the region.
-export function loopMaterial(region, { widthMm, loops, spacingFactor }, {outward=false,slice=null,sampleStepMm=.2} = {}) {
-  if (outward) return region;
-  const pitch = lineSpacing(widthMm, { spacingFactor });
-  const offset=distance=>offsetSliceRegion(slice,region,distance,{sampleStepMm});
-  if (pitch === widthMm) return difference(region, offset(-widthMm * loops));
-  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offset(-ring * pitch) : region,
-    offset(-ring * pitch - widthMm))).flat(), []);
-}
-
-// Material fill strokes cover: their region grown by half a bead. Coverage
-// takes part in booleans, so it is built to the chord tolerance.
-export const fillMaterial = (region, widthMm, {slice=null,sampleStepMm=.2}={}) => region.length ? offsetSliceRegion(slice,region,widthMm/2,{sampleStepMm,arcToleranceMm:TOLERANCE.chord}) : [];
-
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.
 export function mapSliceStrokes(strokes, slice, options={}) {
