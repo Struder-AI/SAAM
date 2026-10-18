@@ -36,19 +36,6 @@ export function topAt(geometry,x,y) {
 function crossingsAt(geometry,x,y){
   return geometry.kind==='triangle-mesh'?meshCrossingsAt(geometry,x,y):splineCrossingsAt(geometry,x,y);
 }
-export function sampleTopSurface(geometry,{stepMm=1,maxSlopeDeg=90}={}) {
-  requireGeometry(geometry,['top-surface']);requireThat(Number.isFinite(stepMm)&&stepMm>0,'Sampling step must be positive.');
-  const [minX,minY]=geometry.bounds.min,[maxX,maxY]=geometry.bounds.max;
-  const columns=Math.max(2,Math.ceil((maxX-minX)/stepMm)),rows=Math.max(2,Math.ceil((maxY-minY)/stepMm));
-  const samples=[];let inside=0,steep=0,maxSlope=0;
-  for(let i=0;i<=columns;i++)for(let j=0;j<=rows;j++){
-    const x=minX+(maxX-minX)*i/columns,y=minY+(maxY-minY)*j/rows,top=topAt(geometry,x,y);
-    if(!top)continue;inside++;maxSlope=Math.max(maxSlope,top.slopeDeg);if(top.slopeDeg>maxSlopeDeg)steep++;
-    samples.push({x,y,...top});
-  }
-  return {samples,inside,steep,maxSlopeDeg:maxSlope,stepMm};
-}
-
 // A union's highest material in a column is the highest of its operands'.
 function unionTopAt(shell,x,y){
   let best=null;

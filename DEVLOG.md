@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-18 - Complete dormant reservation retirement
+
+- Remove unused core/region/reservation.mjs, including the sampled reserve/roof clipping and surface-stroke implementations, and query.mjs sampleTopSurface. Current tracked source/test searches find no consumers; the earlier audit's claim of remaining test consumers was inaccurate. Preserve active geometric material claims, slice gaps, explicit coordinate queries and both intended vase modes.
+- Remove the obsolete capability catalog group and 13 authored architectural nodes, their file ownership and 16 declaration assignments. Rename the remaining group to material ownership queries; retain its stable ID and the live ownership module. No compatibility shim or alternate producer remains for these retired helpers. This removes rediscovery/restoration risk without changing current manufacturing paths.
+- Verification: repository check passes; existing Export file 3/3; authored map regenerated and viewer current, 1,298 pages, zero undrawn; no remaining tracked references outside historical DEVLOG. No new stored tests/full suite or full influence/warm/cold analysis (owner-deferred). User continues reviewing other architectural findings; they are unchanged. Private review/demo record: .local/retirement-cleanup/RECORD.md.
+
 ## 2026-10-18 - Fix scheduler seam decisions and microscopic-span arc-length refinement
 
 - Replace full geometry/material/frame range integration in cyclic seam selection with Geometry's conservative minimum-length decision. A seam within physical interruption resolution retains its existing entry; genuine conflict cuts keep physical minimum lengths and hard prerequisites. Ordinary cut validation also uses the quantity-specific reader. No source geometry, profile, collision policy or manufacturing prerequisite is weakened.

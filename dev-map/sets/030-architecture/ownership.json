@@ -251,10 +251,6 @@
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
     },
-    "core/region/reservation.mjs": {
-      "owner": "slice",
-      "reason": "Geometry operations and representations; exact declaration homes and mixed Toolpath policy are assigned below."
-    },
     "core/region/fill-patterns.mjs": {
       "owner": "slice",
       "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
@@ -3272,9 +3268,6 @@
     "core/geom/query.mjs::requireGeometry": {
       "owner": "geometry-leaf-7f30eb1ba072"
     },
-    "core/geom/query.mjs::sampleTopSurface": {
-      "owner": "geometry-leaf-86ec3aa7f461"
-    },
     "core/geom/query.mjs::sectionGeometry": {
       "owner": "geometry-leaf-a850a69f0ba8"
     },
@@ -5464,60 +5457,6 @@
     },
     "core/region/region2d.mjs::segmentIntersection": {
       "owner": "geometry-leaf-52eff61d13df"
-    },
-    "core/region/reservation.mjs::@module": {
-      "owner": "geometry-leaf-73edbae1e84a"
-    },
-    "core/region/reservation.mjs::bounds": {
-      "owner": "geometry-leaf-bb414370caf6"
-    },
-    "core/region/reservation.mjs::boundsOverlap": {
-      "owner": "geometry-leaf-f714f209bb60"
-    },
-    "core/region/reservation.mjs::clipAboveSurface": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/reservation.mjs::clipReservedRegion": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/reservation.mjs::clipReservedSlice": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/reservation.mjs::insideOrBoundary": {
-      "owner": "geometry-leaf-432bf6d3965c"
-    },
-    "core/region/reservation.mjs::reservationFieldHeight": {
-      "owner": "geometry-leaf-3079827a1bc1"
-    },
-    "core/region/reservation.mjs::reservationFieldHeight::interval": {
-      "owner": "geometry-leaf-8d898ae2be72"
-    },
-    "core/region/reservation.mjs::reservationFootprint": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/reservation.mjs::surfaceHeight": {
-      "owner": "material-regions",
-      "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "core/region/reservation.mjs::surfaceStroke": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
-    "core/region/reservation.mjs::surfaceStroke::append": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
-    "core/region/reservation.mjs::surfaceStroke::sample": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
-    },
-    "core/region/reservation.mjs::surfaceStroke::split": {
-      "owner": "slice",
-      "reason": "Toolpath material allocation, deposited contact or deposition volume policy; geometry queries remain explicit dependencies."
     },
     "core/region/roof-region.mjs::@module": {
       "owner": "material-regions",
