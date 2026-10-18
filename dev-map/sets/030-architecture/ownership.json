@@ -2595,9 +2595,6 @@
     "core/geom/curve-offset.mjs::chainPieces::meet": {
       "owner": "geometry-leaf-f5d51cf662a3"
     },
-    "core/geom/curve-offset.mjs::chainPieces::move": {
-      "owner": "geometry-leaf-3f6c15a52c8c"
-    },
     "core/geom/curve-offset.mjs::chainPieces::next": {
       "owner": "geometry-leaf-e86e52f9cd76"
     },
@@ -2616,31 +2613,22 @@
     "core/geom/curve-offset.mjs::looseCurveField::greville": {
       "owner": "geometry-leaf-ac881bc5171f"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets": {
       "owner": "geometry-leaf-7b0ae7b12acd"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::gap": {
-      "owner": "geometry-leaf-8050be89f599"
-    },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::inside": {
-      "owner": "geometry-leaf-2e3431a71dc3"
-    },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::offset": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets::offset": {
       "owner": "geometry-leaf-ec8081cc6488"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::at": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets::offset::at": {
       "owner": "geometry-leaf-74964b80aee3"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::forward": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets::offset::forward": {
       "owner": "geometry-leaf-882b735444f7"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::offset::shift": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets::offset::shift": {
       "owner": "geometry-leaf-700f2948a8a5"
     },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::onPatch": {
-      "owner": "geometry-leaf-5cbfbc1a9d17"
-    },
-    "core/geom/curve-offset.mjs::prepareCurveOffsets::tangentPerMm": {
+    "core/geom/curve-offset.mjs::preparePlanarCurveOffsets::tangentPerMm": {
       "owner": "geometry-leaf-0f9d3e3303e6"
     },
     "core/geom/curve-offset.mjs::rationalBasis": {

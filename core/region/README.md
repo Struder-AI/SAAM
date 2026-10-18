@@ -50,43 +50,40 @@ takes `(patch, loopsUv, deltaMm, options)` and returns `{loopsUv, loops, report}
 `loops` holds corresponding XYZ points. The construction is experimental SAAM
 code; no Rhino output comparison or equivalence is established.
 
-The surface function retains UV throughout and caches surface evaluations; it
-performs **zero inverse mappings** and no global flatten/warp round trips.
-Constructing new points and emitting XYZ still requires surface evaluation.
-Scope is closed UV polyline regions on **one regular, injective C2 NURBS patch**,
-with the required offset-side sweeps remaining inside its domain. Low-degree
-single-span planes/cylinders are supported too. Poles, singular tangents,
-internal knots below C2 continuity and domain escape raise. Trimmed/multiple
-patches, periodic seams, folded parameterizations and mesh-surface offsets are
-not implemented. Large offsets reaching geodesic caustics/cut loci and arbitrary
-high-curvature surfaces are not validated; no general global distance-error
-guarantee is claimed. The experimental [wave-overhangs skill](../../skills/wave-overhangs/SKILL.md)
-uses this function explicitly; other skills retain their existing offset metrics.
+One engine owns physical surface offsets for native patches, evaluated charts
+and authored sleeve/roof atlases. Boundaries are closed UV polylines or
+`{curve}` native NURBS records in chart coordinates; native curves are sampled
+by physical chord error before the same topology stage. Inputs retain their
+controls, weights and degree; results are derived UV/XYZ loops. Open centerline
+buffers use `strokeSurfaceRegion` through that same engine. The former loose,
+first-order native surface-curve route is removed.
 
-Options: `toleranceMm: 0.01` (local integration/chord target, not a certified
-global error bound), `maxStepMm: 0.5` and `precisionUv: 1e-10`. There is no
-evaluation budget: the requested tolerance and step decide how much integration
-and subdivision the patch needs, and the report gives the actual evaluation,
-integration and subdivision counts with experimental status. Integration halves
-its step until the step would stop advancing, which is reported as an unresolved
-tolerance rather than a spent budget; swept-strip subdivision and disk sectors
-likewise divide until their parameter is one representable step wide. The caller must
-provide valid patch geometry and the stated chart preconditions; there is no
-expensive whole-surface injectivity or clearance validation in each call.
+Smooth charts must be regular and injective, with C2 internal knots; low-degree
+single spans are supported. Atlases preserve authored creases, holes and seams.
+Erosion rays stop at chart edges for every representation. Outward growth takes
+optional `constraintLoopsUv`, intersected with the chart domain; each ray stops
+at its first boundary crossing, including holes. Without a constraint, outward
+smooth-chart domain escape raises. Invalid authored inputs still raise; no
+whole-surface injectivity or clearance pass runs on every call.
 
-Optional `constraintLoopsUv` clips outward growth to an allowed UV material
-region and the patch domain. Each integrated ray stops at its first boundary
-crossing; a later re-entry does not seed material across a hole. Boundary-tangent
-rays retain their allowed extent. Boundary-starting rays may project small drift
-onto that same boundary, keeping front endpoints attached. Clipper2 simplification
-between advances removes redundant segments; its UV tolerance is scaled using
-sampled native derivatives, and boundary contacts remain fixed. `simplificationUv`
-records that parameter-space tolerance; it is a local approximation rather than
-a certified global surface-distance bound. The report adds `boundaryStops`. Constrained
-strip/corner construction uses the local sampling tolerance near discontinuous
-stopped rays; it is not exact obstacle-geodesic distance. Wave propagation uses
-small repeated advances and reports terminal residuals. Without this option,
-the original domain-escape error and unconstrained offset behavior remain.
+Options: `toleranceMm: 0.01` (physical local approximation target),
+`maxStepMm: 0.5` (ray integration step cap), `precisionUv: 1e-10` (topology grid)
+and `normalMm: 0`. Native input sampling, simplification and RK4 integration each
+use one eighth of the physical budget; strip/corner chords use one quarter.
+RK4 step doubling estimates position and continuing-direction error, apportioned
+by physical travel. Strips refine at chart/knot breaks and physical chord error,
+rather than acquiring a fixed point density from the integration step. Boundary
+contacts remain fixed during simplification. UV rounding remains separate.
+
+All topology uses the shared Clipper2 union/difference owner. No inverse mapping,
+global flatten/warp, evaluation quota or degree elevation is involved. The report
+records actual evaluations, steps, subdivisions, boundary stops, simplification
+and collapsed subresolution contours. Construction refines until it meets the
+local target or floating-point progress fails. This remains experimental:
+arbitrary high curvature, geodesic caustics/cut loci, trimmed multi-patch surfaces
+and global distance-error certification are outside its validated contract.
+The [wave-overhangs skill](../../skills/wave-overhangs/SKILL.md) and curved Slice
+use this owner; planar/projected millimetre regions use `offsetRegion`.
 
 Verification scope, reference regeneration and provenance are in the
 [developer maps](../../scripts/bench/region-reference.md#offset-verification-and-provenance).

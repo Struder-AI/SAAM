@@ -219,30 +219,17 @@ parts are not resolved.
 
 [Curve offsets](./curve-offset.mjs) resolve collisions as a region offset does
 ([D-041](../../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface)).
-`prepareCurveOffsets({curves: [{curve, closed}], patch})` takes curve records
-from `referenceCurve` lying in one XY plane, or in a patch's (u,v) with depth in
-millimetres to first order; `offset(depth)` returns chains of pieces. Each curve
-moves loosely: control directions are collocated at Greville parameters, so
-lines and circular arcs move exactly, and at a kink the vertex moves to where
-the adjoining pieces meet. The moved curves are cut where they cross
-([curve-ops.mjs](./curve-ops.mjs)), and a piece is kept when it runs with its
-source and the winding is at least one on its left and at most zero on its
-right. Where a curve meets itself or another end to end (a closed curve's seam,
-a smooth joint) the contact is judged by arc length within the crossing
-tolerance, since Newton is only linear there. Where the exact offset has an
-inversion cusp the loose curve can turn through a small loop instead (a
-**curl**: one self-crossing, no other crossing on it, entered running with the
-source and left against it); a curl bounds nothing whatever its winding.
-Closed curves follow the region convention: material left of travel,
-positive depth grows it. An open curve's offset is one-sided and keeps only what
-is at least the depth from every source curve. Pieces past a patch's edges are
-trimmed off; control counts change only where pieces are cut. With `periodicU`
-or `periodicV` (a seam), curves lie in the unwrapped chart and may cross the
-seam; a closed curve may end whole periods from its start, wrapping the seam
-(a +U loop has its material above it). Crossings and winding count every
-whole-period copy; each chain continues itself and reports its `wraps`. Loose accuracy depends on the control net: a turn
-spanning few controls lands short (a 4-control U offset 2 mm outward is 0.84 mm
-from its bottom).
+`preparePlanarCurveOffsets({curves: [{curve, closed}]})` takes `referenceCurve`
+records in one XY plane; `offset(depth)` returns chains of native pieces.
+Control directions are collocated at Greville parameters: lines/circular arcs
+move exactly, and kink vertices meet their adjoining pieces. Crossings split
+curves; pieces survive when forward and bounding positive winding. Inversion
+curls bound no material and are discarded. Closed curves keep material left;
+positive depth grows the region. Open curves offset one-sided. Controls change
+only where pieces are cut. This loose planar construction depends on the
+control net: few-control tight turns can be inaccurate. It has no surface or
+periodic-chart branch; physical chart curves use the shared
+[surface-region offset](../region/README.md#shared-offset-functions).
 
 [Curve ribbons](./curve-ribbon.mjs) accept curves only:
 `prepareRibbon({curve, closed, vertical:[0,0,1]}).ribbon(depth)` offsets across the

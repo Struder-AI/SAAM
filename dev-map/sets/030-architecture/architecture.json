@@ -5031,17 +5031,6 @@
       }
     },
     {
-      "id": "geometry-leaf-3f6c15a52c8c",
-      "index": "2.2.2.2.2.3",
-      "label": "move",
-      "description": "chainPieces::move in core/geom/curve-offset.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/curve-offset.mjs",
-        "declaration": "chainPieces::move"
-      }
-    },
-    {
       "id": "geometry-leaf-e86e52f9cd76",
       "index": "2.2.2.2.2.4",
       "label": "next",
@@ -5110,100 +5099,67 @@
     {
       "id": "geometry-leaf-7b0ae7b12acd",
       "index": "2.2.2.2.5.1",
-      "label": "prepareCurveOffsets body",
-      "description": "prepareCurveOffsets in core/geom/curve-offset.mjs.",
+      "label": "preparePlanarCurveOffsets body",
+      "description": "preparePlanarCurveOffsets in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets"
-      }
-    },
-    {
-      "id": "geometry-leaf-8050be89f599",
-      "index": "2.2.2.2.5.2",
-      "label": "gap",
-      "description": "prepareCurveOffsets::gap in core/geom/curve-offset.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::gap"
-      }
-    },
-    {
-      "id": "geometry-leaf-2e3431a71dc3",
-      "index": "2.2.2.2.5.3",
-      "label": "inside",
-      "description": "prepareCurveOffsets::inside in core/geom/curve-offset.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::inside"
+        "declaration": "preparePlanarCurveOffsets"
       }
     },
     {
       "id": "geometry-leaf-ec8081cc6488",
       "index": "2.2.2.2.5.4",
       "label": "offset",
-      "description": "prepareCurveOffsets::offset in core/geom/curve-offset.mjs.",
+      "description": "preparePlanarCurveOffsets::offset in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::offset"
+        "declaration": "preparePlanarCurveOffsets::offset"
       }
     },
     {
       "id": "geometry-leaf-74964b80aee3",
       "index": "2.2.2.2.5.5",
       "label": "offset · at",
-      "description": "prepareCurveOffsets::offset::at in core/geom/curve-offset.mjs.",
+      "description": "preparePlanarCurveOffsets::offset::at in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::offset::at"
+        "declaration": "preparePlanarCurveOffsets::offset::at"
       }
     },
     {
       "id": "geometry-leaf-882b735444f7",
       "index": "2.2.2.2.5.6",
       "label": "offset · forward",
-      "description": "prepareCurveOffsets::offset::forward in core/geom/curve-offset.mjs.",
+      "description": "preparePlanarCurveOffsets::offset::forward in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::offset::forward"
+        "declaration": "preparePlanarCurveOffsets::offset::forward"
       }
     },
     {
       "id": "geometry-leaf-700f2948a8a5",
       "index": "2.2.2.2.5.7",
       "label": "offset · shift",
-      "description": "prepareCurveOffsets::offset::shift in core/geom/curve-offset.mjs.",
+      "description": "preparePlanarCurveOffsets::offset::shift in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::offset::shift"
-      }
-    },
-    {
-      "id": "geometry-leaf-5cbfbc1a9d17",
-      "index": "2.2.2.2.5.8",
-      "label": "onPatch",
-      "description": "prepareCurveOffsets::onPatch in core/geom/curve-offset.mjs.",
-      "type": "component",
-      "source": {
-        "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::onPatch"
+        "declaration": "preparePlanarCurveOffsets::offset::shift"
       }
     },
     {
       "id": "geometry-leaf-0f9d3e3303e6",
       "index": "2.2.2.2.5.9",
       "label": "tangentPerMm",
-      "description": "prepareCurveOffsets::tangentPerMm in core/geom/curve-offset.mjs.",
+      "description": "preparePlanarCurveOffsets::tangentPerMm in core/geom/curve-offset.mjs.",
       "type": "component",
       "source": {
         "file": "core/geom/curve-offset.mjs",
-        "declaration": "prepareCurveOffsets::tangentPerMm"
+        "declaration": "preparePlanarCurveOffsets::tangentPerMm"
       }
     },
     {
@@ -9222,8 +9178,8 @@
     {
       "id": "geometry-module-f2b12d9dc40a-5",
       "index": "2.2.2.2.5",
-      "label": "prepareCurveOffsets",
-      "description": "prepareCurveOffsets and its enclosed declarations.",
+      "label": "preparePlanarCurveOffsets",
+      "description": "preparePlanarCurveOffsets and its enclosed declarations.",
       "type": "component"
     },
     {

@@ -5,7 +5,7 @@ import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
 // Horizontal periodic-patch sections retain NURBS form through offset and
 // crossing resolution. Sampling supplies perimeter correspondence afterward.
 import {evaluateCurve} from '../../geom/nurbs.mjs';
-import {prepareCurveOffsets} from '../../geom/curve-offset.mjs';
+import {preparePlanarCurveOffsets} from '../../geom/curve-offset.mjs';
 import {contourPath} from '../../geom/contour-path.mjs';
 import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 
@@ -44,7 +44,7 @@ export function prepareSleeveContours({patch,rangeMm,toleranceMm=.005,stepMm=.4}
     let prepared=cache.get(z);
     if(!prepared){
       const curve=horizontalSleeveCurve(patch,v,z);
-      prepared={source:curve,offsets:prepareCurveOffsets({curves:[{curve,closed:true}]})};
+      prepared={source:curve,offsets:preparePlanarCurveOffsets({curves:[{curve,closed:true}]})};
       if(cache.size>=128)cache.delete(cache.keys().next().value);
       cache.set(z,prepared);nativeSections++;
     }

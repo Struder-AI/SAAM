@@ -9,6 +9,9 @@
 // Numerical integration/subdivision are construction work, not an independent
 // runtime validation pass. See BUILDERS.md for limits and reference status.
 import { requireThat, dot, cross, normalize } from '../geom/tolerance.mjs';
+import {evaluateCurve} from '../geom/nurbs.mjs';
+import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
+import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import { surfaceDerivatives } from '../geom/surface-derivatives.mjs';
 import { evaluatedSurfaceDerivatives } from '../geom/evaluated-surface.mjs';
 import { clipperContext, clipPaths, simplifyPaths } from './clipper.mjs';
@@ -40,6 +43,7 @@ export function offsetSurfaceRegion(patch,loopsUv,deltaMm,settings={}){
 export function strokeSurfaceRegion(patch,paths,radiusMm,settings={}){
   requireThat(Number.isFinite(radiusMm)&&radiusMm>0&&Array.isArray(paths)&&paths.every(p=>p.points?.length>=2),'Surface stroke buffer needs paths and a positive radius.');
   const base=prepareSurfaceOffset(patch,[],radiusMm,settings);
+  requireSurfacePaths(patch,paths.map(path=>path.points),base.settings.precisionUv);
   const prepared={...base,strokePaths:base.atlas?paths.map(path=>splitPiecewiseChartPath(base.atlas,path)):paths};
   return finishSurfaceOffset(patch,prepared,sweepSurfaceOffset(patch,prepared));
 }
@@ -61,6 +65,16 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
     const counts=new Map(); for(const t of knots)if(t>domain[0]&&t<domain[1])counts.set(t,(counts.get(t)??0)+1);
     requireThat([...counts.values()].every(n=>order-1-n>=2),'Surface offset currently requires C2 continuity across internal knots.');
   }
+  loopsUv=loopsUv.map(loop=>{
+    if(Array.isArray(loop))return loop;
+    const curve=loop.curve;
+    requireThat(curve?.domain&&curve.knots&&curve.cp,'Surface region boundaries need UV loops or closed native chart curves.');
+    const samples=sampleCurveIntervals({at:t=>{const uv=evaluateCurve(curve,t).point.slice(0,2);return {point:evaluateSurface(patch,uv,normalMm).point,uv};},
+      cuts:[curve.domain[0],...curve.knots.filter(t=>t>curve.domain[0]&&t<curve.domain[1]),curve.domain[1]],stepMm:maxStepMm,toleranceMm:toleranceMm/8});
+    requireThat(distance(samples[0].uv,samples.at(-1).uv)<=UV_ROUNDING,'Surface region boundaries must close in chart coordinates; use a surface stroke for open centerlines.');
+    return samples.slice(0,-1).map(sample=>sample.uv);
+  });
+  requireSurfacePaths(patch,loopsUv,precisionUv);
   const origin=constraintLoopsUv===null?null:[patch.domainU[0],patch.domainV[0]];
   const initial=clipperContext([loopsUv],precisionUv,0,origin);
   const source=initial.decode(clipPaths(initial.encode(loopsUv)));
@@ -69,17 +83,20 @@ export function prepareSurfaceOffset(patch, loopsUv, deltaMm, {
   const options={precisionMm:precisionUv,origin};
   const constraint=constraintLoopsUv===null?null:intersect(constraintLoopsUv,[domain],options);
   requireThat(constraint===null||deltaMm>=0,'Constrained surface offsets currently support outward growth only.');
-  const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,normalMm,constrained:constraintLoopsUv!==null};
+  // Erosion is bounded by the chart just like an atlas ray. No synthetic
+  // surface continuation is needed for the part of a band discarded outside it.
+  const boundary=constraint??(deltaMm<0?[domain]:null);
+  const settings={deltaMm,toleranceMm,maxStepMm,precisionUv,origin,normalMm,bounded:boundary!==null};
   const {at,samples}=createSurfaceSampler(patch,settings);
   const simplified=deltaMm===0?{loops:source,simplificationUv:0,collapsedContours:0}:
     simplifySurfaceLoops(source,{constraint,initial,toleranceMm,precisionUv},at);
-  return {source:simplified.loops,constraint,initial,settings,atlas,surfaceSamples:samples,
+  return {source:simplified.loops,constraint,boundary,initial,settings,atlas,surfaceSamples:samples,
     work:{evaluations:samples.size,simplificationUv:simplified.simplificationUv,collapsedContours:simplified.collapsedContours}};
 }
 
 export function sweepSurfaceOffset(patch,prepared){
   if(prepared.atlas)patch={...patch,atlas:prepared.atlas};
-  const {source,constraint,settings}=prepared;
+  const {source,boundary:constraint,settings}=prepared;
   const {deltaMm,toleranceMm,maxStepMm,precisionUv,origin}=settings;
   const options={precisionMm:precisionUv,origin};
   const {at,samples}=createSurfaceSampler(patch,settings,[prepared.surfaceSamples]);
@@ -88,6 +105,16 @@ export function sweepSurfaceOffset(patch,prepared){
   // A constrained ray ends at its first boundary crossing, never at a later
   // re-entry across a hole. All topology/clipping remains in the shared kernel.
   const stopAtBoundary=(a,b)=>{
+    if(prepared.constraint===null){
+      // Natural rectangular chart edges need no polygon-kernel allocation.
+      let fraction=1;
+      for(const [k,[lo,hi]] of [patch.domainU,patch.domainV].entries()){
+        const d=b[k]-a[k];
+        if(b[k]<lo&&d<0)fraction=Math.min(fraction,(lo-a[k])/d);
+        if(b[k]>hi&&d>0)fraction=Math.min(fraction,(hi-a[k])/d);
+      }
+      return fraction===1?b:plus(a,plus(b,a,-1),Math.max(0,fraction));
+    }
     const pieces=clipOpenPaths([[a,b]],constraint,options),epsilon=precisionUv*8;
     for(const loop of constraint)for(let i=0;i<loop.length;i++){
       const p=loop[i],q=loop[(i+1)%loop.length];
@@ -157,14 +184,19 @@ export function sweepSurfaceOffset(patch,prepared){
         }
       }
       const a=frameAtState(full.slice(0,2)),b=frameAtState(half.slice(0,2));
-      const err=distance(a.point,b.point);
+      // RK4 step doubling: the two half steps have 1/15 of their difference
+      // as local error. Include tangent error's remaining endpoint influence;
+      // position alone can accept a ray with a wrong continuing direction.
+      const velocity=(frame,state)=>frame.du.map((x,k)=>x*state[2]+frame.dv[k]*state[3]);
+      const err=(distance(a.point,b.point)+Math.max(0,radius-travel-h)*distance(velocity(a,full),velocity(b,half)))/15;
+      const allowance=toleranceMm/8*h/radius;
       requireThat(Number.isFinite(err),'Surface offset integration produced a non-finite position.');
-      if(err>toleranceMm*h/Math.max(radius,1)*0.05) {
+      if(err>allowance) {
         h/=2; requireThat(travel+h>travel,'Surface offset integration cannot resolve the requested tolerance.');continue;
       }
       state=half;travel+=h;integrations++;ray.push(state.slice(0,2));
-      // Step control: grow when the error is a small fraction of the halving threshold (a fraction, not a tolerance).
-      if(err<toleranceMm*h/Math.max(radius,1)*0.001)h=Math.min(h*2,maxStepMm);
+      // RK4 local error scales with the fifth power of step length.
+      if(err<allowance/32)h=Math.min(h*2,maxStepMm);
     }
     if(constraint!==null&&ray.length>1){
       // Keep boundary-tangent fronts attached to the same boundary. A tiny
@@ -203,19 +235,29 @@ export function sweepSurfaceOffset(patch,prepared){
       const value={uv,point:frame.point,offset:shoot(uv,normal,hint)};
       samples.set(t,value);return value;
     };
+    const chordError=(uv,a,b)=>{
+      if(prepared.atlas)return physicalChordError(at(uv).point,at(a).point,at(b).point);
+      const delta=plus(b,a,-1),length2=delta[0]**2+delta[1]**2;
+      const t=length2?Math.max(0,Math.min(1,((uv[0]-a[0])*delta[0]+(uv[1]-a[1])*delta[1])/length2)):0;
+      return distance(at(uv).point,at(plus(a,delta,t)).point);
+    };
     const subdivide=(lo,hi)=>{
-      const l=sample(lo),r=sample(hi),mid=(lo+hi)/2,m=sample(mid);
-      let error=distance(m.point,midpoint(l.point,r.point));
-      for(const side of ['offset']) {
-        const p=l[side].at(-1),q=r[side].at(-1),s=m[side].at(-1);
-        error=Math.max(error,distance(at(s).point,prepared.atlas?midpoint(at(p).point,at(q).point):at(midpoint(p,q)).point));
-      }
-      if((error>toleranceMm/4||distance(l.point,r.point)>maxStepMm)&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=PROGRAM_STEP_MM)) { // subdividing below one program step changes nothing
+      const l=sample(lo),r=sample(hi),mid=(lo+hi)/2;
+      const probes=[.25,.5,.75].map(f=>sample(lo+(hi-lo)*f));
+      const error=Math.max(...probes.map(m=>Math.max(physicalChordError(m.point,l.point,r.point),
+        chordError(m.offset.at(-1),l.offset.at(-1),r.offset.at(-1)))));
+      if(error>toleranceMm/4&&!((constraint!==null||prepared.atlas)&&distance(l.point,r.point)<=PROGRAM_STEP_MM)) {
         requireThat(mid>lo&&mid<hi,'Surface offset subdivision cannot resolve the requested tolerance: the strip parameter is one representable step wide.');
         subdivisions++;subdivide(lo,mid);subdivide(mid,hi);
       }else {connectRays(l.offset,r.offset);}
     };
-    subdivide(0,1);
+    // Native knot/chart breaks bound the smooth spans to refine. The maximum
+    // integration step is not a minimum density for a straight boundary strip.
+    const cuts=[0,1];
+    for(const [k,knots] of [patch.knotsU??patch.breaksU??[],patch.knotsV??patch.breaksV??[]].entries())
+      if(tangentUv[k]!==0)for(const knot of knots){const t=(knot-a[k])/tangentUv[k];if(t>0&&t<1)cuts.push(t);}
+    const ordered=[...new Set(cuts)].sort((a,b)=>a-b);
+    for(let i=1;i<ordered.length;i++)subdivide(ordered[i-1],ordered[i]);
   };
   const addDisk=(uv,previous,next,full=false)=>{
     const frame=at(uv), incoming=plus(uv,previous,-1),outgoing=plus(next,uv,-1);
@@ -309,16 +351,12 @@ export function finishSurfaceOffset(patch,prepared,swept){
 
 // A phase owns only new samples. Earlier completed phase maps are read-only;
 // their records are reused without copying the accumulated cache per ray.
-function createSurfaceSampler(patch,{constrained,deltaMm,precisionUv,normalMm=0,toleranceMm=SURFACE_OFFSET_CHORD_MM},priorSamples=[]){
+function createSurfaceSampler(patch,{bounded,precisionUv,normalMm=0,toleranceMm=SURFACE_OFFSET_CHORD_MM},priorSamples=[]){
   const samples=new Map();
-  // An inward offset keeps only what lies inside its region; where the region
-  // ends at a native patch's edge (a slice stopping inside the part), the band
-  // swept past that edge continues with the edge's frame.
-  const extend=!constrained&&deltaMm<0&&Boolean(patch.cp);
   const at=(uv,hint=null)=>{
-    if(constrained||extend)uv=uv.map((x,k)=>{
+    if(bounded)uv=uv.map((x,k)=>{
       const [lo,hi]=[patch.domainU,patch.domainV][k];
-      return extend||x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
+      return x>=lo-precisionUv*8&&x<=hi+precisionUv*8?Math.max(lo,Math.min(hi,x)):x;
     });
     const key=uv.join(',')+(patch.atlas&&hint?`:${hint.join(',')}`:'');
     if(samples.has(key))return samples.get(key);
@@ -327,6 +365,17 @@ function createSurfaceSampler(patch,{constrained,deltaMm,precisionUv,normalMm=0,
     samples.set(key,result);return result;
   };
   return {at,samples};
+}
+
+function physicalChordError(point,a,b){
+  const v=plus(b,a,-1),length2=dot(v,v),t=length2?Math.max(0,Math.min(1,dot(plus(point,a,-1),v)/length2)):0;
+  return distance(point,plus(a,v,t));
+}
+
+function requireSurfacePaths(patch,paths,precisionUv){
+  const periodicU=patch.kind==='sleeve-chart'||patch.atlas?.periodic;
+  requireThat(paths.every(path=>path.every(uv=>uv.length>=2&&[patch.domainU,patch.domainV].every(([lo,hi],k)=>Number.isFinite(uv[k])&&(k===0&&periodicU||uv[k]>=lo-precisionUv*8&&uv[k]<=hi+precisionUv*8)))),
+    'Surface offset input lies outside its chart domain.');
 }
 
 function simplifySurfaceLoops(loops,{constraint,initial,toleranceMm,precisionUv,closeSubResolution=false},at){
