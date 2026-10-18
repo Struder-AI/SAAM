@@ -284,7 +284,14 @@ function contourPointNear(patch, g, u, v, du, dv) {
   if (!(scale0 > 0)) return null;
   const pu = -dv / scale0, pv = du / scale0;
   const centre = g(u, v);
-  if (Math.abs(centre) <= PROGRAM_STEP_MM) return { u, v, point: evaluateSurface(patch, [u, v]).point };
+  let weight=1;
+  if(patch.cp){
+    const weights=new Float64Array(patch.nu*patch.nv);
+    for(let i=0;i<weights.length;i++)weights[i]=patch.cp[4*i+3];
+    weight=evaluateScalar(patch,weights,u,v);
+  }
+  // The native scalar is a homogeneous numerator; its residual is physical only after division by weight.
+  if (Math.abs(centre) <= PROGRAM_STEP_MM*weight) return { u, v, point: evaluateSurface(patch, [u, v]).point };
   for (let step = scale0 / 8; step <= scale0 * 2; step *= 2) {
     for (const direction of [1, -1]) {
       const su = clamp(u + pu * step * direction, patch.domainU), sv = clamp(v + pv * step * direction, patch.domainV);
