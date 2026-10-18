@@ -3,7 +3,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {precedenceLookup} from './precedence.mjs';
 
-export const CONSTRUCTION_CONTRACT='saam-construction-access/2';
+export const CONSTRUCTION_CONTRACT='saam-producer-validity/3';
 export const completionId=(kind,id)=>'completion:'+kind+':'+id;
 
 // Construction requirements identify trusted material history. Composition

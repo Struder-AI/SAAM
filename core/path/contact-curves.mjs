@@ -2,6 +2,34 @@ import {requireThat,distance,normalize,dot,cross} from '../private/toolpath/nume
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 import {prepareSurfaceContact} from '../geom/contact-chart.mjs';
+import {depositedCurveSegments,curveSupportsPoint} from './deposited-curves.mjs';
+
+// Inspect finalized Trace batches in their construction order. This is one
+// consumer of the common finalizer, never a separate finalization lifecycle.
+export function traceContactNotes(result){
+  if(!result.traceContact)return result;
+  const {traceContact,...published}=result,{widthMm,maxExcursionMm}=traceContact;
+  const segments=[...traceContact.segments],notes=[],inspectContact=result.operations.some(operation=>operation.strokes.some(curve=>curve.contact));
+  for(const operation of result.operations){
+    const heights=operation.strokes.flatMap(curve=>curve.points.map(point=>point[2]));
+    if(maxExcursionMm!==null)requireThat(Math.max(...heights)-Math.min(...heights)<=maxExcursionMm+PRINT_RESOLUTION_MM,
+      'Final Trace repetition exceeds its authored Z excursion limit.');
+    for(const curve of operation.strokes){
+      const c=curve.contact;if(!c)continue;
+      const height=curve.beadHeightMm??curve.segmentMetadata?.[0]?.beadHeightMm??operation.process.layerMm;
+      const spans=contactSpans(curve.points.slice(1).flatMap((b,i)=>{
+        const a=curve.points[i],n=Math.max(1,Math.ceil(distance(a,b)/c.sampleStepMm));
+        return Array.from({length:i?n:n+1},(_,j)=>{
+          const point=a.map((v,k)=>v+(b[k]-v)*(i?j+1:j)/n);
+          return {point,status:curveSupportsPoint(segments,point,(c.referenceZMm??point[2])-(c.gapMm??height),{source:c.source})?null:'unsupported'};
+        });
+      }));
+      notes.push(...spans.map(span=>contactSpanNote(`Trace ${result.id}`,span)));
+    }
+    if(inspectContact)segments.push(...depositedCurveSegments([{...operation,strokes:operation.strokes.filter(curve=>!curve.depositionAction)}],{widthMm,source:operation.id}));
+  }
+  return {...published,report:{...result.report,...(notes.length?{notes:[...(result.report.notes??[]),...notes]}:{})}};
+}
 
 // A geometric query over final beads, shared by contact gaps and contact charts.
 // The outward ray starts beyond the actual material bounds, not at a nominal

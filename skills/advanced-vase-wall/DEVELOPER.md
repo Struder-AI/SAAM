@@ -23,15 +23,12 @@ path. A valid flat-ended cylinder therefore loses no height, whereas a mesh with
 collapsed extreme caps receives an explicit cap-exclusion proposal.
 
 The detector uses horizontal source sections over a selected `zMinMm`–`zMaxMm`
-interval. One dominant outer contour is required at each queried height. Small
-secondary islands may account for at most `maxSecondaryAreaFraction` of its area
-(default 0.001, or 0.1%); set zero to reject every secondary island. All source
-loops remain available. Reported maximum secondary area/count and pore area make
-that reference-envelope reduction explicit. A hole above that area fraction is
-a bore; at most one substantial bore is supported. A base may close the bore at
-lower heights. Multiple significant islands, branches or bores, and collapsed
-tips, fail with the height of the unsupported section. Choose a suitable sleeve
-interval or different geometry instead of treating those failures as mesh repair.
+interval. Exactly one source outer contour is required at each queried height;
+disconnected islands never become pores or disappear during fitting. The
+`maxSecondaryAreaFraction` threshold classifies holes only (default .001): a
+hole above it is a bore, and at most one substantial bore is supported. A base
+may close that bore. Splits, extra islands, multiple bores and collapsed tips
+fail at the unsupported height. Select another interval or separate geometry.
 This is section-based detection, not a global topological classification proof.
 
 The fit is an actual nonrational bicubic tensor-product B-spline, periodic around

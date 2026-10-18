@@ -113,20 +113,6 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
   const owners = sliceOwners(assignments, { shells:processShells, processes, materials, volumes, sources, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
   for(const owner of owners)owner.publicationShell??=shells.find(([part])=>part===owner.part)?.[1];
   const owned = prepareMaterialRegions(owners, { bands, onProgress, sharedMaterial:plan.experimental?.sharedMaterial===true });
-  // Native-chart masks alter owned material before layout, material readiness
-  // or generated layer consumers. They never claim material outside the owner.
-  for(const record of owned){
-    for(const layer of record.layers){
-      const mask=record.owner.assignment.sliceOverrides?.[layer.characterIndex??layer.index]?.regionUv??record.owner.assignment.regionUv;
-      if(mask===undefined)continue;
-      const kept=intersect(layer.region,mask),removed=difference(layer.region,kept);
-      layer.region=kept;layer.material=difference(layer.material??record.material.get(layer.index)??[],removed);
-      record.material.set(layer.index,difference(record.material.get(layer.index)??[],removed));
-    }
-    for(const layer of record.layers)if(layer.materialGrid)layer.materialGrid={...layer.materialGrid,
-      layers:layer.materialGrid.layers.map(entry=>({...entry,region:record.material.get(entry.index)??entry.region}))};
-    record.layers=record.layers.filter(layer=>layer.region.length);
-  }
   const contexts=[],notes=[...new Set([...processShells.flatMap(([,shell])=>shell.notes??[]),...owned.flatMap(stack=>stack.notes)])];
   for (const { owner, referenceStack, stackId, layers, material, substrate, sharedReport } of owned) {
     const { assignment } = owner;
@@ -146,7 +132,27 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
   contexts.push(...referenceAssignments.map(input=>{
     try{return referenceSliceContext(input);}catch(error){failedSlicePreparation(input.assignment,error);}
   }));
-  return {contexts,notes};
+  return {contexts:contexts.map(record=>record.reference?record:prepareOwnedSliceRegions(record)),notes};
+}
+
+// All resolved Slice geometry crosses this boundary, including normal and
+// terminal references. Layout, readiness and Trace sources read these same
+// owned regions; masking is never an instruction to a deposition backend.
+export function prepareOwnedSliceRegions(record){
+  const {settings}=record.spec,material=new Map(record.spec.material??[]);
+  const layers=record.spec.layers.map(layer=>{
+    const mask=settings.sliceOverrides?.[layer.characterIndex??layer.index]?.regionUv??settings.regionUv;
+    if(mask===undefined)return layer;
+    const region=intersect(layer.region,mask),removed=difference(layer.region,region);
+    material.set(layer.index,difference(material.get(layer.index)??layer.material??layer.region,removed));
+    return {...layer,region,material:difference(layer.material??layer.region,removed)};
+  }).filter(layer=>layer.region.length);
+  const prepared=layers.map(layer=>layer.materialGrid?{...layer,materialGrid:{...layer.materialGrid,
+    layers:layer.materialGrid.layers.map(entry=>({...entry,region:material.get(entry.index)??entry.region}))}}:layer);
+  return {...record,spec:{...record.spec,layers:prepared,material,
+    predecessorRegions:new Map(prepared.map(layer=>[layer.index,prepared.find(prior=>prior.index===layer.index-1)?.region??[]]))},
+    referenceStack:{...record.referenceStack,layers:prepared},
+    layerOrder:record.layerOrder.filter(layer=>prepared.some(owned=>owned.index===layer.index))};
 }
 
 export function prepareSliceBoundaryStack({plan,assignment,shells,volumes,sources}){

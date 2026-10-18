@@ -73,6 +73,22 @@ export class AdaptationMotion {
 // full lane is written, otherwise the note: the lane was shortened to the bed,
 // or there is no room and the program starts without it.
 export function machinePriming(motion,machine,bounds,geometryBounds){
+  const override=motion.process.primeLine;
+  if(override){
+    const passes=(override.passes??[override]).filter(pass=>distance(pass.startMm,pass.endMm)>0),bed=bounds??machine.bounds;
+    for(const pass of passes){
+      const points=[pass.startMm,pass.endMm].map(point=>[...point,pass.zMm]);
+      requireThat(points.every(point=>point.every((value,k)=>value>=bed.min[k]+(k<2?pass.widthMm/2:pass.heightMm)&&
+        value<=bed.max[k]-(k<2?pass.widthMm/2:0))),'Custom priming pass exceeds selected tool bounds.');
+      requireThat(!geometryBounds||[0,1].some(k=>Math.max(...points.map(point=>point[k]))+pass.widthMm/2<geometryBounds.min[k]||
+        Math.min(...points.map(point=>point[k]))-pass.widthMm/2>geometryBounds.max[k]),'Custom priming pass overlaps the part footprint.');
+      motion.phase='prime';motion.layer=0;motion.operationId=null;
+      motion.travel(points[0]);
+      motion.move(points[1],pass.speedMmS,distance(points[0],points[1])*pass.widthMm*pass.heightMm,{role:'prime'});
+    }
+    if(passes.length)motion.park();
+    return null;
+  }
   const settings=machine.startup?.primingStrokes;
   if(!settings)return null;
   const {lineLengthMm:length,clearanceMm:gap}=settings,p=motion.process,w=p.lineWidthMm,z=p.firstLayerMm,bed=bounds??machine.bounds;

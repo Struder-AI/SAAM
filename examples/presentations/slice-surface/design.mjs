@@ -51,25 +51,52 @@ export function animationAt(t){
   }
   if(t<38)return a;
   a.pose={...ending};
-  if(t<51){a.mode='cladding';a.context='tube';a.loops=0;a.morph=segment(t,38,44);const q=segment(t,44,48);a.density=blend(.26,1,q);a.angle=blend(45,90,q);}
+  if(t<51){a.mode='cladding';a.context='tube';a.morph=segment(t,38,44);const q=segment(t,44,48);a.density=blend(.26,1,q);a.angle=blend(45,90,q);}
   else if(t<57){a.mode='cladding';a.morph=1-segment(t,51,57);a.density=blend(1,.26,segment(t,51,57));a.angle=blend(90,45,segment(t,51,57));}
   else if(t<59)return a;
-  else if(t<72){a.mode='bridge';a.context='bridge';a.loops=0;a.morph=segment(t,59,65);const q=segment(t,65,69);a.density=blend(.26,.72,q);a.angle=blend(45,0,q);}
-  else if(t<78){a.mode='bridge';a.morph=1-segment(t,72,78);a.density=blend(.72,.26,segment(t,72,78));a.angle=blend(0,45,segment(t,72,78));}
+  else if(t<72){a.mode='bridge';a.context='bridge';a.loops=t<70?2:t<71?1:0;a.morph=segment(t,59,65);const q=segment(t,65,69);a.density=blend(.26,.72,q);a.angle=blend(45,0,q);}
+  else if(t<78){a.mode='bridge';a.loops=t<74?0:t<76?1:2;a.morph=1-segment(t,72,78);a.density=blend(.72,.26,segment(t,72,78));a.angle=blend(0,45,segment(t,72,78));}
   return a;
 }
 const degree=3,nv=7;
 const knotsV=Array.from({length:nv+degree+1},(_,i)=>i<=degree?0:i>=nv?1:(i-degree)/(nv-degree));
 const vs=Array.from({length:nv},(_,i)=>(knotsV[i+1]+knotsV[i+2]+knotsV[i+3])/3);
-export function claddingSpec(d,a){
-  const size=d.sizeMm,q=a.wrap??1,n=12,sweep=q*2*Math.PI,width=blend(size,2*Math.PI*size/3,q),radius=sweep?width/sweep:0,centerOffset=sweep?radius*(1+Math.cos(sweep/2))/2:0;
+// Restrict a uniform cubic curve to [0,1] without changing its locus.
+// The clamped form shares the refined wave's basis and remains C2 internally.
+function clampUniformU(spec){
+  const p=spec.controlPoints,n=p.length-1,combine=(weights,rows)=>rows[0].map((_,j)=>[0,1,2].map(k=>rows.reduce((sum,row,i)=>sum+row[j][k]*weights[i],0)));
+  return {...spec,knotsU:spec.knotsU.map((u,i)=>i<4?0:i>=spec.knotsU.length-4?1:u),controlPoints:[combine([1/6,4/6,1/6],p.slice(0,3)),combine([2/3,1/3],p.slice(1,3)),...p.slice(2,n-1),combine([1/3,2/3],p.slice(n-2,n)),combine([1/6,4/6,1/6],p.slice(n-2))]};
+}
+// Knot insertion authors a common control net; it does not construct toolpaths.
+function refineWaveU(spec){
+  let points=spec.controlPoints,knots=spec.knotsU;
+  for(const u of [1/12,2/12,4/12,5/12,7/12,8/12,10/12,11/12]){
+    const n=points.length-1;let k=3;while(k<n&&knots[k+1]<=u)k++;
+    const next=Array(n+2),multiplicity=knots.filter(v=>Math.abs(v-u)<1e-12).length;
+    for(let i=0;i<=k-3;i++)next[i]=points[i];
+    for(let i=k-multiplicity;i<=n;i++)next[i+1]=points[i];
+    for(let i=k-2;i<=k-multiplicity;i++){const alpha=(u-knots[i])/(knots[i+3]-knots[i]);next[i]=points[i].map((p,j)=>p.map((v,d)=>blend(points[i-1][j][d],v,alpha)));}
+    points=next;knots=[...knots.slice(0,k+1),u,...knots.slice(k+1)];
+  }
+  return {...spec,controlPoints:points,knotsU:knots};
+}
+export function claddingSpec(d,a={}){
+  const size=d.sizeMm,q=a.wrap??1,n=12,sweep=q*2*Math.PI,width=blend(size*1.66,2*Math.PI*size/3,q),height=blend(size*1.66,size,q),radius=sweep?width/sweep:0,centerOffset=sweep?radius*(1+Math.cos(sweep/2))/2:0;
   const controlPoints=Array.from({length:n+3},(_,i)=>vs.map(v=>{
     const u=(i-1)/n,theta=(u-.5)*sweep;
-    if(q===0)return [size*u,size/2,size*v];
+    if(q===0)return [size/2+width*(u-.5),size/2,size/2+(v-.5)*height];
     const r=radius*(1+q*.0467)+q*(.675*Math.sin(2*theta+2*v)+.3*Math.cos(2*theta-2.5*v));
-    return [size/2+r*Math.sin(theta)+q*.3*Math.sin(v*Math.PI),size/2+r*Math.cos(theta)-centerOffset+q*.25*Math.sin(v*Math.PI*1.5),size*v];
+    return [size/2+r*Math.sin(theta)+q*.3*Math.sin(v*Math.PI),size/2+r*Math.cos(theta)-centerOffset+q*.25*Math.sin(v*Math.PI*1.5),size/2+(v-.5)*height];
   }));
-  return {name:'animated-slice',degreeU:3,degreeV:3,knotsU:Array.from({length:n+7},(_,i)=>(i-3)/n),knotsV,controlPoints};
+  return clampUniformU({name:'animated-slice',degreeU:3,degreeV:3,knotsU:Array.from({length:n+7},(_,i)=>(i-3)/n),knotsV,controlPoints});
+}
+function pipeMorph(d,a){
+  const q=a.morph,wave=refineWaveU(surfaceSpec(d,{...a.pose,tiltX:0,tiltY:0,heightMm:0})),arc=claddingSpec(d,{wrap:q}),tilt=(1-q)*Math.PI/2,rx=a.pose.tiltX*(1-q)*Math.PI/180,ry=a.pose.tiltY*(1-q)*Math.PI/180,center=d.sizeMm/2;
+  return {...arc,controlPoints:arc.controlPoints.map((row,i)=>row.map((p,j)=>{
+    const x=p[0]-center,bend=p[1]-center-wave.controlPoints[i][j][2]*(1-q),along=p[2]-center;
+    const y=bend*Math.cos(tilt)+along*Math.sin(tilt),z=-bend*Math.sin(tilt)+along*Math.cos(tilt),yy=y*Math.cos(rx)-z*Math.sin(rx),zz=y*Math.sin(rx)+z*Math.cos(rx);
+    return [x*Math.cos(ry)+zz*Math.sin(ry)+center,yy+center,-x*Math.sin(ry)+zz*Math.cos(ry)+center];
+  }))};
 }
 export function bridgeSpec(d){
   const s=d.sizeMm;
@@ -80,11 +107,7 @@ export function bridgeSpec(d){
 }
 export function surfaceFor(d,a){
   const wave=surfaceSpec(d,a.pose);
-  if(a.mode==='cladding'){
-    if(a.morph>=1/3)return claddingSpec(d,{wrap:ease((a.morph-1/3)*1.5)});
-    const q=ease(a.morph*3),target=claddingSpec(d,{wrap:0});
-    return {...wave,controlPoints:wave.controlPoints.map((row,i)=>row.map((p,j)=>p.map((x,k)=>blend(x,[d.sizeMm*vs[i],d.sizeMm/2,d.sizeMm*vs[j]][k],q))))};
-  }
+  if(a.mode==='cladding')return pipeMorph(d,a);
   if(a.mode==='bridge'){const target=bridgeSpec(d);return {...wave,controlPoints:wave.controlPoints.map((row,i)=>row.map((p,j)=>p.map((x,k)=>blend(x,target.controlPoints[i][j][k],a.morph))))};}
   return wave;
 }

@@ -1,5 +1,4 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
 import {depositionAssignment,currentAssignmentTerms} from './assignment-records.mjs';
 import {ordinarySliceAssignment} from './slice-settings.mjs';
 import {closeMeshPatchToPlane} from '../geom/mesh-patch-solid.mjs';
@@ -19,22 +18,6 @@ function legacySkinAssignment({id,...options}){
     within:[{kind:'surface-domain',loopsUv:null,fromLayer:-a.layers,toLayer:0,maxSlopeDeg:a.maxAngleDegOverride??90,sampleStepMm:a.surveyStepMm}],
     contact:{source:a.supportFrom},dependencies:{afterParts:[],beforeParts:[],after:a.after},description:'Roof slices with a target mean normal gap.'});
 }
-
-// Compatibility only: technique presets no longer exist as executable extensions.
-const LEGACY_FRONT_DEFAULTS=Object.freeze({lineSpacingMm:.3,beadHeightMm:.2,speedMmS:5,fanPercent:100,toleranceMm:.01,sampleStepMm:.5,propagationStepMm:.1});
-function legacyFrontAssignment({id,...options}) {
-  const a={filament:null,process:null,after:[],surface:null,domainUv:[],seedUv:[],afterParts:[],beforeParts:[],reason:'',layers:1,...LEGACY_FRONT_DEFAULTS,...options};
-  const native=a.surface?.kind==='patch';
-  return ordinarySliceAssignment({id,part:native?a.surface.part??null:a.part??null,filament:a.filament,
-    process:{planarSpeedMmS:a.speedMmS,firstLayerSpeedMmS:a.speedMmS,fanPercent:a.fanPercent,...a.process},
-    loops:0,fillDensity:1,solidTop:0,solidBottom:0,sampleStepMm:a.sampleStepMm,
-    surface:native?{kind:'patch',patch:a.surface.patch,offsetMm:a.surface.offsetMm??0}:a.surface,
-    stack:{firstLayerMm:a.beadHeightMm,layerMm:a.beadHeightMm,...(a.direction?{direction:a.direction}:{})},
-    within:[{kind:'surface-domain',loopsUv:a.domainUv,fromLayer:-a.layers,toLayer:0}],
-    fillOrder:{kind:'fronts',seedUv:a.seedUv?.length?a.seedUv:null,lineSpacingMm:a.lineSpacingMm,propagationStepMm:a.propagationStepMm,toleranceMm:a.toleranceMm},
-    dependencies:{afterParts:a.afterParts,beforeParts:a.beforeParts,after:a.after},description:a.reason});
-}
-
 
 function legacyRimAssignment({id,part=null,filament=null,process=null,after=[],source=null,steps=[2],minFeatureMm=.4}){
   return ordinarySliceAssignment({id,part,filament,process,loops:steps,fillDensity:0,solidTop:0,solidBottom:0,
@@ -89,7 +72,9 @@ function currentAssignmentForm(assignment,index,process){
   }
   const renamed=migrateAssignmentTerms(source),{construction,...legacy}=renamed;
   requireThat(construction!=='cladding','Legacy cladding pose has no automatic reading: author normal-band Slice with optional derived pose and field tilt, then review.');
-  const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??process.layerMm}}):construction==='skin'?legacySkinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:process.skinSpeedMmS,firstLayerSpeedMmS:process.skinSpeedMmS}}):construction==='fronts'?legacyFrontAssignment(legacy):construction==='rim'?legacyRimAssignment(legacy):depositionAssignment(renamed);
+  requireThat(!['bridges','fronts'].includes(construction)&&source.fillOrder?.kind!=='fronts'&&!source.sliceOverrides?.some(layer=>layer.fillOrder?.kind==='fronts'),
+    'Retired bridge/wave construction has no automatic geometric conversion. Select printed base and target edges with bridging or hole-transitions, then review. Saved toolpaths remain viewable.');
+  const canonical=construction==='skin'?legacySkinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:process.skinSpeedMmS,firstLayerSpeedMmS:process.skinSpeedMmS}}):construction==='rim'?legacyRimAssignment(legacy):depositionAssignment(renamed);
   for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Shared-construction form.':'Current shared default.'});
   return {assignment:changes.length?canonical:assignment,changes};
 }

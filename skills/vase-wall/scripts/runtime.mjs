@@ -25,8 +25,7 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
   const curve=spiralStackCurve({referenceStack,firstHeightMm:geometry.firstHeight,widthMm:process.lineWidthMm,
     levelEnd:settings.endTransition==='level',sampleStepMm:settings.sampleStepMm,toleranceMm:settings.toleranceMm,
     speedMmS:geometry.speedMmS??Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS),minimumTurnSeconds:geometry.minimumTurnSeconds??process.minimumLayerSeconds,role:geometry.role??'vase-wall'});
-  requireThat(curve.profile&&!curve.layerCurves.length,'Standard vase needs one continuous boundary throughout; disconnected islands or collapsed sections cannot form one wall.');
-  const {profile,layerCurves,notes:stackNotes,...centerline}=curve,levelTop=settings.endTransition==='level';
+  const {profile,notes:stackNotes,...centerline}=curve,levelTop=settings.endTransition==='level';
   const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,sequential:false,batches:[{
     ...geometry.batch,key:geometry.batch?.key??'wall',curves:[centerline],phase:geometry.batch?.phase??'vase-wall',layer:0,rank:geometry.start,
     fanPercent:process.fanPercent,trimEnd:levelTop,travel:{kind:'auto'}}]});

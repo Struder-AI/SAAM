@@ -8,12 +8,19 @@ import {joinSaamPath} from '../path/saampath.mjs';
 import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {resolveSourceOrder} from '../path/compose.mjs';
 import {planExecutionPath} from '../path/schedule.mjs';
+import {CONSTRUCTION_CONTRACT} from '../path/manufacturing.mjs';
 
 export function prepareMachineExecution(saved,nozzleGeometry,{nozzleGeometries=null,retreatMm}={}){
-  const order=resolveSourceOrder(saved.deposition,prepareCurvePath(saved.deposition),
-    {start:saved.schedule.initialPosition,nozzleGeometry,nozzleGeometries});
-  const schedule=planExecutionPath(saved.deposition,{sourcePathId:saved.sourcePathId,order});
-  return realizeMachineTransfers(joinSaamPath({sourcePathId:saved.sourcePathId,deposition:saved.deposition,schedule}),nozzleGeometry,{nozzleGeometries,retreatMm});
+  const source=saved.deposition,reader=prepareCurvePath(source),coverage=source.manufacturing?.accessGeometry;
+  const geometries=[nozzleGeometry,...(nozzleGeometries?[nozzleGeometries.default,...Object.values(nozzleGeometries.filaments??{})]:[])].filter(Boolean);
+  const covered=source.manufacturing?.contract===CONSTRUCTION_CONTRACT&&saved.schedule.completion?.contract===NEUTRAL_PATH_CONTRACT&&
+    geometries.every(geometry=>geometry.includedAngleDeg<=coverage.includedAngleDeg&&geometry.tipDiameterMm<=coverage.tipDiameterMm);
+  // The neutral schedule already orders every uncovered deposition interaction
+  // under its published access model. A contained tool reuses that exact order;
+  // a larger tool needs new deposition analysis. Both realize physical travel.
+  const schedule=covered?saved.schedule:planExecutionPath(source,{sourcePathId:saved.sourcePathId,
+    order:resolveSourceOrder(source,reader,{start:saved.schedule.initialPosition,nozzleGeometry,nozzleGeometries})});
+  return realizeMachineTransfers(joinSaamPath({sourcePathId:saved.sourcePathId,deposition:source,schedule}),nozzleGeometry,{nozzleGeometries,retreatMm,reader});
 }
 
 export function planMachineTravel(state,target,scene,targetPose,{recover=true}={}){
@@ -37,8 +44,8 @@ function planMachinePark(state,scene){
   return planningResult({...moved.state,parked:true},{chunks:[withdrawn.actions,moved.actions]});
 }
 
-export function realizeMachineTransfers(saved,nozzleGeometry,{nozzleGeometries=null,retreatMm}={}){
-  const source=saved.deposition,schedule=saved.schedule,reader=prepareCurvePath(source),motion=prepareCurvePath({curves:schedule.motionCurves});
+export function realizeMachineTransfers(saved,nozzleGeometry,{nozzleGeometries=null,retreatMm,reader=prepareCurvePath(saved.deposition)}={}){
+  const source=saved.deposition,schedule=saved.schedule,motion=prepareCurvePath({curves:schedule.motionCurves});
   const courses=new Map(Object.values(source.operations).flatMap(op=>(op.courses??[]).map(course=>[course.id,{course,op}]))),units=[],byEntry=new Map();
   for(const [index,entry] of schedule.execution.entries()){
     if(entry.kind!=='deposit'&&entry.kind!=='inject')continue;

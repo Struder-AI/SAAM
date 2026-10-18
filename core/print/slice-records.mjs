@@ -93,13 +93,10 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
       'Slice operationAfter maps walls, infill or fill to required operation IDs or {assignment}.');
     if(a.fillOrder!==null){
       const fill=a.fillOrder;
-      if(fill.kind==='surface-cells')requireThat(Object.keys(fill).every(key=>['kind','directions','toleranceMm','offsetTightness'].includes(key))&&
+      requireThat(fill.kind==='surface-cells'&&Object.keys(fill).every(key=>['kind','directions','toleranceMm','offsetTightness'].includes(key))&&
         Array.isArray(fill.directions)&&fill.directions.length>0&&fill.directions.every(d=>['axial','circumferential','forward','reverse'].includes(d))&&
         Number.isFinite(fill.toleranceMm)&&fill.toleranceMm>0&&(fill.offsetTightness===undefined||between(fill.offsetTightness,0,1)),'Physical cell fill needs directions and positive toleranceMm.');
-      else {
-        requireThat(fill.kind==='fronts'&&Object.keys(fill).sort().join()==='kind,lineSpacingMm,propagationStepMm,seedUv,toleranceMm'&&(fill.seedUv===null||loopsList(fill.seedUv)),'Front fill needs seedUv or null.');
-        for(const field of ['lineSpacingMm','propagationStepMm','toleranceMm'])requireThat(Number.isFinite(fill[field])&&fill[field]>0,'Front fill dimensions must be positive.');
-      }
+
     }
     requireThat(a.loopInsetMm===undefined||Number.isFinite(a.loopInsetMm),'Loop inset must be finite.');
     requireThat(a.roles===undefined||a.roles&&typeof a.roles==='object'&&!Array.isArray(a.roles)&&Object.keys(a.roles).every(key=>['perimeter','perimeter-inner','infill','fill'].includes(key)&&typeof a.roles[key]==='string'&&a.roles[key].length),'Slice roles map stroke groups to named roles.');

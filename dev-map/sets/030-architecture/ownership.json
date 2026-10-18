@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Scheduler/readiness and integrated spline-performance boundaries updated, 2026-10-17. Earlier authored drawings passed; influence analysis had 29 uncovered files and is now stale after integration. Remaining map regeneration/solving/audit deferred by the owner; no complete static conformance claim.",
+  "status": "Producer-validity, owned Slice regions, compact completion, lazy inspection and canonical skill retirement remediation, 2026-10-17. Full influence analysis and warm/cold solving remain owner-deferred; no complete static conformance claim.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -270,10 +270,6 @@
     "core/region/roof-region.mjs": {
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible. Declaration overrides identify mixed responsibilities."
-    },
-    "core/region/seeded-fronts.mjs": {
-      "owner": "slice",
-      "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
     },
     "core/region/surface-curves.mjs": {
       "owner": "slice",
@@ -735,10 +731,6 @@
       "owner": "extensions",
       "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
     },
-    "skills/bridging/scripts/prepare.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed catalogued extension implementation; existing engine/bundle bypasses remain findings."
-    },
     "skills/gridfinity/scripts/cli.mjs": {
       "owner": "application",
       "reason": "Command host adapter invokes the bundle lifecycle; extension computation lives in edit.mjs."
@@ -806,10 +798,6 @@
     "core/print/terminal-boundary.mjs": {
       "owner": "material-regions",
       "reason": "Unified Slice: prepared references/material intent upstream, common geometry operations and one deposition pipeline."
-    },
-    "skills/bridging/scripts/attachment-curves.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/deposition.mjs": {
       "owner": "extensions",
@@ -1798,10 +1786,6 @@
     "core/path/manufacturing.mjs": {
       "owner": "path-finalize",
       "reason": "Publish and validate minimal producer completion prerequisites."
-    },
-    "core/path/construction-access.mjs": {
-      "owner": "path-finalize",
-      "reason": "Certify producer internal validity before source publication."
     },
     "core/export/transfer-planning.mjs": {
       "owner": "export",
@@ -4895,10 +4879,6 @@
       "owner": "trace",
       "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners."
     },
-    "core/print/curves.mjs::unsupportedCurveSpans": {
-      "owner": "trace",
-      "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners."
-    },
     "core/print/curves.mjs::traceResult": {
       "owner": "trace",
       "reason": "Trace constructs curve deposition from supplied centerlines and process; geometry and producer-specific helpers have separate owners."
@@ -5684,18 +5664,6 @@
     "scripts/agent-toolkit.mjs::many": {
       "owner": "context",
       "reason": "Builder onboarding (and maker source onboarding) context assembly. Main-session proposal 2026-10-04 under owner direction: builder onboarding stays in scope under Maker context; development tooling in this file is out of scope pending a file split."
-    },
-    "skills/bridging/scripts/prepare.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/prepare.mjs::bridgeAssignment": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/prepare.mjs::point": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/prepare.mjs::validateBridgeConstruction": {
-      "owner": "extensions"
     },
     "skills/catalog.mjs::@module": {
       "owner": "extensions"
@@ -7607,24 +7575,6 @@
     "core/print/surface-domains.mjs::surveySurfaceDomain": {
       "owner": "material-regions",
       "reason": "Upstream material preparation owns claims, default remainders, reservations and reference contexts; current finalized-deposition dependencies remain visible."
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::alongRail": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::attachmentCurves": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::attachmentCurves::add": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::attachmentCurves::press": {
-      "owner": "extensions"
-    },
-    "skills/bridging/scripts/attachment-curves.mjs::railAnchors": {
-      "owner": "extensions"
     },
     "skills/deposition.mjs::@module": {
       "owner": "extensions"
@@ -14604,10 +14554,6 @@
       "owner": "slice",
       "reason": "Slice combines completed layers without recomputing their deposition."
     },
-    "core/print/generate.mjs::primeLineResult": {
-      "owner": "trace",
-      "reason": "The prime line is ordinary Trace deposition, not a fourth construction family."
-    },
     "core/geom/curve-controls.mjs::@module": {
       "owner": "geometry"
     },
@@ -15625,22 +15571,6 @@
       "reason": "Private Toolpath construction follows material prerequisites without scheduling motion."
     },
     "core/print/generate.mjs::extensionEngines": {
-      "owner": "build-evaluate",
-      "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
-    },
-    "core/print/generate.mjs::primeLineResult::p": {
-      "owner": "build-evaluate",
-      "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
-    },
-    "core/print/generate.mjs::primeLineResult::passes": {
-      "owner": "build-evaluate",
-      "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
-    },
-    "core/print/generate.mjs::primeLineResult::region": {
-      "owner": "build-evaluate",
-      "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
-    },
-    "core/print/generate.mjs::primeLineResult::top": {
       "owner": "build-evaluate",
       "reason": "Application resolves recipe, geometry and extension inputs, then receives constructed SAAMpath."
     },
@@ -17293,9 +17223,6 @@
     "core/print/slice-preparation.mjs::@module": {
       "owner": "material-regions"
     },
-    "core/print/slice-preparation.mjs::prepareFrontSeed": {
-      "owner": "material-regions"
-    },
     "core/print/slice-preparation.mjs::prepareSliceLayer": {
       "owner": "material-regions"
     },
@@ -17445,61 +17372,6 @@
     "core/region/layer-strokes.mjs::mapSliceStroke::split": {
       "owner": "geometry",
       "reason": "Geometry owns numerical coordinate, frame, surface and curve construction over explicit inputs; no deposition or scheduling policy."
-    },
-    "core/region/seeded-fronts.mjs::@module": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontLayerStrokes": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::surfaceDerivatives": {
-      "owner": "slice"
-    },
-    "core/region/seeded-fronts.mjs::connectSurfacePasses": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::connectSurfacePasses::inside": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::mapFrontPath": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontPaths": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::frontPaths::near": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::sliverWidth": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::sliverWidth::furthest": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::nearBoundary": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::roundingResiduals": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
-    },
-    "core/region/seeded-fronts.mjs::seededSurfaceFronts::resolvedResiduals": {
-      "owner": "slice",
-      "reason": "Slice constructs region deposition over supplied reference families; region sharing and execution scheduling have separate owners."
     },
     "core/geom/convex-clearance.mjs::@module": {
       "owner": "geometry",
@@ -24176,15 +24048,6 @@
     "core/geom/surface-topology.mjs::canonicalNativeUse::@scope/forof-1::curve": {
       "owner": "geometry-leaf-313a0ce851d6"
     },
-    "core/print/generate.mjs::primeLineResult::region.<callback@40:27>::length": {
-      "owner": "trace"
-    },
-    "core/print/generate.mjs::primeLineResult::region.<callback@40:27>::nx": {
-      "owner": "trace"
-    },
-    "core/print/generate.mjs::primeLineResult::region.<callback@40:27>::ny": {
-      "owner": "trace"
-    },
     "core/print/generate.mjs::generateModelResults::contexts.<callback@87:111>::shell": {
       "owner": "build-evaluate"
     },
@@ -27833,9 +27696,6 @@
     "core/region/surface-patterns.mjs::surfacePatternStrokes::rows": {
       "owner": "geometry-surface-patterns"
     },
-    "core/region/seeded-fronts.mjs::connectSurfacePasses::joining": {
-      "owner": "slice"
-    },
     "core/region/metric-fill.mjs::metricFillStrokes::intervals": {
       "owner": "slice"
     },
@@ -28125,9 +27985,6 @@
     "core/geom/slice-material.mjs::@module": {
       "owner": "geometry"
     },
-    "core/path/construction-access.mjs::@module": {
-      "owner": "path-finalize"
-    },
     "core/path/construction-curves.mjs::@module": {
       "owner": "toolpath"
     },
@@ -28251,15 +28108,6 @@
     },
     "core/path/compose.mjs::planSourceComposition": {
       "owner": "scheduling"
-    },
-    "core/path/construction-access.mjs::permittedTraversal": {
-      "owner": "path-finalize"
-    },
-    "core/path/construction-access.mjs::wholeProducerProofs": {
-      "owner": "path-finalize"
-    },
-    "core/path/construction-access.mjs::certifyConstruction": {
-      "owner": "path-finalize"
     },
     "core/path/construction-curves.mjs::regularGeometry": {
       "owner": "toolpath"
@@ -28440,6 +28288,24 @@
     "core/export/prepare-path.mjs::inspectPath": {
       "owner": "export",
       "reason": "One pass owns export preflight orientation, deposition bounds and priming facts from the physical action/context stream."
+    },
+    "core/print/slice-material.mjs::prepareOwnedSliceRegions": {
+      "owner": "material-regions"
+    },
+    "core/path/contact-curves.mjs::traceContactNotes": {
+      "owner": "path-finalize"
+    },
+    "core/print/finalize.mjs::finalizeMaterial": {
+      "owner": "path-finalize"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::spatialIndex": {
+      "owner": "scheduling"
+    },
+    "core/path/physical-order.mjs::prepareRangeScene::preparedProofs": {
+      "owner": "scheduling"
+    },
+    "core/print/surface-readiness.mjs::manufacturedSurfaceReadiness::downstream": {
+      "owner": "build-evaluate"
     }
   },
   "retiredAssignments": [

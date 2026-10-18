@@ -13,10 +13,22 @@ import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
 const sliceMaterials=new WeakMap();
 
-export function manufacturedSurfaceReadiness(contexts,footprints,{part=null,exclude=null,sampleStepMm=.2,side='material'}={}){
+export function manufacturedSurfaceReadiness(contexts,footprints,{part=null,exclude=null,before=null,sampleStepMm=.2,side='material'}={}){
   const required=[];
+  // A known successor cannot provide material for its own predecessor. Native
+  // indices matter: work after slice 3 may still support slice 4, but work
+  // requiring slice 4 (or the entire owner) cannot support slice 4's base.
+  function downstream(record,seen=new Set()){
+    if(!before||seen.has(record))return false;seen.add(record);
+    const references=[...(record.prerequisites??[]),...record.spec.layers.flatMap(layer=>layer.prerequisites??[])];
+    return references.some(reference=>{
+      if((reference.part??record.owner.part)!==part)return false;
+      if(reference.assignment===before.assignment)return reference.index===undefined||reference.index>=before.index;
+      return contexts.some(other=>other.owner.part===part&&other.owner.assignment.id===reference.assignment&&downstream(other,seen));
+    });
+  }
   for(const record of contexts){
-    if(record.owner.part!==part||record.owner.assignment.id===exclude)continue;
+    if(record.owner.part!==part||record.owner.assignment.id===exclude||downstream(record))continue;
     // Native construction order includes every earlier slice. One greatest
     // touched slice is sufficient for this producer, including empty gaps.
     let last,remaining=footprints;
@@ -93,7 +105,8 @@ export function surfaceFootprints(surface,region,{sampleStepMm=.2,normalMm=0}={}
 export function referenceSliceReadiness(record,contexts){
   if(!record.reference||record.reference.selection.kind==='terminal')return record.prerequisites??[];
   const surface=surfaceRegion(record.context.shell,record.reference.selection);
-  return manufacturedSurfaceReadiness(contexts,surfaceFootprints(surface,[[[0,0],[1,0],[1,1],[0,1]]],record.spec.settings),
+  const footprints=record.spec.layers.flatMap(layer=>surfaceFootprints(surface,layer.region,record.spec.settings));
+  return manufacturedSurfaceReadiness(contexts,footprints,
     {part:record.owner.part,exclude:record.owner.assignment.id,sampleStepMm:record.spec.settings.sampleStepMm});
 }
 
@@ -146,7 +159,8 @@ export function nativeBaseReadiness(record,materials){
     const direction=layer.direction??layer.slice.normal,depth=layer.heightMm??layer.gap?.normalMm;
     const footprint=surfaceFootprints(layer.slice,region,{...record.spec.settings,normalMm:direction?0:-depth});
     const base=direction?footprint.map(row=>row.map(point=>point.map((v,k)=>v-(layer.translationMm??depth)*direction[k]))):footprint;
-    const required=manufacturedSurfaceReadiness(materials,base,{part:record.owner.part,exclude:record.owner.assignment.id,side:'upper'});
+    const required=manufacturedSurfaceReadiness(materials,base,{part:record.owner.part,exclude:record.owner.assignment.id,
+      before:{assignment:record.owner.assignment.id,index:layer.index},side:'upper'});
     return required.length?{...layer,onSubstrate:true,firstBedLayer:false,gap:{...layer.gap,substrate:null},prerequisites:[...(layer.prerequisites??[]),...required]}:layer;
   });
   return {...record,spec:{...record.spec,layers}};

@@ -19,7 +19,7 @@ return async function build(index){
  }
  const spec=surfaceFor(d,a),shell=G.buildGeometry({shape:'spline',patches:[spec]}),slice=G.patchSlice(shell.patches[0]);
  if(!initialMask){const [box]=await G.constructGeometry([{operation:'box',size:[24,24,24]}]);const wave=surfaceSpec(d,endingPose());initialMask=G.section(G.buildGeometry(box.geometry),G.patchSlice(G.buildGeometry({shape:'spline',patches:[wave]}).patches[0])).loops;}
- const q=a.mode==='cladding'?Math.min(1,a.morph*3):a.morph;
+ const q=a.morph;
  const region=q===1?[[[0,0],[1,0],[1,1],[0,1]]]:initialMask.map(loop=>loop.map(p=>{const delta=p.map(n=>n-.5),scale=.5/Math.max(...delta.map(Math.abs));return p.map((n,k)=>n+(delta[k]*scale+.5-n)*q);}));
  const source={...recipeDefaults(),geometry:{shape:'spline',patches:[spec]},process:{lineWidthMm:.45,firstLayerMm:.2,layerMm:.2,primeLine:null},slices:{version:1,assignments:[{id:'presentation-slice',loops:a.loops,fillDensity:a.density,fillPattern:'rectilinear',fillAnglesDeg:[a.angle],rotateFill:false,solidTop:0,solidBottom:0,fillOverlap:.15,sampleStepMm:.65,surface:{kind:'spline',patch:spec.name,periodicU:false,normalSide:1,uvBounds:[[0,1],[0,1]]},stack:{firstLayerMm:.2,layerMm:.2,direction:'normal'},within:[{kind:'normal-band',fromMm:-.2,toMm:0}]}]}};
  const plan=compileRecipe(source).plan,settings=plan.slices.assignments[0],direction=a.mode==='bridge'?[0,0,1]:G.evaluateSurface(slice,[.5,.5]).normal;

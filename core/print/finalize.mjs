@@ -10,6 +10,7 @@ import {validatePose} from '../path/pose.mjs';
 import {prepareDepositionMotion,prepareReferenceMotion} from '../path/deposition-motion.mjs';
 import {resolveDepositionConnections} from '../path/deposition-connections.mjs';
 import {retainConstructionCurves} from '../path/construction-curves.mjs';
+import {traceContactNotes} from '../path/contact-curves.mjs';
 
 function finalizedOperation(operation){
   let high=-Infinity;
@@ -44,6 +45,10 @@ function finalizedOperation(operation){
 
 export function finalizeDepositionResult(result,plan){
   if(result.depositionFinalized)return result;
+  return traceContactNotes(finalizeMaterial(result,plan));
+}
+
+function finalizeMaterial(result,plan){
   result={...result,operations:result.operations.map(op=>({...op,nominalRank:op.nominalRank??op.rank}))};
   // A nominal region cannot prove a join safe after its bead geometry changes.
   // Freeze every operation's order here; all deposited material, including joins,

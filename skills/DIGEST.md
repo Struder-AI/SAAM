@@ -26,7 +26,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [hole-supports](hole-supports/SKILL.md) | Experimental. Downward-hole printing with removable supports, a drill-through membrane, stepped reduction or wave fronts. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for axial or helical coatings using ordinary Slice over a selected surface. |
 | [thick-lip](thick-lip/SKILL.md) | Guidance for thickened or rolled edges made with ordinary Slice or Trace. |
-| [wave-overhangs](wave-overhangs/SKILL.md) | Guidance for laterally growing overhangs using ordinary Slice seeded-front fill. |
+| [wave-overhangs](wave-overhangs/SKILL.md) | Guidance for lateral overhangs using the shared printed-base/final-edge wave construction. |
 
 ## Extensions
 
@@ -34,7 +34,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 |---|---|
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Extension that fits a sleeve, repeats authored patterns and calls Trace. |
 | [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Trace spiral wall and optional solid base. |
-| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, including attachment motions. |
+| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, using the shared printed-edge construction. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Catalog heat-set bores with reinforcement following actual Slice layers. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |

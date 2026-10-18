@@ -4,12 +4,10 @@ import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {curveLength} from '../path/curve-construction.mjs';
 import {authoredNurbs,readCurveProfiles,distinctPolyline,constructAuthoredCurves} from '../path/authored-curves.mjs';
 import {readWidthRule} from '../path/parallel-curves.mjs';
-import {depositedCurveSegments,curveSupportsPoint} from '../path/deposited-curves.mjs';
-import {contactSpans,contactSpanNote} from '../path/contact-curves.mjs';
+import {depositedCurveSegments} from '../path/deposited-curves.mjs';
 import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {joinCurveSequence} from '../path/stack-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
-import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
 import {operationPrerequisite,validateEdgeAfter} from './operation-references.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
@@ -105,27 +103,12 @@ export function readAuthoredCurve(source){
   return {curve:{...curve,...points,...(curve.segmentMetadata?{segmentMetadata:distinct.segments.map(j=>curve.segmentMetadata[j])}:{})},ignored};
 }
 
-// Spans of a curve declaring contact where its supporting material is absent;
-// the curve prints there at its authored height with its bead (contactSpans).
-function unsupportedCurveSpans(curve,segments,heightMm){
-  if(!curve.contact)return [];
-  const c=curve.contact,height=curve.heightMm??heightMm;
-  return contactSpans(curve.points.slice(1).flatMap((b,i)=>{
-    const a=curve.points[i],n=Math.max(1,Math.ceil(distance(a,b)/c.sampleStepMm));
-    return Array.from({length:i?n:n+1},(_,j)=>{
-      const p=a.map((v,k)=>v+(b[k]-v)*(i?j+1:j)/n);
-      return {point:p,status:curveSupportsPoint(segments,p,(c.referenceZMm??p[2])-(c.gapMm??height),{source:c.source})?null:'unsupported'};
-    });
-  }));
-}
-
 export function authoredCurveResult(assignment,{plan,process=plan.process,references={},modelResults=[],sourceLayer=null}) {
   const referenceStack=sourceLayer?.referenceStack??(assignment.repeat?.stack?references[`slice:${assignment.repeat.stack}`]:null);
   requireThat(!assignment.repeat?.stack||referenceStack?.layers?.length,'Curve repeat needs an available named slice stack.');
   const indices=sourceLayer?[sourceLayer.index]:referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
-  const finalizeInside=!sourceLayer&&(assignment.sequence||assignment.curves.some(c=>c.contact));
   const read=assignment.curves.map(readAuthoredCurve),ignored=read.flatMap(({ignored},i)=>ignored.map(field=>`curves[${i}].${field}`)),authored=read.flatMap(({curve})=>curve?[curve]:[]);
-  const batches=[],parts=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=authored.some(curve=>curve.contact)?modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})):[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
+  const batches=[],notes=ignored.length?[`Trace ${assignment.id} fields ignored, not readable by this SAAM: ${ignored.join(', ')}.`]:[],supportSegments=authored.some(curve=>curve.contact)?modelResults.flatMap(r=>depositedCurveSegments(r.operations,{widthMm:process.lineWidthMm,source:r.id})):[],count=indices?.length??assignment.repeat?.count??1,translation=assignment.repeat?.translation??[0,0,0];
   const sourceCurves=new Map(authored.map((curve,index)=>[curve,curve.id??index]));
   for(let repetition=0;repetition<count;repetition++){
     const index=indices?.[repetition]??repetition;
@@ -142,7 +125,6 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     const ready=curves.map(curve=>{
       const actualHeightMm=curve.heightMm??heightMm;
       if(curve.depositionAction)requireThat(curve.depositionAction.depthMm<actualHeightMm,'Press depth must remain within its deposition layer.');
-      notes.push(...unsupportedCurveSpans(curve,supportSegments,heightMm).map(span=>contactSpanNote(`Trace ${assignment.id}`,span)));
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
     if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
@@ -154,15 +136,12 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       ...(native??{}),...(sourceLayer?.sliceMember?{stackSlice:{stackId:sourceLayer.stackId,index:sourceLayer.index}}:{}),
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence||assignment.ordered?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
-    if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
-      const raw=traceResult({...assignment,after:previous},{batches:[spec],process,report:{construction:'curves'}}),result=finalizeDepositionResult(raw,plan);
-      if(assignment.maxExcursionMm!==null){const heights=result.operations.flatMap(o=>o.strokes.flatMap(c=>c.points.map(p=>p[2])));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Final Trace repetition exceeds its authored Z excursion limit.');}
-      parts.push(result);for(const op of result.operations)for(const segment of depositedCurveSegments([{...op,strokes:op.strokes.filter(s=>!s.depositionAction)}],{widthMm:process.lineWidthMm,source:op.id}))supportSegments.push(segment);
-    }
+
   }
   const noted=notes.length?{notes}:{};
-  if(finalizeInside)return combineFinalizedResults({id:assignment.id,report:{construction:'curves',depositionFamily:'trace',repetitions:count,...noted}},parts);
-  return traceResult(assignment,{batches,process,sequential:false,report:{construction:'curves',repetitions:count,...noted}});
+  const result=traceResult(assignment,{batches,process,sequential:assignment.sequence,report:{construction:'curves',repetitions:count,...noted}});
+  return authored.some(curve=>curve.contact)||assignment.maxExcursionMm!==null?
+    {...result,traceContact:{segments:supportSegments,widthMm:process.lineWidthMm,maxExcursionMm:assignment.maxExcursionMm}}:result;
 }
 
 // A chart reference supplies geometry and provenance, not stack membership.
@@ -199,8 +178,8 @@ export function traceResult(assignment,{batches,process,sequential=true,report={
   return {id:assignment.id,operations,report:{...report,...(joinNotes.length?{notes:[...(report.notes??[]),...joinNotes]}:{}),depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
 }
 
-// Construct a selected trace from finalized predecessors. Dependent batches
-// finalize their internal sequence before subsequent contact checks.
+// Construct raw Trace batches from prepared references and finalized predecessors.
+// The common finalizer owns all batch edits and subsequent contact diagnostics.
 export function curveAssignmentResult(assignment,{plan,modelResults,references={}}) {
   validateCurveAssignment(assignment);
   const selected=assignmentPlan(plan,assignment);

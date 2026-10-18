@@ -168,8 +168,7 @@ Scheduling owns material prerequisites and nozzle access through the saved path.
 
 Skin survey, curve mapping and local gaps are shared stages in
 [roof-region.mjs](./roof-region.mjs), [layer-strokes.mjs](./layer-strokes.mjs)
-and [surface-curves.mjs](./surface-curves.mjs). Seeded fronts use
-[seeded-fronts.mjs](./seeded-fronts.mjs) before the same mapping/deposition stages.
+and [surface-curves.mjs](./surface-curves.mjs). Wave and bridge geometry uses the common printed-edge construction before Trace deposition.
 Mapping preserves surface normals and checks physical sample spacing and chord
 error. Only actual exporters enforce machine orientation compatibility.
 

@@ -37,7 +37,7 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `within` | `[]` | Intersected material claims; empty retains unclaimed part material. |
 | `sliceOverrides`, `operationAfter` | Optional | Per-slice settings; `operationAfter:{walls:[refs],infill:[refs],fill:[refs]}` scopes hard edges, also in overrides; refs are IDs or `{assignment}` completion. |
 | `loopInsetMm`, `roles` | Optional | Signed physical first-loop inset and stroke-role names. |
-| `fillOrder` | `null` | Ordinary patterns, physical chart cells or seeded fronts; independent of stack choice. |
+| `fillOrder` | `null` | Ordinary patterns or physical chart cells; independent of stack choice. |
 | `contact`, `toolPose` | `null` | Prepared-material source and optional derived poses, below. |
 | `substrate`, `dependencies`, `description` | Null, empty lists/text | Manufactured base, explicit requirements and intent. |
 

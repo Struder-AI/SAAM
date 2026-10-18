@@ -1,7 +1,8 @@
 // Application prepares work and extension dependencies before Toolpath runs.
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {prepareSliceLayer,prepareFrontSeed} from './slice-preparation.mjs';
+import {prepareSliceLayer} from './slice-preparation.mjs';
 import {prepareReferenceSliceStack} from './slice-stacks.mjs';
+import {prepareOwnedSliceRegions} from './slice-material.mjs';
 import {layerStrokes} from '../region/layer-strokes.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareTraceSourceLayer} from './trace-source-preparation.mjs';
@@ -64,7 +65,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       [...constructions,...curveSources].find(other=>other.assignment.id===record.reference.source&&other.assignment.part===record.owner.part):null;
     if(source?.spec)resolve(source);
     else if(source?.assignment.construction==='curves')resolveTrace(source);
-    if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareReferenceSliceStack(record,{source,references})));
+    if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareOwnedSliceRegions(prepareReferenceSliceStack(record,{source,references}))));
     const contactSources=[...(assignment.contact?.surfaces??[]).map(surface=>surface.source),...(assignment.contact?.source&&typeof assignment.contact.source==='object'?[assignment.contact.source]:[])];
     for(const contact of contactSources)for(const supporting of contexts.filter(other=>other!==record&&other.owner.assignment.id===contact.assignment&&
       other.owner.part===(Object.hasOwn(contact,'part')?contact.part:record.owner.part)))if(supporting.spec.layers.some(layer=>!layer.slice))resolve(supporting);
@@ -75,16 +76,6 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       const onSubstrate=layer.onSubstrate??Boolean(record.contact);
       const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,substrate:onSubstrate?null:record.context.substrate??null}};
       const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
-      if(nominal.settings.fillOrder?.kind==='fronts'&&nominal.settings.fillOrder.seedUv===null){
-        const selected=record.contact?.source,sourceId=typeof selected==='string'?selected:selected?.assignment;
-        const sourcePart=selected&&typeof selected==='object'&&Object.hasOwn(selected,'part')?selected.part:record.owner.part;
-        const supporting=contexts.filter(other=>other!==record&&other.owner.part===sourcePart&&(sourceId?other.owner.assignment.id===sourceId:!other.contact&&!other.reference));
-        for(const other of supporting)resolve(other);
-        const prior=record.spec.layers.filter(other=>other.index<layer.index);
-        const predecessors=[...prior.slice(-1),...supporting.flatMap(other=>other.spec.layers)];
-        const seedUv=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareFrontSeed(input,{predecessors,substrate:input.gap.substrate??null,sampleStepMm:nominal.settings.sampleStepMm,toleranceMm:nominal.settings.fillOrder.toleranceMm}));
-        nominal.strokeSettings={...nominal.strokeSettings,fillOrder:{...nominal.settings.fillOrder,seedUv},layer:{...nominal.strokeSettings.layer,seedSource:'prepared-material'}};
-      }
       const strokes=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>layerStrokes(layer.region,{...nominal.strokeSettings,preparedLayout:nominal.preparedLayout}));
       fillState=strokes.nextFillState;
       record.preparedLayers.set(layer.index,{...nominal,preparedStrokes:strokes,ordinal,firstBedLayer:!onSubstrate&&ordinal===0});
@@ -115,6 +106,12 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   });
   const nodes=baseNodes.map(node=>({...node,requires:[...node.requires,...followers.filter(follower=>node.requires.includes(follower.parentKey)).map(follower=>follower.key)]})).concat(followers);
   const descriptions=nodes.map(node=>assignmentWork(node,()=>depositionWorkDescription(node)));
+  const workCompletions=new Map(),completionKey=node=>'work-completion:'+JSON.stringify([node.sourceId,node.part]);
+  for(const node of nodes){
+    const key=completionKey(node);
+    if(!workCompletions.has(key))workCompletions.set(key,{key,kind:'completion',sourceId:node.sourceId,part:node.part,requires:[]});
+    workCompletions.get(key).requires.push(node.key);
+  }
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
     const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires.filter(key=>key!==node.parentKey)),defaults=new Set();
@@ -124,7 +121,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     for(const other of nodes){
       if(other===node)continue;
       const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
-      if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part))){needs.add(other.key);execution.add(other.key);}
+      if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part)))needs.add(completionKey(other));
       if(references.some(reference=>(reference.assignment===other.sourceId||reference.assignment===other.record?.spec.id)&&
         (reference.index===undefined||reference.index===other.index)))needs.add(other.key);
       if(node.kind==='slice'&&node.record.reference?.selection.kind==='terminal'&&other.part===node.part&&
@@ -138,13 +135,14 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     for(const key of declaredDependencies.dependencies){needs.add(key);execution.add(key);}
     return {...node,requires:[...needs],executionRequires:[...execution],defaults:[...defaults],dependencyNotes:declaredDependencies.notes};
   }));
+  declared.push(...workCompletions.values());
   // Unnamed substrate/bridge inputs use available producers, excluding explicit
   // downstream consumers. Explicit recipe edges always retain their meaning.
   const dependsOn=(key,target,seen=new Set())=>{
     if(key===target)return true;if(seen.has(key))return false;seen.add(key);
     return (declared.find(node=>node.key===key)?.requires??[]).some(prior=>dependsOn(prior,target,seen));
   };
-  const prepared=declared.map(({defaults,...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
+  const prepared=declared.map(({defaults=[],...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
   const byKey=new Map(prepared.map(node=>[node.key,node]));
   const reaches=(key,target,seen=new Set())=>{
     if(key===target)return true;if(seen.has(key))return false;seen.add(key);

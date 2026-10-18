@@ -9,8 +9,10 @@ import {keyed,profileAt,interpolateScalar} from './curve-profiles.mjs';
 import {constructionCurve} from './construction-curves.mjs';
 import {compactCurveProfiles,materialParameterError} from './compact-profiles.mjs';
 import {ROUNDING_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {publishManufacturing} from './manufacturing.mjs';
-import {certifyConstruction} from './construction-access.mjs';
+import {publishManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
+import {resolveMaterialReadiness} from './material-readiness.mjs';
+import {prepareCurvePath} from './curve-path.mjs';
+import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
 
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function channel(values,parameters,interpolation){
@@ -207,8 +209,13 @@ export function constructionPath({results,planning,composition,summary,generator
     continuousProfiles(curves,courses,{requiredOnly:interruptible});
     operations[operation.id]={...shared,kind:'deposit',courses};
   }
-  const manufacturing=publishManufacturing(results,operations,layers);
-  return saamPath(certifyConstruction({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
-    ...manufacturing,operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
-      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}},{onProgress,materialReadiness:results.flatMap(result=>result.materialReadiness??[])}));
+  const published=publishManufacturing(results,operations,layers);
+  const source={schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
+    ...published,operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
+      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction},
+    manufacturing:{contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{}}};
+  // Producers own internal validity and traversal permissions. Enclosure
+  // readiness is a material requirement, not a second scheduling lifecycle.
+  resolveMaterialReadiness(source,prepareCurvePath(source),results.flatMap(result=>result.materialReadiness??[]));
+  return saamPath(source);
 }

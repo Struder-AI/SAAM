@@ -64,7 +64,7 @@ export function admitSource(source){
   validateManufacturing(source);
   if(source.manufacturing){
     const validity=source.manufacturing;
-    requireThat([CONSTRUCTION_CONTRACT,'saam-construction-access/1'].includes(validity.contract)&&table(validity.accessGeometry)&&table(validity.courseTraversal),
+    requireThat([CONSTRUCTION_CONTRACT,'saam-construction-access/1','saam-construction-access/2'].includes(validity.contract)&&table(validity.accessGeometry)&&table(validity.courseTraversal),
       'Manufacturing validity needs its access model and permitted traversal exceptions.');
     requireThat(Number.isFinite(validity.accessGeometry.includedAngleDeg)&&validity.accessGeometry.includedAngleDeg>0&&validity.accessGeometry.includedAngleDeg<180&&
       Number.isFinite(validity.accessGeometry.tipDiameterMm)&&validity.accessGeometry.tipDiameterMm>=0,'Invalid construction access geometry.');

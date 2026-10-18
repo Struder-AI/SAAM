@@ -28,6 +28,7 @@ function combineSliceResults(record,sliceResults){
 }
 
 export function constructDepositionWork(node,completed,{plan,onProgress,shells=[],contexts=[]}){
+  if(node.kind==='completion')return {id:node.key,operations:[],report:{}};
   const required=new Set();
   const collect=key=>{if(required.has(key))return;required.add(key);for(const prior of completed.get(key)?.node.requires??[])collect(prior);};
   node.requires.forEach(collect);
@@ -42,7 +43,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   else if(node.kind==='slice'){
     result=sliceContextResult(node.record,{layerIndex:node.index});
   }else if(node.kind==='trace'){
-    const results=predecessors.map(item=>item.result);
+    const results=predecessors.filter(item=>item.node.kind!=='completion').map(item=>item.result);
     if(node.context.assignment.source)result=sourceCurveResult(node,completed,{plan,results,shells});
     else result=curveAssignmentResult(node.context.assignment,{plan,modelResults:results,
       references:depositionReferences(shells,results)});
@@ -96,7 +97,7 @@ export function constructDepositionResults(args,contexts){
       args.onProgress?.({stage:'Constructing deposition',assignment:node.sourceId,layer:node.index,completed:completed.size,total:nodes.length});
       const result=assignmentWork(node,()=>{
         const raw=constructDepositionWork(node,completed,{...args,contexts}),finalized=finalizeDepositionResult(raw,args.plan);
-        return publishDepositionWork(node,republishDepositedBoundary(finalized,{widthMm:args.plan.process.lineWidthMm}));
+        return node.kind==='completion'?finalized:publishDepositionWork(node,republishDepositedBoundary(finalized,{widthMm:args.plan.process.lineWidthMm}));
       });
       completed.set(node.key,{node,result});
     }
@@ -107,7 +108,7 @@ export function constructDepositionResults(args,contexts){
     const result=combineSliceResults(record,sliceResults);
     results.push(result);
   }
-  results.push(...nodes.filter(node=>node.kind!=='slice'&&!node.context?.assignment.source).map(node=>completed.get(node.key).result));
+  results.push(...nodes.filter(node=>!['slice','completion'].includes(node.kind)&&!node.context?.assignment.source).map(node=>completed.get(node.key).result));
   for(const context of curveSources){
     const parts=nodes.filter(node=>node.context?.assignment.source&&node.sourceId===context.assignment.id).map(node=>completed.get(node.key).result);
     if(parts.length)results.push(combineFinalizedResults({id:context.assignment.id,report:{construction:'curves',depositionFamily:'trace',source:context.assignment.source,owner:context.assignment.id,part:context.assignment.part,

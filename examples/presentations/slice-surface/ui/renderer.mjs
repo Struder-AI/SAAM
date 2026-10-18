@@ -36,7 +36,7 @@ export async function drawFrame(canvas,frame,{context=true,previous=null}={}){
  if(published!==identity){await renderer.publishProgram({moves:program.moves,plan:frame.plan,geometry:{}});published=identity;}
  const {x,y,width,height}=studio.layout.viewport;viewport.width=width;viewport.height=height;
  const state={plan:frame.plan,geometry:{},program};
- const annotations=renderer.draw({target:viewport,width,height,ratio:1,position:program.summary.motionSeconds,frameNow:10000,fadeState:createLayerFade(),updateUI:false,state,tab:'toolpath',camera:{yaw:-.78,tilt:.62,zoom:1.15,pan:[0,0]},settings:{showTravel:false,previousLayerOpacity:.24,followPlate:true},bounds:{min:[0,0,0],max:[24,24,24]}});
+ const annotations=renderer.draw({target:viewport,width,height,ratio:1,position:program.summary.motionSeconds,frameNow:10000,fadeState:createLayerFade(),updateUI:false,manualPose:true,state,tab:'toolpath',camera:{yaw:-.78,tilt:.62,zoom:1.15,pan:[0,0]},settings:{showTravel:false,previousLayerOpacity:.24,followPlate:true},bounds:{min:[0,0,0],max:[24,24,24]}});
  if(!renderer.sceneState().solid||annotations.detailText)throw Error(annotations.detailText||'Native material rendering unavailable.');
  const ctx=canvas.getContext('2d'),scale=canvas.width/studio.layout.width;ctx.setTransform(scale,0,0,scale,0,0);ctx.globalAlpha=1;ctx.drawImage(studio.image,0,0);ctx.drawImage(viewport,x,y,width,height);
  // The surrounding window is a real Studio capture; keep its changing readouts truthful.

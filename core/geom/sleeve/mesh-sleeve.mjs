@@ -12,8 +12,8 @@ import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
 
 // Process scale default: sleeve section tolerance (twenty times print resolution).
 const SECTION_TOLERANCE_MM=.02;
-// A secondary outer or bore below this fraction of the outer area is a pore (a
-// classification fraction, not a length tolerance).
+// A bore below this area fraction is classified as a pore. Disconnected outer
+// boundaries are never pores and must not disappear during fitting.
 const SECONDARY_AREA_FRACTION=.001;
 // A sampled section is one simple counterclockwise loop when a union on a fine grid
 // keeps its area. The grid and the area slack serve that union's integer arithmetic;
@@ -39,8 +39,8 @@ function sleeveCut(cut,z,{toleranceMm,maxSecondaryAreaFraction},allowCollapsed=f
     throw new Error(`Mesh sleeve outer boundary collapses at Z ${z} mm; exclude the pole or cap transition.`);
   }
   const outer=outers[0],secondaryOuters=outers.slice(1),secondaryArea=secondaryOuters.reduce((sum,loop)=>sum+loopArea(loop),0);
-  requireThat(secondaryArea<=loopArea(outer)*maxSecondaryAreaFraction,
-    `Mesh sleeve needs one dominant outer boundary at Z ${z} mm; disconnected, branching sections exceed maxSecondaryAreaFraction.`);
+  requireThat(outers.length===1,
+    `Mesh sleeve needs exactly one outer boundary at Z ${z} mm; disconnected islands or branching sections require separate geometry selections.`);
   const holes=cut.loops.filter(loop=>loopArea(loop)<0&&pointInRegion(loop[0],[outer]));
   const bores=holes.filter(hole=>-loopArea(hole)>loopArea(outer)*maxSecondaryAreaFraction);
   requireThat(bores.length<=1,`Mesh sleeve has multiple substantial bores at Z ${z} mm; choose a single sleeve.`);

@@ -20,5 +20,8 @@ Helpers derive manufacturing prerequisites. The scheduler places independent
 work and handles uncovered interference; Export owns physical machine transfers.
 Inspect geometry, material ownership and attachment in Studio.
 
-The membrane helper owns its guide, fill and edges. The static example bridges at Z4.0 from Z3.8 rim walls, then continues the bore at Z4.2, adapting TKeller's [original exemplar](references/README.md).
-Each linked example is one complete 16×16×8mm part with one technique (R5 recess to Z4; R2 bore), visually accepted 2026-10-16. Inspect contact and operation/strand order around Z4–4.6; report wave residue. Example Trace curves use assembly XYZ.
+The membrane example selects a printed square rim and fills its interior
+through the same shared edge construction as bridging. The other linked
+examples demonstrate their own geometry and scale; they are not all variants
+of one 16 mm exemplar. [Original STEP provenance](references/README.md) remains
+historical reference material. Inspect actual attachment and native slice order.

@@ -34,27 +34,13 @@ function stackNormal(sleeve,u,v){
   return normalize(a.map((x,k)=>x+(b[k]-x)*t));
 }
 
-// A boundary function is the wall itself; its layers only label segments, so
-// any layer count and shape spirals. A sleeve chart is interpolated between
-// layer boundaries: it joins the longest run of consecutive joinable layers,
-// and every other layer prints its boundaries as separate closed layers
-// (layerCurves; one note names them). Without such a run, profile is null and
-// layerCurves hold every layer.
+// One continuous wall needs one boundary at every source section. Invalid
+// topology is rejected before constructing any alternative deposition.
 export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,role='spiral',...options}){
   requireThat(firstHeightMm>0&&widthMm>0&&Number.isFinite(speedMmS),'Spiral joining needs positive bead values and a speed.');
-  const bead={firstHeightMm,widthMm,speedMmS,role,...options};
-  if(referenceStack.boundary)return {...spiralRun(referenceStack,bead),layerCurves:[]};
-  const runs=[];
-  for(const layer of referenceStack.layers){const run=runs.at(-1);if(run?.joinable&&joinable(layer))run.layers.push(layer);else runs.push({joinable:joinable(layer),layers:[layer]});}
-  const joined=runs.filter(run=>run.joinable&&run.layers.length>=2).reduce((best,run)=>run.layers.length>(best?.layers.length??0)?run:best,null)?.layers??[];
-  const separate=referenceStack.layers.filter(layer=>!joined.includes(layer)),whole=joined.length===referenceStack.layers.length;
-  // A part of the stack takes the chart's own layer coordinate.
-  const spiral=joined.length?spiralRun({...referenceStack,layers:joined,...(whole?{}:{coordinate:undefined})},bead):{profile:null,notes:[]};
-  // Collapsed boundaries carry nothing to print.
-  const layerCurves=separate.flatMap(layer=>(layer.curves??[]).filter(curve=>curve.points?.length>=(curve.closed?3:2)).map(curve=>({...curve,role,speedMmS,beadWidthMm:widthMm,
-    heightMm:layer.heightMm??firstHeightMm,segmentMetadata:curve.points.slice(curve.closed?0:1).map(()=>({layer:layer.index}))})));
-  const notes=separate.length?[`Spiral stack: ${layerList(separate.map(layer=>layer.index))} printed plain, not spiral-joined; a spiral joins consecutive layers that each have one closed boundary${joined.length?`, here ${layerList(joined.map(layer=>layer.index))}`:''}.`]:[];
-  return {...spiral,layerCurves,notes:[...spiral.notes,...notes]};
+  requireThat(referenceStack.boundary||referenceStack.layers.length>=2&&referenceStack.layers.every(joinable),
+    'A spiral needs one continuous boundary throughout; disconnected islands, split or collapsed sections need separate Slice work.');
+  return spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,role,...options});
 }
 
 // Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm

@@ -35,23 +35,6 @@ async function extensionEngines(){return {
 };}
 
 
-// A zero-length pass deposits nothing.
-function primeLineResult(plan){
-  const p=plan.process.primeLine;if(p===null)return null;
-  const passes=(p.passes??[p]).filter(pass=>Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>0);
-  if(!passes.length)return null;
-  const region=passes.map(pass=>{
-    const [a,b]=[pass.startMm,pass.endMm],length=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])*pass.widthMm/length/2,ny=(b[0]-a[0])*pass.widthMm/length/2;
-    return [[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]];
-  });
-  const top=Math.max(...passes.map(pass=>pass.zMm));
-  return traceResult({id:'prime-line',filament:null,after:[]},{process:plan.process,report:{passes:passes.length},batches:[{
-    key:0,layerId:'planar:'+top,phase:'prime',layer:0,rank:-1,
-    curves:passes.map(pass=>({role:'prime-line',closed:false,points:[[...pass.startMm,pass.zMm],[...pass.endMm,pass.zMm]],
-      normals:[[0,0,1],[0,0,1]],beadWidthMm:pass.widthMm,heightMm:pass.heightMm,speedMmS:pass.speedMmS})),
-    widthMm:Math.max(...passes.map(pass=>pass.widthMm)),travel:{kind:'planar',region,zMm:top,maxCombMm:0}}]});
-}
-
 // Toolpath chooses which geometry its assignments need; Geometry resolves and
 // places those requests, including within-volumes in their owner's frame.
 export async function preparePathGeometry(plan) {
@@ -147,10 +130,11 @@ export function applyDeclaredDependencies(plan,results){
     const assignment=plan.slices.assignments.find(a=>a.id===(result.report?.owner??result.id));
     const dependencies=assignment?.dependencies;if(!dependencies)continue;
     const prior=results.filter(other=>other!==result&&dependencies.afterParts.includes(other.report?.part));
-    const after=[...dependencies.after,...prior.flatMap(other=>other.operations.map(op=>op.id))];
+    const completion=other=>({assignment:other.report?.owner??other.id,part:other.report?.part??null});
+    const after=[...dependencies.after,...prior.map(completion)];
     for(const op of result.operations)if(after.length)changes.push({operationId:op.id,after,mode:'union'});
     const before=results.filter(other=>other!==result&&dependencies.beforeParts.includes(other.report?.part));
-    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'union'});
+    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:[completion(result)],mode:'union'});
   }
   return applyResultDependencies(results,changes);
 }
@@ -222,7 +206,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.composition=null;
 
   summary.boundsMm = placed?.bounds??null;
-  summary.clearance = 'Construction certifies internal deposition access; scheduling resolves external interference. Export checks transfers using the selected tool geometry.';
+  summary.clearance = 'Producers own internal deposition validity; scheduling resolves uncovered interference. Export checks transfers using the selected tool geometry.';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
     maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100
@@ -269,13 +253,10 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
-  const prime=primeLineResult(plan);
   const model=await generateModelResults(evaluated,prepared,onProgress);
   const complemented={...model,results:resolveOperationReferences(evaluated,applyDeclaredDependencies(evaluated,model.results))};
-  const resultsWithPrime=prime?complemented.results.map(result=>({...result,operations:result.operations.map(operation=>({...operation,after:[...new Set([...prime.operations.map(op=>op.id),...(operation.after??[])])]}))})):complemented.results;
-  const primed=prime?{...complemented,results:[prime,...resultsWithPrime],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
-  const {placed}=prepared,{results,survey}=primed,process=plan.process;
-  const summary=summarizeGeneratedPath(placed,survey,primed.summary);
+  const {placed}=prepared,{results,survey}=complemented,process=plan.process;
+  const summary=summarizeGeneratedPath(placed,survey,complemented.summary);
   summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
     sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),
     sliceHits:results.reduce((sum,result)=>sum+(result.report.contactSamples??0),0),

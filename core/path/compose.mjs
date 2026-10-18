@@ -60,9 +60,8 @@ function courseCuts(reader,course,values){
   }
   return [...retained].sort((a,b)=>a-b);
 }
-export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),openedCourses=new Set(),fixedEntries=false,constructionProofs=new Set()}={}){
+export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),openedCourses=new Set()}={}){
   const operations=Object.values(source.operations),manufacturing=manufacturingDependencies(source);
-  const materialScopes=new Set(operations.flatMap(operation=>(operation.requiredMaterial??[]).flatMap(requirement=>requirement.layerIds??[...Object.keys(source.layers),null])));
   const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
   const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
   // Forward requirements can live inside a soft traversal chunk. Exclude
@@ -87,7 +86,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
       const endpoint=(range,end)=>curveAt(reader,range.curveId,end?range.to:range.from,end?{side:'left'}:{});
       const reversible=ranges.every(range=>range.directionRequired===false&&(range.seamRequired!==true||
         range.from!==originals.get(range.id).from||distance(endpoint(range,false).point,endpoint(range,true).point)<=ROUNDING_MM));
-      const loop=!fixedEntries&&ranges.length===1&&ranges[0].interruptible&&ranges[0].seamRequired===false&&
+      const loop=ranges.length===1&&ranges[0].interruptible&&ranges[0].seamRequired===false&&
         source.manufacturing?.courseTraversal?.[ranges[0].id]?.seamFree!==false&&distance(entry.point,exit.point)<=ROUNDING_MM?ranges[0]:null;
       if(reversible||loop){
         const variants=[ranges];
@@ -137,8 +136,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
   }
   for(const operation of operations){
     const members=[];
-    const producer=source.layers[operation.layerId]?.stackId??operation.construction;
-    if(operation.kind==='inject'||!operation.interruptible||constructionProofs.has(producer)&&!materialScopes.has(operation.layerId??null))members.push(node(operation,operation.courses??[]));
+    if(operation.kind==='inject'||!operation.interruptible)members.push(node(operation,operation.courses??[]));
     else {
       let pending=[];
       function appendChunk(ranges){
@@ -225,13 +223,14 @@ function retainedNozzleEdges(graph,requirements){
   return edges;
 }
 
-export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry,nozzleGeometries=null,scope='external',constructionProofs=new Set()}={}){
-  const cuts=new Map(),relaxedChunks=scope==='construction'?null:new Set(),openedCourses=new Set(),blockedTraversals=new Set(),history={solves:0,refinements:0};
+export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry,nozzleGeometries=null}={}){
+  const cuts=new Map(),relaxedChunks=new Set(),openedCourses=new Set(),blockedTraversals=new Set(),history={solves:0,refinements:0};
   const accessGeometry=nozzleGeometry??source.manufacturing?.accessGeometry??DEFAULT_NOZZLE_GEOMETRY;
-  const certified=[CONSTRUCTION_CONTRACT,'saam-construction-access/1'].includes(source.manufacturing?.contract)&&
-    accessGeometry.includedAngleDeg<=source.manufacturing.accessGeometry.includedAngleDeg&&accessGeometry.tipDiameterMm<=source.manufacturing.accessGeometry.tipDiameterMm;
+  const certified=source.manufacturing?.contract===CONSTRUCTION_CONTRACT&&
+    [accessGeometry,...(nozzleGeometries?[nozzleGeometries.default,...Object.values(nozzleGeometries.filaments??{})]:[])].filter(Boolean).every(geometry=>
+      geometry.includedAngleDeg<=source.manufacturing.accessGeometry.includedAngleDeg&&geometry.tipDiameterMm<=source.manufacturing.accessGeometry.tipDiameterMm);
   const construction=source.manufacturing?.contract===CONSTRUCTION_CONTRACT?constructionHistory(source):null;
-  const trusted=scope==='external'&&certified?construction:null;
+  const trusted=certified?construction:null;
   const unbound=unit=>construction&&(unit.ranges.length?unit.ranges.map(range=>range.id):[unit.sourceOperation]).some(id=>
     !(construction.hasPrerequisites(id)??construction.hasPrerequisites(unit.sourceOperation)));
   const related=(before,after)=>trusted&&(trusted.covers(before,after)||trusted.covers(after,before));
@@ -247,7 +246,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
   const sourceDependencies=manufacturingDependencies(source);
   const authored=precedenceLookup([...sourceDependencies.parents.keys()],[...sourceDependencies.parents].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   for(;;){
-    const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,openedCourses,fixedEntries:scope==='construction',constructionProofs});
+    const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,openedCourses});
     const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:retainedNozzleEdges(graph,nozzleRequirements)};history.solves++;
     for(const edge of state.edges)graph.prerequisites.get(edge.after).add(edge.before);
     try{
@@ -264,17 +263,14 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
       }
       function producer(unit){return source.layers[unit.layerId]?.stackId??unit.operation.construction;}
-      function relevant(a,b){return scope==='construction'?
-        !constructionProofs.has(producer(a))&&producer(a)===producer(b)||a.operation.kind==='inject'&&(a.operation.requiredMaterial??[]).some(requirement=>
-          (b.operation.part??null)===(requirement.part??null)&&(!requirement.layerIds||requirement.layerIds.includes(b.layerId??null))):
-        (!certified||producer(a)!==producer(b))&&!state.scene.proofs.producerClear(producer(a),producer(b));}
+      function relevant(a,b){return (!certified||producer(a)!==producer(b))&&!state.scene.proofs.producerClear(producer(a),producer(b));}
       function addEdge(before,after,kind,witness){
         if(before===after||precedes(before,after))return;
         if(precedes(after,before))progress.cyclic=true;
         graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness,
           beforeOperation:graph.byId.get(before).sourceOperation,afterOperation:graph.byId.get(after).sourceOperation});
       }
-      if(scope==='construction'||!source.manufacturing)for(const unit of graph.units){
+      for(const unit of graph.units){
         for(const requirement of unit.operation.requiredMaterial??[]){
           for(const hit of state.scene.requiredHits(requirement,id=>{
             const other=graph.byId.get(id);
@@ -285,7 +281,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         if(progress.cyclic)break;
       }
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
-      const substrateUnits=scope==='external'?graph.units.filter(unbound):[];
+      const substrateUnits=graph.units.filter(unit=>unbound(unit)&&graph.units.some(other=>
+        producerOf(other)!==producerOf(unit)&&!trustedUnits(unit,other)));
       for(const [index,unit] of substrateUnits.entries()){
         onProgress?.({stage:'Resolving material support',completed:index,total:substrateUnits.length,assignment:unit.operation.id});
         for(const hit of state.scene.substrateHits(unit,id=>id!==unit.id&&!precedes(id,unit.id)&&
@@ -338,9 +335,9 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
         }
       }
-      const cooling=scope==='construction'?null:new CoolingOrder(source,state.scene);
+      const cooling=graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
       const ordered=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges,cooling});
-      for(const unit of ordered.operations)if(!unit.barrier&&!certified&&!constructionProofs.has(producer(unit))){
+      for(const unit of ordered.operations)if(!unit.barrier&&!certified){
         const body=state.scene.byId.get(unit.id);
         // Certify the selected traversal after external ordering has settled;
         // conflict refinement can split these convenience chunks beforehand.

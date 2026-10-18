@@ -17,7 +17,6 @@ import {TOLERANCE} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {offsetSliceRegion} from './surface-operations.mjs';
 import {metricFillStrokes} from './metric-fill.mjs';
-import {frontLayerStrokes} from './seeded-fronts.mjs';
 
 // region: owned loops in the chart. material: the part's sliced material on
 // the layer (the region itself by default). Every owner walls all its boundaries.
@@ -53,7 +52,7 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
   // Fill reaches half a bead beyond the last loop, less the overlap welding
   // fill to walls. The region offset retains material topology at collapse.
   const inset = widthMm * (loops + 0.5 - fillOverlap) - widthMm / 2 + Math.max(0, loops - 1) * (pitch - widthMm);
-  const interior = outward ? [] : ['surface-cells','fronts'].includes(fillOrder?.kind)&&loops===0?region:
+  const interior = outward ? [] : fillOrder?.kind==='surface-cells'&&loops===0?region:
     offset(boundary,loops>0?-(loopInsetMm===null?widthMm/2+inset:loopInsetMm+(loops-1)*pitch+widthMm*(1-fillOverlap)):-widthMm/2);
   const dense = fillDensity >= 1;
   const solidRegion = dense ? interior : solid?.length ? intersect(interior, solid) : [];
@@ -66,10 +65,6 @@ export function layerStrokes(region, options) {
     slice=null,fillOrder=null,layer=null,direction=null,layoutReference=slice,fillState=null,fillDirection=null}=options;
   const pitch=lineSpacing(widthMm,{spacingFactor});
   const {walls,interior,solidRegion,sparseRegion}=options.preparedLayout??sliceLayerLayout(region,options);
-  if(fillOrder?.kind==='fronts'){
-    const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm}));
-    return {walls,infill:[],fill:fronts.flatMap((front,i)=>front.curves.map(curve=>({...curve,id:i+':'+curve.id,after:curve.after.map(id=>i+':'+id)}))),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
-  }
   const fillOptions={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
   let constructionReport, nextFillState;
   const reference=slice??horizontalSlice(phaseMm);
