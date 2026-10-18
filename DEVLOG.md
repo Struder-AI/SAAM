@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-17 — Refresh authored architecture drawings
+
+- Fresh design-map generation exposed one orphaned authored index, three obsolete source previews and thirteen interface records missing required boundary/failure/direction fields. Rebound the previews to their actual replacements and completed the explicit contract records without adding API permission. Authored identities remain stable.
+- `030-architecture regenerate` and `check --viewer` pass: 1,315 current pages, zero undrawn boxes, wires or source previews. Current-source influence analysis and warm/cold solving continue separately; no complete influence conformance claim is made. No product behavior changed in this checkpoint.
+
 ## 2026-10-17 — Preserve authored edge identities through the real edit host
 
 - A Bundle-level `apply_extension` exercise exposed that the geometry-edit caller stripped the spatial store before constructing Recipe selectors, losing named geometric wave targets. The common host now resolves solid/curve inputs for editors while keeping the full authored recipe for selectors, and composes solid replacements without losing auxiliary curves/points. Removed duplicate wrapping/resolution from the Bundle caller. Pure reference lowering belongs to Recipe, with exact host/Geometry ports; no skill-specific case or extra option was added.

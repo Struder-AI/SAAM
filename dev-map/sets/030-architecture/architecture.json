@@ -55,12 +55,12 @@
     {
       "id": "geometry-offset-chart-2",
       "index": "2.1.1.8.3",
-      "label": "at",
-      "description": "Ambient offset chart geometry.",
+      "label": "offsetChart.at",
+      "description": "Ambient offset chart evaluation.",
       "type": "component",
       "source": {
         "file": "core/geom/offset-chart.mjs",
-        "declaration": "offsetSurfaceChart::at"
+        "declaration": "offsetSurfaceChart::offsetChart::at"
       }
     },
     {
@@ -2143,12 +2143,12 @@
     {
       "id": "geometry-leaf-e56f34758d25",
       "index": "2.1.3.3.7",
-      "label": "corner",
-      "description": "corner in core/region/section.mjs.",
+      "label": "faceBoundaryLocation",
+      "description": "Locate an intersection endpoint on the actual face boundary loops.",
       "type": "component",
       "source": {
         "file": "core/region/section.mjs",
-        "declaration": "corner"
+        "declaration": "faceBoundaryLocation"
       }
     },
     {
@@ -2187,12 +2187,12 @@
     {
       "id": "geometry-leaf-149ff3128844",
       "index": "2.1.3.3.11",
-      "label": "perimeterAt",
-      "description": "perimeterAt in core/region/section.mjs.",
+      "label": "chartBoundaryEndpoint",
+      "description": "Correct an intersection endpoint against a native chart boundary.",
       "type": "component",
       "source": {
         "file": "core/region/section.mjs",
-        "declaration": "perimeterAt"
+        "declaration": "chartBoundaryEndpoint"
       }
     },
     {
@@ -9340,7 +9340,7 @@
     },
     {
       "id": "geometry-module-6c7e15e19eef-4",
-      "index": "2.2.4.7.3",
+      "index": "2.2.4.7",
       "label": "initializeRepairWorkerChannel",
       "description": "initializeRepairWorkerChannel and its enclosed declarations.",
       "type": "component"
@@ -19697,7 +19697,9 @@
           "to": "geometry-operations"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject invalid or unsupported geometric inputs and unresolved numerical precision.",
+      "excludes": "Recipe dependencies, manufacturing ordering, machine semantics and shared part-state mutation."
     },
     {
       "id": "geometry-canonical-recipe",
@@ -19717,7 +19719,9 @@
           "to": "geometry-operations"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject invalid or unsupported geometric inputs and unresolved numerical precision.",
+      "excludes": "Recipe dependencies, manufacturing ordering, machine semantics and shared part-state mutation."
     },
     {
       "id": "geometry-canonical-application",
@@ -19737,7 +19741,9 @@
           "to": "geometry-operations"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject invalid or unsupported geometric inputs and unresolved numerical precision.",
+      "excludes": "Recipe dependencies, manufacturing ordering, machine semantics and shared part-state mutation."
     },
     {
       "id": "geometry-extruded-toolpath-queries",
@@ -19760,7 +19766,9 @@
           "to": "geometry-extruded-segments"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject invalid section geometry or queries that cannot meet the requested numerical precision.",
+      "excludes": "Producing-operation identity, manufacturing prerequisites and execution scheduling."
     },
     {
       "id": "bundle-pose-path-finalize",
@@ -19783,7 +19791,9 @@
           "to": "bundle-path"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject malformed frames and pose interpolation outside the admitted frame contract.",
+      "excludes": "Machine kinematics, clearance, physical transfers and source geometry mutation."
     },
     {
       "id": "bundle-pose-scheduling",
@@ -19806,7 +19816,9 @@
           "to": "bundle-path"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject malformed frames and pose interpolation outside the admitted frame contract.",
+      "excludes": "Machine kinematics, clearance, physical transfers and source geometry mutation."
     },
     {
       "id": "bundle-pose-export",
@@ -19827,7 +19839,9 @@
           "to": "bundle-path"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject malformed frames and pose interpolation outside the admitted frame contract.",
+      "excludes": "Machine kinematics, clearance, physical transfers and source geometry mutation."
     },
     {
       "id": "prepared-work-slice-layout",
@@ -19850,7 +19864,9 @@
       "evidence": [
         "core/print/slice-preparation.mjs::prepareSliceLayer",
         "core/print/deposition-work.mjs::prepareDepositionWork"
-      ]
+      ],
+      "failure": "Reject unresolved assignment ownership, invalid native charts and unsupported material layout inputs.",
+      "excludes": "Final deposition publication, execution scheduling and machine motion."
     },
     {
       "id": "application-prepared-toolpath",
@@ -19870,7 +19886,9 @@
           "to": "application"
         }
       ],
-      "evidence": "Geometry/CAM separation, 2026-10-13."
+      "evidence": "Geometry/CAM separation, 2026-10-13.",
+      "failure": "Reject invalid construction inputs and unresolved producer dependency references.",
+      "excludes": "Execution scheduling, selected-machine access and physical transfer planning."
     },
     {
       "id": "slice-surface-patterns",
@@ -19970,7 +19988,9 @@
       "evidence": [
         "core/path/README.md",
         "core/path/curve-path.mjs"
-      ]
+      ],
+      "direction": "Toolpath supplies immutable query results; the consumer invokes explicit curve and path operations.",
+      "excludes": "Source rewriting, new deposition, manufacturing-order decisions and selected-machine motion."
     },
     {
       "id": "toolpath-reader-bundle-path",
@@ -20003,7 +20023,9 @@
       "evidence": [
         "core/path/README.md",
         "core/path/curve-path.mjs"
-      ]
+      ],
+      "direction": "Toolpath supplies immutable query results; the consumer invokes explicit curve and path operations.",
+      "excludes": "Source rewriting, new deposition, manufacturing-order decisions and selected-machine motion."
     },
     {
       "id": "toolpath-reader-export",
@@ -20035,7 +20057,9 @@
       "evidence": [
         "core/path/README.md",
         "core/path/curve-path.mjs"
-      ]
+      ],
+      "direction": "Toolpath supplies immutable query results; the consumer invokes explicit curve and path operations.",
+      "excludes": "Source rewriting, new deposition, manufacturing-order decisions and selected-machine motion."
     },
     {
       "id": "toolpath-reader-studio",
@@ -20067,7 +20091,9 @@
       "evidence": [
         "core/path/README.md",
         "core/path/curve-path.mjs"
-      ]
+      ],
+      "direction": "Toolpath supplies immutable query results; the consumer invokes explicit curve and path operations.",
+      "excludes": "Source rewriting, new deposition, manufacturing-order decisions and selected-machine motion."
     },
     {
       "id": "settings-nozzle-export",

@@ -9406,14 +9406,11 @@
     "core/geom/offset-chart.mjs::offsetSurfaceChart": {
       "owner": "geometry-offset-chart-1"
     },
-    "core/geom/offset-chart.mjs::offsetSurfaceChart::at": {
-      "owner": "geometry-offset-chart-2"
-    },
     "core/geom/offset-chart.mjs::offsetSurfaceChart::offsetChart": {
       "owner": "geometry-offset-chart-3"
     },
     "core/geom/offset-chart.mjs::offsetSurfaceChart::offsetChart::at": {
-      "owner": "geometry-offset-chart-4"
+      "owner": "geometry-offset-chart-2"
     },
     "core/geom/offset-chart.mjs::offsetSurfaceChart::offsetPoint": {
       "owner": "geometry-offset-chart-5"
@@ -19431,18 +19428,6 @@
     "core/region/section.mjs::orient::insideLeft": {
       "owner": "geometry-leaf-009ab01452c4"
     },
-    "core/region/section.mjs::perimeterAt::du": {
-      "owner": "geometry-leaf-149ff3128844"
-    },
-    "core/region/section.mjs::perimeterAt::dv": {
-      "owner": "geometry-leaf-149ff3128844"
-    },
-    "core/region/section.mjs::perimeterAt::eps": {
-      "owner": "geometry-leaf-149ff3128844"
-    },
-    "core/region/section.mjs::perimeterAt::sides": {
-      "owner": "geometry-leaf-149ff3128844"
-    },
     "core/region/section.mjs::closeOnBoundary::loops": {
       "owner": "geometry-leaf-de341d944ca9"
     },
@@ -19957,7 +19942,7 @@
       "owner": "geometry-leaf-2047beebf63c"
     },
     "core/region/section.mjs::chartBoundaryEndpoint": {
-      "owner": "geometry-leaf-d2f8297c1a05"
+      "owner": "geometry-leaf-149ff3128844"
     },
     "core/region/section.mjs::chartBoundaryEndpoint::domains": {
       "owner": "geometry-leaf-d2f8297c1a05"
@@ -28058,7 +28043,7 @@
       "owner": "geometry"
     },
     "core/region/section.mjs::faceBoundaryLocation": {
-      "owner": "geometry"
+      "owner": "geometry-leaf-e56f34758d25"
     },
     "core/print/operation-references.mjs::@module": {
       "owner": "recipe"
