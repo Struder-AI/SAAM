@@ -1,5 +1,12 @@
 # Development log
 
+## 2026-10-18 — Publish SAAM 0.3.12 and its relay offer
+
+- Published [v0.3.12](https://github.com/Struder-AI/SAAM/releases/tag/v0.3.12) at exact built source a2ecd5dfc797232f20422d7e6c72b95aa5dd2695; source pushed to origin/codex/remettub-dev-branch. Three ZIPs, three checksums and INSTALL.md are public. All seven GitHub asset digests match local files and the tag resolves to the built source.
+- Windows: 45,734,197 bytes, SHA-256 5906f6f7f2d735dd36bb86fd6002873d9b9addd08b6748331fdae6c2e693f635; Apple Silicon: 50,998,925 bytes, ac885bcfc4212c0558223967ad66d64579538986deee192b6bd2dc221e655d25; Intel Mac: 52,348,043 bytes, de61055ca44fa672d3edd7de8a860382cf7979a7535ae688cfc3e808c87ccbd7. Preserved Node v24.19.0 binaries match the recorded release-input hashes; no new dependency or runtime download. Evidence: .local/0.3.12-{build,release,runtime-reuse}-evidence.json.
+- Builder dependency/kernel/Studio setup checks pass for all three packages. Mac modules are checked on Windows; native Mac execution remains unverified. Owner selected built-in package checks only. No whole suite, extra installation trial, installed update or physical print.
+- Deployed the existing relay as 557b7905-fb6d-42e0-9e81-ed8026cbaab0. Authenticated /device/release returns the exact three-platform 0.3.12 manifest and hashes; evidence .local/0.3.12-relay-offer-evidence.json. Deployment maps regenerate successfully (8 pages, current). The separately recorded authored product-map deleted-file reference and owner-deferred influence solve remain unchanged.
+
 ## 2026-10-18 — Complete cavity truncation and assess 0.3.12
 
 - Reviewed v0.3.11 (ce8ee5ab) through 858164f7: 46 commits, 345 changed files, plus subsequent shared film/documentation checkpoints. Work covers producer-owned scheduling, native surfaces/offsets, geometric references, four tolerance controls, heat-set/weld integration and responsive previews. Fetch succeeded; the publishing branch is an ancestor and main has two additional merge commits. Owning manuals were maintained; correct GEOMETRY's plain-spline-only face claim and 0.4.0's stale offset remainder. Edited guidance ends two lines shorter (282 -> 280 across GEOMETRY, 0.4.0, Inject and weld).
