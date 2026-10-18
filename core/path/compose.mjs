@@ -65,11 +65,10 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
   const operations=Object.values(source.operations),manufacturing=manufacturingDependencies(source);
   const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
   const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
-  // Forward requirements can live inside a soft traversal chunk. Exclude
-  // backwards or external endpoints; these must remain explicit graph nodes.
+  // Completion references can finish a whole soft chunk; naming one course
+  // does not interrupt its connected deposition. A real ordering cycle opens
+  // that chunk below. Backwards or external course requirements stay explicit.
   const constrained=new Set();
-  for(const completion of Object.values(source.completions??{}))if(completion.kind==='edge')
-    for(const member of completion.members)constrained.add(member);
   for(const operation of operations){
     const courses=operation.courses??[];if(!courses.some(course=>course.after?.length))continue;
     const positions=new Map(courses.map((course,index)=>[course.id,index]));
@@ -418,7 +417,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       const witnesses=error.witness?[error.witness]:(error.physicalDependencies??[]).map(edge=>edge.witness).filter(Boolean);
       const involved=new Set(witnesses.flatMap(witness=>[witness.receiver?.id,witness.material?.id]).filter(Boolean));
       for(const unit of graph.units)if(implicated.has(unit.id)&&unit.traversalKey){
-        const opened=new Set(unit.ranges.filter(range=>involved.has(range.id)).map(range=>range.id));
+        const opened=new Set(unit.ranges.filter(range=>involved.has(range.id)||!state.scene&&!witnesses.length).map(range=>range.id));
         if(!opened.size)continue;
         for(const id of opened)openedCourses.add(id);
         relaxedChunks.add(unit.traversalKey);

@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-18 — Preserve connected bridges across completion references
+
+- Completion audit found that merely declaring a manufactured edge completion opened its connected traversal chunk, rejecting an otherwise qualified bridge before its actual anchors were considered. Keep those endpoints inside the whole chunk; open it only when an actual coarse dependency cycle requires distinct completion times. External/backwards authored course requirements retain their explicit ordering. Neutral /37 invalidates earlier scheduling results.
+- Private source probes pass the complete bridge with an unused edge completion and an actual downstream consumer, unchanged source courses, and a real connector -> external work -> final stroke ordering that correctly opens the chunk. Contact/rotation/interleaving/seam/native-curve and connected-chain probes remain green. This follows the main checkpoint rather than claiming that its initial bridge coverage included completion boundaries.
+
 ## 2026-10-18 — Qualify connected beads and retain finite surface neighborhoods
 
 - Replace scheduler substrate-line discovery with a small bead-qualification policy over lazy cached geometric contact footprints. Both section dimensions and local frames count; finite union contact must exceed half the bead width. Available alternatives qualify without extra prerequisites; deadlocks select only necessary future support. Trusted producer relationships remain skipped. Connected depositing courses, including contact-free connectors, share actual anchors and the default 0.8 chord/curved-length bridge ratio; travels break chains. Qualification never changes source geometry. Deposition /54, neutral /36.

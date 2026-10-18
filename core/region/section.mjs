@@ -44,9 +44,12 @@ export function outwardSigns(shell) {
     for (const [fu, fv] of [[0.5123, 0.4871], [0.3137, 0.6911], [0.7219, 0.2683]]) {
       const e = evaluate(patch, patch.domainU[0] + fu * (patch.domainU[1] - patch.domainU[0]), patch.domainV[0] + fv * (patch.domainV[1] - patch.domainV[0]));
       if (!e.normal) continue;
-      sign = containsPoint(shell, e.point.map((v, k) => v + OFF_SURFACE_MM * e.normal[k])) ? -1 : 1;break;
+      const plus=containsPoint(shell,e.point.map((v,k)=>v+OFF_SURFACE_MM*e.normal[k]));
+      const minus=containsPoint(shell,e.point.map((v,k)=>v-OFF_SURFACE_MM*e.normal[k]));
+      if(plus===minus)continue;
+      sign=plus?-1:1;break;
     }
-    requireThat(sign !== null, `Patch ${patch.name} has no normal at its sample points.`);
+    requireThat(sign !== null, `Patch ${patch.name} has no resolved outward orientation at its sample points.`);
     signs.set(patch, sign);
   }
   return signs;
