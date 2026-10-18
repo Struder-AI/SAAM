@@ -13,7 +13,6 @@ whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
 The `region2d.mjs` compatibility export is an alias to this exact function. Slices,
 roof slices, vase-wall and shared rim coverage/travel all use it.
-Draped-skin uses an XY footprint inset.
 
 Offsets return closed material polygons; an inset yields remaining material.
 
@@ -61,14 +60,13 @@ at its first boundary crossing, including holes. Without a constraint, outward
 smooth-chart domain escape raises. Invalid authored inputs still raise; no
 whole-surface injectivity or clearance pass runs on every call.
 
-Options: `toleranceMm: 0.01` (physical local approximation target),
-`maxStepMm: 0.5` (ray integration step cap), `precisionUv: 1e-10` (topology grid)
-and `normalMm: 0`. Native input sampling, simplification and RK4 integration each
-use one eighth of the physical budget; strip/corner chords use one quarter.
-RK4 step doubling estimates position and continuing-direction error by physical
-travel. Strips refine at chart/knot breaks and physical chord error, independently
-of integration step density. Boundary contacts remain fixed during simplification;
-full-ray deviation bounds tangent normalization. UV rounding remains separate.
+Options: `toleranceMm: 0.01` (physical target), optional `maxStepMm` (ray cap,
+default the offset distance), `precisionUv: 1e-10` and `normalMm: 0`. Native input
+sampling, simplification, RK4 integration and mapped ray chords each use one eighth
+of the budget; strip/corner chords use one quarter. RK4 estimates position and
+continuing-direction error; adaptive steps are independent of deposition sampling.
+Strips refine at chart/knot breaks and physical chord error. Boundary contacts
+stay fixed; full-ray deviation bounds tangent normalization. UV rounding is separate.
 
 Topology uses shared Clipper2 union/difference; no inverse mapping, global
 flattening, evaluation quota or degree elevation. Reports count evaluations,

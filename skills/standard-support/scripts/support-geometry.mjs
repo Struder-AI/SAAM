@@ -1,7 +1,6 @@
 // Support geometry: closed solids under authored contacts, sliced as ordinary
-// Slice volumes. Pure: no kernel or host calls. The standard-support editor and
-// the migration of retired tree and footprint supports share it; closing a roof
-// to the bed is the host's closeMeshPatchToPlane, passed in by the caller.
+// Slice volumes. Pure: no kernel or host calls. The current editor supplies
+// roof closing through the shared Geometry operations.
 // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
 const PRINT_RESOLUTION_MM=1e-3;
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
@@ -128,20 +127,3 @@ export function treeSolids(nodes,{gapMm,chordMm,bedZMm=0}){
   return {solids,notes};
 }
 
-// Retired recipe forms, read as standard supports by core/print/recipe-migration.mjs;
-// solids are in the print's frame, contacts the points they hold up.
-// A skills.supports tree {id, reason, contactZMm, treeNodes}: its tips already
-// end at contactZMm-topGapMm, so no gap is applied.
-export function retiredTreeSolids(tree,{chordMm}){
-  const nodes=tree?.treeNodes,{solids,notes}=treeSolids(nodes,{gapMm:0,chordMm,bedZMm:0});
-  return {solids,notes,contacts:nodes.filter(n=>!nodes.some(c=>c.parent===n.id)).map(n=>n.point)};
-}
-// A support-preset footprint {footprint, contactZMm, topGapMm}: its roofs lowered
-// by topGapMm and closed to the bed.
-export function retiredFootprintSolids(volume,{closeMeshPatchToPlane}){
-  const {roofs,notes}=footprintRoofs(volume?.footprint,volume?.contactZMm),close=offsetMm=>roofs.map(roof=>
-    closeMeshPatchToPlane(roof,{triangleIndices:roof.triangles.map((_,i)=>i),planeZMm:0,offsetMm}));
-  const closed=close(-volume.topGapMm);
-  return {solids:closed.map(c=>c.solid),notes:[...notes,...closed.flatMap(c=>c.notes)],
-    contacts:volume.footprint.flat().map(([x,y])=>[x,y,volume.contactZMm])};
-}

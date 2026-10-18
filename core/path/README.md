@@ -6,7 +6,7 @@ Contract **SP2, updated 2026-10-17** owns the compact source, execution and read
 
 Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
 Toolpath finalizes deposition, minimal manufacturing prerequisites and internal access validity. Bundle stores immutable source once. Scheduling chooses ready work and endpoint transfers; Export realizes selected-machine access, routes and axes. Studio and exporters share the numerical reader.
-Native layers are producer records; no stage reconstructs them or treats their surfaces as solid. Every producer retains regular native curves through flow/width/speed/pose edits. Native witnesses and certified surface mappings retain NURBS. Automatic sampled fits require whole-interval position, positive speed and a constant material plane; unproved frames retain their original polyline. Serialized size selects faithful storage. `summary.compaction` records approximation bounds.
+Native layers are producer records; no stage reconstructs them or treats their surfaces as solid. Regular native curves survive process edits. Native witnesses and certified surface mappings retain NURBS. Sampled fits require whole-interval position bounds, positive speed and a constant material plane; their budget is at most five print-resolution units and 1/80 of each deposited dimension. Unproved frames retain samples. Serialized size selects storage; `summary.compaction` records bounds.
 
 ## Stored deposition: `saampath/2`
 
@@ -85,11 +85,8 @@ Toolpath owns `core/path/curve-path.mjs`; deterministic queries can memoize priv
 Cones `{axis,halfAngleRad}` enclose regular tangents/normals (full sphere when unproved; null for a point). `chordErrorMm` bounds distance to the interval's endpoint segment;
 it does not assert linear timing. `poseCone:{reference,halfAngleRad}` bounds full SO(3) frame deviation, including roll.
 `breaks` lists interior vertices, knots and profile discontinuities. Position bounds include both endpoints; attribute bounds use the right limit at `from` and left limit at `to`. Overlapping bounds alone prove no collision.
-`curveRange` takes positive `lengthToleranceMm` and `volumeToleranceMm3`; omission permits coarse bounds. Arc-length refinement spends one physical query budget on the largest uncertainty, independent of knot spacing.
-`curveSpans` and `linearizePath` require positive `positionToleranceMm`,
-`orientationToleranceRad`, `volumeToleranceMm3`; these bound chord deviation,
-full-frame deviation from endpoint interpolation, and total volume error over the
-requested range/path. Source breaks remain queryable. Reverse views enumerate source spans backwards; each span retains increasing source bounds. Moving views may coalesce compatible coincident boundaries within tolerance, preserving source parameter coverage and total material; never emit a positive zero-length move.
+`curveRange` accepts positive `lengthToleranceMm` and absolute `volumeToleranceMm3` or relative `volumeToleranceRatio`; omission permits coarse bounds. Arc length spends one physical query budget, independent of knots.
+Views require positive `positionToleranceMm`, `orientationToleranceRad` and either volume tolerance. Defaults bound volume uncertainty to 0.1% of material, independent of job/course counts; authored cumulative material stays exact. Explicit absolute budgets bound the requested range/path total and take precedence. Position bounds chord deviation; orientation bounds full-frame interpolation. Reverse spans retain increasing source bounds. Nearby compatible boundaries may coalesce within physical tolerance; positive zero-length moves are invalid.
 Subdivision certifies convergent length/volume bounds; zero deposition stays exact.
 Shared numerical shapes belong to Geometry; path/material semantics stay here. Query resolution never changes identity, profiles or accumulated material. Serialization never rounds cuts into gaps.
 Geometry/profile/material knots are query information, not compulsory output moves. Physical arc-length tolerance governs nearby view boundaries and material placement; provenance cannot force microscopic extrusion. Unknown movement is a precision finding, not proof of a singularity.
@@ -111,7 +108,7 @@ There is no skill-specific scheduler, global layer-height ordering, inferred sol
 ## Work ownership and migration acceptance
 
 One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
-Source `saam-deposition/42` and completion `saam-neutral-motion/31` invalidate earlier generated paths; exact saved programs remain readable. This document owns the seam; Geometry owns numerical curve queries.
+Current source/completion contracts invalidate older generated paths; exact saved programs remain readable. This document owns the seam; Geometry owns numerical queries.
 
 New writers use compact source/execution. One compatibility reader retains saved paths/programs; current scheduling requires regeneration. Preserve reviewed/exported snapshots and remove superseded routes, samplers and expanded persisted motion after migration.
 Verify native curves, faithful polyline fallback, varying material/poses, atomic

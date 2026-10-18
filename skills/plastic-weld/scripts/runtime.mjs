@@ -41,7 +41,11 @@ export function staggeredWeldSites({columns,rows,levels,pitchMm=12,heightStepMm=
 
 export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configuration}){
   const settings={...PLASTIC_WELD_DEFAULTS,...configuration};
-  requireThat(Object.keys(settings).every(key=>Object.hasOwn(PLASTIC_WELD_DEFAULTS,key)),'Unknown plastic-weld setting.');
+  requireThat(Array.isArray(settings.sites),'Plastic-weld sites must be an array.');
+  const declarations=settings.sites.map(site=>{
+    requireThat(typeof site?.id==='string'&&/^[a-z][a-z0-9-]*$/.test(site.id),'Invalid rivet site ID.');
+    const id=extensionId+':'+site.id;return {id,assignments:[{id,part:site.part,construction:'inject'}]};
+  });
   const {buildGeometry,revolvedProfile,convexVolume,rodFrame,point}=Geometry;
   const {assignmentFilament,injectionAssignment}=Recipe;
   const sides=96;
@@ -63,9 +67,11 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
     return volumes;
   }
   async function prepare({plan,placed,componentShells,processForAssignment}){
+    requireThat(Object.keys(settings).every(key=>Object.hasOwn(PLASTIC_WELD_DEFAULTS,key)),'Unknown plastic-weld setting.');
     validatePlasticWeld({...settings,sites:[]});
+    if(!settings.sites.length)return {contributions:[],failures:[]};
     requireThat(placed,'Plastic weld needs host geometry.');
-    const notes=[],seen=new Set(),contributions=[];
+    const failures=[],seen=new Set(),contributions=[];
     for(const site of settings.sites){
       try{
         validatePlasticWeld({...settings,sites:[site]});
@@ -77,10 +83,10 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
           report:{...prepared.report,physicalValidation:'not performed',notes:prepared.notes}});
       }catch(error){
         if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
-        notes.push('Rivet '+site?.id+' produces nothing: '+error.message);
+        failures.push({id:extensionId+':'+site.id,message:error.message});
       }
     }
-    return {notes,contributions};
+    return {failures,contributions};
     async function prepareSite(site){
       requireThat(componentShells?componentShells.has(site.part):site.part===null,'Rivet site must select its native component.');
       const id=extensionId+':'+site.id,process=processForAssignment({part:site.part});
@@ -112,5 +118,5 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
       return {...site,x:mouth[0],y:mouth[1],mouth,axis,depth,bottom,top,floor,widest,settings,assignment,process,cavity,solid,cavityGeometry,envelopeGeometry,profile,report,notes:[]};
     }
   }
-  return {prepare};
+  return {declarations,prepare};
 }

@@ -101,8 +101,8 @@ export function readRecipe(plan,machine=null){
 // Each section takes its defaults' missing and unreadable fields and drops the
 // fields it does not read. Fields are removed by name and sections rebuilt by
 // name, so no value moves to another field. Geometry is only trimmed: its
-// fields are never invented; retired supports become independent Slice solids
-// (currentSupportForms). A setup is machine-specific: completed, never trimmed.
+// fields are never invented; retired geometric forms reject before reading.
+// A setup is machine-specific: completed, never trimmed.
 function currentFields(plan,machine,fields){
   const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
   const present=isRecord(plan.skills)?plan.skills:{};

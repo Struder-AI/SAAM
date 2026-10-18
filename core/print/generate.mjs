@@ -98,7 +98,9 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   plan=generation.retain(plan);
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   const extensions=await prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures});
+  generation.register({...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...extensions.declarations]}},extensions.assignmentOwners);
   generation.register(extensions.plan,extensions.assignmentOwners);
+  for(const [id,error] of extensions.processFailures)generation.fail(id,error);
   for(const [id,error] of extensions.geometryFailures)generation.fail(id,error);
   generation.seal();
   const sliced=finalizedSliceResults({...extensions,generation,onProgress});
