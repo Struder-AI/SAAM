@@ -1,5 +1,5 @@
 export const INTRO_SECONDS=18;
-export const defaults=Object.freeze({sizeMm:24,lineWidthMm:.45,fillDensity:.26,sampleStepMm:.65,frame:0,fps:30,durationSeconds:79});
+export const defaults=Object.freeze({sizeMm:24,lineWidthMm:.45,fillDensity:.26,sampleStepMm:.65,frame:0,fps:30,durationSeconds:80});
 const clamp=(value,lo,hi)=>Math.max(lo,Math.min(hi,value));
 const ease=value=>{const x=clamp(value,0,1);return x*x*(3-2*x);};
 export function normalize(input){
@@ -32,74 +32,59 @@ export function surfaceSpec(d,pose=cubePoseAt(d.frame/d.fps)){
   return {name:'animated-slice',degreeU:degree,degreeV:degree,knotsU:knots,knotsV:knots,controlPoints:cp};
 }
 
-const blend=(a,b,q)=>a+(b-a)*q;
-const segment=(t,a,b)=>ease((t-a)/(b-a));
-const ending=cubePoseAt(20);
-function scalePose(q){return {...ending,tiltX:ending.tiltX*q,tiltY:ending.tiltY*q,amplitude:ending.amplitude*q};}
-export function poseAt(seconds){return animationAt(seconds).pose;}
-function bodyAnimationAt(t){
-  const a={mode:'cube',pose:cubePoseAt(t),loops:2,density:.26,angle:45,stand:0,wrap:0,bridge:0,phase:0,cubeContext:1,cylinderContext:0,bridgeContext:0};
-  if(t<=20)return a;
-  if(t<25){a.pose=scalePose(1-segment(t,23,25));a.loops=0;a.density=blend(.26,1,segment(t,20,23));a.angle=blend(45,90,segment(t,20,23));}
-  else if(t<42){
-    a.mode='cladding';a.loops=0;a.density=1;a.angle=90;
-    a.stand=t<27?segment(t,25,27):t<40?1:1-segment(t,40,42);
-    a.wrap=t<32?segment(t,27,32):t<35?1:1-segment(t,35,40);
-    a.phase=t<32?0:t<35?Math.PI*2*segment(t,32,35):Math.PI*2;
-    a.cylinderContext=segment(t,28,31)*(1-segment(t,36,39));a.cubeContext=1-a.cylinderContext;
-  }else if(t<46){const q=segment(t,42,45);a.pose=scalePose(q);a.loops=t<45?0:2;a.density=blend(1,.26,q);a.angle=blend(90,45,q);}
-  else if(t<48){a.pose=scalePose(1-segment(t,46,48));a.bridgeContext=segment(t,46.5,48);a.cubeContext=1-a.bridgeContext;}
-  else if(t<57){
-    a.mode='bridge';a.bridge=t<51?segment(t,48,51):t<54?1:1-segment(t,54,57);
-    a.angle=45*(1-a.bridge);a.phase=t<51?0:t<54?Math.PI*2*segment(t,51,54):Math.PI*2;
-    a.bridgeContext=1-segment(t,55.5,57);a.cubeContext=1-a.bridgeContext;
-  }else a.pose=scalePose(segment(t,57,60));
+const blend=(a,b,q)=>a+(b-a)*q,segment=(t,a,b)=>ease((t-a)/(b-a)),ending=cubePoseAt(20);
+export const endingPose=()=>({...ending});
+export function poseAt(t){return animationAt(t).pose;}
+export function animationAt(t){
+  const a={mode:'cube',pose:t<18?{...cubePoseAt(0),heightMm:12}:cubePoseAt(t-18),loops:2,density:.26,angle:45,pattern:'rectilinear',context:'cube',morph:0,layerIndex:-1};
+  if(t<18){
+    a.mode='intro';
+    if(t>=1&&t<4){a.density=t<2.5?blend(.26,.62,segment(t,1,2.5)):blend(.62,.26,segment(t,2.5,4));a.loops=t<2?2:t<2.7?4:t<3.4?1:2;}
+    if(t>=4&&t<5)a.pose.heightMm=blend(12,4,segment(t,4,5));
+    if(t>=5&&t<9.5){a.layerIndex=Math.min(8,Math.floor((t-5)/.45));a.pose.heightMm=4+a.layerIndex;a.angle=a.layerIndex%2?135:45;}
+    if(t>=9.5&&t<11)a.density=.26*(1-segment(t,9.5,11));
+    else if(t>=11&&t<12.5){a.pattern='gyroid';a.density=.26*segment(t,11,12.5);}
+    else if(t>=12.5&&t<14.5){a.pattern='gyroid';a.pose.heightMm=12+1.2*Math.sin((t-12.5)/2*Math.PI)**2;}
+    else if(t>=14.5&&t<16){a.pattern='gyroid';a.density=.26*(1-segment(t,14.5,16));}
+    else if(t>=16&&t<17.5)a.density=.26*segment(t,16,17.5);
+    return a;
+  }
+  if(t<38)return a;
+  a.pose={...ending};
+  if(t<51){a.mode='cladding';a.context='tube';a.loops=0;a.morph=segment(t,38,44);const q=segment(t,44,48);a.density=blend(.26,1,q);a.angle=blend(45,90,q);}
+  else if(t<57){a.mode='cladding';a.morph=1-segment(t,51,57);a.density=blend(1,.26,segment(t,51,57));a.angle=blend(90,45,segment(t,51,57));}
+  else if(t<59)return a;
+  else if(t<72){a.mode='bridge';a.context='bridge';a.loops=0;a.morph=segment(t,59,65);const q=segment(t,65,69);a.density=blend(.26,.72,q);a.angle=blend(45,0,q);}
+  else if(t<78){a.mode='bridge';a.morph=1-segment(t,72,78);a.density=blend(.72,.26,segment(t,72,78));a.angle=blend(0,45,segment(t,72,78));}
   return a;
 }
 const degree=3,nv=7;
 const knotsV=Array.from({length:nv+degree+1},(_,i)=>i<=degree?0:i>=nv?1:(i-degree)/(nv-degree));
 const vs=Array.from({length:nv},(_,i)=>(knotsV[i+1]+knotsV[i+2]+knotsV[i+3])/3);
-// Piecewise cubic Bezier arcs retain a coincident, tangent-continuous periodic seam.
 export function claddingSpec(d,a){
-  const s=d.sizeMm,q=a.wrap,segments=12,sweep=q*Math.PI*2,width=blend(s,Math.PI*s*2/3,q),radius=sweep>1e-8?width/sweep:0;
-  const centerOffset=sweep>1e-8?radius*(1+Math.cos(sweep/2))/2:0;
-  function at(u,v){
-    const theta=(u-.5)*sweep,phase=a.phase,bump=q*(1.35*Math.sin(3*theta+phase+v*4)+.6*Math.cos(5*theta-phase*.7-v*5));
-    const bumpD=q*(4.05*Math.cos(3*theta+phase+v*4)-3*Math.sin(5*theta-phase*.7-v*5));
-    let x,y,dx,dy;
-    if(sweep<1e-8){x=s/2+width*(u-.5);y=s/2;dx=width;dy=0;}
-    else {const r=radius+bump;x=s/2+r*Math.sin(theta)+q*.6*Math.sin(v*Math.PI*2);y=s/2+r*Math.cos(theta)-centerOffset+q*.5*Math.sin(v*Math.PI*3);dx=sweep*(bumpD*Math.sin(theta)+r*Math.cos(theta));dy=sweep*(bumpD*Math.cos(theta)-r*Math.sin(theta));}
-    const angle=a.stand*Math.PI/2,yy=(v-.5)*s,zz=y-s/2;
-    return {point:[x,s/2+yy*Math.cos(angle)+zz*Math.sin(angle),s/2+yy*Math.sin(angle)-zz*Math.cos(angle)],du:[dx,dy*Math.sin(angle),-dy*Math.cos(angle)]};
-  }
-  const cp=[];
-  for(let i=0;i<segments;i++){
-    const rows=vs.map(v=>[at(i/segments,v),at((i+1)/segments,v)]);
-    if(i===0)cp.push(rows.map(([a])=>a.point));
-    cp.push(rows.map(([a])=>a.point.map((x,k)=>x+a.du[k]/segments/3)));
-    cp.push(rows.map(([,b])=>b.point.map((x,k)=>x-b.du[k]/segments/3)));
-    cp.push(rows.map(([,b])=>b.point));
-  }
-  const knotsU=[0,0,0,0,...Array.from({length:segments-1},(_,i)=>Array(3).fill((i+1)/segments)).flat(),1,1,1,1];
-  return {name:'animated-slice',degreeU:3,degreeV:3,knotsU,knotsV,controlPoints:cp};
+  const size=d.sizeMm,q=a.wrap??1,n=12,sweep=q*2*Math.PI,width=blend(size,2*Math.PI*size/3,q),radius=sweep?width/sweep:0,centerOffset=sweep?radius*(1+Math.cos(sweep/2))/2:0;
+  const controlPoints=Array.from({length:n+3},(_,i)=>vs.map(v=>{
+    const u=(i-1)/n,theta=(u-.5)*sweep;
+    if(q===0)return [size*u,size/2,size*v];
+    const r=radius*(1+q*.0467)+q*(.675*Math.sin(2*theta+2*v)+.3*Math.cos(2*theta-2.5*v));
+    return [size/2+r*Math.sin(theta)+q*.3*Math.sin(v*Math.PI),size/2+r*Math.cos(theta)-centerOffset+q*.25*Math.sin(v*Math.PI*1.5),size*v];
+  }));
+  return {name:'animated-slice',degreeU:3,degreeV:3,knotsU:Array.from({length:n+7},(_,i)=>(i-3)/n),knotsV,controlPoints};
 }
-export function bridgeSpec(d,a){
-  const q=a.bridge,s=d.sizeMm,knotsU=knotsV;
-  const cp=vs.map(u=>vs.map(v=>[blend(s*u,s/6+u*s*2/3,q),v*s,s/2-q*Math.sin(Math.PI*u)*(5+1.8*Math.sin(v*Math.PI*2+a.phase)+.8*Math.sin(u*Math.PI*3-a.phase))]));
-  return {name:'animated-slice',degreeU:3,degreeV:3,knotsU,knotsV,controlPoints:cp};
+export function bridgeSpec(d){
+  const s=d.sizeMm;
+  return {name:'animated-slice',degreeU:3,degreeV:3,knotsU:knotsV,knotsV,controlPoints:vs.map(u=>vs.map(v=>{
+    const left=s*.5+2.4*Math.sin(v*Math.PI*2),right=s*.5+1.9*Math.sin(v*Math.PI*2+1.1);
+    return [s/6+u*s*2/3,v*s,blend(left,right,u)];
+  }))};
 }
-
-export function animationAt(t){
-  if(t>=INTRO_SECONDS)return bodyAnimationAt(t-INTRO_SECONDS);
-  const a={mode:'intro',pose:{...cubePoseAt(0),heightMm:12},loops:2,density:.26,angle:45,gyroidMix:0,cubeContext:1,bridgeContext:0,layerIndex:-1,previousAlpha:0};
-  if(t>=1&&t<4){a.density=t<2.5?blend(.26,.62,segment(t,1,2.5)):blend(.62,.26,segment(t,2.5,4));a.loops=t<2?2:t<2.7?4:t<3.4?1:2;}
-  if(t>=4&&t<5)a.pose.heightMm=blend(12,4,segment(t,4,5));
-  if(t>=5&&t<9.5){
-    a.layerIndex=Math.min(8,Math.floor((t-5)/.45));a.pose.heightMm=4+a.layerIndex;a.angle=a.layerIndex%2?135:45;
-    a.previousAlpha=a.layerIndex>0?.24:0;if(t>=9.05)a.previousAlpha*=1-segment(t,9.05,9.5);
+export function surfaceFor(d,a){
+  const wave=surfaceSpec(d,a.pose);
+  if(a.mode==='cladding'){
+    if(a.morph>=1/3)return claddingSpec(d,{wrap:ease((a.morph-1/3)*1.5)});
+    const q=ease(a.morph*3),target=claddingSpec(d,{wrap:0});
+    return {...wave,controlPoints:wave.controlPoints.map((row,i)=>row.map((p,j)=>p.map((x,k)=>blend(x,[d.sizeMm*vs[i],d.sizeMm/2,d.sizeMm*vs[j]][k],q))))};
   }
-  if(t>=9.5&&t<12.5)a.gyroidMix=segment(t,9.5,12.5);
-  else if(t>=12.5&&t<14.5){a.gyroidMix=1;a.pose.heightMm=12+1.2*Math.sin((t-12.5)/2*Math.PI)**2;}
-  else if(t>=14.5&&t<17.5)a.gyroidMix=1-segment(t,14.5,17.5);
-  return a;
+  if(a.mode==='bridge'){const target=bridgeSpec(d);return {...wave,controlPoints:wave.controlPoints.map((row,i)=>row.map((p,j)=>p.map((x,k)=>blend(x,target.controlPoints[i][j][k],a.morph))))};}
+  return wave;
 }

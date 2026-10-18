@@ -185,7 +185,6 @@ export function traceResult(assignment,{batches,process,sequential=true,report={
   const deposited=depositCurveBatches({id:assignment.id,batches,process,after:assignment.after,filament:assignment.filament,sequential});
   const operations=assignment.toolPose?deposited.map(operation=>({...operation,strokes:operation.strokes.map(stroke=>({...stroke,
     motionIntent:{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}}))})):deposited;
-  if(!sequential&&operations.length>1&&!batches.every(batch=>batch.stackSlice))for(const operation of operations)operation.resolveInternalSubstrate=true;
   const joinNotes=batches.flatMap((batch,index)=>{
     if(!batch.join)return [];
     const {ignored,travelGaps}=joinCurveSequence(batch.curves,batch.join),name=`Trace ${assignment.id} batch ${batch.key??index}`;

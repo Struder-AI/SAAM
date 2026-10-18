@@ -87,7 +87,7 @@ function graphNozzleProofs(source,reader,rangeOf,nozzleGeometry){
       const underHigh=residual[1]+side-(inward>=0?depth[0]:depth[1])*inward+PRINT_RESOLUTION_MM*metric;
       const reference=scale(range.poseCone.reference.toolAxis,-1),deviation=Math.acos(Math.max(-1,Math.min(1,dot(reference,graph.axis))))+range.poseCone.halfAngleRad;
       const tipLift=nozzleReferenceFloorMm(Math.cos(Math.min(Math.PI,deviation)),graph.slope,includedAngleDeg,NOZZLE_FORGIVENESS_MM,tipDiameterMm),tip=residual[0]+tipLift;
-      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId,materialLift,tipLift};courses.set(course.id,value);
+      const value={min:low,max:high,topMin:residual[0]-side,underHigh,tip,cosine,curveId:course.curveId};courses.set(course.id,value);
       const id=operation.layerId??operation.id;
       if(!slices.has(id))slices.set(id,{min:Infinity,max:-Infinity,tip:Infinity});
       const slice=slices.get(id);slice.min=Math.min(slice.min,value.min);slice.max=Math.max(slice.max,value.max);slice.tip=Math.min(slice.tip,value.tip);
@@ -606,14 +606,21 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     }
     return null;
   }
-  // Keep nozzle filtering coarse: pair refinement uses material-local reach.
-  // A stock-sized rotating cone needlessly refines far-away uncertainty at
-  // bead scale here. The thin substrate band retains local subdivision.
-  // These numerical regions never become scheduling units.
-  function* queryRegions(record,acceptGroup){
-    const body=nozzle(record);if(!body)return;
-    const others=candidates(body.shape,acceptGroup);
-    if(others.length)yield {record,others};
+  // Refine loose positional enclosures only after aggregate admission. A
+  // closed curve's convex sweep can otherwise fill its empty interior and
+  // repeat full-curve refinement for every remote material section. Rotation
+  // uncertainty retains material-local pair refinement; these numerical
+  // regions never become scheduling units or alter source coverage.
+  function* queryRegions(root,acceptGroup){
+    const pending=[root];
+    while(pending.length){
+      const record=pending.pop(),body=nozzle(record);if(!body)continue;
+      const others=candidates(body.shape,acceptGroup);if(!others.length)continue;
+      if(record.chordErrorMm>sectionScale(record)){
+        const children=divide(record);if(children){pending.push(...children);continue;}
+      }
+      yield {record,others};
+    }
   }
   function* nozzleHits(unit,acceptGroup){
     const body=byId.get(unit.id),hits=[],seen=new Set();

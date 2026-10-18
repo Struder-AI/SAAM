@@ -1,54 +1,43 @@
-import {createProjection,DEFAULT_CAMERA} from './camera.mjs';
-const studio={image:null,layout:null};
-export async function loadStudioWindow(){
-  const image=new Image();image.src=new URL('./studio-window.png',import.meta.url).href;
-  const response=await fetch(new URL('./studio-window.json',import.meta.url));
-  if(!response.ok)throw Error('The Studio window capture is missing.');
-  const layout=await response.json();await image.decode();studio.image=image;studio.layout=layout;
+import {createViewerRenderer} from './native/studio/viewer-renderer.mjs';
+import {createMaterialRenderer} from './native/studio/material-view.mjs';
+import {createLayerFade} from './native/studio/toolpath-view.mjs';
+const studio={};let current=null,published=null;
+const viewport=document.createElement('canvas'),overlay=document.createElement('canvas');
+function contextCurves(ctx,frame,project,width,height){
+ function path(points,{closed=false,alpha=.32,lineWidth=.85}={}){if(points.length<2)return;ctx.beginPath();points.forEach((p,i)=>{const q=project(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});if(closed)ctx.closePath();ctx.strokeStyle='#718b82';ctx.globalAlpha=alpha;ctx.lineWidth=lineWidth;ctx.stroke();ctx.globalAlpha=1;}
+ function box(){const s=frame.sizeMm,vertices=Array.from({length:8},(_,i)=>[i&1?s:0,i&2?s:0,i&4?s:0]);for(let i=0;i<8;i++)for(const bit of [1,2,4])if(!(i&bit))path([vertices[i],vertices[i|bit]],{alpha:.42});if(current.context)for(let z=1;z<s;z++)path([[0,0,z],[s,0,z],[s,s,z],[0,s,z]],{closed:true,alpha:.15,lineWidth:.7});}
+ if(frame.animation.context==='cube')box();
+ if(frame.animation.context==='tube')for(const curve of frame.contextGeometry)if(current.context||curve.alpha>.4)path(curve.points,{alpha:curve.alpha});
+ if(frame.animation.context==='bridge')for(const [i,rail] of frame.bridgeRails.entries()){
+   const outer=rail.map(p=>[i?24:0,p[1],p[2]]),inner=rail.map(p=>[i?19:5,p[1],p[2]]),bottom=inner.map(p=>[p[0],p[1],0]);
+   path(outer,{alpha:.42});path(inner,{alpha:.5});path(bottom,{alpha:.3});
+   for(const j of [0,rail.length-1]){path([outer[j],inner[j],bottom[j],[outer[j][0],outer[j][1],0],outer[j]],{closed:true,alpha:.4});}
+   if(current.context)for(let j=0;j<rail.length;j+=8)path([inner[j],bottom[j]],{alpha:.18});
+ }
 }
-export function drawFrame(canvas,frame,{context=true,wash=true}={}){
-  if(!studio.image)throw Error('Load the Studio window before drawing frames.');
-  const ctx=canvas.getContext('2d'),s=canvas.width/studio.layout.width;
-  ctx.setTransform(s,0,0,s,0,0);ctx.globalAlpha=1;ctx.drawImage(studio.image,0,0);
-  const {x,y,width,height}=studio.layout.viewport;
-  ctx.save();ctx.beginPath();ctx.rect(x,y,width,height);ctx.clip();ctx.translate(x,y);
-  // The viewport uses Studio's own background, projection, grid and phase color.
-  ctx.save();ctx.translate(width/2,height/2);ctx.scale(width/Math.SQRT2,height/Math.SQRT2);
-  const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
-  const size=frame.sizeMm,bounds={min:[0,0,0],max:[size,size,size]};
-  const project=createProjection(bounds,width,height,DEFAULT_CAMERA.yaw,DEFAULT_CAMERA.tilt,1.15);
-  function path(points,{closed=false,color='#5b9fd3',lineWidth=1.8,alpha=1}={}){
-    if(points.length<2)return;ctx.beginPath();
-    points.forEach((p,i)=>{const [px,py]=project(p);if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);});
-    if(closed)ctx.closePath();ctx.strokeStyle=color;ctx.lineWidth=lineWidth;ctx.globalAlpha=alpha;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke();ctx.globalAlpha=1;
-  }
-  for(let coordinate=-10;coordinate<=size+10;coordinate+=5){
-    path([[coordinate,-10,0],[coordinate,size+10,0]],{color:'#dbe1d4',lineWidth:.6});
-    path([[-10,coordinate,0],[size+10,coordinate,0]],{color:'#dbe1d4',lineWidth:.6});
-  }
-  function box(min,max,alpha=1){
-    if(alpha<=0)return;
-    if(context)for(let i=1;i<24;i++){
-      const z=min[2]+(max[2]-min[2])*i/24;path([[min[0],min[1],z],[max[0],min[1],z],[max[0],max[1],z],[min[0],max[1],z]],{closed:true,color:'#7b9390',lineWidth:.75,alpha:.18*alpha});
-    }
-    const vertices=Array.from({length:8},(_,i)=>[i&1?max[0]:min[0],i&2?max[1]:min[1],i&4?max[2]:min[2]]);
-    for(let i=0;i<8;i++)for(const bit of [1,2,4])if((i&bit)===0)path([vertices[i],vertices[i|bit]],{color:'#718b82',lineWidth:1,alpha:.42*alpha});
-  }
-  const a=frame.animation??{cubeContext:1,bridgeContext:0};
-  box([0,0,0],[size,size,size],a.cubeContext);
-  if(a.bridgeContext>0){box([0,0,0],[size/6,size,size/2],a.bridgeContext);box([size*5/6,0,0],[size,size,size/2],a.bridgeContext);}
-  if(context)for(const curve of frame.contextGeometry??[])path(curve.points,{color:'#718b82',lineWidth:.85,alpha:curve.alpha});
-  if(context)for(const curve of frame.previousPaths??[])path(curve.points,{closed:curve.closed,lineWidth:1.4,alpha:frame.animation.previousAlpha,color:'#5b9fd3'});
-  if(wash){
-    ctx.globalAlpha=.055;ctx.fillStyle='#5b9fd3';
-    for(const boundary of frame.boundary){ctx.beginPath();boundary.forEach((p,i)=>{const [px,py]=project(p);if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);});ctx.closePath();ctx.fill();}
-    ctx.globalAlpha=1;
-  }
-  for(const curve of frame.paths)path(curve.points,{closed:curve.closed,lineWidth:curve.role==='perimeter'?2.8:1.9,alpha:curve.role==='perimeter'?1:.94});
-  ctx.font='10px Segoe UI';
-  for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){
-    path([[0,0,0],point],{color,lineWidth:1.5});const p=project(point);ctx.fillStyle=color;ctx.fillText(name,p[0]+4,p[1]-4);
-  }
-  ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
-  ctx.restore();ctx.setTransform(1,0,0,1,0,0);
+const renderer=createViewerRenderer({canvas:viewport,createMaterial:()=>{
+ const native=createMaterialRenderer();if(!native)throw Error('Native SAAM shading requires WebGL2.');
+ return {...native,canvas:overlay,draw(scene,options){
+   const stats=native.draw(scene,options),{width,height}=options;overlay.width=width;overlay.height=height;const ctx=overlay.getContext('2d');
+   contextCurves(ctx,current.frame,options.project,width,height);ctx.drawImage(native.canvas,0,0,width,height);return stats;
+ }};
+}});
+export async function loadStudioWindow(){
+ studio.image=new Image();studio.image.src=new URL('./studio-window.png',import.meta.url).href;
+ studio.layout=await(await fetch(new URL('./studio-window.json',import.meta.url))).json();await studio.image.decode();
+}
+export async function drawFrame(canvas,frame,{context=true,previous=null}={}){
+ if(!studio.image)throw Error('Studio capture is not loaded.');current={frame,context};
+ let program=frame.program;
+ if(previous){const before=previous.program.moves.map(move=>({...move,layerId:'previous-layer',sliceStack:'previous',sliceIndex:-1})),offset=previous.program.summary.motionSeconds;
+   program={...program,moves:[...before,...program.moves.map(move=>({...move,startSeconds:move.startSeconds+offset}))],summary:{...program.summary,motionSeconds:offset+program.summary.motionSeconds}};
+ }
+ const identity=frame.frame+':'+(previous?.frame??'');
+ if(published!==identity){await renderer.publishProgram({moves:program.moves,plan:frame.plan,geometry:{}});published=identity;}
+ const {x,y,width,height}=studio.layout.viewport;viewport.width=width;viewport.height=height;
+ const state={plan:frame.plan,geometry:{},program};
+ const annotations=renderer.draw({target:viewport,width,height,ratio:1,position:program.summary.motionSeconds,frameNow:10000,fadeState:createLayerFade(),updateUI:false,state,tab:'toolpath',camera:{yaw:-.78,tilt:.62,zoom:1.15,pan:[0,0]},settings:{showTravel:false,previousLayerOpacity:.24,followPlate:true},bounds:{min:[0,0,0],max:[24,24,24]}});
+ if(!renderer.sceneState().solid||annotations.detailText)throw Error(annotations.detailText||'Native material rendering unavailable.');
+ const ctx=canvas.getContext('2d'),scale=canvas.width/studio.layout.width;ctx.setTransform(scale,0,0,scale,0,0);ctx.globalAlpha=1;ctx.drawImage(studio.image,0,0);ctx.drawImage(viewport,x,y,width,height);ctx.setTransform(1,0,0,1,0,0);
+ return {solid:true,moves:program.moves.length,connections:frame.connections};
 }

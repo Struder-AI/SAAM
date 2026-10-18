@@ -15,7 +15,7 @@ export function createRecipeFactory(Geometry,recipeDefaults){
       cache.geometry=box.geometry;cache.solid=Geometry.buildGeometry(box.geometry);cache.size=d.sizeMm;
     }
     if(animation.mode==='intro'){
-      const assignment={...common,fillPattern:animation.gyroidMix===1?'gyroid':'rectilinear',surface:{kind:'plane',origin:[0,0,animation.pose.heightMm-.2],normal:[0,0,1],xAxis:[1,0,0]},stack:{firstLayerMm:.2,layerMm:d.sizeMm*40}};
+      const assignment={...common,fillPattern:animation.pattern,surface:{kind:'plane',origin:[0,0,animation.pose.heightMm-.2],normal:[0,0,1],xAxis:[1,0,0]},stack:{firstLayerMm:.2,layerMm:d.sizeMm*40}};
       const plan={...recipeDefaults(),geometry:cache.geometry,process:{lineWidthMm:d.lineWidthMm,firstLayerMm:.2,layerMm:.2,primeLine:null},slices:{version:1,assignments:[assignment]}};
       return {plan,spec,design:d,animation};
     }
