@@ -12,7 +12,7 @@ and a signed distance: positive expands material, negative erodes it. Pass the
 whole region together, including CCW outer/island loops and CW holes. Nonzero
 winding determines material; loop order and seams do not assign ownership.
 The `region2d.mjs` compatibility export is an alias to this exact function. Slices,
-draped-skin, vase-wall and shared rim coverage/travel all use it.
+roof slices, vase-wall and shared rim coverage/travel all use it.
 Draped-skin uses an XY footprint inset.
 
 Offsets return closed material polygons: an inset yields remaining material,

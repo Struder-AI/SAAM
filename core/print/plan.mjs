@@ -101,7 +101,7 @@ export function readRecipe(plan,machine=null){
 // Each section takes its defaults' missing and unreadable fields and drops the
 // fields it does not read. Fields are removed by name and sections rebuilt by
 // name, so no value moves to another field. Geometry is only trimmed: its
-// fields are never invented; retired supports add their solids to it before
+// fields are never invented; retired supports become independent Slice solids
 // (currentSupportForms). A setup is machine-specific: completed, never trimmed.
 function currentFields(plan,machine,fields){
   const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
@@ -245,7 +245,10 @@ function validateRecipeValue(plan,current) {
   if(plan.geometry)validateGeometry(plan.geometry);
   validateExtensionRecipe(plan);
   validateSlices(plan.slices);
-  for(const assignment of depositionAssignments(plan))assignmentPlan(plan,assignment);
+  for(const assignment of depositionAssignments(plan)){
+    assignmentPlan(plan,assignment);
+    if(assignment.geometry)validateGeometry(assignment.geometry);
+  }
   validateModulations(plan.modulations,{assignmentIds:Array.isArray(current.slices?.assignments)?current.slices.assignments.map(a=>a?.id):[]});
   for(const {geometry:source} of modulationGeometrySources(plan.modulations)){
     requireThat_toolpath(GEOMETRY_SHAPES.includes(source.shape),'Unsupported solid-distance geometry shape.');

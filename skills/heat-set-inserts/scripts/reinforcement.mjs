@@ -78,6 +78,11 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         for(const sheet of construction.sheets){
           const cut=Geometry.intersectSurfaceSheet(slice,sheet,options);
           if(cut.report?.notes?.length)notes.push(...cut.report.notes);
+          if(cut.regionsUv?.length){
+            const region=Geometry.intersect(cut.regionsUv,room);
+            if(region.length){const filled=Toolpath.fillSliceRegion(region,{source,role:'heat-set-fin'});curves.push(...filled.curves);if(filled.curves.length)finCount++;}
+            continue;
+          }
           if(!cut.curves.length)continue;
           const footprint=Geometry.strokeSliceRegion(slice,cut.curves,width/2,options).loops;
           // A physical half-width buffer gives the two fin bead centerlines,
@@ -120,7 +125,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
       }
     }
     if(feature.finWidthMm!==null)notes.push('Legacy finWidthMm is retained for reading; the star uses two touching beads at the inherited layer width.');
-    return {curves,report:{feature:feature.id,sourceLoops:loops,targetLoops:total,addedLoops:added,curves:curves.length,openFragments:curves.filter(c=>!c.closed).length,
+    return {curves,sliceMember:true,report:{feature:feature.id,sourceLoops:loops,targetLoops:total,addedLoops:added,curves:curves.length,openFragments:curves.filter(c=>!c.closed).length,
       pad,outsideSeat:!seat.length,finIntersections:finCount,finSheets:construction.sheets.length,widthMm:width,pitchMm:pitch,clipping,notes,
       boreBoundary:matched.length?'source material hole':'open cutter section',infillOverlap:'added walls and star fins intentionally overlap the unchanged main infill'}};
   }};

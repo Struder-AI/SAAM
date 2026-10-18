@@ -10,7 +10,7 @@ import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {joinCurveSequence} from '../path/stack-curves.mjs';
 import {assignmentPlan} from './assignment-process.mjs';
 import {finalizeDepositionResult,combineFinalizedResults} from './finalize.mjs';
-import {operationPrerequisite} from './operation-references.mjs';
+import {operationPrerequisite,validateEdgeAfter} from './operation-references.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
@@ -22,11 +22,12 @@ export function curveAssignment({id,construction='curves',...options}) {
 export function validateCurveAssignment(a,{parts=null}={}) {
   requireThat(!Object.hasOwn(a,'courseIds')&&!a.curves?.some(c=>Object.hasOwn(c,'courses'))&&!Object.hasOwn(a.repeat??{},'family'),'Trace field names courseIds, courses and repeat.family are retired; keep only repetitionIds, repetitions and repeat.stack.');
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
-  requireThat(a.construction==='curves'&&Object.keys(a).filter(key=>key!=='operationAfter').sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
+  requireThat(a.construction==='curves'&&Object.keys(a).filter(key=>!['operationAfter','edgeAfter'].includes(key)).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
   requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
   requireThat(Array.isArray(a.after)&&a.after.every(operationPrerequisite),'Curve after must select manufactured work.');
+  validateEdgeAfter(a.edgeAfter,a.id);
   requireThat(a.substrate===null||operationPrerequisite(a.substrate),'Trace substrate must select manufactured work.');
   const translationRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='count,translation'&&Number.isInteger(a.repeat.count)&&a.repeat.count>0&&point(a.repeat.translation);
   const stackRepeat=a.repeat&&Object.keys(a.repeat).sort().join()==='indices,stack'&&typeof a.repeat.stack==='string'&&a.repeat.stack.length&&(a.repeat.indices===null||Array.isArray(a.repeat.indices)&&a.repeat.indices.length&&new Set(a.repeat.indices).size===a.repeat.indices.length&&a.repeat.indices.every(n=>Number.isInteger(n)&&n>=0));
@@ -149,7 +150,7 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     const required=assignment.repetitionAfter&&Object.hasOwn(assignment.repetitionAfter,name)?assignment.repetitionAfter[name]:[];
     const spec={key:sourceLayer?.key??name,curves:ready,heightMm,speedMmS,layer:sourceLayer?.index??repetition,layerIndex:sourceLayer?.ordinal??repetition,layerCount:sourceLayer?.count??count,rank:sourceLayer?.rank??repetition,
       after:[...required.map(previous=>assignment.id+':'+previous),...(assignment.operationAfter&&Object.hasOwn(assignment.operationAfter,name)?assignment.operationAfter[name]:[])],
-      ...(native??{}),
+      ...(native??{}),...(sourceLayer?.sliceMember?{stackSlice:{stackId:sourceLayer.stackId,index:sourceLayer.index}}:{}),
       regionId:assignment.id,travel:{kind:'auto'},...(Object.hasOwn(assignment.process??{},'fanPercent')||repetition===1?{fanPercent:process.fanPercent}:{}),...(assignment.sequence||assignment.ordered?{join:{mode:'ordered'}}:{})};
     batches.push(spec);
     if(finalizeInside){const previous=(assignment.sequence?parts.at(-1)?.operations.map(o=>o.id):null)??assignment.after;
@@ -183,6 +184,7 @@ export function traceResult(assignment,{batches,process,sequential=true,report={
   const deposited=depositCurveBatches({id:assignment.id,batches,process,after:assignment.after,filament:assignment.filament,sequential});
   const operations=assignment.toolPose?deposited.map(operation=>({...operation,strokes:operation.strokes.map(stroke=>({...stroke,
     motionIntent:{kind:'derived-pose',alignToSliceNormal:assignment.toolPose.alignToSliceNormal}}))})):deposited;
+  if(!sequential&&operations.length>1&&!batches.every(batch=>batch.stackSlice))for(const operation of operations)operation.resolveInternalSubstrate=true;
   const joinNotes=batches.flatMap((batch,index)=>{
     if(!batch.join)return [];
     const {ignored,travelGaps}=joinCurveSequence(batch.curves,batch.join),name=`Trace ${assignment.id} batch ${batch.key??index}`;

@@ -1,0 +1,12 @@
+{
+  "width": 1920,
+  "height": 1080,
+  "viewport": {
+    "x": 195,
+    "y": 198.390625,
+    "width": 1192,
+    "height": 550
+  },
+  "source": "Actual SAAM Studio toolpath window; canvas height adjusted to fit 1080p.",
+  "captions": false
+}

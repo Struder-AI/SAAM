@@ -302,7 +302,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
   // Retain the eviction cursor: restarting Map iteration repeatedly scans
   // deleted entries. Live cache entries keep this cursor from exhausting.
   pairResults.oldest??=pairResults.entries.keys();
-  const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
+  const stats={rootBytes:0,rootHits:0,rangeQueries:0,rangeCacheHits:0,rangeSubdivisions:0,nozzlePairs:0,substratePairs:0,cacheBytes:0,peakCacheBytes:0,materialIndexBuilds:0,materialIndexCells:0,materialIndexBytes:0,peakMaterialIndexBytes:0};
   const roots=new Map(),cache=new Map(),directions=new Map(),cacheLimit=16*1024*1024,byId=new Map(),bodies=[],boxes=[],deposited=new Map(),occupiedIds=new Set();
   const depositedBounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
   const oldestRange=cache.keys(),sampleSections=new WeakMap(),sampleCones=new WeakMap();
@@ -385,7 +385,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
       addBounds({min:record.range.bounds.min.map(v=>v-expansion),max:record.range.bounds.max.map(v=>v+expansion)});
     }
     for(const solid of solids)addBounds(convexBounds(solid));
-    const body={unit,records,solids};byId.set(unit.id,body);
+    const body={unit,records,solids,bounds:local};byId.set(unit.id,body);
     if(Number.isFinite(local.min[0])){include(local);bodies.push(body);boxes.push(convexBox(local));}
     if(i%256===0)onProgress?.({stage:'Preparing curve bounds',completed:i,total:units.length});
   }
@@ -609,6 +609,81 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     }
     return hits;
   }
+  // Unbound work is placed from actual deposited sections. A chart is neither
+  // solid material nor evidence that a producer has finished.
+  function underside(record){
+    const body=material(record);if(!body)return null;if(!body.frame)return body.shape;
+    const depth=(record.depth[0]+record.depth[1])/2,n=body.frame.normal,slack=Math.min(PRINT_RESOLUTION_MM,record.depth[1]/4);
+    const shape={a:add(record.start.point,scale(n,-depth+slack)),b:add(record.end.point,scale(n,-depth+slack)),normal:n,
+      side:body.frame.side,radius:Math.max(record.range.widthMm[1]/4,record.range.widthMm[1]/2-PRINT_RESOLUTION_MM),depth:PRINT_RESOLUTION_MM+slack};
+    const margin=(body.sphericalErrorMm??body.errorMm)+(record.depth[1]-record.depth[0])/2+PRINT_RESOLUTION_MM*body.normalError,radialMargin=body.planarErrorMm??0;
+    return margin||radialMargin?{parts:[shape],margin,...(radialMargin?{radialMargin,radialNormal:n}:{})}:shape;
+  }
+  function sectionBody(at){
+    const face=section(at);if(!face)return null;
+    return {a:at.point,b:at.point,normal:face.frame.normal,side:face.frame.side,radius:at.widthMm/2,depth:at.areaMm2/at.widthMm};
+  }
+  function exposedSupport(shape,candidate){
+    if(!shape||!candidate)return false;
+    const n=shape.normal,delta=subtract(shape.b,shape.a),size=length(delta),along=size>ROUNDING_MM?scale(delta,1/size):[0,0,0];
+    const inset=Math.min(PRINT_RESOLUTION_MM,size/4),slack=Math.min(PRINT_RESOLUTION_MM,shape.depth/4),base=add(shape.a,scale(n,-shape.depth)),level=dot(base,n);
+    const under={a:add(add(base,scale(n,slack)),scale(along,inset)),b:add(add(shape.b,scale(n,-shape.depth+slack)),scale(along,-inset)),
+      normal:n,side:shape.side,radius:Math.max(shape.radius/2,shape.radius-PRINT_RESOLUTION_MM),depth:PRINT_RESOLUTION_MM+slack};
+    if(!convexIntersects(under,candidate,ROUNDING_MM))return false;
+    if(dot(candidate.normal,n)>ROUNDING_RELATIVE&&convexIntersects(under,{...candidate,depth:0},ROUNDING_MM)&&
+      !convexIntersects({...shape,depth:shape.depth/2},candidate,ROUNDING_MM))return true;
+    const gap=dot(convexSupport(candidate,n),n)-level,backDepth=-Math.min(0,dot(candidate.normal,n))*candidate.depth;
+    return gap>=-PRINT_RESOLUTION_MM*2&&gap<=Math.min(PRINT_RESOLUTION_MM*2,shape.depth/2)&&
+      (backDepth<=ROUNDING_MM||gap-backDepth>=-Math.min(PRINT_RESOLUTION_MM*2,backDepth/2));
+  }
+  // A candidate's side or bottom can intersect the receiver's underside while
+  // its exposed top is elsewhere. Reject that case before fine subdivision.
+  function possibleSupport(a,b,am,under){
+    if(!am.frame)return true;
+    const n=am.frame.normal,cosine=Math.max(-1,1-am.normalError**2/2);
+    const projection=(bounds,high)=>n.reduce((sum,v,k)=>sum+v*bounds[(v>=0)===high?'max':'min'][k],0);
+    const levelHi=projection(a.range.bounds,true)-(cosine>=0?a.depth[0]:a.depth[1])*cosine+a.range.widthMm[1]/2*am.normalError;
+    if(projection(b.range.bounds,false)-levelHi<=Math.min(PRINT_RESOLUTION_MM*2,a.depth[1]/2)+ROUNDING_MM)return true;
+    b.top??=rectangularSweepEnvelope({from:b.start.point,to:b.end.point,bounds:b.range.bounds,
+      chordErrorMm:b.chordErrorMm,tangentCone:b.tangentCone,normalCone:b.normalCone,
+      radius:b.range.widthMm.map(width=>width/2),depth:[0,0]});
+    return convexIntersects(under,b.top.shape,ROUNDING_MM);
+  }
+  function substratePair(receiver,candidate){
+    const pending=[[receiver,candidate]];
+    while(pending.length){
+      const [a,b]=pending.pop(),am=material(a),bm=material(b);if(!am||!bm)continue;
+      stats.substratePairs++;
+      const under=underside(a);
+      if(!convexIntersects(under,bm.shape,ROUNDING_MM)||!possibleSupport(a,b,am,under))continue;
+      if(am.exact&&bm.exact){if(exposedSupport(am.shape,bm.shape))return {receiver:a.ref,material:b.ref,substrate:true};continue;}
+      for(const [u,at] of samples(a)){
+        const face=sectionBody(at);if(!face)continue;
+        if(bm.exact&&exposedSupport(face,bm.shape))return {receiver:localWitness(a,u),material:b.ref,substrate:true};
+        for(const [v,value] of samples(b))if(exposedSupport(face,sectionBody(value)))
+          return {receiver:localWitness(a,u),material:localWitness(b,v),substrate:true};
+      }
+      let splitA=a.range.breaks.length>0||!b.range.breaks.length&&!am.exact&&(bm.exact||am.errorMm>=bm.errorMm),chosen=splitA?a:b;
+      let children=divide(chosen);
+      if(!children){splitA=!splitA;chosen=splitA?a:b;children=divide(chosen);}
+      if(!children)throw unresolved(a,b);requireTangent(chosen);
+      for(const child of children)pending.push(splitA?[child,b]:[a,child]);
+    }
+    return null;
+  }
+  function* substrateHits(unit,acceptGroup){
+    const body=byId.get(unit.id),seen=new Set();
+    if(!Number.isFinite(body.bounds.min[0])||!candidates(convexBox(body.bounds),acceptGroup).length)return;
+    for(const root of body.records){
+      const under=underside(root);if(!under)continue;
+      for(const other of candidates(under,acceptGroup))for(const candidate of regionalMaterial(other,under)){
+        const key=JSON.stringify([root.ref.id,root.ref.from,root.ref.to,candidate.ref.id,candidate.ref.from,candidate.ref.to]);
+        if(seen.has(key))continue;
+        const witness=substratePair(root,candidate);if(!witness)continue;
+        seen.add(key);yield {unit:other.unit,witness};
+      }
+    }
+  }
   function volumeHit(root,volume){
     const pending=[root];
     while(pending.length){
@@ -680,6 +755,19 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
       return result;
     }
     if(!witness?.receiver||!witness.material)return result;
+    if(witness.substrate){
+      const a=interval(witness.receiver),b=interval(witness.material),am=material(a),bm=material(b);
+      if(!am?.exact||!bm?.exact)return result;
+      if(a.affine){
+        const band=underside({...a,end:a.start}),contact=translationContactInterval(band,subtract(a.end.point,a.start.point),bm.shape);
+        if(contact)result.push({courseId:a.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(a.ref,u))});
+      }
+      if(b.affine){
+        const face=section(b.start),contact=face&&translationContactInterval(face,subtract(b.end.point,b.start.point),underside(a));
+        if(contact)result.push({courseId:b.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(b.ref,u))});
+      }
+      return result;
+    }
     const a=interval(witness.receiver),b=interval(witness.material),am=nozzle(a),bm=material(b);
     if(!am.exact||!bm?.exact)return result;
     if(a.affine){
@@ -733,7 +821,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     if(!occupiedIds.has(id))for(const solid of body.solids)includeDeposit(convexBounds(solid));
     occupiedIds.add(id);deposited.set(id,count);
   }
-  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,requiredHits,verifySelf,cutsForWitness,mutualConflict,
+  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,substrateHits,requiredHits,verifySelf,cutsForWitness,mutualConflict,
     interval,pair,deposited,occupied:occupiedIds,depositedBounds,recordDeposit,withinGroups:null,groupPrefixes:null,
     operationOf:id=>byId.get(id)?.unit.sourceOperation??id};
 }

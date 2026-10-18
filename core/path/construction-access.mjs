@@ -2,7 +2,7 @@
 // edits. The same solver used for composition is scoped to each producer here.
 import {prepareCurvePath} from './curve-path.mjs';
 import {resolveSourceOrder} from './compose.mjs';
-import {reduceManufacturing} from './manufacturing.mjs';
+import {reduceManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
 import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
 import {sliceNozzleProofs} from './physical-order.mjs';
 import {manufacturingDependencies} from './manufacturing.mjs';
@@ -57,8 +57,8 @@ function wholeProducerProofs(source,reader){
 
 export function certifyConstruction(source,{onProgress}={}){
   const reader=prepareCurvePath(source),whole=wholeProducerProofs(source,reader);
-  if(whole.known.size===whole.count){
-    source.manufacturing={contract:'saam-construction-access/1',accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{},
+  if(whole.known.size===whole.count&&!Object.values(source.operations).some(op=>op.resolveSubstrate||op.resolveInternalSubstrate||op.suppliesSubstrate)){
+    source.manufacturing={contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{},
       summary:{wholeProducers:whole.count,refinedProducers:0,internalDependencies:0}};
     return source;
   }
@@ -86,6 +86,7 @@ export function certifyConstruction(source,{onProgress}={}){
         parts[0].directionRequired=true;
         for(const part of parts.slice(1))part.after=[...(part.after??[]),parts[0].id];
       }
+      if(course.directionRequired!==false)for(let i=1;i<parts.length;i++)parts[i].after=[...(parts[i].after??[]),parts[i-1].id];
       pieces.set(course.id,parts);
       for(const [i,part] of parts.entries()){
         const permitted=policies.get(policyKey(unique[i])),policy={...permitted,directions:permitted.directions.filter(reverse=>!reverse||part.directionRequired===false)},expected=part.directionRequired===false?2:1;
@@ -97,6 +98,8 @@ export function certifyConstruction(source,{onProgress}={}){
   }
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[])
     if(course.after)course.after=[...new Set(course.after.flatMap(id=>pieces.get(id)?.map(part=>part.id)??[id]))];
+  for(const completion of Object.values(source.completions))if(completion.kind==='edge')
+    completion.members=[...new Set(completion.members.flatMap(id=>pieces.get(id)?.map(part=>part.id)??[id]))];
   function touched(ref){
     return (pieces.get(ref.id)??[]).filter(part=>ref.at!==undefined?ref.at>=part.from&&ref.at<=part.to:part.from<ref.to&&part.to>ref.from);
   }
@@ -107,11 +110,12 @@ export function certifyConstruction(source,{onProgress}={}){
     const witness=edge.witness;
     requireThat(witness&&!witness.provisional,'Construction prerequisites need actual contact evidence.');
     if(!witness.receiver||!witness.material){source.operations[edge.afterOperation].after.push(edge.beforeOperation);continue;}
-    for(const before of touched(witness.receiver))for(const after of touched(witness.material))if(before.id!==after.id)
+    const [beforeRef,afterRef]=edge.kind==='substrate'?[witness.material,witness.receiver]:[witness.receiver,witness.material];
+    for(const before of touched(beforeRef))for(const after of touched(afterRef))if(before.id!==after.id)
       after.after=[...new Set([...(after.after??[]),before.id])];
   }
   reduceManufacturing(source);
-  source.manufacturing={contract:'saam-construction-access/1',accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal,
+  source.manufacturing={contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal,
     summary:{wholeProducers:whole.known.size,refinedProducers:whole.count-whole.known.size,internalDependencies:solved.edges.length,refinement:solved.refinement,queries:solved.scene.stats}};
   return source;
 }

@@ -19,7 +19,7 @@ export function prepareTraceSourceLayer(context,record,layer,plan){
     rank:record.layerOrder.find(item=>item.index===layer.index)?.rank,layerId:(record.stackId??record.spec.id)+':layer:'+layer.index,
     speedMmS:layer.firstBedLayer?layer.process.firstLayerSpeedMmS:layer.process.planarSpeedMmS};
   const produced=context.curveSource.constructLayer({source,parameters:assignment.source.parameters});
-  requireThat(produced&&Array.isArray(produced.curves),'Trace source must return {curves,report}.');
+  requireThat(produced&&Array.isArray(produced.curves)&&(produced.sliceMember===undefined||typeof produced.sliceMember==='boolean'),'Trace source must return curves, optional sliceMember and report.');
   const authored={...assignment,source:null,curves:produced.curves,filament:assignment.filament??record.spec.filament};
   if(authored.curves.length)validateCurveAssignment(authored);
   return {source,produced,authored};

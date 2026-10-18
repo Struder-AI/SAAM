@@ -16,8 +16,8 @@ that explicit Trace data. It is guidance tooling; no bridge record reaches the
 generator; a legacy bridge record is read as this Trace data.
 
 For one or two walls around a solid guide, use a slice assignment with `loops: 1`
-or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and disable
-draped-skin and vase-wall. Geometry guides and printed material differ;
+or `2`, `fillDensity: 0`, `solidTop: 0`, `solidBottom: 0`, and omit
+separate roof finishes and vase-wall. Geometry guides and printed material differ;
 review actual toolpaths, including complete wall circuits.
 
 ## Authoring helper

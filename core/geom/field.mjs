@@ -1,6 +1,6 @@
 // The part's top surface as a height field.
 //
-// The draped-skin skill needs, for a point on the bed, the height of the part
+// Roof slicing needs, for a point on the bed, the height of the part
 // above it and the surface normal there. That is a vertical ray against the
 // shell, which for an untrimmed patch is the 2x2 system
 //   Sx(u,v) = x,  Sy(u,v) = y

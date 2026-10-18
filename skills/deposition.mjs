@@ -8,7 +8,7 @@ async function depositionRuntime(id,engines,dependency){
   catch(error){if(error.name==='AbortError')throw error;return {runtime:null,error};}
 }
 
-export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
+export async function extensionDeposition({plan,placed,componentShells,shells,volumes,sources,contexts,processForAssignment,engines}){
   const processes=await prepareProcessSources({plan,placed,componentShells,processForAssignment},engines);
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
@@ -27,7 +27,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
       // A spiral boundary that cannot be resolved fails as its own assignment.
-      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});}catch(error){return {error};}})();
+      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes,sources});}catch(error){return {error};}})();
       if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
       const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
       return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
@@ -54,8 +54,7 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   return {...processes,curveSources,
     bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
     combineSolids:engines.Geometry.combineSolids,
-    constructions:sleeves,
-    workDependencies:(node,nodes)=>vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]}
+    constructions:sleeves
   };
 }
 

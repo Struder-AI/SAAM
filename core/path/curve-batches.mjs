@@ -24,7 +24,10 @@ export function depositCurveBatches({id,batches,process,after=[],filament=null,s
     const materialGeometry=travel.kind==='planar'||planar?{kind:'planar',loops:region,zMm:travel.zMm??top,maxZ:travel.zMm??top,lineWidthMm:inferred?width:batch.widthMm??process.lineWidthMm,
       ...(inferred?{coverage:'bounds'}:{}),...(travel.maxCombMm===undefined?{}:{maxCombMm:travel.maxCombMm})}:
       {kind:'bounds',maxZ:top,...(travel.clearanceZ===undefined?{}:{approachZ:travel.clearanceZ}),...(travel.poseJoinMm===undefined?{}:{poseJoinMm:travel.poseJoinMm}),...(travel.constant?{constant:true}:{})};
-    operations.push({id:operationId,layerId:null,
+    const stack=batch.stackSlice;
+    if(stack)requireThat(typeof stack.stackId==='string'&&stack.stackId.length&&Number.isSafeInteger(stack.index)&&stack.index>=0,'A construction slice needs an explicit stack identity and nonnegative index.');
+    operations.push({id:operationId,layerId:stack?`${stack.stackId}:layer:${stack.index}`:null,
+      ...(stack?{stackId:stack.stackId,ownershipIndex:stack.index}:{}),
       ...(batch.slice?{slice:batch.slice,referenceLayer:{stackId:batch.stackId??id,index:batch.ownershipIndex??batch.layer??index}}:{}),phase:batch.phase??(planar?'planar':'curves'),layer:batch.layer??index,rank:batch.rank??index,
       after:[...new Set([...previous,...(batch.after??[])])],strokes,order:batch.order??'given',...(batch.join?{continuous:joined.continuous}:{}),
       ...(batch.connectNearby===undefined?{}:{connectNearby:batch.connectNearby}),...(batch.regionId===undefined?{}:{regionId:batch.regionId}),

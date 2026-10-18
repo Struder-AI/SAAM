@@ -8,6 +8,7 @@ import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
 import {loadBundle,updatePlan} from './bundle.mjs';
 import {resolveMaterialGeometry} from '../geom/build.mjs';
+import {manufacturedEdges} from './manufactured-edges.mjs';
 import {topAt} from '../geom/query.mjs';
 import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
@@ -22,7 +23,7 @@ import {solidGeometry,replaceSolid} from '../geom/spatial.mjs';
 
 
 const round=v=>Math.round(v*1e4)/1e4;
-const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','stacks','includeLoops'];
+const INTERSECT_FIELDS=['geometry','part','sectionsAtZ','topsAtXY','surfaces','stacks','includeLoops','edges'];
 
 // Horizontal planes give section loops (outer loops counterclockwise, holes
 // clockwise); vertical lines give the highest surface crossing. Coordinates are
@@ -57,10 +58,11 @@ export async function intersectDraftStacks(shell,drafts,{includeLoops=false}={})
   requireToolpath(assignments.every(a=>!a.construction&&a.part===null),'Draft stacks use ordinary slices of the queried geometry; select a part in the outer request.');
   validateSlices({version:1,assignments},{parts:[],firstLayerMm:.2});
   const shells=[[null,shell,true]],processes=assignments.map(a=>({firstLayerMm:.2,layerMm:.2,lineWidthMm:.4,...a.process}));
-  const geometries=assignments.flatMap(a=>a.within.filter(v=>v.kind==='geometry').map(v=>v.geometry));
+  const geometries=assignments.flatMap(a=>[...(a.geometry?[a.geometry]:[]),...a.within.filter(v=>v.kind==='geometry').map(v=>v.geometry)]);
   const materials=await resolveMaterialGeometry(geometries),byGeometry=new Map(geometries.map((geometry,i)=>[geometry,materials[i]]));
   const volumes=new Map(assignments.map(a=>[a.id,a.within.map(v=>v.kind==='geometry'?byGeometry.get(v.geometry):null)]));
-  const owners=sliceOwners(assignments,{shells,processes,volumes});
+  const sources=new Map(assignments.filter(a=>a.geometry).map(a=>[a.id,byGeometry.get(a.geometry)]));
+  const owners=sliceOwners(assignments,{shells,processes,volumes,sources});
   return prepareMaterialRegions(owners).map(({owner,referenceStack,layers,notes})=>({
     id:owner.assignment.id,owner:owner.id,direction:referenceStack.direction,layerCount:layers.length,targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,gapMetric:referenceStack.gapMetric,
     notes,layers:layers.map(layer=>{
@@ -87,13 +89,17 @@ function surfaceSection(shell,{offsetMm=[0,0,0],...spec},includeLoops){
 // Query a supplied geometry, or a print's geometry or one of its parts.
 export async function intersectRequest(directory,request){
   requireThat(request&&typeof request==='object'&&Object.keys(request).every(k=>INTERSECT_FIELDS.includes(k)),`An intersect request has ${INTERSECT_FIELDS.join(', ')}.`);
-  const {geometry,part,...query}=request;
+  const {geometry,part,edges,...query}=request;
+  requireThat(!edges||!geometry,'Manufactured edge references need saved recipe producers.');
   if(geometry)return intersectGeometry(geometry,query);
   requireThat(directory,'Name a print, or supply geometry to query.');
   const plan=(await loadBundle(directory,{program:false})).plan;
+  const selected=edges?await manufacturedEdges(plan,edges.map(edge=>Object.hasOwn(edge,'part')||part===undefined?edge:{...edge,part}),{includeGeometry:query.includeLoops===true}):null;
+  if(selected&&!['sectionsAtZ','topsAtXY','surfaces','stacks'].some(key=>query[key]?.length))return selected;
   const solid=solidGeometry(plan.geometry),owner=part?solid?.parts?.find(p=>p.id===part):{geometry:solid};
   requireThat(owner,'Unknown part.');
-  return intersectGeometry(owner.geometry,query);
+  const geometryResult=await intersectGeometry(owner.geometry,query);
+  return selected?{...geometryResult,...selected}:geometryResult;
 }
 
 // Wrap the current geometry (or one part) and a new operand in a boolean. The

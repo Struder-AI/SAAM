@@ -7,7 +7,7 @@ metadata:
 
 # Standard support
 
-Use [shared print tools](../../core/print/USAGE.md). A support is ordinary geometry and an ordinary [Slice](../slice/SKILL.md): the [owner's method](../../intent/toolpath.md#how-standard-supports-are-made) copies the chosen underside, lowers it by a small gap and closes it to the bed. The solid joins its part as a hidden union operand (`displayOperand:0`); its Slice has no loops, one row direction, dense base slices and no hop or retraction. Over a roof or footprint a second claim, `<id>-skin`, prints the part's underside solid across the support rows. Saved geometry and Slice settings regenerate without this extension; edit or remove them together.
+Use [shared print tools](../../core/print/USAGE.md). A support is ordinary geometry and an ordinary [Slice](../slice/SKILL.md): the [owner's method](../../intent/toolpath.md#how-standard-supports-are-made) copies the chosen underside, lowers it by a small gap and closes it to the bed. Its Slice owns that independent solid, with no loops, one row direction, dense base slices and no hop or retraction. The part's existing operation owns its underside. Saved Slice settings and support geometry regenerate without this extension.
 
 ## Choose the patches
 
@@ -31,9 +31,9 @@ Call `apply_extension` with `extensionId:"standard-support"`, `bundleId`, `expec
 | `tree` | Nodes `{id, parent, point, radiusMm}`, `parent:null` at bed roots, tips at their contacts; each branch is a solid of horizontal circles. |
 | `gapMm` | Roof or tips lowered by this (0.15); the sliced gap rounds to layers. |
 | `fillDensity`, `angleDeg` | Row density 0–1 (0.2) and row direction (0°). |
-| `baseLayers`, `skinLayers` | Dense base slices (2) and solid part layers over a roof or footprint (3); 0 omits either. |
+| `baseLayers` | Dense support base slices (2); 0 omits them. |
 | `chordMm` | Tree circle chord error (0.02). |
 
 Vertical or degenerate faces, faces reaching the bed once lowered and horizontal branches are skipped; they and roots off the bed are listed in the report's `notes`. Folded or nonmanifold roofs, crossing footprint loops, broken tree parents and nonpositive radii are refused. A support crossing part material prints its whole volume. Nothing is inferred and there is no face picker.
 
-Inspect the sliced gap, rows, base, skin and removal access in Studio; software establishes neither adhesion nor clean removal.
+Inspect the sliced gap, rows, base and removal access in Studio; software establishes neither adhesion nor clean removal.

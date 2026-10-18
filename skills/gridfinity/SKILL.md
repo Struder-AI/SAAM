@@ -88,8 +88,8 @@ skills by component. A one-unit blank ends at Z = 7 mm; align the interface with
 the layer grid. The assembly doesn't union intersecting components, so give them
 distinct extents and check contact and operation order.
 
-Vase-wall and draped-skin keep their restrictions: feet, cavities, dividers and
-ledges form no single vase or single roof. Review bridges above pockets and
+Vase-wall requires one continuous sleeve; roof slicing requires a single-valued
+height chart. Feet, cavities, dividers and ledges can violate those conditions. Review bridges above pockets and
 between feet, and assign supports explicitly when appropriate.
 
 <!-- requires: coordinated-rotary -->

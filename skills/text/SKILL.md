@@ -25,8 +25,8 @@ font bytes and hash, so later edits don't depend on installed fonts. For a font
 collection also supply its `postscriptName`. A portable starting font is
 [Abel-Regular.ttf](tests/fixtures/Abel-Regular.ttf), resolved to an absolute path.
 
-For ordinary planar lettering, disable draped-skin on a fresh shell template:
-small glyph roofs are not one continuous drape surface. Raised letters interrupt
+For ordinary planar lettering, omit a separate roof-following Slice:
+small glyph roofs are not one continuous surface. Raised letters interrupt
 a wavy roof; to keep the curved finish, use the
 [curved lettering composition](#curved-lettering-above-a-draped-roof) rather than
 silently substituting planar top layers.

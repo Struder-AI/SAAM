@@ -27,7 +27,8 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |
 | `fillAnglesDeg`, `rotateFill` | `[45,135]`, `true` | Alternate row directions, or retain the first. |
 | `connectNearby` | Automatic | Deposit safe nearby connections; `false` retains separate strokes (including parallel support rows). May vary by slice. |
-| `solidTop`, `solidBottom` | `3`, `3` | Dense slices where material ends, independent of owner boundaries. |
+| `solidTop`, `solidBottom` | `3`, `3` | Dense slices where the source solid ends, independent of owner boundaries. |
+| `geometry` | Optional | Independent source solid in the selected part frame; omission uses that part's geometry. |
 | `fillOverlap`, `spacingFactor` | `0.15`, `1` | Fill overlap as a bead fraction; physical loop/row pitch multiplier. |
 | `sampleStepMm` | `0.2` | Physical sampling target. |
 | `surface`, `stack` | Horizontal, `null` | Reference geometry and first/regular normal gaps; optional translation direction. |
@@ -46,7 +47,8 @@ Assignments carry the normal fields; optional fields below may be omitted.
 - `geometry:{geometry}` uses a closed authored solid placed with the selected part.
 - `surface-domain:{loopsUv,fromLayer,toLayer}` bounds a translated surface prism.
   On a roof, `loopsUv:null` surveys it dynamically; optional slope and sample limits
-  control that survey. See [skin](../draped-skin/SKILL.md).
+  control that survey. A thin roof finish uses zero loops, solid fill and a shallow
+  surface-domain interval; assign the body below that volume separately.
 - `normal-band:{fromMm,toMm}` bounds normal depth on a selected surface.
 - `outline` supplies the brim's auxiliary region.
 

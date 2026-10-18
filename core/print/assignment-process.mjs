@@ -33,7 +33,7 @@ export function assignmentFilament(plan,assignment) {
 
 export function depositionAssignments(plan,{expandParts=true}={}) {
   return plan.slices.assignments.flatMap(assignment=>{
-    const parts=expandParts&&!assignment.construction&&assignment.part===null&&plan.geometry?.shape==='assembly'
+    const parts=expandParts&&!assignment.construction&&!assignment.geometry&&assignment.part===null&&plan.geometry?.shape==='assembly'
       ?plan.geometry.parts.map(part=>part.id):[assignment.part];
     return parts.map(part=>{
       const selected=part===assignment.part?assignment:{...assignment,part};

@@ -1,8 +1,8 @@
 ---
 name: pipe-cladding
-description: Extension for experimental axial or helical Slice coatings on periodic surface references.
+description: Guidance for axial or helical coatings using ordinary Slice over a selected surface.
 metadata:
-  saam-kind: extension
+  saam-kind: guidance
 ---
 
 # Surface cladding with Slice

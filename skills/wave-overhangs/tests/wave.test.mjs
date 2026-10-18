@@ -3,9 +3,8 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {referencePatch} from '../../../core/geom/reference-surface.mjs';
 import {seededSurfaceFronts,connectSurfacePasses} from '../../../core/region/seeded-fronts.mjs';
-import {FRONT_DEFAULTS} from '../scripts/prepare.mjs';
 
-const settings={...FRONT_DEFAULTS,lineSpacingMm:0.5,propagationStepMm:0.25,sampleStepMm:0.5};
+const settings={lineSpacingMm:.5,propagationStepMm:.25,sampleStepMm:.5,toleranceMm:.01};
 
 test('a curved canopy rim retains rounding residue without spurious perimeter passes',()=>{
   // Original SAAM canopy geometry, starting one complete ring before its rim.

@@ -3,7 +3,33 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {precedenceLookup} from './precedence.mjs';
 
+export const CONSTRUCTION_CONTRACT='saam-construction-access/2';
 export const completionId=(kind,id)=>'completion:'+kind+':'+id;
+
+// Construction requirements identify trusted material history. Composition
+// preferences never create that guarantee; geometric edges discovered during
+// scheduling also remain outside this immutable graph.
+export function constructionHistory(source){
+  const graph=manufacturingDependencies(source,{includeComposition:false});
+  const order=precedenceLookup([...graph.parents.keys()],
+    [...graph.parents].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
+  requireThat(!order.cyclic,'Construction history must be acyclic.');
+  const start=id=>graph.starts.get(id)??graph.courseStarts.get(id),end=id=>graph.ends.get(id)??graph.courseEnds.get(id);
+  const endings=new Set([...graph.ends.values(),...graph.courseEnds.values()]),prerequisites=new Map();
+  return {covers(before,after){
+    const a=end(before),b=start(after);return a!==undefined&&b!==undefined&&before!==after&&order.has(a,b);
+  },hasPrerequisites(id){
+    const root=start(id);if(root===undefined)return null;
+    if(prerequisites.has(root))return prerequisites.get(root);
+    const pending=[...(graph.parents.get(root)??[])],seen=new Set();
+    while(pending.length){
+      const node=pending.pop();if(seen.has(node))continue;seen.add(node);
+      if(endings.has(node)||prerequisites.get(node)===true){prerequisites.set(root,true);return true;}
+      if(prerequisites.get(node)!==false)pending.push(...graph.parents.get(node));
+    }
+    for(const node of seen)prerequisites.set(node,false);prerequisites.set(root,false);return false;
+  }};
+}
 
 export function publishManufacturing(results,operations,layers){
   const completions={},assignments=new Map(),stacks=new Map();
@@ -35,6 +61,21 @@ export function publishManufacturing(results,operations,layers){
     }
     const members=assignments.get(reference.assignment);
     requireThat(members?.size,'Manufacturing prerequisite names an absent producer: '+reference.assignment);
+    if(reference.edge){
+      const selected=[...members].flatMap(id=>{
+        const operation=operations[id],layer=layers[operation.layerId];
+        if((operation.part??null)!==(Object.hasOwn(reference,'part')?reference.part:consumer.part??null))return [];
+        const matches=reference.index===undefined?operation.id===reference.assignment+':'+reference.repetition:layer?.index===reference.index;
+        if(!matches)return [];
+        return (operation.courses??[]).filter(course=>Object.hasOwn(reference.edge,'curve')?course.sourceCurve===reference.edge.curve:
+          course.edge?.loop===reference.edge.loop&&course.edge?.ring===(reference.edge.ring??0)).map(course=>course.id);
+      });
+      requireThat(selected.length,'Manufactured edge has no emitted supporting curve: '+JSON.stringify(reference));
+      const id=completionId('edge',JSON.stringify([reference.assignment,reference.index===undefined?['repetition',String(reference.repetition)]:['slice',reference.index],
+        Object.hasOwn(reference,'part')?reference.part:consumer.part??null,
+        Object.hasOwn(reference.edge,'curve')?['curve',reference.edge.curve]:['loop',reference.edge.loop,reference.edge.ring??0]]));
+      completions[id]??={kind:'edge',members:selected,after:[]};return id;
+    }
     if(reference.index===undefined){
       if(reference.part===undefined)return completionId('assignment',reference.assignment);
       const selected=[...members].filter(id=>(operations[id].part??null)===reference.part);
@@ -50,6 +91,10 @@ export function publishManufacturing(results,operations,layers){
     return [...selected][0];
   }
   for(const op of Object.values(operations))op.after=[...new Set(op.after.map(reference=>resolve(reference,op)))];
+  for(const result of results)for(const requirement of result.edgeAfter??[]){
+    const consumer={part:requirement.target.part??result.report?.part??null},target=resolve(requirement.target,consumer);
+    completions[target].after=[...new Set([...completions[target].after,...requirement.after.map(reference=>resolve(reference,consumer))])];
+  }
   reduceManufacturing({operations,completions});
   return {completions};
 }
@@ -76,14 +121,16 @@ export function reduceManufacturing(source){
   }
   for(const record of Object.values(source.completions))if(record.kind==='assignment')record.members=independent(record.members);
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[])if(course.after)
-    course.after=course.after.filter(previous=>!course.after.some(other=>other!==previous&&lookup.has(graph.courseEnds.get(previous),graph.courseEnds.get(other))));
+    course.after=course.after.filter(previous=>![...graph.parents.get(graph.courseStarts.get(course.id))].some(parent=>
+      parent!==graph.courseEnds.get(previous)&&lookup.has(graph.courseEnds.get(previous),parent)));
 }
 
 // Begin/end nodes express containment without copying every inherited
 // prerequisite onto each member. A completion can itself contain completions.
-export function manufacturingDependencies(source){
+export function manufacturingDependencies(source,{includeComposition=true}={}){
   const parents=new Map(),completions=source.completions??{},starts=new Map(),ends=new Map(),courseStarts=new Map(),courseEnds=new Map();
   const referenced=new Set(),owners=new Map();
+  for(const completion of Object.values(completions))if(completion.kind==='edge')for(const member of completion.members)referenced.add(member);
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[]){
     if(course.after?.length){referenced.add(course.id);for(const previous of course.after)referenced.add(previous);}
   }
@@ -125,12 +172,14 @@ export function manufacturingDependencies(source){
   for(const [id,record] of Object.entries(completions)){
     requireThat(Array.isArray(record.members)&&record.members.length&&Array.isArray(record.after),'Completion needs members and prerequisites.');
     edge(starts.get(id),ends.get(id));
-    for(const member of record.members){edge(starts.get(id),starts.get(member));edge(ends.get(member),ends.get(id));}
+    for(const member of record.members){edge(starts.get(id),starts.get(member)??courseStarts.get(member));edge(ends.get(member)??courseEnds.get(member),ends.get(id));}
     for(const previous of record.after)edge(ends.get(previous),starts.get(id));
   }
-  const known=id=>starts.has(id),order=[...new Set(source.composition?.order??[])].filter(known);
-  for(const {before,after} of source.composition?.dependencies??[])if(before!==after&&known(before)&&known(after))edge(ends.get(before),starts.get(after));
-  for(let i=1;i<order.length;i++)edge(ends.get(order[i-1]),starts.get(order[i]));
+  if(includeComposition){
+    const known=id=>starts.has(id),order=[...new Set(source.composition?.order??[])].filter(known);
+    for(const {before,after} of source.composition?.dependencies??[])if(before!==after&&known(before)&&known(after))edge(ends.get(before),starts.get(after));
+    for(let i=1;i<order.length;i++)edge(ends.get(order[i-1]),starts.get(order[i]));
+  }
   return {parents,starts,ends,courseStarts,courseEnds};
 }
 

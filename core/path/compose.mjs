@@ -6,7 +6,7 @@ import {orderSliceCourses,selectTraversal} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
 import {prepareRangeScene} from './physical-order.mjs';
 import {CoolingOrder} from './cooling-order.mjs';
-import {manufacturingDependencies} from './manufacturing.mjs';
+import {manufacturingDependencies,constructionHistory,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
 import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planTransfer,
   planExtrusion,planDwell,planSelection,planProcess,planDepositRange} from './planning.mjs';
@@ -196,8 +196,11 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
     const after=completionNodes.get(id);
     for(const parent of parents){const before=completionNodes.get(parent);if(before!==after)prerequisites.get(after.id).add(before.id);}
   }
-  for(const [id,group] of courseGroups)if(originals.get(id).seamRequired===true&&group.members.length>1)
-    for(const member of group.members.slice(1))prerequisites.get(member.id).add(group.members[0].id);
+  for(const [id,group] of courseGroups)if(group.members.length>1){
+    const course=originals.get(id);
+    if(course.directionRequired!==false)for(let i=1;i<group.members.length;i++)prerequisites.get(group.members[i].id).add(group.members[i-1].id);
+    else if(course.seamRequired===true)for(const member of group.members.slice(1))prerequisites.get(member.id).add(group.members[0].id);
+  }
   return {units,nodes,groups,prerequisites,layerGroups,byId:new Map(nodes.map(node=>[node.id,node]))};
 }
 
@@ -222,8 +225,19 @@ function retainedNozzleEdges(graph,requirements){
 export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry,nozzleGeometries=null,scope='external',constructionProofs=new Set()}={}){
   const cuts=new Map(),relaxedChunks=scope==='construction'?null:new Set(),openedCourses=new Set(),blockedTraversals=new Set(),history={solves:0,refinements:0};
   const accessGeometry=nozzleGeometry??source.manufacturing?.accessGeometry??DEFAULT_NOZZLE_GEOMETRY;
-  const certified=source.manufacturing?.contract==='saam-construction-access/1'&&
+  const certified=[CONSTRUCTION_CONTRACT,'saam-construction-access/1'].includes(source.manufacturing?.contract)&&
     accessGeometry.includedAngleDeg<=source.manufacturing.accessGeometry.includedAngleDeg&&accessGeometry.tipDiameterMm<=source.manufacturing.accessGeometry.tipDiameterMm;
+  const construction=source.manufacturing?.contract===CONSTRUCTION_CONTRACT?constructionHistory(source):null;
+  const trusted=scope==='external'&&certified?construction:null;
+  const unbound=unit=>construction&&(unit.ranges.length?unit.ranges.map(range=>range.id):[unit.sourceOperation]).some(id=>
+    !(construction.hasPrerequisites(id)??construction.hasPrerequisites(unit.sourceOperation)));
+  const related=(before,after)=>trusted&&(trusted.covers(before,after)||trusted.covers(after,before));
+  function trustedUnits(a,b){
+    if(!trusted)return false;
+    if(related(a.sourceOperation,b.sourceOperation))return true;
+    const left=a.ranges.length?a.ranges.map(range=>range.id):[a.sourceOperation],right=b.ranges.length?b.ranges.map(range=>range.id):[b.sourceOperation];
+    return left.every(x=>right.every(y=>related(x,y)||related(x,b.sourceOperation)||related(a.sourceOperation,y)));
+  }
   const selfProofs={entries:new Map(),bytes:0};
   const nozzleRequirements=new Map();
   const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
@@ -264,6 +278,15 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         }
         if(progress.cyclic)break;
       }
+      const supportProviders=new Set(scope==='construction'?graph.units.filter(unit=>unit.operation.suppliesSubstrate).map(unit=>unit.id):[]);
+      const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
+      for(const unit of graph.units)if(scope==='construction'?unit.operation.resolveSubstrate||unit.operation.resolveInternalSubstrate||supportProviders.size:unbound(unit))
+        for(const hit of state.scene.substrateHits(unit,id=>{
+          if(id===unit.id||precedes(id,unit.id))return false;
+          if(scope==='external')return producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id));
+          const internal=producerOf(unit)===producerOf(graph.byId.get(id));
+          return internal?unit.operation.resolveInternalSubstrate:Boolean(unit.operation.resolveSubstrate||supportProviders.has(id));
+        }))addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
       // Every native slice or unlayered operation is an aggregate query group.
       // An unresolved Inject/Trace group does not disable proofs for its peers.
       const accessGroups=new Set(),queryGroups=new Map(),groupId=unit=>unit.layerId??unit.sourceOperation;
@@ -277,7 +300,13 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         const before=graph.layerGroups.get(a)??graph.groups.get(a),after=graph.layerGroups.get(b)??graph.groups.get(b);
         return a!==b&&proofs.proves(before.end.id,after.begin.id);
       }
-      for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>state.scene.proofs.clear(id,other)||groupBefore(id,other)))accessGroups.add(id);
+      const historyId=id=>source.layers[id]?.completionId??id;
+      const trustedGroupPairs=new Set();
+      for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>{
+        if(related(historyId(id),historyId(other))){trustedGroupPairs.add(JSON.stringify([id,other]));return true;}
+        return state.scene.proofs.clear(id,other)||groupBefore(id,other);
+      }))accessGroups.add(id);
+      state.scene.proofs.summary.trustedHistoryPairs=trustedGroupPairs.size;
       Object.assign(state.scene.proofs.summary,{resolvedAccessGroups:accessGroups.size});
       if(!progress.cyclic)onProgress?.({stage:'Resolving deposition group access',completed:accessGroups.size,total:queryGroups.size});
       // Follow discovered blockers first, then collect independent conflicts
@@ -288,7 +317,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         const completed=access.visited.size;access.visited.add(unit.id);
         if(accessGroups.has(groupId(unit)))continue;
         onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
-        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&relevant(unit,graph.byId.get(id))&&!state.scene.proofs.clear(groupId(unit),groupId(graph.byId.get(id)))&&
+        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&relevant(unit,graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))&&!state.scene.proofs.clear(groupId(unit),groupId(graph.byId.get(id)))&&
           !precedes(unit.id,id))){
           if(!hit.witness?.provisional){
             const witness=state.scene.mutualConflict(hit.witness?.receiver,hit.witness?.material);
@@ -398,7 +427,7 @@ export function planSourceComposition(initialState,source,reader,onProgress,orde
   const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
   return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{
     summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
-      physicalOrdering:{nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material')},queries:{...scene.stats}}});
+      physicalOrdering:{nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material')+count('substrate')},queries:{...scene.stats}}});
 }
 
 // Ordering-only callers use the same admitted source and solver as scheduling.

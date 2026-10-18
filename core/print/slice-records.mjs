@@ -14,13 +14,13 @@ import {SLICE_DEFAULTS,SLICE_PRESETS,ordinarySliceAssignment} from './slice-sett
 import { FILL_PATTERNS } from '../region/fill-patterns.mjs';
 
 import {spacingFactor} from "../path/spacing.mjs";
-import {operationPrerequisite} from './operation-references.mjs';
+import {operationPrerequisite,validateEdgeAfter} from './operation-references.mjs';
 
 export {SLICE_DEFAULTS,SLICE_PRESETS} from './slice-settings.mjs';
 
 export const SLICE_VERSION = 1;
 
-const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby','operationAfter','substrate'];
+const OPTIONAL_FIELDS=['sliceOverrides','loopInsetMm','roles','connectNearby','operationAfter','substrate','geometry','edgeAfter'];
 
 const FIELDS = ['id', 'part', 'preset', 'filament', 'process', ...Object.keys(SLICE_DEFAULTS), 'within', 'surface', 'stack','join','fillOrder','dependencies','description','contact','toolPose'];
 
@@ -55,7 +55,8 @@ export function validateSlices(slices) {
 
 export function validateSliceAssignment(a,{parts,firstLayerMm}) {
     if(a.construction)return;
-    validateAssignmentProcess(a?.process);
+    validateAssignmentProcess(a?.process);validateEdgeAfter(a.edgeAfter,a.id);
+    requireThat(a.geometry===undefined||a.geometry&&typeof a.geometry==='object'&&!Array.isArray(a.geometry),'Slice geometry must be an authored solid.');
     const unexpected = Object.keys(a ?? {}).filter(k => !FIELDS.includes(k)&&!OPTIONAL_FIELDS.includes(k)), missing = FIELDS.filter(k => !Object.hasOwn(a ?? {}, k));
     requireThat(!unexpected.length && !missing.length, `Slice assignment ${a?.id ?? ''} has ${[unexpected.length ? 'unexpected ' + unexpected.join(', ') : '', missing.length ? 'missing ' + missing.join(', ') : ''].filter(Boolean).join('; ')}.`);
     requireThat(typeof a.id === 'string' && /^[a-z][a-z0-9-]*$/.test(a.id), 'Invalid slice assignment id.');

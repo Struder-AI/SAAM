@@ -20,7 +20,7 @@ Geodesic integrations use native first and second derivatives.
 Straight UV integration segments and swept strips approximate obstacle contact;
 `propagationStepMm`, `sampleStepMm` and `toleranceMm` bound their sampling work.
 There is no global shortest-distance or arbitrary topology guarantee across
-unresolved features or geodesic cut loci. This remains an experimental extension.
+unresolved features or geodesic cut loci. This remains an experimental core fill method.
 
 Repeated UV booleans use one grid anchored at the chart's lower parameter bounds
 (`precisionUv = 1e-10`). The shared boolean adapter accepts an explicit `origin`

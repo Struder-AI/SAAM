@@ -8,7 +8,7 @@ import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { defaults } from '../print/plan.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
+import {sliceAssignment} from '../print/slice-records.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, exportReviewed,
   changeMachine, proposedPlan
@@ -24,7 +24,7 @@ const clone = value => structuredClone(value);
 // Small enough to slice quickly, still a spline top surface with a real skin.
 function smallPlan() {
   const plan = defaults();
-  plan.slices.assignments.push(skinAssignment({id:'skin'}));
+  plan.slices.assignments.push(sliceAssignment({id:'skin',loops:0,fillDensity:1,solidTop:0,solidBottom:0,process:{planarSpeedMmS:10,firstLayerSpeedMmS:10},fillAnglesDeg:[0],rotateFill:false,sampleStepMm:.5,surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:.2,layerMm:.2},within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:.5}],contact:{source:null},description:'Roof slices with a target mean normal gap.'}));
   plan.geometry = splineBlock({runMm:16,widthMm:12,heightsMm:[[3, 3, 3, 3], [3, 4, 4, 3], [3, 4, 4, 3], [3, 3, 3, 3]]});
   plan.process = { ...plan.process, minimumLayerSeconds: 0 };
   return plan;

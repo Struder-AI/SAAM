@@ -1,15 +1,46 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
-import {frontAssignment} from '../../skills/wave-overhangs/scripts/prepare.mjs';
-import {rimAssignment} from '../../skills/thick-lip/scripts/prepare.mjs';
 import {bridgeAssignment} from '../../skills/bridging/scripts/prepare.mjs';
 import {depositionAssignment,currentAssignmentTerms} from './assignment-records.mjs';
 import {ordinarySliceAssignment} from './slice-settings.mjs';
 import {closeMeshPatchToPlane} from '../geom/mesh-patch-solid.mjs';
-import {STANDARD_SUPPORT,supportSlice,skinSlice,supportSolid,withSupportOperand,retiredTreeSolids,retiredFootprintSolids,solidInFrame} from '../../skills/standard-support/scripts/support-geometry.mjs';
+import {STANDARD_SUPPORT,supportSlice,supportSolid,retiredTreeSolids,retiredFootprintSolids} from '../../skills/standard-support/scripts/support-geometry.mjs';
 
 import {advancedVaseRecordRuntime} from '../../skills/advanced-vase-wall/scripts/record.mjs';
 const {validateSleevePattern}=advancedVaseRecordRuntime();
+
+// Read retired roof-finish records as ordinary Slice; new recipes author Slice directly.
+const LEGACY_SKIN_DEFAULTS=Object.freeze({spacingFactor:1,layers:2,pitchMm:.2,strokeAngleDeg:0,sampleStepMm:.5,surveyStepMm:.5,maxAngleDegOverride:null});
+function legacySkinAssignment({id,...options}){
+  const a={part:null,filament:null,process:null,after:[],supportFrom:null,...LEGACY_SKIN_DEFAULTS,...options};
+  requireThat(!Object.hasOwn(options,'normalMm'),'Use pitchMm for the target mean normal gap.');
+  return ordinarySliceAssignment({id,part:a.part,filament:a.filament,process:{planarSpeedMmS:10,firstLayerSpeedMmS:10,...a.process},loops:0,fillDensity:1,solidTop:0,solidBottom:0,
+    spacingFactor:a.spacingFactor,sampleStepMm:a.sampleStepMm,fillAnglesDeg:[a.strokeAngleDeg],rotateFill:false,
+    surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:a.pitchMm,layerMm:a.pitchMm},
+    within:[{kind:'surface-domain',loopsUv:null,fromLayer:-a.layers,toLayer:0,maxSlopeDeg:a.maxAngleDegOverride??90,sampleStepMm:a.surveyStepMm}],
+    contact:{source:a.supportFrom},dependencies:{afterParts:[],beforeParts:[],after:a.after},description:'Roof slices with a target mean normal gap.'});
+}
+
+// Compatibility only: technique presets no longer exist as executable extensions.
+const LEGACY_FRONT_DEFAULTS=Object.freeze({lineSpacingMm:.3,beadHeightMm:.2,speedMmS:5,fanPercent:100,toleranceMm:.01,sampleStepMm:.5,propagationStepMm:.1});
+function legacyFrontAssignment({id,...options}) {
+  const a={filament:null,process:null,after:[],surface:null,domainUv:[],seedUv:[],afterParts:[],beforeParts:[],reason:'',layers:1,...LEGACY_FRONT_DEFAULTS,...options};
+  const native=a.surface?.kind==='patch';
+  return ordinarySliceAssignment({id,part:native?a.surface.part??null:a.part??null,filament:a.filament,
+    process:{planarSpeedMmS:a.speedMmS,firstLayerSpeedMmS:a.speedMmS,fanPercent:a.fanPercent,...a.process},
+    loops:0,fillDensity:1,solidTop:0,solidBottom:0,sampleStepMm:a.sampleStepMm,
+    surface:native?{kind:'patch',patch:a.surface.patch,offsetMm:a.surface.offsetMm??0}:a.surface,
+    stack:{firstLayerMm:a.beadHeightMm,layerMm:a.beadHeightMm,...(a.direction?{direction:a.direction}:{})},
+    within:[{kind:'surface-domain',loopsUv:a.domainUv,fromLayer:-a.layers,toLayer:0}],
+    fillOrder:{kind:'fronts',seedUv:a.seedUv?.length?a.seedUv:null,lineSpacingMm:a.lineSpacingMm,propagationStepMm:a.propagationStepMm,toleranceMm:a.toleranceMm},
+    dependencies:{afterParts:a.afterParts,beforeParts:a.beforeParts,after:a.after},description:a.reason});
+}
+
+
+function legacyRimAssignment({id,part=null,filament=null,process=null,after=[],source=null,steps=[2],minFeatureMm=.4}){
+  return ordinarySliceAssignment({id,part,filament,process,loops:steps,fillDensity:0,solidTop:0,solidBottom:0,
+    surface:{kind:'terminal',assignment:source,minFeatureMm},contact:{source},dependencies:{afterParts:[],beforeParts:[],after}});
+}
+
 
 // A retired cell layout is read as identical explicit paths.
 function explicitSleevePaths(pattern){
@@ -41,6 +72,11 @@ function migrateAssignmentTerms(assignment){
 function currentAssignmentForm(assignment,index,process){
   const changes=[];
   let source=assignment;
+  if(source.substrate?.kind==='discover'){
+    source={...source,substrate:null};
+    changes.push({path:`slices.assignments.${index}.substrate`,assignment:assignment.id,before:assignment.substrate,after:null,
+      meaning:'Empty prerequisites leave placement to scheduling; no discovery opt-in.'});
+  }
   if(assignment.construction==='sleeve'&&assignment.pattern&&Object.hasOwn(assignment.pattern,'tile')){
     source={...source,pattern:explicitSleevePaths(assignment.pattern)};
     changes.push({path:`slices.assignments.${index}.pattern`,before:assignment.pattern,after:source.pattern,meaning:'Expand legacy cell layout into identical explicit paths; no geometry, bead height or repetition change.'});
@@ -53,7 +89,7 @@ function currentAssignmentForm(assignment,index,process){
   }
   const renamed=migrateAssignmentTerms(source),{construction,...legacy}=renamed;
   requireThat(construction!=='cladding','Legacy cladding pose has no automatic reading: author normal-band Slice with optional derived pose and field tilt, then review.');
-  const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??process.layerMm}}):construction==='skin'?skinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:process.skinSpeedMmS,firstLayerSpeedMmS:process.skinSpeedMmS}}):construction==='fronts'?frontAssignment(legacy):construction==='rim'?rimAssignment(legacy):depositionAssignment(renamed);
+  const canonical=construction==='bridges'?bridgeAssignment({...legacy,process:{...legacy.process,firstLayerMm:legacy.process?.layerMm??process.layerMm}}):construction==='skin'?legacySkinAssignment({...legacy,process:{...legacy.process,planarSpeedMmS:process.skinSpeedMmS,firstLayerSpeedMmS:process.skinSpeedMmS}}):construction==='fronts'?legacyFrontAssignment(legacy):construction==='rim'?legacyRimAssignment(legacy):depositionAssignment(renamed);
   for(const key of new Set([...Object.keys(source),...Object.keys(canonical)]))if(JSON.stringify(source[key])!==JSON.stringify(canonical[key]))changes.push({path:`slices.assignments.${index}.${key}`,assignment:assignment.id,before:source[key]??null,after:canonical[key]??null,meaning:Object.hasOwn(source,key)?'Shared-construction form.':'Current shared default.'});
   return {assignment:changes.length?canonical:assignment,changes};
 }
@@ -80,57 +116,47 @@ export function currentAssignmentForms(plan){
 
 const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const retiredFootprint=assignment=>assignment?.preset==='support'&&assignment.within?.[0]?.kind==='support';
-// XY bounds of the vertices a geometry holds, for finding the component under a support.
-function vertexBounds(geometry){
-  const points=[geometry?.vertices,...(geometry?.operands??[]).map(operand=>vertexBounds(operand)?.corners)].filter(Array.isArray).flat();
-  if(!points.length)return null;
-  const axis=k=>points.map(p=>p[k]),min=[0,1].map(k=>Math.min(...axis(k))),max=[0,1].map(k=>Math.max(...axis(k)));
-  return {min,max,corners:[min,max]};
-}
-// Supports {solids, contacts} in a geometry's frame join it as one hidden union
-// operand; in an assembly each joins the component under its contacts (else
-// the first), in that component's frame. -> {geometry, placed: components chosen}.
-function joinSupports(geometry,supports){
-  if(!geometry||!supports.length)return {geometry,placed:[]};
-  if(geometry.shape==='spatial'){const joined=joinSupports(geometry.solid,supports);return {...joined,geometry:{...geometry,solid:joined.geometry}};}
-  if(geometry.shape!=='assembly'||!Array.isArray(geometry.parts)||!geometry.parts.length)return {geometry:withSupportOperand(geometry,supportSolid(supports.flatMap(s=>s.solids))),placed:[]};
-  const under=supports.map(({contacts})=>{
-    const [x,y]=[0,1].map(k=>contacts.reduce((sum,p)=>sum+p[k],0)/contacts.length);
-    return geometry.parts.findIndex(part=>{const b=vertexBounds(part.geometry);return b&&x>=b.min[0]+part.xMm&&x<=b.max[0]+part.xMm&&y>=b.min[1]+part.yMm&&y<=b.max[1]+part.yMm;});
-  });
-  const placed=[],parts=geometry.parts.map((part,i)=>{
-    const held=supports.filter((_,n)=>Math.max(under[n],0)===i),origin=[part.xMm,part.yMm,part.zMm];
-    if(!held.length)return part;
-    const joined=joinSupports(part.geometry,held.map(({solids,contacts})=>({solids:solids.map(solid=>solidInFrame(solid,origin)),contacts:contacts.map(p=>p.map((v,k)=>v-origin[k]))})));
-    placed.push(part.id+(i===0&&under.some(n=>n<0)?' (the first component; no component lies under some contacts)':''),...joined.placed.map(inner=>`${part.id}/${inner}`));
-    return {...part,geometry:joined.geometry};
-  });
-  return {geometry:{...geometry,parts},placed};
+// Recognize the old support wrapper by both its Slice settings and an identical
+// hidden union operand. Ordinary user geometry and similarly named skins stay put.
+function independentSupportForms(plan){
+  let geometry=plan.geometry;const converted=new Set();
+  const assignments=(plan.slices?.assignments??[]).map(a=>{
+    if(a.construction||a.geometry||a.loops!==0||a.solidTop!==0||a.rotateFill!==false||a.process?.liftMm!==0||a.process?.retractMm!==0||a.within?.length!==1||a.within[0].kind!=='geometry')return a;
+    const root=geometry?.shape==='spatial'?geometry.solid:geometry,component=a.part==null?null:root?.parts?.find(p=>p.id===a.part),shape=component?.geometry??root,solid=a.within[0].geometry;
+    if(shape?.shape!=='boolean'||shape.operation!=='union'||shape.displayOperand!==0)return a;
+    const index=shape.operands.findIndex((operand,i)=>i>0&&JSON.stringify(operand)===JSON.stringify(solid));
+    if(index<0)return a;
+    const operands=shape.operands.filter((_,i)=>i!==index),replacement=operands.length===1?operands[0]:{...shape,operands};
+    const changed=component?{...root,parts:root.parts.map(p=>p===component?{...p,geometry:replacement}:p)}:replacement;
+    geometry=geometry.shape==='spatial'?{...geometry,solid:changed}:changed;converted.add(a.id);
+    return {...a,geometry:solid,within:[]};
+  }).filter(a=>![...converted].some(id=>a.id===`${id}-skin`&&a.description===`Solid underside over support ${id}.`));
+  if(!converted.size)return {plan,notes:[]};
+  return {plan:{...plan,geometry,slices:{...plan.slices,assignments}},notes:[`Support geometry separated from the part; redundant underside-skin assignments removed: ${[...converted].join(', ')}. The part's Slice settings own its underside.`]};
 }
 
 // Retired supports read as standard supports (intent/toolpath.md, How standard
 // supports are made): enabled skills.supports trees become one Slice claim,
 // supports, so filament routes naming it still apply; each support-preset
-// footprint becomes an ordinary claim and its -skin. Their solids, in the print's
-// frame, join the part as hidden union operands. Standard settings replace the
+// footprint becomes an ordinary Slice of its independent solid in the print's
+// frame. Standard settings replace the
 // retired ones. A disabled skills.supports is dropped without a note.
 export function currentSupportForms(plan){
+  const independent=independentSupportForms(plan);plan=independent.plan;
   const authored=Array.isArray(plan.slices?.assignments)?plan.slices.assignments:[];
-  if(!(isRecord(plan.skills)&&Object.hasOwn(plan.skills,'supports'))&&!authored.some(retiredFootprint))return {plan,notes:[]};
-  const {supports:trees,...skills}=isRecord(plan.skills)?plan.skills:{},layerMm=plan.process?.layerMm;
-  const {fillDensity,angleDeg,baseLayers,description}=STANDARD_SUPPORT,converted=[],details=[],joined=[];
+  if(!(isRecord(plan.skills)&&Object.hasOwn(plan.skills,'supports'))&&!authored.some(retiredFootprint))return independent;
+  const {supports:trees,...skills}=isRecord(plan.skills)?plan.skills:{};
+  const {fillDensity,angleDeg,baseLayers,description}=STANDARD_SUPPORT,converted=[],details=[];
   const standard=(id,solids,settings)=>ordinarySliceAssignment({...supportSlice({id,part:null,solid:supportSolid(solids),fillDensity,angleDeg,baseLayers,description}),...settings});
   const read=(id,work)=>{try{return work();}catch(error){details.push(`Support ${id} was not converted and produces nothing: ${error.message}`);return null;}};
   const assignments=authored.flatMap(assignment=>{
     if(!retiredFootprint(assignment))return [assignment];
-    const skinMm=STANDARD_SUPPORT.skinLayers*(assignment.process?.layerMm??layerMm);
-    const made=read(assignment.id,()=>retiredFootprintSolids(assignment.within[0],{closeMeshPatchToPlane},{skinMm:Number.isFinite(skinMm)&&skinMm>0?skinMm:0}));
+    const made=read(assignment.id,()=>retiredFootprintSolids(assignment.within[0],{closeMeshPatchToPlane}));
     if(!made)return [];
-    details.push(...made.notes.map(note=>`Support ${assignment.id}: ${note}`));joined.push(made);
-    const solid=supportSolid(made.solids),skin=made.raised.length?[ordinarySliceAssignment(skinSlice({id:assignment.id,raised:made.raised,solid,angleDeg}))]:[];
-    converted.push(`${assignment.id}${skin.length?` with ${assignment.id}-skin`:''}`);
+    details.push(...made.notes.map(note=>`Support ${assignment.id}: ${note}`));
+    converted.push(assignment.id);
     return [standard(assignment.id,made.solids,{filament:assignment.filament??null,process:{...(isRecord(assignment.process)?assignment.process:{}),liftMm:0,retractMm:0},
-      ...(isRecord(assignment.dependencies)?{dependencies:assignment.dependencies}:{}),...(assignment.description?{description:assignment.description}:{})}),...skin];
+      ...(isRecord(assignment.dependencies)?{dependencies:assignment.dependencies}:{}),...(assignment.description?{description:assignment.description}:{})})];
   });
   const chordMm=Number.isFinite(trees?.treeChordMm)&&trees.treeChordMm>0?trees.treeChordMm:STANDARD_SUPPORT.chordMm;
   const grown=(trees?.enabled&&Array.isArray(trees.assignments)?trees.assignments:[]).flatMap(tree=>{
@@ -140,9 +166,8 @@ export function currentSupportForms(plan){
   });
   const id=authored.some(a=>a?.id==='supports')?'tree-supports':'supports',reasons=[...new Set(grown.map(tree=>tree.reason).filter(r=>typeof r==='string'&&r.trim()))];
   if(grown.length)converted.unshift(`${grown.length} tree${grown.length>1?'s':''} as ${id}`);
-  const {geometry,placed}=joinSupports(plan.geometry,[...grown,...joined]);
-  const current={...plan,...(isRecord(plan.skills)?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),
+  const current={...plan,...(isRecord(plan.skills)?{skills}:{}),
     ...(isRecord(plan.slices)||grown.length?{slices:{...plan.slices,assignments:[...(grown.length?[standard(id,grown.flatMap(tree=>tree.solids),{description:reasons.join(' ')||description})]:[]),...assignments]}}:{})};
-  if(!converted.length&&!details.length)return {plan:current,notes:[]};
-  return {plan:current,notes:[[converted.length?`Supports converted to standard supports (sliced support solids joined to the part as hidden union operands): ${converted.join('; ')}. Each prints with no loops, one row direction, ${baseLayers} dense base layers and no hop or retraction; the retired loop, density and interface settings are not carried${placed.length?`; placed on component ${[...new Set(placed)].join(', ')}`:''}. The next save or migrate_bundle records them.`:'',...new Set(details)].filter(Boolean).join(' ')]};
+  if(!converted.length&&!details.length)return {plan:current,notes:independent.notes};
+  return {plan:current,notes:[...independent.notes,[converted.length?`Supports converted to ordinary Slice assignments of independent support solids: ${converted.join('; ')}. Each prints with no loops, one row direction, ${baseLayers} dense base layers and no hop or retraction; the retired loop, density and interface settings are not carried. The next save or migrate_bundle records them.`:'',...new Set(details)].filter(Boolean).join(' ')]};
 }

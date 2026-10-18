@@ -61,9 +61,9 @@ export async function editHeatSet(source,request,geometryOperations){
     const id=owners[0].id,ids=existingByFeature.get(id)??new Set();ids.add(assignment.id);existingByFeature.set(id,ids);
     if(assignment.source?.extension==='heat-set-inserts'){const prior=priorSources.get(id)??new Set();prior.add(assignment.source.assignment);priorSources.set(id,prior);}
   }
-  const candidates=kept.filter(a=>!a.construction&&!a.join&&!a.preset&&!(a.within?.length)&&
+  const candidates=kept.filter(a=>!a.construction&&!a.join&&!a.preset&&!a.geometry&&
     (a.part===part||a.part===null));
-  const preferred=candidates.filter(a=>a.part===part),available=preferred.length?preferred:candidates;
+  const available=candidates;
   requireThat(!(request.sourceAssignment&&request.sourceAssignments),'Choose sourceAssignment or sourceAssignments.');
   if(request.sourceAssignments)requireThat(Array.isArray(request.sourceAssignments)&&request.sourceAssignments.length&&
     request.sourceAssignments.every(id=>typeof id==='string')&&new Set(request.sourceAssignments).size===request.sourceAssignments.length,'sourceAssignments must contain distinct Slice ids.');
@@ -71,8 +71,8 @@ export async function editHeatSet(source,request,geometryOperations){
     const feature=heatSetFeature(raw),target=Boolean(request.feature)&&feature.id===(request.feature.id??'insert');
     const requested=target?(request.sourceAssignments??(request.sourceAssignment?[request.sourceAssignment]:null)):null;
     const selected=requested??(priorSources.has(feature.id)?[...priorSources.get(feature.id)]:
-      available.length===1?[available[0].id]:[]);
-    requireThat(selected.length,available.length>1?'Choose sourceAssignments: more than one Slice can supply heat-set layers.':'Heat-set reinforcement needs a matching source Slice assignment.');
+      available.map(assignment=>assignment.id));
+    requireThat(selected.length,'Heat-set reinforcement needs a matching source Slice assignment.');
     const canonical=heatSetAssignmentId(feature,part),legacy=legacyHeatSetAssignmentId(feature),existing=existingByFeature.get(feature.id)??new Set();
     const primary=existing.has(canonical)?canonical:existing.has(legacy)?legacy:canonical;
     return selected.map((sourceId,index)=>{

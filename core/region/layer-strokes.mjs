@@ -47,8 +47,8 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
     // Simplify only the finished deposition contour to machine precision; the
     // offset region keeps owning material topology.
     const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm));
-    for (const points of cleaned)
-      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, closed: true, points, beadWidthMm: widthMm });
+    for (const [loop,points] of cleaned.entries())
+      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, edge:{loop,ring},closed: true, points, beadWidthMm: widthMm });
   }
   // Fill reaches half a bead beyond the last loop, less the overlap welding
   // fill to walls. The region offset retains material topology at collapse.

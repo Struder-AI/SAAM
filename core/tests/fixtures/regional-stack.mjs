@@ -6,7 +6,6 @@
 import {defaults} from '../../print/plan.mjs';
 import {sliceAssignment} from "../../print/slice-records.mjs";
 import {depositionAssignment} from '../../print/assignment-records.mjs';
-import {skinAssignment} from '../../../skills/draped-skin/scripts/prepare.mjs';
 import {syntheticDobotSetup} from './dobot.mjs';
 import {splineBox,splineBlock} from './spline-shapes.mjs';
 
@@ -40,7 +39,7 @@ export function regionalStackPlan(machine,backend='mesh') {
     sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
     sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
     depositionAssignment({construction:'sleeve',id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
-    skinAssignment({id:'roof-finish',part:'roof',layers:2,pitchMm:.2,surveyStepMm:.2,sampleStepMm:.2})
+    sliceAssignment({id:'roof-finish',part:'roof',loops:0,fillDensity:1,solidTop:0,solidBottom:0,process:{planarSpeedMmS:10,firstLayerSpeedMmS:10},fillAnglesDeg:[0],rotateFill:false,sampleStepMm:.2,surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:.2,layerMm:.2},within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:.2}],contact:{source:null},description:'Roof slices with a target mean normal gap.'})
   ];
   return plan;
 }

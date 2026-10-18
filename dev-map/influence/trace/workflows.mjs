@@ -126,7 +126,7 @@ export const workflows={
     const {runCLI}=await import(new URL('../../../scripts/agent-toolkit.mjs',import.meta.url).href);
     const outputs=[];const write=v=>outputs.push(v.ok||v.error);
     // developer-onboarding reads stored map designs, which a fresh checkout lacks.
-    for(const args of [['builder-onboarding'],['maker-onboarding','--machine','ultimaker-s5'],['read-skill','draped-skin','--maker'],['read-guidance','skills/slice/SKILL.md'],['context-budget']])
+    for(const args of [['builder-onboarding'],['maker-onboarding','--machine','ultimaker-s5'],['read-skill','slice','--maker'],['read-guidance','skills/slice/SKILL.md'],['context-budget']])
       await runCLI(args,{write});
     return {ok:outputs};
   }

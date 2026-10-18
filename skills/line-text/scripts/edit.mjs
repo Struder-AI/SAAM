@@ -47,8 +47,9 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
     heightMm:layerMm,repetitions:[layer],uv:{reference:curveReference,
       points:points.map(([x,y])=>[x+origin[0],y+origin[1]]),normalMm:origin[2]+layer*layerMm}}))).flat():
     compiled.assignment.curves.map(curve=>({...curve,points:curve.points.map(([x,y,z])=>[x+origin[0],y+origin[1],z])}));
-  const assignment=Toolpath.curveAssignment({...compiled.assignment,part,curves,substrate,
-    ...(reference?{repeat:{count:layers,translation:[0,0,0]},sequence:true,toolPose:{alignToSliceNormal:true}}:{})});
+  const assignment=Toolpath.curveAssignment({...compiled.assignment,part,curves,substrate:null,
+    ...(substrate?{operationAfter:{0:[substrate]}}:{}),
+    ...(reference?{repeat:{count:layers,translation:[0,0,0]},sequence:false,toolPose:{alignToSliceNormal:true}}:{})});
   if(at<0)assignments.push(assignment);else assignments[at]=assignment;
   return {assignments,report:{id,fontId:font.id,plan:compiled.plan,...compiled.report,
     ...(reference?{reference,layers,notes:[...(compiled.report.notes??[]),'Surface layout maps sizeMm to UV bounds; it does not preserve physical lettering dimensions on a distorted chart.']}: {})}};

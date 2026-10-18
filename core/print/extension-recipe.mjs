@@ -9,6 +9,7 @@ import {geometryOperations} from '../geom/operations.mjs';
 import {resolveSpatialPlan} from './spatial-inputs.mjs';
 import {replaceSolid} from '../geom/spatial.mjs';
 import {operationId,withOperationAfter} from './operation-references.mjs';
+import {selectManufacturedEdge} from './manufactured-edges.mjs';
 
 const Toolpath=Object.freeze({defaultSlices,curveAssignment,depositionAssignment});
 
@@ -25,7 +26,7 @@ export async function prepareExtensionRecipe(source,extension,request,{geometryC
   requireThat(!options.create,`No deposition creator for extension ${extension}.`);
   const editor=await loadExtensionEntry(extension,'deposition-edit');
   const Geometry=await geometryOperations();
-  const contribution=await editor(input,request,{...options,Geometry,Toolpath,Recipe:{operationId,withOperationAfter}});
+  const contribution=await editor(input,request,{...options,Geometry,Toolpath,Recipe:{operationId,withOperationAfter,selectEdge:reference=>selectManufacturedEdge(source,reference)}});
   const {geometry,assignments,placement,report}=contribution;
   // Only the declared engine outputs can alter the proposal. Setup, output,
   // versions and other bundle fields never come back from extension code.

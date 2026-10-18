@@ -1,74 +1,62 @@
 ---
 name: wave-overhangs
-description: Extension for experimental seeded-front fill on ordinary Slice stacks.
+description: Guidance for laterally growing overhangs using ordinary Slice seeded-front fill.
 metadata:
-  saam-kind: extension
+  saam-kind: guidance
 ---
 
-# Seeded-front Slice extension
+# Seeded-front fill
 
-This extension uses the [slice skill](../slice/SKILL.md) when a region can grow laterally from
-an authored seed. Fronts attach to preceding fronts; backing beneath every
-point is not required. This is an experimental process: lateral attachment,
-cooling and thermal warping need judgment and physical trials.
-
-`frontAssignment({id,...options})` in
-[extension script](scripts/prepare.mjs) expands to
-an ordinary assignment: a surface-domain owned volume, `fillOrder:{kind:'fronts',...}`,
-shared process overrides and dependencies. Persist that expanded record in
-`plan.slices.assignments`; legacy `construction:'fronts'` is read as it.
-There is no separate wave producer.
+Use [Slice](../slice/SKILL.md) with `fillOrder:{kind:'fronts',...}` to grow a region
+laterally from an existing seed. There is no wave extension or separate producer.
+Lateral adhesion, cooling and thermal warping remain experimental.
 
 ## Author the region and seed
 
-- `surface:{kind:'patch',part:null,patch:'top'}` selects a native patch.
-  `surface:{kind:'spline',patch,offsetMm:0}` supplies a named control net.
-  XYZ coordinates precede print/component placement.
-- `domainUv` supplies closed chart loops: CCW outer boundaries, CW holes.
-  The preset turns these into the owned volume.
-- `seedUv` identifies the already reached chart region; it is not extruded again.
-  Match its edge to the intended anchor. Omit it to derive a seed from prepared predecessor material. Disconnected components may require separate assignments.
-- `afterParts`, `beforeParts` and `after` become ordinary dependencies. For a
-  single solid, `[null]` selects its producers. Dependencies establish order,
-  not physical adhesion or automatic support.
-- `reason` becomes the assignment description. Record the intended attachment.
+Select a native patch or independent spline reference. A `within` surface-domain
+volume selects closed chart loops: CCW outer boundaries and CW holes. The stack
+sets layer count and normal gaps. Ordinary Slice settings control material,
+speed, width, fan and optional derived tool poses.
 
-Front construction joins adjacent waves with a short in-domain curve, limited to max(bead width, spacing) plus tolerance. Each causal pass is atomic. A split ends its shared prefix; both children depend on it, and a merge depends on every contributing branch. Independent branches stay unchained. Scheduling owns travel between passes. Inspect starts and lateral attachment; a valid mask does not guarantee continuity.
+`fillOrder.seedUv` is the already reached region; it is not extruded again.
+Match its boundary to the printed basing edge. A manufactured `substrate`
+reference declares that edge's readiness. A selected solid exterior uses its
+required slice/stack completions. Artificial references leave prerequisites empty for scheduler placement.
+Geometry references alone do not establish manufacturing readiness.
+Omitting the seed requests derivation from prepared predecessor material.
 
-| Preset option | Default | Meaning |
-|---|---:|---|
-| `layers` | 1 | Number of translated slice surfaces. |
-| `beadHeightMm` | 0.2 | Target whole-reference mean normal gap. |
-| `lineSpacingMm` | 0.3 | Physical distance between fronts. |
-| `speedMmS` | 5 | Shared deposition speed. |
-| `fanPercent` | 100 | Machine must support the requested fan setting. |
-| `toleranceMm` | 0.01 | Integration, chord and terminal residual tolerance. |
-| `sampleStepMm` | 0.5 | Physical mapping/refinement step. |
-| `propagationStepMm` | 0.1 | Internal advance before clipping. |
+```json
+{"id":"canopy","loops":0,"fillDensity":1,"solidTop":0,"solidBottom":0,
+ "surface":{"kind":"patch","patch":"canopy","offsetMm":0},
+ "stack":{"firstLayerMm":0.2,"layerMm":0.2},
+ "within":[{"kind":"surface-domain","loopsUv":[[[0,0],[1,0],[1,1],[0,1]]],
+            "fromLayer":-1,"toLayer":0}],
+ "fillOrder":{"kind":"fronts","seedUv":[[[0,0],[0.1,0],[0.1,1],[0,1]]],
+              "lineSpacingMm":0.3,"propagationStepMm":0.1,"toleranceMm":0.01}}
+```
 
-Whole-reference area-weighted normals determine default translation direction;
-the mean projected gap calibrates its magnitude. Actual local gaps set bead
-volume. Geometry supplies frames; Slice `toolPose:{alignToSliceNormal:true}` derives
-normal alignment, while `{}` derives upright poses. Field tilt varies either.
-Exporters check representation, flow, feed and slope.
-Spacing and bead width remain separate process choices; no adhesion percentage
-is enforced. Defaults are development values, not calibrated machine settings.
+Use the normal Slice editor to fill remaining defaults. Chart coordinates belong
+to the selected surface; inspect the seed's physical attachment. Later slices
+require their immediate predecessor. Within a slice, a split makes both children
+require their shared prefix; a merge requires every contributing branch.
+Independent branches remain unchained. These are core construction requirements.
+
+Front construction joins adjacent waves with a short in-domain curve, bounded
+by max(bead width, spacing) plus tolerance. Each causal pass is atomic. Scheduling
+handles interleaving and travel intent; Export realizes selected-machine moves.
 
 ## Numerical scope
 
-Each front region uses a regular injective spline chart. Singularities, folds,
-multiple-chart stitching and general CAD trimming are outside this technique.
-Physical offsets and obstacle handling are sampled numerical approximations.
-Fronts run until material is reached or progress stops; no point/time cap silently
-truncates them. Unreachable material reports its seed/region cause.
+The method uses one regular injective chart. Folds, singularities and multi-chart
+stitching are outside its scope. Physical offsets and obstacle handling are sampled;
+`sampleStepMm`, `propagationStepMm` and `toleranceMm` control that approximation.
+Spacing and bead width are independent; no adhesion percentage is enforced.
 
-Reports preserve terminal `residualsUv`, physical residual diameter and rounding
-bands rather than relabeling them deposited material. Contours narrower than
-`toleranceMm/4` can be classified as slivers. The last front can stop within one
-spacing of the boundary; there is no implicit perimeter cap. Refine narrow or
-high-curvature geometry and inspect starts/stops in Studio.
+Unreachable material reports its seed/region cause. Reports retain residual UV
+regions, physical residual diameter and rounding bands. A final front can stop
+within one spacing of the boundary; no implicit perimeter cap is deposited.
 
-Example recipes grow a [small saddle](examples/box-saddle.json) beyond a box and a
-[surrounding canopy](examples/box-canopy.json) whose domain is a constant
-surface-distance outline. Split fronts may require multiple passes; inspect the resulting shared travel.
-[Implementation and provenance](DEVELOPER.md) records method and attribution.
+The [saddle](examples/box-saddle.json) and [canopy](examples/box-canopy.json) examples
+are ordinary Slice recipes. [Implementation and provenance](DEVELOPER.md) records
+the core algorithm and research attribution. Retired `construction:'fronts'`
+records migrate to ordinary Slice.

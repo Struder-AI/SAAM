@@ -704,20 +704,10 @@
       }
     },
     {
-      "id": "extension-manual-draped-skin",
-      "index": "1.34",
-      "label": "draped-skin/SKILL.md",
-      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
-      "type": "guidance",
-      "source": {
-        "file": "skills/draped-skin/SKILL.md"
-      }
-    },
-    {
-      "id": "extension-manual-wave-overhangs",
+      "id": "guidance-manual-wave-overhangs",
       "index": "1.35",
       "label": "wave-overhangs/SKILL.md",
-      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
+      "description": "Technique guidance using ordinary Slice or Trace; no executable extension preset.",
       "type": "guidance",
       "source": {
         "file": "skills/wave-overhangs/SKILL.md"
@@ -744,20 +734,20 @@
       }
     },
     {
-      "id": "extension-manual-thick-lip",
+      "id": "guidance-manual-thick-lip",
       "index": "1.38",
       "label": "thick-lip/SKILL.md",
-      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
+      "description": "Technique guidance using ordinary Slice or Trace; no executable extension preset.",
       "type": "guidance",
       "source": {
         "file": "skills/thick-lip/SKILL.md"
       }
     },
     {
-      "id": "extension-manual-pipe-cladding",
+      "id": "guidance-manual-pipe-cladding",
       "index": "1.39",
       "label": "pipe-cladding/SKILL.md",
-      "description": "Maker-context guidance stored alongside its extension; read by the context reader.",
+      "description": "Guidance for authoring coatings with ordinary Slice; no extension entry or private tool.",
       "type": "guidance",
       "source": {
         "file": "skills/pipe-cladding/SKILL.md"
@@ -16194,34 +16184,8 @@
       ]
     },
     {
-      "id": "read-extension-draped-skin",
-      "from": "extension-manual-draped-skin",
-      "to": "context-skill",
-      "label": "manual content",
-      "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
-      "operations": [
-        "read draped-skin"
-      ],
-      "inputs": "Selected catalog ID and optional heading.",
-      "outputs": "Actual skill manual.",
-      "effects": "Returns values to the caller; state effects stay with the declared owner.",
-      "failure": "Propagate the operation error to its caller.",
-      "excludes": "This source reference is not an exhaustive code assignment or a conformance certificate.",
-      "status": "observed in source; manually traced",
-      "evidence": [
-        "core/agent/toolkit.mjs::readSkill",
-        "skills/catalog.mjs"
-      ],
-      "access": [
-        {
-          "from": "context-skill",
-          "to": "extension-manual-draped-skin"
-        }
-      ]
-    },
-    {
-      "id": "read-extension-wave-overhangs",
-      "from": "extension-manual-wave-overhangs",
+      "id": "read-guidance-wave-overhangs",
+      "from": "guidance-manual-wave-overhangs",
       "to": "context-skill",
       "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
@@ -16241,7 +16205,7 @@
       "access": [
         {
           "from": "context-skill",
-          "to": "extension-manual-wave-overhangs"
+          "to": "guidance-manual-wave-overhangs"
         }
       ]
     },
@@ -16298,8 +16262,8 @@
       ]
     },
     {
-      "id": "read-extension-thick-lip",
-      "from": "extension-manual-thick-lip",
+      "id": "read-guidance-thick-lip",
+      "from": "guidance-manual-thick-lip",
       "to": "context-skill",
       "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
@@ -16319,13 +16283,13 @@
       "access": [
         {
           "from": "context-skill",
-          "to": "extension-manual-thick-lip"
+          "to": "guidance-manual-thick-lip"
         }
       ]
     },
     {
-      "id": "read-extension-pipe-cladding",
-      "from": "extension-manual-pipe-cladding",
+      "id": "read-guidance-pipe-cladding",
+      "from": "guidance-manual-pipe-cladding",
       "to": "context-skill",
       "label": "manual content",
       "direction": "Causal flow: named information or action passes from source to recipient. Permitted calls/reads are listed separately in access.",
@@ -16345,7 +16309,7 @@
       "access": [
         {
           "from": "context-skill",
-          "to": "extension-manual-pipe-cladding"
+          "to": "guidance-manual-pipe-cladding"
         }
       ]
     },

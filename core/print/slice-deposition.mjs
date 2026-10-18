@@ -77,7 +77,7 @@ function sourceCurveResult(node,completed,{plan,results,shells}){
   const {source,produced,authored}=prepared;
   const referenceStack={...record.referenceStack,layers:record.spec.layers.map(layer=>record.preparedLayers?.get(layer.index)??layer)};
   const references={...depositionReferences(shells,results),['slice:'+record.spec.id]:referenceStack};
-  const traced=authoredCurveResult(authored,{plan,process:assignment.process?{...source.process,...assignment.process}:source.process,references,modelResults:results,sourceLayer:{...source,referenceStack}});
+  const traced=authoredCurveResult(authored,{plan,process:assignment.process?{...source.process,...assignment.process}:source.process,references,modelResults:results,sourceLayer:{...source,referenceStack,sliceMember:produced.sliceMember===true}});
   return {...traced,report:{...traced.report,...produced.report,notes:[...(traced.report.notes??[]),...(produced.report?.notes??[])],source:assignment.source,sourceLayer:node.index,sourceStack:record.spec.id,...(source.sectionReport?{sourceSection:source.sectionReport}:{})}};
 }
 

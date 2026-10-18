@@ -8,6 +8,9 @@ import {clipChartCurveToRegion,clipLineToRegion} from '../geom/curve-region.mjs'
 import {requireThat,dot,cross,distance,normalize} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {offsetRegion} from './offset.mjs';
+import {intersect} from './intersection.mjs';
+import {pointInRegion,loopArea} from './region2d.mjs';
+import {sampledChartRegion} from '../geom/height-slice.mjs';
 import {offsetSurfaceRegion,strokeSurfaceRegion,UV_GRID} from './surface-offset.mjs';
 
 export function surfaceChartBounds(surface,points=[],boundsUv=null){
@@ -77,8 +80,18 @@ export function intersectSurfaceSheet(slice,sheet,{boundsUv=null,sampleStepMm=0.
   requireThat(corners.every(point=>Math.abs(dot(normal,point.map((v,k)=>v-origin3d[k])))<=ROUNDING_MM),'Construction sheet must be planar.');
   const project=point=>{const relative=point.map((v,k)=>v-origin3d[k]);return [dot(relative,xAxis),dot(relative,yAxis)];};
   const bounds=surfaceChartBounds(slice,[],boundsUv),cut=sectionSurface(slice,{normal,offset:dot(normal,origin3d)},{boundsUv:bounds,sampleStepMm});
-  if(cut.coincident)return {curves:[],report:{method:'surface-plane-section',coincident:true,clipped:true,notes:['Construction sheet coincides with the layer; no unique intersection centerline exists.']}};
   const rectangle=corners.map(project),curves=[];
+  if(cut.coincident){
+    const domain=[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]];
+    let regionsUv;
+    if(slice.kind==='plane'){
+      let polygon=corners.map(point=>{const delta=point.map((v,k)=>v-slice.origin[k]);return [dot(delta,slice.xAxis),dot(delta,slice.yAxis)];});
+      if(loopArea(polygon)<0)polygon=polygon.reverse();
+      regionsUv=intersect([polygon],[domain]);
+    }else regionsUv=sampledChartRegion({min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])},surfaceChartStep(slice,bounds,sampleStepMm),uv=>
+      surfaceChartCovers(slice,uv)&&pointInRegion(project(evaluateSurface(slice,uv).point),[rectangle]),{surface:slice});
+    return {curves:[],regionsUv,report:{method:'surface-sheet-area',coincident:true,sampled:slice.kind!=='plane',sampleStepMm,toleranceMm}};
+  }
   for(const chain of cut.chains){
     const state={current:null};
     for(let i=1;i<chain.length;i++){

@@ -2,10 +2,28 @@
 // positions, execution order, or travel state to identify an operation.
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
+export function edgeReference(value){
+  if(!value||typeof value!=='object'||Array.isArray(value)||typeof value.assignment!=='string'||!value.assignment.length||
+    value.part!==undefined&&value.part!==null&&typeof value.part!=='string'||!value.edge||typeof value.edge!=='object'||Array.isArray(value.edge))return false;
+  const curve=Object.keys(value.edge).join()==='curve'&&(typeof value.edge.curve==='string'&&value.edge.curve.length>0||Number.isSafeInteger(value.edge.curve)&&value.edge.curve>=0);
+  if(value.index!==undefined)return Object.keys(value).every(key=>['assignment','index','part','edge'].includes(key))&&
+    Number.isSafeInteger(value.index)&&value.index>=0&&(curve||Object.keys(value.edge).every(key=>['loop','ring'].includes(key))&&
+    Number.isSafeInteger(value.edge.loop)&&value.edge.loop>=0&&(value.edge.ring===undefined||Number.isSafeInteger(value.edge.ring)&&value.edge.ring>=0));
+  return Object.keys(value).every(key=>['assignment','repetition','part','edge'].includes(key))&&
+    (typeof value.repetition==='string'&&value.repetition.length>0||Number.isSafeInteger(value.repetition)&&value.repetition>=0)&&curve;
+}
+
 export function operationPrerequisite(value){
+  if(edgeReference(value))return true;
   return typeof value==='string'&&value.length>0||Boolean(value&&typeof value==='object'&&!Array.isArray(value)&&
     Object.keys(value).every(key=>['assignment','index','part'].includes(key))&&typeof value.assignment==='string'&&value.assignment.length&&
     (value.index===undefined||Number.isSafeInteger(value.index)&&value.index>=0)&&(value.part===undefined||value.part===null||typeof value.part==='string'));
+}
+
+export function validateEdgeAfter(value,assignment){
+  requireThat(value===undefined||Array.isArray(value)&&value.every(entry=>entry&&Object.keys(entry).sort().join()==='after,target'&&
+    edgeReference(entry.target)&&entry.target.assignment===assignment&&Array.isArray(entry.after)&&entry.after.length&&entry.after.every(operationPrerequisite)),
+    'edgeAfter binds selected printed edges in this assignment to required manufacturing work.');
 }
 
 function selectedOperation(assignments,target){
@@ -31,6 +49,17 @@ export function operationId(assignments,target){return selectedOperation(assignm
 // A whole-assignment predecessor is resolved after construction, including
 // dynamic Slice domains. Selected predecessors use their exact native IDs.
 export function withOperationAfter(assignments,target,after){
+  if(edgeReference(target)){
+    const selected=assignments.find(assignment=>assignment.id===target.assignment);requireThat(selected,'Edge target names an absent assignment.');
+    requireThat(Array.isArray(after)&&after.length,'Supply required predecessors.');
+    const required=after.map(value=>operationPrerequisite(value)?value:operationId(assignments,value));
+    requireThat(required.every(value=>value?.assignment!==selected.id||value.index!==undefined||value.edge),'An edge cannot require its enclosing assignment.');
+    const entries=[...(selected.edgeAfter??[])],index=entries.findIndex(entry=>JSON.stringify(entry.target)===JSON.stringify(target));
+    const record={target,after:[...new Map([...(index<0?[]:entries[index].after),...required].map(value=>[JSON.stringify(value),value])).values()]};
+    if(index<0)entries.push(record);else entries[index]=record;
+    const assignment={...selected,edgeAfter:entries};validateEdgeAfter(entries,selected.id);
+    return assignments.map(prior=>prior===selected?assignment:prior);
+  }
   const selected=selectedOperation(assignments,target),assignment=structuredClone(selected.assignment);
   requireThat(Array.isArray(after)&&after.length,'Supply required predecessors.');
   const required=after.map(value=>operationPrerequisite(value)?value:operationId(assignments,value));

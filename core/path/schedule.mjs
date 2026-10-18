@@ -5,9 +5,10 @@ import {planSourceComposition} from './compose.mjs';
 import {createPlanningState,planFan,planningPath} from './planning.mjs';
 import {planFinishing} from './toolpath.mjs';
 import {NEUTRAL_PATH_CONTRACT} from './dependencies.mjs';
+import {CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
 
 export function schedulePath(path,{sourcePathId,onProgress}={}){
-  requireThat(path.manufacturing?.contract==='saam-construction-access/1'&&path.completions,'Scheduling needs producer-owned manufacturing prerequisites and validity; regenerate the source.');
+  requireThat(path.manufacturing?.contract===CONSTRUCTION_CONTRACT&&path.completions,'Scheduling needs producer-owned manufacturing prerequisites and validity; regenerate the source.');
   return planExecutionPath(path,{sourcePathId,onProgress});
 }
 

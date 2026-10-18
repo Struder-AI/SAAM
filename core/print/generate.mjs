@@ -66,7 +66,7 @@ export async function preparePathGeometry(plan) {
 
 // Add authored selections once without rebuilding existing native geometry.
 async function prepareAssignmentGeometry(plan,assignments,geometry){
-  const {placed,componentShells}=geometry,shells=[...geometry.shells],volumes=new Map(geometry.volumes),geometryFailures=new Map(geometry.geometryFailures);
+  const {placed,componentShells}=geometry,shells=[...geometry.shells],volumes=new Map(geometry.volumes),sources=new Map(geometry.sources),geometryFailures=new Map(geometry.geometryFailures);
   for(const assignment of assignments){
     try{
       if(assignment.part!==undefined&&assignment.part!==null&&!shells.some(([part])=>part===assignment.part)){
@@ -74,20 +74,21 @@ async function prepareAssignmentGeometry(plan,assignments,geometry){
         shells.push([assignment.part,shell,false]);
       }
       if(assignment.construction)continue;
-      const selections=assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}));
+      const selections=[...(assignment.geometry?[{selection:assignment.part,geometry:assignment.geometry}]:[]),...assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}))];
       const resolved=await resolveGeometrySelections(plan.geometry,selections),slots={index:0};
+      if(assignment.geometry)sources.set(assignment.id,resolved[slots.index++]);
       volumes.set(assignment.id,assignment.within.map(volume=>volume.kind==='geometry'?resolved[slots.index++]:null));
     }catch(error){
       if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
       geometryFailures.set(assignment.id,error);
     }
   }
-  return {placed,componentShells,shells,volumes,geometryFailures};
+  return {placed,componentShells,shells,volumes,sources,geometryFailures};
 }
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export async function generateModelResults(plan,{placed,componentShells,shells,volumes,geometryFailures=new Map()},onProgress) {
+export async function generateModelResults(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()},onProgress) {
   if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
   const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
   // An assembly construction with no component chosen uses the whole assembly.
@@ -95,10 +96,10 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:await extensionEngines(),
+  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,sources,contexts,engines:await extensionEngines(),
     processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
   const expanded={...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...extensions.assignments]}};
-  const contributedGeometry=await prepareAssignmentGeometry(expanded,extensions.assignments,{placed,componentShells,shells,volumes,geometryFailures:new Map()});
+  const contributedGeometry=await prepareAssignmentGeometry(expanded,extensions.assignments,{placed,componentShells,shells,volumes,sources,geometryFailures:new Map()});
   const contributed=extensions.assignments.filter(assignment=>assignment.construction).map(assignment=>({assignment,
     shell:shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(expanded,assignment).process}));
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source),...contributed];
@@ -159,7 +160,7 @@ export function resolveOperationReferences(plan,results){
       }
     }
   }
-  return results.map(result=>({...result,operations:result.operations.map(operation=>{
+  return results.map(result=>({...result,edgeAfter:plan.slices.assignments.find(assignment=>assignment.id===(result.report?.owner??result.id))?.edgeAfter,operations:result.operations.map(operation=>{
     const after=[...new Set((operation.after??[]).flatMap(previous=>{
       requireThat(operationPrerequisite(previous),'Invalid operation prerequisite.');
       if(typeof previous==='string')return [previous];
@@ -204,7 +205,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.composition=null;
 
   summary.boundsMm = placed?.bounds??null;
-  summary.clearance = 'Scheduling records the selected nozzle clearance envelope; carriage and machine mechanisms are unchecked.';
+  summary.clearance = 'Construction certifies internal deposition access; scheduling resolves external interference. Export checks transfers using the selected tool geometry.';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
     maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100

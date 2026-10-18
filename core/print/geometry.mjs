@@ -117,7 +117,7 @@ function nativeShellBytes(runtime,shell){
   try{
     requireThat(shell.surfaces?.length===shell.patches.length,'The shape builder did not supply one Rhino surface per patch.');
     const doc=new runtime.File3dm();owned.document=doc;
-    doc.applicationName='SAAM';doc.applicationDetails='Shell pipeline (slices, draped-skin)';
+    doc.applicationName='SAAM';doc.applicationDetails='Shell pipeline (planar and nonplanar slices)';
     doc.settings().modelUnitSystem=runtime.UnitSystem.Millimeters;
     const features=[];
     for(const [index,entry]of shell.surfaces.entries()){

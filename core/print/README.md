@@ -192,7 +192,7 @@ The adapter caches interpretations by output id. Reopening interprets saved
 commands on a miss; it never regenerates. Export copies the displayed bytes.
 Use `examples/prints/` only for explicitly curated examples.
 
-## Shell pipeline (slices and draped-skin)
+## Shell pipeline (planar and nonplanar slices)
 
 `core/print/bundle.mjs` adapts shell plans to the [shared lifecycle](#generation-and-review).
 Toolpath supplies completed operations to Bundle; [Scheduling](../path/README.md#retained-construction-interfaces) reads the saved result.

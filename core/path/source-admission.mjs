@@ -2,7 +2,7 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareCurvePath,curveAt} from './curve-path.mjs';
 import {validatePose,samePose} from './pose.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
-import {validateManufacturing} from './manufacturing.mjs';
+import {validateManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
 
 const table=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const id=value=>typeof value==='string'&&value.length>0;
@@ -18,13 +18,14 @@ export function admitSource(source){
   for(const key of ['curves','layers','surfaces','processes','operations'])requireThat(table(source[key])&&Object.keys(source[key]).every(id),'Source needs ID keyed '+key+'.');
   const reader=prepareCurvePath(source);
   const nativeLayers=new Set();
-  for(const layer of Object.values(source.layers))requireThat(id(layer.stackId)&&Number.isInteger(layer.index)&&Object.hasOwn(source.surfaces,layer.surfaceId),'Layer must retain a native stack, index and surface.');
+  for(const layer of Object.values(source.layers))requireThat(id(layer.stackId)&&Number.isSafeInteger(layer.index)&&layer.index>=0&&(layer.surfaceId===null||Object.hasOwn(source.surfaces,layer.surfaceId)),'Layer must retain a construction stack, index and optional reference surface.');
   for(const layer of Object.values(source.layers)){
     const key=JSON.stringify([layer.stackId,layer.index]);requireThat(!nativeLayers.has(key),'A native stack position has one slice identity.');nativeLayers.add(key);
     if(source.manufacturing)requireThat(source.completions?.[layer.completionId]?.kind==='slice','A manufactured native slice needs its completion record.');
   }
   const courses=new Set();
   for(const [key,operation] of Object.entries(source.operations)){
+    for(const field of ['discoverSubstrate','resolveSubstrate','resolveInternalSubstrate','suppliesSubstrate'])requireThat(operation[field]===undefined||operation[field]===true,'Invalid substrate-contact declaration.');
     requireThat(operation.id===key&&Array.isArray(operation.after)&&operation.after.every(previous=>previous!==key&&(Object.hasOwn(source.operations,previous)||Object.hasOwn(source.completions??{},previous))),
       'Operation needs its source identity and existing predecessors.');
     requireThat(Object.hasOwn(source.processes,operation.processId)&&(operation.layerId===null||Object.hasOwn(source.layers,operation.layerId))&&typeof operation.interruptible==='boolean',
@@ -61,7 +62,7 @@ export function admitSource(source){
   validateManufacturing(source);
   if(source.manufacturing){
     const validity=source.manufacturing;
-    requireThat(validity.contract==='saam-construction-access/1'&&table(validity.accessGeometry)&&table(validity.courseTraversal),
+    requireThat([CONSTRUCTION_CONTRACT,'saam-construction-access/1'].includes(validity.contract)&&table(validity.accessGeometry)&&table(validity.courseTraversal),
       'Manufacturing validity needs its access model and permitted traversal exceptions.');
     requireThat(Number.isFinite(validity.accessGeometry.includedAngleDeg)&&validity.accessGeometry.includedAngleDeg>0&&validity.accessGeometry.includedAngleDeg<180&&
       Number.isFinite(validity.accessGeometry.tipDiameterMm)&&validity.accessGeometry.tipDiameterMm>=0,'Invalid construction access geometry.');
@@ -131,6 +132,7 @@ export function validateExecutionSource(source,schedule){
     const pieces=coverage.get(course.id)??[],first=pieces[0];
     if(course.seamRequired===true||course.seamRequired===false&&source.manufacturing?.courseTraversal?.[course.id]?.seamFree===false)
       requireThat(first&&(first.reverse?first.to===course.to:first.from===course.from),'Execution violates a required or producer-certified course seam.');
+    if(course.directionRequired!==false)requireThat(pieces.every((piece,i)=>!i||pieces[i-1].to===piece.from),'Execution violates required forward curve progression.');
     pieces.sort((a,b)=>a.from-b.from);
     requireThat(pieces.length>0&&pieces[0].from===course.from&&pieces.at(-1).to===course.to&&pieces.every((piece,i)=>!i||piece.from===pieces[i-1].to),
       'Execution must cover each course exactly once without gaps.');
@@ -143,6 +145,7 @@ export function validateExecutionSource(source,schedule){
     if(completionIndices.has(id))return completionIndices.get(id);
     const operation=operationIndices.get(id);
     if(operation)return [operation[0],operation.at(-1)];
+    const course=courseIndices.get(id);if(course)return [course.first,course.last];
     const completion=source.completions?.[id];requireThat(completion,'Execution prerequisite names absent work.');
     const range=[Infinity,-Infinity];
     for(const member of completion.members){const bounds=completionRange(member);range[0]=Math.min(range[0],bounds[0]);range[1]=Math.max(range[1],bounds[1]);}

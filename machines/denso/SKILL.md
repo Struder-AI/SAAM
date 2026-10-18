@@ -11,7 +11,7 @@ The experimental PacScript output contract and unresolved installation requireme
 
 ### DENSO RC8A output contract
 
-The [pipe-cladding implementation](../../skills/pipe-cladding/SKILL.md) targets RC8A;
+The [cladding guidance](../../skills/pipe-cladding/SKILL.md) uses ordinary Slice;
 [BR-033](../../DEVLOG.md#br-033--denso-rc8-rotary-pipe-demo) records the user's scope.
 The [VS-068A4 profile](denso-vs068a4-rc8a.json) represents
 a six-joint arm plus one external rotary; the printing task's position/direction

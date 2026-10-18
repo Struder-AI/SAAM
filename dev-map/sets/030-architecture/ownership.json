@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "status": "Producer-owned prerequisites and construction access; neutral scheduling and selected-machine transfers, 2026-10-17. Extension dependency policies remain under interactive review.",
+  "status": "Agreed scheduler trust and refinement contract, 2026-10-17. Full consumer/edge construction integration remains active; source proof is not whole-goal completion.",
   "policy": "Exact declaration/module ownership; Geometry owners are source-linked leaf IDs. Anonymous bodies inherit their nearest stable declaration. File location does not define architectural ownership.",
   "files": {
     "studio/viewer-capture.mjs": {
@@ -771,10 +771,6 @@
       "owner": "extensions",
       "reason": "Heat-set feature/placement policy, reconstruction of supplied feature records and authored reinforcement requests."
     },
-    "skills/pipe-cladding/scripts/demo.mjs": {
-      "owner": "context",
-      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
-    },
     "skills/plastic-weld/scripts/example.mjs": {
       "owner": "context",
       "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
@@ -803,10 +799,6 @@
       "owner": "extensions",
       "reason": "Portable vase technique policy, selected semantic checks and public-engine composition; geometric numerics stay in Geometry."
     },
-    "skills/wave-overhangs/scripts/example.mjs": {
-      "owner": "context",
-      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
-    },
     "core/local-extension.mjs": {
       "owner": "extensions",
       "reason": "Existing local extension loading/dispatch; target general extension host still needs extraction."
@@ -827,17 +819,9 @@
       "owner": "extensions",
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
-    "skills/draped-skin/scripts/prepare.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
-    },
     "skills/heat-set-inserts/scripts/edit.mjs": {
       "owner": "extensions",
       "reason": "Heat-set feature/placement policy, reconstruction of supplied feature records and authored reinforcement requests."
-    },
-    "skills/pipe-cladding/scripts/prepare.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/text/scripts/edit.mjs": {
       "owner": "extensions",
@@ -846,14 +830,6 @@
     "skills/text/scripts/record.mjs": {
       "owner": "extensions",
       "reason": "Text feature authoring, ordering and semantic validation; normalized mapped material construction is Geometry."
-    },
-    "skills/thick-lip/scripts/prepare.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
-    },
-    "skills/wave-overhangs/scripts/prepare.mjs": {
-      "owner": "extensions",
-      "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
     },
     "skills/records.mjs": {
       "owner": "extension-run",
@@ -1032,10 +1008,6 @@
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
     "skills/bridging/SKILL.md": {
-      "owner": "context",
-      "reason": "Maker-facing guidance, regardless of physical directory."
-    },
-    "skills/draped-skin/SKILL.md": {
       "owner": "context",
       "reason": "Maker-facing guidance, regardless of physical directory."
     },
@@ -1395,15 +1367,7 @@
       "owner": "context",
       "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs": {
-      "owner": "context",
-      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
-    },
     "skills/text/scripts/draped-demo.mjs": {
-      "owner": "context",
-      "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs": {
       "owner": "context",
       "reason": "Executable skill demo/example: authors a print through public engine and bundle operations as maker-facing illustration. Owner decision 2026-10-04: kept in analysis scope and owned by Maker context so it stays visible for cleanup."
     },
@@ -1846,6 +1810,10 @@
     "core/export/transfer-planning.mjs": {
       "owner": "export",
       "reason": "Resolve selected-tool access and physical transfers against deposited source ranges."
+    },
+    "core/print/manufactured-edges.mjs": {
+      "owner": "build-evaluate",
+      "reason": "Resolve printed-edge geometry and symbolic readiness from source construction, independent of scheduling and machine selection."
     }
   },
   "leaves": {
@@ -7659,21 +7627,9 @@
     "skills/deposition.mjs::extensionSummary": {
       "owner": "extensions"
     },
-    "skills/draped-skin/scripts/prepare.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/draped-skin/scripts/prepare.mjs::skinAssignment": {
-      "owner": "extensions"
-    },
     "skills/heat-set-inserts/scripts/edit.mjs::@module": {
       "owner": "extensions",
       "reason": "Pure extension contribution authoring; no bundle persistence or lifecycle."
-    },
-    "skills/pipe-cladding/scripts/prepare.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/prepare.mjs::claddingAssignment": {
-      "owner": "extensions"
     },
     "skills/text/scripts/edit.mjs::@module": {
       "owner": "extensions",
@@ -7690,18 +7646,6 @@
     "skills/text/scripts/record.mjs::validateTextRecord": {
       "owner": "extensions",
       "reason": "Reviewed extension construction/registration logic; bundle/engine bypasses remain findings."
-    },
-    "skills/thick-lip/scripts/prepare.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/thick-lip/scripts/prepare.mjs::rimAssignment": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/prepare.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/prepare.mjs::frontAssignment": {
-      "owner": "extensions"
     },
     "skills/records.mjs::@module": {
       "owner": "extension-run",
@@ -28179,6 +28123,30 @@
     },
     "studio/server.mjs::createStudio::cancelPreview": {
       "owner": "studio"
+    },
+    "core/print/operation-references.mjs::edgeReference": {
+      "owner": "recipe"
+    },
+    "core/print/operation-references.mjs::validateEdgeAfter": {
+      "owner": "recipe"
+    },
+    "core/print/manufactured-edges.mjs::manufacturedEdges": {
+      "owner": "build-evaluate"
+    },
+    "core/print/manufactured-edges.mjs::selectManufacturedEdge": {
+      "owner": "build-evaluate"
+    },
+    "core/print/manufactured-edges.mjs::@module": {
+      "owner": "build-evaluate"
+    },
+    "core/path/manufacturing.mjs::constructionHistory": {
+      "owner": "path-finalize"
+    },
+    "core/path/manufacturing.mjs::CONSTRUCTION_CONTRACT": {
+      "owner": "path-finalize"
+    },
+    "core/path/compose.mjs::resolveSourceOrder::trustedUnits": {
+      "owner": "scheduling"
     }
   },
   "retiredAssignments": [
@@ -28403,7 +28371,6 @@
     "core/print/surface-constructions.mjs::@module",
     "core/print/surface-constructions.mjs::frontAssignment",
     "core/print/surface-constructions.mjs::lowerSkinAssignment",
-    "core/print/surface-constructions.mjs::skinAssignment",
     "core/print/surface-constructions.mjs::surveySkinAssignment",
     "core/print/text.mjs::@module",
     "core/print/text.mjs::applyText",
@@ -29020,15 +28987,6 @@
     "skills/heat-set-inserts/scripts/demo.mjs::directory",
     "skills/heat-set-inserts/scripts/demo.mjs::plan",
     "skills/heat-set-inserts/scripts/demo.mjs::state",
-    "skills/pipe-cladding/scripts/demo.mjs::@module",
-    "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan",
-    "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan::radiusAt",
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube",
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube::grevilleV",
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube::ring",
-    "skills/pipe-cladding/scripts/demo.mjs::tubeSurface",
-    "skills/pipe-cladding/scripts/demo.mjs::checks",
-    "skills/pipe-cladding/scripts/demo.mjs::directory",
     "skills/plastic-weld/scripts/example.mjs::@module",
     "skills/plastic-weld/scripts/example.mjs::splineBox",
     "skills/plastic-weld/scripts/example.mjs::splineBox::face",
@@ -29050,13 +29008,6 @@
     "skills/thingi10k/scripts/cli.mjs::@module",
     "skills/thingi10k/scripts/cli.mjs::client",
     "skills/thingi10k/scripts/cli.mjs::result",
-    "skills/wave-overhangs/scripts/example.mjs::@module",
-    "skills/wave-overhangs/scripts/example.mjs::splineBox",
-    "skills/wave-overhangs/scripts/example.mjs::splineBox::face",
-    "skills/wave-overhangs/scripts/example.mjs::waveExamplePlan",
-    "skills/wave-overhangs/scripts/example.mjs::dir",
-    "skills/wave-overhangs/scripts/example.mjs::result",
-    "skills/wave-overhangs/scripts/example.mjs::state",
     "scripts/extensions.mjs::@module",
     "scripts/extensions.mjs::result",
     "skills/advanced-vase-wall/scripts/irregular-demo.mjs::@module",
@@ -29082,22 +29033,11 @@
     "skills/advanced-vase-wall/scripts/path-demo.mjs::points.<callback@13:37>",
     "skills/advanced-vase-wall/scripts/path-demo.mjs::radiusAt",
     "skills/advanced-vase-wall/scripts/path-demo.mjs::settings",
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::@module",
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::bumpyPlan",
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::checks",
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::directory",
     "skills/text/scripts/draped-demo.mjs::@module",
     "skills/text/scripts/draped-demo.mjs::directory",
     "skills/text/scripts/draped-demo.mjs::plan",
     "skills/text/scripts/draped-demo.mjs::state",
     "skills/text/scripts/draped-demo.mjs::text",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::@module",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::canopyExamplePlan",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::dir",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::plan",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::result",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::splineBox",
-    "skills/wave-overhangs/scripts/canopy-example.mjs::state",
     "scripts/build-mesh-repair.mjs::@module",
     "scripts/build-mesh-repair.mjs::args",
     "scripts/build-mesh-repair.mjs::compiler",
@@ -29230,33 +29170,6 @@
     "skills/heat-set-inserts/scripts/demo.mjs::state": {
       "owner": "extensions"
     },
-    "skills/pipe-cladding/scripts/demo.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::developmentPipePlan::radiusAt": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube::grevilleV": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::splineTube::ring": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::tubeSurface": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::checks": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/demo.mjs::directory": {
-      "owner": "extensions"
-    },
     "skills/plastic-weld/scripts/example.mjs::@module": {
       "owner": "extensions"
     },
@@ -29346,27 +29259,6 @@
     },
     "skills/thingi10k/scripts/cli.mjs::result": {
       "owner": "application"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::splineBox": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::splineBox::face": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::waveExamplePlan": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::dir": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::result": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/example.mjs::state": {
-      "owner": "extensions"
     },
     "skills/supports/scripts/supports.mjs::prepareSupportContexts::validateResult": {
       "owner": "extensions"
@@ -29481,18 +29373,6 @@
     "skills/advanced-vase-wall/scripts/path-demo.mjs::settings": {
       "owner": "extensions"
     },
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::bumpyPlan": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::checks": {
-      "owner": "extensions"
-    },
-    "skills/pipe-cladding/scripts/bumpy-demo.mjs::directory": {
-      "owner": "extensions"
-    },
     "skills/text/scripts/draped-demo.mjs::@module": {
       "owner": "extensions"
     },
@@ -29506,27 +29386,6 @@
       "owner": "extensions"
     },
     "skills/text/scripts/draped-demo.mjs::text": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::@module": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::canopyExamplePlan": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::dir": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::plan": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::result": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::splineBox": {
-      "owner": "extensions"
-    },
-    "skills/wave-overhangs/scripts/canopy-example.mjs::state": {
       "owner": "extensions"
     },
     "scripts/build-mesh-repair.mjs::@module": {

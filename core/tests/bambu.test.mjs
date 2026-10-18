@@ -16,7 +16,7 @@ import {packZip,unpackZip} from '../export/zip.mjs';
 import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
+import {sliceAssignment} from '../print/slice-records.mjs';
 import {resolveBambuJob} from '../../machines/bambu/bambu-job.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-09'},GCODE='Metadata/plate_1.gcode';
@@ -24,7 +24,7 @@ function fixture(tool=0,nozzleMm=0.4){
   const machine=loadMachine('bambu-h2d'),plan=defaults(machine);plan.setup.tool=tool;
   plan.setup.nozzleMm=nozzleMm;plan.setup.core=`Hardened steel ${nozzleMm}`;
   if(nozzleMm>=0.6)Object.assign(plan.process,{firstLayerMm:0.3,layerMm:0.3,lineWidthMm:nozzleMm});
-  plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
+  plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(sliceAssignment({id:'skin',loops:0,fillDensity:1,solidTop:0,solidBottom:0,process:{planarSpeedMmS:10,firstLayerSpeedMmS:10},fillAnglesDeg:[0],rotateFill:false,sampleStepMm:.5,surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:.2,layerMm:.2},within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:.5}],contact:{source:null},description:'Roof slices with a target mean normal gap.'}));
   return {machine,plan};
 }
 test('H2D maps logical material zero to either physical nozzle and round trips all three skills',async()=>{

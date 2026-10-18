@@ -2,7 +2,7 @@ import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 // Shared seeded fronts: constrained surface-distance propagation, chart
 // clipping, physical mapping and short in-domain connections. Original SAAM
-// implementation; research provenance: skills/wave-overhangs/BUILDER.md.
+// implementation; research provenance: skills/wave-overhangs/DEVELOPER.md.
 import {surfaceDerivatives as nativeDerivatives} from '../geom/surface-derivatives.mjs';
 import {evaluatedSurfaceDerivatives} from '../geom/evaluated-surface.mjs';
 import {surfaceChartBounds} from './surface-operations.mjs';

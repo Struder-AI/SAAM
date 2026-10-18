@@ -16,11 +16,11 @@ import {LuaRuntime} from '../../machines/dobot/debug/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
+import {sliceAssignment} from '../print/slice-records.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
-  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
+  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(sliceAssignment({id:'skin',loops:0,fillDensity:1,solidTop:0,solidBottom:0,process:{planarSpeedMmS:10,firstLayerSpeedMmS:10},fillAnglesDeg:[0],rotateFill:false,sampleStepMm:.5,surface:{kind:'roof',offsetMm:0},stack:{firstLayerMm:.2,layerMm:.2},within:[{kind:'surface-domain',loopsUv:null,fromLayer:-2,toLayer:0,maxSlopeDeg:90,sampleStepMm:.5}],contact:{source:null},description:'Roof slices with a target mean normal gap.'}));
   return {machine,plan};
 }
 test('Dobot unconfigured profile generates and shows the SAAMpath; only the program waits',async()=>{

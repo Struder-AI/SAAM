@@ -1,5 +1,5 @@
 // Human-readable review of the same locked recipe used by every adapter.
-export const skillName=name=>({'pipe-cladding':'Surface cladding','vase-wall':'Vase wall'}[name]??name);
+export const skillName=name=>({'vase-wall':'Vase wall'}[name]??name);
 export const hasConstruction=(plan,kind)=>(plan.slices?.assignments??[]).some(a=>a.construction===kind);
 export const pathModeName=settings=>settings?.pathMode==='segmented'?'Segmented paths':settings?.pattern?'Continuous sleeve pattern':'Vase wall';
 export const hasSkill=(plan,name)=>Boolean(plan.skills?.[name]?.enabled);

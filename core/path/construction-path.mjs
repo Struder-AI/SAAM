@@ -145,11 +145,15 @@ export function constructionPath({results,planning,composition,summary,generator
     const id='process:'+processIds.size;processIds.set(key,id);processes[id]=process;return id;
   }
   function layerId(result,operation){
-    if(!operation.slice||typeof operation.layerId!=='string')return null;
+    if(typeof operation.layerId!=='string')return null;
     const stackId=operation.stackId??result.stackId??result.id,index=operation.ownershipIndex??operation.layer;
-    const reference=surfaceReferenceRecord(operation.slice),id=operation.layerId,key=JSON.stringify(reference);
-    const surfaceId=surfaceIds.get(key)??'surface:'+surfaceIds.size;
-    if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}
+    requireThat(operation.slice||operation.stackId&&Number.isSafeInteger(operation.ownershipIndex),'Stack membership needs an explicit construction slice or native reference.');
+    const id=operation.layerId;let surfaceId=null;
+    if(operation.slice){
+      const reference=surfaceReferenceRecord(operation.slice),key=JSON.stringify(reference);
+      surfaceId=surfaceIds.get(key)??'surface:'+surfaceIds.size;
+      if(!surfaceIds.has(key)){surfaceIds.set(key,surfaceId);surfaces[surfaceId]=reference;}
+    }
     if(layers[id])requireThat(layers[id].surfaceId===surfaceId&&layers[id].stackId===stackId&&layers[id].index===index,'Native layer identity refers to different surfaces or stack positions.');
     else layers[id]={stackId,index,surfaceId};
     return id;
@@ -158,7 +162,7 @@ export function constructionPath({results,planning,composition,summary,generator
     requireThat(operation.order==='given'&&!operation.connectNearby,'Deposition must be finalized before publication.');
     const {strokes,process,materialGeometry}=operation;
     const metadata=Object.fromEntries(['phase','layer','layerIndex','layerCount','rank','nominalRank','filament','fanPercent',
-      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','referenceLayer','requiredMaterial','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
+      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','referenceLayer','requiredMaterial','resolveSubstrate','resolveInternalSubstrate','suppliesSubstrate','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
     const interruptible=operation.interruptible??!operation.continuous;
     const shared={...metadata,...(operation.part===undefined&&result.report?.part!==undefined?{part:result.report.part}:{}),
       id:operation.id,layerId:layerId(result,operation),processId:processId(process),
@@ -188,6 +192,7 @@ export function constructionPath({results,planning,composition,summary,generator
       for(const key of ['positionErrorMm','normalErrorRad','volumeErrorMm3'])compaction[key]=Math.max(compaction[key],published.compaction[key]);
       for(const key of ['normalKeysBefore','normalKeysAfter','materialKeysBefore','materialKeysAfter'])compaction[key]+=published.compaction[key];
       return {id,curveId,from:0,to:1,interruptible:stroke.interruptible??interruptible,directionRequired:stroke.directionRequired??true,role:stroke.role,
+        sourceCurve:stroke.id??i,...(stroke.edge?{edge:stroke.edge}:{}),
         ...((stroke.orderGroup??stroke.scanlineCell)===undefined?{}:{orderGroup:stroke.orderGroup??stroke.scanlineCell}),
         ...(stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<=ROUNDING_MM?{seamRequired:stroke.seamRequired??true}:{}),
         ...(published.provenance?{provenance:published.provenance}:{})};

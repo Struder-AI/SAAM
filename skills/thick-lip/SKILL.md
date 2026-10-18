@@ -1,13 +1,13 @@
 ---
 name: thick-lip
-description: Extension for making a thickened or rolled edge with Slice or Trace.
+description: Guidance for thickened or rolled edges made with ordinary Slice or Trace.
 metadata:
-  saam-kind: extension
+  saam-kind: guidance
 ---
 
 # Making a thick lip
 
-The [extension preset](scripts/prepare.mjs) produces ordinary Slice data. Use
+Use
 [Slice](../slice/SKILL.md) for a modeled thick edge or
 [Trace](../trace/SKILL.md) for explicit rim curves. Both use the print's common
 material, process, dependencies and review.

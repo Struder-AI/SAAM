@@ -17,6 +17,9 @@ import {dot} from '../../geom/frame.mjs';
 
 // Shared-claim depth, independent of bead overlap and nozzle forgiveness.
 const MIN_SHARED_CLAIM_DEPTH_MM=.1;
+// Component placement does not make an independent Slice solid part material.
+const materialKey=owner=>JSON.stringify([owner.part,owner.assignment.geometry?owner.assignment.id:null]);
+const sameMaterial=(a,b)=>materialKey(a)===materialKey(b);
 
 const claimInterior=owners=>prepareSharedInterior({solids:[...new Set(owners.flatMap(owner=>[owner.shell,...owner.within.filter(v=>v.kind==='geometry').map(v=>v.geometry)]))],slabs:owners.flatMap(owner=>owner.within.filter(v=>v.kind==='slab'))});
 const chartBounds=region=>({min:[0,1].map(k=>Math.min(...region.flat().map(p=>p[k]))),max:[0,1].map(k=>Math.max(...region.flat().map(p=>p[k])))});
@@ -123,7 +126,7 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress,sharedMaterial}){
     }
     return interiors.get(key);
   };
-  const byPart=new Map();for(const owner of explicit){if(!byPart.has(owner.part))byPart.set(owner.part,[]);byPart.get(owner.part).push(owner);}
+  const byPart=new Map();for(const owner of explicit){const key=materialKey(owner);if(!byPart.has(key))byPart.set(key,[]);byPart.get(key).push(owner);}
   const pairCount=[...byPart.values()].reduce((n,owners)=>n+owners.length*(owners.length-1)/2,0);let checked=0;
   for(const claimants of byPart.values())for(let i=0;i<claimants.length;i++)for(let j=i+1;j<claimants.length;j++){
     const a=claimants[i],b=claimants[j];
@@ -253,7 +256,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
   const partSection = (owner, slice) => partCut(owner, slice).loops;
   const material = (owner, slice) => cached(`material|${owner.sectionKey??owner.part}|${owner.widthMm}|${sliceKey(slice)}`, () => {
     let region = partSection(owner, slice);
-    for (const band of bands.filter(b => b.part === owner.part)) {
+    for (const band of bands.filter(b => b.part === owner.part&&(!owner.assignment.geometry||b.sourceId===owner.assignment.id))) {
       const cut = volumeSection({ kind: 'slab', fromMm: band.startMm, toMm: band.endMm }, { slice }, chartExtent(owner, slice));
       region = cut === null ? [] : difference(region, cut);
     }
@@ -285,7 +288,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       materialMasks.set(layer.index, own);
       findings.push({ layer, cut: partCut(principal, layer.slice) });
       if (!own.length) continue;
-      const candidates = explicit.filter(o => o.part === principal.part);
+      const candidates = explicit.filter(o => sameMaterial(o,principal));
       let region, boundary = own;
       if (principal.kind === 'outline') {
         boundary = partSection(principal, layer.slice);
@@ -320,7 +323,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
         onProgress?.({stage:'Preparing shared courses',assignment:owner.assignment.id,completed:layer.index,total:stack.layers.length});
         const own=material(owner,layer.slice);grid.push({index:layer.index,region:own});if(!own.length)continue;
         const jointLayer={...layer,sharedHeightMm:stack.base===source.base?layer.offsetMm*stack.meanProjection:start+layer.offsetMm*stack.meanProjection};
-        const region=shared.allocate(own,explicit.filter(other=>other.part===owner.part).map(other=>({owner:other,region:volume(other,layer)})),{owner,layer:jointLayer,joint:true});
+        const region=shared.allocate(own,explicit.filter(other=>sameMaterial(other,owner)).map(other=>({owner:other,region:volume(other,layer)})),{owner,layer:jointLayer,joint:true});
         if(!region.length)continue;
         const point=evaluateSurface(layer.slice,frameHits[0]?.chartPoint??region[0][0]).point;
         added.push({...jointLayer,region,material:own,sharedMaterial:true,patternDirection:owner.referenceStack.direction,
@@ -341,8 +344,8 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       }catch(error){failedSlicePreparation(owner.assignment,error);}
     }
   }
-  for(const part of new Set(shared.frames.map(frame=>frame.principal.part))){
-    const records=results.filter(record=>record.owner.part===part&&record.owner.kind==='part'),partOwners=records.map(record=>record.owner);
+  for(const key of new Set(shared.frames.map(frame=>materialKey(frame.principal)))){
+    const records=results.filter(record=>materialKey(record.owner)===key&&record.owner.kind==='part'),partOwners=records.map(record=>record.owner),part=partOwners[0].part;
     const solids=[...new Set(partOwners.flatMap(owner=>[owner.shell,...owner.within.filter(v=>v.kind==='geometry').map(v=>v.geometry)]))];
     const slabs=[...partOwners.flatMap(owner=>owner.within.filter(v=>v.kind==='slab')),...bands.filter(b=>b.part===part).map(b=>({fromMm:b.startMm,toMm:b.endMm}))];
     const boundaries=boundaryCaps(solids,{slabs,bounds:partOwners[0].shell.bounds});
@@ -352,7 +355,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       const frame=shared.frames.find(frame=>frame.members.includes(owner));
       const regimes=[{joint:false,direction:owner.referenceStack.direction,advanceMm:owner.referenceStack.layers.reduce((n,layer)=>Math.max(n,layer.translationMm),owner.referenceStack.translationStepMm)}];
       if(frame)regimes.push({joint:true,direction:frame.principal.referenceStack.direction,advanceMm:frame.joint.periodMm/frame.joint.counts[frame.members.indexOf(owner)]/frame.principal.referenceStack.meanProjection});
-      const at=(slice,joint)=>shared.allocate(material(owner,slice),explicit.filter(other=>other.part===part).map(other=>({owner:other,region:volume(other,{slice,index:-1})})),{owner,layer:{slice,index:-1},retainUnclaimed:!owner.within.length,joint});
+      const at=(slice,joint)=>shared.allocate(material(owner,slice),explicit.filter(other=>sameMaterial(other,owner)).map(other=>({owner:other,region:volume(other,{slice,index:-1})})),{owner,layer:{slice,index:-1},retainUnclaimed:!owner.within.length,joint});
       const added=[];
       for(const regime of regimes)for(const face of boundaries.faces){
         const projection=dot(face.slice.normal,regime.direction);if(Math.abs(projection)<=ROUNDING_RELATIVE)continue;
