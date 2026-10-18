@@ -1826,6 +1826,10 @@
     "core/print/prepared-surface.mjs": {
       "owner": "recipe",
       "reason": "Prepared surface selection in declared sequence with separate symbolic completion prerequisites."
+    },
+    "core/geom/enclosed-profile.mjs": {
+      "owner": "geometry",
+      "reason": "Frame-independent fitting of an axial solid profile against actual solid boundary geometry and explicit clearances."
     }
   },
   "leaves": {

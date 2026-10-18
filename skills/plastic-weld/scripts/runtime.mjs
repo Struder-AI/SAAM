@@ -22,7 +22,7 @@ export function validatePlasticWeld(settings){
     }else{
       requireThat(fields==='id,part,xMm,yMm,zBottomMm,zTopMm','Rivet sites need id, part, positionMm, axis and depthMm; existing vertical coordinate sites remain readable.');
       requireThat(['xMm','yMm','zBottomMm','zTopMm'].every(key=>Number.isFinite(site[key])),'Rivet coordinates must be finite.');
-      requireThat(site.zBottomMm>=0&&site.zTopMm>site.zBottomMm,'A rivet needs its bottom within its component and its opening above it.');
+      requireThat(site.zTopMm>site.zBottomMm,'A rivet opening must be above its bottom.');
     }
   }
 }
@@ -45,7 +45,7 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
     requireThat(typeof site?.id==='string'&&/^[a-z][a-z0-9-]*$/.test(site.id),'Invalid rivet site ID.');
     const id=extensionId+':'+site.id;return {id,assignments:[{id,part:site.part,construction:'inject'}]};
   });
-  const {buildGeometry,revolvedProfile,convexVolume,rodFrame,point}=Geometry;
+  const {buildGeometry,revolvedProfile,enclosedAxialProfile,convexVolume,rodFrame,point}=Geometry;
   const {assignmentFilament,injectionAssignment}=Recipe;
   const sides=96;
   // Convex prerequisites select only the floor and wall in the cavity's frame.
@@ -95,16 +95,18 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
       const authored=site.positionMm?site.positionMm:[site.xMm,site.yMm,shell.bounds.min[2]-offset[2]+site.zTopMm];
       const mouth=authored.map((value,k)=>value+offset[k]);
       const direction=site.axis??[0,0,-1],axis=direction.map(value=>value/Math.hypot(...direction));
-      const depth=site.depthMm??site.zTopMm-site.zBottomMm;
+      const requestedDepth=site.depthMm??site.zTopMm-site.zBottomMm;
+      const neck=Math.max(0,requestedDepth-settings.basinHeightMm),authoredProfile=[[0,settings.shaftDiameterMm/2]];
+      if(neck>0)authoredProfile.push([neck,settings.shaftDiameterMm/2]);
+      authoredProfile.push([requestedDepth,settings.basinDiameterMm/2]);
+      const fitted=await enclosedAxialProfile(shell,{positionMm:mouth,axis,profile:authoredProfile,wallMm:settings.wallMm,floorMm:settings.floorMm});
+      const depth=fitted.depthMm,profile=fitted.profile;
       requireThat(settings.seatDepthMm<depth-PRINT_RESOLUTION_MM,'Rivet insertion depth must remain within its prepared cavity.');
-      const neck=Math.max(0,depth-settings.basinHeightMm),profile=[[0,settings.shaftDiameterMm/2]];
-      if(neck>0)profile.push([neck,settings.shaftDiameterMm/2]);
-      profile.push([depth,settings.basinDiameterMm/2]);
       // Clear the entry shaft past the host, including rims above an oblique
       // mouth plane. Only the inward profile owns fill volume and enclosure.
       const outwardReach=axis.reduce((sum,c,k)=>sum-c*((c>0?shell.bounds.min[k]:shell.bounds.max[k])-mouth[k]),0);
       const clearance=Math.max(0,outwardReach)+settings.shaftDiameterMm/2;
-      const cavityGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[-clearance,settings.shaftDiameterMm/2],...profile]}),widest=Math.max(settings.basinDiameterMm,settings.shaftDiameterMm)/2;
+      const cavityGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[-clearance,settings.shaftDiameterMm/2],...profile]}),widest=Math.max(...profile.map(([,radius])=>radius));
       const envelopeGeometry=revolvedProfile({positionMm:mouth,axis,profile:[[0,widest+settings.wallMm],[depth+settings.floorMm,widest+settings.wallMm]]});
       const cavity=await buildGeometry(cavityGeometry),solid=await buildGeometry(envelopeGeometry);
       const cavityVolumeMm3=profile.slice(1).reduce((sum,[s,r],i)=>{
@@ -116,9 +118,9 @@ export function plasticWeldSource({Geometry,Recipe,extensionId,settings:configur
           flowMm3S:settings.flowMm3S,holdSeconds:settings.holdSeconds,approachMm:settings.seatDepthMm}]});
       const top=Math.min(shell.bounds.max[2],solid.bounds.max[2]),bottom=cavity.bounds.min[2],floor=solid.bounds.min[2];
       const report={id:site.id,part:site.part,positionMm:injection,openingMm:mouth[2],bottomMm:bottom,axis,depthMm:depth,
-        cavityVolumeMm3,volumeMm3:assignment.points[0].volumeMm3,nozzleC:settings.nozzleC??plan.setup.nozzleC,flowMm3S:settings.flowMm3S,
+        ...(depth<requestedDepth?{requestedDepthMm:requestedDepth}:{}),cavityVolumeMm3,volumeMm3:assignment.points[0].volumeMm3,nozzleC:settings.nozzleC??plan.setup.nozzleC,flowMm3S:settings.flowMm3S,
         cavityGeometry:'rational-surface Boolean cutter'};
-      return {...site,x:mouth[0],y:mouth[1],mouth,axis,depth,bottom,top,floor,widest,settings,assignment,process,cavity,solid,cavityGeometry,envelopeGeometry,profile,report,notes:[]};
+      return {...site,x:mouth[0],y:mouth[1],mouth,axis,depth,bottom,top,floor,widest,settings,assignment,process,cavity,solid,cavityGeometry,envelopeGeometry,profile,report,notes:depth<requestedDepth?[`Rivet ${site.id}: cavity truncated from ${requestedDepth} to ${depth} mm to retain its wall and floor within the host boundary.`]:[]};
     }
   }
   return {declarations,prepare};

@@ -18,13 +18,13 @@ The cavity is a Boolean difference in process geometry before Slice. Geometry's
 [revolved profile and native Boolean](../../core/geom/README.md#native-boolean-construction)
 retain rational surfaces for spline hosts and support any entry axis. The shaft
 clears outward through the host's rim; this entry clearance adds no injection volume.
-The full inward profile currently determines volume, including portions outside
-the host; host-boundary truncation remains to implement. Finished CAD stays unchanged.
+The cavity truncates against the actual host boundary in its authored frame,
+retaining wallMm and floorMm. Its retained profile sets volume; finished CAD stays unchanged.
 An ordinary solid volume supplies walls/floor in sparse hosts. Slice retains its
 normal loops/fill/spacing; use spacingFactor 1 for a solid envelope. Nominal
 material ownership selects supporting slices; access conflicts refine to courses
 or intervals. Scheduling interleaves closure work and rejects irreducible conflicts.
-Current gap: filled cavities publish no spatial occupancy for later clearance checks.
+The surrounding cavity material supplies the nozzle-access barrier.
 Mesh/spline components and translated assemblies use the same interfaces.
 
 ## Recipe

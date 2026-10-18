@@ -9,9 +9,9 @@ Inject deposits at points stored in [geometry](../../GEOMETRY.md); [Trace](../tr
 Inline authoring remains accepted: `slice`/`adjust_recipe` can supply `{id:"spot",construction:"inject",points:[{point:[5,5,2],volumeMm3:1,flowMm3S:.5,approachMm:1,holdSeconds:2}]}`; saving moves XYZ into geometry with a stable ID.
 Defaults: `part:null`, `filament:null`, `process:null`, `nozzleC:null`, `dependencies:{afterParts:[],beforeParts:[],after:[]}`, `description:""`.
 XYZ follows authored traces: add recipe XY placement; no component transform.
-Each point extrudes for volume/flow seconds, then holds. Current compact publication
-discards `approachMm` approach/withdrawal strokes. Dependencies name part prerequisites
-or exact operation IDs; injection IDs are `assignmentId:index`.
+Each point uses ordinary travel to its position and pose, extrudes for volume/flow
+seconds, then holds. `approachMm` remains accepted and adds no separate travel.
+Dependencies name part prerequisites or exact operation IDs; injection IDs are `assignmentId:index`.
 
 Inherit [print/part nozzle selection](../../core/print/USAGE.md#nozzle-selection), override common process values (including fan), or
 set an operation `nozzleC` restored afterward. The temperature ceiling applies.

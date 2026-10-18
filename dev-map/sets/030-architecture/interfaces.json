@@ -2805,6 +2805,14 @@
         "call"
       ],
       "evidence": "Prepared conservative numerical admission for adaptive interval inspection; positive admission is not a collision witness."
+    },
+    {
+      "contract": "extension-geometry",
+      "target": "core/geom/enclosed-profile.mjs::enclosedAxialProfile",
+      "kinds": [
+        "call"
+      ],
+      "evidence": "Plastic-weld requests a frame-independent enclosed axial profile; Geometry owns complete boundary fitting and numerical accuracy."
     }
   ],
   "retiredBindings": [
