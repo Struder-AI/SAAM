@@ -27,7 +27,7 @@ export function injectionResult(assignment,{plan}){
   const selected=assignmentPlan(plan,assignment);
   const operations=assignment.points.map((record,index)=>{
     return pointInjectionOperation(record,{id:`${assignment.id}:${index}`,phase:'inject',
-      layer:index,layerIndex:index,layerCount:assignment.points.length,layerId:`inject:${assignment.id}:${index}`,rank:record.point[2],
+      layer:index,layerIndex:index,layerCount:assignment.points.length,layerId:null,rank:record.point[2],
       after:[...assignment.dependencies.after,...(index?[`${assignment.id}:${index-1}`]:[])],
       ...(assignment.filament===null?{}:{filament:assignment.filament}),plan:selected,nozzleC:assignment.nozzleC});
   });

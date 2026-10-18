@@ -210,5 +210,5 @@ export function constructionPath({results,planning,composition,summary,generator
   const manufacturing=publishManufacturing(results,operations,layers);
   return saamPath(certifyConstruction({schema:'saampath/2',generatorVersion,units:'mm',materialUnits:'mm3',curves,layers,surfaces,processes,
     ...manufacturing,operations,planning:{process:planning.process,selection:planning.selection,selections:planning.selections,
-      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}},{onProgress}));
+      ...(planning.start?{start:planning.start}:{}),...(planning.motion?{motion:planning.motion}:{})},composition,summary:{...summary,compaction}},{onProgress,materialReadiness:results.flatMap(result=>result.materialReadiness??[])}));
 }

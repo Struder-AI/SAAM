@@ -21,8 +21,12 @@ cylindrical/conical profile determines injection volume, including any portion
 outside the host; placement must provide an enclosed cavity. Finished CAD stays
 unchanged because injection is intended to fill the cavity.
 An ordinary solid volume supplies walls/floor in sparse hosts. Slice retains its
-normal loops/fill/spacing; use spacingFactor 1 for a solid envelope. Geometric requirements select enclosing floor/wall beads in the cavity's frame;
-Scheduling derives nozzle access, cover order and interruptible stroke portions.
+normal loops/fill/spacing; use spacingFactor 1 for a solid envelope. Nominal
+material ownership selects supporting slices. A whole-slice access proof publishes
+only the necessary slice prerequisites; inconclusive bounds trigger inspection.
+Only actual enclosure/closure conflicts retain course or interval prerequisites.
+Scheduling interleaves closure work when those constraints require it. A material
+event needed both before and after injection is rejected as a real conflict.
 Mesh/spline components and translated assemblies use the same interfaces.
 
 ## Recipe

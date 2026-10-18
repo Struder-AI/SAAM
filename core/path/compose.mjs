@@ -62,11 +62,14 @@ function courseCuts(reader,course,values){
 }
 export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),openedCourses=new Set(),fixedEntries=false,constructionProofs=new Set()}={}){
   const operations=Object.values(source.operations),manufacturing=manufacturingDependencies(source);
+  const materialScopes=new Set(operations.flatMap(operation=>(operation.requiredMaterial??[]).flatMap(requirement=>requirement.layerIds??[...Object.keys(source.layers),null])));
   const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
   const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
   // Forward requirements can live inside a soft traversal chunk. Exclude
   // backwards or external endpoints; these must remain explicit graph nodes.
   const constrained=new Set();
+  for(const completion of Object.values(source.completions??{}))if(completion.kind==='edge')
+    for(const member of completion.members)constrained.add(member);
   for(const operation of operations){
     const courses=operation.courses??[];if(!courses.some(course=>course.after?.length))continue;
     const positions=new Map(courses.map((course,index)=>[course.id,index]));
@@ -135,7 +138,7 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
   for(const operation of operations){
     const members=[];
     const producer=source.layers[operation.layerId]?.stackId??operation.construction;
-    if(operation.kind==='inject'||!operation.interruptible||constructionProofs.has(producer))members.push(node(operation,operation.courses??[]));
+    if(operation.kind==='inject'||!operation.interruptible||constructionProofs.has(producer)&&!materialScopes.has(operation.layerId??null))members.push(node(operation,operation.courses??[]));
     else {
       let pending=[];
       function appendChunk(ranges){
@@ -261,7 +264,9 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
       }
       function producer(unit){return source.layers[unit.layerId]?.stackId??unit.operation.construction;}
-      function relevant(a,b){return scope==='construction'?!constructionProofs.has(producer(a))&&producer(a)===producer(b):
+      function relevant(a,b){return scope==='construction'?
+        !constructionProofs.has(producer(a))&&producer(a)===producer(b)||a.operation.kind==='inject'&&(a.operation.requiredMaterial??[]).some(requirement=>
+          (b.operation.part??null)===(requirement.part??null)&&(!requirement.layerIds||requirement.layerIds.includes(b.layerId??null))):
         (!certified||producer(a)!==producer(b))&&!state.scene.proofs.producerClear(producer(a),producer(b));}
       function addEdge(before,after,kind,witness){
         if(before===after||precedes(before,after))return;
@@ -273,7 +278,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         for(const requirement of unit.operation.requiredMaterial??[]){
           for(const hit of state.scene.requiredHits(requirement,id=>{
             const other=graph.byId.get(id);
-            return other.sourceOperation!==unit.sourceOperation&&(other.operation.part??null)===(requirement.part??null);
+            return other.sourceOperation!==unit.sourceOperation&&(other.operation.part??null)===(requirement.part??null)&&
+              (!requirement.layerIds||requirement.layerIds.includes(other.layerId??null));
           }))addEdge(hit.unit.id,graph.groups.get(unit.sourceOperation).begin.id,'required-material',hit.witness);
         }
         if(progress.cyclic)break;
@@ -372,6 +378,12 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         const witness=state.scene.mutualConflict(edge.witness?.receiver,edge.witness?.material);
         if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
           {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[graph.byId.get(edge.before).sourceOperation,graph.byId.get(edge.after).sourceOperation]});
+      }
+      for(const required of reasons.filter(edge=>edge.kind==='required-material'))for(const blocked of reasons.filter(edge=>edge.kind==='nozzle-access')){
+        if(required.afterOperation!==blocked.beforeOperation)continue;
+        const witness=state.scene.materialAccessConflict(required.witness,blocked.witness);
+        if(witness)throw Object.assign(Error('Required enclosure material blocks its consumer at the same deposition event.'),
+          {code:'MATERIAL_ACCESS_CONFLICT',operation:required.afterOperation,witness});
       }
       const added=[];
       function addCut(id,u){

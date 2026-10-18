@@ -1,8 +1,9 @@
+import {resolveMaterialReadiness} from './material-readiness.mjs';
 // A producer establishes its internal access once, after all geometry/profile
 // edits. The same solver used for composition is scoped to each producer here.
 import {prepareCurvePath} from './curve-path.mjs';
 import {resolveSourceOrder} from './compose.mjs';
-import {reduceManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
+import {reduceManufacturing,CONSTRUCTION_CONTRACT,completionId} from './manufacturing.mjs';
 import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
 import {sliceNozzleProofs} from './physical-order.mjs';
 import {manufacturingDependencies} from './manufacturing.mjs';
@@ -55,8 +56,10 @@ function wholeProducerProofs(source,reader){
   return {known,count:producers.size};
 }
 
-export function certifyConstruction(source,{onProgress}={}){
-  const reader=prepareCurvePath(source),whole=wholeProducerProofs(source,reader);
+export function certifyConstruction(source,{onProgress,materialReadiness=[]}={}){
+  const reader=prepareCurvePath(source);
+  resolveMaterialReadiness(source,reader,materialReadiness);
+  const whole=wholeProducerProofs(source,reader);
   if(whole.known.size===whole.count&&!Object.values(source.operations).some(op=>op.resolveSubstrate||op.resolveInternalSubstrate||op.suppliesSubstrate)){
     source.manufacturing={contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{},
       summary:{wholeProducers:whole.count,refinedProducers:0,internalDependencies:0}};
@@ -103,12 +106,26 @@ export function certifyConstruction(source,{onProgress}={}){
   function touched(ref){
     return (pieces.get(ref.id)??[]).filter(part=>ref.at!==undefined?ref.at>=part.from&&ref.at<=part.to:part.from<ref.to&&part.to>ref.from);
   }
+  const materialCompletions=new Map();
+  function selectedCompletion(members,after=[]){
+    const selected=[...new Set(members)].sort(),key=JSON.stringify([selected,after]);
+    if(materialCompletions.has(key))return materialCompletions.get(key);
+    const id=completionId('selected-material',String(materialCompletions.size));
+    source.completions[id]={kind:'edge',members:selected,after};materialCompletions.set(key,id);return id;
+  }
   for(const edge of solved.edges){
     if(edge.kind==='required-material'){
-      source.operations[edge.afterOperation].after.push(edge.beforeOperation);continue;
+      const supporting=edge.witness?.material?touched(edge.witness.material).map(part=>part.id):[];
+      source.operations[edge.afterOperation].after.push(supporting.length?selectedCompletion(supporting):edge.beforeOperation);continue;
     }
     const witness=edge.witness;
     requireThat(witness&&!witness.provisional,'Construction prerequisites need actual contact evidence.');
+    if(witness.stationaryTool&&witness.material){
+      const blocking=touched(witness.material).map(part=>part.id);
+      if(blocking.length)selectedCompletion(blocking,[edge.beforeOperation]);
+      else source.operations[edge.afterOperation].after.push(edge.beforeOperation);
+      continue;
+    }
     if(!witness.receiver||!witness.material){source.operations[edge.afterOperation].after.push(edge.beforeOperation);continue;}
     const [beforeRef,afterRef]=edge.kind==='substrate'?[witness.material,witness.receiver]:[witness.receiver,witness.material];
     for(const before of touched(beforeRef))for(const after of touched(afterRef))if(before.id!==after.id)

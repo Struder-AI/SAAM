@@ -1,3 +1,4 @@
+import {solidKernel} from './solid.mjs';
 // Nominal owned slice volumes, independent of emitted beads or machine motion.
 // Native planes clip segments exactly in their chart. Evaluated charts use the
 // same bounded ray representation as material preparation at print resolution.
@@ -51,4 +52,17 @@ export function sliceMaterialTouches(material,points){
     }
   }
   return false;
+}
+
+// Exact convex decomposition of a planar nominal owned slab. null means this
+// chart needs a different volume proof, never that its material is absent.
+export async function sliceMaterialSolids(material){
+  if(!material)return {parts:[],bounds:null};
+  if(material.slice.kind!=='plane')return null;
+  const kernel=await solidKernel(),vertices=material.region.flat();
+  const triangles=kernel.triangulate(material.region),parts=triangles.map(triangle=>{
+    const top=triangle.map(index=>evaluateSurface(material.slice,vertices[index]).point);
+    return {vertices:[...top,...top.map(point=>point.map((v,k)=>v-material.advance*material.direction[k]))]};
+  });
+  return {parts,bounds:material.bounds};
 }

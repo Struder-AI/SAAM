@@ -271,7 +271,18 @@ export function sliceNozzleProofs(source,{reader=null,ranges=new Map(),nozzleGeo
   }
   if(!queries.reader)queries.reader=prepareCurvePath(source);
   const graph=graphNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry),sphere=sphereNozzleProofs(source,queries.reader,rangeOf,nozzleGeometry);
-  return {slices,summary:{slices:slices.size,producerGroups:producerGroups.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
+  function stationaryClear(point,pose,layerId){
+    const material=slices.get(layerId);if(!material)return false;
+    const outward=scale(pose.toolAxis,-1/length(pose.toolAxis));
+    if(material.eligible&&material.courses){
+      const tip=dot(point,material.normal)+nozzleReferenceFloorMm(dot(outward,material.normal),0,includedAngleDeg,0,tipDiameterMm);
+      if(tip>material.maxMaterial+ROUNDING_MM)return true;
+    }
+    if(!material.bounded)return false;
+    const p=local(point),reference={toolAxis:local(pose.toolAxis),toolUp:local(pose.toolUp)};
+    return nozzleBoundsClear({min:p,max:p},{reference,halfAngleRad:0},material.material,0,tipDiameterMm,includedAngleDeg);
+  }
+  return {slices,stationaryClear,summary:{slices:slices.size,producerGroups:producerGroups.size,certifiableSlices:eligible.length,referenceGraph:graph?{slope:graph.slope,courses:graph.courses}:null,sphereCourses:sphere?.courses??0},
     rangeClear:(a,b)=>graph?.rangeClear(a,b)??false,frameBounds:id=>graph?.frameBounds(id)??null,unitClear:(a,b)=>(graph?.unitClear(a,b)??false)||(sphere?.unitClear(a,b)??false),sweepClear:(sweep,unit)=>graph?.sweepClear(sweep,unit)??false,
     producerClear(a,b){
       if(graph?.producerClear(a,b)||boundsClear(a,b,producerGroups))return true;
@@ -590,7 +601,12 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
       const injection=unit.operation.injection,point=injection.at;
       const tool=nozzleCurveEnvelope({from:point,to:point,bounds:{min:point,max:point},chordErrorMm:0,
         poseCone:{reference:injection.pose,halfAngleRad:0}},stock,{...geometryForFilament(unit.operation.filament??source.planning.selection?.filament),forgivenessMm:0}).shape;
-      for(const id of index.query(tool,ROUNDING_MM,{acceptGroup}))if(acceptGroup(id))yield {unit:byId.get(id).unit,witness:{receiver:null,material:null}};
+      for(const other of candidates(tool,acceptGroup)){
+        const solid=other.solids.some(shape=>convexIntersects(tool,shape,ROUNDING_MM));
+        if(solid){yield {unit:other.unit,witness:{receiver:null,material:null,stationaryTool:tool}};continue;}
+        for(const record of other.records){const witness=travelMaterial(tool,record,ROUNDING_MM);if(witness)
+          yield {unit:other.unit,witness:{receiver:null,material:witness.material,stationaryTool:tool}};}
+      }
       return hits;
     }
     for(const root of body.records)for(const {record,others} of queryRegions(root,id=>!seen.has(id)&&acceptGroup(id)&&!proofs.unitClear(unit,byId.get(id).unit)))for(const other of others.sort((a,b)=>{
@@ -709,7 +725,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     for(const body of candidates(requirement.volume,acceptGroup)){
       const state={witness:null};
       if(body.solids.some(shape=>convexIntersects(shape,requirement.volume,ROUNDING_MM)))state.witness={requiredVolume:requirement.volume};
-      else for(const record of body.records){state.witness=volumeHit(record,requirement.volume);if(state.witness)break;}
+      else for(const record of body.records){const witness=volumeHit(record,requirement.volume);if(witness)hits.push({unit:body.unit,witness});}
       if(state.witness)hits.push({unit:body.unit,witness:state.witness});
     }
     return hits;
@@ -754,12 +770,39 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     }
     rememberSelf(key);
   }
+  function materialAccessConflict(required,blocked){
+    const a=required?.material,b=blocked?.material;
+    if(!required?.requiredVolume||!blocked?.stationaryTool||!a||!b||a.id!==b.id)return null;
+    const from=Math.max(a.from,b.from),to=Math.min(a.to,b.to);if(from>=to)return null;
+    const record=interval({...a,from,to}),body=material(record);
+    if(record.affine&&body?.exact){
+      const face=section(record.start),delta=subtract(record.end.point,record.start.point);
+      const support=face&&translationContactInterval(face,delta,required.requiredVolume),access=face&&translationContactInterval(face,delta,blocked.stationaryTool);
+      if(support&&access&&Math.max(support.from,access.from)<=Math.min(support.to,access.to))
+        return {material:localWitness(record,parameterAt(record.ref,(Math.max(support.from,access.from)+Math.min(support.to,access.to))/2))};
+    }
+    for(const at of [a.at,b.at,(from+to)/2]){
+      if(!Number.isFinite(at)||at<from||at>to)continue;
+      const face=section(curveAt(reader,a.curveId,at));
+      if(face&&convexIntersects(face,required.requiredVolume,ROUNDING_MM)&&convexIntersects(face,blocked.stationaryTool,ROUNDING_MM))
+        return {material:localWitness(record,at)};
+    }
+    return null;
+  }
   function cutsForWitness(witness){
     const result=[];
     if(witness?.requiredVolume&&witness.material){
       const b=interval(witness.material),bm=material(b);
       if(b.affine&&bm?.exact){
         const face=section(b.start),contact=face&&translationContactInterval(face,subtract(b.end.point,b.start.point),witness.requiredVolume);
+        if(contact)result.push({courseId:b.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(b.ref,u))});
+      }
+      return result;
+    }
+    if(witness?.stationaryTool&&witness.material){
+      const b=interval(witness.material),bm=material(b);
+      if(b.affine&&bm?.exact){
+        const face=section(b.start),contact=face&&translationContactInterval(face,subtract(b.end.point,b.start.point),witness.stationaryTool);
         if(contact)result.push({courseId:b.ref.id,parameters:[contact.from,contact.to].map(u=>parameterAt(b.ref,u))});
       }
       return result;
@@ -831,7 +874,7 @@ export function prepareRangeScene(source,reader,units,{onProgress,nozzleGeometry
     if(!occupiedIds.has(id))for(const solid of body.solids)includeDeposit(convexBounds(solid));
     occupiedIds.add(id);deposited.set(id,count);
   }
-  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,substrateHits,requiredHits,verifySelf,cutsForWitness,mutualConflict,
+  return {source,reader,index,byId,stats,proofs,nozzleGeometry,geometryForFilament,nozzleHits,substrateHits,requiredHits,verifySelf,cutsForWitness,materialAccessConflict,mutualConflict,
     interval,pair,deposited,occupied:occupiedIds,depositedBounds,recordDeposit,withinGroups:null,groupPrefixes:null,
     operationOf:id=>byId.get(id)?.unit.sourceOperation??id};
 }

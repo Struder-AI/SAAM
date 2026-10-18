@@ -25,6 +25,8 @@ export function admitSource(source){
   }
   const courses=new Set();
   for(const [key,operation] of Object.entries(source.operations)){
+    for(const requirement of operation.requiredMaterial??[])requireThat(requirement.layerIds===undefined||Array.isArray(requirement.layerIds)&&requirement.layerIds.length>0&&new Set(requirement.layerIds).size===requirement.layerIds.length&&requirement.layerIds.every(value=>value===null||Object.hasOwn(source.layers,value)),
+      'Scoped material readiness must select existing native slices or unlayered producers.');
     for(const field of ['discoverSubstrate','resolveSubstrate','resolveInternalSubstrate','suppliesSubstrate'])requireThat(operation[field]===undefined||operation[field]===true,'Invalid substrate-contact declaration.');
     requireThat(operation.id===key&&Array.isArray(operation.after)&&operation.after.every(previous=>previous!==key&&(Object.hasOwn(source.operations,previous)||Object.hasOwn(source.completions??{},previous))),
       'Operation needs its source identity and existing predecessors.');

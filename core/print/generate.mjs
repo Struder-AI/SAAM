@@ -1,3 +1,4 @@
+import {prepareSliceMaterial,sliceMaterialSolids} from '../geom/slice-material.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
@@ -104,6 +105,15 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
     shell:shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(expanded,assignment).process}));
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source),...contributed];
   const sliced=finalizedSliceResults({...contributedGeometry,plan:expanded,...extensions,constructions,onProgress});
+  if(extensions.materialRequirements.size)for(const result of sliced.results){
+    result.materialReadiness=[];
+    if(result.report.depositionFamily!=='slice')continue;
+    for(const layer of result.referenceStack?.layers??[]){
+      if(!layer.slice||!Array.isArray(layer.region))continue;
+      const material=await sliceMaterialSolids(prepareSliceMaterial(layer));
+      if(material)result.materialReadiness.push({...material,part:result.report.part??null,layerId:(result.stackId??result.id)+':layer:'+layer.index});
+    }
+  }
   results.push(...sliced.results.map(result=>{
     const id=result.report.owner,report=extensions.reports.get(id),requiredMaterial=extensions.materialRequirements.get(id);
     return {...result,report:{...result.report,...report},operations:requiredMaterial?.length?result.operations.map(operation=>({...operation,requiredMaterial})):result.operations};

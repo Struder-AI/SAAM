@@ -1834,6 +1834,10 @@
     "core/print/recipe-tools.mjs": {
       "owner": "build-evaluate",
       "reason": "One recipe authoring interface shared by geometry and deposition extension hosts."
+    },
+    "core/path/material-readiness.mjs": {
+      "owner": "path-finalize",
+      "reason": "Resolve enclosure readiness from Geometry-owned nominal slices and actual whole-slice access, retaining only genuinely unresolved material scopes."
     }
   },
   "leaves": {
