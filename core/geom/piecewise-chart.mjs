@@ -203,7 +203,14 @@ function candidates(chart,uv){
     const height=({face,p})=>{const a=face.vertices[0];return a.point[2]+face.du[2]*(p[0]-a.uv[0])+face.dv[2]*(p[1]-a.uv[1]);};
     found.sort((a,b)=>height(b)-height(a));
   }
-  return found;
+  // A physical admission halo must not select a neighbouring face that the
+  // point is actually outside: an outward ray could then miss its first edge.
+  // Prefer true containment; retain the halo only for rounded input contacts.
+  const rounding=chart.periodic?ROUNDING_RELATIVE:ROUNDING_MM;
+  const containing=found.filter(({face,p})=>face.vertices.every(({uv:a},i)=>{
+    const edge=sub(face.vertices[(i+1)%3].uv,a);return cross2(edge,sub(p,a))>=-rounding*norm2(edge);
+  }));
+  return containing.length?containing:found;
 }
 
 export function piecewiseChartFrame(chart,uv,hint=null){

@@ -34,7 +34,7 @@ function finalizeAssignments(args){
   const constructions=(args.constructions??[]).filter(context=>!excluded(context.assignment.id));
   const work=(args.work??[]).filter(node=>!excluded(node.sourceId??node.key));
   const curveSources=(args.curveSources??[]).filter(context=>!excluded(context.assignment.id));
-  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells});
+  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells,onProgress:args.onProgress});
   generation.captureWork(nodes);
   if(nodes.some(node=>excluded(node.sourceId??node.key)))return null;
   const generated=constructDepositionResults({...args,nodes,curveSources},contexts);

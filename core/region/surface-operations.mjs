@@ -155,7 +155,9 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
   const prepared=prepareSurfaceOffset(chart,[],0,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:rectangle});
   if(prepared.atlas)chart={...chart,atlas:prepared.atlas};
   const allowed=prepared.atlas?intersect(rectangle,union(prepared.atlas.faces.map(face=>face.vertices.map(v=>v.uv)),[],options),options):rectangle;
-  const target=intersect(region,allowed,options),seedOffset=dot(across,frame.point);
+  const target=intersect(region,allowed,options),positions=target.flat().map(uv=>dot(across,evaluateSurface(chart,uv).point));
+  if(!target.length)return {rows:[],along,report:{offsets:0}};
+  const seedOffset=(Math.min(...positions)+Math.max(...positions))/2;
   // Only the initial heading is a plane cut. Its region is construction input;
   // all later rows are physical offsets, without repeated world-plane sections.
   const seed=intersect(sampledChartRegion({min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])},surfaceChartStep(chart,bounds,sampleStepMm),uv=>{
@@ -185,7 +187,14 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
     while(difference(target,source,options).length){
       const result=offsetSurfaceRegion(chart,source,spacingMm,{toleranceMm,maxStepMm:sampleStepMm,constraintLoopsUv:allowed});
       report.offsets++;report.evaluations+=result.report.evaluations;report.integrationSteps+=result.report.integrationSteps;
-      requireThat(difference(result.loopsUv,source,options).length,'Surface row offset cannot advance over the remaining chart region.');
+      if(!difference(result.loopsUv,source,options).length){
+        // Integer topology can retain long, subresolution boundary slivers.
+        // Only an actually resolvable remainder warrants a progress failure.
+        const remainder=difference(target,source,options);
+        const unresolved=offsetSurfaceRegion(chart,remainder,-toleranceMm,{toleranceMm,maxStepMm:sampleStepMm}).loopsUv;
+        requireThat(!unresolved.length,'Surface row offset cannot advance over the remaining chart region.');
+        report.subresolutionRemainders=(report.subresolutionRemainders??0)+remainder.length;break;
+      }
       source=result.loopsUv;lineIndex+=sign;rows.push({lineIndex,paths:fronts(source)});
     }
   }

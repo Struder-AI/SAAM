@@ -166,13 +166,40 @@ export function numericalCurveTangentProjection(curve,from,to,axis){
   }
   return maximum;
 }
-function boundedNativePiece(curve,from,to,tolerance){
-  const whole=nativePiece(curve,from,to);
-  if(!tolerance||whole.lengthMm[1]-whole.lengthMm[0]<=tolerance)return whole;
-  const mid=(from+to)/2;requireThat(mid>from&&mid<to,'Arc length cannot reach requested numerical precision.');
-  const left=boundedNativePiece(curve,from,mid,tolerance/2),right=boundedNativePiece(curve,mid,to,tolerance/2);
-  return {...whole,lengthMm:[left.lengthMm[0]+right.lengthMm[0],left.lengthMm[1]+right.lengthMm[1]],
-    speed:[Math.min(left.speed[0],right.speed[0]),Math.max(left.speed[1],right.speed[1])]};
+// Length has one physical error budget across the complete query. Parameter
+// spans can be arbitrarily small without deserving sub-floating-point error
+// budgets. Refine the largest uncertainty and retain all conservative bounds.
+function boundedNativeLength(curve,cuts,pieces,tolerance){
+  const gap=node=>node.range.lengthMm[1]-node.range.lengthMm[0],heap=[],leaves=new Set();
+  const push=node=>{
+    leaves.add(node);
+    const floor=4*preparedNativePiece(curve,nativeSpan(curve,node.from)).rounding;
+    if(gap(node)<=floor)return;
+    let i=heap.length;heap.push(node);
+    while(i){const parent=(i-1)>>1;if(gap(heap[parent])>=gap(node))break;heap[i]=heap[parent];i=parent;}
+    heap[i]=node;
+  };
+  const pop=()=>{
+    const node=heap[0],last=heap.pop();if(!heap.length)return node;
+    let i=0;
+    while(2*i+1<heap.length){let child=2*i+1;if(child+1<heap.length&&gap(heap[child+1])>gap(heap[child]))child++;
+      if(gap(last)>=gap(heap[child]))break;heap[i]=heap[child];i=child;}
+    heap[i]=last;return node;
+  };
+  const total=[0,1].map(k=>pieces.reduce((sum,piece)=>sum+piece.lengthMm[k],0)),bounded=[...total];
+  if(!tolerance||bounded[1]-bounded[0]<=tolerance)return {lengthMm:bounded,speed:[Math.min(...pieces.map(p=>p.speed[0])),Math.max(...pieces.map(p=>p.speed[1]))]};
+  pieces.forEach((range,i)=>push({from:cuts[i],to:cuts[i+1],range}));
+  while(bounded[1]-bounded[0]>tolerance){
+    if(!heap.length)throw Object.assign(Error('Arc length cannot reach requested numerical precision.'),{code:'CURVE_LENGTH_UNRESOLVED',lengthMm:bounded,toleranceMm:tolerance});
+    const node=pop(),mid=(node.from+node.to)/2;
+    if(!(mid>node.from&&mid<node.to))continue;
+    const left={from:node.from,to:mid,range:nativePiece(curve,node.from,mid)},right={from:mid,to:node.to,range:nativePiece(curve,mid,node.to)};
+    leaves.delete(node);push(left);push(right);
+    for(let k=0;k<2;k++)total[k]+=left.range.lengthMm[k]+right.range.lengthMm[k]-node.range.lengthMm[k];
+    bounded[0]=Math.max(bounded[0],total[0]);bounded[1]=Math.min(bounded[1],total[1]);
+  }
+  const ranges=[...leaves].map(node=>node.range);
+  return {lengthMm:bounded,speed:[Math.min(...ranges.map(p=>p.speed[0])),Math.max(...ranges.map(p=>p.speed[1]))]};
 }
 function interiorParameters(parameters,from,to){
   const find=(value,upper)=>{let low=0,high=parameters.length;
@@ -196,8 +223,8 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
     const length=curve.length*(to-from);
     return {bounds,lengthMm:[length,length],speed:[curve.length,curve.length],tangentCone:normalCone(directions),chordErrorMm:state.error,interpolationErrorMm:state.interpolationError};
   }
-  const cuts=[from,...interiorParameters(curve.breaks,from,to),to],pieces=cuts.slice(1).map((end,i)=>
-    boundedNativePiece(curve,cuts[i],end,lengthToleranceMm?lengthToleranceMm*(end-cuts[i])/(to-from):null));
+  const cuts=[from,...interiorParameters(curve.breaks,from,to),to],pieces=cuts.slice(1).map((end,i)=>nativePiece(curve,cuts[i],end));
+  const length=boundedNativeLength(curve,cuts,pieces,lengthToleranceMm);
   const bounds={min:[0,1,2].map(k=>Math.min(...pieces.map(p=>p.bounds.min[k]))),max:[0,1,2].map(k=>Math.max(...pieces.map(p=>p.bounds.max[k])))};
   // The distance to a fixed segment is convex, hence its maximum on every
   // enclosure box is attained at a corner. Multi-span bounds use that hull.
@@ -207,11 +234,40 @@ export function numericalCurveRange(curve,from,to,{lengthToleranceMm}={}){
     const left=a.map((v,k)=>v+(b[k]-v)*(cuts[i]-from)/(to-from)),right=a.map((v,k)=>v+(b[k]-v)*(cuts[i+1]-from)/(to-from));
     return Math.max(maximum,piece.interpolationErrorMm+Math.max(distance(start,left),distance(end,right)));
   },0);
-  return {bounds,lengthMm:[0,1].map(k=>pieces.reduce((sum,p)=>sum+p.lengthMm[k],0)),
-    speed:[Math.min(...pieces.map(p=>p.speed[0])),Math.max(...pieces.map(p=>p.speed[1]))],
+  return {bounds,...length,
     tangentCone:combinedCones(pieces.map(piece=>piece.tangentCone)),interpolationErrorMm,
     chordErrorMm:pieces.length===1?pieces[0].chordErrorMm:Math.max(...corners.map(p=>pointChordDistance(p,a,b)))};
 }
+// A minimum-length decision needs neither a complete integral nor frame/bounds
+// queries. Accept only a proved lower bound; uncertainty within rounding keeps
+// the existing endpoint rather than creating a sub-resolution fragment.
+export function numericalCurveHasLength(curve,from,to,minimumMm){
+  requireThat(Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&to<=1&&from<to&&Number.isFinite(minimumMm)&&minimumMm>=0,
+    'Minimum curve length needs an increasing interval and finite nonnegative distance.');
+  if(minimumMm===0)return true;
+  if(curve.kind==='point')return false;
+  if(curve.kind==='polyline')return curve.length*(to-from)>=minimumMm;
+  const start=numericalCurveAt(curve,from).point,end=numericalCurveAt(curve,to,'left').point;
+  const guard=FLOAT64_EPSILON*32*Math.max(1,...start.map(Math.abs),...end.map(Math.abs));
+  if(distance(start,end)-guard>=minimumMm)return true;
+  const cuts=[from,...interiorParameters(curve.breaks,from,to),to];let lower=0;
+  for(let i=1;i<cuts.length;i++){
+    const piece=preparedNativePiece(curve,nativeSpan(curve,cuts[i-1])),span=piece.to-piece.from;
+    const rows=restrictBezierLine(piece.rows,[(cuts[i-1]-piece.from)/span,(cuts[i]-piece.from)/span]);
+    const pending=[{rows,budget:ROUNDING_MM*(cuts[i]-cuts[i-1])/(to-from)}];
+    while(pending.length){
+      const {rows,budget}=pending.pop(),points=rows.map(row=>row.slice(0,3).map(v=>v/row[3]));
+      const chord=Math.max(0,distance(points[0],points.at(-1))-piece.rounding);
+      if(lower+chord>=minimumMm)return true;
+      const polygon=points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0)+piece.rounding;
+      if(polygon-chord<=Math.max(budget,piece.rounding*2)||rows.length===2){lower+=chord;continue;}
+      pending.push({rows:restrictBezierLine(rows,[.5,1]),budget:budget/2},
+        {rows:restrictBezierLine(rows,[0,.5]),budget:budget/2});
+    }
+  }
+  return false;
+}
+
 // Construction retains a native parameter only when its speed is bounded away
 // from zero over every span. Unresolved sub-rounding movement uses the sampled
 // construction instead; coincident endpoints alone cannot distinguish a loop

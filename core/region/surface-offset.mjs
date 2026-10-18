@@ -157,7 +157,16 @@ export function sweepSurfaceOffset(patch,prepared){
     return s.map((x,k)=>x+h*(a[k]+2*b[k]+2*c[k]+d[k])/6);
   };
   const shoot=(uv,direction,hint=null)=>{
-    if(prepared.atlas){const ray=piecewiseChartRay(prepared.atlas,uv,direction,radius,hint);integrations+=ray.length-1;return ray;}
+    if(prepared.atlas){
+      const walked=piecewiseChartRay(prepared.atlas,uv,direction,radius,hint),ray=[walked[0]];
+      integrations+=walked.length-1;
+      for(const point of walked.slice(1)){
+        const end=constraint===null?point:stopAtBoundary(ray.at(-1),point);
+        if(distance(end,ray.at(-1))>precisionUv*8)ray.push(end);
+        if(distance(end,point)>precisionUv*8){boundaryStops++;break;}
+      }
+      return ray;
+    }
     const frame=at(uv);let velocity=frame.uvOf(normalize(direction));
     // Source simplification may leave an unprintably small tilt at a boundary
     // contact. Normalize that initial tangent within the full ray's physical

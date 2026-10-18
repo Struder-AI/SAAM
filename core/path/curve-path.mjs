@@ -1,7 +1,7 @@
 // One numerical reader for compact source, execution and older saved actions.
 // Handles prepare geometry only; local queries and streaming retain source u.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveParameterAtLength,numericalCurveClosestParameter,normalCone,frameCone} from '../geom/curve-query.mjs';
+import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveHasLength,numericalCurveParameterAtLength,numericalCurveClosestParameter,normalCone,frameCone} from '../geom/curve-query.mjs';
 import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume,materialProfileDeviation} from './curve-profiles.mjs';
 import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM} from '../dimensions.mjs';
 
@@ -146,6 +146,10 @@ export function curveRange(handle,curveId,from,to,options={}){
   requireThat(rangeValid(from,to),'Invalid curve interval.');
   for(const key of ['lengthToleranceMm','volumeToleranceMm3'])if(options[key]!==undefined)requireThat(positive(options[key]),'Curve range tolerance must be positive.');
   return localRange(selected(handle,curveId),from,to,options);
+}
+export function curveHasLength(handle,curveId,from,to,minimumMm){
+  requireThat(rangeValid(from,to),'Invalid curve interval.');
+  return numericalCurveHasLength(selected(handle,curveId).geometry,from,to,minimumMm);
 }
 export function curveParameterAtLength(handle,curveId,from,to,distanceMm,options={}){
   requireThat(rangeValid(from,to),'Invalid curve interval.');

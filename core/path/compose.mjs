@@ -1,6 +1,6 @@
 // Source operations enter once as compact curves; execution refers to ranges.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {curveAt,curveRange,curveParameterAtLength,curveClosestParameter,prepareCurvePath} from './curve-path.mjs';
+import {curveAt,curveRange,curveHasLength,curveParameterAtLength,curveClosestParameter,prepareCurvePath} from './curve-path.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses,selectTraversal} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
@@ -44,14 +44,14 @@ export function prepareOperationPriorities(operations,resultIndex) {
 function executionCut(reader,course,u,existing){
   if(!(u>course.from&&u<course.to)||existing.has(u))return null;
   const boundaries=[course.from,...existing,course.to].sort((a,b)=>a-b),i=boundaries.findIndex(value=>value>u),a=boundaries[i-1],b=boundaries[i];
-  const measured=(from,to)=>curveRange(reader,course.curveId,from,to,{lengthToleranceMm:ROUNDING_MM}).lengthMm;
-  const left=measured(a,u),right=measured(u,b);
-  if(a!==course.from&&left[1]<=PRINT_RESOLUTION_MM||b!==course.to&&right[1]<=PRINT_RESOLUTION_MM)return null;
+  const usable=(from,to)=>curveHasLength(reader,course.curveId,from,to,PRINT_RESOLUTION_MM);
+  const left=usable(a,u),right=usable(u,b);
+  if(a!==course.from&&!left||b!==course.to&&!right)return null;
   const target=PRINT_RESOLUTION_MM+ROUNDING_MM;
-  if(left[0]<PRINT_RESOLUTION_MM)u=curveParameterAtLength(reader,course.curveId,a,b,target);
-  else if(right[0]<PRINT_RESOLUTION_MM)u=curveParameterAtLength(reader,course.curveId,a,b,target,{fromEnd:true});
+  if(!left)u=curveParameterAtLength(reader,course.curveId,a,b,target);
+  else if(!right)u=curveParameterAtLength(reader,course.curveId,a,b,target,{fromEnd:true});
   if(!(u>a&&u<b))return null;
-  return measured(a,u)[0]>=PRINT_RESOLUTION_MM&&measured(u,b)[0]>=PRINT_RESOLUTION_MM?u:null;
+  return usable(a,u)&&usable(u,b)?u:null;
 }
 function courseCuts(reader,course,values){
   const retained=new Set();
@@ -117,7 +117,11 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
           value.traversalsAt=point=>{
             if(memo.point?.every((v,i)=>v===point[i]))return memo.choices;
             const closest=curveClosestParameter(reader,loop.curveId,loop.from,loop.to,point,{toleranceMm:PRINT_RESOLUTION_MM});
-            const seam=executionCut(reader,loop,closest,new Set()),choices=[...value.traversals];
+            // Moving a cyclic entry needs no microscopic fragment or arc-length
+            // inversion. An entry this close to an endpoint keeps that seam.
+            const seam=closest>loop.from&&closest<loop.to&&
+              curveHasLength(reader,loop.curveId,loop.from,closest,PRINT_RESOLUTION_MM)&&
+              curveHasLength(reader,loop.curveId,closest,loop.to,PRINT_RESOLUTION_MM)?closest:null,choices=[...value.traversals];
             if(seam!==null){
               const head={...loop,to:seam},tail={...loop,from:seam};choices.push(traversal([tail,head]));
               if(reversible)choices.push(traversal([{...head,reverse:true},{...tail,reverse:true}]));

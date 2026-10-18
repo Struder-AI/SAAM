@@ -17,5 +17,4 @@ Slice recipe, including gyroid. Studio rendering/encoding modules are unchanged
 copies with SHA-256 provenance; the toolhead marker is hidden.
 Manufacturing scheduling is outside this media workflow.
 
-The workspace streams frames, plays/scrubs, saves PNGs and exports caption-free,
-silent 1080p/30 fps WebM through Studio's movie encoder, including its final hold.
+The workspace plays/scrubs, saves PNGs and exports silent, caption-free 1080p/30 fps WebM with Studio's final hold.
