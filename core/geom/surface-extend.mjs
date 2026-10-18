@@ -31,7 +31,10 @@ export function extendSurface(patch,boundsUv){
   at.derivatives=(u,v,options)=>{
     if([u,v].every((x,k)=>x>=domains[k][0]&&x<=domains[k][1]))return surfaceDerivatives(patch,u,v,options);
     const cell=[u,v].map((x,k)=>x<domains[k][0]?[bounds[k][0],domains[k][0]]:x>domains[k][1]?[domains[k][1],bounds[k][1]]:domains[k]);
-    return evaluatedSurfaceDerivatives({at:sample,domainU:cell[0],domainV:cell[1]},u,v,options);
+    const e=evaluatedSurfaceDerivatives({at:sample,domainU:cell[0],domainV:cell[1]},u,v,options),normal=at(u,v).normal;
+    // A regular normal offset keeps the source normal (up to fold orientation).
+    // Preserve it exactly at periodic seams instead of differencing both ends.
+    return {...e,normal:dot(e.normal,normal)<0?normal.map(x=>-x):normal};
   };
   const breaks=(knots,domain,b)=>[...new Set([b[0],...knots.filter(t=>t>=domain[0]&&t<=domain[1]),b[1]])].sort((a,b)=>a-b);
   return {at,domainU:bounds[0],domainV:bounds[1],breaksU:breaks(patch.knotsU,domains[0],bounds[0]),breaksV:breaks(patch.knotsV,domains[1],bounds[1]),
