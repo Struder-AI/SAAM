@@ -69,24 +69,23 @@ a partially successful schedule or unchecked fallback motion.
 
 ## Shared numerical reader
 
-Toolpath owns `core/path/curve-path.mjs`, with these exports. All queries are deterministic; a prepared handle can memoize privately without mutating source.
+Toolpath owns `core/path/curve-path.mjs`; deterministic queries can memoize privately without mutating source.
 
 | Export | Result and semantics |
 |---|---|
 | `prepareCurvePath({curves})` | Admitted curve-table/query handle (a source can be passed directly); no eager whole-path tessellation. |
 | `curveAt(handle,curveId,u,{side='right'}={})` | `{point,tangent,pose,widthMm,speedMmS,materialNormal,areaMm2}`; absent travel channels stay absent; tangent is null only at a singularity/point. |
 | `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],tangentCone,chordErrorMm,normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
+| `curveHasLength(handle,curveId,from,to,minimumMm)` | Geometry proves a minimum physical length without a complete integral; rounding-sized uncertainty conservatively returns false. |
 | `curveParameterAtLength(handle,curveId,from,to,distanceMm,{fromEnd=false,toleranceMm}={})` | Source parameter at physical distance, certified by Geometry; defaults to rounding accuracy. |
 | `curveClosestParameter(handle,curveId,from,to,point,{toleranceMm}={})` | Source parameter nearest a point within the requested distance accuracy; Geometry owns projection/bounds. Geometry stays unchanged. |
 | `curveSpans(handle,curveId,from,to,options)` | Lazy iterable of bounded local spans, each `{from,to,start,end,range}`; endpoints are `curveAt` records, range is `curveRange`. |
 | `linearizePath(view,options)` | Lazy existing-style contextual action stream from the joined path, for consumers needing segments. Never the persisted authority. |
 
-`tangentCone` and `normalCone` are `{axis,halfAngleRad}`. The tangent cone encloses all regular forward tangents (full sphere when unproved; null for a point).
-`chordErrorMm` bounds distance from the entire curve interval to its endpoint segment;
-it does not assert that curve and chord share linear timing. `poseCone` is
-`{reference,halfAngleRad}`, bounding full SO(3) frame deviation, including roll.
+Cones `{axis,halfAngleRad}` enclose regular tangents/normals (full sphere when unproved; null for a point). `chordErrorMm` bounds distance to the interval's endpoint segment;
+it does not assert linear timing. `poseCone:{reference,halfAngleRad}` bounds full SO(3) frame deviation, including roll.
 `breaks` lists interior vertices, knots and profile discontinuities. Position bounds include both endpoints; attribute bounds use the right limit at `from` and left limit at `to`. Overlapping bounds alone prove no collision.
-`curveRange` options are optional positive `lengthToleranceMm` and `volumeToleranceMm3`. Without them it may return coarse certified bounds.
+`curveRange` takes positive `lengthToleranceMm` and `volumeToleranceMm3`; omission permits coarse bounds. Arc-length refinement spends one physical query budget on the largest uncertainty, independent of knot spacing.
 `curveSpans` and `linearizePath` require positive `positionToleranceMm`,
 `orientationToleranceRad`, `volumeToleranceMm3`; these bound chord deviation,
 full-frame deviation from endpoint interpolation, and total volume error over the

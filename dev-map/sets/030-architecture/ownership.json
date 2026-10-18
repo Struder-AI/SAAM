@@ -26018,7 +26018,7 @@
       "owner": "geometry",
       "reason": "SP2 operation boundary: numerical shapes, bounds and native chart references."
     },
-    "core/geom/curve-query.mjs::boundedNativePiece": {
+    "core/geom/curve-query.mjs::boundedNativeLength": {
       "owner": "geometry",
       "reason": "SP2 operation boundary: numerical shapes, bounds and native chart references."
     },
@@ -27460,6 +27460,10 @@
       "owner": "geometry",
       "reason": "Geometry certifies physical arc-length inversion on retained native curves."
     },
+    "core/path/curve-path.mjs::curveHasLength": {
+      "owner": "toolpath",
+      "reason": "The shared reader exposes Geometry minimum physical length without unrelated profile queries."
+    },
     "core/path/curve-path.mjs::curveParameterAtLength": {
       "owner": "toolpath",
       "reason": "The shared prepared reader exposes Geometry physical distance in source parameters."
@@ -28049,6 +28053,9 @@
       "owner": "geometry"
     },
     "core/geom/curve-fit.mjs::fitSampledCurve": {
+      "owner": "geometry"
+    },
+    "core/geom/curve-query.mjs::numericalCurveHasLength": {
       "owner": "geometry"
     },
     "core/geom/curve-query.mjs::numericalCurveRegular": {
