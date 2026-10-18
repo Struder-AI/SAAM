@@ -172,6 +172,11 @@ export function* curveSpans(handle,curveId,from,to,options){
 function* querySpans(handle,curveId,from,to,options,labels=[]){
   tolerances(options);requireThat(rangeValid(from,to),'Invalid curve interval.');
   const curve=selected(handle,curveId),state={start:from};
+  // Most candidates are visibly longer than the merge distance. Prove that
+  // first; measuring the entire remaining native curve at every knot is
+  // quadratic. Only short candidates need the original upper-bound decision.
+  const withinResolution=(a,b)=>curve.geometry.kind==='polyline'?curve.geometry.length*(b-a)<=options.positionToleranceMm:
+    !numericalCurveHasLength(curve.geometry,a,b,options.positionToleranceMm)&&numericalCurveRange(curve.geometry,a,b).lengthMm[1]<=options.positionToleranceMm;
   // Geometry and labels are useful view candidates. Profile/material keys are
   // query information, not an instruction to emit one move between every key.
   const priorities=new Map(labels.filter(u=>u>from&&u<to).map(u=>[u,0]));
@@ -186,7 +191,7 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
   const candidates=[...priorities].sort(([a],[b])=>a-b),groups=[];
   for(const candidate of candidates){
     const group=groups.at(-1);
-    if(group&&numericalCurveRange(curve.geometry,group[0][0],candidate[0]).lengthMm[1]<=options.positionToleranceMm)group.push(candidate);
+    if(group&&withinResolution(group[0][0],candidate[0]))group.push(candidate);
     else groups.push([candidate]);
   }
   const cuts=groups.flatMap(group=>{
@@ -195,10 +200,7 @@ function* querySpans(handle,curveId,from,to,options,labels=[]){
   });
   const boundaries=[from];
   for(const [end,priority] of cuts){
-    const remaining=curve.geometry.kind==='polyline'?curve.geometry.length*(to-end):
-      numericalCurveRange(curve.geometry,end,to).lengthMm[1];
-    if(priority<2&&(numericalCurveRange(curve.geometry,state.start,end).lengthMm[1]<=options.positionToleranceMm||
-      remaining<=options.positionToleranceMm))continue;
+    if(priority<2&&(withinResolution(state.start,end)||withinResolution(end,to)))continue;
     boundaries.push(end);state.start=end;
   }
   boundaries.push(to);
