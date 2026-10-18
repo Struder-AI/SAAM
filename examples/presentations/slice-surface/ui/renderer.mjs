@@ -38,6 +38,10 @@ export async function drawFrame(canvas,frame,{context=true,previous=null}={}){
  const state={plan:frame.plan,geometry:{},program};
  const annotations=renderer.draw({target:viewport,width,height,ratio:1,position:program.summary.motionSeconds,frameNow:10000,fadeState:createLayerFade(),updateUI:false,state,tab:'toolpath',camera:{yaw:-.78,tilt:.62,zoom:1.15,pan:[0,0]},settings:{showTravel:false,previousLayerOpacity:.24,followPlate:true},bounds:{min:[0,0,0],max:[24,24,24]}});
  if(!renderer.sceneState().solid||annotations.detailText)throw Error(annotations.detailText||'Native material rendering unavailable.');
- const ctx=canvas.getContext('2d'),scale=canvas.width/studio.layout.width;ctx.setTransform(scale,0,0,scale,0,0);ctx.globalAlpha=1;ctx.drawImage(studio.image,0,0);ctx.drawImage(viewport,x,y,width,height);ctx.setTransform(1,0,0,1,0,0);
+ const ctx=canvas.getContext('2d'),scale=canvas.width/studio.layout.width;ctx.setTransform(scale,0,0,scale,0,0);ctx.globalAlpha=1;ctx.drawImage(studio.image,0,0);ctx.drawImage(viewport,x,y,width,height);
+ // The surrounding window is a real Studio capture; keep its changing readouts truthful.
+ ctx.fillStyle='#f4f2ed';ctx.fillRect(1580,200,150,32);ctx.fillRect(1580,245,150,30);ctx.textAlign='right';ctx.fillStyle='#1b2929';ctx.font='12px "Segoe UI",Arial,sans-serif';ctx.fillText(String(program.moves.length),1726,219);ctx.fillText(frame.program.summary.volumeMm3.toFixed(2)+' mm³',1726,264);
+ ctx.fillStyle='#fafbf6';ctx.fillRect(1050,802,315,30);ctx.fillRect(1280,860,85,24);ctx.fillStyle='#687675';ctx.font='10px "Segoe UI",Arial,sans-serif';ctx.fillText('slice '+(Math.max(0,frame.animation.layerIndex)+1)+' · step 1/1',1363,822);const duration=program.summary.motionSeconds,clock=n=>Math.floor(n/60)+':'+String(Math.floor(n%60)).padStart(2,'0');ctx.fillText(clock(duration)+' / '+clock(duration),1363,878);ctx.textAlign='left';
+ ctx.setTransform(1,0,0,1,0,0);
  return {solid:true,moves:program.moves.length,connections:frame.connections};
 }

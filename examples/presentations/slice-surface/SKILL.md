@@ -1,23 +1,22 @@
 ---
 name: slice-surface-animation
-description: Studio-framed slice, cladding and nonplanar bridge animation.
+description: Native SAAM toolpaths in a Studio-framed onboarding movie.
 metadata:
   saam-kind: workspace
 ---
-# Slice surface animation
+# Slice showcase
+Run `node examples/presentations/generate-slice-surface.mjs` in a source checkout.
+An optional output-index path selects a fresh cache directory; the next argument
+sets worker count (default 8). Copy its generated `extension` to the SAAM home's
+`local/extensions/slice-surface-animation`, then open that workspace through SAAM.
 
-From a source checkout run `node examples/presentations/generate-slice-surface.mjs`.
-An optional first argument names an output index in a fresh directory. Preparation
-writes native frames, bounded chunks and a portable `extension` beside that index.
-Copy the extension to the SAAM home's `local/extensions/slice-surface-animation`,
-then `saam call open_workspace --extension-id slice-surface-animation`.
+The 80-second sequence includes planar parameters, alternating layers, native
+gyroid density transitions, tilts/waves, cladding, a ruled bridge and both returns.
+Outlines and loops switch instantly; shape precedes fill changes. Cube frames use a widely spaced ordinary stack. Finite surface frames supply
+one prepared region to the same native Slice bead and connector finalization.
+No custom infill algorithm or toolpath drawing is used. Rendering modules are
+unchanged Studio source copies with SHA-256 provenance; display skips only
+sub-rounding segments. Manufacturing scheduling is outside this media workflow.
 
-The 79-second sequence varies planar density/loops, steps alternating layers,
-morphs the infill field into gyroid and back, then tilts/waves a cube slice,
-wraps dense axial cladding, returns, bridges two top edges, and returns again.
-Cube slices use 960 mm spacing; cladding uses one normal-band layer; the bridge
-uses one surface-domain layer. Native layout/mapping and scalar contours own
-all paths; the gyroid transition blends fields. Save snapshots at its endpoints.
-
-A real Studio-window capture uses its native camera/palette. Play/scrub, toggle
-context/wash, save PNGs and export silent 1080p/30 fps WebM, without captions or printer programs.
+The workspace streams frames, plays/scrubs, saves PNGs and exports caption-free,
+silent 1080p/30 fps WebM through Studio's movie encoder, including its final hold.

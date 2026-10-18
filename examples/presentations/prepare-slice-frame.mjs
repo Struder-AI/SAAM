@@ -1,3 +1,4 @@
+import {ROUNDING_MM} from '../../core/dimensions.mjs';
 import {geometryOperations} from '../../core/geom/operations.mjs';
 import {recipeDefaults,compileRecipe} from '../../core/print/plan.mjs';
 import {preparePathGeometry,generateModelResults} from '../../core/print/generate.mjs';
@@ -35,7 +36,7 @@ export function depositionPreview(model){
  for(const op of result.operations)for(const stroke of op.strokes){
   if(stroke.closed)throw Error('Finalization must make closed strokes explicit.');
   for(let i=1;i<stroke.points.length;i++){
-   const from=stroke.points[i-1],to=stroke.points[i],length=Math.hypot(...to.map((v,k)=>v-from[k]));if(length<1e-9)continue;
+   const from=stroke.points[i-1],to=stroke.points[i],length=Math.hypot(...to.map((v,k)=>v-from[k]));if(length<=ROUNDING_MM)continue;
    const metadata=stroke.segmentMetadata?.[i-1]??{},volume=stroke.volumesMm3?.[i-1]??length*stroke.beadAreaMm2,speed=metadata.speedMmS??stroke.speedMmS,width=metadata.beadWidthMm??stroke.beadWidthMm;
    const duration=length/speed,normal=metadata.surfaceNormal,height=metadata.beadHeightMm??stroke.beadHeightMm??volume/(length*width);
    if(![volume,speed,width,height,...normal].every(Number.isFinite)||volume<0||speed<=0||height<=0)throw Error('Invalid native bead.');
