@@ -2,15 +2,17 @@
 // standoff, stroke width, sampling step and clipping measurement is physical.
 import {affineSurface} from '../geom/affine-surface.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
+import {surfacePlane} from '../geom/surface-coincidence.mjs';
+import {faceTrimRegion,planarFaceRegion} from '../geom/surface-trim.mjs';
 import {evaluateSurface,surfaceChartCovers} from '../geom/surface-evaluation.mjs';
 import {sectionSurface} from '../geom/section.mjs';
 import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {clipChartCurveToRegion,clipLineToRegion} from '../geom/curve-region.mjs';
 import {requireThat,dot,cross,distance,normalize} from '../geom/tolerance.mjs';
-import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM} from '../dimensions.mjs';
 import {offsetRegion} from './offset.mjs';
 import {intersect,union,difference,clipOpenPaths} from './intersection.mjs';
-import {pointInRegion,loopArea,pointSegmentDistance} from './region2d.mjs';
+import {pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {sampledChartRegion} from '../geom/height-slice.mjs';
 import {offsetSurfaceRegion,strokeSurfaceRegion,prepareSurfaceOffset,UV_GRID} from './surface-offset.mjs';
 
@@ -70,27 +72,45 @@ export function strokeSliceRegion(slice,paths,radiusMm,{sampleStepMm=0.2,boundsU
   return {loops:result.loopsUv,report:result.report};
 }
 
-export function intersectSurfaceSheet(slice,sheet,{boundsUv=null,sampleStepMm=0.2,toleranceMm=PRINT_RESOLUTION_MM}={}){
-  const patch=sheet?.cp?sheet:referencePatch(sheet);
-  requireThat(patch.nu===2&&patch.nv===2&&patch.orderU===2&&patch.orderV===2,'Construction sheet needs a bounded degree-one 2×2 planar spline surface.');
-  const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
-  const corners=[[u0,v0],[u1,v0],[u1,v1],[u0,v1]].map(uv=>evaluateSurface(patch,uv).point);
-  const frame=evaluateSurface(patch,[(u0+u1)/2,(v0+v1)/2]);
-  requireThat(frame.normal,'Construction sheet requires a regular planar surface.');
-  const origin3d=corners[0],normal=frame.normal,xAxis=normalize(frame.du),yAxis=cross(normal,xAxis);
-  requireThat(corners.every(point=>Math.abs(dot(normal,point.map((v,k)=>v-origin3d[k])))<=ROUNDING_MM),'Construction sheet must be planar.');
+const sheetRegions=new WeakMap();
+function preparedSheet(sheet,toleranceMm){
+  if(!sheetRegions.has(sheet))sheetRegions.set(sheet,new Map());
+  const cached=sheetRegions.get(sheet);
+  if(cached.has(toleranceMm))return cached.get(toleranceMm);
+  const patch=sheet?.cp?sheet:{...referencePatch(sheet),...(sheet.trimLoops?{trimLoops:sheet.trimLoops}:{})},plane=surfacePlane(patch);
+  requireThat(plane,'Construction sheet must be a bounded planar spline surface.');
+  const middle=[patch.domainU,patch.domainV].map(([a,b])=>(a+b)/2),frame=evaluateSurface(patch,middle);
+  const origin3d=plane.point,normal=plane.normal,xAxis=normalize(frame.du),yAxis=cross(normal,xAxis);
   const project=point=>{const relative=point.map((v,k)=>v-origin3d[k]);return [dot(relative,xAxis),dot(relative,yAxis)];};
-  const bounds=surfaceChartBounds(slice,[],boundsUv),cut=sectionSurface(slice,{normal,offset:dot(normal,origin3d)},{boundsUv:bounds,sampleStepMm});
-  const rectangle=corners.map(project),curves=[];
+  const region=union(planarFaceRegion(patch,faceTrimRegion(patch,{toleranceMm}),{origin:origin3d,x:xAxis,y:yAxis},toleranceMm),[]);
+  const result={origin3d,normal,xAxis,yAxis,project,region};cached.set(toleranceMm,result);return result;
+}
+export function intersectSurfaceSheet(slice,sheet,{boundsUv=null,sampleStepMm=0.2,toleranceMm=PRINT_RESOLUTION_MM,parallelBandMm=0}={}){
+  requireThat(Number.isFinite(parallelBandMm)&&parallelBandMm>=0,'Parallel sheet coverage needs a nonnegative physical half-thickness.');
+  const prepared=preparedSheet(sheet,toleranceMm),{normal,xAxis,yAxis,project,region}=prepared;
+  const bounds=surfaceChartBounds(slice,[],boundsUv);let origin3d=prepared.origin3d;
+  // A physical sheet band supplies area only on proven parallel planar charts;
+  // crossing surfaces always retain their actual zero-thickness intersection.
+  if(parallelBandMm){
+    const native=slice.patch??slice,plane=affineSurface(slice)?evaluateSurface(slice,bounds.map(([lo,hi])=>(lo+hi)/2)):native.cp?surfacePlane(native):null;
+    if(plane&&Math.abs(Math.abs(dot(normal,plane.normal))-1)<=Number.EPSILON*64){
+      const distanceMm=dot(normal,plane.point.map((v,k)=>v-origin3d[k]));
+      if(Math.abs(distanceMm)<=parallelBandMm)origin3d=origin3d.map((v,k)=>v+distanceMm*normal[k]);
+    }
+  }
+  const cut=sectionSurface(slice,{normal,offset:dot(normal,origin3d)},{boundsUv:bounds,sampleStepMm});
+  const curves=[];
   if(cut.coincident){
     const domain=[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]];
     let regionsUv;
     if(slice.kind==='plane'){
-      let polygon=corners.map(point=>{const delta=point.map((v,k)=>v-slice.origin[k]);return [dot(delta,slice.xAxis),dot(delta,slice.yAxis)];});
-      if(loopArea(polygon)<0)polygon=polygon.reverse();
-      regionsUv=intersect([polygon],[domain]);
+      const loops=region.map(loop=>loop.map(uv=>{
+        const point=origin3d.map((v,k)=>v+uv[0]*xAxis[k]+uv[1]*yAxis[k]),delta=point.map((v,k)=>v-slice.origin[k]);
+        return [dot(delta,slice.xAxis),dot(delta,slice.yAxis)];
+      }));
+      regionsUv=intersect(loops,[domain]);
     }else regionsUv=sampledChartRegion({min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])},surfaceChartStep(slice,bounds,sampleStepMm),uv=>
-      surfaceChartCovers(slice,uv)&&pointInRegion(project(evaluateSurface(slice,uv).point),[rectangle]),{surface:slice});
+      surfaceChartCovers(slice,uv)&&pointInRegion(project(evaluateSurface(slice,uv).point),region),{surface:slice});
     return {curves:[],regionsUv,report:{method:'surface-sheet-area',coincident:true,sampled:slice.kind!=='plane',sampleStepMm,toleranceMm}};
   }
   for(const chain of cut.chains){
@@ -98,7 +118,7 @@ export function intersectSurfaceSheet(slice,sheet,{boundsUv=null,sampleStepMm=0.
     for(let i=1;i<chain.length;i++){
       const a=chain[i-1],b=chain[i],origin=project(a.point),end=project(b.point),direction=end.map((v,k)=>v-origin[k]);
       if(Math.hypot(...direction)<=PROGRAM_STEP_MM)continue;
-      const clipped=clipLineToRegion(origin,direction,[rectangle],{range:[0,1]});
+      const clipped=clipLineToRegion(origin,direction,region,{range:[0,1]});
       const spans=[...clipped.spans,...clipped.contacts].filter(([lo,hi])=>hi>lo).sort((x,y)=>x[0]-y[0]),merged=[];
       for(const span of spans){const last=merged.at(-1);if(last&&span[0]<=last[1])last[1]=Math.max(last[1],span[1]);else merged.push([...span]);}
       for(const [lo,hi] of merged){

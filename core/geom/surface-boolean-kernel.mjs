@@ -6,9 +6,8 @@ import {sewSurfaceBoundary} from './surface-topology.mjs';
 import {separatingSurfacePlane} from './surface-support.mjs';
 import {surfaceBoundaryPair,surfaceInside,outwardSigns} from '../region/section.mjs';
 import {union,intersect,difference} from '../region/intersection.mjs';
-import {patchDomain,faceTrimRegion,retainFaceTrimCurves,segmentTrimSpans} from './surface-trim.mjs';
+import {patchDomain,faceTrimRegion,planarFaceRegion,retainFaceTrimCurves,segmentTrimSpans} from './surface-trim.mjs';
 import {surfacePlane,surfaceCorrespondence,correspondingSourceLoops,correspondingSurfaceCharts,projectCoincidentChart,curveCorrespondence} from './surface-coincidence.mjs';
-import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {surfaceSegmentCurves} from './surface-curves.mjs';
 import {requireThat,dot,distance,cross,normalize} from './tolerance.mjs';
 import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
@@ -254,21 +253,6 @@ function projectFaceLoops(source,loops,target,toleranceMm,coincidenceMm=ROUNDING
   // handles polar cap charts without projecting outside their UV domain.
   const prism=planarRegionPrism(source,loops,sourceRegion,frame);
   return intersect(targetLoops,surfaceInside(target,prism,{chordMm:toleranceMm,seedMm:.4}).loops);
-}
-
-function planarFaceRegion(patch,loops,frame,toleranceMm){
-  return loops.map(loop=>{
-    const output=[];
-    for(let i=0;i<loop.length;i++){
-      const a=loop[i],b=loop[(i+1)%loop.length];
-      const at=t=>({point:evaluate(patch,...a.map((v,k)=>v+t*(b[k]-v)),false).point});
-      const samples=sampleCurveIntervals({at,cuts:[0,.25,.5,.75,1],stepMm:Infinity,toleranceMm});
-      for(const sample of samples.slice(0,-1)){
-        const delta=sample.point.map((v,k)=>v-frame.origin[k]);output.push([dot(delta,frame.x),dot(delta,frame.y)]);
-      }
-    }
-    return output;
-  });
 }
 
 // Extrude the native planar face, including its exact rational boundary.

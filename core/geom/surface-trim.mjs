@@ -4,7 +4,8 @@ import {clipLineToRegion} from './curve-region.mjs';
 import {evaluate,authoredNurbs,evaluateCurve,nurbsCurveRecord} from './nurbs.mjs';
 import {curvePlaneIntersections,extract,reverseCurve} from './curve-ops.mjs';
 import {surfaceCurveImages} from './surface-curve-image.mjs';
-import {distance} from './tolerance.mjs';
+import {distance,dot} from './tolerance.mjs';
+import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {ROUNDING_RELATIVE,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {curveLoopSamples,prepareCurveLoops} from './curve-loops.mjs';
 import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
@@ -24,6 +25,23 @@ export function faceTrimRegion(patch,{toleranceMm=PRINT_RESOLUTION_MM/4}={}){
 export function patchDomain(patch){
   const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
   return [[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]];
+}
+
+// Project a bounded planar face into a physical plane frame. Native curved
+// boundaries are sampled at the caller's millimetre budget, including polar caps.
+export function planarFaceRegion(patch,loops,frame,toleranceMm){
+  return loops.map(loop=>{
+    const output=[];
+    for(let i=0;i<loop.length;i++){
+      const a=loop[i],b=loop[(i+1)%loop.length];
+      const at=t=>({point:evaluate(patch,...a.map((v,k)=>v+t*(b[k]-v)),false).point});
+      const samples=sampleCurveIntervals({at,cuts:[0,.25,.5,.75,1],stepMm:Infinity,toleranceMm});
+      for(const sample of samples.slice(0,-1)){
+        const delta=sample.point.map((v,k)=>v-frame.origin[k]);output.push([dot(delta,frame.x),dot(delta,frame.y)]);
+      }
+    }
+    return output;
+  });
 }
 
 export function faceContainsUv(patch,u,v){

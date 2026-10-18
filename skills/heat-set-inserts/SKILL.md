@@ -68,6 +68,6 @@ Vase-only deposition has no source Slice. Parallel fins, or shallow fins whose
 successive traces cannot retain half a bead of overlap, are omitted and reported.
 
 Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
-Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind pads
-use max(solidTop,solidBottom) × layer gap, excluding existing dense coverage; oblique pads may span
-more layers. Fit, adhesion, strength, AMS behavior and unsupported orientations need print evidence.
+Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind backing
+uses disk/layer intersection traces across max(solidTop,solidBottom) × layer gap; parallel
+layers fill the disk area. Existing dense coverage is excluded; physical strength needs print evidence.
