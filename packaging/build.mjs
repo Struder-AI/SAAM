@@ -53,7 +53,7 @@ function executablePlatform(bytes){
 }
 // Tracked files a maker's installation does not need: development maps and
 // tooling, tests, the relay service and this packager.
-const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
+const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^scripts\/check-repo\.mjs$/,/^\.(claude|codex|github)\//,/^core\/tests\//,
   /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
   /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
