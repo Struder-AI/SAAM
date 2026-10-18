@@ -1,5 +1,11 @@
 # Development log
 
+## 2026-10-17 — Share manufactured contact readiness across consumers
+
+- Nominal material ownership now distinguishes containing slices from exposed upper frontiers, consumes shared interfaces once and includes finite contact interiors. Slice derives supporting prerequisites for newly entering material. Continuous vase walls publish nominal side frontiers; open patterns publish only their terminal boundary. Vase foundations and first cap slices use this common mechanism. Removed the live construction-time support-discovery flags and pathway; blank-dependency external placement remains scheduler-owned. Contracts advance to deposition/39 and neutral-motion/27.
+- Standard support saves finite underside contacts in ordinary Slice records. The part retains its underside, the support remains an independent solid and current supporting slices derive on regeneration. Cross-part source references resolve geometry without imposing false whole-producer cycles. Two-color covers use the same contact records.
+- Inline source/schedule exercises pass for support spacing changes (.2/.1 mm), a partial roof requiring only its touching part slice, three cross-part contact directions, vase foundation/cap prerequisites and independent source-only Slice geometry. Actual light-switch-cover workspaces pass raised (125.7 s), flush-up (91.4 s), and flush-down (148.3 s), each retaining one actual cross-producer slice prerequisite. No stored tests, whole suite, app focus or hardware use. Stepped reduction, nonplanar enclosure coarsening, integrated Wing tip and final goal-wide verification remain active.
+
 ## 2026-10-17 — Publish coarse enclosure readiness and preserve genuine closure conflicts
 
 - Plastic-weld material envelopes now query nominal planar slice ownership using Geometry's exact convex decomposition. Toolpath publishes the greatest supporting slice prerequisite after whole-slice access is proved. Inconclusive bounds may inspect actual material without creating a split; only a genuine within-slice access conflict retains scoped enclosure requirements. Unknown curved charts continue through that scoped mechanism, so fully coarse nonplanar enclosure selection remains open.

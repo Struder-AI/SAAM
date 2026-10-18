@@ -174,7 +174,7 @@ function advancedVaseResult({shell,assignment,process,geometry,after=assignment.
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
   const traced=traceResult({id:assignment.id,filament:assignment.filament,after},{batches:mapped.batches,process,sequential:false});
-  const operations=traced.operations.map((operation,i)=>({...operation,...(i===0?{resolveSubstrate:true}:{}),suppliesSubstrate:true}));
+  const operations=traced.operations;
   const strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary,notes=[...mapped.notes,...(traced.report.notes??[])];
   const measures=Object.fromEntries(['strokes','lengthMm','volumeMm3'].map(key=>[key,traced.report[key]]));
   const rim=level?strokes.flatMap(stroke=>{

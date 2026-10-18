@@ -284,15 +284,11 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         }
         if(progress.cyclic)break;
       }
-      const supportProviders=new Set(scope==='construction'?graph.units.filter(unit=>unit.operation.suppliesSubstrate).map(unit=>unit.id):[]);
       const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
-      for(const unit of graph.units)if(scope==='construction'?unit.operation.resolveSubstrate||unit.operation.resolveInternalSubstrate||supportProviders.size:unbound(unit))
-        for(const hit of state.scene.substrateHits(unit,id=>{
-          if(id===unit.id||precedes(id,unit.id))return false;
-          if(scope==='external')return producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id));
-          const internal=producerOf(unit)===producerOf(graph.byId.get(id));
-          return internal?unit.operation.resolveInternalSubstrate:Boolean(unit.operation.resolveSubstrate||supportProviders.has(id));
-        }))addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
+      if(scope==='external')for(const unit of graph.units)if(unbound(unit))
+        for(const hit of state.scene.substrateHits(unit,id=>id!==unit.id&&!precedes(id,unit.id)&&
+          producerOf(unit)!==producerOf(graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))))
+          addEdge(hit.unit.id,unit.id,'substrate',hit.witness);
       // Every native slice or unlayered operation is an aggregate query group.
       // An unresolved Inject/Trace group does not disable proofs for its peers.
       const accessGroups=new Set(),queryGroups=new Map(),groupId=unit=>unit.layerId??unit.sourceOperation;

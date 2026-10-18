@@ -89,9 +89,9 @@ async function prepareAssignmentGeometry(plan,assignments,geometry){
 
 // Survey every selected skin before body ownership, then finalize each
 // supporting producer before constructing surface consumers.
-export async function generateModelResults(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()},onProgress) {
-  if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
-  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+// Prepare the same geometry/material inputs for generation and authoring.
+// No deposition or execution is constructed here.
+export async function prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()}){
   // An assembly construction with no component chosen uses the whole assembly.
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
@@ -104,7 +104,14 @@ export async function generateModelResults(plan,{placed,componentShells,shells,v
   const contributed=extensions.assignments.filter(assignment=>assignment.construction).map(assignment=>({assignment,
     shell:shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(expanded,assignment).process}));
   const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source),...contributed];
-  const sliced=finalizedSliceResults({...contributedGeometry,plan:expanded,...extensions,constructions,onProgress});
+  return {...contributedGeometry,plan:expanded,...extensions,constructions};
+}
+
+export async function generateModelResults(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()},onProgress) {
+  if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
+  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  const extensions=await prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures});
+  const sliced=finalizedSliceResults({...extensions,onProgress});
   if(extensions.materialRequirements.size)for(const result of sliced.results){
     result.materialReadiness=[];
     if(result.report.depositionFamily!=='slice')continue;

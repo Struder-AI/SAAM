@@ -8,7 +8,7 @@ import {prepareTraceSourceLayer} from './trace-source-preparation.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {AssignmentFailure,assignmentWork} from './assignment-failure.mjs';
-import {traceSurfaceReadiness,referenceSliceReadiness} from './surface-readiness.mjs';
+import {traceSurfaceReadiness,referenceSliceReadiness,contactSliceReadiness,nativeBaseReadiness} from './surface-readiness.mjs';
 // Extensions see prepared work only. Core retains the translation from work
 // keys to whichever operations construction actually emits.
 export function depositionWorkDescription(node){
@@ -31,6 +31,11 @@ export function depositionWorkDescription(node){
 
 // Expand construction and recipe constraints once to exact work-node keys.
 export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]}),curveSources=[],{plan,shells=[]}={}){
+  constructions=constructions.map(context=>context.prepare?assignmentWork({sourceId:context.assignment.id,kind:context.kind??'trace'},()=>context.prepare(context)):context);
+  const materialReferences=constructions.flatMap(context=>(context.materialSurfaces??[]).map(surface=>({
+    owner:{assignment:{id:surface.reference.assignment},part:surface.part,shell:context.shell},
+    spec:{layers:surface.layers},prerequisite:surface.reference})));
+  const materials=[...contexts,...materialReferences];
   const references={},active=new Set(),resolvedRecords=new Set();
   for(const [part,shell] of shells)for(const patch of shell.patches??[])references['patch:'+(part??'')+':'+patch.name]={patch};
   const resolveTrace=context=>{
@@ -60,6 +65,10 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(source?.spec)resolve(source);
     else if(source?.assignment.construction==='curves')resolveTrace(source);
     if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareReferenceSliceStack(record,{source,references})));
+    const contactSources=[...(assignment.contact?.surfaces??[]).map(surface=>surface.source),...(assignment.contact?.source&&typeof assignment.contact.source==='object'?[assignment.contact.source]:[])];
+    for(const contact of contactSources)for(const supporting of contexts.filter(other=>other!==record&&other.owner.assignment.id===contact.assignment&&
+      other.owner.part===(Object.hasOwn(contact,'part')?contact.part:record.owner.part)))if(supporting.spec.layers.some(layer=>!layer.slice))resolve(supporting);
+    Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>contactSliceReadiness(record,contexts,plan)));
     let fillState;
     record.preparedLayers=new Map();
     for(const [ordinal,layer] of record.spec.layers.entries()){
@@ -67,8 +76,9 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,substrate:onSubstrate?null:record.context.substrate??null}};
       const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
       if(nominal.settings.fillOrder?.kind==='fronts'&&nominal.settings.fillOrder.seedUv===null){
-        const selected=record.contact?.source;
-        const supporting=contexts.filter(other=>other!==record&&other.owner.part===record.owner.part&&(selected?other.owner.assignment.id===selected:!other.contact&&!other.reference));
+        const selected=record.contact?.source,sourceId=typeof selected==='string'?selected:selected?.assignment;
+        const sourcePart=selected&&typeof selected==='object'&&Object.hasOwn(selected,'part')?selected.part:record.owner.part;
+        const supporting=contexts.filter(other=>other!==record&&other.owner.part===sourcePart&&(sourceId?other.owner.assignment.id===sourceId:!other.contact&&!other.reference));
         for(const other of supporting)resolve(other);
         const prior=record.spec.layers.filter(other=>other.index<layer.index);
         const predecessors=[...prior.slice(-1),...supporting.flatMap(other=>other.spec.layers)];
@@ -87,9 +97,10 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   };
   for(const record of contexts)assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>resolve(record));
   for(const context of curveSources)assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>resolveTrace(context));
-  for(const record of contexts)record.prerequisites=assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>referenceSliceReadiness(record,contexts));
+  for(const record of contexts)record.prerequisites=assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>referenceSliceReadiness(record,materials));
   constructions=constructions.map(context=>context.assignment.construction==='curves'&&!context.assignment.source?
-    {...context,assignment:assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>traceSurfaceReadiness(context.assignment,contexts,shells))}:context);
+    {...context,assignment:assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>traceSurfaceReadiness(context.assignment,materials,shells))}:context);
+  for(const record of contexts)Object.assign(record,assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>nativeBaseReadiness(record,materials)));
   const baseNodes=contexts.flatMap(record=>{
     const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
     return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
@@ -123,7 +134,7 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
       if(node.kind==='trace'&&assignment.curves?.some(c=>c.contact)&&(other.kind!=='trace'||nodes.indexOf(other)<nodes.indexOf(node)))defaults.add(other.key);
 
     }
-    if(node.kind==='slice'&&node.first&&node.record.contact?.source!==null&&node.record.contact?.source!==undefined)
+    if(node.kind==='slice'&&node.first&&typeof node.record.contact?.source==='string')
       if(!nodes.some(other=>other.sourceId===node.record.contact.source&&other.part===node.part))throw new AssignmentFailure(node,Error('Contact source names an absent producer or a different part.'));
     const declaredDependencies=assignmentWork(node,()=>dependencies(descriptions[nodes.indexOf(node)],descriptions));
     for(const key of declaredDependencies.dependencies){needs.add(key);execution.add(key);}

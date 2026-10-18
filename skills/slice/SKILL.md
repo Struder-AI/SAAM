@@ -96,7 +96,7 @@ material is an unoptimised bridge. See [shared path limits](../../core/path/READ
 
 ## Contact, poses and extensions
 
-`contact:{source:null}` names available prepared material; an explicit source names its prerequisite. Front seeds are derived from prepared regions or authored directly. `toolPose:{}` derives upright poses; `alignToSliceNormal:true` aligns them to reference normals. Modulation changes completed deposition without changing later Slice geometry.
+`contact:{source:null}` uses available prepared material. `source:{assignment,part?}` selects a manufactured surface; current slice prerequisites derive from its actual contact, with optional XYZ `offsetMm`. Generated `surfaces` save finite triangle footprints and their source, target part and offset. No layer indices or deposition paths are saved. Front seeds are derived from prepared regions or authored directly. `toolPose:{}` derives upright poses; `alignToSliceNormal:true` aligns them to reference normals. Modulation changes completed deposition without changing later Slice geometry.
 
 [Standard vase](../vase-wall/SKILL.md) generates a spiral curve over reference
 sleeve geometry and calls Trace, as does advanced vase. Saved `join:{mode:"spiral",levelEnd:true}` requests

@@ -47,6 +47,20 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
       endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
       construct:vaseWork,providesSurface:true,kind:'trace'};
   });
+  for(const context of sleeves)context.prepare=current=>{
+    if(vaseLoaded.error)throw vaseLoaded.error;
+    const prepared=current.geometry??vase.prepareSleeveGeometry(current),stack=prepared.referenceStack();
+    const geometry={...prepared,referenceStack:()=>stack},parts=current.assignment.part===null&&componentShells?[null,...componentShells.keys()]:[current.assignment.part];
+    // A continuous wall owns its side frontier. An open pattern advertises
+    // its terminal boundary only; its guiding sheet is not filled material.
+    const selected=current.assignment.pattern===null?stack.layers:stack.layers.slice(-1),layers=selected.map(layer=>{
+      const {origin,xAxis,normal}=layer.slice,yAxis=layer.slice.yAxis;
+      const loops=engines.Geometry.widenPlanarStrokes(layer.curves,current.process.lineWidthMm/2,{origin,xAxis,normal,arcToleranceMm:engines.Geometry.resolutionMm});
+      const project=point=>{const p=point.map((v,k)=>v-origin[k]);return [p.reduce((sum,v,k)=>sum+v*xAxis[k],0),p.reduce((sum,v,k)=>sum+v*yAxis[k],0)];};
+      return {...layer,region:loops.map(loop=>loop.map(project)),direction:stack.direction};
+    });
+    return {...current,geometry,materialSurfaces:parts.map(part=>({part,reference:{assignment:current.assignment.id,part:current.assignment.part},layers}))};
+  };
   const curveSources=[],sourceRuntimes=new Map();
   for(const context of contexts.filter(({assignment})=>assignment.construction==='curves'&&assignment.source)){
     const id=context.assignment.source.extension;

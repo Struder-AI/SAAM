@@ -32,9 +32,18 @@ const between = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && 
 
 const loopsList = loops => Array.isArray(loops) && loops.length > 0 && loops.every(loop => Array.isArray(loop) && loop.length >= 3 && loop.every(p => Array.isArray(p) && p.length === 2 && p.every(Number.isFinite)));
 
+const contactProducer=value=>value&&typeof value==='object'&&!Array.isArray(value)&&operationPrerequisite(value)&&Object.keys(value).every(key=>['assignment','part'].includes(key));
+const contactOffset=value=>Array.isArray(value)&&value.length===3&&value.every(Number.isFinite);
+
 function validateStackContact(a){
   requireThat(a.substrate===undefined||a.substrate===null||operationPrerequisite(a.substrate),'Slice substrate must select manufactured work.');
-  requireThat(a.contact===null||a.contact&&Object.keys(a.contact).join()==='source'&&(a.contact.source===null||typeof a.contact.source==='string'&&a.contact.source!==a.id),'Slice contact needs a distinct source assignment or null.');
+  requireThat(a.contact===null||a.contact&&Object.keys(a.contact).every(key=>['source','surfaces','offsetMm'].includes(key))&&(a.contact.source===null||typeof a.contact.source==='string'&&a.contact.source!==a.id||contactProducer(a.contact.source)&&a.contact.source.assignment!==a.id)&&
+    (a.contact.offsetMm===undefined||contactOffset(a.contact.offsetMm))&&
+    (a.contact.surfaces===undefined||Array.isArray(a.contact.surfaces)&&a.contact.surfaces.length>0&&a.contact.surfaces.every(surface=>
+      surface&&Object.keys(surface).sort().join()==='offsetMm,part,source,triangles'&&contactProducer(surface.source)&&surface.source.assignment!==a.id&&
+      (surface.part===null||typeof surface.part==='string')&&Array.isArray(surface.offsetMm)&&surface.offsetMm.length===3&&surface.offsetMm.every(Number.isFinite)&&
+      Array.isArray(surface.triangles)&&surface.triangles.length>0&&surface.triangles.every(triangle=>Array.isArray(triangle)&&triangle.length===3&&triangle.every(point=>Array.isArray(point)&&point.length===3&&point.every(Number.isFinite))))),
+    'Slice contact selects a distinct source or finite manufactured contact surfaces.');
   const p=a.toolPose;
   requireThat(p===null||p&&Object.keys(p).join()==='alignToSliceNormal'&&typeof p.alignToSliceNormal==='boolean','Slice toolPose is null or {alignToSliceNormal:boolean}; poses are derived from the slice, not authored samples.');
   for(const v of a.within??[])if(v.kind==='surface-domain'){

@@ -30,7 +30,7 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
   const traced=traceResult({id:settings.id,filament:settings.filament,after},{process,sequential:false,batches:[{
     ...geometry.batch,key:geometry.batch?.key??'wall',curves:[centerline],phase:geometry.batch?.phase??'vase-wall',layer:0,rank:geometry.start,
     fanPercent:process.fanPercent,trimEnd:levelTop,travel:{kind:'auto'}}]});
-  const operations=traced.operations.map(operation=>({...operation,resolveSubstrate:true,suppliesSubstrate:true,
+  const operations=traced.operations.map(operation=>({...operation,
     layerIndex:0,layerCount:referenceStack.layers.length,stackDirection:referenceStack.direction??[0,0,1]}));
   const strokes=operations.flatMap(operation=>operation.strokes);
   const rim=strokes.find(stroke=>stroke.segmentMetadata?.some(metadata=>metadata.boundaryRole==='rim'));

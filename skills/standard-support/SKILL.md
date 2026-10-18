@@ -7,7 +7,7 @@ metadata:
 
 # Standard support
 
-Use [shared print tools](../../core/print/USAGE.md). A support is ordinary geometry and an ordinary [Slice](../slice/SKILL.md): the [owner's method](../../intent/toolpath.md#how-standard-supports-are-made) copies the chosen underside, lowers it by a small gap and closes it to the bed. Its Slice owns that independent solid, with no loops, one row direction, dense base slices and no hop or retraction. The part's existing operation owns its underside. Saved Slice settings and support geometry regenerate without this extension.
+Use [shared print tools](../../core/print/USAGE.md). A support is ordinary geometry and an ordinary [Slice](../slice/SKILL.md): the [owner's method](../../intent/toolpath.md#how-standard-supports-are-made) copies the chosen underside, lowers it by a small gap and closes it to the bed. Its Slice owns that independent solid, with no loops, one row direction, dense base slices and no hop or retraction. The part owns its underside. Finite contact surfaces automatically attach only the touching part slices to their supporting slices, recalculated after spacing changes. Saved geometry and Slice settings regenerate without this extension.
 
 ## Choose the patches
 
@@ -34,6 +34,6 @@ Call `apply_extension` with `extensionId:"standard-support"`, `bundleId`, `expec
 | `baseLayers` | Dense support base slices (2); 0 omits them. |
 | `chordMm` | Tree circle chord error (0.02). |
 
-Vertical or degenerate faces, faces reaching the bed once lowered and horizontal branches are skipped; they and roots off the bed are listed in the report's `notes`. Folded or nonmanifold roofs, crossing footprint loops, broken tree parents and nonpositive radii are refused. A support crossing part material prints its whole volume. Nothing is inferred and there is no face picker.
+Vertical or degenerate faces, faces reaching the bed once lowered and horizontal branches are skipped; they and roots off the bed are listed in the report's `notes`. Folded or nonmanifold roofs, crossing footprint loops, broken tree parents and nonpositive radii are refused. A support crossing part material prints its whole volume. The agent selects the patch; the tool derives manufacturing prerequisites.
 
 Inspect the sliced gap, rows, base and removal access in Studio; software establishes neither adhesion nor clean removal.

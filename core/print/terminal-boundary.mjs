@@ -12,7 +12,7 @@ export function terminalBoundaryReference({assignment,source,references={}}){
   const authored=source?.owner?.assignment??source?.assignment;
   requireThat(authored?.id===assignment.surface.assignment&&(source.owner?.part??authored.part)===assignment.part,'A terminal reference needs prepared work on the same part.');
   if(source.spec){
-    const layer=source.spec.layers.at(-1);
+    const layer=source.spec.layers.findLast(layer=>layer.slice&&layer.region?.length);
     requireThat(layer?.slice&&layer.region?.length,'The prepared source has no terminal material region.');
     return {...levelBoundary(layer.region.map(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point)),true),prerequisites:[{assignment:authored.id,part:assignment.part,index:layer.index}]};
   }

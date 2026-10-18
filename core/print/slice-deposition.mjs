@@ -38,7 +38,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   // stack completion and certifies internal access before scheduling.
   const after=[...new Set((node.executionRequires??node.requires).flatMap(prerequisiteIds))];
   let result;
-  if(node.construct)result=node.construct({node,plan,onProgress,materialReadiness:footprints=>manufacturedSurfaceReadiness(contexts,footprints,{part:node.part,exclude:node.sourceId})});
+  if(node.construct)result=node.construct({node,plan,onProgress,materialReadiness:footprints=>manufacturedSurfaceReadiness(contexts,footprints,{part:node.part,exclude:node.sourceId,side:'upper'})});
   else if(node.kind==='slice'){
     result=sliceContextResult(node.record,{layerIndex:node.index});
   }else if(node.kind==='trace'){
@@ -52,7 +52,7 @@ export function constructDepositionWork(node,completed,{plan,onProgress,shells=[
   const pose=assignment.toolPose??(assignment.source?completed.get(node.parentKey)?.node.record.spec.settings.toolPose:null);
   const motionIntent=pose?{kind:'derived-pose',alignToSliceNormal:pose.alignToSliceNormal}:null;
   const selected={...result,...(assignment.edgeAfter?{edgeAfter:assignment.edgeAfter}:{}),report:{...result.report,...node.report,depositionFamily:node.kind,construction:result.report.construction??(node.kind==='slice'?undefined:node.construction),owner:node.sourceId,part:node.part,...(node.dependencyNotes?.length?{notes:[...(result.report.notes??[]),...(node.report?.notes??[]),...node.dependencyNotes]}:{})},operations:result.operations.map(op=>({...op,part:node.part,...(motionIntent&&!result.depositionFinalized?{strokes:op.strokes.map(stroke=>({...stroke,motionIntent}))}:{}),
-    after:[...new Set([...(op.after??[]),...after,...(assignment.dependencies?.after??assignment.after??[]),...(node.record?.prerequisites??[]),
+    after:[...new Set([...(op.after??[]),...after,...(assignment.dependencies?.after??assignment.after??[]),...(node.record?.prerequisites??[]),...(node.record?.spec.layers.find(layer=>layer.index===node.index)?.prerequisites??[]),
       ...(assignment.substrate&&(node.kind!=='slice'||!predecessors.some(item=>item.node.record===node.record&&item.result.operations.length))?[assignment.substrate]:[])])],...(assignment.filament===null?{}:{filament:assignment.filament})}))};
   return selected;
 }

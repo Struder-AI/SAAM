@@ -60,7 +60,7 @@ export function certifyConstruction(source,{onProgress,materialReadiness=[]}={})
   const reader=prepareCurvePath(source);
   resolveMaterialReadiness(source,reader,materialReadiness);
   const whole=wholeProducerProofs(source,reader);
-  if(whole.known.size===whole.count&&!Object.values(source.operations).some(op=>op.resolveSubstrate||op.resolveInternalSubstrate||op.suppliesSubstrate)){
+  if(whole.known.size===whole.count){
     source.manufacturing={contract:CONSTRUCTION_CONTRACT,accessGeometry:DEFAULT_NOZZLE_GEOMETRY,courseTraversal:{},
       summary:{wholeProducers:whole.count,refinedProducers:0,internalDependencies:0}};
     return source;

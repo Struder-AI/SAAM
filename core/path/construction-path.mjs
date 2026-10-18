@@ -162,7 +162,7 @@ export function constructionPath({results,planning,composition,summary,generator
     requireThat(operation.order==='given'&&!operation.connectNearby,'Deposition must be finalized before publication.');
     const {strokes,process,materialGeometry}=operation;
     const metadata=Object.fromEntries(['phase','layer','layerIndex','layerCount','rank','nominalRank','filament','fanPercent',
-      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','referenceLayer','requiredMaterial','resolveSubstrate','resolveInternalSubstrate','suppliesSubstrate','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
+      'nozzleC','restoreNozzleC','continuous','regionId','part','stackDirection','referenceLayer','requiredMaterial','provenance'].filter(key=>operation[key]!==undefined).map(key=>[key,operation[key]]));
     const interruptible=operation.interruptible??!operation.continuous;
     const shared={...metadata,...(operation.part===undefined&&result.report?.part!==undefined?{part:result.report.part}:{}),
       id:operation.id,layerId:layerId(result,operation),processId:processId(process),
