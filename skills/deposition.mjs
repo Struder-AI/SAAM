@@ -38,17 +38,17 @@ export async function extensionDeposition({plan,componentShells,shells,volumes,s
     if(context.assignment.join){
       // A spiral boundary that cannot be resolved fails as its own assignment.
       const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes,sources});}catch(error){return {error};}})();
-      if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
+      if(prepared.error)return {...context,construct:()=>{throw prepared.error;},kind:'trace'};
       const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
       return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,boundaryToleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,meshSleeve:null},
         startMm:prepared.startMm,endMm:prepared.endMm,geometry:{referenceStack:()=>referenceStack,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
           speedMmS:context.process.planarSpeedMmS,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
-        construct:vaseWork,providesSurface:true,kind:'trace'};
+        construct:vaseWork,kind:'trace'};
     }
     const {assignment,shell}=context;
-    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},providesSurface:true,kind:'trace'};
+    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},kind:'trace'};
     const band=bands.find(band=>band.sourceId===assignment.id&&band.part===assignment.part);
-    return {...context,startMm:band.startMm,endMm:band.endMm,construct:vaseWork,providesSurface:true,kind:'trace'};
+    return {...context,startMm:band.startMm,endMm:band.endMm,construct:vaseWork,kind:'trace'};
   });
   for(const context of sleeves)context.prepare=current=>{
     if(vaseLoaded.error)throw vaseLoaded.error;

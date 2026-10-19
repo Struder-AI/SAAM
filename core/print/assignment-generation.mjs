@@ -92,7 +92,7 @@ export function assignmentGeneration(intent,failures=[]){
     const byKey=new Map(nodes.map(node=>[node.key,owner(node.sourceId??node.key)]));
     for(const node of nodes){
       const id=owner(node.sourceId??node.key);
-      for(const key of node.hardRequires??node.requires){const producer=byKey.get(key);if(producer!==undefined)requireProducer(id,producer);}
+      for(const key of node.requires){const producer=byKey.get(key);if(producer!==undefined)requireProducer(id,producer);}
       const layers=node.record?(node.index===null?node.record.spec.layers:[node.record.preparedLayers.get(node.index)]):[];
       for(const ref of [...(node.record?.prerequisites??[]),...layers.flatMap(l=>l?.prerequisites??[])])link(id,ref);
     }

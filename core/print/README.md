@@ -127,11 +127,10 @@ Use `examples/prints/` only for explicitly curated examples.
 ## Shell pipeline (planar and nonplanar slices)
 
 [Bundle](./bundle.mjs) adapts shell plans; [Scheduling](../path/README.md#retained-construction-interfaces) reads saved Toolpath operations.
-[Assignment generation](./assignment-generation.mjs) retains authored prerequisite identities through admission and preparation.
-Declared process identities survive preparation failure; atomic/hard dependents are removed transitively.
-Retries retain successful extension preparation, unchanged Slice layouts and deposition with unchanged producers.
-Ownership/contact is prepared again before reuse; changed inputs invalidate retained work within that generation.
-Final reference resolution shares that registry; nontrivial retired forms reject compactly rather than migrate geometry.
+[Assignment generation](./assignment-generation.mjs) owns prerequisite identities and transitive failure removal.
+Retries rebuild ownership/contact, retaining preparation and deposition with unchanged inputs/producers.
+Construction uses indexed references and dependency counts; only Trace reads named predecessor deposition.
+Final references share that registry; retired forms reject compactly.
 Manuals own supported settings; software checks establish no physical print success. The plan's geometry is authored
 ([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
 blob fields, [booleans](../../GEOMETRY.md#booleans) of these and an `assembly` of any of them. A boolean is stored

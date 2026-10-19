@@ -32,9 +32,8 @@ function finalizeAssignments(args){
     geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded(volume.sourceId))});
   const contexts=sliced.contexts;
   const constructions=(args.constructions??[]).filter(context=>!excluded(context.assignment.id));
-  const work=(args.work??[]).filter(node=>!excluded(node.sourceId??node.key));
   const curveSources=(args.curveSources??[]).filter(context=>!excluded(context.assignment.id));
-  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells,onProgress:args.onProgress,
+  const nodes=prepareDepositionWork(contexts,constructions,curveSources,{plan,shells:args.shells,onProgress:args.onProgress,
     preparedConstructions:args.preparedConstructions,preparedLayouts:args.preparedLayouts});
   generation.captureWork(nodes);
   if(nodes.some(node=>excluded(node.sourceId??node.key)))return null;
