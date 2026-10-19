@@ -1,5 +1,5 @@
 import {readFileSync,writeFileSync} from 'node:fs';
-import {schedulePath} from 'file:///C:/CodeProjects/SAAM_tkeller/core/path/schedule.mjs';
+import {schedulePath} from '../../core/path/schedule.mjs';
 const sourceId='afce18c6-a599-4a8d-8470-ed3dc09be7db';
 const source=JSON.parse(readFileSync('C:/SAAM/local/Prints/concentric-groove-fidget-20261017/paths/'+sourceId+'.json','utf8'));
 const started=performance.now(),reported={stage:null};

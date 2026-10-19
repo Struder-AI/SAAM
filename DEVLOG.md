@@ -1,5 +1,10 @@
 # Development log
 
+## 2026-10-18 — Repair the renamed developer checkout
+
+- Git's worktree repair reconnects all five linked checkouts. Move Claude's two existing project settings/trust records to the new checkout path, preserving a backup. Convert checkout references in 280 executable diagnostic scripts to relative imports or paths derived from each script; retain historical records and backups in `.local/rename-repair`. The tracked fidget-ring probe imports the scheduler relatively.
+- All five worktrees resolve again; source runtime src:908a60bc934a answers through the installed SAAM launcher at the renamed path. Verify the existing 0.3.12 publication commit c535c980 is already on the contribution branch. JavaScript parsing passes for all 276 modified modules; no diagnostic generation, whole test suite, release rebuild or physical print.
+
 ## 2026-10-18 — Publish SAAM 0.3.12 and its relay offer
 
 - Published [v0.3.12](https://github.com/Struder-AI/SAAM/releases/tag/v0.3.12) at exact built source a2ecd5dfc797232f20422d7e6c72b95aa5dd2695; source pushed to origin/codex/remettub-dev-branch. Three ZIPs, three checksums and INSTALL.md are public. All seven GitHub asset digests match local files and the tag resolves to the built source.
