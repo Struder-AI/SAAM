@@ -45,7 +45,7 @@ test('a snapshot without program templates writes with the installed profile tem
   const old=structuredClone(machine);delete old.outputs[0].program;
   const {bytes,report}=await exportProgram(path,plan,old,{generatorVersion:VERSION,buildDate:BUILD_DATE});
   assert.equal(bytes,await emit());
-  assert.ok(report.limitations.some(text=>/no program templates; the installed profile's were used/.test(text)));
+  assert.ok(!report.limitations.some(text=>/program templates/.test(text)));
 });
 
 test('a pause longer than one G4 command is written as commands that sum to it',async()=>{

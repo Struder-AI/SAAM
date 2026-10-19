@@ -61,7 +61,7 @@ export async function pathSource(plan){
   return {release:version,hash};
 }
 
-export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, readConstructedPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, readConstructedPath, prepareGeneration, commitGeneration, restoreRevision, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,readRecipe,patchPlan,createGeometry,normalizePlan,manufacturingInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode'

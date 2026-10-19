@@ -1,5 +1,5 @@
 // Native in-process observers. No command hooks or permission decisions.
-const observer={connectionId:crypto.randomUUID(),sequence:0,polling:false,sessions:{},turns:{},active:{},notified:{},configuration:null};
+const observer={connectionId:crypto.randomUUID(),sequence:0,polling:false,sessions:{},turns:{},turnNumbers:{},active:{},notified:{},configuration:null};
 async function configuration($){return observer.configuration??=JSON.parse(await $.fs.read($.plugin.root+'/client.json'));}
 async function control($,message){
   const config=await configuration($),instance=JSON.parse(await $.fs.read(config.home+'/state/instance.json'));
@@ -12,11 +12,14 @@ async function report($,kind,e,extra={}){
   if(e.agentId||e.agent_id)return;
   const sessionId=e.sessionId||await $.session.id();
   await $.env.set('CLAUDE_CODE_SESSION_ID',sessionId);
-  if(kind==='started')observer.turns[sessionId]=e.turnId;
-  const event={id:observer.connectionId+':'+(++observer.sequence),client:'claude',sessionId,connectionId:observer.connectionId,kind,turnId:e.turnId||observer.turns[sessionId]||null,...extra};
+  if(kind==='started'&&observer.turns[sessionId]!==e.turnId){observer.turns[sessionId]=e.turnId;observer.turnNumbers[sessionId]=(observer.turnNumbers[sessionId]??0)+1;}
+  const turnId=e.turnId||observer.turns[sessionId]||null;
+  const connected=!observer.sessions[sessionId]&&kind!=='connected'?
+    {id:observer.connectionId+':'+(++observer.sequence),sequence:observer.sequence,client:'claude',sessionId,connectionId:observer.connectionId,kind:'connected',turnId:null,turnNumber:observer.turnNumbers[sessionId]??0}:null;
+  const event={id:observer.connectionId+':'+(++observer.sequence),sequence:observer.sequence,client:'claude',sessionId,connectionId:observer.connectionId,kind,turnId,
+    turnNumber:!turnId||turnId===observer.turns[sessionId]?(observer.turnNumbers[sessionId]??0):0,...extra};
   await $.store.set(event.id,event);
-  if(!observer.sessions[sessionId]&&kind!=='connected'){
-    const connected={...event,id:event.id+':connect',kind:'connected'};
+  if(connected){
     await $.store.set(connected.id,connected);
     try{await send($,connected);await $.store.delete(connected.id);}catch{return;}
   }
@@ -30,7 +33,7 @@ export function register(on){
       const config=await configuration($),owner=await $.process.run([config.node,config.owner]);
       const pid=Number(owner.stdout.trim());
       if(owner.exitCode!==0||!Number.isSafeInteger(pid)||pid<1)throw Error('Cannot identify Claude process.');
-      const event={id:observer.connectionId+':owner',client:'claude',connectionId:observer.connectionId,kind:'owner',pid};
+      const event={id:observer.connectionId+':owner',sequence:++observer.sequence,client:'claude',connectionId:observer.connectionId,kind:'owner',pid};
       await $.store.set(event.id,event);
       try{await send($,event);await $.store.delete(event.id);}catch{}
     }catch{/* The next native observation still runs if process discovery fails. */}

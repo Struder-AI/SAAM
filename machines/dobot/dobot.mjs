@@ -47,21 +47,7 @@ function validate(plan,{required=false}={}){
     requireThat(missing.length===0,`Dobot installation is unconfigured: ${missing.join(', ')} ${missing.length>1?'are':'is'} not set.`);
   }
 }
-const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
-// Studio settings rows: the installation as configured.
-const rows=({setup})=>{const d=setup.dobot;return [
-  ['Installation provenance',d.configurationSource??'Not supplied (optional)'],
-  ['Tool / user frame',value(d.toolFrame)+' / '+value(d.userFrame)],['Nozzle orientation',value(d.rDeg)+'° fixed'],
-  ['XY calibration scale',value(d.scaleX)+' / '+value(d.scaleY)],['XY calibration offset',value(d.offsetXMm)+' / '+value(d.offsetYMm)+' mm'],
-  ['Bed Z offset',value(d.bedZMm)+' mm'],['External starting position',value(d.initialPositionMm)+' mm in design coordinates'],
-  ['Recorded envelope minimum',value(d.workspaceMinMm)+' mm; not a reach limit'],['Recorded envelope maximum',value(d.workspaceMaxMm)+' mm; not a reach limit'],
-  ['Controller linear speed limit',value(d.maxLinearSpeedMmS)+' mm/s'],['Controller acceleration limit',value(d.maxLinearAccelMmS2)+' mm/s²'],
-  ['Commanded acceleration',value(d.accelerationPercent)+'%'],['Extrusion output',value(d.extrusionOutput)],
-  ['Extrusion policy',value(d.relayPolicy)],['Relay-material estimate',Number.isFinite(d.extrusionRateMm3S)&&d.extrusionRateMm3S>0?d.extrusionRateMm3S+' mm³/s external rate':'Unavailable; optional positive external rate'],
-  ['Thermal control',value(d.temperatureControl)],['Externally established nozzle / bed temperature',externalNozzle(setup)+' / '+setup.bedC+'°C']];};
-// Heating is external: the program writes no temperature, and an unset one is stated as such.
-const externalNozzle=setup=>setup.nozzleC>0?String(setup.nozzleC):'not stated';
-export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate,rows},
+export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate},
   export:(prepared,settings)=>exportDobot(prepared,settings,settings.machine,settings.release,Export)});
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');

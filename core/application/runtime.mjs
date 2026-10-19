@@ -865,17 +865,12 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
   async function checkBundle({ bundleId }){
     // A program that cannot be read is reported in programError, beside what was checked.
     const { state } = await read(bundleId);
-    return { ...summary(bundleId, state), checked: [...(state.geometry?['geometry']:[]),'plan',...(state.program?['exact-export']:[])], physicalValidation: 'not performed' };
+    return { ...summary(bundleId, state), checked: [...(state.geometry?['geometry']:[]),'plan',...(state.program?['saved-neutral-toolpath']:[])], physicalValidation: 'not performed' };
   }
   operation('restore_revision','Undo or redo a saved print edit at its current revision. Restoring history invalidates affected confirmation; show the resulting print in Studio.',{bundleId:bundleIdSchema,expectedRevision:z.string().min(1),direction:z.enum(['undo','redo'])},false);
   async function restoreRevision({bundleId,expectedRevision,direction}){
       const {dir,bundle}=await locate(bundleId);return summary(bundleId,await bundle.restoreRevision(dir,{direction,expectedRevision}));
     }
-  operation('check_path','Check path feasibility using the same generator, without persisted SAAMpath/export artifacts. Reports software checks only; production generation and exact-export review remain required.',{ bundleId: bundleIdSchema });
-  async function checkPath({ bundleId }){
-    const { dir, bundle } = await locate(bundleId);
-    return { bundleId, ...await bundle.checkPathBundle(dir), physicalValidation: 'not performed' };
-  }
   operation('record_extension_dependency','Record supplied named extension configuration in the existing recipe skills record. No defaults, installation lookup or execution. Later operations validate what they consume. Null removes the named record.',{bundleId:bundleIdSchema,extensionId:idSchema,configuration:objectSchema.nullable(),...editIdentitySchema},false);
   async function recordExtensionDependencyOperation({bundleId,extensionId,configuration,expectedRevision,expectedEditRevision}){return summary(bundleId,
       await recordExtensionDependency(await directory(bundleId),extensionId,configuration,{expectedRevision,expectedEditRevision}));}
@@ -1017,7 +1012,7 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
     const session=studioSessions.get(studioInstanceId);if(!session)throw Error('That Studio instance is not owned by this agent.');
     const result=session.server.agentSession();await session.server.shutdown();return {...agentStudioSession(result),connected:false};
   }
-  operation('generate_toolpath','Generate the SAAMpath from the recipe and, when the selected machine, its exporter and installation are supplied, check its program; otherwise the result names what the program still needs. Includes the tour. This is reviewable output, not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
+  operation('generate_toolpath','Generate and save neutral SAAMpath from the recipe, independently of a machine adapter. Includes the tour. The person reviews it in Studio; Export captures its path/settings and writes a transient machine program for download. Generation is not approval.',{ bundleId: bundleIdSchema },false,false,'toolpath');
   // Runs inside the displaying Studio's held edit (invoke); that Studio owns the job.
   async function generateToolpath({ bundleId },instance){
     const { dir, bundle } = await locate(bundleId);
@@ -1075,7 +1070,6 @@ export function createLocalRuntime({ paths, stateRoot, autoOpen = process.env.SA
       case 'adjust_recipe':return adjustRecipe(input);
       case 'check_bundle':return checkBundle(input);
       case 'restore_revision':return restoreRevision(input);
-      case 'check_path':return checkPath(input);
       case 'record_extension_dependency':return recordExtensionDependencyOperation(input);
       case 'set_deferred_setup_save':return setDeferredSetupSaveOperation(input);
       case 'set_phase_colours':return setPhaseColoursOperation(input);

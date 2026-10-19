@@ -7,134 +7,69 @@ The [maker workflow](../../MAKERS.md#maker-interaction-flow) defines human inter
 
 The [Thingi10K skill](../../skills/thingi10k/SKILL.md) supplies hash-matched attribution
 to the importer, retained in `geometry.source.attribution` with source hash/bytes.
-Unit corrections and wrappers preserve it. Delivery writes `source-attribution.json`
-with the source record and current plan revision beside the reviewed program.
+Unit corrections and wrappers preserve it. Export includes the captured source
+record and revision in its receipt and offers `source-attribution.json` beside
+the machine-file download.
 
 ## Generation and review
 
-Studio's Export click confirms displayed settings and exact checked bytes once.
-Bundle retains one completed output with its immutable recipe, machine, geometry
-and SAAMpath snapshot. Bundle saves Toolpath's immutable source before Scheduling
-references its ranges; source and execution share one path identity and guarded
-manifest commit. Any edit keeps it visible and exportable with its original
-settings and machine, marked as the previous toolpath; a saved SAAMpath without one
-stays visible the same way. Only regeneration dims it and blocks export;
-failure/cancel restores it. Agent activity never gates it.
+Bundle stores geometry, recipe, immutable neutral SAAMpath and reviewed input
+snapshots. Generation constructs deposition and a neutral schedule without a
+machine adapter. Each completed path captures its recipe, geometry and machine
+settings. Edits retain that previous result visibly; regeneration dims it and
+blocks new Export clicks until success, failure or cancellation settles.
 
-`workflow.mjs` owns snapshots, revisions, regeneration and delivery;
-`review-state.mjs` supplies the shared eligibility selector. The output id
-guards display and export, `editRevision` authored changes, `revision` every commit.
-Geometry includes solids, curves and points; recipe/machine may be incomplete.
-Operations report missing prerequisites; opening/retry never generates ordinary output.
+The person's Export captures the displayed path/settings before queued work,
+then writes a machine program for download. Bundle keeps an export receipt and
+source attribution, never program bytes, machine execution or program templates.
+Writer failure leaves saved work intact. Existing historical program files are
+ignored and preserved. [ADR 0002](../../docs/adr/0002-neutral-bundles-and-transient-export.md)
+records the owner's direction.
 
-Geometry owns admission and reusable preparation from the recipe's single geometry.
-Workers transfer that shape with its owned derived data; Bundle never accepts an
-independently paired artifact. Reports persist in the geometry descriptor; unchanged
-and loaded geometry stay exact. Authoring validates recipe structure; explicit
-generation owns construction and its findings. Saved geometry needs no extension rerun.
+`workflow.mjs` owns revisions, snapshots and publication; `review-state.mjs`
+projects eligibility. Each commit mints a revision; authored changes mint an
+edit revision; geometry/path input IDs track only relevant changes. Changed
+generator sources prevent path reuse without removing the retained view.
+Workers publish only after revision/source checks and cancellation acknowledgement.
+`readDrawnPath` prepares saved previews in a cancellable worker.
 
-[Settings](../machine/settings.mjs) owns reusable profiles, defaults and remembered
-setup. Its [selection/recording API](../machine/bundle-settings.mjs) submits exact
-snapshots to Bundle with an expected revision; Bundle owns invalidation/history.
-`recordExtensionDependency` records supplied named extension configuration
-in existing `plan.skills`; absence means unselected. No defaults or execution occur.
-Geometry/construction references retain their own dependencies. Reusable changes
-never refresh existing bundles; manuals use saved capabilities.
+`restoreRevision` restores snapshots at a new revision. History shares immutable
+artifacts. Settings stores submit explicit snapshots; they never silently refresh
+existing bundles. Source paths remain in the part frame; placement applies at
+display and Export. Geometry owns admission and native lifetime.
 
-Bundle is the only writer, so each commit records its consequences instead of
-hashing content: a new `revision`; a new `editRevision` when plan, machine or
-geometry change; a new `geometryInputId` or `pathInputId` when geometry,
-spatial instructions or Toolpath's `pathDependencies` change (unknown inputs count as
-changed). Deposition is built in the part's frame; placement is an XY offset applied
-at display and program writing, so it keeps the path. Undo/redo restore them. Geometry, SAAMpath and program get ids when
-written; a path is current while its input id is, a program while its
-`editRevision` is, each with an unchanged contract. Export-only setup fields,
-selected machine/output, process values across a machine change and disabled optional skills keep the path.
-`state.artifacts` distinguishes current, retained stale and absent results.
-Edits retain artifacts; old bytes never become current by omission.
-
-`restoreRevision(directory,{direction,expectedRevision})` restores history at a fresh
-revision; new edits clear redo. Immutable records share large
-artifacts.
-
-`shareBundle(directory,newZip)` packages current recipe, machine/settings,
-original source/repair provenance and selected extension dependency files.
-`importBundle(zip,newDirectory)` verifies inputs and imports extensions without execution;
-saved review state, listed non-input files and inconsistent source/repair provenance
-are left out and named in its notes. Existing bundles/local edits are never overwritten. Open the returned directory in Studio.
-Native geometry is rebuilt; toolpaths, programs, checks, history and caches are excluded;
-recipients edit/regenerate and confirm before export. Print-ready delivery stays separate.
+`shareBundle` packages inputs, source/repair provenance and selected extension
+dependencies. `importBundle` checks those inputs without executing extension
+scripts; it excludes review state, paths, programs, history and caches. Existing
+bundles/local edits are never overwritten; recipients regenerate and review.
 
 ### Bundle ownership
 
-Studio reserves a bundle on open; a second instance cannot open it. `withBundleInstance` carries that reservation into writes and generation workers. Export uses the existing reservation.
-Claims, releases and manifest commits share `.bundle-write.lock`; commits compare revisions and atomically replace `plan.json`. Interrupted writes may leave unreferenced records.
-The reservation releases on switch or shutdown, never by timeout. `saam` operations `get_bundle_instance` and `recover_bundle_instance` inspect and reclaim a dead Studio PID. An interrupted write lock needs separate PID inspection and explicit removal.
-Power-loss durability beyond atomic replacement is not claimed.
-
-`generateBundle` is the one generation: it saves the SAAMpath from the recipe
-alone and writes the program only when a machine, its exporter and installation
-are supplied (`programReadiness`); otherwise it returns what is missing.
-Active edits/generation compare its source stamp with the installed release
-and selected extensions. Changed or unstamped sources invalidate prior output and
-confirmation; unchanged sources retain output-only reuse. Viewing/delivery use saved
-artifacts without extension code. Changed loaded scripts require restarting SAAM.
-Preparation leaves the manifest unchanged; commit checks sources and revision.
-Saved paths survive restarts/history; delivery copies the confirmed checked bytes.
-
-`loadBundleSnapshot` supplies persisted state, artifact currency, history, review
-and checked bytes. `revision` tags every commit; presentation tags (edit revision,
-geometry id, output id) exclude delivery/mode changes. Studio owns polling and progress.
-`readDrawnPath(state,{signal})` admits and serializes saved previews in a cancellable
-worker; preview disconnect cancels it. `generateBundle` runs under the caller's reservation;
-its signal cancels before output/check/review writes until acknowledged `beforeCommit`; commit then finishes.
+Studio reserves its open bundle. Claims, releases and manifest commits share
+`.bundle-write.lock`; commits compare revisions and atomically replace
+`plan.json`. Reservations end on switch/shutdown, never timeout. Recovery inspects
+the recorded PID; interrupted write-lock recovery is separate. Power-loss
+durability beyond atomic replacement is not claimed.
 
 ## Validate at the boundary that owns the data
 
-Validate geometry on ingestion or changed content; reuse identity-bound evidence
-and prepared queries across settings, slicing and review. Viewing baked geometry
-does not depend on rereading its archival STL. Import and source-consuming edits
-still check the source. Public raw inputs require admission; owned immutable
-recipes and SAAMpaths reuse it across internal calls.
+Validate changed/raw inputs where their meaning first becomes known; reuse
+identity-bound preparation across consumers. Opening baked geometry does not
+reread its archival STL. Public geometry admission, producer construction,
+scheduling and machine writing retain their distinct prerequisites.
 
-Before adding a check, identify its owner, changed inputs and new failure it can
-detect. Otherwise reuse or remove it. Never add a public skip-validation switch.
-Bound reuse to relevant content and validator identity, protect shared results
-from mutation and evict cached values without changing acceptance.
-
-| Boundary | Work owned there |
+| Boundary | Responsibility |
 |---|---|
-| Geometry ingestion or changed geometry bytes | Topology, intersections, units, native/source identity; prepare reusable geometry queries. |
-| Bundle creation/edit/open | Component integrity, references and expected revision; no completeness or machine-compatibility gate. |
-| Skill construction | Preconditions that first become knowable from the actual section, offset, support region or operation dependency being constructed. |
-| Machine emission and interpretation | Validate the emitted command state and quantized motions once; those commands can differ from the producer's unrounded path. |
-| Reopening | Check saved artifacts and interpret machine commands; never regenerate unchanged output. |
-| Studio Export | Deliver the displayed result’s held bytes; availability follows Studio's pending state. |
+| Geometry | Import/topology/units, source provenance and numerical preparation. |
+| Bundle | Saved component references, snapshots, reservations and expected revisions. |
+| Toolpath/Scheduling | Construction prerequisites, source admission and exact execution coverage. |
+| Export | Actual-tool preparation, required installation and writer facts. |
+| Reopening | Read saved neutral results without executing a program adapter. |
+| Studio Export | Capture displayed path/settings; return transient machine bytes. |
 
-An exporter that already interprets its emitted body for package totals must
-return that result with the exact bytes through `exportAndInterpretProgram`.
-Do not immediately parse it again. An untrusted archive still needs its own
-integrity and source interpretation boundary. Likewise, checking a new offset
-for the topology its algorithm requires is different from repeating validity
-of the original mesh.
-
-Measure geometry preparation, sectioning/offsets,
-composition, emission, interpretation and viewer loading separately when
-latency is reported. Name the work actually running in the UI. Do not hide
-minutes of slicing or mesh work under a label about saving a confirmation.
-For the current spiral-mesh slicing work, the user's target is 10–12 seconds;
-this is a performance objective to measure, not a new production rejection
-rule, and it has not yet been achieved. Check that invalid changed input still
-fails and unchanged input avoids redundant work. Use regression tests and
-opt-in profiling, not additional production scans to police these principles.
-
-Support/rim producers consume shared plan validation; repeated control-net
-checks reuse content validity. H2D carries body interpretation through packaging
-and renders each distinct thumbnail size once. Griffin validates the input path
-through its motion writer; Dobot setup checks installation fields in one pass.
-Derived-section topology, material/support intersections, dependency cycles,
-numerical budgets and machine commands are checked where those inputs first
-exist. See the [validation work record](../../DEVLOG.md#br-039--remove-repeated-validation-and-make-slicing-progress-truthful).
+Optional interpretation is developer verification, not a production lifecycle.
+Measure geometry preparation, construction, scheduling, writing and viewer load
+separately; software checks do not establish a physical print result.
 
 ## Print bundle and current formats
 
@@ -154,18 +89,14 @@ Prints/<name>/
   paths/<path-id>.json               # immutable curve/profile source
   paths/<path-id>.schedule.json      # execution references and checked transfers
   history/<record-id>.json           # immutable component/history records
-  exports/<output>/<output-id>-<name>
-  delivery/part.gcode
 ```
 
 `plan.json` owns the recipe, locked machine, review and immutable artifact references.
-It is the only mutable commit point; `delivery/` holds what the person exported.
-The first read of a bundle in the earlier split-file layout converts it, as any
-commit does: it replaces only `plan.json`, keeps every original file, and records
-a `converted` history event that `limitations` notes until the next change.
-Conversion remains while supported or distributed print roots contain split-file
-bundles, until a bounded inventory reaches zero in a documented release. The lifecycle and SAAMpath formats
-are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
+It is the only mutable commit point. Export returns bytes to the browser download.
+Compatibility changes are trivial field adjustments only. The retired split-file
+layout receives a compact deprecation message without rewriting files, copying
+artifacts or rebuilding geometry. The shell plan/geometry schemas are in
+[Formats](#formats) below:
 
 - `saam-print-bundle/3`: the reserved `bundle` envelope owns machine, review and
   artifact references. Derived views omit duplicated plain mesh arrays; `/2` remains readable.
@@ -173,13 +104,13 @@ are shared; the shell plan/geometry schemas are in [Formats](#formats) below:
   an emptied STL keeps its source bytes/provenance in a `saam-print-package/2` ZIP.
 - `saam-machine/1`: millimeter bounds, nominal axis limits, tools, output options
   and the declared firmware startup contract. Output options carry program
-  header, start and end templates; these are part of the locked machine snapshot.
+  header, start and end templates in the extension; bundle snapshots omit them.
 - `saampath/2` source and `saam-schedule/1` execution follow [SP2](../path/README.md).
   `readConstructedPath` reads source; `readDrawnPath` joins its exact schedule.
   Earlier saved actions use the shared reader's compatibility branch.
 - `saam-review/1`: the manifest's history, path and
   generation records and a small generation summary for display (never
-  playback geometry). Its generation record owns `saam-checks/1` software
+  playback geometry). Its generation record owns `saam-path-checks/1` neutral-path
   checks and limitations.
 
 `loadBundle` reads what SAAM wrote without re-hashing, regenerating or requiring
@@ -188,15 +119,18 @@ SAAM: an imported STL and extension packages. Prints saved before these ids
 are read once by `savedBundle`, which drops undo history, old hashes and a program
 saved without its SAAMpath (kept in `exports/`; the print shows no toolpath until generated).
 
-The adapter caches interpretations by output id. Reopening interprets saved
-commands on a miss; it never regenerates. Export copies the displayed bytes.
+Reopening reads the captured neutral path and settings; it does not interpret or
+require any historical program file.
+
 Use `examples/prints/` only for explicitly curated examples.
 
 ## Shell pipeline (planar and nonplanar slices)
 
 [Bundle](./bundle.mjs) adapts shell plans; [Scheduling](../path/README.md#retained-construction-interfaces) reads saved Toolpath operations.
 [Assignment generation](./assignment-generation.mjs) retains authored prerequisite identities through admission and preparation.
-Declared process identities survive preparation failure; atomic/hard dependents are removed transitively, independent work remains.
+Declared process identities survive preparation failure; atomic/hard dependents are removed transitively.
+Retries retain successful extension preparation, unchanged Slice layouts and deposition with unchanged producers.
+Ownership/contact is prepared again before reuse; changed inputs invalidate retained work within that generation.
 Final reference resolution shares that registry; nontrivial retired forms reject compactly rather than migrate geometry.
 Manuals own supported settings; software checks establish no physical print success. The plan's geometry is authored
 ([GEOMETRY.md](../../GEOMETRY.md)): spline patches, indexed triangle meshes,
@@ -233,12 +167,10 @@ The descriptor also carries a quad proxy mesh, tessellated per patch, for the vi
 
 ## Checks
 
-`npm test` covers native geometry, sections, offsets, booleans, surface heights,
-travel/lift, export interpretation and determinism across core and skill tests.
-`core/tests/workflow.test.mjs` adds the review workflow: named native faces,
-development generation, byte-identical delivery, staleness after each kind of
-edit, remembered setup, and Studio serving and delivering a shell print. None
-of that establishes clearance, surface quality, or that any part prints.
+Existing tests cover geometry, construction, scheduling and command writing;
+workflow fixtures must use neutral snapshots and transient Export results.
+Run the checks appropriate to a change and report their actual scope. None
+establishes clearance, surface quality or physical print success.
 
 ## Prepared Slice work
 

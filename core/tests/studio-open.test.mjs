@@ -82,7 +82,7 @@ test('Studio reopens saved exports without rewriting them',async t=>{
   assert.equal((await(await fetch(origin+'/api/prints')).json()).prints.length,2);
   const first=await get();assert.equal(first.program,undefined);
   assert.equal((await post('open',{path:ready},false)).status,403);
-  const archive=join(ready,(await shell.loadBundle(ready)).review.generation.file);
+  const archive=join(ready,(await shell.loadBundle(ready)).review.path.file);
   assert.equal((await post('open',{path:archive,printId:first.printId})).status,200);
   state=await get();assert.ok(state.program.moves>0,'the stored report counts moves; no move rows are sent');
   assert.notEqual(state.printId,first.printId);assert.notEqual(state.fingerprint,first.fingerprint);

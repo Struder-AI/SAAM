@@ -1,9 +1,7 @@
-// A checked machine artifact and the inputs it was made from. Editable inputs
-// never supply settings for interpreting an older artifact.
-import {readFile} from 'node:fs/promises';
-import {resolve} from 'node:path';
+// A completed neutral toolpath and its captured inputs. Programs exist at Export.
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {retainContent,restoreContent} from './revisions.mjs';
+import {storedMachineSnapshot} from '../machine/profile.mjs';
 
 // Called only for a generation made from the state's current inputs.
 export async function retainCompletedOutput(state,generation,path=state.review.path){
@@ -17,11 +15,13 @@ export async function readCompletedOutput(state,presentGeometry){
   const generation=state.review.generation;
   if(!generation)return null;
   const input=generation.inputSnapshot?await restoreContent(state.dir,generation.inputSnapshot,state.geometryArtifact):null;
-  requireThat(input||state.artifacts.program==='current','Previous output has no saved settings snapshot. Generate a replacement to continue.');
-  const plan=input?.plan??state.plan,machine=input?.machine??state.machine,geometryArtifact=input?input.geometry:state.geometryArtifact;
-  requireThat(machine&&plan,'Completed output settings are unavailable.');
+  requireThat(input||state.artifacts.program==='current','Deprecated completed output without saved inputs.');
+  const plan=input?.plan??state.plan,machine=storedMachineSnapshot(input?input.machine:state.machine),geometryArtifact=input?input.geometry:state.geometryArtifact;
+  requireThat(plan,'Completed toolpath settings are unavailable.');
   const descriptor=geometryArtifact?.descriptor??null;
+  const savedPath=input?input.path:state.review.path;
+  const path=savedPath?.scheduleFile?.endsWith('.machine.schedule.json')?
+    {...savedPath,scheduleFile:`paths/${savedPath.id}.schedule.json`}:savedPath;
   return {id:generation.id,plan,machine,geometry:presentGeometry?await presentGeometry(plan,descriptor):descriptor,
-    geometryId:geometryArtifact?.id??null,geometryInputId:generation.geometryInputId,path:input?input.path:state.review.path,generation,
-    bytes:await readFile(resolve(state.dir,generation.file))};
+    geometryId:geometryArtifact?.id??null,geometryInputId:generation.geometryInputId,path,generation};
 }

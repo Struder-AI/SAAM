@@ -21,22 +21,10 @@ export function validateDensoConfiguration(plan,{required=false}={},validateDire
   if(required)requireThat(!missing.length,'DENSO installation is unconfigured: '+missing.join(', ')+(missing.length>1?' are':' is')+' not set. Synthetic setup belongs only in development prints.');
   return {configured:!missing.length,missing};
 }
-const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
-// Studio settings rows: the installation as configured.
-const rows=({machine,setup})=>{const c=setup.denso;return [
-  ['Robot / controller',machine.name],['Installation provenance',c.configurationSource??'Not supplied (optional)'],['Mounting',c.mounting],
-  ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
-  ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
-  ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],
-  ['External starting point',value(c.initialPositionMm)+' mm'],['Table angle (held)',heldTableDeg(c)+'°'],
-  ['Starting tool direction',value(c.initialPose.toolAxis)],['Starting tool up',value(c.initialPose.toolUp)],
-  ['Relay output',value(c.extrusionOutput)],['Relay-material estimate',Number.isFinite(c.extrusionRateMm3S)&&c.extrusionRateMm3S>0?c.extrusionRateMm3S+' mm³/s external rate':'Unavailable; optional positive external rate'],
-  ['Tool retreat',c.retreatMm+' mm'],['Heating',c.temperatureControl+' · '+setup.nozzleC+' / '+setup.bedC+'°C'],
-  ['Motion interpretation','Nominal Cartesian progress; table held at its setup angle; controller IK; robot feasibility deferred']];};
 export function createAdapter(Export){
   const kinematics=createKinematics(Export.kinematics);
   return {output:'denso-pacscript',poses:true,
-    settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair),rows},
+    settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair)},
     export:(prepared,settings)=>exportDenso(prepared,settings,settings.machine,settings.release,Export,kinematics)};
 }
 // A relay switches extrusion on and off; the SAAMpath's retraction and fan

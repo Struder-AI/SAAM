@@ -47,7 +47,8 @@ Open the `visualCheck` image each geometry change and generation returns; correc
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
 4. **Export.** The person exports from Studio; that Export is the one
-   confirmation, of the current settings and exact toolpath Studio shows. Deliver those bytes unchanged and explain the
+   confirmation, capturing the displayed settings and path. Export writes the machine
+   program for download; explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
 Use your attached Studio. [Hand work back](studio/README.md#carrying-a-maker-request)

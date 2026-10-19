@@ -8,6 +8,7 @@ import {withBundleWriteLock} from './bundle-lock.mjs';
 import {recordBundleRuntime} from './bundle-runtime.mjs';
 import {neutralMaterials} from '../machine/settings.mjs';
 import {currentRecipeTerms} from './assignment-records.mjs';
+import {storedMachineSnapshot} from '../machine/profile.mjs';
 import {geometryDescriptor,storedGeometryDescriptor} from './geometry.mjs';
 
 const exists=file=>access(file).then(()=>true,error=>{if(error.code==='ENOENT')return false;throw error;});
@@ -24,7 +25,7 @@ export async function saveDescriptor(dir,geometry){
 export async function retainContent(dir,{plan,machine,geometry,review,ids}){
   const {geometry:_shape,...recipe}=plan,id=randomUUID();
   if(geometry)await saveDescriptor(dir,geometry);
-  await replaceFile(resolve(dir,`history/${id}.json`),JSON.stringify({recipe,machine,
+  await replaceFile(resolve(dir,`history/${id}.json`),JSON.stringify({recipe,machine:storedMachineSnapshot(machine),
     geometry:geometry?{id:geometry.id,file:geometry.file}:null,path:review.path??null,generation:review.generation??null,ids}));
   return id;
 }

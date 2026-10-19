@@ -51,7 +51,6 @@ async function command(message){
   const properties=z.toJSONSchema(definition.schema,{target:'draft-7',io:'input'}).properties??{},args={...message.args};
   for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
   if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
-  definition.schema.parse(args);
   const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
     bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
   if(message.nativeContact)void chat.endTurn(message.nativeContact.reason,message.nativeContact.context).catch(error=>console.error('Client lifecycle recovery: '+error.message));

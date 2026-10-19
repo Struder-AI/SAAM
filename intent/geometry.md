@@ -79,7 +79,7 @@ Sources: [D-030](../DECISIONS.md#d-030--provisional-stl-units-assumption).
 >
 > "CGAL is creating a LOT of issues. We will probably move towards dropping CGAL in 0.4.0 (note that in the 0.4.0 intent file)." — owner, 2026-10-03 (Codex 01a102ba 17:50)
 
-Summary: Studio repairs imports automatically and reports exactly which input bytes and repair outcome were involved; features far below print resolution that repair produces are closed and reported, not rejected; replacing CGAL is a probable 0.4.0 direction, not yet chosen.
+Summary: Studio repairs imports automatically and reports its exact source and outcome; sub-resolution repair features are closed and reported. The October 9 removal approval in [0.3.7](../plans/0.3.7.md) supersedes the earlier probable CGAL direction; repair now uses SAAM's JavaScript.
 
 Sources: [0.3.3 "Mesh import diagnostics"](../plans/0.3.3.md) (owner: "1. agree, write that into the 0.3.3 intent doc", Codex 01a0ff5c 01:46); [0.3.6 "Mesh repair redesign" and "Dimensions and tolerances"](../plans/0.3.6.md); [0.4.0 "Move away from CGAL"](../plans/0.4.0.md); [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries) (Studio owns import repair; agent wording); Codex 01a0ff63 02:04 ("We should have mesh fix tools to deal with that situation.").
 

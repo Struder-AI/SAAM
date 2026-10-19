@@ -554,6 +554,8 @@ function render() {
   $('#confirm').disabled=controls.confirm.disabled;$('#confirm').textContent=controls.confirm.label;$('#confirm').hidden=controls.confirm.hidden;
   $('#confirm').setAttribute('aria-disabled',controls.confirm['aria-disabled']);
   if(reviewed)reviewed.hidden=controls.reviewedDownload.hidden;
+  const attribution=$('#reviewed-attribution');
+  if(attribution)attribution.hidden=controls.reviewedDownload.hidden||attribution.dataset.exportKey!==exportKey();
   $('#review-note').textContent=presentation.reviewNote;
   $('#playback').hidden=controls.playback.hidden;$('#play').disabled=controls.playback.playDisabled;
   $('#selection').hidden=controls.selection.hidden;
@@ -695,6 +697,12 @@ async function download(){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
+  const source=$('#reviewed-attribution')??document.createElement('a');
+  if(attachment.attribution){
+    if(!source.isConnected){source.id='reviewed-attribution';source.style.display='block';a.insertAdjacentElement('afterend',source);}
+    source.href=attachment.attribution.url;source.download=attachment.attribution.name;source.textContent='Source attribution';source.dataset.exportKey=key;source.hidden=false;
+  }else source.remove();
+  message([attachment.report?.notice,...(attachment.report?.limitations??[])].filter(Boolean).join(' '));
   const nextName=name?nextExportName(name):name;
   if(nextName!==name){
     $('#export-name').value=nextName;
@@ -721,7 +729,7 @@ $('#next').onclick=async()=>{
 $('#confirm').onclick=async()=>{
   if(!printSync.state||$('#confirm').disabled)return;message('');
   try{
-    await working('Downloading your reviewed file…',async()=>{
+    await working('Preparing your machine file…',async()=>{
       await download();
       if(studioWork.tourUI?.active()){await api('tour',{action:'finish'});await studioWork.tourUI.load();render();}
     },{preview:false});

@@ -2,7 +2,8 @@ import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadMachine} from '../machine/profile.mjs';
-import {preparePath,settingsRows} from '../export/registry.mjs';
+import {preparePath} from '../export/registry.mjs';
+import {settingsRows} from '../machine/settings-rows.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
@@ -45,7 +46,7 @@ test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids 
   const rightMove=preview.moves.map(m=>m).find(m=>m.extruding&&m.tool===1&&m.phase==='planar');
   const bead=beadSection(rightMove,plan,{});
   assert.ok(Math.abs(bead.width-0.8)<1e-6);
-  assert.match(new Map(await settingsRows(plan,machine)).get('Filament 2'),/Right nozzle.*0.8 mm.*225°C.*Automatic/i);
+  assert.equal(new Map(settingsRows(plan,machine)).get('Filaments · 2 · Nozzle C'),'225');
   assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
   const usage=report.envelope.job.filamentUsage;assert.equal(usage.length,2);assert.ok(usage.every(u=>u.volumeMm3>0));
   assert.deepEqual(JSON.parse(z.get('Metadata/plate_1.json')).filament_ids,[0,1]);
@@ -120,7 +121,7 @@ test('four-slot AMS and single-slot HT units have independent capacities, connec
   assert.deepEqual(job.settings.extruder_ams_count,['1#4|4#0','1#4|4#4']);
   assert.deepEqual(job.settings.filament_map,['1','2']);
   assert.equal(job.requestedTray,null,'An HT device must not fabricate a four-slot physical tray index');
-  assert.match(new Map(await settingsRows(plan,machine)).get('Filament 1'),/Requested AMS HT 1/);
+  assert.equal(new Map(settingsRows(plan,machine)).get('Filaments · 1 · Source · Type'),'ams-ht');
   plan.setup.filaments[0].source.unit=2;
   assert.throws(()=>resolveBambuJob(plan,machine,machine.outputs[0]),/not connected/);
   plan.setup.filaments[0].source.unit=9;

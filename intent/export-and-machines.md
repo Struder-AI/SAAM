@@ -18,7 +18,7 @@ Sources: [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundari
 >
 > "Ah yes, machine adapters needs to be built, green light." — owner, 2026-10-06 (Claude 14d40329 05:08)
 
-Summary: builders add machines through standard plugs and owner-reviewed standards. SAAMpath and settings carry adapter inputs. The existing Geometry–Export connection supplies public stateless point/vector/frame mathematics through Export.frame/Export.kinematics on that data; owner, 2026-10-12: "So 'machine adapters need to use the geometry engine' is a correct characterization? That's fine if so." Earlier approval, 2026-10-01: "Yes—add the narrow Geometry–Export connection" (Codex 01a0f8f8 21:24). Actual S1–S10 standards and S4 cases remain under separate owner review.
+Summary: builders add machines through standard plugs and owner-reviewed standards. SAAMpath and settings carry adapter inputs. The existing Geometry–Export connection supplies public stateless point/vector/frame mathematics through Export.frame/Export.kinematics on that data; owner, 2026-10-12: "So 'machine adapters need to use the geometry engine' is a correct characterization? That's fine if so." Earlier approval, 2026-10-01: "Yes—add the narrow Geometry–Export connection" (Codex 01a0f8f8 21:24). The October 12 “Adapter standards” row in [0.3.7](../plans/0.3.7.md) records explicit S1–S10 approval; it supersedes the earlier pending review.
 
 Sources: [0.3.6 "Machine adapters for builders"](../plans/0.3.6.md); `.local/team/adapter-design.md`; `.local/team/questions-036.md` 20-30; [0.3.1 "Owner approved 2 → 8 frame mathematics"](../plans/0.3.1.md); [machines/README](../machines/README.md).
 

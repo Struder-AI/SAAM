@@ -12,7 +12,7 @@ Catalog presence is not export support.
 ### Short-travel advisory
 
 Export attaches `shortTravel` to every program's report, computed on the
-prepared program path. Studio reopens the output's saved execution. A travel is a maximal sequence of
+prepared program path. Generation also records the neutral path's advisory. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
 The check flags straight-line XYZ distance
@@ -32,7 +32,7 @@ endpoints because the producer found the direct line blocked, such as a gap
 between neighboring islands), operation counts and up to 20 examples with
 endpoints, the lifted flag and prepared-path action index, phase, layer and adjacent
 operation labels. Missing labels remain unknown; recipe skills alone do not prove
-which producer caused a travel. The check is one linear scan of the prepared path.
+which producer caused a travel. Shared motion facts accumulate during the writer’s existing stream pass.
 Generation records it as
 `plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
 exposes it. Review, delivery and emitted bytes are unchanged by the
@@ -46,9 +46,9 @@ filter skills, reject tool poses or synthesize poses from the selected machine.
 Slice optionally derives upright orientation (default) or its surface normal; FIELD
 can vary either enabled output. Toolpath publishes every full pose explicitly.
 
-[Export preparation](./prepare-path.mjs) resolves actual-tool access and transfers, then installation startup/priming, material changes and axis-feed limits. It preserves neutral source; Bundle saves the resolved execution with its program.
+[Export preparation](./prepare-path.mjs) resolves actual-tool access and transfers, then installation startup/priming, material changes and axis-feed limits. It preserves neutral source; resolved execution and program bytes remain transient.
 Only adapters enforce installed nozzle/material compatibility and required setup.
-Studio uses that saved execution for a completed output; the report names installation startup/priming and machine service, with estimates scoped to written commands.
+Studio always draws saved neutral execution. The Export report names installation startup/priming and service; estimates describe written commands.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |

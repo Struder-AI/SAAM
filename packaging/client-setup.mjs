@@ -60,7 +60,7 @@ async function guidance(home){
 async function registerSkill(directory,home){
   const target=join(directory,'saam','SKILL.md'),previous=await optionalRead(target);
   if(previous&&!previous.includes(marker))throw Error(`Kept existing custom skill at ${target}; rename it before retrying.`);
-  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, update SAAM, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
+  const skill=`---\nname: saam\ndescription: Install SAAM, make 3D printed parts, work with print bundles and Studio, update SAAM, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
   const changed=await atomicWrite(target,skill);return {path:target,registered:previous?.includes(marker)??false,changed};
 }
 async function registerCodex(clientHome,home,registered,platform){
@@ -245,6 +245,10 @@ function reportUnregistration(result){
   for(const error of result.errors)console.log(`Could not remove a client registration: ${error}`);
   if(result.errors.length)process.exitCode=1;
 }
+function reportSetup(result){
+  console.log(JSON.stringify(result));
+  if(result.errors.length)process.exitCode=1;
+}
 
 export async function writeHomeGuidance(home){
   const written=[],text=await guidance(home);
@@ -259,6 +263,6 @@ export async function writeHomeGuidance(home){
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const [home,option]=process.argv.slice(2);
   const finished=option==='--unregister'?unregisterClients({home}).then(reportUnregistration)
-    :setupClients({home,register:option!=='--no-register'}).then(result=>console.log(JSON.stringify(result)));
+    :setupClients({home,register:option!=='--no-register'}).then(reportSetup);
   finished.catch(error=>{console.error(error.message);process.exitCode=1;});
 }

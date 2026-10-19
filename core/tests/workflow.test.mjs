@@ -74,7 +74,7 @@ test('a shell print stores native geometry as its named faces', async t => {
   assert.deepEqual(state.skills, ['slice']);
 });
 
-test('development and production generation retain checked shell programs', async t => {
+test('development and production generation retain reviewed neutral paths', async t => {
   const dir = await fixture(t);
   const checks = await generateBundle(dir, { development: true });
   assert.equal(checks.mode, 'development');
@@ -82,14 +82,16 @@ test('development and production generation retain checked shell programs', asyn
   const production=await generateBundle(dir);assert.equal(production.mode,'production');
 });
 
-test('the reviewed export delivers the exact program bytes', async t => {
+test('the reviewed export returns repeatable bytes without storing a program', async t => {
   const dir = await fixture(t);
   await generateBundle(dir);
   const state = await loadBundle(dir, { program: 'source' });
   assert.ok(state.program && !state.programError);
   const delivered = await exportReviewed(state);
-  assert.match(delivered.file, /part\.gcode$/);
-  assert.deepEqual(await readFile(delivered.file), await readFile(resolve(dir,state.review.generation.file)));
+  assert.match(delivered.bytes.toString(),/G1/);
+  assert.deepEqual(delivered.bytes,(await exportReviewed(state)).bytes);
+  assert.equal(state.review.generation.file,undefined);
+  await assert.rejects(readFile(resolve(dir,'delivery/part.gcode')),{code:'ENOENT'});
 });
 
 test('reopening verifies the locked plan and detects a stale program', async t => {

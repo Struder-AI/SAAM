@@ -7,13 +7,13 @@
   (`machineCatalog`, `core/extensions/library.mjs`); `exportProgram` prepares the path
   once, calls `export` and completes the report (move count, path totals as fallback
   estimates, short-travel advisory); `programReadiness` names what writing still needs;
-  `settingsRows` gives Studio the adapter's rows. Adapters translate the SAAMpath into
+  saved settings rows come from [snapshot data](../machine/settings-rows.mjs). Adapters translate SAAMpath into
   programs and draw nothing: Studio draws the SAAMpath.
-- `transfer-planning.mjs`: selected-tool ordering through the shared solver; checked continuous transfers against deposited prefixes, process parking and retraction; compact execution saved with the output.
+- `transfer-planning.mjs`: selected-tool ordering, continuous transfers, parking and retraction; execution stays transient with Export.
 - `prepare-path.mjs`: placement offset, `validateSetup` (common setup, logical materials, then the
   adapter's `validate`), pose refusal by the adapter's `poses`, startup, priming,
   material changes by the output's `materialChangeMode`, axis-feed limits.
-- `gcode-motion.mjs`, `zip.mjs`, `travel-advisory.mjs`: shared writer, archive codec and advisory.
+- `gcode-motion.mjs`, `zip.mjs`: shared writer and archive codec; [motion reports](../path/motion-report.mjs) collect totals/advisories during consumption.
 
 ## Kinematics plug
 

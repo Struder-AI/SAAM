@@ -1,4 +1,5 @@
 import {manufacturedSurfaceReadiness} from './surface-readiness.mjs';
+import {isDeepStrictEqual} from 'node:util';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 // Construct prepared work. Private contact adaptation can use predecessor beads;
 // extensions receive prepared inputs, and authored rank never becomes run order.
@@ -86,7 +87,20 @@ function sourceCurveResult(node,completed,{plan,results,shells}){
 // Construction follows material prerequisites only. It has no nozzle,
 // execution order, travel, cooling or motion-action state.
 export function constructDepositionResults(args,contexts){
-  const {nodes,curveSources}=args,completed=new Map();
+  const {nodes,curveSources,retainedWork=new Map()}=args,completed=new Map();
+  const keys=new Set(nodes.map(node=>node.key));
+  for(const key of retainedWork.keys())if(!keys.has(key))retainedWork.delete(key);
+  // Only retries compare inputs. Material ownership and contact preparation
+  // can change even without an explicit graph edge. Compare shared records
+  // once per attempt, rather than once for every layer that uses them.
+  const comparisons=new WeakMap();
+  const sameInput=(a,b)=>{
+    if(a===b)return true;
+    if(!a||!b||typeof a!=='object'||typeof b!=='object')return isDeepStrictEqual(a,b);
+    let peers=comparisons.get(a);if(!peers){peers=new WeakMap();comparisons.set(a,peers);}
+    if(!peers.has(b))peers.set(b,isDeepStrictEqual(a,b));
+    return peers.get(b);
+  };
   while(completed.size<nodes.length){
     const ready=nodes.filter(node=>!completed.has(node.key)&&node.requires.every(key=>completed.has(key)));
     if(!ready.length){
@@ -94,13 +108,22 @@ export function constructDepositionResults(args,contexts){
       throw new AssignmentFailure(blocked,Error('Construction dependencies are missing or cyclic: '+nodes.filter(node=>!completed.has(node.key)).map(node=>node.key).join(', ')));
     }
     for(const node of ready){
-      args.onProgress?.({stage:'Constructing deposition',assignment:node.sourceId,layer:node.index,completed:completed.size,total:nodes.length});
-      const result=assignmentWork(node,()=>{
+      const inputs={...node,...(node.construct?{materialContexts:node.materialContexts??contexts}:{}),
+        ...(node.context?{context:{...node.context}}:{}),...(node.record?{record:{...node.record}}:{})};
+      const prior=retainedWork.get(node.key);
+      const reusable=prior&&Object.keys(inputs).length===Object.keys(prior.node).length&&
+        Object.keys(inputs).every(key=>Object.hasOwn(prior.node,key)&&sameInput(prior.node[key],inputs[key]))&&
+        node.requires.every((key,index)=>prior.producers[index]===completed.get(key).result);
+      args.onProgress?.({stage:reusable?'Reusing deposition':'Constructing deposition',assignment:node.sourceId,layer:node.index,completed:completed.size,total:nodes.length});
+      const result=reusable?prior.result:assignmentWork(node,()=>{
         const raw=constructDepositionWork(node,completed,{...args,contexts}),finalized=finalizeDepositionResult(raw,args.plan);
         return node.kind==='completion'?finalized:publishDepositionWork(node,republishDepositedBoundary(finalized,{widthMm:args.plan.process.lineWidthMm}));
       });
       args.generation?.captureResult(node,result);
       completed.set(node.key,{node,result});
+      // Reference preparation replaces these fields on mutable contexts. Keep
+      // the inputs used here, not a handle that the next attempt can rewrite.
+      retainedWork.set(node.key,{node:inputs,result,producers:node.requires.map(key=>completed.get(key).result)});
     }
   }
   const results=[];

@@ -17,7 +17,7 @@ modules and their caller contracts, generation/review flow and source entry poin
 Shared interfaces and the exceptions below remain caller context.
 
 [Skill manuals](../skills/DIGEST.md) own tools and limits;
-the [overview](../TECHNICAL-OVERVIEW.md) defines Inject, Trace and Slice.
+[Geometry](geom/README.md) and [Toolpath](path/README.md) own the shared construction operations.
 
 The [machine presentation boundary](../studio/KINEMATICS.md) lets the
 kinematic-model and Studio tasks work independently. Models supply resolved
@@ -30,8 +30,8 @@ evaluation and nominal installation limits.
 ## Interoperability and one workflow
 
 Shared geometry queries feed material regions and skill operations. Composition
-orders those operations and plans their transitions; machine adapters emit and
-interpret the program used by review and delivery. A change to one of these
+orders those operations and plans their transitions; Studio reviews SAAMpath,
+and machine adapters emit transient programs at Export. A change to one of these
 interfaces needs to account for its current callers, result semantics and
 affected consumers. [Geometry interfaces](./geom/README.md#geometry-interoperability-for-skill-authors),
 [skill results](./path/README.md#retained-construction-interfaces) and [machine output](./export/README.md#machine-interoperability-design)

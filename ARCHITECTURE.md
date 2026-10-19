@@ -12,8 +12,8 @@ or physical qualification. [DEVLOG](DEVLOG.md) records verification and limitati
 
 SAAM makes 3D printed parts through conversation. Geometry, toolpath and hybrid
 skills compose ordinary geometry and one machine-independent SAAMpath. A person
-reviews the part and output in Studio; Export is the one confirmation and writes
-the exact checked program displayed with its captured settings.
+reviews geometry and SAAMpath in Studio; Export is the one confirmation and
+translates the captured path and settings into a machine program for download.
 
 The architecture concentrates numerical geometry, deposition construction,
 scheduling, machine adaptation and saved state behind their owning interfaces.
@@ -48,6 +48,8 @@ An incomplete recipe or missing machine does not prevent unrelated operations.
 
 The agent does not supply the person's final print confirmation. Software evidence
 and physical results are reported separately. See [maker workflow](MAKERS.md).
+General web-agent access is future work without a release target; the implemented
+route is local desktop clients through Application.
 
 ## 4. Solution strategy
 
@@ -57,11 +59,29 @@ Geometry owns construction, numerical representation, evaluation and native life
 Recipe describes intent; Material regions resolves spatial responsibility;
 Toolpath publishes finalized deposition and manufacturing prerequisites.
 Scheduling preserves that immutable source while choosing execution order.
-Export applies the selected machine and checks the emitted program.
+Export applies the selected machine and writes its program with scoped findings.
 
-One Bundle identity joins authored inputs, immutable source, schedules and completed
-output. Studio and exporters read the same numerical curve/profile/range representation.
-The saved output retains its exact source, machine, settings, execution and bytes.
+Bundle retains authored inputs, immutable source, neutral schedules and reviewed
+snapshots. Studio and exporters share the numerical curve/profile/range reader.
+Programs and machine execution are transient Export results; templates remain in
+machine extensions. [ADR 0002](docs/adr/0002-neutral-bundles-and-transient-export.md)
+records this boundary.
+
+### Authoring and numerical scope
+
+Agents author blob fields for organic volumes, splines for smooth geometry and
+meshes for angular forms. Extensions compose them through Geometry's published
+operations. The toolkit should preserve authored meaning, state approximation
+and accuracy, support ordinary consumers and remain cancellable. Current
+[geometry contracts](core/geom/README.md) retain native curves/trims and own mesh
+repair. Periodic/coincident and near-tangent Boolean cases remain limited;
+recovery reports operand displacement. Finite tangent neighborhoods do not
+establish general fold-resolved offset solids or arbitrary sleeve topology.
+
+SAAMpath compacts curves and changing profiles instead of expanded moves. One
+recorded dome source shrank 84.4 MB to 6.35 MB (13.3×); this is a dated source-file
+measurement, not a whole-bundle guarantee. [DEVLOG](DEVLOG.md) retains the bounds
+and publication cost; [SP2](core/path/README.md) owns semantics.
 
 ## 5. Building block view
 
@@ -82,7 +102,7 @@ live in one folder. Source entry points and the owning manuals locate their inte
 | Studio | Review, selection, viewer state, playback and the Export interaction | [Studio](studio/README.md), [rendering](studio/RENDERING.md) |
 | Workspace | Specialized authoring experiences returning ordinary bundles to Studio | [workspace host](workspaces/server.mjs) |
 | Settings | Reusable machine/material profiles, defaults and remembered setup; submits explicit snapshots to Bundle | [machine interfaces](core/machine/README.md), [bundle settings](core/machine/bundle-settings.mjs) |
-| Export | Selected-machine preparation, access, physical transfers, adapters, emission and interpretation | [export](core/export/README.md), [machine authoring](machines/README.md) |
+| Export | Selected-machine preparation, access, physical transfers, adapters and transient program emission | [export](core/export/README.md), [machine authoring](machines/README.md) |
 | Development | Source guidance, repository checks, measurements and packaging | [source toolkit](core/agent/README.md), [packaging](packaging/README.md) |
 
 ### Relationships and state ownership
@@ -97,8 +117,8 @@ live in one folder. Source entry points and the owning manuals locate their inte
 | Bundle generation | Scheduling | Obtain neutral execution referencing the exact saved source identity |
 | Studio and Export | Shared path reader | Read curves, profiles, source ranges, actions and summaries without a second saved motion authority |
 | Export | Settings, Geometry and Scheduling | Resolve actual nozzle geometry, access and physical execution for the selected output |
-| Export | Machine adapter | Emit and interpret commands; report unsupported output or missing setup at this stage |
-| Studio Export | Bundle | Deliver the captured completed output's checked bytes and settings |
+| Export | Machine adapter | Emit commands and report writer facts, unsupported output or missing setup |
+| Studio Export | Bundle | Read captured toolpath/settings and record a factual export receipt |
 | Application | Workspace | Run specialized authoring and return a bundle through the ordinary Studio flow |
 
 Geometry, construction and scheduling do not write Bundle state. Reusable settings
@@ -122,17 +142,17 @@ not replace the captured inputs of a completed output.
    finalized deposition and its required construction history.
 3. Bundle saves immutable `saampath/2` source. Scheduling returns a
    `saam-schedule/1` execution joined by `sourcePathId`, preserving exact coverage.
-4. When machine output is requested, Export resolves actual-tool access and physical
-   transfers, emits and interprets the program. Bundle stores the completed output.
-5. Studio displays that output using its saved execution and captured settings.
+4. Bundle records the completed neutral path and captured inputs; no machine is required.
+5. Studio displays that saved path and settings without loading a program writer.
 
 ### Export, edit and recovery
 
-Export captures the displayed completed output. Delivery writes its exact checked
-bytes; a later edit or setup change does not rewrite that captured output. Edits
-retain previous artifacts visibly. Explicit regeneration dims the previous output
-and blocks its export while working; failure or cancellation restores it. Opening,
-retrying or interpreting saved output does not generate a replacement.
+Export captures the displayed path and settings before queueing. It resolves
+actual-tool access and physical transfers, then writes transient download bytes.
+Later edits do not change the capture. Bundle records a receipt, never program
+bytes or machine execution. Writer failure leaves the saved path intact. Edits
+retain previous toolpaths; regeneration dims them and blocks new Export clicks
+while working. Failure/cancellation preserves them. Opening never generates.
 The [review contract](core/print/README.md#generation-and-review) owns eligibility.
 
 ## 7. Deployment view
@@ -142,7 +162,7 @@ The shared home is `C:\SAAM` on Windows or `~/SAAM` on macOS:
 | Location | Lifetime and owner |
 |---|---|
 | `app/` | Replaceable installed code and bundled Node runtime |
-| `local/Prints/` | User bundles and retained inputs/output |
+| `local/Prints/` | User bundles, retained inputs, neutral paths and review records |
 | `local/extensions/` | User extensions, independent of application replacement |
 | `local/machine-setups/` | Remembered machine/material setups |
 | `local/LOCAL-AGENT-NOTES.md` | Shared personal preferences and printer facts |
@@ -188,9 +208,9 @@ and current component contracts determine which statements still apply.
 | Scenario | Required architectural property | Owning evidence |
 |---|---|---|
 | Change the selected machine | Preserve authored geometry and neutral source; perform machine checks at Export | Path/Export manuals and focused integration evidence |
-| Edit during or after review | Retain the completed output's captured inputs and checked bytes | Bundle/Studio review evidence |
+| Edit during or after review | Retain reviewed inputs; Export uses its click-time path/settings capture | Bundle/Studio review evidence |
 | Cancel or fail regeneration | Preserve and restore the prior saved output | Bundle generation and request evidence |
-| Compose several skills | Use ordinary shared geometry, ownership and deposition without duplicate material | Geometry/Toolpath integration evidence |
+| Compose several skills | Use ordinary geometry, explicit material claims and declared prerequisites | Geometry/Toolpath integration evidence |
 | Relocate a checkout or omit local tools | Shared onboarding and guidance remain readable without an external map store | Source toolkit and package checks |
 | Replace the installed application | Preserve the user's library, extensions and settings | Installation/update evidence |
 

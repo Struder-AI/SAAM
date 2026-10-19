@@ -3,9 +3,14 @@ import {randomUUID} from 'node:crypto';
 // Observe both directions of the SAME connection used by the desktop.
 // This module never approves a request or changes client/server traffic.
 export function createCodexWire(connectionId,emit){
-  const state={roots:new Set(),children:new Set(),pending:new Map(),turns:new Map(),active:new Set(),starting:new Map(),waiting:new Map()};
+  const state={roots:new Set(),children:new Set(),pending:new Map(),turns:new Map(),turnNumbers:new Map(),active:new Set(),starting:new Map(),waiting:new Map()};
   function publish(sessionId,kind,extra={}){
-    const event={id:randomUUID(),client:'codex',sessionId,connectionId,kind,turnId:state.turns.get(sessionId)??null,...extra};
+    const turnId=extra.turnId??state.turns.get(sessionId)??null;
+    const prior=state.turnNumbers.get(sessionId)??{id:null,number:0};
+    if(kind==='started'&&turnId!==prior.id)state.turnNumbers.set(sessionId,{id:turnId,number:prior.number+1});
+    const current=state.turnNumbers.get(sessionId)??prior;
+    const event={id:randomUUID(),client:'codex',sessionId,connectionId,kind,turnId,...extra,
+      turnNumber:!turnId||turnId===current.id?current.number:0};
     if(state.children.has(sessionId))return;
     if(!state.roots.has(sessionId)){
       const queue=state.waiting.get(sessionId)??[];queue.push(event);state.waiting.set(sessionId,queue);return;

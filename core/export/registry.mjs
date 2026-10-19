@@ -1,4 +1,4 @@
-import {requireThat,distance} from '../private/export/numeric.mjs';
+import {requireThat} from '../private/export/numeric.mjs';
 import {PROGRAM_DECIMALS,XYZ_PROGRAM_DECIMALS,PROGRAM_SLACK_MM} from '../dimensions.mjs';
 import {Kinematics} from '../machine/kinematics.mjs';
 import {validateTemperatureC} from '../private/export/temperature.mjs';
@@ -8,7 +8,7 @@ import {packZip,unpackZip,crc32} from './zip.mjs';
 import {encodePng} from './png.mjs';
 import {prepareExportPath} from './prepare-path.mjs';
 import {validateSetup} from '../machine/rules.mjs';
-import {preparedTravelAdvisory} from './travel-advisory.mjs';
+import {createMotionReport} from '../path/motion-report.mjs';
 import {knownSeconds} from '../path/saampath.mjs';
 import {settingsDefaults} from '../machine/settings.mjs';
 import {currentMachineSnapshot} from '../machine/profile.mjs';
@@ -34,14 +34,6 @@ export async function machineAdapter(plan,machine,options){
   requireThat(adapter?.output===declaration.id&&typeof adapter.export==='function',`No exporter for ${declaration.id}.`);
   return adapter;
 }
-// What the adapter's setup block configures, as Studio settings rows; none
-// while the output has no exporter or no installed extension provides the
-// machine (programReadiness names which).
-export async function settingsRows(plan,machine){
-  if(machine.outputs.find(o=>o.id===plan.output)?.implemented===false||!machineCatalog().get(machine.id))return [];
-  const {settings}=await machineAdapter(plan,machine);
-  return settings?.rows?.({machine,setup:plan.setup,process:plan.process,output:plan.output})??[];
-}
 // What the program writer still lacks, or null when it can write: a machine,
 // its output's exporter, then the installation that exporter requires. The
 // writer checks the same again (prepareExportPath). Agent and person both read
@@ -56,15 +48,17 @@ export async function preparePath(path,plan,machine){
   return prepareExportPath(path,plan,machine,await machineAdapter(plan,machine));
 }
 // The prepared path's own totals: requested timing and commanded volume.
-function pathTotals(prepared){
-  let from=prepared.initialPosition,moves=0,seconds=0,volumeMm3=0,untimedMoves=0;
-  for(const action of prepared.actions){
-    if(action.kind==='move'){moves++;if(action.durationSeconds===undefined&&!(action.speedMmS>0))untimedMoves++;
-      seconds+=action.durationSeconds??knownSeconds(distance(from,action.to),action.speedMmS);volumeMm3+=action.volumeMm3;from=action.to;}
-    else if(action.kind==='extrude'){seconds+=action.volumeMm3/action.flowMm3S;volumeMm3+=action.volumeMm3;}
-    else if(action.kind==='dwell')seconds+=action.seconds;
-  }
-  return {moves,seconds,volumeMm3,untimedMoves};
+function measuredPath(prepared,lineWidthMm){
+  const state={report:null};
+  const actions={*[Symbol.iterator](){
+    const report=state.report?null:createMotionReport(prepared.initialPosition,lineWidthMm);
+    for(const action of prepared.actions){report?.record(action);yield action;}
+    if(report)state.report=report.result();
+  }};
+  return {path:{...prepared,actions},totals(){
+    if(!state.report)for(const action of actions){/* Complete a writer that did not consume the stream. */}
+    return state.report;
+  }};
 }
 // Prepares the path once and writes it. The report is what Bundle stores:
 // the adapter's notice, limitations and estimates (the path's own totals when
@@ -73,9 +67,10 @@ export async function exportProgram(path,plan,locked,release){
   const adapter=await machineAdapter(plan,locked),{machine,notes}=currentMachineSnapshot(locked),prepared=prepareExportPath(path,plan,machine,adapter);
   // defaultProcess: the profile's process defaults, for a writer that needs a
   // value the authored one cannot give (a robot command needs a positive time).
-  const {bytes,report}=adapter.export(prepared,{machine,setup:plan.setup,process:plan.process,output:plan.output,release,defaultProcess:settingsDefaults(machine).process}),totals=pathTotals(prepared);
+  const measured=measuredPath(prepared,plan.process.lineWidthMm);
+  const {bytes,report}=adapter.export(measured.path,{machine,setup:plan.setup,process:plan.process,output:plan.output,release,defaultProcess:settingsDefaults(machine).process}),totals=measured.totals();
   const untimed=report.seconds===undefined?totals.untimedMoves:report.untimedMoves??0;
   const limitations=[...notes,...prepared.notes,...report.limitations??[],...(untimed?[`The time estimate excludes ${untimed} move(s) with no positive speed.`]:[])];
   return {bytes,...(prepared.schedule?{executionSchedule:prepared.schedule}:{}),report:{...report,limitations,moves:totals.moves,seconds:report.seconds??totals.seconds,
-    volumeMm3:report.volumeMm3??totals.volumeMm3,shortTravel:preparedTravelAdvisory(prepared,plan)}};
+    volumeMm3:report.volumeMm3??totals.volumeMm3,shortTravel:totals.shortTravel}};
 }

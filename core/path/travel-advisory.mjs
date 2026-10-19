@@ -3,8 +3,8 @@ import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // is a bad path: producers connect nearby strokes by deposition.
 const SHORT_TRAVEL_LINE_WIDTHS=5;
 
-// Advisory only, over the prepared path Studio draws (the exact motion sent to
-// the program writer). Moves are {from,to,extruding,operation,phase,layer,action}.
+// Advisory over neutral review motion or prepared Export motion.
+// Moves are {from,to,extruding,operation,phase,layer,action}.
 // A travel is a maximal run without deposition; lifts/detours and robot samples
 // belong to that run, not separate reports. Process-only events do not split it.
 // Required transitions are counted as travels but never flagged: the approach
@@ -12,7 +12,7 @@ const SHORT_TRAVEL_LINE_WIDTHS=5;
 // labelled deposition layer, where a nearby start is the intended path.
 // A segment within print resolution inside a stroke is not a travel and is not
 // counted as one.
-export function shortTravelAdvisory(moves,lineWidthMm) {
+export function createTravelAdvisory(lineWidthMm) {
   const thresholdMm=SHORT_TRAVEL_LINE_WIDTHS*lineWidthMm,samples=[],operations=new Map();
   let first,last,previous,next,count=0,liftedCount=0,travelCount=0,minimumDistanceMm=null,peakZ=-Infinity,routeMm=0;
   const context=move=>move?{action:move.action??null,
@@ -37,15 +37,19 @@ export function shortTravelAdvisory(moves,lineWidthMm) {
     }
     first=last=null;
   }
-  for(const move of moves){
+  function record(move){
     if(move.extruding){next=move;finish();previous=move;}
     else {if(!first){first=move;peakZ=move.from[2];routeMm=0;}last=move;peakZ=Math.max(peakZ,move.to[2]);routeMm+=Math.hypot(...move.to.map((v,i)=>v-move.from[i]));}
   }
-  next=null;finish();
-  return {code:'short-travel',severity:'advisory',thresholdMm,travelCount,count,liftedCount,minimumDistanceMm,
+  return {record,result(){next=null;finish();
+    return {code:'short-travel',severity:'advisory',thresholdMm,travelCount,count,liftedCount,minimumDistanceMm,
     operations:[...operations].map(([operation,count])=>({operation,count})),samples,
     omittedSamples:count-samples.length,
-    message:count?`Bad path: ${count} of ${travelCount} travels start and end within ${thresholdMm} mm on one layer (${liftedCount} lifted over a blocked line, ${count-liftedCount} moved directly). Tell the person, naming the affected operations, and retain this evidence for improving the generating skills/functions. This advisory does not block review or delivery and does not request automatic repair.`:null};
+    message:count?`Bad path: ${count} of ${travelCount} travels start and end within ${thresholdMm} mm on one layer (${liftedCount} lifted over a blocked line, ${count-liftedCount} moved directly). Tell the person, naming the affected operations, and retain this evidence for improving the generating skills/functions. This advisory does not block review or delivery and does not request automatic repair.`:null};}};
+}
+
+export function shortTravelAdvisory(moves,lineWidthMm){
+  const advisory=createTravelAdvisory(lineWidthMm);for(const move of moves)advisory.record(move);return advisory.result();
 }
 
 // The prepared path as moves; a stationary extrusion is a stroke of zero length.

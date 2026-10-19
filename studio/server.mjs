@@ -133,11 +133,13 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   // Authenticated delivery issues a bounded, short-lived read-only capability.
   // Its HTTP attachment avoids browser-specific blob URL download handling.
   const downloadLinks=new Map();
-  const stageDownload=({name,bytes,outputId})=>{
+  const stageDownload=({name,bytes,outputId,report,attribution})=>{
     const now=Date.now();for(const [key,value] of downloadLinks)if(value.expiresAt<=now)downloadLinks.delete(key);
     if(downloadLinks.size>=16)downloadLinks.delete(downloadLinks.keys().next().value);
     const key=randomBytes(24).toString('hex'),expiresAt=now+10*60*1000;
-    downloadLinks.set(key,{bytes,name,outputId,expiresAt});return {url:'/api/download/'+key,name,outputId,expiresAt};
+    downloadLinks.set(key,{bytes,name,outputId,expiresAt});
+    return {url:'/api/download/'+key,name,outputId,expiresAt,report,
+      ...(attribution?{attribution:stageDownload({name:'source-attribution.json',bytes:Buffer.from(JSON.stringify(attribution,null,2)+'\n'),outputId})}:{})};
   };
   const printIdFor=directory=>createHash('sha256').update(resolve(directory)).digest('hex');
   const printId=()=>printIdFor(dir);
@@ -338,10 +340,10 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
   };
   const exportPrint=async(current,state,data,progress)=>{
     const name=requestedDownloadName(data.name,await printName(state.dir,state.plan),state.exportName);
-    const delivered=await runBundleEdit(state.dir,()=>current.exportReviewed(state,{machineSetups}));
+    const delivered=await current.exportReviewed(state,{machineSetups});
     const inTour=progress.active&&progress.directory===state.dir;
     if(inTour)await chat.current.tour.downloaded(delivered.outputId);
-    note('export-delivered',{tour:inTour,name,outputId:delivered.outputId});
+    note('export-delivered',{directory:state.dir,printId:workIdFor(state.dir),tour:inTour,name,outputId:delivered.outputId,report:delivered.report});
     return {...delivered,name};
   };
   const openPrint=async input=>{
@@ -503,12 +505,12 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
         const assembled=composeStudioState(state,{directory:readDir,printId:readId,workId,instanceId,guide,example,records,importRepair,
           printName:name,fingerprint:responseFingerprint,presentationFingerprint:presentation,
           generationFailure:failure,generationCancelled:cancelled,outputGenerating:outputGenerating(),phasePalette,phasePaletteProblem:local.problem});
-        if(state.checkedBytes){
+        if(completedOutputState(state).exportable){
           const output=state.completedOutput,snapshot=`${readId}:${output.id}`;
-          const {dir,checkedBytes}=state;
+          const {dir,deferRememberSetup}=state;
           for(const key of displayedResults.keys())if(key!==snapshot)displayedResults.delete(key);
-          displayedResults.set(snapshot,{bundle,state:{dir,plan:output.plan,machine:output.machine,revision:output.id,completedOutput:output,
-            exportName:output.exportName,outputId:output.outputId,checkedBytes}});
+          displayedResults.set(snapshot,{bundle,reservation,state:{dir,plan:output.plan,machine:output.machine,revision:output.id,completedOutput:output,
+            exportName:output.exportName,outputId:output.outputId,deferRememberSetup}});
           assembled.exportSnapshot=snapshot;
         }
         res.setHeader('ETag',tag);
@@ -536,13 +538,13 @@ export function createStudio(directory,{libraryRoot,machineSetups,localPhaseColo
       }
       if(url.pathname==='/api/export'){
         if(outputGenerating())throw Error('Wait for toolpath generation to finish before exporting.');
-        const run=queueOperation(async()=>{
-          const captured=displayedResults.get(data.exportSnapshot);
-          if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
-            throw Error('The displayed program changed. Reload before exporting.');
-          if(outputGenerating())throw Error('Wait for toolpath generation to finish before exporting.');
-          return exportPrint(captured.bundle,captured.state,data,await chat.current.tour.info());
-        });
+        // Capture at the click, before waiting behind another operation. Later
+        // edits, selections or generation do not substitute the live result.
+        const captured=displayedResults.get(data.exportSnapshot);
+        if(!captured||captured.state.dir!==dir||captured.bundle!==await opened)
+          throw Error('The displayed toolpath is unavailable. Review it before exporting.');
+        const run=queueOperation(async()=>withBundleInstance(captured.state.dir,captured.reservation,
+          async()=>exportPrint(captured.bundle,captured.state,data,await chat.current.tour.info())));
         queue=run.catch(()=>{});
         const delivered=await run;
         if(data.downloadLink===true){send(stageDownload(delivered));return;}

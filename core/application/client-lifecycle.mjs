@@ -33,11 +33,18 @@ export async function createClientLifecycle({folder,handBack}){
   }
   async function event(event){
     if(!event||!['codex','claude'].includes(event.client)||typeof event.id!=='string'||typeof event.connectionId!=='string')throw Error('Invalid native lifecycle event.');
+    if(event.sequence!==undefined&&(!Number.isSafeInteger(event.sequence)||event.sequence<1))throw Error('Invalid native lifecycle sequence.');
+    if(event.turnNumber!==undefined&&(!Number.isSafeInteger(event.turnNumber)||event.turnNumber<0))throw Error('Invalid native lifecycle turn.');
     await serial(async()=>{
-      if(state.received[event.id])return;
+      const ordered=Number.isSafeInteger(event.sequence)&&event.sequence>0;
+      if(!ordered&&state.received[event.id])return;
       if(!['owner','connected','started','message','contact','closed','disconnected'].includes(event.kind))throw Error('Unknown native lifecycle event.');
       const connection=state.connections[event.connectionId]??={client:event.client,pid:null,closed:false};
       if(connection.client!==event.client)throw Error('Connection belongs to another client.');
+      if(ordered){
+        connection.cursor??=0;connection.pending??=[];
+        if(event.sequence<=connection.cursor||connection.pending.includes(event.sequence))return;
+      }
       if(event.kind==='owner'){
         if(!Number.isSafeInteger(event.pid)||event.pid<1)throw Error('Invalid client process.');
         connection.pid=event.pid;
@@ -48,17 +55,25 @@ export async function createClientLifecycle({folder,handBack}){
         if(!current.connections[event.connectionId])current.connections[event.connectionId]=++current.epoch;
         const epoch=current.connections[event.connectionId];
         const turnKey=event.connectionId+':'+(event.turnId??'');
-        if(event.turnId&&!current.turns[turnKey])current.turns[turnKey]=++current.nextTurn;
-        const turn=event.turnId?current.turns[turnKey]:current.nextTurn;
-        const context={epoch,turn,cursor:++state.cursor};
-        if(!current.context||epoch>=current.context.epoch){current.connectionId=event.connectionId;current.closed=event.kind==='closed';current.context={...context,turn:Math.max(turn,current.context?.turn??0)};}
+        const numbered=Number.isSafeInteger(event.turnNumber)&&event.turnNumber>=0;
+        if(!numbered&&event.turnId&&!current.turns[turnKey])current.turns[turnKey]=++current.nextTurn;
+        const turn=numbered?event.turnNumber:event.turnId?current.turns[turnKey]:current.nextTurn;
+        const context={epoch,turn,cursor:ordered?event.sequence:(state.cursor=Math.max(state.cursor,current.context?.cursor??0)+1)};
+        if(!current.context||contactIncludes(context,current.context)){
+          current.connectionId=event.connectionId;current.closed=event.kind==='closed';current.context=context;
+        }
         if(['message','contact','closed'].includes(event.kind)){
           const reason=event.kind==='message'?'message':event.kind==='closed'?'closed':['turn','interrupt','failed'].includes(event.reason)?event.reason:'input';
           state.contacts[event.id]={sessionId:event.sessionId,reason,context};
           if(!current.lastContact||contactIncludes(context,current.lastContact.context))current.lastContact={sessionId:event.sessionId,reason,context};
         }
       }
-      state.received[event.id]=true;await save();
+      if(ordered){
+        const pending=new Set(connection.pending);pending.add(event.sequence);
+        while(pending.delete(connection.cursor+1))connection.cursor++;
+        connection.pending=[...pending].sort((a,b)=>a-b);
+      }else state.received[event.id]=true;
+      await save();
     });
     void flush();return {accepted:true};
   }
@@ -102,7 +117,10 @@ export async function createClientLifecycle({folder,handBack}){
         if(error.code!=='ESRCH')continue;
         connection.closed=true;
         for(const current of Object.values(state.sessions))if(current.connectionId===connectionId&&!current.closed)
-          await event({id:randomUUID(),client:connection.client,sessionId:current.sessionId,connectionId,kind:'closed'}).catch(()=>{});
+          // Runtime observations must not consume a producer sequence that an
+          // unfinished native outbox can still replay.
+          await event({id:randomUUID(),client:connection.client,sessionId:current.sessionId,connectionId,kind:'closed',
+            turnNumber:current.context?.turn??0}).catch(()=>{});
       }
     }
     void flush();

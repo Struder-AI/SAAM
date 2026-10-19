@@ -231,7 +231,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Product purpose and direction | [README.md](README.md) |
 | Agent orientation and task selection | [AGENTS.md](AGENTS.md) and this document |
 | Maker interaction and export | [MAKERS.md](MAKERS.md) |
-| Installation and first-use capability | [SETUP.md](SETUP.md) |
+| Release installation and client setup; source checkout setup | [INSTALL.md](packaging/INSTALL.md); [SETUP.md](SETUP.md) |
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
 | Test design and coverage selection | [Test reference](core/tests/README.md) |
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |

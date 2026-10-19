@@ -26,6 +26,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   let residualE=0;
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2,tally={seconds:0,untimedMoves:0,volumeMm3:0,collapsedDepositMoves:0,terminalUnwrittenVolumeMm3:0,filamentStepVolumeMm3:area*10**-PROGRAM_DECIMALS,strokes:[],layers:new Set()};
   let tag='',operation='',writtenE=0,writtenPosition=path.initialPosition.map(value=>Number(value.toFixed(XYZ_PROGRAM_DECIMALS)));
+  tally.boundsMm={min:[...writtenPosition],max:[...writtenPosition]};
   // This body is also embedded in machine templates. Establish XYZ and feed on
   // its first use, then rely only on modal state written by this exporter.
   const modal={};
@@ -40,6 +41,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   // positive leaves the move out of the time estimate.
   const motion=(command,target,extrusion,feed)=>{
     let line=command;
+    if(target)for(let k=0;k<3;k++){tally.boundsMm.min[k]=Math.min(tally.boundsMm.min[k],target[k]);tally.boundsMm.max[k]=Math.max(tally.boundsMm.max[k],target[k]);}
     if(target)for(let i=0;i<3;i++)line+=field('XYZ'[i],target[i]);
     if(extrusion!==undefined)line+=` E${extrusion}`;
     const written=Number(feed.toFixed(FEED_DECIMALS));

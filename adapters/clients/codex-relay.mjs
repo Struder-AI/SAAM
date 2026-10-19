@@ -2,7 +2,7 @@ import {spawn} from 'node:child_process';
 import {Transform} from 'node:stream';
 import {StringDecoder} from 'node:string_decoder';
 import {randomUUID} from 'node:crypto';
-import {readFile,mkdir,open,readdir,writeFile,rename} from 'node:fs/promises';
+import {readFile,mkdir,open,readdir,writeFile,rename,rm} from 'node:fs/promises';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createCodexWire} from './codex-wire.mjs';
@@ -26,7 +26,7 @@ if(!args.includes('app-server')){
 const outbox=join(config.home,'state','clients','codex-outbox');
 await mkdir(outbox,{recursive:true});
 const spool=await open(join(outbox,connectionId+'.jsonl'),'a');
-const state={pending:[],tail:Promise.resolve(),retry:null,delivery:null,ending:false,waking:false,wakeRequests:new Map(),wakeCounter:0,offset:0,notified:new Set()};
+const state={pending:[],tail:Promise.resolve(),retry:null,delivery:null,ending:false,waking:false,wakeRequests:new Map(),wakeCounter:0,offset:0,notified:new Set(),sequence:0,lifecycleSequence:0};
 // Replay unfinished native evidence from earlier backend processes. Receiver IDs
 // make concurrent replay harmless; acknowledged spools are compacted on exit.
 for(const name of await readdir(outbox))if(name.endsWith('.jsonl')&&name!==connectionId+'.jsonl'){
@@ -50,7 +50,9 @@ function drain(){return state.delivery??=(async()=>{
   }
 })().finally(()=>{state.delivery=null;});}
 function record(event){
-  state.tail=state.tail.then(async()=>{await spool.write(JSON.stringify(event)+'\n');await spool.sync();state.pending.push({event,local:true});void drain();});
+  state.sequence++;
+  const numbered=event.kind==='acknowledged'?event:{...event,sequence:++state.lifecycleSequence};
+  state.tail=state.tail.then(async()=>{await spool.write(JSON.stringify(numbered)+'\n');await spool.sync();state.pending.push({event:numbered,local:true});void drain();});
   state.tail.catch(error=>process.stderr.write('SAAM lifecycle evidence write failed: '+error.code+'\n'));
 }
 const wire=createCodexWire(connectionId,record);
@@ -102,6 +104,11 @@ child.on('error',error=>{process.stderr.write('Codex backend could not start: '+
 child.on('close',async(code,signal)=>{
   state.ending=true;clearInterval(wakeTimer);wire.ended(true);await state.tail;await drain();
   // The durable outbox is recovered by the receiver even if it is offline here.
-  clearTimeout(state.retry);await spool.close();process.exitCode=code??1;process.stdin.destroy();
+  clearTimeout(state.retry);await spool.close();
+  if(state.offset===state.sequence){
+    await rm(join(outbox,connectionId+'.jsonl'),{force:true});
+    await rm(join(outbox,connectionId+'.jsonl.ack'),{force:true});
+  }
+  process.exitCode=code??1;process.stdin.destroy();
 });
 }

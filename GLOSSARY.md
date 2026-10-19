@@ -1,10 +1,10 @@
 # SAAM glossary
 
-Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.md).
+Terminology: [architecture](ARCHITECTURE.md), [cumulative intent](intent/README.md).
 
 | Term | Meaning |
 |---|---|
-| Bundle | Saved geometry, recipe, review records and checked machine program for a fabrication task, possibly containing several parts. A print bundle is a bundle used for printing. |
+| Bundle | Saved geometry, recipe, neutral SAAMpath, review snapshots and export receipts for a fabrication task. A print bundle is a bundle used for printing; machine programs are transient Export results. |
 | Recipe | Authored geometry, skill assignments, process settings, machine and setup, stored as `plan.json`. Defaults do not supply a shape. |
 | SAAMpath | SAAM's machine-independent toolpath: finalized deposition curves with material and orientation, process operations, and an execution order that traverses those curves and connects them with travel. Construction and execution share one Bundle path identity. |
 | Toolpath skill | Constructs deposition/process operations through shared core capabilities; named techniques may be configurations of the same skill. |
