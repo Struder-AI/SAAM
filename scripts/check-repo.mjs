@@ -9,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const excluded = new Set(['.git', '.claude', '.local', '.saam', 'Prints', 'node_modules', 'dist', 'build']);
 // Dated records of past work name the files as they were then; their targets are not required
 // to still exist, and the records are never rewritten to keep a link alive.
-const historical = new Set(['DEVLOG.md', 'DECISIONS.md']);
+const historical = new Set(['DEVLOG.md', 'DECISIONS.md', 'plans/dev-maps.md']);
 const documents = [];
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -45,7 +45,7 @@ for (const path of documents) {
     const [target,fragment] = match[1].split('#');
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     checked.links++;
-    if (historical.has(relative(root, path))) continue;
+    if (historical.has(relative(root, path).split(sep).join('/'))) continue;
     const resolved = target ? resolve(dirname(path), decodeURIComponent(target)) : path;
     if (!resolved.startsWith(root + sep)) errors.push(`${relative(root,path)}: link escapes repository: ${target}`);
     else try {

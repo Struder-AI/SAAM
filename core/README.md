@@ -2,19 +2,19 @@
 
 SAAM combines skill operations through shared geometry, region, motion and machine
 interfaces. This page retains shared boundary contracts and supported
-exceptions; the generated [dev map](../dev-map/README.md) owns the structural
-account, read with `node scripts/agent-toolkit.mjs read-map 0`.
+exceptions; the [architecture specification](../ARCHITECTURE.md) owns the structural
+account, module relationships and runtime scenarios.
 
-The [application](./application/README.md) owns chats, Studio and jobs; the [source toolkit](./agent/README.md) reads guidance and maps.
+The [application](./application/README.md) owns chats, Studio and jobs; the [source toolkit](./agent/README.md) reads published guidance.
 
-[Private utilities](./private/) give each consuming map-0 bucket its own arithmetic and file replacement.
+[Private utilities](./private/) give each consuming module its own arithmetic and file replacement.
 [Bundle file replacement](./file-write.mjs) preserves complete files with Windows sharing-conflict retries; it is not a lock or multi-file transaction.
 
 ## Current organization
 
-The [developer orientation](../DEVELOPER-CONTEXT.md#orientation) indexes region
-maps and their caller contracts. Maps own the generation/review flow and source
-entry points; shared interfaces and the exceptions below remain caller context.
+The [architecture specification](../ARCHITECTURE.md#5-building-block-view) indexes
+modules and their caller contracts, generation/review flow and source entry points.
+Shared interfaces and the exceptions below remain caller context.
 
 [Skill manuals](../skills/DIGEST.md) own tools and limits;
 the [overview](../TECHNICAL-OVERVIEW.md) defines Inject, Trace and Slice.

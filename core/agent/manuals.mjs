@@ -6,11 +6,11 @@ import { loadMachine } from '../machine/profile.mjs';
 import {readExtension} from '../extensions/library.mjs';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'GEOMETRY.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
-  'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'CLAUDE.md', 'examples/prints/README.md', 'TECHNICAL-OVERVIEW.md']);
-const documentRoots = new Set(['core', 'skills', 'extensions', 'studio', 'machines', 'packaging', 'scripts', 'dev-map', 'plans']);
+  'CONTRIBUTING.md', 'CONTRIBUTING-AGENTS.md', 'SETUP.md', 'GLOSSARY.md', 'DECISIONS.md', 'DEVLOG.md', 'CLAUDE.md', 'examples/prints/README.md', 'TECHNICAL-OVERVIEW.md', 'ARCHITECTURE.md']);
+const documentRoots = new Set(['core', 'skills', 'extensions', 'studio', 'machines', 'packaging', 'scripts', 'docs', 'plans']);
 const excluded = new Set(['prints', 'node_modules', 'dist', 'build']);
 const aliases = {
-  overview: 'TECHNICAL-OVERVIEW.md', makers: 'MAKERS.md', geometry: 'GEOMETRY.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
+  overview: 'TECHNICAL-OVERVIEW.md', architecture: 'ARCHITECTURE.md', makers: 'MAKERS.md', geometry: 'GEOMETRY.md', builders: 'BUILDERS.md', development: 'BUILDERS.md',
   'developer-context': 'DEVELOPER-CONTEXT.md', glossary: 'GLOSSARY.md',
   application: 'core/application/README.md', 'print-tools': 'core/print/USAGE.md'
 };

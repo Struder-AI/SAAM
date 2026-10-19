@@ -2,15 +2,13 @@
 
 ## Orientation
 
-Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). The versioned intent docs in [plans](plans/) are the spec ([intent and rules](#intent-and-rules)); the [intent tree](intent/README.md) indexes current intent by area in the owner's words. Read the parts that bear on your work. The newest version's plan holds scheduled work. Onboarding supplies shared terms and this whole document; read map `0` yourself before editing.
+Developers own core skills, core capabilities, Studio and shared interfaces; builders compose existing interfaces ([role boundaries](AGENTS.md#choose-your-role)). The versioned intent docs in [plans](plans/) are the spec ([intent and rules](#intent-and-rules)); the [intent tree](intent/README.md) indexes current intent by area in the owner's words. Read the parts that bear on your work. The newest version's plan holds scheduled work. Onboarding supplies shared terms, this whole document and the architecture specification.
 
-### Working with dev maps
+### Working with the architecture specification
 
-Walk the map before editing, on the same page the person reviews: read map 0, open the boxes you will change, read an arrow's `@link` for the leaf arrows it carries, then open source at the `file:lines` shown. Map reads never return code. When you add code, give each new declaration its map-0 owner in `dev-map/sets/030-architecture/ownership.json`; regenerate lists any leaf still unowned. Regenerate the set after each task. The [map guide](dev-map/README.md) owns commands and authoring.
+[ARCHITECTURE.md](ARCHITECTURE.md) owns module responsibilities, relationships, runtime scenarios and deployment. Read the affected module and its component manual, then inspect its source, callers and state ownership with ordinary repository tools. Keep that account current when a contract changes; record consequential architectural choices in [decision records](docs/adr/).
 
-**A link records influence between two pieces of SAAM: one can change what the other does or receives.** Its arrow points from the influencer to the influenced: a query's answer runs against the call, a command's activation with it. Maps exist so you can change a node knowing everything it affects and everything that affects it, without reading source to find out; a link's kind only says how the influence travels. The [dev maps intent](plans/dev-maps.md) owns the rebuild. Platform code (language, runtime, browser, packages) is modelled, never drawn as nodes. An absent link reads as "no influence", so influence that cannot be ruled out is drawn as possible. A generated link needs source evidence; file placement and a cleaner picture are none. Judge analysis work by whether the map's account of influence becomes more complete and truthful, not by the counts it changes.
-
-Use `030-influence` for product work (toolkit default) and `030-deployment` for installation and service work; `030-architecture` is the authored top level they build on, where map-0 nodes, positions and contracts are authored. Follow [Code shape](#code-shape) when editing; map compatibility authorizes no unrelated work.
+Onboarding supplies the complete shared specification. Checkout-specific tools and preferences live in `.local/DEVELOPMENT.md`; they do not add dependencies to shared onboarding or packaging.
 
 ### Architectural discipline
 
@@ -77,7 +75,7 @@ The code itself must show the scanner and human reviewer the influence between o
 1. No callable and no state in a reassigned binding: execution history would determine what runs or what a value is. Owned state lives in an explicit record or stateful boundary; a callback chosen once is a `const` or named function.
 2. No callee chosen by an expression: the call site must name its callee.
 3. A sequential stage may mutate exclusively owned inputs and hand the result forward. Ownership transfers with the data; earlier stages and other consumers must not retain access to the changing value. No hidden lookbacks to shared mutable sources. Bundle owns shared part state; private UI/session/job controllers own theirs. Copy only where ownership branches or a snapshot must survive.
-4. A callable answers or acts: a query returns a value and has no effect another callable can observe; a command has effects and returns only its outcome (completed or failed, and the identity of what it created). Private caches and a leaf's own working state are not effects. Larger boxes relate both ways; [notation](plans/dev-maps.md#notation).
+4. A callable answers or acts: a query returns a value and has no effect another callable can observe; a command has effects and returns only its outcome (completed or failed, and the identity of what it created). Private caches and a leaf's own working state are not effects. Module interfaces may contain both queries and commands; [shared concepts](ARCHITECTURE.md#8-crosscutting-concepts).
 5. Avoid passthrough wires — generic code that routes values by keys known only at run time — without good reason; they increase complexity and reduce visibility.
 6. Every tolerance names its class from [dimensions and tolerances](core/README.md#dimensions-and-tolerances) (print resolution, process scale, program resolution, rounding guards, display) or derives from the print's line width or layer height. Rounding guards derive from functional tolerances and absorb rounding error; shape judgements use functional tolerances. A feature far below print resolution that an operation produces is closed and reported, not rejected. `check-repo` holds raw literals per file to a falling baseline.
 

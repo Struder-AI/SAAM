@@ -4,9 +4,6 @@ __pycache__/
 *.py[cod]
 
 # build output
-/dev-map/sets/*/store/
-/dev-map/sets/*/view/
-/dev-map/sets/*/view.next/
 dist/
 dist-review/
 build/
@@ -29,7 +26,7 @@ Thumbs.db
 # local runtime artifacts (compiled plans awaiting review, etc.)
 .saam/
 
-# personal print bundles and architecture viewer
+# personal print bundles
 /[Pp]rints/
 /.local/
 /relay/.local/

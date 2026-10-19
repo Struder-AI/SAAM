@@ -1,4 +1,11 @@
-# Dev maps intent
+# Historical dev maps intent
+
+This is the preserved record of the former in-repository tooling. Owner direction
+on 2026-10-18 moves the live tools and their intent to a separate local root;
+[ADR 0001](../docs/adr/0001-text-architecture-and-local-dev-maps.md) supersedes shared
+map-specific workflow requirements. [ARCHITECTURE.md](../ARCHITECTURE.md) is the
+current shared structural account. The original quotations and descriptions below
+remain historical evidence.
 
 Owner direction, 2026-10-03 ([D-046](../DECISIONS.md#d-046--rebuilt-dev-maps-causal-arrows-and-banned-unmodelled-code), [D-047](../DECISIONS.md#d-047--command-outcomes-and-one-arrow-per-pair)). This document owns the intent for the rebuilt dev maps. [Developer context](../DEVELOPER-CONTEXT.md#working-with-dev-maps) carries the principle every developer applies; the [map guide](../dev-map/README.md) describes the current tool until the rebuild replaces it.
 
