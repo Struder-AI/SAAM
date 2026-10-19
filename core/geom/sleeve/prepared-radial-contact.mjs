@@ -1,5 +1,5 @@
 import {requireThat} from '../tolerance.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE,CONTACT_TOLERANCE_MM} from '../../dimensions.mjs';
 // Continuous source-side contact preparation. Fixed arc sample correspondence
 // advects steep radial details between Z profiles without switching branches.
 
@@ -40,7 +40,7 @@ function radius(a,b,t,theta){
   const value=(p[0]*dy-p[1]*dx)/(Math.cos(query)*dy-Math.sin(query)*dx);
   requireThat(Number.isFinite(value)&&value>0,'Prepared contact profile lost a positive radial intersection.');return value;
 }
-export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepMm=.4,side='inside',toleranceMm=.1,samples=16384,distanceToSourceWithin=null,onProgress=null}){
+export function prepareRadialSleeveContact({curveAt,anchorAt,startMm,endMm,stepMm=.4,side='inside',toleranceMm=CONTACT_TOLERANCE_MM,samples=16384,distanceToSourceWithin=null,onProgress=null}){
   requireThat([startMm,endMm,stepMm,toleranceMm].every(Number.isFinite)&&endMm>startMm&&stepMm>0&&toleranceMm>0&&['inside','outside'].includes(side),
     'Contact preparation needs a positive interval, step, tolerance and inside/outside side.');
   const frameBudget=toleranceMm*.95,slabs=new Map(),frames=new Map();

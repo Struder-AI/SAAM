@@ -1,3 +1,4 @@
+import {FLOAT64_EPSILON} from '../dimensions.mjs';
 // Small dense least-squares systems for reference-surface fitting.
 // Householder QR (Golub & Van Loan, Matrix Computations, 4th ed., §5.2):
 // orthogonal reflectors avoid squaring the condition number as normal equations
@@ -14,7 +15,7 @@ export function leastSquares(matrix){
   for(let k=0;k<n;k++){
     let norm=0;for(let i=k;i<m;i++)norm=Math.hypot(norm,a[i][k]);
     // Standard QR rank test: machine epsilon times the matrix size and scale (float rounding).
-    requireThat(norm>Number.EPSILON*Math.max(m,n)*scale,'Reference fit is rank deficient; use fewer controls or more distinct samples.');
+    requireThat(norm>FLOAT64_EPSILON*Math.max(m,n)*scale,'Reference fit is rank deficient; use fewer controls or more distinct samples.');
     const v=Float64Array.from({length:m-k},(_,i)=>a[i+k][k]);
     v[0]+=v[0]>=0?norm:-norm;
     let vnorm=0;for(const value of v)vnorm=Math.hypot(vnorm,value);

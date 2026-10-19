@@ -2,6 +2,7 @@
 // The caller chooses the groups, depth interval and mapping orientation.
 import {requireThat,distance,cross,normalize} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {evaluateSurface} from './surface-evaluation.mjs';
 import {referenceSurface} from './reference-surface.mjs';
 import {union} from '../region/intersection.mjs';
 
@@ -32,13 +33,13 @@ function layoutGroup(group,layout,mirror,toleranceMm){
 
 function mapper(reference,anchor){
   if(anchor){
-    const e=reference(...anchor),h=FRAME_STEP_MM;
-    const right=reference(anchor[0]+h,anchor[1]),up=reference(anchor[0],anchor[1]+h);
+    const e=evaluateSurface(reference,anchor),h=FRAME_STEP_MM;
+    const right=evaluateSurface(reference,[anchor[0]+h,anchor[1]]),up=evaluateSurface(reference,[anchor[0],anchor[1]+h]);
     const x=normalize(right.point.map((v,i)=>v-e.point[i])),n=e.normal;
     let y=normalize(cross(n,x));if(y.reduce((sum,v,i)=>sum+v*(up.point[i]-e.point[i]),0)<0)y=y.map(v=>-v);
     return ([a,b,z])=>e.point.map((v,i)=>v+(a-anchor[0])*x[i]+(b-anchor[1])*y[i]+z*n[i]);
   }
-  return ([x,y,z])=>{const e=reference(x,y);return e.point.map((v,i)=>v+z*e.normal[i]);};
+  return ([x,y,z])=>{const e=evaluateSurface(reference,[x,y]);return e.point.map((v,i)=>v+z*e.normal[i]);};
 }
 
 export function mappedRegionMaterial({groups,layout,mirror=false,reference:spec,lower,upper,normalSide=1},target,{toleranceMm,maxEdgeMm}){

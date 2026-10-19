@@ -11,7 +11,7 @@ is relative to `Prints/` (`Prints/my-part` is `"my-part"`).
 | Show in Studio; read state | `request_review`; `list_bundles`, `get_bundle`, `check_bundle` |
 | Adjust recipe/assignments; undo/redo; change printer | `adjust_recipe`, `slice`, `modulate`; `restore_revision`; `change_machine` |
 | Generate for review; the person exports from Studio | `generate_toolpath` |
-| Path feasibility; defer this bundle's last-export setup save; phase colours | `check_path`; `set_deferred_setup_save`; `set_phase_colours` |
+| Defer this bundle's last-export setup save; phase colours | `set_deferred_setup_save`; `set_phase_colours` |
 
 ## Recipes
 

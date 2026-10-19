@@ -1,19 +1,23 @@
-import {fontMetrics} from './strokefont.mjs';
-import {layoutText} from './layout.mjs';
+
+export function createTextMeasure(Geometry,strokeFont,layout){
+const {fontMetrics}=strokeFont;
+const {layoutText}=layout;
+
+
 
 const ALNUM = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'];
 
 // Endpoints closer than this to another stroke are drawing imprecision, not
 // design: measured across the bundled fonts, endpoint gaps are exact touches or
 // under 0.03 of cap height, then empty until about 0.04. Beyond it a gap is real.
-export const JOIN_FRACTION = 0.03;
+const JOIN_FRACTION = 3 * Geometry.dimensions.TOLERANCE.constructionFraction;
 
 // The widest a bead can be before this drawing stops looking like itself: the
 // first width beyond `baseUnits` at which two strokes fuse or a counter fills in.
 // `baseUnits` sets the intended drawing, so near-misses that a snapped junction
 // would close are not counted as gaps. Infinity for a drawing that never changes
 // (a single open stroke). Units are font units.
-export function fusionWidth(strokes, strokeTopology, {baseUnits = 4, maxUnits = 400, step = 4} = {}) {
+function fusionWidth(strokes, strokeTopology, {baseUnits = 4, maxUnits = 400, step = 4} = {}) {
   if (!strokes.length) return Infinity;
   // SVG font dots have a single point; use a short line to measure their bead
   // footprint, then pass only ordinary centerlines to Geometry.
@@ -39,7 +43,7 @@ const glyphFusion = (font, ch, strokeTopology) => {
 
 // Fusion width for exactly the characters in a text, as a fraction of cap height,
 // with the glyph that limits it. Space and unmeasured characters are skipped.
-export function textFusion(font, text, strokeTopology) {
+function textFusion(font, text, strokeTopology) {
   const {capHeight} = fontMetrics(font);
   let worst = {ratio: Infinity, char: null};
   for (const ch of new Set(text)) {
@@ -61,7 +65,7 @@ const sampleAlong = (points, spacing) => {
 
 // Fraction of a glyph's ink drawn over ink that is already there in the same
 // direction of travel: a doubled or retraced stroke deposits twice on one path.
-export function retraceFraction(strokes, {distanceUnits = 4, spacing = 5} = {}) {
+function retraceFraction(strokes, {distanceUnits = 4000 * Geometry.dimensions.TOLERANCE.unitFraction, spacing = 5} = {}) {
   const samples = strokes.map(s => sampleAlong(s.closed ? [...s.points, s.points[0]] : s.points, spacing));
   let total = 0, covered = 0;
   samples.forEach((mine, i) => {
@@ -78,7 +82,7 @@ const quantile = (values, q) => { const s = [...values].sort((a, b) => a - b); r
 
 // Font-level facts used to choose between fonts. Everything is measured from
 // the glyphs; nothing is read from the font's own metric headers.
-export function measureFont(font, strokeTopology) {
+function measureFont(font, strokeTopology) {
   const metrics = fontMetrics(font), cap = metrics.capHeight;
   const ascii = [...Array(95)].map((_, i) => String.fromCharCode(32 + i));
   const letters = ALNUM.filter(ch => font.glyphs.get(ch)?.strokes.length);
@@ -95,7 +99,7 @@ export function measureFont(font, strokeTopology) {
     pairs++;
     const ends = (byIndex.get(i) ?? []).filter(s => !s.closed).flatMap(s => [s.points.at(-1)]);
     const starts = (byIndex.get(i + 1) ?? []).filter(s => !s.closed).flatMap(s => [s.points[0]]);
-    if (ends.some(e => starts.some(b => Math.hypot(e[0] - b[0], e[1] - b[1]) <= 0.03 * cap))) joins++;
+    if (ends.some(e => starts.some(b => Math.hypot(e[0] - b[0], e[1] - b[1]) <= JOIN_FRACTION * cap))) joins++;
   }
   return {
     id: font.id, family: font.family, sha256: font.sha256, glyphCount: font.glyphs.size, kerningPairs: font.kerning.size,
@@ -107,4 +111,7 @@ export function measureFont(font, strokeTopology) {
     // Widest total stroke, as a fraction of cap height, before letters fuse.
     fusionOverCap: {median: +quantile(fusion, 0.5).toFixed(3), p10: +quantile(fusion, 0.1).toFixed(3), min: +Math.min(...fusion).toFixed(3)}
   };
+}
+
+return {JOIN_FRACTION,fusionWidth,textFusion,retraceFraction,measureFont};
 }

@@ -8,12 +8,10 @@ metadata:
 # Heat-set inserts
 
 Prepare blind/through seats for heat or ultrasonic inserts. The [catalog](CATALOG.md)
-covers 86 manufacturer profiles: 60 SPIROL Series 19/29, 25 CNC Kitchen and McMaster
-94459A743 (1/2-13). Printed fit and strength need physical evidence.
+covers 86 profiles: 60 SPIROL Series 19/29, 25 CNC Kitchen and McMaster 94459A743 (1/2-13).
 
-Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits
-keep omitted settings; new holes inherit insert, bore and fin choices in their
-component, with explicit placement or the stated example default.
+Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits retain settings;
+new holes inherit component insert, bore and fin choices, with explicit or example placement.
 
 Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
 `apply_heat_set` with `bundleId`, current `expectedRevision` and `request`:
@@ -23,7 +21,9 @@ Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
 ```
 
 `positionMm` is the mouth centre; `axis` points inward, including side/angled
-faces. Assembly requests add `part`. Edit by id with changed fields; remove with
+faces. The cut clears material outward beyond the host at the mouth diameter
+(including a chamfer); inward seat depth stays fixed. Reapply to update old holes.
+Assembly requests add `part`. Edit by id with changed fields; remove with
 `{"remove":"mount"}` (plus `part`). Review the saved revision in Studio; Export
 is the normal confirmation. Fit, tool access and printable support need review.
 
@@ -43,33 +43,31 @@ is the normal confirmation. Fit, tool access and printable support need review.
 | `finWidthMm` | `null`; legacy positive values remain readable; star fins use two touching beads at the source layer width |
 | `finAngleDeg` | `0`; rotates the pattern around the bore |
 
-Request `toleranceMm` defaults to 0.01 mm and must be positive. CNC Kitchen normally
-needs no mouth chamfer; the catalog keeps its 1 mm blind clearance and wall advice.
+`toleranceMm` is positive placement/probe clearance (default 0.01 mm); [Boolean accuracy](../../core/geom/README.md#native-boolean-construction) belongs to Geometry. CNC Kitchen normally needs no chamfer; retain catalog clearance/wall advice.
 
 ## Deposition and composition
 
-The bore remains part of the main geometry; the main Slice keeps its walls and
-infill. A generated [Trace](../trace/SKILL.md) follows each prepared source layer.
-For N main loops it adds max(4,N+1)-N walls: one main loop becomes four total;
-eight become nine. The final added wall travels out and back along the fins.
-Added walls and fins intentionally overlap the unchanged main infill.
+The main Slice keeps its bore, walls and infill; a generated [Trace](../trace/SKILL.md)
+uses each prepared source layer and joins its native completion. The successor
+waits for both; there is no main-layer-to-reinforcement barrier.
+For N main loops it adds max(4,N+1)-N walls: one becomes four, eight become nine.
+The last wall follows fins; added walls/fins overlap unchanged main infill.
 
-Fixed zero-thickness fin sheets intersect the inherited layer surface; Geometry
-computes physical bead offsets there. Fin tips stay fixed; large main wall counts
-can leave little fin beyond the added wall. Settings, reference surface, width,
-pitch, gaps and tool pose inherit the prepared main layer, including nonplanar layers.
+Geometry constructs the finite seat/pad with the bore’s shared radial profile and
+intersects fixed fin sheets with the inherited layer surface. Seat depth excludes
+outward/through clearance. Large wall counts can consume fin reach; offsets and
+process settings inherit the prepared main layer, including nonplanar layers.
 
 The pattern clears main wall bands at every boundary, including neighboring holes
-and exterior edges. Clipped curves stay open; gaps are travel, with fragments
-reported. The nominal loop target cannot promise loops the host cannot contain.
+and exterior edges. Clipped gaps are travel; reports retain open fragments.
+The loop target is limited by available host material.
 
 Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
 omitted source selection, and an explicit override affects only the named hole.
-Vase-only deposition has no source Slice. Coincident fin/layer sheets have no
-unique intersection curve; skipped fins and singular charts are reported.
+Vase-only deposition has no source Slice. Parallel fins, or shallow fins whose
+successive traces cannot retain half a bead of overlap, are omitted and reported.
 
-Meshes, supported spline hosts and assemblies retain editable holes alongside
-text/curves. Reports note obstructed mouths, uneven rims, blind-floor breakout and
-short through seats. Blind-floor pad depth is max(solidTop,solidBottom) × layer
-gap, excluding existing dense coverage; oblique pads may cross more layers. Fit,
-adhesion, strength, AMS behavior and unsupported orientations need print evidence.
+Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
+Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind backing
+uses disk/layer intersection traces across max(solidTop,solidBottom) × layer gap; parallel
+layers fill the disk area. Existing dense coverage is excluded; physical strength needs print evidence.

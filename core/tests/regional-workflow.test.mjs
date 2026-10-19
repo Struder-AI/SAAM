@@ -21,13 +21,12 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   assert.doesNotMatch(state.limitations.join('\n'),/cap.*unsupported spans/,'no retired bridge-policy warning in the shared review workflow');
   await generateBundle(directory);state=await loadBundle(directory);
   assert.equal(state.programError,undefined);
-  assert.equal(state.pathSummary.vaseWall.instances.length+state.pathSummary.referenceStacks.roof.length,2);
+  assert.equal(state.pathSummary.vaseWall.instances.length,1);
   assert.deepEqual(state.pathSummary.slices.instances.filter(i=>i.layers&&!i.referenceStackKind&&!i.construction).map(i=>i.owner),['base','cap','roof-body','upper']);
   const {moves}=pathPreview(JSON.parse(await readDrawnPath(state)),{plan:state.plan});
   assert.ok(moves.some(move=>move.phase==='vase-wall'&&move.extruding));
-  assert.ok(moves.some(move=>move.operation?.startsWith('roof:roof-finish:')&&move.extruding));
-  state=await loadBundle(directory,{program:true});const bytes=await readFile(join(directory,state.review.generation.file));
-  assert.deepEqual(await readFile((await exportReviewed(state)).file),bytes);
+  state=await loadBundle(directory,{program:true});const bytes=(await exportReviewed(state)).bytes;
+  assert.deepEqual((await exportReviewed(state)).bytes,bytes);
   assert.deepEqual(await readFile(nativeFile),native);
 
   const server=createStudio(directory,{libraryRoot:directory,chat:createChatChannel(directory,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));
@@ -42,5 +41,5 @@ test('the complete regional stack uses native geometry, final confirmation, shar
   state=await loadBundle(directory);await server.runBundleEdit(directory,()=>adjustBundle(directory,{slices:{assignments}},{expectedRevision:state.revision}));
   state=await loadBundle(directory);
   assert.equal(state.artifacts.program,'stale');
-  assert.deepEqual(await readFile(join(directory,'delivery/part.gcode')),bytes);
+  assert.deepEqual((await server.runBundleEdit(directory,()=>exportReviewed(state))).bytes,bytes);
 });

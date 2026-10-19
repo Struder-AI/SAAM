@@ -1,7 +1,9 @@
+import {prepareSliceMaterial,sliceMaterialSolids} from '../geom/slice-material.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {resolveGeometrySelections} from '../geom/build.mjs';
 import {validateSelectedExtensionRecipe} from '../../skills/records.mjs';
-import {extensionDeposition,extensionSummary} from '../../skills/deposition.mjs';
+import {extensionDeposition,extensionMaterialBands,extensionSummary} from '../../skills/deposition.mjs';
+import {prepareProcessSources} from '../extensions/process-sources.mjs';
 // Generation: authored geometry and recipe into finalized deposition and SAAMpath.
 // Ownership precedes construction; one dependency graph schedules shared deposition
 // and their finalized-material consumers.
@@ -14,6 +16,8 @@ import {plannedNozzleTemperatures} from '../path/process-controls.mjs';
 import {assignmentPlan,assignmentFilament,depositionAssignments} from './assignment-process.mjs';
 import {geometryOperations} from '../geom/operations.mjs';
 import {injectionAssignment} from './injection.mjs';
+import {depositionAssignment} from './assignment-records.mjs';
+import {operationId,withOperationAfter} from './operation-references.mjs';
 import {spiralStackCurve} from '../path/stack-curves.mjs';
 import {maximumPathAngle,strokeRange} from '../path/deposition.mjs';
 import {publishFinishedBoundary} from '../path/finished-surface.mjs';
@@ -22,131 +26,108 @@ import {prepareSliceBoundaryStack} from "./slice-material.mjs";
 import {fillSliceRegion} from "./slices.mjs";
 import { compileRecipe, VERSION } from './plan.mjs';
 
+import {assignmentGeneration} from './assignment-generation.mjs';
 import {finalizedSliceResults} from './construction.mjs';
 
 async function extensionEngines(){return {
   Geometry:await geometryOperations(),
   MaterialRegions:{prepareSliceBoundaryStack},
-  Recipe:{assignmentFilament,injectionAssignment},
+  Recipe:{assignmentFilament,injectionAssignment,depositionAssignment,operationId,withOperationAfter},
   Toolpath:{fillSliceRegion,spiralStackCurve,maximumPathAngle,strokeRange,publishFinishedBoundary,traceResult}
 };}
 
-
-// A zero-length pass deposits nothing.
-function primeLineResult(plan){
-  const p=plan.process.primeLine;if(p===null)return null;
-  const passes=(p.passes??[p]).filter(pass=>Math.hypot(pass.endMm[0]-pass.startMm[0],pass.endMm[1]-pass.startMm[1])>0);
-  if(!passes.length)return null;
-  const region=passes.map(pass=>{
-    const [a,b]=[pass.startMm,pass.endMm],length=Math.hypot(b[0]-a[0],b[1]-a[1]),nx=-(b[1]-a[1])*pass.widthMm/length/2,ny=(b[0]-a[0])*pass.widthMm/length/2;
-    return [[a[0]+nx,a[1]+ny],[b[0]+nx,b[1]+ny],[b[0]-nx,b[1]-ny],[a[0]-nx,a[1]-ny]];
-  });
-  const top=Math.max(...passes.map(pass=>pass.zMm));
-  return traceResult({id:'prime-line',filament:null,after:[]},{process:plan.process,report:{passes:passes.length},batches:[{
-    key:0,layerId:'planar:'+top,phase:'prime',layer:0,rank:-1,
-    curves:passes.map(pass=>({role:'prime-line',closed:false,points:[[...pass.startMm,pass.zMm],[...pass.endMm,pass.zMm]],beadWidthMm:pass.widthMm,heightMm:pass.heightMm,speedMmS:pass.speedMmS})),
-    widthMm:Math.max(...passes.map(pass=>pass.widthMm)),travel:{kind:'planar',region,zMm:top,maxCombMm:0}}]});
-}
 
 // Toolpath chooses which geometry its assignments need; Geometry resolves and
 // places those requests, including within-volumes in their owner's frame.
 export async function preparePathGeometry(plan) {
   plan=compileRecipe(plan).plan;
-  if(!plan.geometry)return {placed:null,componentShells:null,shells:[],volumes:new Map(),geometryFailures:new Map()};
+  if(!plan.geometry)return prepareAssignmentGeometry(plan,plan.slices.assignments,{placed:null,componentShells:null,shells:[],volumes:new Map(),sources:new Map(),geometryFailures:new Map()});
   const components=plan.geometry.shape==='assembly'?plan.geometry.parts.map(part=>part.id):[];
   const requests=[{},...components.map(selection=>({selection}))];
   const values=await resolveGeometrySelections(plan.geometry,requests);
   const placed=values[0],componentShells=plan.geometry.shape==='assembly'?new Map(components.map((id,i)=>[id,values[1+i]])):null;
   const shells=[...(componentShells?[...componentShells]:[[null,placed]]).map(([part,shell])=>[part,shell,true])],volumes=new Map(),geometryFailures=new Map();
-  // A selected component or within-volume belongs to its assignment. Resolve
-  // it at that boundary so the rest of the print retains its own geometry.
-  for(const assignment of plan.slices.assignments){
+  return prepareAssignmentGeometry(plan,plan.slices.assignments,{placed,componentShells,shells,volumes,geometryFailures});
+}
+
+// Add authored selections once without rebuilding existing native geometry.
+async function prepareAssignmentGeometry(plan,assignments,geometry){
+  const {placed,componentShells}=geometry,shells=[...geometry.shells],volumes=new Map(geometry.volumes),sources=new Map(geometry.sources),geometryFailures=new Map(geometry.geometryFailures);
+  for(const assignment of assignments){
     try{
       if(assignment.part!==undefined&&assignment.part!==null&&!shells.some(([part])=>part===assignment.part)){
         const [shell]=await resolveGeometrySelections(plan.geometry,[{selection:assignment.part}]);
         shells.push([assignment.part,shell,false]);
       }
       if(assignment.construction)continue;
-      const selections=assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}));
+      const selections=[...(assignment.geometry?[{selection:assignment.part,geometry:assignment.geometry}]:[]),...assignment.within.filter(volume=>volume.kind==='geometry').map(volume=>({selection:assignment.part,geometry:volume.geometry}))];
       const resolved=await resolveGeometrySelections(plan.geometry,selections),slots={index:0};
+      if(assignment.geometry)sources.set(assignment.id,resolved[slots.index++]);
       volumes.set(assignment.id,assignment.within.map(volume=>volume.kind==='geometry'?resolved[slots.index++]:null));
     }catch(error){
       if(error.name==='AbortError'||error.code==='ABORT_ERR')throw error;
       geometryFailures.set(assignment.id,error);
     }
   }
-  return {placed,componentShells,shells,volumes,geometryFailures};
+  return {placed,componentShells,shells,volumes,sources,geometryFailures};
 }
 
-// Survey every selected skin before body ownership, then finalize each
-// supporting producer before constructing surface consumers.
-export async function generateModelResults(plan,{placed,componentShells,shells,volumes,geometryFailures=new Map()},onProgress) {
-  if(geometryFailures.size)plan={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!geometryFailures.has(assignment.id))}};
-  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
-  // An assembly construction with no component chosen uses the whole assembly.
+// Geometry/material intent is prepared once, independently of deposition
+// runtimes. Authoring queries and construction consume this same boundary.
+export async function prepareModelGeometry(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map()}){
   const contexts=depositionAssignments(plan).filter(assignment=>assignment.construction||assignment.join).map(assignment=>{
     const shell=shells.find(([part])=>part===(assignment.part??null))?.[1]??((assignment.part??null)===null?placed:null),selected=assignmentPlan(plan,assignment);
     return {assignment,shell,process:selected.process};
   });
-  const extensions=await extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,engines:await extensionEngines(),
-    processForAssignment:assignment=>assignmentPlan(plan,assignment).process});
-  const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source)];
-  const sliced=finalizedSliceResults({plan,shells,volumes,...extensions,constructions,onProgress});
-  results.push(...sliced.results);
+  const engines=await extensionEngines(),processes=await prepareProcessSources({plan,placed,componentShells,
+    processForAssignment:assignment=>assignmentPlan(plan,assignment).process},engines);
+  const expanded={...plan,slices:{...plan.slices,assignments:[...plan.slices.assignments,...processes.assignments]}};
+  const geometry=await prepareAssignmentGeometry(expanded,processes.assignments,{placed,componentShells,shells,volumes,sources,geometryFailures});
+  return {...geometry,plan:expanded,...processes,contexts,engines,bands:extensionMaterialBands(contexts),combineSolids:engines.Geometry.combineSolids};
+}
+
+export async function prepareModelInputs(plan,geometry){
+  const prepared=await prepareModelGeometry(plan,geometry),{contexts,engines}=prepared;
+  const extensions=await extensionDeposition({...prepared,plan,contexts,engines});
+  const contributed=prepared.assignments.filter(assignment=>assignment.construction).map(assignment=>({assignment,
+    shell:prepared.shells.find(([part])=>part===(assignment.part??null))?.[1]??null,process:assignmentPlan(prepared.plan,assignment).process}));
+  const constructions=[...extensions.constructions,...contexts.filter(({assignment})=>['inject','curves'].includes(assignment.construction)&&!assignment.source),...contributed];
+  return {...prepared,...extensions,constructions};
+}
+
+export async function generateModelResults(plan,{placed,componentShells,shells,volumes,sources,geometryFailures=new Map(),generation},onProgress) {
+  if(!generation){const compiled=compileRecipe(plan);generation=assignmentGeneration(compiled.intent,compiled.failures);}
+  generation.register(plan);
+  for(const [id,error] of geometryFailures)generation.fail(id,error);
+  plan=generation.retain(plan);
+  const summary={generatorVersion:VERSION,shape:plan.geometry?.shape??null},results=[];
+  const extensions=await prepareModelInputs(plan,{placed,componentShells,shells,volumes,sources,geometryFailures});
+  generation.admit({...extensions,failures:[...extensions.processFailures,...extensions.geometryFailures]});
+  const sliced=finalizedSliceResults({...extensions,generation,onProgress});
+  if(extensions.materialRequirements.size)for(const result of sliced.results){
+    result.materialReadiness=[];
+    if(result.report.depositionFamily!=='slice')continue;
+    for(const layer of result.referenceStack?.layers??[]){
+      if(!layer.slice||!Array.isArray(layer.region))continue;
+      const material=await sliceMaterialSolids(prepareSliceMaterial(layer));
+      if(material)result.materialReadiness.push({...material,part:result.report.part??null,layerId:(result.stackId??result.id)+':layer:'+layer.index});
+    }
+  }
+  results.push(...sliced.results.map(result=>{
+    const id=result.report.owner,report=extensions.reports.get(id),requiredMaterial=extensions.materialRequirements.get(id);
+    return {...result,report:{...result.report,...report},operations:requiredMaterial?.length?result.operations.map(operation=>({...operation,requiredMaterial})):result.operations};
+  }));
   if(sliced.summary)summary.slices=sliced.summary;
   // Generation notes: what was not covered or failed, joining the print's limitations.
-  const notes=[...[...geometryFailures].map(([id,error])=>`${id} failed; it produces nothing. ${error.message}`),...extensions.notes,...sliced.notes];
+  const geometryNotes=[...new Set([...shells.flatMap(([,shell])=>shell.notes??[]),...[...volumes.values()].flatMap(values=>values.flatMap(value=>value?.notes??[]))])];
+  const notes=[...geometryNotes,...extensions.notes,...sliced.notes];
   if(notes.length)summary.limitations=notes;
   Object.assign(summary,extensionSummary(results));
-  const stacks=Object.fromEntries(['roof','terminal','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
+  const stacks=Object.fromEntries(['slice','normal'].map(kind=>[kind,results.filter(r=>r.report.referenceStackKind===kind).map(r=>({id:r.id,...r.report}))]).filter(([,items])=>items.length));
   if(Object.keys(stacks).length)summary.referenceStacks=stacks;
-  if(stacks.roof){const roofs=stacks.roof;summary.surfaceDomain={maxSlopeDeg:Math.min(...roofs.map(r=>r.limitDeg)),surfaceMaxSlopeDeg:Math.max(...roofs.map(r=>r.maxSlopeDeg)),excludedAreaPercent:Math.max(...roofs.map(r=>r.excludedFraction))*100};}
   const curves=results.filter(result=>result.report.construction==='curves');
   if(curves.length)summary.curves=curves.map(result=>({id:result.id,...result.report}));
-  return {results,summary,survey:null,shells};
-}
-
-// The recipe's dependency declarations apply to every construction, including
-// ordinary slice stacks produced before their later-stage dependents.
-export function applyDeclaredDependencies(plan,results){
-  const changes=[];
-  for(const result of results){
-    const assignment=plan.slices.assignments.find(a=>a.id===(result.report?.owner??result.id));
-    const dependencies=assignment?.dependencies;if(!dependencies)continue;
-    const prior=results.filter(other=>other!==result&&dependencies.afterParts.includes(other.report?.part));
-    const after=[...dependencies.after,...prior.flatMap(other=>other.operations.map(op=>op.id))];
-    for(const op of result.operations)if(after.length)changes.push({operationId:op.id,after,mode:'union'});
-    const before=results.filter(other=>other!==result&&dependencies.beforeParts.includes(other.report?.part));
-    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:result.operations.map(op=>op.id),mode:'union'});
-  }
-  return applyResultDependencies(results,changes);
-}
-
-// Dependency changes address operation IDs, which are unique within a composed
-// result batch. Apply ordered appends and ordered unions without changing earlier
-// stages' result, operation or prerequisite records. Geometry/policies stay shared.
-export function applyResultDependencies(results,dependencyChanges){
-  if(!dependencyChanges.length)return results;
-  const changesByOperation=new Map();
-  for(const change of dependencyChanges){
-    if(!changesByOperation.has(change.operationId))changesByOperation.set(change.operationId,[]);
-    changesByOperation.get(change.operationId).push(change);
-  }
-  return results.map(result=>{
-    let changed=false;
-    const operations=result.operations.map(operation=>{
-      const changes=changesByOperation.get(operation.id);
-      if(!changes)return operation;
-      changed=true;
-      let after=[...(operation.after??[])];
-      for(const change of changes){
-        if(change.mode==='union')after=[...new Set([...after,...change.after])];
-        else after.push(...change.after);
-      }
-      return {...operation,after};
-    });
-    return changed?{...result,operations}:result;
-  });
+  return {results,summary,survey:null,shells,plan:generation.retain(extensions.plan)};
 }
 
 export function summarizeGeneratedPath(placed,survey,modelSummary) {
@@ -154,7 +135,7 @@ export function summarizeGeneratedPath(placed,survey,modelSummary) {
   summary.composition=null;
 
   summary.boundsMm = placed?.bounds??null;
-  summary.clearance = 'Scheduler uses an effectively infinite 15 degree included-angle nozzle cone; carriage and machine mechanisms are unchecked.';
+  summary.clearance = 'Producers own internal deposition validity; scheduling resolves uncovered interference. Export checks transfers using the selected tool geometry.';
   summary.physicalValidation = 'not performed';
   if (survey&&!summary.surfaceDomain) summary.surfaceDomain = {
     maxSlopeDeg:survey.limitDeg, surfaceMaxSlopeDeg:survey.maxSlopeDeg,excludedAreaPercent:survey.steepFraction*100
@@ -190,25 +171,22 @@ export function depositionInspection(results){
 }
 
 export async function generatePath(plan, {onProgress,modulations,modulationPreparation=[]} = {}) {
-  plan=compileRecipe(plan).plan;
+  const compiled=compileRecipe(plan),generation=assignmentGeneration(compiled.intent,compiled.failures);
+  plan=compiled.plan;
   const authoredTemperatures=plannedNozzleTemperatures(plan);
-  const validation=await validateSelectedExtensionRecipe(plan),failedIds=new Set(validation.failures.map(failure=>failure.assignment));
-  const usable=validation.failures.length?{...plan,slices:{...plan.slices,assignments:plan.slices.assignments.filter(assignment=>!failedIds.has(assignment.id))},
-    skills:{...plan.skills,...(plan.skills?.['plastic-weld']?{'plastic-weld':{...plan.skills['plastic-weld'],sites:plan.skills['plastic-weld'].sites.filter(site=>!failedIds.has('plastic-weld:'+site.id))}}:{})}}:plan;
-  const geometry=await preparePathGeometry(usable);
-  const prepared={...geometry,geometryFailures:new Map([...validation.failures.map(failure=>[failure.assignment,Error(failure.message)]),...geometry.geometryFailures])};
-  plan=usable;
+  const validation=await validateSelectedExtensionRecipe(plan);
+  for(const failure of validation.failures)generation.fail(failure.assignment,Error(failure.message));
+  plan=generation.retain(plan);
+  const geometry=await preparePathGeometry(plan);
+  const prepared={...geometry,generation};
   const evaluated=modulations?{...plan,modulations}:plan;
   const materialAssignments=assignedFilaments(plan),defaultFilament=plan.setup.filament??materialAssignments[0]??null;
   const assigned=[...new Set([defaultFilament,...materialAssignments].filter(v=>v!==null&&v!==undefined))];
   const selections=materialAssignments.length?Object.fromEntries(assigned.map(i=>[i,filamentSelection(plan,i)])):null;
-  const prime=primeLineResult(plan);
   const model=await generateModelResults(evaluated,prepared,onProgress);
-  const complemented={...model,results:applyDeclaredDependencies(evaluated,model.results)};
-  const resultsWithPrime=prime?complemented.results.map(result=>({...result,operations:result.operations.map(operation=>({...operation,after:[...new Set([...prime.operations.map(op=>op.id),...(operation.after??[])])]}))})):complemented.results;
-  const primed=prime?{...complemented,results:[prime,...resultsWithPrime],summary:{...complemented.summary,primeLine:prime.report}}:complemented;
-  const {placed}=prepared,{results,survey}=primed,process=plan.process;
-  const summary=summarizeGeneratedPath(placed,survey,primed.summary);
+  const complemented=model;
+  const {placed}=prepared,{results,survey}=complemented,process=plan.process;
+  const summary=summarizeGeneratedPath(placed,survey,complemented.summary);
   summary.substrateAdaptation={experimental:true,enabled:plan.experimental.substrateAdaptation,
     sliceQueries:results.reduce((sum,result)=>sum+(result.report.substrateContactQueries??0),0),
     sliceHits:results.reduce((sum,result)=>sum+(result.report.contactSamples??0),0),
@@ -218,5 +196,5 @@ export async function generatePath(plan, {onProgress,modulations,modulationPrepa
   for(const result of results)for(const operation of result.operations)for(const target of [operation.nozzleC,operation.restoreNozzleC])
     if(target!==undefined)requireThat(authoredTemperatures.has(target),'Unplanned operation temperature.');
   return constructionPath({results,planning:{process,selection:selections?.[defaultFilament]??null,selections},
-    composition:plan.composition,summary,generatorVersion:VERSION});
+    composition:plan.composition,summary,generatorVersion:VERSION,onProgress});
 }

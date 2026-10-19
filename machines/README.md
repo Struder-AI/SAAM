@@ -35,29 +35,30 @@ clearance is rated: the X1 (10°) and H2D (15°) limits are user-chosen and expe
    (`materialChangeMode` `tool-swap` or `single-nozzle-ams` with `toolChangeLiftMm`
    permit material changes). Studio draws a gantry
    (`kinematics: "cartesian-fixed-vertical-nozzle"`) from the profile; any other machine needs
-   a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry).
+   a [kinematics plug](../core/export/DEVELOP.md#kinematics-plug) (`machine-kinematics` entry). `nozzleGeometry:{includedAngleDeg,tipDiameterMm,name,quality,source?,note?}` belongs on the profile or an overriding tool; flat diameter describes the external face, independently of the extrusion orifice. [Selection](../core/machine/nozzle.mjs) supplies each active material's nozzle to Export; an aggregate envelope only rejects distant candidates. Missing geometry uses the labelled 80° / 0.9 mm estimate; UltiMaker uses original CAD (90° / 1 mm), Bambu the owner's provisional 70° / 0.8 mm. Output retains the models and resolved execution; neutral source stays machine-independent. Heater blocks, parked tools and carriage remain outside this cone.
 2. **Adapter.** `createAdapter(Export)` returns
-   `{output, poses, settings:{key, validate, rows}, export(prepared, settings) → {bytes, report}}`.
+   `{output, poses, settings:{key, validate}, export(prepared, settings) → {bytes, report}}`.
    - `output` names `outputs[].id`; `poses: true` writes orientation, other outputs accept upright orientation.
    - `settings.key` names the block `plan.setup[key]`. Preparation reads its `initialPositionMm`
      and, when posed, `initialPose` and `retreatMm`.
      `validate({machine, setup, process, output}, {required})` throws on invalid values and,
-     when `required` (export), names unresolved ones; `rows` returns `[[label, text]]` for Studio.
-   - `export` receives [export-prepared motion](../core/export/prepare-path.mjs) and
-     `{machine, setup, process, output, release, defaultProcess}`; preparation adds startup,
-     priming, material-change lifts and axis-feed adaptation only at export; neutral SAAMpath and
-     Studio preview stay available. `report` holds `notice`, this print's `limitations`, optional written
-     `seconds`/`volumeMm3` and Studio facts; standing caveats belong in `SKILL.md`.
+     when `required` (export), names unresolved ones. Studio reads saved setup values; optional
+     profile `settingsLabels` maps dotted setup paths to presentation labels.
+   - `export` receives [prepared motion](../core/export/prepare-path.mjs), whose `actions` are a repeatable iterable,
+     and `{machine, setup, process, output, release, defaultProcess}`. Preparation streams startup,
+     priming, material changes and axis-feed adaptation. `report` holds `notice`, print-specific `limitations`,
+     optional written `seconds`/`volumeMm3` and Studio facts; standing caveats belong in `SKILL.md`.
      Core adds totals and the [short-travel advisory](../core/export/README.md#short-travel-advisory).
-     Bundle stores the report; reopening and delivery run no adapter code.
+     Export returns bytes for download and records report facts in a receipt. Bundle stores
+     no programs or machine execution; reopening runs no program adapter.
    - `Export` supplies shared SAAM operations: `number` (XYZ to 0.001 mm), `slackMm`,
      `gcodeMotion(prepared, settings, options)` (written lines/totals; filament E to five decimals with residual carry),
      `packZip`, `unpackZip`, `crc32`, `encodePng`, `temperatureC` and
      `frame` and `kinematics` (stateless numeric math/dimensions). Adapters import their own files
      and use ordinary runtime APIs; this boundary supplies their SAAM inputs.
 3. **Verification.** Optional `machine-verify` exports `verify(bytes, plan, machine, Export)`;
-   `node scripts/machine-verify.mjs BUNDLE_DIR` interprets written bytes against the stored report.
-4. **Contract.** `SKILL.md` states what the output contains, its settings, vendor evidence and trials.
+   `node scripts/machine-verify.mjs BUNDLE_DIR` writes transient bytes and compares its optional interpretation with writer facts.
+4. **Contract.** `SKILL.md` owns output, settings, evidence and trials.
 
 | # | Owner-approved standard (2026-10-12) |
 |---|---|

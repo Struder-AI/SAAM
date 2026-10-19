@@ -5,7 +5,7 @@ study and open it with the normal Studio launcher:
 
 ```sh
 node tools/kinematics/create-study.mjs ultimaker-s5 Prints/development/s5-studio
-node studio/server.mjs Prints/development/s5-studio
+saam --code-root . open Prints/development/s5-studio
 ```
 
 Supported IDs are `dobot-mg400`, `denso-vs068a4-rc8a`,

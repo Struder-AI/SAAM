@@ -5,21 +5,14 @@ import {heatSetFeature,dimensions,borePoint} from './feature.mjs';
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const bounds=loops=>[0,1].map(k=>[Math.min(...loops.flat().map(p=>p[k])),Math.max(...loops.flat().map(p=>p[k]))]);
 
-// Ordinary authored mesh for the finite insert seat. The host's bore may
-// continue through the part; reinforcement stays on the selected insert seat.
-function seatMesh(feature,shift,toleranceMm){
+// The finite seat uses the bore's shared radial Geometry construction.
+// Its depth remains independent of through/outward clearance.
+function seatGeometry(feature,shift,Geometry){
   const {diameterMm,depthMm}=dimensions(feature),radius=diameterMm/2;
-  const count=Math.max(32,Math.ceil(Math.PI/Math.acos(Math.max(-1,1-toleranceMm/radius))));
-  const rings=feature.chamferDepthMm>0?[[-depthMm,radius],[-feature.chamferDepthMm,radius],
-    [0,radius+feature.chamferDepthMm*Math.tan(feature.chamferAngleDeg*Math.PI/180)]]:[[-depthMm,radius],[0,radius]];
-  const vertices=rings.flatMap(([s,r])=>Array.from({length:count},(_,i)=>borePoint(feature,r,2*Math.PI*i/count,s).map((v,k)=>v+shift[k]))),triangles=[];
-  const last=(rings.length-1)*count;
-  for(let i=1;i<count-1;i++)triangles.push([0,i+1,i],[last,last+i,last+i+1]);
-  for(let ring=0;ring<rings.length-1;ring++)for(let i=0;i<count;i++){
-    const a=ring*count+i,b=ring*count+(i+1)%count,c=a+count,d=b+count;
-    triangles.push([a,b,d],[a,d,c]);
-  }
-  return {vertices,triangles};
+  const profile=[[0,radius+feature.chamferDepthMm*Math.tan(feature.chamferAngleDeg*Math.PI/180)]];
+  if(feature.chamferDepthMm>0)profile.push([feature.chamferDepthMm,radius]);
+  profile.push([depthMm,radius]);
+  return Geometry.buildGeometry(Geometry.revolvedProfile({positionMm:feature.positionMm.map((value,k)=>value+shift[k]),axis:feature.axis,profile}));
 }
 
 // These are zero-thickness construction sheets fixed in the bore frame.
@@ -36,20 +29,40 @@ export function heatSetFinSheets(feature,shift=[0,0,0]){
   });
 }
 
+// A two-bead fin must retain at least half a bead of overlap between layers.
+// The local across-fin drift is normal layer gap * cot(sheet/slice angle).
+function finRetainsOverlap(sheet,cut,source,width,Geometry){
+  const [a,b]=sheet.controlPoints[0],c=sheet.controlPoints[1][0];
+  const u=b.map((v,k)=>v-a[k]),v=c.map((x,k)=>x-a[k]);
+  const cross=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+  const length=Math.hypot(...cross),normal=cross.map(x=>x/length);
+  const direction=source.direction,step=source.translationMm;
+  const dot=(a,b)=>a.reduce((sum,x,k)=>sum+x*b[k],0);
+  return cut.curves.every(curve=>curve.points.every((point,i)=>{
+    const samples=i?[point,point.map((x,k)=>(x+curve.points[i-1][k])/2)]:[point];
+    return samples.every(uv=>{
+      const n=Geometry.evaluateSurface(source.slice,uv).normal;
+      if(!n)return false;
+      const cosine=Math.min(1,Math.abs(dot(normal,n))),sine=Math.sqrt(Math.max(0,1-cosine*cosine));
+      const gap=direction&&Number.isFinite(step)?step*Math.abs(dot(n,direction))/Math.hypot(...direction):source.heightMm??source.process.layerMm;
+      return sine>0&&1.5*width*sine>=gap*cosine;
+    });
+  }));
+}
+
 export function heatSetTraceSource({Geometry,Toolpath}){
-  const needed=['makeMesh','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','union','intersect','difference','loopArea','regionArea'];
+  const needed=['buildGeometry','revolvedProfile','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','evaluateSurface','union','intersect','difference','loopArea','regionArea'];
   requireThat(needed.every(k=>typeof Geometry[k]==='function'),'Heat-set reinforcement needs the general Geometry layer-source connectors.');
   requireThat(typeof Toolpath?.fillSliceRegion==='function','Heat-set blind pads need the general Toolpath region-fill connector.');
   const cache=new Map();
   return {constructLayer({source,parameters}){
     requireThat(parameters&&Object.keys(parameters).every(k=>['feature','toleranceMm'].includes(k)),'Heat-set Trace source needs an editable feature and bore tolerance.');
-    const toleranceMm=parameters.toleranceMm??.01;
+    const toleranceMm=parameters.toleranceMm??Geometry.dimensions.CONSTRUCTION_TOLERANCE_MM;
     requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Heat-set bore tolerance must be positive.');
     const feature=heatSetFeature(parameters.feature),shift=source.placement?.offset??[0,0,0];
     const key=JSON.stringify([feature,shift,toleranceMm]);let construction=cache.get(key);
     if(!construction){
-      const mesh=seatMesh(feature,shift,toleranceMm);
-      construction={seat:Geometry.makeMesh(mesh.vertices,mesh.triangles),sheets:heatSetFinSheets(feature,shift)};
+      construction={seat:seatGeometry(feature,shift,Geometry),sheets:heatSetFinSheets(feature,shift)};
       cache.set(key,construction);
     }
     const {slice,settings,process}=source,width=source.widthMm??process.lineWidthMm,pitch=source.pitchMm??width*settings.spacingFactor;
@@ -78,15 +91,19 @@ export function heatSetTraceSource({Geometry,Toolpath}){
     const first=loops&&inherited?Math.max(pitch,((inherited.beadWidthMm??width)+width)/2):
       loops?Math.max(inset+loops*pitch,wallBand+width/2):width/2;
     const curves=[],clipping=[],notes=[];
-    let finCount=0;
-    for(let i=0;seat.length&&i<added;i++){
+    let finCount=0,skippedShallowFins=0;
+    // Fin sheets can cross a layer that misses the seat entirely (for example,
+    // above or below a sideways bore). They still contribute on that layer.
+    for(let i=0;i<added;i++){
       let outline=Geometry.offsetSliceRegion(slice,origin,first+i*pitch,options);
       if(i===added-1&&construction.sheets.length){
         let finRegion=[];
         for(const sheet of construction.sheets){
           const cut=Geometry.intersectSurfaceSheet(slice,sheet,options);
           if(cut.report?.notes?.length)notes.push(...cut.report.notes);
+          if(cut.report?.coincident){skippedShallowFins++;continue;}
           if(!cut.curves.length)continue;
+          if(!finRetainsOverlap(sheet,cut,source,width,Geometry)){skippedShallowFins++;continue;}
           const footprint=Geometry.strokeSliceRegion(slice,cut.curves,width/2,options).loops;
           // A physical half-width buffer gives the two fin bead centerlines,
           // separated by one bead width. Union joins their return into the wall.
@@ -96,6 +113,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         }
         if(finRegion.length)outline=Geometry.union(outline,finRegion);
       }
+      if(!outline.length)continue;
       const requested=outline.map(points=>({closed:true,points}));
       const clipped=Geometry.clipSliceCurves(slice,requested,room,options);
       clipping.push(clipped.report);
@@ -110,26 +128,47 @@ export function heatSetTraceSource({Geometry,Toolpath}){
       const count=Math.max(settings.solidTop,settings.solidBottom);
       const gap=source.heightMm??process.layerMm,thickness=count*gap;
       if(thickness>0){
-        const {diameterMm,depthMm}=dimensions(feature),floor=borePoint(feature,0,0,-depthMm);
-        const padRadius=diameterMm/2+Math.max(feature.finLengthMm+width,total*pitch+width/2);
-        const guide={...feature,positionMm:floor,depthMm:thickness,diameterAdjustmentMm:2*padRadius-diameterMm+feature.diameterAdjustmentMm,
-          chamferDepthMm:0};
-        const key=JSON.stringify(['pad',guide,shift,toleranceMm]);let volume=cache.get(key);
-        if(!volume){const mesh=seatMesh(guide,shift,toleranceMm);volume=Geometry.makeMesh(mesh.vertices,mesh.triangles);cache.set(key,volume);}
-        let region=Geometry.intersect(Geometry.section(volume,slice).loops,room);
-        const dense=source.denseRegion?.length?Geometry.offsetSliceRegion(slice,source.denseRegion,width/2,options):[];
-        region=Geometry.difference(region,dense);
-        if(region.length){
-          const filled=Toolpath.fillSliceRegion(region,{source,role:'heat-set-base-pad'});
-          curves.push(...filled.curves);
-          pad={radiusMm:padRadius,depthMm:thickness,solidLayers:count,curves:filled.curves.length,
-            fill:filled.report,denseCoverageExcluded:true};
+        const {diameterMm,depthMm}=dimensions(feature),floor=borePoint(feature,0,0,-depthMm).map((v,k)=>v+shift[k]);
+        const radius=diameterMm/2+Math.max(feature.finLengthMm+width,total*pitch+width/2),bead=Math.min(width,thickness);
+        const passes=Math.max(1,Math.ceil(thickness/width)),axis=feature.axis.map(v=>v/Math.hypot(...feature.axis));
+        const offsets=Array.from({length:passes},(_,i)=>passes===1?thickness/2:bead/2+i*(thickness-bead)/(passes-1));
+        const key=JSON.stringify(['pad-disks',floor,axis,radius,offsets]);let backing=cache.get(key);
+        if(!backing){
+          const disk=offset=>Geometry.revolvedProfile({positionMm:floor.map((v,k)=>v+offset*axis[k]),axis,
+            profile:[[0,radius],[bead,radius]]}).patches.find(patch=>patch.name==='revolution-start');
+          backing={disks:offsets.map(disk),middle:disk(thickness/2)};cache.set(key,backing);
         }
+        const dense=source.denseRegion?.length?Geometry.offsetSliceRegion(slice,source.denseRegion,bead/2,options):[];
+        const padRoom=Geometry.difference(room,dense),before=curves.length;
+        let fill=null;
+        // Parallel layers own the finite backing band's area. Crossing layers
+        // trace the disk sheets directly, without filling narrow volume slivers.
+        const parallel=Geometry.intersectSurfaceSheet(slice,backing.middle,{...options,parallelBandMm:thickness/2});
+        if(parallel.report?.coincident){
+          const region=Geometry.intersect(parallel.regionsUv??[],padRoom);
+          if(region.length){
+            const filled=Toolpath.fillSliceRegion(region,{source:{...source,widthMm:bead},role:'heat-set-base-pad'});
+            curves.push(...filled.curves);fill=filled.report;
+          }
+        }else for(const disk of backing.disks){
+          const cut=Geometry.intersectSurfaceSheet(slice,disk,options);
+          if(cut.regionsUv?.length){
+            const region=Geometry.intersect(cut.regionsUv,padRoom);
+            if(region.length){const filled=Toolpath.fillSliceRegion(region,{source:{...source,widthMm:bead},role:'heat-set-base-pad'});curves.push(...filled.curves);fill=filled.report;}
+          }else if(cut.curves.length){
+            const clipped=Geometry.clipSliceCurves(slice,cut.curves,padRoom,options);clipping.push(clipped.report);
+            curves.push(...clipped.curves.map(curve=>({closed:curve.closed,
+              uv:{reference:{kind:'slice',assignment:source.stackId,index:source.index},points:curve.points},
+              role:'heat-set-base-pad',beadWidthMm:bead,sampleStepMm:settings.sampleStepMm})));
+          }
+        }
+        if(curves.length>before)pad={radiusMm:radius,depthMm:thickness,solidLayers:count,disks:passes,widthMm:bead,
+          curves:curves.length-before,fill,denseCoverageExcluded:true};
       }
     }
     if(feature.finWidthMm!==null)notes.push('Legacy finWidthMm is retained for reading; the star uses two touching beads at the inherited layer width.');
-    return {curves,report:{feature:feature.id,sourceLoops:loops,targetLoops:total,addedLoops:added,curves:curves.length,openFragments:curves.filter(c=>!c.closed).length,
-      pad,outsideSeat:!seat.length,finIntersections:finCount,finSheets:construction.sheets.length,widthMm:width,pitchMm:pitch,clipping,notes,
+    return {curves,sliceMember:true,report:{feature:feature.id,sourceLoops:loops,targetLoops:total,addedLoops:added,curves:curves.length,openFragments:curves.filter(c=>!c.closed).length,
+      pad,outsideSeat:!seat.length,finIntersections:finCount,skippedShallowFins,finSheets:construction.sheets.length,widthMm:width,pitchMm:pitch,clipping,notes,
       boreBoundary:matched.length?'source material hole':'open cutter section',infillOverlap:'added walls and star fins intentionally overlap the unchanged main infill'}};
   }};
 }

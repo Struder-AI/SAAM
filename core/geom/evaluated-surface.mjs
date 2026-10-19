@@ -1,30 +1,32 @@
 import {evaluateSurface} from './surface-evaluation.mjs';
 
 import {cross,dot,requireThat,distance,TOLERANCE} from './tolerance.mjs';
-import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 
 // Plain slice descriptors retain their native geometry. Numerical derivatives
 // supply the metric only where no analytic chart derivatives are available.
-export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=.01/* process scale: default derivative accuracy, ten times print resolution */}={}){
+export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=CONSTRUCTION_TOLERANCE_MM/* process scale: default derivative accuracy, ten times print resolution */}={}){
   const domains=[surface.domainU,surface.domainV],coordinates=[u,v];
   requireThat(domains.every((d,k)=>coordinates[k]>=d[0]-TOLERANCE.parameter&&coordinates[k]<=d[1]+TOLERANCE.parameter),'Evaluated surface sample leaves its chart domain.');
   [u,v]=coordinates.map((x,k)=>Math.max(domains[k][0],Math.min(domains[k][1],x)));coordinates[0]=u;coordinates[1]=v;
+  if(surface.at?.derivatives)return surface.at.derivatives(u,v,{normalMm,toleranceMm});
   const pointAt=(a,b)=>evaluateSurface(surface.slice??surface,[a,b],normalMm).point;
   const point=pointAt(u,v);
   const stencil=(axis,h)=>{
     const x=coordinates[axis],domain=domains[axis],center=Math.max(domain[0]+h,Math.min(domain[1]-h,x));
     const nodes=[center-h,center,center+h];
-    requireThat(nodes[0]<nodes[1]&&nodes[1]<nodes[2],'Evaluated surface derivative cannot resolve chart coordinates.');
+    if(!(nodes[0]<nodes[1]&&nodes[1]<nodes[2]))throw Object.assign(Error('Surface derivative cannot reach requested accuracy at chart-coordinate precision.'),
+      {code:'SURFACE_DERIVATIVE_UNRESOLVED',uv:[u,v],axis,toleranceMm});
     const samples=nodes.map(t=>pointAt(axis===0?t:u,axis===1?t:v));
     const weights=nodes.map((a,i)=>{const b=nodes[(i+1)%3],c=nodes[(i+2)%3],den=(a-b)*(a-c);return [(2*x-b-c)/den,2/den];});
     return {first:[0,1,2].map(k=>samples.reduce((sum,p,i)=>sum+p[k]*weights[i][0],0)),second:[0,1,2].map(k=>samples.reduce((sum,p,i)=>sum+p[k]*weights[i][1],0)),h};
   };
   const derivative=axis=>{
-    const span=domains[axis][1]-domains[axis][0];let h=span/128,previous=stencil(axis,h);
+    const span=domains[axis][1]-domains[axis][0],state={h:span/128,previous:stencil(axis,span/128)};
     for(;;){
-      const next=stencil(axis,h/2),firstError=distance(previous.first,next.first)*h,secondError=distance(previous.second,next.second)*h*h;
+      const next=stencil(axis,state.h/2),firstError=distance(state.previous.first,next.first)*state.h,secondError=distance(state.previous.second,next.second)*state.h*state.h;
       if(Math.max(firstError,secondError)<=toleranceMm/16)return next;
-      h/=2;previous=next;
+      state.h/=2;state.previous=next;
     }
   };
   const U=derivative(0),V=derivative(1),hu=U.h,hv=V.h;

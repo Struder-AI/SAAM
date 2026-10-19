@@ -6,7 +6,7 @@ export const SLICE_PRESETS=Object.freeze({brim:{loops:5,fillDensity:0,solidTop:0
 export function ordinarySliceAssignment({id,part=null,preset=null,...overrides}){
   requireThat(preset===null||Object.hasOwn(SLICE_PRESETS,preset),`Unknown slice preset ${preset}.`);
   return structuredClone({id,part,preset,filament:null,process:null,...SLICE_DEFAULTS,within:[],surface:{kind:'horizontal'},stack:null,join:null,fillOrder:null,contact:null,toolPose:null,
-    dependencies:{afterParts:[],beforeParts:[],after:[]},description:'',...(preset?SLICE_PRESETS[preset]:{}),...overrides,...(overrides.toolPose?{toolPose:{alignToSliceNormal:false,...overrides.toolPose}}:{})});
+    substrate:null,dependencies:{afterParts:[],beforeParts:[],after:[]},description:'',...(preset?SLICE_PRESETS[preset]:{}),...overrides,...(overrides.toolPose?{toolPose:{alignToSliceNormal:false,...overrides.toolPose}}:{})});
 }
 
 // Canonical family drives both generation routing and pre-generation discovery.

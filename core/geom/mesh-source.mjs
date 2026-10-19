@@ -20,7 +20,7 @@ const indexedGeometry=geometry=>Array.isArray(geometry?.vertices)&&Array.isArray
 function retainedMeshes(geometry,meshes){
   if(!geometry)return;
   if(indexedGeometry(geometry))meshes.push(geometry);
-  else if(geometry.shape==='spatial')retainedMeshes(geometry.solid,meshes);
+  else if(geometry.solid)retainedMeshes(geometry.solid,meshes);
   else if(geometry.shape==='assembly')for(const part of geometry.parts)retainedMeshes(part.geometry,meshes);
   else if(geometry.shape==='boolean')for(const operand of geometry.operands)retainedMeshes(operand,meshes);
 }
@@ -35,7 +35,7 @@ export function normalizeAuthoredGeometry(geometry,previous){
   const admitted=[],reports=[];retainedMeshes(previous,admitted);
   function normalize(value,path){
     if(!value)return value;
-    if(value.shape==='spatial'){const solid=normalize(value.solid,path+'/solid');return solid===value.solid?value:{...value,solid};}
+    if(value.solid||value.shape==='spatial'){const solid=normalize(value.solid,path+'/solid');return solid===value.solid?value:{...value,solid};}
     if(value.shape==='assembly'){
       const parts=value.parts.map(part=>{const geometry=normalize(part.geometry,path+'/parts/'+part.id);return geometry===part.geometry?part:geometry?{...part,geometry}:null;}).filter(Boolean);
       return parts.every((part,i)=>part===value.parts[i])&&parts.length===value.parts.length?value:{...value,parts};

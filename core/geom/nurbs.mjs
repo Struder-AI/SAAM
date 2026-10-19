@@ -13,11 +13,36 @@
 import { requireThat, cross, length, TOLERANCE } from './tolerance.mjs';
 import { ROUNDING_MM } from '../dimensions.mjs';
 
+// Straight/ruled geometry is linear; curved geometry is quadratic or cubic.
+export function requireSplineDegree(degree){
+  requireThat(degree===1||degree===2||degree===3,'Spline degree must be 1 (straight/ruled), 2 or 3; use more quadratic/cubic spans for additional shape detail.');
+}
+
+// Admit the shared positive-weight, full-knot authored curve representation.
+export function authoredNurbs(record,dimension=3){
+  requireThat(record&&Object.keys(record).every(k=>['degree','knots','controlPoints','weights'].includes(k)),'Unexpected NURBS curve fields.');
+  const {degree,knots,controlPoints,weights}=record;
+  requireSplineDegree(degree);
+  requireThat(Number.isInteger(degree)&&degree>=1&&Array.isArray(controlPoints)&&controlPoints.length>degree&&
+    controlPoints.every(p=>Array.isArray(p)&&p.length===dimension&&p.every(Number.isFinite)),'NURBS needs a degree and finite control points.');
+  const n=controlPoints.length,order=degree+1;
+  requireThat(Array.isArray(knots)&&knots.length===n+order&&knots.every((k,i)=>Number.isFinite(k)&&(!i||k>=knots[i-1]))&&knots[n]>knots[degree],'NURBS needs a full increasing knot domain.');
+  requireThat(weights===undefined||Array.isArray(weights)&&weights.length===n&&weights.every(w=>Number.isFinite(w)&&w>0),'NURBS weights must be positive.');
+  return {n,order,knots:Float64Array.from(knots),domain:[knots[degree],knots[n]],cp:Float64Array.from(controlPoints.flatMap((p,i)=>{
+    const w=weights?.[i]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}))};
+}
+
+export function nurbsCurveRecord(curve,dimension=3){
+  requireSplineDegree(curve.order-1);
+  return {degree:curve.order-1,knots:[...curve.knots],controlPoints:Array.from({length:curve.n},(_,i)=>Array.from({length:dimension},(_,k)=>curve.cp[i*4+k]/curve.cp[i*4+3])),weights:Array.from({length:curve.n},(_,i)=>curve.cp[i*4+3])};
+}
+
 export function patchFromSurface(surface, name = 'patch') {
   const ns = surface.toNurbsSurface();
   requireThat(ns, `Surface "${name}" has no NURBS form.`);
   const points = ns.points(), nu = points.countU, nv = points.countV;
   const orderU = ns.orderU, orderV = ns.orderV;
+  requireSplineDegree(orderU-1);requireSplineDegree(orderV-1);
   const cp = new Float64Array(nu * nv * 4);
   for (let i = 0; i < nu; i++) {
     for (let j = 0; j < nv; j++) {
@@ -44,6 +69,7 @@ function fullKnots(list, count, order, name) {
 }
 
 export function findSpan(knots, count, order, t) {
+  requireSplineDegree(order-1);
   const degree = order - 1, low = degree, high = count;
   if (t >= knots[high]) return high - 1;
   if (t <= knots[low]) return low;
@@ -57,7 +83,19 @@ export function findSpan(knots, count, order, t) {
 
 // Basis functions and their derivatives (The NURBS Book, algorithm A2.3).
 export function basisDerivatives(knots, span, t, order, count) {
+  requireSplineDegree(order-1);
   const degree = order - 1;
+  if(count===0)return [basisFunctions(knots,span,t,order)];
+  // First derivatives are differences of adjacent lower-degree bases. Most
+  // surface queries need only these, so omit the higher derivative tableau.
+  if(count===1){
+    const values=basisFunctions(knots,span,t,order),lower=order===2?Float64Array.of(1):basisFunctions(knots,span,t,order-1),first=new Float64Array(order);
+    for(let i=0;i<order;i++){
+      const index=span-degree+i,left=knots[index+degree]-knots[index],right=knots[index+degree+1]-knots[index+1];
+      first[i]=(i>0&&left>0?degree*lower[i-1]/left:0)-(i<degree&&right>0?degree*lower[i]/right:0);
+    }
+    return [values,first];
+  }
   const ndu = [], a = [[], []], left = [], right = [], ders = [];
   for (let i = 0; i <= degree; i++) ndu.push(new Float64Array(degree + 1));
   ndu[0][0] = 1;
@@ -105,6 +143,7 @@ export function basisDerivatives(knots, span, t, order, count) {
 // sectioner evaluates g millions of times per part and needs no derivatives, so
 // this path avoids the derivative table entirely.
 export function basisFunctions(knots, span, t, order) {
+  requireSplineDegree(order-1);
   const out = new Float64Array(order);
   out[0] = 1;
   for (let j = 1; j < order; j++) {
@@ -124,6 +163,10 @@ export function basisFunctions(knots, span, t, order) {
 
 // Point, first derivatives and unit normal at (u, v). Rational surfaces use the
 // quotient rule on the homogeneous form.
+// Chart grids repeat one coordinate while advancing the other. Retain just the
+// last basis in each direction of an immutable prepared patch, with fixed
+// storage independent of the number of queries and no coordinate quantization.
+const surfaceBases=new WeakMap();
 export function evaluate(patch, u, v, wantDerivatives = true) {
   const { nu, nv, orderU, orderV, knotsU, knotsV, cp } = patch;
   const du = clamp(u, patch.domainU), dv = clamp(v, patch.domainV);
@@ -141,8 +184,11 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
     }
     return { point: [sw[0] / sw[3], sw[1] / sw[3], sw[2] / sw[3]] };
   }
-  const bu = basisDerivatives(knotsU, spanU, du, orderU, 1);
-  const bv = basisDerivatives(knotsV, spanV, dv, orderV, 1);
+  const cached=surfaceBases.get(patch)??{};
+  if(!surfaceBases.has(patch))surfaceBases.set(patch,cached);
+  if(cached.u?.parameter!==du||cached.u.span!==spanU)cached.u={parameter:du,span:spanU,values:basisDerivatives(knotsU,spanU,du,orderU,1)};
+  if(cached.v?.parameter!==dv||cached.v.span!==spanV)cached.v={parameter:dv,span:spanV,values:basisDerivatives(knotsV,spanV,dv,orderV,1)};
+  const bu=cached.u.values,bv=cached.v.values;
   for (let i = 0; i < orderU; i++) {
     const iu = spanU - orderU + 1 + i;
     for (let j = 0; j < orderV; j++) {

@@ -2,6 +2,7 @@
 // One edge sweep serves parity chords, winding fill and material contact queries.
 import {requireThat} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {curveLoopLineCuts} from './curve-loops.mjs';
 
 export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infinity],fillRule='nonzero'}={}){
   requireThat([origin,direction].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)),
@@ -11,7 +12,9 @@ export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infini
   requireThat(Array.isArray(range)&&range.length===2&&range.every(t=>typeof t==='number'&&!Number.isNaN(t))&&range[0]<=range[1]
     &&range[0]<Infinity&&range[1]>-Infinity,'Line clipping needs an ordered parameter range.');
   requireThat(fillRule==='nonzero'||fillRule==='evenodd','Line clipping needs nonzero or evenodd fill.');
-  requireThat(Array.isArray(loops)&&loops.every(loop=>Array.isArray(loop)&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))),
+  requireThat(Array.isArray(loops),'Line clipping needs finite 2D region loops.');
+  if(loops.some(loop=>!Array.isArray(loop)))return clipNativeLoopLine(origin,direction,loops,range,fillRule);
+  requireThat(loops.every(loop=>Array.isArray(loop)&&loop.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))),
     'Line clipping needs finite 2D region loops.');
   const project=p=>{
     const x=p[0]-origin[0],y=p[1]-origin[1];
@@ -49,6 +52,9 @@ export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infini
     // A singleton range is a point-membership query with the same half-open rule.
     if(lo<hi||(range[0]===range[1]&&a<=range[0]&&range[0]<b))spans.push([lo,hi]);
   }
+  return {spans,contacts:mergedLineContacts(contacts)};
+}
+function mergedLineContacts(contacts){
   contacts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
   const merged=[];
   for(const span of contacts){
@@ -56,7 +62,25 @@ export function clipLineToRegion(origin,direction,loops,{range=[-Infinity,Infini
     if(last&&span[0]<=last[1])last[1]=Math.max(last[1],span[1]);
     else merged.push(span);
   }
-  return {spans,contacts:merged};
+  return merged;
+}
+
+function clipNativeLoopLine(origin,direction,loops,range,fillRule){
+  const native=curveLoopLineCuts(origin,direction,loops),cuts=[...native.cuts,...range.filter(Number.isFinite)].sort((a,b)=>a-b),ordered=[];
+  for(const t of cuts)if(!ordered.length||Math.abs(t-ordered.at(-1))>ROUNDING_RELATIVE*Math.max(1,Math.abs(t)))ordered.push(t);
+  const contains=t=>{const winding=native.winding(origin.map((v,k)=>v+t*direction[k]));return fillRule==='nonzero'?winding!==0:Math.abs(winding)%2===1;};
+  const spans=[];
+  if(range[0]===range[1]){if(contains(range[0]))spans.push([...range]);}
+  else for(let i=1;i<ordered.length;i++){
+    const lo=Math.max(ordered[i-1],range[0]),hi=Math.min(ordered[i],range[1]);
+    if(hi>lo&&contains((lo+hi)/2))spans.push([lo,hi]);
+  }
+  const contacts=native.contacts.flatMap(([a,b])=>{
+    const lo=Math.max(a,range[0]),hi=Math.min(b,range[1]),guard=ROUNDING_RELATIVE*Math.max(1,Math.abs(a),Math.abs(b));
+    if(lo<=hi)return [[lo,hi]];
+    return lo-hi<=guard?[[Math.max(range[0],Math.min(range[1],(lo+hi)/2)),Math.max(range[0],Math.min(range[1],(lo+hi)/2))]]:[];
+  });
+  return {spans,contacts:mergedLineContacts(contacts)};
 }
 
 // Clip an authored planar centerline to material, retaining its traversal and

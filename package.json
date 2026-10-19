@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "SAAM development: composable toolpath skills with horizontal slices and draped-skin shell slicing across shared machine output.",
+  "description": "SAAM development: composable toolpath skills with planar and nonplanar shell slicing across shared machine output.",
   "scripts": {
     "setup:check": "node scripts/setup-check.mjs",
     "test": "node --test core/tests/*.test.mjs skills/*/tests/*.test.mjs",
@@ -17,7 +17,7 @@
   },
   "license": "Apache-2.0",
   "saam": {
-    "contract": 2
+    "contract": 3
   },
   "dependencies": {
     "clipper2-wasm": "0.4.0",

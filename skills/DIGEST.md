@@ -14,7 +14,7 @@ person asks: `read_skill ID#heading`, otherwise `read_guidance`.
 |---|---|
 | [slice](slice/SKILL.md) | Deposit loops and fill in owned regions over slice stacks. |
 | [trace](trace/SKILL.md) | Deposit along explicit XYZ, NURBS or surface UV curves with varying bead and process. |
-| [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow, vertical approach and hold. |
+| [inject](inject/SKILL.md) | Deposit at points, authored directly or supplied by skills, with explicit volume, flow and hold. |
 
 ## Guidance manuals
 
@@ -24,6 +24,9 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 |---|---|
 | [line-network](line-network/SKILL.md) | Guidance for sparse frames and trusses made from Trace centerlines. |
 | [hole-supports](hole-supports/SKILL.md) | Experimental. Downward-hole printing with removable supports, a drill-through membrane, stepped reduction or wave fronts. |
+| [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for axial or helical coatings using ordinary Slice over a selected surface. |
+| [thick-lip](thick-lip/SKILL.md) | Guidance for thickened or rolled edges made with ordinary Slice or Trace. |
+| [wave-overhangs](wave-overhangs/SKILL.md) | Guidance for lateral overhangs using the shared printed-base/final-edge wave construction. |
 
 ## Extensions
 
@@ -31,11 +34,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 |---|---|
 | [advanced-vase-wall](advanced-vase-wall/SKILL.md) | Extension that fits a sleeve, repeats authored patterns and calls Trace. |
 | [vase-wall](vase-wall/SKILL.md) | Extension for a continuous Trace spiral wall and optional solid base. |
-| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, including attachment motions. |
-| [draped-skin](draped-skin/SKILL.md) | Extension for roof-following Slice stacks and their contact with prior material. |
-| [wave-overhangs](wave-overhangs/SKILL.md) | Extension for experimental seeded-front fill on ordinary Slice stacks. |
-| [thick-lip](thick-lip/SKILL.md) | Extension for making a thickened or rolled edge with Slice or Trace. |
-| [pipe-cladding](pipe-cladding/SKILL.md) | Extension for experimental axial or helical Slice coatings on periodic surface references. |
+| [bridging](bridging/SKILL.md) | Extension for Trace spans between supporting rims, using the shared geometric-edge construction. |
 | [plastic-weld](plastic-weld/SKILL.md) | Experimental. Rivets of molten plastic injected into blind shafts across layers, placed individually or staggered through a solid body. |
 | [heat-set-inserts](heat-set-inserts/SKILL.md) | Catalog heat-set bores with reinforcement following actual Slice layers. |
 | [text](text/SKILL.md) | Raised or recessed lettering on a part, or standalone text, from an outline font; flat, along a spline, or bent onto a surface. |
@@ -43,7 +42,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [standard-support](standard-support/SKILL.md) | Experimental authored supports from a selected underside, flat footprint or tree skeleton, closed to the bed and sliced infill-only. |
-| [hole-transitions](hole-transitions/SKILL.md) | Experimental. Add stepped-reduction bridge courses or a seeded wave shoulder around a retained bore using ordinary Slice. |
+| [hole-transitions](hole-transitions/SKILL.md) | Experimental. Edge-based membranes and advancing shoulders, with stepped reduction. |
 
 ## Workspace extensions
 

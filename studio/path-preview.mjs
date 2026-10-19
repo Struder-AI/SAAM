@@ -1,4 +1,6 @@
 import {contextualActions} from '../core/path/action-context.mjs';
+import {pathInitialPosition,pathInitialPose,pathSummary,PATH_VIEW_TOLERANCES} from '../core/path/curve-path.mjs';
+import {PRINT_RESOLUTION_MM} from '../core/dimensions.mjs';
 // Studio draws the SAAMpath, never a machine program: the completed output's,
 // else the saved one, at its placement (readDrawnPath), or a mechanism study's
 // authored motion. Times are the path's own requested timing.
@@ -17,12 +19,17 @@ export const loadSavedPath=state=>state.review?.path?loadPathPreview(state,{id:s
 const UPRIGHT={toolAxis:[0,0,-1],toolUp:[0,1,0]};
 // A move without its own line width has its material's (a filament process override), else the recipe's.
 export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
-  if(path?.schema!=='saampath/1'||!Array.isArray(path.actions)||!Array.isArray(path.initialPosition))throw Error('Invalid saved SAAMpath.');
+  if(!Array.isArray(pathInitialPosition(path))||!(path?.deposition&&path.schedule||['saampath/1','saam-export-prepared/1'].includes(path?.schema)&&path.actions))throw Error('Invalid saved SAAMpath.');
   const width=(action,filament)=>action.beadWidthMm??action.lineWidthMm??plan?.setup?.filaments?.[filament]?.process?.lineWidthMm??NaN;
-  const metadata=path.summary?.inspection??inspection;
-  const events=[];let position=path.initialPosition,pose=path.initialPose??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
-  const posed=Boolean(pose)||path.actions.some(a=>a.pose);
-  for(const {action,context,index:line} of contextualActions(path)){
+  const metadata=pathSummary(path)?.inspection??inspection,nativeLayers=path.deposition?.layers;
+  const events=[];let position=pathInitialPosition(path),pose=pathInitialPose(path)??null,time=0,filament=plan?.setup?.filament??null,fan=0,volumeMm3=0,tool=plan?.setup?.tool??null,legacyKey=null,legacyRun=0;
+  const posed=Boolean(pose)||Boolean(path.deposition)||Array.isArray(path.actions)&&path.actions.some(a=>a.pose);
+  // A drawing is a bounded view of the same source. Machine-output precision
+  // needlessly expands curved material fields into millions of display moves.
+  // Keep this budget local: Export continues to use its own reader tolerances.
+  const processes=[plan?.process,...Object.values(path.deposition?.processes??{})];
+  const positionToleranceMm=Math.min(20*PRINT_RESOLUTION_MM,...processes.flatMap(process=>[process?.lineWidthMm/20,process?.layerMm/10]).filter(value=>Number.isFinite(value)&&value>0));
+  for(const {action,context,index:line} of contextualActions(path,{...PATH_VIEW_TOLERANCES,positionToleranceMm})){
     if(action.kind==='toolChange'){filament=action.filament;tool=action.tool??tool;continue;}
     if(action.kind==='fan'){fan=action.percent;continue;}
     if(action.kind==='dwell'){time+=action.seconds;continue;}
@@ -31,10 +38,12 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     // run its own display identity rather than infer ownership from its name.
     const key=JSON.stringify([context.phase,context.operation,context.layer]);
     if(key!==legacyKey){legacyKey=key;legacyRun++;}
-    const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer];
+    const info=metadata?.operations?.[context.operation],layer=info?.layers?.[context.layer],native=nativeLayers?.[context.layerId];
+    const from=pose??UPRIGHT,next=action.kind==='extrude'?from:action.pose??UPRIGHT;
     const row={line:line+1,phase:context.phase,layer:context.layer,layerId:context.layerId??null,legacyRun,operation:context.operation??'',
-      sliceStack:info?.family??null,sliceIndex:layer?.index??null,modulated:!!info?.modifiers?.length,
+      sliceStack:(nativeLayers?native?.stackId:info?.family)??null,sliceIndex:(nativeLayers?native?.index:layer?.index)??null,modulated:!!info?.modifiers?.length,
       fan,filament,...(Number.isInteger(tool)?{tool}:{}),startSeconds:time,
+      ...(posed?{toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp}:{}),
       surfaceNormal:action.surfaceNormal??[0,0,0],beadHeightMm:action.beadHeightMm??NaN};
     if(action.kind==='extrude'){
       const durationSeconds=action.volumeMm3/action.flowMm3S;
@@ -47,9 +56,7 @@ export function pathPreview(path,{moves=[],plan=null,inspection=null}={}){
     // A move with no positive speed has no known time; playback shows it at once.
     const durationSeconds=action.durationSeconds??(action.speedMmS>0?distance/action.speedMmS:0);
     if(!Number.isFinite(durationSeconds)||durationSeconds<0)throw Error('Invalid saved SAAMpath motion.');
-    const from=pose??UPRIGHT,next=action.pose??UPRIGHT;
-    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:width(action,filament),
-      ...(posed?{toolAxisFrom:from.toolAxis,toolAxisTo:next.toolAxis,toolUpFrom:from.toolUp,toolUpTo:next.toolUp}:{})});
+    moves.push({...row,from:position,to,extruding:action.volumeMm3>0,volumeMm3:action.volumeMm3,speedMmS:action.speedMmS,durationSeconds,lineWidthMm:width(action,filament)});
     volumeMm3+=action.volumeMm3;position=to;pose=action.pose??pose;time+=durationSeconds;
   }
   return {moves,events,summary:{moves:moves.length,motionSeconds:time,volumeMm3,inspection:metadata??null},volumeMm3};

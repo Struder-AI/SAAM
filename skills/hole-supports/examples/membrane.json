@@ -1,0 +1,712 @@
+{
+  "machineId": "ultimaker-s5",
+  "plan": {
+    "schema": "saam-shell-plan/1",
+    "generatorVersion": "0.1.0",
+    "experimental": {
+      "substrateAdaptation": false,
+      "sharedMaterial": false
+    },
+    "skills": {},
+    "slices": {
+      "version": 1,
+      "assignments": [
+        {
+          "id": "rim",
+          "construction": "curves",
+          "part": null,
+          "filament": null,
+          "process": null,
+          "after": [],
+          "substrate": null,
+          "curves": [
+            {
+              "id": "edge",
+              "closed": true,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0,
+                          0.2
+                        ],
+                        [
+                          0,
+                          3,
+                          0.2
+                        ]
+                      ],
+                      [
+                        [
+                          3,
+                          0,
+                          0.2
+                        ],
+                        [
+                          3,
+                          3,
+                          0.2
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ]
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    1
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 10
+            }
+          ],
+          "repeat": null,
+          "sequence": false,
+          "ordered": false,
+          "repetitionIds": null,
+          "repetitionAfter": null,
+          "maxExcursionMm": null,
+          "source": null,
+          "toolPose": {
+            "alignToSliceNormal": true
+          }
+        },
+        {
+          "id": "membrane",
+          "construction": "curves",
+          "part": null,
+          "filament": null,
+          "process": null,
+          "after": [
+            {
+              "assignment": "rim",
+              "part": null,
+              "repetition": "0",
+              "edge": {
+                "curve": "edge"
+              }
+            }
+          ],
+          "substrate": null,
+          "curves": [
+            {
+              "id": "span-0",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0.1875,
+                          0.4
+                        ],
+                        [
+                          3,
+                          0.1875,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          0.5625,
+                          0.4
+                        ],
+                        [
+                          3,
+                          0.5625,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-1",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0.5625,
+                          0.4
+                        ],
+                        [
+                          3,
+                          0.5625,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          0.9375,
+                          0.4
+                        ],
+                        [
+                          3,
+                          0.9375,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-2",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0.9375,
+                          0.4
+                        ],
+                        [
+                          3,
+                          0.9375,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          1.3125,
+                          0.4
+                        ],
+                        [
+                          3,
+                          1.3125,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-3",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          1.3125,
+                          0.4
+                        ],
+                        [
+                          3,
+                          1.3125,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          1.6875,
+                          0.4
+                        ],
+                        [
+                          3,
+                          1.6875,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-4",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          1.6875,
+                          0.4
+                        ],
+                        [
+                          3,
+                          1.6875,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          2.0625,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.0625,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-5",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          2.0625,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.0625,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          2.4375,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.4375,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-6",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          2.4375,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.4375,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          2.8125,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.8125,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    0,
+                    0
+                  ],
+                  [
+                    0,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            },
+            {
+              "id": "span-7",
+              "closed": false,
+              "interruptible": false,
+              "directionRequired": false,
+              "uv": {
+                "reference": {
+                  "kind": "surface",
+                  "surface": {
+                    "kind": "spline",
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          2.4375,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.4375,
+                          0.4
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          2.8125,
+                          0.4
+                        ],
+                        [
+                          3,
+                          2.8125,
+                          0.4
+                        ]
+                      ]
+                    ],
+                    "sizeMm": [
+                      1,
+                      1
+                    ],
+                    "normalSide": -1
+                  }
+                },
+                "points": [
+                  [
+                    1,
+                    0
+                  ],
+                  [
+                    1,
+                    1
+                  ]
+                ]
+              },
+              "role": "bridge-span",
+              "beadWidthMm": 0.4,
+              "heightMm": 0.2,
+              "speedMmS": 40,
+              "sampleStepMm": 0.2
+            }
+          ],
+          "repeat": null,
+          "sequence": false,
+          "ordered": false,
+          "repetitionIds": null,
+          "repetitionAfter": null,
+          "maxExcursionMm": null,
+          "source": null,
+          "toolPose": {
+            "alignToSliceNormal": true
+          }
+        }
+      ]
+    },
+    "modulations": {
+      "version": 1,
+      "modifiers": []
+    },
+    "composition": {
+      "order": [],
+      "dependencies": [],
+      "filaments": []
+    },
+    "placement": {
+      "xMm": 165,
+      "yMm": 120
+    },
+    "setup": {
+      "tool": 1,
+      "core": "AA 0.4",
+      "nozzleMm": 0.4,
+      "material": "PLA",
+      "filamentMm": 2.85,
+      "nozzleC": 215,
+      "bedC": 60,
+      "buildVolumeC": 28,
+      "materialGuid": "506c9f0d-e3aa-4bd4-b2d2-23e2425b1aa9",
+      "firmwareVersion": "",
+      "startupVerified": false
+    },
+    "process": {
+      "lineWidthMm": 0.4,
+      "planarWallToleranceMm": 0.01,
+      "planarSpeedMmS": 40,
+      "skinSpeedMmS": 20,
+      "firstLayerSpeedMmS": 24,
+      "travelSpeedMmS": 120,
+      "zSpeedMmS": 10,
+      "retractMm": 6.5,
+      "retractSpeedMmS": 25,
+      "liftMm": 1,
+      "maxCombMm": 6,
+      "fanPercent": 100,
+      "maxFlowMm3S": 4,
+      "minimumLayerSeconds": 0,
+      "experimentalDeposition": false,
+      "primeLine": null,
+      "clearanceResponsibility": "operator",
+      "clearanceNote": "Nozzle clearance uses the saved geometry envelope; carriage, fixtures and physical qualification remain the operator’s responsibility.",
+      "firstLayerMm": 0.2,
+      "layerMm": 0.2
+    },
+    "output": "griffin-gcode",
+    "geometry": {
+      "shape": "spatial",
+      "solid": null,
+      "curves": [
+        {
+          "id": "final-edge",
+          "visible": true,
+          "closed": true,
+          "points": [
+            [
+              0.6,
+              0.6,
+              0.19999999999999998
+            ],
+            [
+              2.4000000000000004,
+              0.6000000000000001,
+              0.20000000000000004
+            ],
+            [
+              2.4000000000000004,
+              2.4000000000000004,
+              0.2
+            ],
+            [
+              0.6000000000000001,
+              2.4000000000000004,
+              0.20000000000000004
+            ]
+          ]
+        }
+      ],
+      "points": []
+    }
+  }
+}

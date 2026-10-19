@@ -1,13 +1,13 @@
 // Indexed triangle backend. No CAD kernel or display proxy participates in slicing.
 import {pointTriangleDistanceSquared} from './mesh-distance.mjs';
 import { requireThat, cross } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM, ROUNDING_MM, ROUNDING_RELATIVE, PROGRAM_STEP_MM } from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE,PROGRAM_STEP_MM,FLOAT64_EPSILON} from '../dimensions.mjs';
 import { orientLoops, closeOpenChains } from './shell.mjs';
 import { cleanPlanarLoop } from './polyline.mjs';
 import {createHash} from 'node:crypto';
 import {checkMeshCapacity,meshAllocation} from './mesh-capacity.mjs';
 import {checkMeshTopology} from './mesh-topology.mjs';
-import {overlappingBoxPairs,triangleBoxes,triangleBVH} from './triangle-bvh.mjs';
+import {overlappingBoxPairs,triangleBoxes,triangleBVH,boxHierarchy} from './triangle-bvh.mjs';
 import {decodeSTLBuffer} from './stl-decoder.mjs';
 
 const sub = (a,b) => a.map((v,i)=>v-b[i]);
@@ -78,7 +78,7 @@ function meshIdentity(vertices,triangles){
   put(vertices.length);put(triangles.length);for(const p of vertices)for(const v of p)put(v);for(const t of triangles)for(const v of t)put(v);hash.update(buffer.subarray(0,offset));return hash.digest('hex');
 }
 // Geometry built through this backend: indexed meshes, booleans, and assemblies holding either.
-export const hasMesh=geometry=>!!geometry&&((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry))));
+export const hasMesh=geometry=>!!geometry&&(geometry.solid?hasMesh(geometry.solid):((Array.isArray(geometry.vertices)||geometry.shape==='boolean')||(geometry.shape==='assembly'&&geometry.parts.some(p=>hasMesh(p.geometry)))));
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
   const input=validateMeshInput(vertices,triangles);
   const identity=meshIdentity(input.vertices,input.triangles);
@@ -272,7 +272,7 @@ export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
   // Layer-grid arithmetic can land a few floating-point ulps beyond an exact
   // boundary (0.2 + 29 * 0.2 > 6). Keep that numerical error distinct from the
   // geometric nudge below; genuinely outside layers must still be empty.
-  const roundoff=16*Number.EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
+  const roundoff=16*FLOAT64_EPSILON*Math.max(1,Math.abs(h),Math.abs(min),Math.abs(max));
   if(h<min-roundoff||h>max+roundoff)return {loops:[],nudgedByMm:0,open:[]};
   // The requested oriented limit outside an extremum is empty; never replace
   // it by an inward cut. Interior limits use the existing numerical clearance.
@@ -305,32 +305,55 @@ export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
 const columnIndexes=new WeakMap();
 function meshColumnIndex(mesh){
   if(columnIndexes.has(mesh))return columnIndexes.get(mesh);
-  const index=triangleBVH(mesh.vertices,mesh.triangles);columnIndexes.set(mesh,index);return index;
+  const index={tree:null,columns:null,faces:[]};columnIndexes.set(mesh,index);return index;
+}
+// A column ignores height. Index its XY footprints directly, omitting exactly
+// the vertical triangles the crossing predicate would discard. A 3D tree's
+// height partitions otherwise all need visiting for every vertical query.
+function meshColumnTree(mesh){
+  const faces=[];
+  for(const [i,t] of mesh.triangles.entries()){
+    const a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]];
+    const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
+    if(Math.abs(det)>=MESH_DEGENERATE_MM2)faces.push(i);
+  }
+  const boxes=new Float64Array(faces.length*6);
+  for(const [i,id] of faces.entries()){
+    const t=mesh.triangles[id],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]],offset=i*6;
+    for(let k=0;k<2;k++){boxes[offset+k]=Math.min(a[k],b[k],c[k])-ROUNDING_MM;boxes[offset+3+k]=Math.max(a[k],b[k],c[k])+ROUNDING_MM;}
+  }
+  return {faces,tree:boxHierarchy(boxes)};
 }
 // Bounded physical distance to the original mesh boundary, sharing its index.
 export function meshBoundaryDistance(mesh,point,limitMm){
   requireThat(point?.length===3&&point.every(Number.isFinite)&&Number.isFinite(limitMm)&&limitMm>0,'Mesh boundary distance needs finite XYZ and a positive physical limit.');
   const state={squared:Infinity};
   const measure=i=>{const t=mesh.triangles[i];state.squared=Math.min(state.squared,pointTriangleDistanceSquared(point,mesh.vertices[t[0]],mesh.vertices[t[1]],mesh.vertices[t[2]]));};
-  meshColumnIndex(mesh).query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
+  const index=meshColumnIndex(mesh);index.tree??=triangleBVH(mesh.vertices,mesh.triangles);
+  index.tree.query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
   return state.squared<=limitMm*limitMm?Math.sqrt(state.squared):Infinity;
 }
 // Every non-vertical triangle the vertical line through (x, y) crosses.
 export function meshCrossingsAt(mesh,x,y) {
-  const crossings=[],candidates=[];
-  const collect=i=>candidates.push(i);
-  meshColumnIndex(mesh).query([x,y,mesh.bounds.min[2]],[x,y,mesh.bounds.max[2]],collect);
+  const crossings=[],candidates=[],index=meshColumnIndex(mesh);
+  index.columns??=meshColumnTree(mesh);
+  const collect=i=>candidates.push(index.columns.faces[i]);
+  index.columns.tree.queryBox([x,y,0,x,y,0],0,collect);
   candidates.sort((a,b)=>a-b);
   for(const i of candidates) {
-    const t=mesh.triangles[i];
-    const [a,b,c]=t.map(k=>mesh.vertices[k]);
-    const det=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-    if(Math.abs(det)<MESH_DEGENERATE_MM2)continue;
-    const u=((b[1]-c[1])*(x-c[0])+(c[0]-b[0])*(y-c[1]))/det;
-    const v=((c[1]-a[1])*(x-c[0])+(a[0]-c[0])*(y-c[1]))/det,w=1-u-v;
+    if(!index.faces[i]){
+      const t=mesh.triangles[i],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]];
+      const by=b[1]-c[1],bx=c[0]-b[0],ay=c[1]-a[1],ax=a[0]-c[0],det=by*ax-bx*ay;
+      const offset=i*3,sign=mesh.faceNormals[offset+2]<0?-1:1;
+      const normal=[sign*mesh.faceNormals[offset],sign*mesh.faceNormals[offset+1],sign*mesh.faceNormals[offset+2]];
+      index.faces[i]={a,b,c,by,bx,ay,ax,det,normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI};
+    }
+    const face=index.faces[i];if(Math.abs(face.det)<MESH_DEGENERATE_MM2)continue;
+    const {a,b,c}=face;
+    const u=(face.by*(x-c[0])+face.bx*(y-c[1]))/face.det;
+    const v=(face.ay*(x-c[0])+face.ax*(y-c[1]))/face.det,w=1-u-v;
     if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
-    const n=meshFaceNormal(mesh,i),normal=n[2]<0?n.map(v=>-v):n;
-    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI,feature:`triangle:${i}`,patch:`triangle:${i}`});
+    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal:[...face.normal],slopeDeg:face.slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`});
   }
   return crossings;
 }

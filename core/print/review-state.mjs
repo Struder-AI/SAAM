@@ -9,7 +9,7 @@ export function completedOutputState(state,{generating=state.outputGenerating===
   const savedPath=!output&&Boolean(state.review?.path)&&!state.neutralPathError;
   return {generating:Boolean(generating),available,current:Boolean(current),
     previous:available?!current:savedPath&&state.artifacts?.path!=='current',
-    exportable:available&&!generating&&output.review.generation.mode==='production',
+    exportable:available&&!generating&&Boolean(output.machine)&&output.review.generation.mode==='production',
     inspectable:available||savedPath,
     receipt:!generating&&(Boolean(current)||savedPath&&state.artifacts?.path==='current')};
 }

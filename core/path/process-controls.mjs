@@ -1,5 +1,7 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
+export const DEFAULT_MINIMUM_BRIDGE_RATIO=.8;
+
 export function plannedNozzleTemperatures(plan){
   requireThat(Number.isFinite(plan.setup?.nozzleC)&&plan.setup.nozzleC>=0,'Authored nozzle temperature must be finite and nonnegative.');
   const settings=[...Object.values(plan.skills??{}).filter(s=>s.enabled),

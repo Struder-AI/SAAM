@@ -9,7 +9,7 @@ What the person sees and does: the viewer, windows, dimming, export, the Connect
 >
 > "We should always show the SAAMpath as the animated preview, not machine output, because that reduces the complexity needed for each individual export module, and we are now treating export modules as extensions that can be authored by builder agents." "Too complicated, just show saampath in viewer, without priming/etc." — owner, 2026-10-11, on audit items G41/G42
 
-Summary: Studio and the agent's result image draw the saved SAAMpath at its placement, timed by its own speeds; the adapter's stored report is shown as program facts. Startup, priming and material-change motion exist only inside the program writer. The 10-06 decision overrides D-009; the 10-11 words close the question of the adapter's prepared path.
+Summary: Studio and the agent's result image draw the saved SAAMpath at its placement, timed by its own speeds; neutral estimates accompany the saved path; machine writer facts belong to Export receipts. Startup, priming and material-change motion exist only inside the program writer. The 10-06 decision overrides D-009; the 10-11 words close the question of the adapter's prepared path.
 
 Sources: [D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-files); [0.3.6 "Machine adapters for builders"](../plans/0.3.6.md); Claude 14d40329 03:31 ("I wonder if we need to move away from displaying gcode or whatever output in the viewer, show saampath instead"); `.local/team/questions-036.md` A3.
 
@@ -20,7 +20,7 @@ Sources: [D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-fi
 >
 > "These should just present identically to the user. They should be the the same code wiring too, right? Both should keep showing the last toolpath, and warn that it's not current. One concept here, not two, don't give the user extra things to know about or give us extra code to maintain." — owner, 2026-10-11 (refusals audit item G17, overriding the 2026-10-03 geometry case)
 
-Summary: the person's one Export click confirms the current settings and the exact program on screen and saves it, with no re-check, regeneration or extra ceremony; after any edit, geometry included, the last toolpath stays shown and exportable, marked not current, until regeneration starts; regeneration hides Export.
+Summary: the person's Export captures the displayed path/settings without a live-currency recheck; after any edit the previous toolpath remains shown and exportable until regeneration starts. The October 18 [neutral-bundle direction](bundle.md#retained-neutral-work) moves machine writing to Export; bundles retain no machine program.
 
 Sources: Codex 01a0f706 10:52 ("There shouldn't really be any special cases here."); Codex 01a102a0 17:33; [0.3.1 Export bullet](../plans/0.3.1.md); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) ("the person confirms settings and exact toolpath"); owner's guidance prompt 2026-10-02 (three-approval ceremony removed; supersedes [D-011](../DECISIONS.md#d-011--three-human-approval-stages)); [Bundle](bundle.md#bundle-state-no-fingerprints-or-approvals).
 
@@ -40,7 +40,9 @@ Sources: [0.3.3 "One route: everything through Application"](../plans/0.3.3.md);
 >
 > "Dimmed means "the agent is working over at the saam desk" in other words, not interacting with the user right now. Un-dim means "agent is interacting with you" (or that it has interacted with you and nothing has changed since then)." — owner, 2026-10-06 (Claude 14d40329 03:22, queued); "There are two ways to bring the agent from the saam desk (dimmed) to the interaction counter … one is if the agent finishes something (easy case), the other is if the user interjects a chat" (03:26); "Dim stuff looks good, green light." (03:43); "Dimming - my intent is clear, so this shouldn't still be a discussion item. Unless believe you are unable to follow my intent." — owner, 2026-10-12
 
-Summary: autonomous SAAM work stays dimmed across edits. Hand-back, turn end or the person’s interjection un-dims after underway work settles and its saved revision is displayed, including unfinished work. Subagent lifecycle events are ignored; later actual SAAM edits begin work again. These semantics are settled; observing client hook delivery is implementation evidence.
+Summary: autonomous work stays dimmed across edits. Hand-back or human contact un-dims after underway work settles and the saved revision is displayed, or its view failure is shown. Subagent events are ignored; actual new edits begin work again. Open and Import share one selection pipe: old work keeps its bundle, loses write authority and no longer awaits an abandoned view. Native client adapters implement these settled semantics.
+
+> "We can insert a brief \"file changed\" message into the chat to wake an idle chat, and everything else can NOT insert into chat." — owner, 2026-10-16
 
 Sources: [0.3.5 "Dimming by client turn-end signal"](../plans/0.3.5.md); [0.3.6 "Dimming means the agent is at the SAAM desk"](../plans/0.3.6.md); `.local/team/dimming-design.md`; `.local/team/questions-036.md` 1-2; `.local/team/questions.md` R1(a); Claude e6f170be 10-05 18:22 ("I've fully clarified this intent multiple times").
 

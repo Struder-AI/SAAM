@@ -103,15 +103,14 @@ cell layout, tilt and loops into the points; there is no other tile input.
   unchanged. The report's `sizedTiles` records tile counts, including each change. The
   [flared loops](examples/flared-sized-loops.json) grow from 15 to 30 per turn.
 
-The mapper maps normalized perimeter phase onto actual sleeve sections at
-sampled Z; depth stays in millimetres. Only the authored paths deposit, and
-the minimum layer time applies to each repeat. Continuous mode requires joined
+The mapper maps normalized phase to actual sleeve sections at sampled Z; depth
+stays in millimetres. Only authored paths deposit. Continuous mode requires joined
 path and repeat endpoints (a sized tile ends `tileWidthMm` after it starts);
 segmented mode allows explicit travel between gaps. No connector or guide wall is invented.
 Repeated consecutive points are dropped; heights beyond the wall interval are
 clamped to it, with a note.
 
-A legacy `tile` field is read as equivalent turns paths, with a recipe note.
+Legacy `tile` records are deprecated.
 
 With the default `endTransition: level`, a complete flat pattern repetition (one turn
 for a sized pattern) sits at the starting and ending heights around the body.

@@ -7,11 +7,13 @@ async function depositionRuntime(id,engines,dependency){
   catch(error){if(error.name==='AbortError')throw error;return {runtime:null,error};}
 }
 
-export async function extensionDeposition({plan,placed,componentShells,shells,volumes,contexts,processForAssignment,engines}){
-  const weldLoaded=plan.skills?.['plastic-weld']?.enabled?await depositionRuntime('plastic-weld',engines):{runtime:null,error:null};
-  const weld=weldLoaded.runtime;
-  // A rivet site that cannot be prepared is left out with a note.
-  const {sites,notes}=placed&&weld?weld.preparePlasticWeld({plan,placed,componentShells,processForAssignment}):{sites:[],notes:weldLoaded.error?(plan.skills['plastic-weld'].sites??[]).map(site=>`Inject plastic-weld:${site.id} produced nothing: ${weldLoaded.error.message}`):[]};
+export function extensionMaterialBands(contexts){
+  return contexts.filter(({assignment})=>assignment.construction==='sleeve'&&!assignment.join).map(({assignment,shell})=>({
+    sourceId:assignment.id,part:assignment.part,startMm:shell?shell.bounds.min[2]+assignment.zStartMm:0,
+    endMm:shell?(assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm):0}));
+}
+
+export async function extensionDeposition({plan,componentShells,shells,volumes,sources,contexts,bands,engines}){
   const hasSleeve=contexts.some(({assignment})=>assignment.construction==='sleeve'||assignment.join);
   const vaseLoaded=hasSleeve?await depositionRuntime('vase-wall',engines):{runtime:null,error:null};
   const vase=vaseLoaded.runtime;
@@ -20,29 +22,54 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
   // A sleeve prepares its geometry as it is constructed, so its failure is its own.
   const vaseWork=args=>{
     if(vaseLoaded.error)throw vaseLoaded.error;
-    const {node,onProgress}=args;
-    if(node.context.assignment.pattern!==null&&advancedLoaded.error)throw advancedLoaded.error;
-    if(node.context.assignment.pattern!==null)return advanced.advancedVaseResult({...node.context,onProgress});
+    const {node,onProgress,materialReadiness}=args;
+    const patterned=node.context.assignment.pattern!==null;
+    if(patterned&&advancedLoaded.error)throw advancedLoaded.error;
     const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
-    return vase.standardVaseResult({...node.context,geometry});
+    const stack=geometry.referenceStack(),first=stack.layers[0],direction=stack.direction??[0,0,1];
+    const footprints=first.curves.map(curve=>{
+      const points=curve.points.map(point=>point.map((v,k)=>v-first.heightMm*direction[k]));
+      return curve.closed?[...points,points[0]]:points;
+    });
+    const after=[...(node.context.assignment.after??[]),...materialReadiness(footprints)];
+    return patterned?advanced.advancedVaseResult({...node.context,geometry,after,onProgress}):vase.standardVaseResult({...node.context,geometry,after});
   };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
       // A spiral boundary that cannot be resolved fails as its own assignment.
-      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes});}catch(error){return {error};}})();
-      if(prepared.error)return {...context,construct:()=>{throw prepared.error;},providesSurface:true,kind:'trace'};
+      const prepared=(()=>{try{return engines.MaterialRegions.prepareSliceBoundaryStack({plan,assignment:context.assignment,shells,volumes,sources});}catch(error){return {error};}})();
+      if(prepared.error)return {...context,construct:()=>{throw prepared.error;},kind:'trace'};
       const referenceStack=prepared.referenceStack,first=referenceStack.layers[0];
-      return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:.02,boundaryToleranceMm:.02,meshSleeve:null},
+      return {...context,assignment:{...context.assignment,construction:'sleeve',pattern:null,zStartMm:0,endTransition:context.assignment.join.levelEnd?'level':'rising',toleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,boundaryToleranceMm:engines.Geometry.dimensions.CHORD_TOLERANCE_MM,meshSleeve:null},
         startMm:prepared.startMm,endMm:prepared.endMm,geometry:{referenceStack:()=>referenceStack,firstHeight:first.heightMm,start:prepared.startMm,base:prepared.startMm,end:prepared.endMm,
-          speedMmS:context.process.planarSpeedMmS,minimumTurnSeconds:0,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
-        construct:vaseWork,providesSurface:true,kind:'trace'};
+          speedMmS:context.process.planarSpeedMmS,role:'spiral',batch:{key:'spiral',layerId:context.assignment.id+':spiral',phase:'spiral'},terminalBoundary:false,report:()=>({join:'spiral',reference:'owned-region'})},
+        construct:vaseWork,kind:'trace'};
     }
     const {assignment,shell}=context;
-    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},providesSurface:true,kind:'trace'};
-    return {...context,startMm:shell.bounds.min[2]+assignment.zStartMm,
-      endMm:assignment.zEndMm===null?shell.bounds.max[2]:shell.bounds.min[2]+assignment.zEndMm,
-      construct:vaseWork,providesSurface:true,kind:'trace'};
+    if(!shell)return {...context,startMm:0,endMm:0,construct:()=>{throw Error('A sleeve construction needs selected geometry.');},kind:'trace'};
+    const band=bands.find(band=>band.sourceId===assignment.id&&band.part===assignment.part);
+    return {...context,startMm:band.startMm,endMm:band.endMm,construct:vaseWork,kind:'trace'};
   });
+  for(const context of sleeves)context.prepare=current=>{
+    if(vaseLoaded.error)throw vaseLoaded.error;
+    const prepared=current.geometry??vase.prepareSleeveGeometry(current),stack=prepared.referenceStack();
+    const geometry={...prepared,referenceStack:()=>stack},parts=current.assignment.part===null&&componentShells?[null,...componentShells.keys()]:[current.assignment.part];
+    // A continuous wall owns its side frontier. An open pattern advertises
+    // its terminal boundary only; its guiding sheet is not filled material.
+    const preparedLayers=stack.layers.map(layer=>({...layer,region:layer.curves.map(curve=>curve.points.map(point=>{
+      const p=point.map((value,k)=>value-layer.slice.origin[k]);
+      return [layer.slice.xAxis,layer.slice.yAxis].map(axis=>axis.reduce((sum,value,k)=>sum+value*p[k],0));
+    }))}));
+    const selected=current.assignment.pattern===null?preparedLayers:preparedLayers.slice(-1),layers=selected.map(layer=>{
+      const {origin,xAxis,normal}=layer.slice,yAxis=layer.slice.yAxis;
+      const loops=engines.Geometry.widenPlanarStrokes(layer.curves,current.process.lineWidthMm/2,{origin,xAxis,normal,arcToleranceMm:engines.Geometry.resolutionMm});
+      const project=point=>{const p=point.map((v,k)=>v-origin[k]);return [p.reduce((sum,v,k)=>sum+v*xAxis[k],0),p.reduce((sum,v,k)=>sum+v*yAxis[k],0)];};
+      return {...layer,region:loops.map(loop=>loop.map(project)),direction:stack.direction};
+    });
+    return {...current,geometry,...(current.assignment.endTransition==='level'&&geometry.terminalBoundary!==false?
+      {preparedSurfaces:{...stack,layers:preparedLayers,prerequisite:{assignment:current.assignment.id,part:current.assignment.part}}}:{}),
+      materialSurfaces:parts.map(part=>({part,reference:{assignment:current.assignment.id,part:current.assignment.part},layers}))};
+  };
   const curveSources=[],sourceRuntimes=new Map();
   for(const context of contexts.filter(({assignment})=>assignment.construction==='curves'&&assignment.source)){
     const id=context.assignment.source.extension;
@@ -53,19 +80,13 @@ export async function extensionDeposition({plan,placed,componentShells,shells,vo
     const loaded=sourceRuntimes.get(id);
     curveSources.push({...context,curveSource:loaded.runtime,sourceError:loaded.error});
   }
-  return {notes,curveSources,
-    bands:sleeves.filter(s=>!s.assignment.join).map(s=>({sourceId:s.assignment.id,part:s.assignment.part,startMm:s.startMm,endMm:s.endMm})),
-    geometryCuts:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.cavity})),
-    solidVolumes:sites.map(site=>({sourceId:site.assignment.id,part:site.part,geometry:site.solid})),combineSolids:engines.Geometry.combineSolids,
-    constructions:sleeves,
-    work:weld?.weldWork(sites)??[],workDependencies:(node,nodes)=>{const sleeve=vase?.vaseDependencies(node,nodes)??{dependencies:[],notes:[]};return {dependencies:[...sleeve.dependencies,...(weld?.weldDependencies(node,nodes)??[])],notes:sleeve.notes};}
-  };
+  return {curveSources,constructions:sleeves};
 }
 
 export function extensionSummary(results){
   const summary={},vases=results.filter(result=>result.report.construction==='sleeve').map(result=>({id:result.id,...result.report}));
   if(vases.length)summary.vaseWall={...vases[0],instances:vases};
-  const sites=results.flatMap(result=>result.report.sites??[]);
-  if(sites.length)summary.plasticWeld={sites,physicalValidation:'not performed'};
+  const reports=results.flatMap(result=>result.report.extension?[result.report.extension]:[]);
+  if(reports.length)summary.extensions=Object.fromEntries([...new Set(reports.map(r=>r.id))].map(id=>[id,reports.filter(r=>r.id===id).map(r=>({sourceId:r.sourceId,...r.report}))]));
   return summary;
 }

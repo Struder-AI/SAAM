@@ -6,6 +6,7 @@ import {resolve,join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomUUID} from 'node:crypto';
 import {homePaths} from '../core/application/home.mjs';
+import {registerCodexAdapter,registerClaudeAdapter,unregisterAdapters} from './client-adapters.mjs';
 
 async function atomicWrite(path,text){
   if(await optionalRead(path)===text)return false;
@@ -25,26 +26,9 @@ function clientFolders(clientHome){
 // The home's AGENTS.md, CLAUDE.md and client skill are the installed program's
 // AGENTS.md, with this home's folders and links resolved to the program's manuals.
 const programRoot=resolve(dirname(fileURLToPath(import.meta.url)),'..');
-// Client hooks report events to the home's SAAM (`saam client-event`): this program's node runs
-// scripts/saam.mjs. Claude Code spawns it directly (exec form); Codex runs a command line in the
-// session's shell, so paths that need no quoting are written to read the same in sh, cmd and PowerShell.
-// Codex runs Interrupt and SessionEnd synchronously within 3 s, and Claude Code's SessionEnd
-// runs before it exits; the other events run in the background.
-const script=join(programRoot,'scripts','saam.mjs'),foreground=new Set(['Interrupt','SessionEnd']);
-const claudeEvents={Stop:null,StopFailure:null,UserPromptSubmit:null,Notification:'idle_prompt|permission_prompt|elicitation_dialog|elicitation_url_dialog',SessionEnd:null,
-  PermissionRequest:null,PreToolUse:'AskUserQuestion|ExitPlanMode',Elicitation:null};
-const codexEvents=['Stop','Interrupt','UserPromptSubmit','SessionEnd','PermissionRequest'];
+// Native adapters own lifecycle. Codex hooks only deliver queued context.
 const isClaudeHook=hook=>Array.isArray(hook?.args)&&hook.args.at(-1)==='client-event'&&/[\\/]scripts[\\/]saam\.mjs$/.test(hook.args[0]??'');
-const isCodexHook=hook=>typeof hook?.command==='string'&&/saam\.mjs'? client-event$/.test(hook.command);
-function commandLine(windows){
-  const parts=[process.execPath,script].map(path=>path.replaceAll('\\','/'));
-  const quoted=parts.every(part=>/^[\w.:/-]+$/.test(part))?parts:windows?parts.map(part=>`'${part.replaceAll("'","''")}'`):parts.map(part=>`'${part.replaceAll("'","'\\''")}'`);
-  return (windows&&quoted!==parts?'& ':'')+quoted.join(' ')+' client-event';
-}
-const claudeGroups=()=>Object.fromEntries(Object.entries(claudeEvents).map(([event,matcher])=>[event,{...(matcher&&{matcher}),
-  hooks:[{type:'command',command:process.execPath,args:[script,'client-event'],...(!foreground.has(event)&&{async:true})}]}]));
-const codexGroups=()=>Object.fromEntries(codexEvents.map(event=>[event,{hooks:[{type:'command',command:commandLine(false),commandWindows:commandLine(true),
-  ...(foreground.has(event)?{timeout:3}:{async:true})}]}]));
+const isCodexHook=hook=>typeof hook?.command==='string'&&(/saam\.mjs'? client-event$/.test(hook.command)||/[\\/]saam-codex(?:\.exe)?['"]? --saam-context-hook$/.test(hook.command));
 // A client's hooks with SAAM's handlers replaced by `groups` (event: SAAM's group, placed last).
 // Other hooks keep their place; an event that SAAM's removal empties is dropped.
 function replaceHooks(hooks,isOwn,groups={}){
@@ -76,10 +60,10 @@ async function guidance(home){
 async function registerSkill(directory,home){
   const target=join(directory,'saam','SKILL.md'),previous=await optionalRead(target);
   if(previous&&!previous.includes(marker))throw Error(`Kept existing custom skill at ${target}; rename it before retrying.`);
-  const skill=`---\nname: saam\ndescription: Make 3D printed parts through SAAM, work with print bundles and Studio, update SAAM, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
+  const skill=`---\nname: saam\ndescription: Install SAAM, make 3D printed parts, work with print bundles and Studio, update SAAM, or start the SAAM tour.\n---\n\n${await guidance(home)}`;
   const changed=await atomicWrite(target,skill);return {path:target,registered:previous?.includes(marker)??false,changed};
 }
-async function registerCodex(clientHome,home,registered){
+async function registerCodex(clientHome,home,registered,platform){
   const folders=clientFolders(clientHome),skill=await registerSkill(join(folders.agents,'skills'),home);
   const firstRegistration=!registered&&!skill.registered;
   const rule=join(folders.codex,'rules','saam.rules');
@@ -88,17 +72,21 @@ async function registerCodex(clientHome,home,registered){
   if(previous&&!previous.startsWith(ruleMarker))throw Error(`Kept custom rules at ${rule}; rename that file before retrying.`);
   // Remember access initially. Later edits/removal are the person's permission choice.
   const permissionChanged=!previous&&firstRegistration?await atomicWrite(rule,text):false;
-  // Codex runs a new or changed hook only after the person trusts it in /hooks; SAAM never writes trust.
+  const adapter=await registerCodexAdapter({home,clientHome,platform});
   const hooksFile=join(folders.codex,'hooks.json'),hooksText=await optionalRead(hooksFile),document=hooksText?JSON.parse(hooksText):{};
   if(!document||typeof document!=='object'||Array.isArray(document))throw Error('Codex hooks.json must be a JSON object.');
-  const before=JSON.stringify(document.hooks);document.hooks=replaceHooks(document.hooks??{},isCodexHook,codexGroups()).hooks;
+  const before=JSON.stringify(document.hooks??{});
+  const handler={type:'command',command:adapter.hookCommand,commandWindows:adapter.hookCommandWindows,statusMessage:'SAAM Studio event context',timeout:10};
+  document.hooks=replaceHooks(document.hooks??{},isCodexHook,{
+    UserPromptSubmit:{hooks:[handler]},PostToolUse:{hooks:[handler]}
+  }).hooks;
   const trustRequired=JSON.stringify(document.hooks)!==before;
   if(trustRequired)await atomicWrite(hooksFile,JSON.stringify(document,null,2)+'\n');
-  return {skill:skill.path,permissions:previous||permissionChanged?rule:null,hooks:hooksFile,trustRequired,
-    ...(trustRequired&&{tellPerson:"In Codex, open /hooks and trust SAAM's five hooks; unchanged definitions retain trust across updates."}),
-    restartRequired:permissionChanged||trustRequired};
+  return {skill:skill.path,permissions:previous||permissionChanged?rule:null,...adapter,hooks:hooksFile,trustRequired,
+    ...(trustRequired&&{tellPerson:'In Codex, click the yellow fishhook below the chat composer, review SAAM Studio event context, and Allow selected. Settings → Hooks also offers Trust.'}),
+    restartRequired:permissionChanged||adapter.restartRequired};
 }
-async function registerClaude(clientHome,home,registered){
+async function registerClaude(clientHome,home,registered,platform){
   const directory=clientFolders(clientHome).claude;
   const skill=await registerSkill(join(directory,'skills'),home),settingsFile=join(directory,'settings.json');
   const firstRegistration=!registered&&!skill.registered;
@@ -110,10 +98,15 @@ async function registerClaude(clientHome,home,registered){
     if(!Array.isArray(settings.permissions.allow))throw Error('Claude permissions.allow must be an array.');
     for(const permission of claudePermissions)if(!settings.permissions.allow.includes(permission))settings.permissions.allow.push(permission);
   }
-  settings.hooks=replaceHooks(settings.hooks??{},isClaudeHook,claudeGroups()).hooks;
-  const changed=before!==JSON.stringify(settings);
-  if(changed)await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');
-  return {skill:skill.path,permissions:settingsFile,hooks:settingsFile+'#hooks',restartRequired:changed};
+  if(before!==JSON.stringify(settings))await atomicWrite(settingsFile,JSON.stringify(settings,null,2)+'\n');
+  const adapter=await registerClaudeAdapter({home,clientHome,platform,directory});
+  // The native CLI updates settings itself. Re-read before removing old hooks.
+  const current=JSON.parse(await readFile(settingsFile,'utf8'));
+  if(firstRegistration)current.permissions=settings.permissions;
+  current.hooks=replaceHooks(current.hooks??{},isClaudeHook).hooks;
+  const changed=before!==JSON.stringify(current);
+  if(changed)await atomicWrite(settingsFile,JSON.stringify(current,null,2)+'\n');
+  return {skill:skill.path,permissions:settingsFile,...adapter};
 }
 // Each removal returns the paths it removed; unmarked files are someone else's and stay.
 async function unregisterSkill(directory){
@@ -221,9 +214,9 @@ export async function setupClients({home,clientHome=homedir(),platform=process.p
     try{
       const options={home:result.home,clientHome,platform};
       if(client.id==='codex'){
-        const retired=await retireCodex(options);client.registration=await registerCodex(clientHome,result.home,registration.clients.includes(client.id));client.registration.retired=retired;
+        const retired=await retireCodex(options);client.registration=await registerCodex(clientHome,result.home,registration.clients.includes(client.id),platform);client.registration.retired=retired;
       }else {
-        const retired=await retireClaude(options);client.registration=await registerClaude(clientHome,result.home,registration.clients.includes(client.id));client.registration.retired=retired;
+        const retired=await retireClaude(options);client.registration=await registerClaude(clientHome,result.home,registration.clients.includes(client.id),platform);client.registration.retired=retired;
       }
       if(!registration.clients.includes(client.id))registration.clients.push(client.id);
     }catch(error){client.registration={error:error.message};result.errors.push(`${client.name}: ${error.message}`);}
@@ -237,6 +230,7 @@ export async function setupClients({home,clientHome=homedir(),platform=process.p
 export async function unregisterClients({home,clientHome=homedir(),platform=process.platform}={}){
   if(!home)throw Error('Client unregistration requires the SAAM home.');
   const options={home:resolve(home),clientHome,platform},result={clientHome,removed:[],errors:[]};
+  try{result.removed.push(...await unregisterAdapters({...options,directory:clientFolders(clientHome).claude}));}catch(error){result.errors.push('Native adapters: '+error.message);}
   try{result.removed.push(...await unregisterCodex(options));}catch(error){result.errors.push(`Codex: ${error.message}`);}
   try{result.removed.push(...await unregisterClaude(options));}catch(error){result.errors.push(`Claude Code: ${error.message}`);}
   const registrationFile=join(options.home,'state','client-registration.json');
@@ -249,6 +243,10 @@ export async function unregisterClients({home,clientHome=homedir(),platform=proc
 function reportUnregistration(result){
   for(const item of result.removed)console.log(`Removed ${item}`);
   for(const error of result.errors)console.log(`Could not remove a client registration: ${error}`);
+  if(result.errors.length)process.exitCode=1;
+}
+function reportSetup(result){
+  console.log(JSON.stringify(result));
   if(result.errors.length)process.exitCode=1;
 }
 
@@ -265,6 +263,6 @@ export async function writeHomeGuidance(home){
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   const [home,option]=process.argv.slice(2);
   const finished=option==='--unregister'?unregisterClients({home}).then(reportUnregistration)
-    :setupClients({home,register:option!=='--no-register'}).then(result=>console.log(JSON.stringify(result)));
+    :setupClients({home,register:option!=='--no-register'}).then(reportSetup);
   finished.catch(error=>{console.error(error.message);process.exitCode=1;});
 }

@@ -1,14 +1,14 @@
 // Authored sleeve pattern and Trace composition over named public operations.
 // Numerical contour and fitted-reference construction belongs to Geometry.
 export function advancedVaseRuntime({Geometry,Toolpath},vase){
+  const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   const distance=(a,b)=>Math.hypot(...a.map((v,i)=>v-b[i]));
-  // copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-  const PRINT_RESOLUTION_MM=1e-3;
+
   // Pattern heights are clamped to the sleeve interval, the heights its queries
   // accept (core/geom/sleeve); a clamp beyond print resolution is noted.
   const {sampleCurveIntervals}=Geometry;
-  const {maximumPathAngle,traceResult}=Toolpath;
+  const {maximumPathAngle,traceResult,strokeRange}=Toolpath;
 // A pattern is a stack of repeats in unwrapped strip coordinates [turns,
 // height mm, depth mm]. A turns pattern repeats its tile by a fixed advance. A
 // sized pattern makes each turn one repeat holding the whole number of tiles
@@ -106,7 +106,7 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
   // Every repetition is authored and finite, and each mapped interval subdivides
   // until its tolerance is met or its midpoint stops being distinct from its
   // ends, so the pattern takes the points its tolerances need.
-  const level=settings.endTransition==='level',paths=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
+  const level=settings.endTransition==='level',paths=[],batches=[];let count=0,maximumAngleDeg=0,minZ=Infinity,maxZ=-Infinity,maximumBeadHeightMm=0;
   const emitPath=(vertices,heights,layer,foundation)=>{
     const at=(a,b,t)=>{
       const u=a[0]+(b[0]-a[0])*t,z=Math.min(end,Math.max(start,start+a[1]+(b[1]-a[1])*t));
@@ -134,23 +134,26 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
     maximumAngleDeg=Math.max(maximumAngleDeg,maximumPathAngle(points));
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
     paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<PRINT_RESOLUTION_MM&&Math.abs(points[i+1][2]-end)<PRINT_RESOLUTION_MM?{boundaryRole:'rim'}:{})}))});
-    return points.slice(1).reduce((sum,p,i)=>sum+distance(points[i],p),0);
   };
   const total=stack.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern repetitions',completed:0,total});
   for(const repetition of patternRepetitions(stack,{level,spanMm,firstHeightMm:firstHeight,referenceLengthMm})){
-    const first=paths.length;let length=0;
-    for(const {vertices,heights} of repetition.paths)length+=emitPath(vertices,heights,repetition.repeat+(level?2:1),repetition.repeat===(level?-1:0));
-    // The minimum layer time applies to each repeat: a whole turn of a sized pattern.
-    const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS,process.minimumLayerSeconds>0?length/process.minimumLayerSeconds:Infinity);
+    const first=paths.length;
+    for(const {vertices,heights} of repetition.paths)emitPath(vertices,heights,repetition.repeat+(level?2:1),repetition.repeat===(level?-1:0));
+    const speed=Math.min(process.planarSpeedMmS,process.firstLayerSpeedMmS);
     for(let i=first;i<paths.length;i++)paths[i].speedMmS=speed;
-    onProgress?.({stage:'Mapping vase pattern repetitions',completed:++completed,total});
+    if(!continuous)batches.push({key:`repeat-${completed}`,stackSlice:{stackId:settings.id,index:completed},phase:'segmented-paths',layer:completed,curves:paths.slice(first),fanPercent:process.fanPercent,trimEnd:level&&completed===total-1,travel:{kind:'auto'}});
+    completed++;onProgress?.({stage:'Mapping vase pattern repetitions',completed,total});
   }
   // Reported in thousandths of a millimetre: print resolution.
   const micro=v=>Math.round(v*1e3)/1e3;
   const runs=stack.turns?.filter((turn,i,all)=>!i||turn.tileCount!==all[i-1].tileCount).map(({turn,zMm,perimeterMm,tileCount})=>({turn,zMm:micro(zMm),perimeterMm:micro(perimeterMm),tileCount}));
   const widths=stack.turns?.reduce(([low,high],turn)=>[Math.min(low,turn.perimeterMm/turn.tileCount),Math.max(high,turn.perimeterMm/turn.tileCount)],[Infinity,-Infinity]);
-  return {batches:[{key:'wall',layerIdSuffix:':pattern',phase:continuous?'vase-wall':'segmented-paths',layer:0,rank:minZ,curves:paths,join:{mode:continuous?'continuous':'separate'},fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'clearance',clearanceZ:maxZ+process.liftMm,constant:true}}],
+  if(continuous)batches.push({key:'wall',phase:'vase-wall',layer:0,curves:[{closed:false,role,
+    points:paths.flatMap((path,i)=>i?path.points.slice(1):path.points),heightsMm:paths.flatMap(path=>path.heightsMm),
+    segmentMetadata:paths.flatMap(path=>path.segmentMetadata.map(metadata=>({...metadata,speedMmS:path.speedMmS}))) }],
+    fanPercent:process.fanPercent,trimEnd:level,travel:{kind:'auto'}});
+  return {batches,
     levelBoundary:level?{zMm:end,widthMm:process.lineWidthMm,tailCount:stack.tiles.at(-1).length}:null,notes,
     report:{mode:continuous?'continuous-sleeve-pattern':'segmented-sleeve-pattern',startMm:minZ,endMm:maxZ,baseTopMm:base,paths:paths.length,repeats:stack.repeats,
       ...(stack.turns?{sizedTiles:{tileWidthMm:pattern.tileWidthMm,tileCount:stack.turns.reduce((sum,turn)=>sum+turn.tileCount,0),
@@ -168,16 +171,21 @@ function advancedVaseResult({shell,assignment,process,geometry,after=assignment.
   const reference=geometry??vase.prepareSleeveGeometry({shell,assignment,process,zStartMm,zEndMm,onProgress});
   const {base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm}=reference;
   const mapped=mappedSleevePatternCurves({settings:assignment,process,base,start,end,firstHeight,referenceLengthMm,mapping,mappingErrorMm,onProgress});
-  const parts=[],notes=[...mapped.notes];
-  for(const {layerIdSuffix,...source} of mapped.batches){
-    const batch={...source,layerId:assignment.id+layerIdSuffix};
-    parts.push(traceResult({id:assignment.id,filament:assignment.filament,after:parts.at(-1)?.operations.map(op=>op.id)??after},{batches:[batch],process}));
-  }
-  const operations=parts.flatMap(part=>part.operations),strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary;
-  const measures=Object.fromEntries(['strokes','lengthMm','volumeMm3'].map(key=>[key,parts.reduce((sum,part)=>sum+part.report[key],0)]));
+  const traced=traceResult({id:assignment.id,filament:assignment.filament,after},{batches:mapped.batches,process,sequential:false});
+  const operations=traced.operations;
+  const strokes=operations.flatMap(op=>op.strokes),level=mapped.levelBoundary,notes=[...mapped.notes,...(traced.report.notes??[])];
+  const measures=Object.fromEntries(['strokes','lengthMm','volumeMm3'].map(key=>[key,traced.report[key]]));
+  const rim=level?strokes.flatMap(stroke=>{
+    const ranges=[];let start=null;
+    for(let i=0;i<stroke.points.length;i++){
+      if(stroke.segmentMetadata?.[i]?.boundaryRole==='rim'){start??=i;continue;}
+      if(start!==null){ranges.push(strokeRange(stroke,start,i));start=null;}
+    }
+    return ranges;
+  }):[];
   return {id:assignment.id,operations,referenceStack:{...reference.referenceStack(),name:`${assignment.id} sleeve`},
     report:{...mapped.report,...reference.report(),construction:'sleeve',part:assignment.part,depositionFamily:'trace',extension:'advanced-vase-wall',...measures,...(notes.length?{notes}:{})},
-    ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:strokes.slice(-level.tailCount)}}:{})};
+    ...(level?{levelBoundary:{zMm:level.zMm,widthMm:level.widthMm,strokes:rim}}:{})};
 }
 
 

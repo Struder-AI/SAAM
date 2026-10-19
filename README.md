@@ -1,86 +1,52 @@
 # SAAM — Struder Agentic Additive Manufacturing
 
-SAAM lets you describe a part to an AI agent, inspect the toolpath it proposes
-and export a file your machine can run.
-
-SAAM lowers the barrier to 3D printing. You should be able to point your agent
-at this repository, describe what you want to make, and receive guidance suited
-to your experience, without needing to learn CAD, slicing, or programming first.
-
-## How it works
-
-Describe your part in chat. Your agent prepares a shape to inspect in **SAAM
-Studio**, works out the printing settings with you, and generates the toolpath
-for review. You confirm the geometry, then settings and toolpath together. SAAM
-then delivers the same machine-program bytes you reviewed.
-
-Your agent handles the tools and settings; you guide the result. See the
-[maker workflow](MAKERS.md#maker-interaction-flow) for how revisions and export
-work.
-
-## Project direction
-
-SAAM is an ecosystem of composable slicer components. Skills describe printing
-patterns and package their manuals and tools together. The aim is to combine
-patterns in one part, including planar, inclined, and curved deposition layers,
-through one generation, review, and delivery workflow.
-
-The intended scope includes spline curves and surfaces, mesh geometry,
-3D printers, robot arms with printing end effectors, rotaries, and multi-axis
-setups. Output adapters can target G-code, Lua, or other machine languages.
-This is the product direction; the references below describe implemented scope.
-Contributor approval status is recorded in [DECISIONS.md](DECISIONS.md).
-
-Skills should work across geometry types and machines through shared interfaces,
-with explicit, narrow exceptions. Print bundles keep geometry, the recipe,
-the checked export, and review records together locally. The
-[developer principles](core/README.md#interoperability-and-one-workflow) explain
-how changes extend this shared system.
-
-## What works today
-
-This is a development checkout. Choose a pattern through the [skill
-index](skills/DIGEST.md); each manual owns its current shapes, settings and limits.
-[Machine support and output contracts](core/export/README.md#machine-interoperability-design)
-describe what each machine's export and playback cover, including the scope of
-reported physical observations. Software checks do not establish physical print
-success.
-
-The [SAAM application](core/application/README.md) owns Studio and jobs. Desktop
-chats use its installed `saam` command.
+SAAM makes geometry, toolpaths, and machine code for 3D printing through conversation with an AI agent, combining agent-native CAD, nonplanar slicing, and bespoke 3D printing techniques.
 
 ## Get started
 
-Give your agent this repository and describe what you want to make. Agents start
-at [AGENTS.md](AGENTS.md), which routes making, development and setup work.
+Ask desktop Codex or Claude Code: “Install SAAM from https://github.com/Struder-AI/SAAM.”
+Agents begin at [AGENTS.md](AGENTS.md) and follow the [installation guide](https://github.com/Struder-AI/SAAM/releases/latest/download/INSTALL.md).
 
-For a manual development trial, follow [setup and checks](SETUP.md) and create a
-preview from a skill recipe. It produces a development preview, not an exportable
-program.
+## Studio and interaction
 
-Ask your agent to **open the SAAM tour**, or launch Studio after setup:
+Studio is the WebGL viewer for geometry, toolpaths and machine playback. An AI agent drives most Studio changes, the user interacts with the agent through Codex desktop or Claude code desktop. See [Studio](studio/README.md) and [Application](core/application/README.md).
 
-```sh
-node scripts/saam.mjs start-tour
-```
+## Geometry
 
-The [guided tour](examples/prints/README.md) uses one editable fin block in the
-same Studio used for your parts. Your copy and lesson survive restarts in the
-SAAM home. Explore geometry, playback, chat edits, setup and export; software
-examples grant no physical qualification.
+The CAD toolkit that creates, combines and queries shapes. Aspirationally, SAAM's geometry toolkit is a small, capable set of tools that is curated for 3d printing needs, and that significantly augments agent capabilities in 3D space. See [Geometry](core/geom/README.md).
 
-## Reading and contributing
+## Authoring
 
-Start with [role selection](AGENTS.md#choose-your-role) for code or documentation
-work; [builder orientation](BUILDERS.md) supplies the shared engineering baseline.
-The [dev maps](dev-map/README.md) show what SAAM code influences, generated from
-the source; agents walk them from map `0` with `read-map ADDRESS` through the
-agent toolkit.
-Use the [technical overview](TECHNICAL-OVERVIEW.md) and [0.2.0 plan](plans/0.2.0.md)
-for architecture and build scope, [GLOSSARY.md](GLOSSARY.md) for terms, the
-versioned intent docs in [plans](plans/) for direction and outstanding work,
-[DECISIONS.md](DECISIONS.md) for decision history, and [DEVLOG.md](DEVLOG.md)
-for dated work and evidence.
+Agents can write geometry directly: **blob fields** for organic shapes, **splines** for smooth designed surfaces, and **meshes** for angular forms. See [geometry authoring](GEOMETRY.md).
 
-The canonical repository is [Struder-AI/SAAM](https://github.com/Struder-AI/SAAM).
-Licensing remains in [LICENSE](LICENSE).
+## Toolpath
+
+Three core operations:
+- **Inject** deposits material at a point.
+- **Trace** deposits along a curve.
+- **Slice** is the primary versatile component that covers most situations. Composes into slice stacks. See [toolpath](core/path/README.md).
+
+## Scheduler
+
+Chooses the order of printing while respecting dependencies, access and cooling. It can interleave techniques generated independently by toolpath. See [scheduling](core/path/README.md#scheduler-obligations).
+
+## SAAMpath, recipes, and bundles
+
+SAAMpath: internal machine-independent format with built in compression stores path, effector pose, deposition parameters, and process settings for Studio and exporters.
+
+The "recipe" describes how to print one or more material regions with specific technique(s). A bundle is the saved project: geometry, recipe, settings, and SAAMpath. See [bundles](core/print/README.md) and [regions](core/region/README.md).
+
+## Extensions
+
+Scripts that compose SAAM’s geometry and toolpath operations can be used to make an endless variety of bespoke 3D printing techniques. Share your innovations with other SAAM users.
+ See [extension authoring](skills/AUTHORING.md).
+
+Workspace extensions additionally add custom UI scenes, and output ordinary bundles for review in Studio. See [workspace authoring](skills/AUTHORING.md).
+
+Machine adapter extensions translate SAAMpath into machine programs, handling machine-specific motion, tools and startup. Create one for your own machine and share it with the community. See [machine support](machines/README.md).
+
+## Developing
+
+Start with [SETUP.md](SETUP.md), then [ARCHITECTURE.md](ARCHITECTURE.md). Agents begin at [AGENTS.md](AGENTS.md). Current direction and outstanding work live in [plans](plans/).
+
+[Repository](https://github.com/Struder-AI/SAAM) · [License](LICENSE)

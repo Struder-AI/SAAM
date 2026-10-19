@@ -2,9 +2,15 @@
   "schema": "saam-machine/1",
   "id": "bambu-x1-carbon",
   "name": "Bambu Lab X1 Carbon",
-  "revision": 7,
+  "revision": 8,
   "units": "mm",
-  "planarWallToleranceMm": 0.01,
+  "nozzleGeometry": {
+    "name": "Bambu provisional nozzle",
+    "includedAngleDeg": 70,
+    "tipDiameterMm": 0.8,
+    "quality": "estimated",
+    "note": "Owner-selected provisional dimensions, 2026-10-16; replace when measured parameters are available. Flat diameter is independent of extrusion-orifice diameter."
+  },
   "ams": {
     "units": 4,
     "slotsPerUnit": 4,

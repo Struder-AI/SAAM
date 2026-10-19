@@ -9,7 +9,7 @@
 // trimmed-surface records.
 import {evaluate,findSpan,basisFunctions} from './nurbs.mjs';
 import {requireThat,TOLERANCE} from './tolerance.mjs';
-import {ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {leastSquares} from './least-squares.mjs';
 import {trimmedSurface,isSleeve,sleeveFoldHoles,rejectFolds} from './trimmed-surface.mjs';
 
@@ -114,7 +114,7 @@ function prepareLooseSurface(kind,{patch,periodicU=false,periodicV=false}){
   // The loose moved patch as a trimmed-surface record with its folds resolved:
   // a sleeve's ribbon (every U isocurve at one Z) has them trimmed per level;
   // any other patch is rejected where it folds.
-  const trimmed=(depth,{toleranceMm=0.01}={})=>{
+  const trimmed=(depth,{toleranceMm=CONSTRUCTION_TOLERANCE_MM}={})=>{
     requireThat(toleranceMm>0,'Surface fold trimming needs a positive toleranceMm.');
     const moved=offsetPatch(depth);
     const holes=kind==='ribbon'&&!periodicV&&isSleeve(patch)?sleeveFoldHoles({source:patch,moved,periodic:periodicU,toleranceMm}):rejectFolds({source:patch,moved,kind});

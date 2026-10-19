@@ -1,68 +1,47 @@
 ---
 name: hole-transitions
-description: Experimental. Add stepped-reduction bridge courses or a seeded wave shoulder around a retained bore using ordinary Slice.
+description: Experimental. Edge-based membranes and advancing shoulders, with stepped reduction.
 metadata:
   saam-kind: extension
 ---
 
 # Hole transitions
 
-The [four-option guidance](../hole-supports/SKILL.md) owns the choice and finishing.
-Call `apply_extension` with `extensionId:"hole-transitions"`, the current Bundle
-revision and one request below. `sourceAssignment` selects the ordinary Slice
-owner supplying part, material and process. Other assignments remain present.
-IDs must be new; undo the application with a Bundle revision before rebuilding
-for changed geometry, layers, width or strategy. There is no separate feature runtime.
+[Hole guidance](../hole-supports/SKILL.md) owns choice and finishing. Call
+`apply_extension` with `extensionId:"hole-transitions"` and a lowercase `id`.
+
+## Select edges
+
+Use [geometric selectors](../bridging/SKILL.md) for `base` and `target`.
+The base needs readiness; a wave target may be an unprinted saved curve.
+Slice boundaries describe material edges, independently of bead width.
+
+## Membrane and wave
+
+`strategy:"membrane"` uses one closed boundary, or two ready geometric boundaries.
+Its straight spans preserve 3D endpoints, including nonplanar bounds. This is
+[bridging](../bridging/SKILL.md)'s exact construction and dependency wiring.
+`strategy:"wave"` interpolates fronts from base to target. Only the base and
+previous front are required; the target defines geometry. Both retain the solid.
+
+Process inherits the base. Overrides: `spacingMm` (bead width), `layerHeightMm`,
+`beadWidthMm`, `speedMmS`, `sampleStepMm`, seam/direction `correspondence`,
+`angleDeg` for one-boundary spans, and `normalSide` (1 or -1). Membrane endpoints
+rise one bead height; waves follow the selected base-to-target surface.
 
 ## Stepped reduction
 
-```json
-{"strategy":"stepped-reduction","id":"screw-hole","sourceAssignment":"body",
- "centerMm":[0,0,4],"boreRadiusMm":2,"counterboreRadiusMm":5,
- "angleDeg":0,"speedMmS":20}
-```
+`strategy:"stepped-reduction"` selects a closed native Slice base and a final
+edge on a later slice of that stack. Partial bridge bands become ordinary
+`sliceOverrides.regionUv` material masks with dense, alternating row fill.
+Only native predecessor order applies; no duplicate producer or target
+prerequisite is added. The design solid stays unchanged.
 
-Measure `centerMm` at the shoulder in part-local XYZ. The source must be an
-unbounded planar Slice owner: horizontal or an authored plane, with a positive
-translation direction. Its normal and chart axes define the bore axis and bridge
-angles. The shoulder must match its grid within `toleranceMm` (default 0.01mm);
-four continuing circular bore layers must exist above it. Layer height, first gap,
-bead width, material and pose inherit the source. Assembly sources select one part.
+The final aperture must be convex, fit inside the base and finish within half a
+bead width of the last stage; select a later target for more stages. Concave
+passages need explicit bridge bands. Tilted/nonplanar charts use the same query,
+physical offsets and masks. Optional `angleDeg`, `sampleStepMm` and `toleranceMm`
+control layout. Reapply from the prior recipe after edge or stack-spacing edits.
 
-The extension cuts the exemplar's slot, tangent square and tangent octagon into
-the first three overhang courses, retaining the original host as a Boolean operand.
-Three local zero-loop dense Slice owners bridge at `angleDeg`, +90° and +45°;
-each reaches two bead widths beyond the counterbore for anchoring. Their geometry
-claims remove that material from the unbounded body's ordinary fill. The body keeps
-its existing walls/fill elsewhere and resumes the round bore on the fourth course.
-The report names actual source layer indices. `speedMmS` defaults to source speed;
-`angleDeg` defaults to 0. Inspect first-course span, anchoring and the enlarged opening.
-This supports tilted planar references and oblique stack directions, not curved slices.
-
-## Experimental wave shoulder
-
-Supply `strategy:"wave"`, `id`, `sourceAssignment`, `surface`, `domainUv`, and
-`seedUv`. The surface is an ordinary Slice spline reference (authored control net)
-or named native patch, placed at the **top of the last wave course**. The domain
-contains a CCW outer loop and CW bore hole; the seed is the already supported
-outer rim in the same chart and is not printed again. Include the anchoring rim
-in the domain. Wrong seed placement can request unsupported deposition.
-
-`layers` defaults to 1; `layerHeightMm` inherits the source stack/process.
-The extension adds an ordinary `surface-domain` Slice with `fillOrder:"fronts"`
-and leaves host geometry unchanged. Defaults are spacing 0.3mm, propagation step
-0.1mm, tolerance 0.01mm, sample step 0.5mm, speed 5mm/s and fan 100%; the corresponding
-fields are `lineSpacingMm`, `propagationStepMm`, `toleranceMm`, `sampleStepMm`,
-`speedMmS` and `fanPercent`. They are experimental values, not machine calibration.
-`direction` accepts an XYZ translation direction; omission uses the reference's
-mean normal. `toolPose` inherits the source or accepts `{alignToSliceNormal:true}`.
-Spline charts may be curved: physical spacing and calibrated mean-normal gaps stay
-with the existing [wave fill](../wave-overhangs/SKILL.md), including its residual reports,
-chart/sampling limits and lack of an implicit final perimeter. Normal-offset stacks,
-singular/folded charts and multi-chart stitching are unsupported.
-
-For either strategy `after` may name exact operations printing the supporting
-base; never make a transition wait for the entire body above it. Review chronological
-deposition, ownership and the next bore wall in Studio. Software success establishes
-no adhesion, cooling, removal or physical result. [Example inputs](examples/README.md)
-include planar, tilted-plane and curved wave constructions and the original exemplar.
+[Examples](examples/README.md) verify software construction only. Review span,
+cooling, attachment, machine access and finishing.

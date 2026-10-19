@@ -7,22 +7,21 @@ metadata:
 
 # Downward-facing holes
 
-For a recess narrowing into a bore above air, choose the construction in chat.
-Review removal access, bridge span, material and cooling; all four are physically unqualified.
+Choose in chat for a recess narrowing into a bore above air; review removal access, span, material and cooling through the [shared review workflow](../../core/print/USAGE.md). All four constructions are physically unqualified.
 
 | Construction | Treatment and finishing | Reference scope |
 |---|---|---|
-| [Removable landing support](../bridge-supports/SKILL.md) | Trace stacks join selected base and landing curves; bridge from the printed edge and remove it later. | General XYZ/NURBS curves, open or closed; no horizontal/planar-curve restriction. The bed-base exception uses Z=0. |
-| Drill-through membrane | Additional dense, zero-loop, single-direction Slice below the first overhang course; anchor into the rim, then drill through. | Ordinary Slice can use planes or regular spline references; the worked layer placement below is horizontal. |
-| [Stepped reduction](../hole-transitions/SKILL.md) | Slot → square → octagon over three bridge courses at 0/90/45°; the fourth resumes the round bore. Enlarges the bore locally; retains an open passage. | Planar source layers, including tilted planes and oblique stack translations; curved slices unsupported. |
-| [Wave shoulder](../hole-transitions/SKILL.md) | Seeded fronts grow inward from the supported rim, retaining the bore. Inspect residuals and the next bore layer's contact. | Regular injective spline charts and translated stacks, including curved references and non-Z directions; no normal-offset or multi-chart stacks. |
+| [Removable landing support](../bridge-supports/SKILL.md) · [example](../bridge-supports/examples/removable.json) | Printed base or explicit plate → two-loop support courses → selected landing edge. Remove afterward. | Geometric boundaries with separate readiness; open or closed. Plate bases are explicit. |
+| [Drill-through membrane](../hole-transitions/SKILL.md) · [example](examples/membrane.json) | Printed boundary → straight bridge spans. Pierce or drill through afterward. | One closed edge or two loft bounds, including nonplanar geometry; identical to general bridging. |
+| [Stepped reduction](../hole-transitions/SKILL.md) · [example](../hole-transitions/examples/stepped.json) | Partial bridge stages retain an open passage, then resume the bore. | Select the printed base and final edge; ordinary native Slice masks own the partial bridge stages. |
+| [Wave shoulder](../hole-transitions/SKILL.md) · [example](../hole-transitions/examples/wave.json) | Printed base edge → interpolated fronts toward a final geometric edge. | Paired edges, including nonplanar geometry. Only the base edge is an external prerequisite. |
 
-Membranes need a thin filled guide solid/footprint: slicing empty air cannot create one.
-With a shoulder at Z6.0 and 0.2mm layers, its course tops at Z6.0 (material 5.8–6.0),
-and the first model overhang course tops at Z6.2. Order lower body, membrane and
-upper body on the same grid, preserving model geometry and ordinary wall/fill settings.
-Anchor overlap is intentional. This earlier membrane is the owner's adaptation of
-TKeller's idea; the [original exemplar](references/README.md) prints it in the overhang course.
-For other references author the corresponding earlier surface and supported anchors;
-this is an available Slice construction, not a verified curved-membrane example.
-Use normal Bundle revisions and the [shared review workflow](../../core/print/USAGE.md).
+Helpers derive manufacturing prerequisites. The scheduler places independent
+work and handles uncovered interference; Export owns physical machine transfers.
+Inspect geometry, material ownership and attachment in Studio.
+
+The membrane example selects a printed square rim and fills its interior
+through the same shared edge construction as bridging. The other linked
+examples demonstrate their own geometry and scale; they are not all variants
+of one 16 mm exemplar. [Original STEP provenance](references/README.md) remains
+historical reference material. Inspect actual attachment and native slice order.

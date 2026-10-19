@@ -12,7 +12,9 @@ Use the shared [print tools](../../core/print/USAGE.md) and [maker workflow](../
 `plan.slices` is `{version:1,assignments:[...]}`. `slice` and bulk `adjust_recipe`
 edit this same list. Ordinary `body` uses two loops, 20% fill and three solid
 slices at the top and bottom. Dependencies name prepared material work; construction waits for those prerequisites.
-Slice never reads completed deposition. Stack spacing determines each local normal gap; agents do not supply an independent gap parameter. The experimental adaptation flag applies only to Trace.
+`regionUv` optionally clips owned material in its native chart, globally or in `sliceOverrides`; it cannot add material or claim another owner. Geometry masks precede layout and readiness.
+
+Slice publishes immediate-predecessor completion and internal access validity, independent of world Z. `substrate:{assignment,index?,part?}` selects a manufactured base. Stack spacing supplies local gaps; Slice reads prepared material, while completed-deposition adaptation remains experimental Trace work.
 
 ## Settings
 
@@ -21,22 +23,23 @@ Assignments carry the normal fields; optional fields below may be omitted.
 | Field | Default | Meaning |
 |---|---|---|
 | `id`, `part` | Required name, `null` part | Unique lowercase name; selected component/material part, or every component. |
-| `filament`, `process` | `null` | Logical filament; overrides for height, width, speed, fan, `liftMm` and `retractMm` (zero disables extra hop/retraction for this assignment). |
+| `filament`, `process` | `null` | Logical filament; height, width, speed, fan, `liftMm`, `retractMm` (zero disables hop/retraction) and `minimumBridgeRatio` (default 0.8; straight gap / original curve length). |
 | `preset` | `null` | `brim` settings and auxiliary region. |
 | `loops` | `2` | Nonnegative loop count; an array varies the count by slice. |
 | `fillDensity`, `fillPattern` | `0.2`, `rectilinear` | Zero leaves loops; one fills solid; otherwise sparse fill. |
 | `fillAnglesDeg`, `rotateFill` | `[45,135]`, `true` | Alternate row directions, or retain the first. |
 | `connectNearby` | Automatic | Deposit safe nearby connections; `false` retains separate strokes (including parallel support rows). May vary by slice. |
-| `solidTop`, `solidBottom` | `3`, `3` | Dense slices where material ends, independent of owner boundaries. |
+| `solidTop`, `solidBottom` | `3`, `3` | Dense slices where the source solid ends, independent of owner boundaries. |
+| `geometry` | Optional | Independent source solid in the selected part frame; omission uses that part's geometry. |
 | `fillOverlap`, `spacingFactor` | `0.15`, `1` | Fill overlap as a bead fraction; physical loop/row pitch multiplier. |
 | `sampleStepMm` | `0.2` | Physical sampling target. |
 | `surface`, `stack` | Horizontal, `null` | Reference geometry and first/regular normal gaps; optional translation direction. |
 | `within` | `[]` | Intersected material claims; empty retains unclaimed part material. |
-| `sliceOverrides` | Optional | Per-slice overrides of loop/fill/solid/sampling settings. |
+| `sliceOverrides`, `operationAfter` | Optional | Per-slice settings; `operationAfter:{walls:[refs],infill:[refs],fill:[refs]}` scopes hard edges, also in overrides; refs are IDs or `{assignment}` completion. |
 | `loopInsetMm`, `roles` | Optional | Signed physical first-loop inset and stroke-role names. |
-| `fillOrder` | `null` | Ordinary patterns, physical chart cells or seeded fronts; independent of stack choice. |
+| `fillOrder` | `null` | Ordinary patterns or physical chart cells; independent of stack choice. |
 | `contact`, `toolPose` | `null` | Prepared-material source and optional derived poses, below. |
-| `dependencies`, `description` | Empty lists/text | Explicit `after`, `afterParts`, `beforeParts` and intent. |
+| `substrate`, `dependencies`, `description` | Null, empty lists/text | Manufactured base, explicit requirements and intent. |
 
 ## Regions and references
 
@@ -45,32 +48,29 @@ Assignments carry the normal fields; optional fields below may be omitted.
 - `slab:{fromMm,toMm}` uses heights above the part bottom; `toMm:null` reaches its top.
 - `geometry:{geometry}` uses a closed authored solid placed with the selected part.
 - `surface-domain:{loopsUv,fromLayer,toLayer}` bounds a translated surface prism.
-  On a roof, `loopsUv:null` surveys it dynamically; optional slope and sample limits
-  control that survey. See [skin](../draped-skin/SKILL.md).
+  Supply bounded native UV loops; the selected surface supplies its local frame.
 - `normal-band:{fromMm,toMm}` bounds normal depth on a selected surface.
 - `outline` supplies the brim's auxiliary region.
 
-Volumes include their `kind` as shown by the tool schemas. An unbounded owner
-retains explicit owners' remainder; each explicit owner prints its claimed region.
-Each owner walls its own boundaries; solid masks follow the part's material.
+Volumes use the schemas' `kind`; unbounded owners keep explicit claims' remainder.
+Use disjoint or explicitly partitioned claims under the [role boundary](../../MAKERS.md#toolpaths). Each owner walls its boundaries; solid masks follow the part's material.
 
-References may be horizontal, an authored plane, a roof height chart or a native
-spline patch. Translated stacks calibrate pitch against the whole-reference
-mean normal. A `terminal` reference names a source assignment's closed level
-boundary; loop arrays or `sliceOverrides` vary its subsequent deposition.
-The source can be Slice or Trace, including a geometry-free Trace recipe.
-See [lip authoring](../thick-lip/SKILL.md).
+References select a plane, native surface, or `{kind:"slice",assignment,index?}`.
+Omitting `index` selects the last prepared surface in declared sequence, independent
+of orientation, position or numeric labels. Geometry and minimal completion
+prerequisites remain separate; [lips](../thick-lip/SKILL.md) use the same reference.
 
-A selected spline/mesh-strip chart with `stack.direction:"normal"` and a
-`normal-band` supplies offset references. Fill, loops and per-slice variation remain
-Slice settings. `stack.offsetTightness` chooses fitted/exact native normal offsets;
-the older cell-fill spelling remains readable. See [cladding](../pipe-cladding/SKILL.md).
+`stack.direction:"normal"` uses a spline/mesh-strip chart and one `normal-band`;
+optional `geometry` volumes clip its slices to solids. A spline `patch` is a name
+or authored patch. Offsets derive a finite tangent neighborhood automatically, preserving
+the native interior. Regularity failures name the required extent; periodic U stays joined.
+`stack.offsetTightness` blends tangent-extended fitted offsets with exact normal offsets of the extended reference ([cladding](../pipe-cladding/SKILL.md)).
 
-`fillOrder:{kind:"surface-cells",directions:[...],toleranceMm:...}` lays physical
-cells on any resolved chart: axial or circumferential rows on open charts;
-forward/reverse helices need periodic U. Seeds/front propagation are another
-fill algorithm; [wave guidance](../wave-overhangs/SKILL.md) owns its inputs and limits.
-These choices do not select different deposition producers or schedulers.
+Ordinary rectilinear/grid/triangle rows use [physical surface offsets](../../core/region/README.md#shared-offset-functions),
+including wavy references; proven affine charts use exact line translations.
+`fillOrder:{kind:"surface-cells",directions:[...],toleranceMm:...}` explicitly
+chooses axial/circumferential cells or periodic-U helices. [Wave guidance](../wave-overhangs/SKILL.md)
+owns seed/front propagation. All use the same deposition producer and scheduler.
 
 ## Presets
 
@@ -85,17 +85,15 @@ Supports use ordinary geometry claims and Slice settings; [standard support](../
 | `concentric` | Nested contours; narrow regions collapse. |
 | `gyroid` | Sampled periodic XYZ field; approximate density, more segments. |
 
-Boundary offsets and fill retain their chart's physical metric. Planes use planar
-polygon kernels; native patches use physical offsets/sections; evaluated charts
-use numerical surface kernels. None certifies global geodesic coverage. Folds,
-singular metrics, chart edges and insufficient sampling remain geometric limits.
-Physical offsets and fill spacing follow the surface metric. Features thinner than a bead can vanish;
-there is no general gap fill or collision model. First solid fill over sparse
-material is an unoptimised bridge. See [shared path limits](../../core/path/README.md).
+Offsets and fill retain the chart's physical metric: planar kernels for planes,
+native sections for patches, numerical kernels for evaluated charts. Folds,
+singular metrics, chart edges and sampling limit coverage; sub-bead features can
+vanish. There is no general gap fill or collision model; first solid fill over
+sparse material is unoptimised. See [shared path limits](../../core/path/README.md).
 
 ## Contact, poses and extensions
 
-`contact:{source:null}` names available prepared material; an explicit source names its prerequisite. Front seeds are derived from prepared regions or authored directly. `toolPose:{}` derives upright poses; `alignToSliceNormal:true` aligns them to reference normals. Modulation changes completed deposition without changing later Slice geometry.
+`contact:{source:null}` uses available prepared material. `source:{assignment,part?}` selects a manufactured surface; current slice prerequisites derive from its actual contact, with optional XYZ `offsetMm`. Generated `surfaces` save finite triangle footprints and their source, target part and offset. No layer indices or deposition paths are saved. Front seeds are derived from prepared regions or authored directly. `toolPose:{}` derives upright poses; `alignToSliceNormal:true` aligns them to reference normals. Modulation changes completed deposition without changing later Slice geometry.
 
 [Standard vase](../vase-wall/SKILL.md) generates a spiral curve over reference
 sleeve geometry and calls Trace, as does advanced vase. Saved `join:{mode:"spiral",levelEnd:true}` requests

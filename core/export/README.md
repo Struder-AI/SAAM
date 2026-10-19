@@ -12,7 +12,7 @@ Catalog presence is not export support.
 ### Short-travel advisory
 
 Export attaches `shortTravel` to every program's report, computed on the
-prepared program path. Studio draws the neutral SAAMpath. A travel is a maximal sequence of
+prepared program path. Generation also records the neutral path's advisory. A travel is a maximal sequence of
 non-depositing moves: lifts, traverses, descents, detours and sampled robot moves
 remain one trip. Process-only events do not split it; stationary deposition does.
 The check flags straight-line XYZ distance
@@ -24,7 +24,7 @@ the departure after the last, and a travel between depositions with different
 known layer labels, where a nearby start is the intended path. A segment within
 print resolution inside a stroke is not a travel.
 
-Producers [connect nearby strokes by deposition](../path/README.md#whole-plan-travel-requirement),
+Producers [connect nearby strokes by deposition](../path/README.md#scheduler-obligations),
 so an ordinary print reports nothing. A finding is a bad-path report, not a
 validity gate or automatic repair, and the agent tells the person about it. The
 report includes total/count, `liftedCount` (trips that rose above both
@@ -32,7 +32,7 @@ endpoints because the producer found the direct line blocked, such as a gap
 between neighboring islands), operation counts and up to 20 examples with
 endpoints, the lifted flag and prepared-path action index, phase, layer and adjacent
 operation labels. Missing labels remain unknown; recipe skills alone do not prove
-which producer caused a travel. The check is one linear scan of the prepared path.
+which producer caused a travel. Shared motion facts accumulate during the writer’s existing stream pass.
 Generation records it as
 `plan.json` → `bundle.review.generation.checks.shortTravel`; `saam` print state
 exposes it. Review, delivery and emitted bytes are unchanged by the
@@ -44,13 +44,11 @@ SAAMpath generation validates authored geometry and process values independently
 of machine capabilities. Machine profiles supply authoring defaults. They do not
 filter skills, reject tool poses or synthesize poses from the selected machine.
 Slice optionally derives upright orientation (default) or its surface normal; FIELD
-can vary either enabled output. Missing orientation implies ordinary print-Z alignment.
+can vary either enabled output. Toolpath publishes every full pose explicitly.
 
-[Export preparation](./prepare-path.mjs) adds installation startup and priming,
-material-change clearance and axis-feed limits without mutating the authored path.
+[Export preparation](./prepare-path.mjs) resolves actual-tool access and transfers, then installation startup/priming, material changes and axis-feed limits. It preserves neutral source; resolved execution and program bytes remain transient.
 Only adapters enforce installed nozzle/material compatibility and required setup.
-Studio draws the neutral SAAMpath; the program report names added startup travel,
-priming and machine service, with estimates scoped to the commands written.
+Studio always draws saved neutral execution. The Export report names installation startup/priming and service; estimates describe written commands.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |

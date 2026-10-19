@@ -1,5 +1,5 @@
 import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
-import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,extensionSettings,validateExtensionRecipe,extensionProducerIds} from '../../skills/records.mjs';
+import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,validateExtensionRecipe} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
@@ -35,7 +35,7 @@ export function defaults(machine=loadMachine()) {
 export function recipeDefaults(){
   return {
     schema:'saam-shell-plan/1',generatorVersion:VERSION,
-    experimental:{substrateAdaptation:false},skills:extensionSettings(),
+    experimental:{substrateAdaptation:false,sharedMaterial:false},skills:{},
     slices:defaultSlices(),modulations:defaultModulations(),
     composition:{order:[],dependencies:[],filaments:[]}
   };
@@ -68,7 +68,7 @@ export function compileRecipe(plan){
   const key=JSON.stringify(plan);
   if(compiledRecipes.has(key))return compiledRecipes.get(key);
   const read=readRecipe(structuredClone(resolveSpatialPlan(normalizeSpatialPlan(plan))));
-  const value={plan:read.generated,notes:read.notes};
+  const value={plan:read.generated,notes:read.notes,intent:read.plan,failures:read.failures};
   validateRecipeValue(value.plan,read.plan);
   freezeRecipe(value);
   // Eviction only affects reuse, never which recipes are accepted.
@@ -91,8 +91,8 @@ const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 // generated is what generation uses, and notes name every field filled or
 // ignored, every form rewritten and every piece skipped.
 export function readRecipe(plan,machine=null){
-  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.unread);
-  return {plan:current,generated:generated.plan,notes:[...supports.notes,...forms.notes,
+  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.failures);
+  return {plan:current,generated:generated.plan,failures:generated.failures,notes:[...supports.notes,...forms.notes,
     ...(fields.filled.length?[`Recipe fields filled from current defaults: ${fields.filled.join(', ')}; the next save or migrate_bundle records them.`]:[]),
     ...(fields.ignored.length?[`Recipe fields ignored, not read by this SAAM: ${fields.ignored.join(', ')}; the next save or migrate_bundle drops them.`]:[]),
     ...generated.notes]};
@@ -101,28 +101,25 @@ export function readRecipe(plan,machine=null){
 // Each section takes its defaults' missing and unreadable fields and drops the
 // fields it does not read. Fields are removed by name and sections rebuilt by
 // name, so no value moves to another field. Geometry is only trimmed: its
-// fields are never invented; retired supports add their solids to it before
-// (currentSupportForms). A setup is machine-specific: completed, never trimmed.
+// fields are never invented; retired geometric forms reject before reading.
+// A setup is machine-specific: completed, never trimmed.
 function currentFields(plan,machine,fields){
   const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
-  const present=isRecord(plan.skills)?plan.skills:{},skillTemplate={'plastic-weld':skills['plastic-weld']};
+  const present=isRecord(plan.skills)?plan.skills:{};
   const geometry=isRecord(plan.geometry)?geometryTemplate(plan.geometry.shape,plan.geometry):null;
   noteFields(plan,{...defaults,...(Object.hasOwn(plan,'skills')?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})},'',fields,true);
   for(const name of ['process','placement','experimental','composition','slices','modulations'])
     if(isRecord(plan[name]))noteFields(plan[name],defaults[name],name+'.',fields,true);
   if(isRecord(plan.setup))for(const key of Object.keys(settings.setup))if(!Object.hasOwn(plan.setup,key))fields.filled.push('setup.'+key);
-  noteFields(present,{},'skills.',fields,false,skillTemplate);
-  if(isRecord(present['plastic-weld']))noteFields(present['plastic-weld'],skillTemplate['plastic-weld'],'skills.plastic-weld.',fields,true);
   if(geometry)noteFields(plan.geometry,geometry,'geometry.',fields,false);
   const experimental=section(plan.experimental,base.experimental);
   return {...defaults,...knownFields(plan,{...defaults,skills,geometry:null,workspace:null}),
     process:section(plan.process,defaults.process),placement:section(plan.placement,defaults.placement),
-    experimental:{...experimental,substrateAdaptation:Boolean(experimental.substrateAdaptation)},
+    experimental:{...experimental,substrateAdaptation:Boolean(experimental.substrateAdaptation),sharedMaterial:experimental.sharedMaterial===true},
     composition:currentComposition(section(plan.composition,base.composition)),
     slices:section(plan.slices,base.slices),modulations:section(plan.modulations,base.modulations),
     setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})},
-    ...(Object.hasOwn(plan,'skills')?{skills:{...knownFields(present,skillTemplate),
-      ...(isRecord(present['plastic-weld'])?{'plastic-weld':section(present['plastic-weld'],skills['plastic-weld'])}:{})}}:{}),
+    skills:structuredClone(present),
     ...(geometry?{geometry:knownFields(plan.geometry,geometry)}:{})};
 }
 const section=(value,defaults)=>({...structuredClone(defaults),...(isRecord(value)?knownFields(value,defaults):{})});
@@ -168,21 +165,26 @@ function currentComposition({order,dependencies,filaments}){
 // uniquely named components, and each piece that cannot produce anything is
 // left out with a note. Never throws: what cannot be built is validation's.
 function generationRecipe(plan,unread=[]){
-  const notes=[];
+  const failures=[...unread],failedIds=new Set(failures.map(f=>f.assignment)),notes=[];
   // A spatial record (curves and points around an optional solid) is resolved at compilation.
   const spatial=plan.geometry?.shape==='spatial',solid=componentGeometry(spatial?plan.geometry.solid:plan.geometry,notes);
   const geometry=spatial?{...plan.geometry,solid:solid??null}:solid;
   const process={...plan.process,primeLine:usablePrimeLine(plan.process.primeLine,notes)};
   const modulations=readModulations(plan.modulations);
   const stepped={...plan,geometry,process};
-  const skills=producingSkills(stepped,solid,notes);
+  const skills=plan.skills;
   const assignments=Array.isArray(plan.slices?.assignments)
-    ?plan.slices.assignments.filter(assignment=>!unread.includes(assignment?.id)&&producingAssignment(stepped,solid,assignment,notes)):plan.slices?.assignments;
+    ?plan.slices.assignments.filter(assignment=>{
+      if(failedIds.has(assignment?.id))return false;
+      const reasons=[],accepted=producingAssignment(stepped,solid,assignment,reasons);
+      if(!accepted){failures.push({assignment:assignment.id,message:reasons.join(' ')});notes.push(...reasons);}
+      return accepted;
+    }):plan.slices?.assignments;
   const generated={...stepped,...(skills?{skills}:{}),modulations:modulations.record,slices:{...plan.slices,assignments}};
   if(!geometry)delete generated.geometry;
-  if(Array.isArray(assignments)&&!assignments.length&&!extensionProducerIds(generated).length)
+  if(Array.isArray(generated.slices.assignments)&&!generated.slices.assignments.length&&!Object.values(generated.skills??{}).some(settings=>settings?.enabled))
     notes.push('Nothing to print: no slice, Trace or Inject assignment can produce material.');
-  return {plan:generated,notes:[...notes,...modulations.notes]};
+  return {plan:generated,failures,notes:[...notes,...modulations.notes]};
 }
 
 // Nested assemblies are flattened: component outer holding inner becomes
@@ -225,22 +227,10 @@ const processOf=(plan,assignment)=>{try{return assignmentPlan(plan,assignment).p
 const unusableSteps=(process,fields)=>process?fields.filter(key=>!positive(process[key])):[];
 const stepNote=(id,process,bad)=>`${id}: ${bad.map(key=>`${key} ${JSON.stringify(process[key]??null)}`).join(', ')} must be a positive number; ${id} produces nothing.`;
 
-// Skills deposit on geometry; without it, or without layer and line steps, they produce nothing.
-function producingSkills(plan,solid,notes){
-  if(!isRecord(plan.skills))return plan.skills;
-  return Object.fromEntries(Object.entries(plan.skills).map(([id,settings])=>{
-    if(!settings?.enabled)return [id,settings];
-    if(!solid)return [id,{...settings,enabled:false}];
-    const process=processOf(plan,{id}),bad=unusableSteps(process,STEP_FIELDS);
-    if(bad.length)notes.push(stepNote(id,process,bad));
-    return [id,bad.length?{...settings,enabled:false}:settings];
-  }));
-}
-
 // Inject places points; every other construction steps layers and lines.
 function producingAssignment(plan,solid,assignment,notes){
   if(!isRecord(assignment))return true;
-  const id=assignment.id??'An assignment',standalone=['curves','inject'].includes(assignment.construction)||!assignment.construction&&assignment.surface?.kind==='terminal';
+  const id=assignment.id??'An assignment',standalone=['curves','inject'].includes(assignment.construction)||!assignment.construction&&(assignment.geometry||assignment.surface?.kind==='slice');
   if(!solid&&!standalone){notes.push(`${id} slices geometry and the recipe has none; it produces nothing.`);return false;}
   if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent&&(assignment.part??null)===null&&solid?.shape==='assembly'&&hasMesh(solid)){
     notes.push(`${id} needs one surface; this assembly has mesh components, so the whole assembly is not one. Choose its part; ${id} produces nothing.`);return false;
@@ -260,7 +250,10 @@ function validateRecipeValue(plan,current) {
   if(plan.geometry)validateGeometry(plan.geometry);
   validateExtensionRecipe(plan);
   validateSlices(plan.slices);
-  for(const assignment of depositionAssignments(plan))assignmentPlan(plan,assignment);
+  for(const assignment of depositionAssignments(plan)){
+    assignmentPlan(plan,assignment);
+    if(assignment.geometry)validateGeometry(assignment.geometry);
+  }
   validateModulations(plan.modulations,{assignmentIds:Array.isArray(current.slices?.assignments)?current.slices.assignments.map(a=>a?.id):[]});
   for(const {geometry:source} of modulationGeometrySources(plan.modulations)){
     requireThat_toolpath(GEOMETRY_SHAPES.includes(source.shape),'Unsupported solid-distance geometry shape.');
@@ -280,6 +273,8 @@ function validateGeometry(geometry) {
   if(geometry.shape==='spline')validateSplineSolid(geometry);
   if(geometry.shape==='boolean')authoredBounds(geometry);
   GEOMETRY_RECORDS[geometry.shape]?.validate(geometry);
+  if(geometry.solid)validateGeometry(geometry.solid);
+  for(const part of geometry.materialParts??[])if(part.geometry){requireThat(GEOMETRY_SHAPES.includes(part.geometry.shape),'Invalid material partition geometry.');validateGeometry(part.geometry);}
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   if(Array.isArray(geometry.vertices)&&Array.isArray(geometry.triangles))makeMesh(geometry.vertices,geometry.triangles);
 }
@@ -300,5 +295,6 @@ function authoredBounds(geometry){
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
   else if(Object.hasOwn(GEOMETRY_RECORDS,geometry.shape))GEOMETRY_RECORDS[geometry.shape].validate(geometry);
+  if(geometry.solid)return authoredBounds(geometry.solid);
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }

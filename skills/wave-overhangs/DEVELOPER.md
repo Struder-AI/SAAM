@@ -1,51 +1,9 @@
-# Surface wave construction and provenance
+# Wave research history
 
-The Slice fill field in [seeded-fronts.mjs](../../core/region/seeded-fronts.mjs) uses the shared
-[intrinsic surface offset](../../core/region/surface-offset.mjs), not constant
-UV offsets or a flattened mesh. It clips the already reached region to the
-assigned domain after each physical advance. It walks the resulting boundaries
-in cyclic order and excludes stationary domain/seed edges, rather than clipping
-an outline against a coincident area boundary (which discarded front segments).
-Growing fronts split and rejoin through Clipper topology. Short alternating
-connections produce continuous passes where possible. Split branches retain
-separate passes with shared travel between them.
-
-Constrained rays stop at their first region-boundary crossing, including holes;
-they do not restart at a later re-entry. Boundary-tangent rays retain their
-allowed extent, with small endpoint drift projected onto the same boundary.
-Clipper2's `SimplifyPaths64` removes redundant segments between advances;
-epsilon uses sampled native derivative magnitudes and preserves domain contact
-vertices. Obstacle tangent directions are explicit samples of corner fans.
-Geodesic integrations use native first and second derivatives.
-Straight UV integration segments and swept strips approximate obstacle contact;
-`propagationStepMm`, `sampleStepMm` and `toleranceMm` bound their sampling work.
-There is no global shortest-distance or arbitrary topology guarantee across
-unresolved features or geodesic cut loci. This remains an experimental extension.
-
-Repeated UV booleans use one grid anchored at the chart's lower parameter bounds
-(`precisionUv = 1e-10`). The shared boolean adapter accepts an explicit `origin`
-for this purpose; existing callers retain their original automatic local origin.
-This avoids changing the quantization lattice as a front grows. XYZ polylines
-are refined after UV clipping, with native points and normals retained together.
-Terminal corner residuals and collapsed contour diagnostics stay in the report
-under the manual's sampling rules. The final perimeter is not a cap stroke.
-Long strips from rounded polygon intersections are resolved before extracting
-the terminal front when a tiny planar UV expansion of reached material contains
-the entire residual. This diagnostic uses the physical tolerance,
-scaled by sampled native derivative magnitudes. It does not
-replace geodesic propagation, change reached material, or emit extra rim paths.
-The residual geometry, band and actual sampled diameter remain explicit.
-
-The field returns curves for an ordinary Slice operation. Shared travel connects
-separate passes; the slice is the cooling unit.
-Named predecessor/successor components bind existing operations. It does not
-infer material support or replace other skills' regions. Shared functional planning stages own travel and cooling; exporters
-own machine output. Exact runtime
-identity includes the producer, shared numerical functions and dependencies.
-
-`frontLayerStrokes` returns curves, seed and diagnostics to shared Slice
-construction. Construction dependencies are ordinary recipe data; no wave-specific
-composer or mutation of previous operations is involved.
+The former seeded-domain engine and its tests are retired. Current authoring
+uses the shared [edge construction](../../core/print/edge-paths.mjs), also
+used by bridging and membranes. This historical research describes the earlier
+investigation, not another supported runtime or a dependency.
 
 ## Research and license findings
 
@@ -92,27 +50,3 @@ If a future change incorporates dataset material, preserve attribution, link
 the [CC BY 4.0 license](https://creativecommons.org/licenses/by/4.0/), and identify
 changes. Incorporating AGPL source requires a separate distribution/licensing
 decision; this work does not silently relicense SAAM.
-
-## Verification
-
-[Wave tests](tests/wave.test.mjs) use analytical inclined/rescaled planes, an
-independently unrolled rational cylinder, a doubly curved polynomial surface,
-holes, seeded/disconnected islands, unbudgeted propagation and shared composition/export.
-Regressions require complete saddle fronts, a single deposited stroke per
-accepted slice, no internal rapid moves/dwells in exported G-code, and rejection
-of hole branches that would require separate passes.
-The original `canopy-rim.json` fixture starts near the large example's rim and
-checks that long rounding strips remain diagnostic geometry, without producing
-additional perimeter passes or exhausting growth.
-The example provides a reproducible public development workflow.
-Surface-offset and boolean behavior follows from the contracts above; write
-those checks on demand. The stored canopy-rim regression and the upstream
-boolean references run with:
-
-```sh
-node --test skills/wave-overhangs/tests/wave.test.mjs core/tests/intersection.test.mjs
-```
-
-Software fixtures establish no physical result. The
-user has Grasshopper available as an optional future comparison host; no
-comparison result or physical validation is claimed.

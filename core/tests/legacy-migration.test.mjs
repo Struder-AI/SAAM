@@ -1,77 +1,33 @@
 import './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {access,copyFile,mkdir,readFile,readdir,rm,writeFile} from 'node:fs/promises';
-import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
-import {join,dirname} from 'node:path';
+import {readFile,readdir,writeFile} from 'node:fs/promises';
+import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {generationFixture} from './workflow-generation-fixture.mjs';
 
-const exec=promisify(execFile),digest=bytes=>createHash('sha256').update(bytes).digest('hex');
 async function snapshot(root,at=root,result={}){
   for(const entry of await readdir(at,{withFileTypes:true})){
     const path=join(at,entry.name),name=path.slice(root.length+1).replaceAll('\\','/');
-    if(entry.isDirectory())await snapshot(root,path,result);else result[name]=digest(await readFile(path));
+    if(entry.isDirectory())await snapshot(root,path,result);
+    else result[name]=createHash('sha256').update(await readFile(path)).digest('hex');
   }
   return result;
 }
-async function legacy(f,{unknown=true}={}){
-  let state=await f.api.commitGeneration(f.directory,await f.api.prepareGeneration(f.directory));
-  const manifest=JSON.parse(await f.read('plan.json')),{bundle,...plan}=manifest,native=bundle.geometry.descriptor.nativeFile??'model.3dm';
-  const oldGeometry=`geometry/${native}`,oldExport=`exports/${plan.output}/part.gcode`;
-  await mkdir(dirname(join(f.directory,oldExport)),{recursive:true});
-  await Promise.all([copyFile(join(f.directory,bundle.geometry.file),join(f.directory,oldGeometry)),
-    copyFile(join(f.directory,bundle.review.generation.file),join(f.directory,oldExport))]);
-  await Promise.all([writeFile(join(f.directory,'machine.json'),JSON.stringify(bundle.machine)),
-    writeFile(join(f.directory,'review.json'),JSON.stringify({...bundle.review,generation:{...bundle.review.generation,file:undefined,checks:undefined}})),
-    writeFile(join(f.directory,'checks.json'),JSON.stringify(bundle.review.generation.checks)),
-    writeFile(join(f.directory,'geometry/model.json'),JSON.stringify(bundle.geometry.descriptor)),
-    writeFile(join(f.directory,'plan.json'),JSON.stringify(plan)),
-    unknown?writeFile(join(f.directory,'keep-me.txt'),'unknown retained file'):Promise.resolve()]);
-  await Promise.all([rm(join(f.directory,bundle.geometry.file)),rm(join(f.directory,bundle.review.generation.file))]);
-  return {bundle,plan,oldGeometry,oldExport,state};
-}
 
-test('the first read converts a legacy bundle, retaining sidecars and the current program',async t=>{
-  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
-  const converted=await f.api.loadBundle(f.directory,{program:'source'});
-  assert.ok(converted.limitations.includes('Converted from the old bundle format; originals kept.'));
-  const {retained}=JSON.parse(await f.read('plan.json')).bundle.review.history.at(-1);
-  for(const name of ['machine.json','review.json','checks.json','geometry/model.json',old.oldGeometry,old.oldExport,'keep-me.txt']){
-    if(name!=='keep-me.txt')assert.ok(retained.includes(name),name);await access(join(f.directory,name));
-  }
-  assert.equal(converted.programError,undefined);assert.equal(converted.artifacts.program,'current');
+test('a retired split-file bundle receives a compact message without rewriting files',async t=>{
+  const f=await generationFixture();t.after(f.cleanup);
+  const {bundle,...plan}=JSON.parse(await f.read('plan.json'));
+  await writeFile(join(f.directory,'plan.json'),JSON.stringify(plan));
+  await writeFile(join(f.directory,'machine.json'),JSON.stringify(bundle.machine));
+  const before=await snapshot(f.directory);
+  await assert.rejects(f.api.loadBundle(f.directory),/^Error: Deprecated split-file print bundle\.$/);
+  await assert.rejects(f.api.migrateBundle(f.directory),/^Error: Deprecated split-file print bundle\.$/);
+  assert.deepEqual(await snapshot(f.directory),before);
 });
 
 test('current migration is an idempotent no-op',async t=>{
   const f=await generationFixture();t.after(f.cleanup);const before=await snapshot(f.directory);
   const first=await f.api.migrateBundle(f.directory),second=await f.api.migrateBundle(f.directory);
   assert.equal(first.status,'current');assert.equal(second.status,'current');assert.deepEqual(await snapshot(f.directory),before);
-});
-
-test('migration rejects a concurrently changed legacy input without replacing its plan',async t=>{
-  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f),planBefore=await readFile(join(f.directory,'plan.json'));
-  await assert.rejects(f.api.migrateBundle(f.directory,{beforeCommit:async()=>{
-    await writeFile(join(f.directory,'review.json'),'{}');
-  }}),/changed during migration: review\.json/);
-  assert.deepEqual(await readFile(join(f.directory,'plan.json')),planBefore);
-});
-
-test('migration rejects a checks file that appears after an absent preflight',async t=>{
-  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
-  await rm(join(f.directory,'checks.json'));const planBefore=await readFile(join(f.directory,'plan.json'));
-  await assert.rejects(f.api.migrateBundle(f.directory,{beforeCommit:async()=>{
-    await writeFile(join(f.directory,'checks.json'),'{}');
-  }}),/changed during migration: checks\.json/);
-  assert.deepEqual(await readFile(join(f.directory,'plan.json')),planBefore);
-});
-
-test('migrated bundle cold-reopens in a fresh process',async t=>{
-  const f=await generationFixture();t.after(f.cleanup);const old=await legacy(f);
-  await f.api.loadBundle(f.directory,{program:false});
-  const script=`import {generationWorkflow} from './core/tests/workflow-generation-fixture.mjs';\nconst state=await generationWorkflow().api.loadBundle(process.argv[1],{program:'source'});\nconsole.log(JSON.stringify({outputId:state.outputId,error:state.programError??null}));`;
-  const result=JSON.parse((await exec(process.execPath,['--input-type=module','-e',script,f.directory],{cwd:process.cwd()})).stdout);
-  const manifest=JSON.parse(await readFile(join(f.directory,'plan.json'),'utf8'));
-  assert.deepEqual(result,{outputId:manifest.bundle.review.generation.exportHash,error:null});
 });

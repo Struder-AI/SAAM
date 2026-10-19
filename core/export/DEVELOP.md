@@ -1,20 +1,19 @@
 # Exporter implementation
 
-The core side of the machine plug. [Adding a machine](../../machines/README.md#adding-a-machine)
-owns the adapter interface and standards; [the export manual](README.md) owns shared
-output semantics; each machine's `SKILL.md` owns its dialect and evidence.
+[Adding a machine](../../machines/README.md#adding-a-machine) owns adapter interfaces/standards; [the export manual](README.md) owns shared output semantics; each machine's `SKILL.md` owns its dialect and evidence.
 
 - `registry.mjs`: `Export`, the operations offered to adapters; `machineAdapter` loads
   the selected output's adapter from the machine extension shipping the profile
   (`machineCatalog`, `core/extensions/library.mjs`); `exportProgram` prepares the path
   once, calls `export` and completes the report (move count, path totals as fallback
   estimates, short-travel advisory); `programReadiness` names what writing still needs;
-  `settingsRows` gives Studio the adapter's rows. Adapters translate the SAAMpath into
+  saved settings rows come from [snapshot data](../machine/settings-rows.mjs). Adapters translate SAAMpath into
   programs and draw nothing: Studio draws the SAAMpath.
+- `transfer-planning.mjs`: selected-tool ordering, continuous transfers, parking and retraction; execution stays transient with Export.
 - `prepare-path.mjs`: placement offset, `validateSetup` (common setup, logical materials, then the
   adapter's `validate`), pose refusal by the adapter's `poses`, startup, priming,
   material changes by the output's `materialChangeMode`, axis-feed limits.
-- `gcode-motion.mjs`, `zip.mjs`, `travel-advisory.mjs`: shared writer, archive codec and advisory.
+- `gcode-motion.mjs`, `zip.mjs`: shared writer and archive codec; [motion reports](../path/motion-report.mjs) collect totals/advisories during consumption.
 
 ## Kinematics plug
 

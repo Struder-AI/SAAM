@@ -1,40 +1,24 @@
+
+export function supportGeometry(Geometry){
+const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
 // Support geometry: closed solids under authored contacts, sliced as ordinary
-// Slice volumes. Pure: no kernel or host calls. The standard-support editor and
-// the migration of retired tree and footprint supports share it; closing a roof
-// to the bed is the host's closeMeshPatchToPlane, passed in by the caller.
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
+// Slice volumes. Pure: no kernel or host calls. The current editor supplies
+// roof closing through the shared Geometry operations.
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const finitePoint=(p,n)=>Array.isArray(p)&&p.length===n&&p.every(Number.isFinite);
 
 // gapMm: owner, 2026-10-05, "let's make that a 0.15mm gap moving forward".
 // chordMm is process scale: a branch circle's chord error, a twentieth of a 0.4 mm line.
-// skinLayers matches an ordinary Slice's three solid bottom layers.
-export const STANDARD_SUPPORT=Object.freeze({gapMm:.15,fillDensity:.2,angleDeg:0,baseLayers:2,skinLayers:3,chordMm:.02,description:'Authored underside support.'});
+const STANDARD_SUPPORT=Object.freeze({gapMm:.15,fillDensity:.2,angleDeg:0,baseLayers:2,chordMm:Geometry.dimensions.CHORD_TOLERANCE_MM,description:'Authored underside support.'});
 
 // The owner's method as ordinary Slice settings: no loops, one fill direction,
 // dense bottom slices as the bed base, no hop or retract.
-export function supportSlice({id,part=null,solid,fillDensity,angleDeg,baseLayers,description}){
+function supportSlice({id,part=null,solid,fillDensity,angleDeg,baseLayers,description}){
   return {id,part,loops:0,fillDensity,fillPattern:'rectilinear',fillAnglesDeg:[angleDeg],rotateFill:false,connectNearby:false,
-    solidTop:0,solidBottom:baseLayers,process:{liftMm:0,retractMm:0},within:[{kind:'geometry',geometry:solid}],description};
+    solidTop:0,solidBottom:baseLayers,process:{liftMm:0,retractMm:0},geometry:solid,description};
 }
 
-// The part's solid underside over a roof support. The support is part material
-// to the part's own solid masks, so an ordinary claim makes the skin: the roof
-// raised by the skin thickness and closed to the bed, less the support. Its rows
-// cross the support's.
-export function skinSlice({id,part=null,raised,solid,angleDeg}){
-  return {id:`${id}-skin`,part,fillDensity:1,fillAnglesDeg:[angleDeg+90],rotateFill:false,solidTop:0,solidBottom:0,
-    within:[{kind:'geometry',geometry:{shape:'boolean',operation:'difference',operands:[supportSolid(raised),solid]}}],
-    description:`Solid underside over support ${id}.`};
-}
-
-// The support joins its part as a hidden union operand; the viewer shows operand 0.
-export function withSupportOperand(original,solid){
-  return original?.shape==='boolean'&&original.operation==='union'&&original.displayOperand===0
-    ?{...original,operands:[...original.operands,solid]}:{shape:'boolean',operation:'union',operands:[original,solid],displayOperand:0};
-}
-export const supportSolid=meshes=>meshes.length===1?meshes[0]:{shape:'boolean',operation:'union',operands:meshes};
+const supportSolid=meshes=>meshes.length===1?meshes[0]:{shape:'boolean',operation:'union',operands:meshes};
 
 const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
 const signedArea=loop=>loop.reduce((sum,p,i)=>sum+cross([0,0],p,loop[(i+1)%loop.length]),0)/2;
@@ -79,7 +63,7 @@ function triangulate(points,outer,holes){
 
 // A flat footprint at zMm becomes roof patches: each outer loop with the holes
 // directly inside it, by even-odd nesting. Close each with closeMeshPatchToPlane.
-export function footprintRoofs(loops,zMm){
+function footprintRoofs(loops,zMm){
   requireThat(Array.isArray(loops)&&loops.length&&loops.every(loop=>Array.isArray(loop)&&loop.every(p=>finitePoint(p,2))),'A footprint is a list of [x,y] loops.');
   requireThat(Number.isFinite(zMm),'A footprint needs a finite contact height.');
   const notes=[],kept=[];
@@ -116,7 +100,7 @@ function branchMesh([x0,y0,z0],r0,[x1,y1,z1],r1,chordMm){
 
 // A tree skeleton: nodes {id,parent,point,radiusMm}, parent null at a root. Tips
 // (nodes without children) sit at their contact and are lowered by gapMm.
-export function treeSolids(nodes,{gapMm,chordMm,bedZMm=0}){
+function treeSolids(nodes,{gapMm,chordMm,bedZMm=0}){
   requireThat(Array.isArray(nodes)&&nodes.length>=2,'A tree needs a list of at least two nodes.');
   const byId=new Map(),notes=[];
   for(const n of nodes){
@@ -144,23 +128,6 @@ export function treeSolids(nodes,{gapMm,chordMm,bedZMm=0}){
   return {solids,notes};
 }
 
-// Retired recipe forms, read as standard supports by core/print/recipe-migration.mjs;
-// solids are in the print's frame, contacts the points they hold up.
-// A skills.supports tree {id, reason, contactZMm, treeNodes}: its tips already
-// end at contactZMm-topGapMm, so no gap is applied.
-export function retiredTreeSolids(tree,{chordMm}){
-  const nodes=tree?.treeNodes,{solids,notes}=treeSolids(nodes,{gapMm:0,chordMm,bedZMm:0});
-  return {solids,notes,contacts:nodes.filter(n=>!nodes.some(c=>c.parent===n.id)).map(n=>n.point)};
+
+return {STANDARD_SUPPORT,supportSlice,supportSolid,footprintRoofs,treeSolids};
 }
-// A support-preset footprint {footprint, contactZMm, topGapMm}: its roofs lowered
-// by topGapMm and closed to the bed, and raised by skinMm for the part's skin.
-export function retiredFootprintSolids(volume,{closeMeshPatchToPlane},{skinMm}){
-  const {roofs,notes}=footprintRoofs(volume?.footprint,volume?.contactZMm),close=offsetMm=>roofs.map(roof=>
-    closeMeshPatchToPlane(roof,{triangleIndices:roof.triangles.map((_,i)=>i),planeZMm:0,offsetMm}));
-  const closed=close(-volume.topGapMm);
-  return {solids:closed.map(c=>c.solid),raised:skinMm>0?close(skinMm).map(c=>c.solid):[],notes:[...notes,...closed.flatMap(c=>c.notes)],
-    contacts:volume.footprint.flat().map(([x,y])=>[x,y,volume.contactZMm])};
-}
-// A solid moved into a frame placed at originMm.
-export const solidInFrame=(solid,originMm)=>solid.shape==='boolean'?{...solid,operands:solid.operands.map(m=>solidInFrame(m,originMm))}
-  :{...solid,vertices:solid.vertices.map(p=>p.map((v,k)=>v-originMm[k]))};

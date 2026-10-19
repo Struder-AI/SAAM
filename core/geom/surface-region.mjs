@@ -2,22 +2,49 @@
 // spline evaluation or an explicitly mapped triangle strip; no inverse mapping.
 import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,subtract,cross,normalize,scale,add,distance} from './tolerance.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,TOLERANCE} from '../dimensions.mjs';
+import {numericalGeometryRecord} from './surface-record.mjs';
+import {referencePatch,selectedFace} from './reference-surface.mjs';
+import {extendSurface} from './surface-extend.mjs';
+import {surfaceNeighborhood} from './surface-neighborhood.mjs';
+import {faceTrimRegion} from './surface-trim.mjs';
+import {intersect} from '../region/intersection.mjs';
+import {validateSplineSolid} from './spline-solid.mjs';
 
 export function validateSurfaceSelection(s){
-  requireThat(s&&['spline','mesh-strip'].includes(s.kind)&&typeof s.periodicU==='boolean'&&[1,-1].includes(s.normalSide),'Invalid cladding surface selection.');
-  const keys=s.kind==='spline'?'kind,normalSide,patch,periodicU,uvBounds':'kind,normalSide,periodicU,rows';
-  requireThat(Object.keys(s).sort().join()===keys,'Unexpected surface selection fields.');
-  if(s.kind==='spline')requireThat(typeof s.patch==='string'&&s.patch.length>0&&Array.isArray(s.uvBounds)&&s.uvBounds.length===2&&s.uvBounds.every(b=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]),'Select a native patch and two increasing UV bounds.');
+  requireThat(s&&['spline','mesh-strip'].includes(s.kind)&&typeof s.periodicU==='boolean'&&[1,-1].includes(s.normalSide),'Invalid surface selection.');
+  const keys=s.kind==='spline'?['kind','normalSide','patch','periodicU','uvBounds']:['kind','normalSide','periodicU','rows'];
+  requireThat(keys.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>keys.includes(k)||s.kind==='spline'&&k==='extend')&&(s.extend===undefined||typeof s.extend==='boolean'),'Unexpected surface selection fields.');
+  if(s.kind==='spline'){
+    requireThat((typeof s.patch==='string'&&s.patch.length>0||s.patch&&typeof s.patch==='object')&&Array.isArray(s.uvBounds)&&s.uvBounds.length===2&&s.uvBounds.every(b=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]),'Select a native or authored patch and two increasing UV bounds.');
+    if(typeof s.patch!=='string')validateSplineSolid({shape:'spline',patches:[s.patch]});
+  }
   else requireThat(Array.isArray(s.rows)&&s.rows.length>=2&&s.rows.every(r=>Array.isArray(r)&&r.length===s.rows[0].length&&r.length>=2&&r.every(i=>Number.isInteger(i)&&i>=0)),'Mesh-strip rows must be a rectangular grid of native vertex indices.');
 }
 
 // One chart per backend: the sampler and its knot/cell breaks. The selected
 // chart is chosen once, so the sampled evaluation stays a named stage.
-function splinePatchChart(shell,spec){
-  const patch=shell.patches?.find(p=>p.name===spec.patch);
+export function selectedSplinePatch(shell,spec){
+  const patch=typeof spec.patch==='string'?selectedFace(shell,spec.patch):{...referencePatch(spec.patch),name:spec.patch.name,
+    ...(spec.patch.trimLoops===undefined?{}:{trimLoops:spec.patch.trimLoops})};
   requireThat(patch,'Selected native spline patch is missing.');
+  return patch;
+}
+function splinePatchChart(shell,spec,neighborhood){
+  const patch=selectedSplinePatch(shell,spec);
   const [u,v]=spec.uvBounds;
+  if(neighborhood){
+    const normalRangeMm=(neighborhood.normalRangeMm??[0,0]).map(value=>value*spec.normalSide).sort((a,b)=>a-b);
+    const prepared=surfaceNeighborhood(patch,{...neighborhood,normalRangeMm,periodicU:spec.periodicU,boundsUv:spec.uvBounds});
+    const domains=prepared.boundsUv.map((bounds,k)=>bounds.map(value=>(value-spec.uvBounds[k][0])/(spec.uvBounds[k][1]-spec.uvBounds[k][0])));
+    const chart=mappedSurface(prepared.surface,prepared.boundsUv,domains,spec);
+    const selected=faceTrimRegion(patch).map(loop=>loop.map(uv=>uv.map((value,k)=>(value-spec.uvBounds[k][0])/(spec.uvBounds[k][1]-spec.uvBounds[k][0]))));
+    return {...chart,regionUv:intersect(selected,[[[0,0],[1,0],[1,1],[0,1]]]),neighborhood:{...prepared.report,boundsUv:prepared.boundsUv,referenceBoundsUv:prepared.referenceBoundsUv}};
+  }
+  if(spec.extend){
+    requireThat(!spec.periodicU||u[0]===patch.domainU[0]&&u[1]===patch.domainU[1],'A periodic U seam keeps its original domain; extend V only.');
+    return mappedSurface(extendSurface(patch,spec.uvBounds),spec.uvBounds,[[0,1],[0,1]],spec);
+  }
   requireThat(u[0]>=patch.domainU[0]&&u[1]<=patch.domainU[1]&&v[0]>=patch.domainV[0]&&v[1]<=patch.domainV[1],'Selected UV region exceeds the native patch.');
   return mappedSurface(patch,spec.uvBounds,[[0,1],[0,1]],spec);
 }
@@ -50,15 +77,21 @@ function meshStripChart(shell,spec){
   return {at,breaksU:Array.from({length:nu+1},(_,i)=>i/nu),breaksV:Array.from({length:nv+1},(_,i)=>i/nv)};
 }
 
-export function surfaceRegion(shell,spec){
+export function surfaceRegion(shell,spec,neighborhood=null){
   validateSurfaceSelection(spec);
-  const chart=spec.kind==='spline'?splinePatchChart(shell,spec):meshStripChart(shell,spec);
-  const sample=(u,v)=>{requireThat(u>=0&&u<=1&&v>=0&&v<=1,'Surface sample outside selected region.');return chart.at(u,v);};
+  requireThat(!neighborhood||spec.kind==='spline','Automatic offset neighborhoods need a selected native surface.');
+  const chart=spec.kind==='spline'?splinePatchChart(shell,spec,neighborhood):meshStripChart(shell,spec),domains=[chart.domainU??[0,1],chart.domainV??[0,1]];
+  const sample=(u,v)=>{requireThat([u,v].every((value,k)=>value>=domains[k][0]&&value<=domains[k][1]),'Surface sample outside selected neighborhood.');return chart.at(u,v);};
+  if(chart.at.derivatives)sample.derivatives=chart.at.derivatives;
+  if(chart.at.nativeImage)sample.nativeImage=chart.at.nativeImage;
+  sample.covers=chart.at.covers;
   if(spec.periodicU)for(let j=0;j<=16;j++){
     const a=sample(0,j/16),b=sample(1,j/16);
     // Same point at print resolution; the normal match is a direction judgement whose value
     // predates the classes (mesh-strip normals are interpolated, so a stricter bound is deferred).
-    requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<1e-4,'Periodic surface seam must match in position and normal.');
+    requireThat(distance(a.point,b.point)<PRINT_RESOLUTION_MM&&distance(a.normal,b.normal)<(100*TOLERANCE.domainFraction),'Periodic surface seam must match in position and normal.');
   }
-  return {at:sample,breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind};
+  return {at:sample,domainU:domains[0],domainV:domains[1],breaksU:chart.breaksU,breaksV:chart.breaksV,periodicU:spec.periodicU,backend:spec.kind,
+    ...(chart.neighborhood?{neighborhood:chart.neighborhood,regionUv:chart.regionUv}:{}),
+    referenceRecord:{representation:'surface-region',geometry:numericalGeometryRecord(shell),selection:spec,...(neighborhood?{neighborhood}:{})}};
 }

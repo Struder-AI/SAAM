@@ -1,48 +1,70 @@
-// Match curve controls, interpolate them, and hand ordinary curves to Trace.
+// One matched curve-pair construction; source edges own all attachment identity.
+import {addSupportBrim} from './brim.mjs';
 const check=(condition,message)=>{if(!condition)throw Error(message);};
-const positive=(v,name)=>{check(Number.isFinite(v)&&v>0,`${name} must be positive and finite.`);return v;};
-const xyz=p=>p.slice(0,3).map(v=>v/p[3]);
-const EDGE_CONTACT_FRACTION=0.5;
-export async function buildBridgeSupport(spec,process={},Geometry,{geometry,baseOnBed=false}={}){
-  check(spec&&Object.keys(spec).every(k=>['id','part','base','landing','correspondence','layerHeightMm','beadWidthMm','sampleStepMm','speedMmS','after'].includes(k)),'Unknown bridge-support setting.');
-  check(typeof spec.id==='string'&&/^[a-z][a-z0-9-]*$/.test(spec.id),'Support id must be lowercase hyphenated.');
-  check(spec.after===undefined||Array.isArray(spec.after)&&spec.after.every(id=>typeof id==='string'&&id.length),'after names exact preceding operation IDs.');
-  const mapping=spec.correspondence??{};
-  check(Object.keys(mapping).every(k=>['baseDirection','landingDirection','baseSeam','landingSeam'].includes(k)),'Correspondence names directions and normalized parameter seams.');
+const positive=(value,name)=>{check(Number.isFinite(value)&&value>0,name+' must be positive.');return value;};
+
+export async function buildBridgeSupport(spec,process,Geometry,{normal,outwardSide=1}={}){
   const width=positive(spec.beadWidthMm??process.lineWidthMm,'beadWidthMm'),speed=positive(spec.speedMmS??process.planarSpeedMmS,'speedMmS');
-  const original=Geometry.matchCurveControls(spec.base,spec.landing,mapping),depthMm=EDGE_CONTACT_FRACTION*width;
-  const offset=(curve,materialSide)=>Geometry.ribbon({geometry,curve,vertical:original.direction,depthMm,materialSide});
-  let base=await offset(spec.base,-1);const landing=await offset(spec.landing,1);
-  if(baseOnBed&&base.report.noAdjacentMaterial)base={curves:[spec.base],report:null};
-  check(base.curves.length&&landing.curves.length,'Select actual part edges, or an unattached base on the bed.');
-  check(base.curves.length===1&&landing.curves.length===1&&base.curves[0].closed===landing.curves[0].closed,'Ribbon folds split the selected edges; choose corresponding retained edge pieces.');
-  const matched=Geometry.matchCurveControls(base.curves[0],landing.curves[0],mapping),{baseControls,landingControls}=matched;
-  const closing=controls=>xyz(controls[0]).every((v,k)=>v===xyz(controls.at(-1))[k]);
-  const count=baseControls.length-(matched.closed&&closing(baseControls)&&closing(landingControls)?1:0);
-  const averageAdvance=baseControls.slice(0,count).reduce((sum,a,i)=>sum+Math.hypot(...xyz(a).map((v,k)=>xyz(landingControls[i])[k]-v)),0)/count;
+  const pair=Geometry.curvePairSurface(spec.base,spec.landing,{correspondence:spec.correspondence,normal});
+  check(normal?.length===3,'Support construction needs its material advance normal.');
   const target=positive(spec.layerHeightMm??process.layerMm,'layerHeightMm');
-  const divisions=Math.max(1,Math.round(positive(averageAdvance,'Average curve separation')/target)),heightMm=averageAdvance/divisions;
+  const divisions=Math.max(1,Math.round(positive(pair.averageAdvanceMm,'Average curve separation')/target)),heightMm=pair.averageAdvanceMm/divisions;
   check(Number.isSafeInteger(divisions),'Curve divisions exceed integer representation.');
-  const curves=Array.from({length:divisions},(_,i)=>{
-    const t=(i+1)/divisions,controls=baseControls.map((a,j)=>a.map((v,k)=>v+(landingControls[j][k]-v)*t));
-    return {role:'breakaway-support',closed:matched.closed,nurbs:{degree:matched.degree,knots:matched.knots,controlPoints:controls.map(xyz),weights:controls.map(p=>p[3])},beadWidthMm:width,heightMm,speedMmS:speed,...(spec.sampleStepMm===undefined?{}:{sampleStepMm:positive(spec.sampleStepMm,'sampleStepMm')}),repetitions:[i]};
-  });
-  const repetitionIds=curves.map((_,i)=>`course-${i}`);
-  const assignment={id:spec.id,construction:'curves',part:spec.part??null,filament:null,process:null,after:spec.after??[],curves,repeat:{count:divisions,translation:[0,0,0]},sequence:true,repetitionIds,maxExcursionMm:null};
-  return {assignment,report:{id:spec.id,courses:divisions,controlPoints:baseControls.length,requestedLayerHeightMm:target,averageCourseSpacingMm:heightMm,edgeOffsets:{base:base.report,landing:landing.report},lastOperationId:`${spec.id}:${repetitionIds.at(-1)}`}};
+  const curves=[];
+  for(let i=0;i<divisions;i++){
+    const first=pair.curveAt((i+1)/divisions);
+    const second=await Geometry.ribbon({curve:first,vertical:normal,depthMm:outwardSide*width});
+    check(second.curves.length===1,'The adjacent support loop split or collapsed; select corresponding retained edge pieces.');
+    // The course ribbon supplies material normals, rather than treating the
+    // vertical wall's surface normal as its stacking direction.
+    const reference=Geometry.curvePairSurface(first,second.curves[0],{normal}).surface;
+    for(const side of [0,1])curves.push({id:`loop-${i}-${side}`,closed:false,
+      uv:{reference:{kind:'surface',surface:reference},points:[[0,side],[1,side]]},
+      role:'breakaway-support',directionRequired:false,seamRequired:false,beadWidthMm:width,heightMm,speedMmS:speed,
+      sampleStepMm:positive(spec.sampleStepMm??width/2,'sampleStepMm'),repetitions:[i]});
+  }
+  const repetitionIds=Array.from({length:divisions},(_,i)=>`course-${i}`);
+  const assignment={id:spec.id,construction:'curves',part:spec.part??null,filament:null,process:null,after:[],curves,
+    repeat:{count:divisions,translation:[0,0,0]},sequence:false,ordered:false,repetitionIds,
+    repetitionAfter:Object.fromEntries(repetitionIds.slice(1).map((name,i)=>[name,[repetitionIds[i]]])),maxExcursionMm:null,
+    toolPose:{alignToSliceNormal:true}};
+  return {assignment,report:{id:spec.id,courses:divisions,loops:2,requestedLayerHeightMm:target,averageCourseSpacingMm:heightMm,lastOperationId:`${spec.id}:${repetitionIds.at(-1)}`}};
 }
+
 export async function editBridgeSupports(source,request,Geometry){
   check(request&&Object.keys(request).join()==='supports'&&Array.isArray(request.supports)&&request.supports.length,'Supply a nonempty supports array.');
-  const solid=source.geometry?.shape==='spatial'?source.geometry.solid:source.geometry;
-  const prior=source.slices?.assignments??[],ids=new Set(prior.map(a=>a.id));
-  const made=[];for(const spec of request.supports){
-    check(!ids.has(spec.id),'Support id already exists; edit its ordinary Trace or choose another id.');ids.add(spec.id);
-    const part=spec.part??null;
-    check(part===null||solid?.shape==='assembly'&&solid.parts.some(p=>p.id===part),'Support part must name an assembly part.');
-    const component=part===null?null:solid.parts.find(p=>p.id===part),geometry=component?.geometry??solid;
-    const controls=Geometry.matchCurveControls(spec.base,spec.landing,spec.correspondence??{}).baseControls;
-    const baseOnBed=controls.every(p=>p[2]/p[3]+(component?.zMm??0)===0);
-    made.push(await buildBridgeSupport(spec,source.process,Geometry,{geometry,baseOnBed}));
+  const Recipe=Geometry.Recipe;check(Recipe?.selectEdge&&Recipe?.withOperationAfter,'Supports need the shared geometric-edge interface.');
+  const prior=source.slices?.assignments??[],ids=new Set(prior.map(assignment=>assignment.id)),made=[];
+  const shift=(curve,delta)=>curve.points?{...curve,points:curve.points.map(point=>point.map((v,k)=>v+delta[k]))}:
+    {...curve,nurbs:{...curve.nurbs,controlPoints:curve.nurbs.controlPoints.map(point=>point.map((v,k)=>k<3?v+delta[k]:v))}};
+  for(const spec of request.supports){
+    check(Object.keys(spec).every(key=>['id','base','landing','correspondence','layerHeightMm','beadWidthMm','sampleStepMm','speedMmS','baseSide','landingSide'].includes(key)),'Select geometric base/landing edges with readiness, or an explicit plate curve.');
+    check(typeof spec.id==='string'&&/^[a-z][a-z0-9-]*$/.test(spec.id)&&!ids.has(spec.id),'Choose an unused lowercase support id.');ids.add(spec.id);
+    const landing=await Recipe.selectEdge(spec.landing);check(landing.readiness,'A support landing needs manufacturing readiness.');
+    const baseOnBed=spec.base?.kind==='plate';
+    check(!baseOnBed||Object.keys(spec.base).sort().join()==='curve,kind','A plate base supplies kind and curve.');
+    const base=baseOnBed?{curve:spec.base.curve,readiness:null}:await Recipe.selectEdge(spec.base);
+    check(baseOnBed||base.readiness,'A base needs manufacturing readiness.');
+    check(baseOnBed||(base.part??null)===(landing.part??null),'Support base and landing must use the same part frame.');
+    const normal=landing.materialNormal;check(normal?.length===3,'The landing needs a material normal.');
+    const process={...source.process,...landing.process},width=positive(spec.beadWidthMm??process.lineWidthMm,'beadWidthMm');
+    const baseSide=spec.baseSide??1,landingSide=spec.landingSide??1;
+    check([1,-1].includes(baseSide)&&[1,-1].includes(landingSide),'Edge sides are right (1) or left (-1) of travel, seen along the material normal.');
+    if(baseOnBed){
+      const samples=Geometry.sampleSpatialCurve(base.curve,{toleranceMm:Geometry.resolutionMm,sampleStepMm:width/2}).samples;
+      check(samples.every(sample=>Math.abs(sample.point[2])<=Geometry.resolutionMm),'An explicit plate base must lie on the canonical build plate.');
+    }
+    const outside=async(edge,side)=>{
+      const offset=await Geometry.ribbon({curve:edge.curve,vertical:normal,depthMm:side*width/2});
+      check(offset.curves.length===1,'Selected edge offset split; select a retained support edge.');return offset.curves[0];
+    };
+    const lower=baseOnBed?base.curve:await outside(base,baseSide),upper=shift(await outside(landing,landingSide),normal.map(v=>-v*(landing.heightMm??landing.process.layerMm??process.layerMm)));
+    const built=await buildBridgeSupport({...spec,part:landing.part??null,base:lower,landing:upper},process,Geometry,{normal,outwardSide:landingSide});
+    built.assignment.operationAfter=base.readiness?{[built.assignment.repetitionIds[0]]:[base.readiness]}:{};
+    made.push({...built,baseOnBed,landing:landing.readiness,base:base.readiness});
   }
-  return {assignmentRequests:[...prior,...made.map(m=>m.assignment)],report:{supports:made.map(m=>m.report)}};
+  for(const entry of made)entry.report.brim=await addSupportBrim(entry.assignment,source,Geometry,{baseOnBed:entry.baseOnBed,component:null,otherAssignments:[...prior,...made.map(item=>item.assignment)]});
+  let assignments=[...prior,...made.map(item=>item.assignment)];
+  for(const entry of made)assignments=Recipe.withOperationAfter(assignments,entry.landing,[entry.report.lastOperationId]);
+  return {assignmentRequests:assignments,report:{supports:made.map(entry=>({...entry.report,base:entry.base??{kind:'plate'},landing:entry.landing}))}};
 }

@@ -1,12 +1,12 @@
 # SAAM glossary
 
-Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.md).
+Terminology: [architecture](ARCHITECTURE.md), [cumulative intent](intent/README.md).
 
 | Term | Meaning |
 |---|---|
-| Bundle | Saved geometry, recipe, review records and checked machine program for a fabrication task, possibly containing several parts. A print bundle is a bundle used for printing. |
+| Bundle | Saved geometry, recipe, neutral SAAMpath, review snapshots and export receipts for a fabrication task. A print bundle is a bundle used for printing; machine programs are transient Export results. |
 | Recipe | Authored geometry, skill assignments, process settings, machine and setup, stored as `plan.json`. Defaults do not supply a shape. |
-| SAAMpath | SAAM's machine-independent toolpath. Toolpath constructs deposition operations and dependencies; Bundle saves them. Downstream scheduling builds neutral motion; exporters translate it into machine programs. Construction and motion share one Bundle path identity. |
+| SAAMpath | SAAM's machine-independent toolpath: finalized deposition curves with material and orientation, process operations, and an execution order that traverses those curves and connects them with travel. Construction and execution share one Bundle path identity. |
 | Toolpath skill | Constructs deposition/process operations through shared core capabilities; named techniques may be configurations of the same skill. |
 | Core skill | A developer-owned agent interface to core capabilities; geometry, toolpath and hybrid describe its function. |
 | Guidance skill | Instructions and examples composing existing capabilities; builders author it without adding a deposition family or alternate recipe format. |
@@ -28,5 +28,3 @@ Terminology: [architecture](TECHNICAL-OVERVIEW.md), [release scope](plans/0.2.0.
 | Turn | One full revolution around a sleeve, which may rise continuously along a spiral without closing or stopping. |
 | Pattern | An arrangement of deposition strokes, such as an infill pattern or repeated sleeve tiles. |
 | Modulation | An optional effect on an otherwise valid toolpath, primarily for visual appearance and surface texture, with other useful applications left open. Required construction and process compensation work independently of modulation. |
-| Nesting solver | Groups code leaves into nested maps beneath their authored top-level owner. |
-| Placement solver | Arranges the boxes of one map in free canvas space. |

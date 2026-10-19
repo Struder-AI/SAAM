@@ -3,6 +3,7 @@ import {spawn} from 'node:child_process';
 import {resolve} from 'node:path';
 import {controlProbeMs} from '../core/application/control.mjs';
 import {createStudioWindows} from './studio-windows.mjs';
+import {createClientLifecycle} from '../core/application/client-lifecycle.mjs';
 import {selectRuntime,orchestratorContract,contractProblem} from '../core/application/runtime-selection.mjs';
 
 const elapsed=ms=>ms<60000?Math.max(1,Math.round(ms/1000))+' s':ms<3600000?Math.round(ms/60000)+' min':(ms/3600000).toFixed(1)+' h';
@@ -17,6 +18,7 @@ export function describeJobs(jobs){
 export async function createRuntimeRegistry({paths,autoOpen,services,retryClients,codeRoot}){
   const windows=createStudioWindows({autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
   const operationObservers=new Set(),eventObservers=new Set();
+  const clients=await createClientLifecycle({folder:resolve(paths.state,'clients'),handBack:endTurn});
   async function service(runtime,args){
     if(args.method==='status')return {...services.status(),quitScope:quitScope(runtime,args.studioInstanceId)};
     if(args.method==='activate')return services.activate(args.invite);
@@ -32,6 +34,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(message.type==='window')return windows.register(runtime,message.args);
     if(message.type==='show')return windows.show(message.args.url,{visibility:message.args.visibility});
     if(message.type==='clients')return retryClients();
+    if(message.type==='client-event'){windows.observe(message.args.event);return clients.record(message.args);}
     if(message.type==='service')return service(runtime,message.args);
     if(message.type==='release-bundle')return releaseBundle(runtime,message.args.bundleId);
     if(message.type==='route')return route(runtime,message.args);
@@ -89,7 +92,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     // A runtime starts with no Studio of its own: every window opens on request (openOnStart:false
     // tells runtimes before 0.3.7, which opened one by default).
     try{await rpc(runtime,'start',{orchestrator:orchestrator(),autoOpen,openOnStart:false,service:services.status(),
-      stateRoot:resolve(paths.state,'runtimes',runtime.id.replaceAll(':','-')),windows:windows.restore(runtime.id)});if(selection.closing)throw Error('SAAM is stopping.');runtime.starting=false;return runtime;}
+      stateRoot:resolve(paths.state,'runtimes',runtime.id.replaceAll(':','-')),windows:windows.restore(runtime.id)});
+      for(const contact of await clients.contacts())await rpc(runtime,'end-turn',{chatId:contact.sessionId,reason:contact.reason,contact:contact.context});
+      if(selection.closing)throw Error('SAAM is stopping.');runtime.starting=false;return runtime;}
     catch(error){await closeRuntime(runtime).catch(cleanup=>{error.message+=' Runtime cleanup: '+cleanup.message;});throw error;}
   }
   const fallback=await selectRuntime(codeRoot);
@@ -176,7 +181,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
         const opened=await rpc(runtime,'open',{studioInstanceId:named,newInstance:message.command==='new-instance',visibility:message.visibility??'visible',dispatch:!callerShows});
         return {ok:true,...opened,...(callerShows?{display:windows.display(opened.url)}:{})};
       }
-      return await rpc(runtime,'command',message);
+      const nativeContext=await clients.context(message.client,message.chatId);
+      const nativeContact=await clients.lastContact(message.client,message.chatId);
+      return await rpc(runtime,'command',{...message,nativeContext,nativeContact});
     }finally{runtime.active--;if(runtime.child.connected)await inspect(runtime);}
   }
   async function status(){
@@ -188,8 +195,8 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       studios:[...states.flatMap(({runtime,status})=>status.studios.map(studio=>({...studio,runtimeId:runtime.id,runtimeLabel:runtime.label}))),...dormant.map(window=>({instanceId:window.instanceId,printId:window.printId,attachment:window.attachment,visibility:window.visibility??'visible',url:window.url,runtimeId:window.runtimeId,runtimeLabel:window.runtimeLabel??'Retained '+window.codeRoot,dormant:true}))]};
   }
   // A chat's turn end goes to every started runtime, since any may hold the chat; none is started.
-  async function endTurn(chatId,reason){
-    await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'end-turn',{chatId,reason})));
+  async function endTurn(chatId,reason,contact){
+    await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'end-turn',{chatId,reason,contact})));
   }
   // A starting runtime holds nothing to warn; it exits when the orchestrator disconnects.
   async function notifyStopping(reason){await Promise.allSettled([...runtimes.values()].filter(runtime=>!runtime.starting).map(runtime=>rpc(runtime,'stopping',{reason},controlProbeMs)));}
@@ -271,13 +278,13 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       await inspect(runtime);return {stopped:result.completed,studioInstanceId:instanceId};
     });
   }
-  async function close(){selection.closing=true;const outcomes=await Promise.allSettled([...runtimes.values()].map(closeRuntime));await windows.close();runtimes.clear();const failed=outcomes.find(outcome=>outcome.status==='rejected');if(failed)throw failed.reason;}
+  async function close(){selection.closing=true;await clients.close();const outcomes=await Promise.allSettled([...runtimes.values()].map(closeRuntime));await windows.close();runtimes.clear();const failed=outcomes.find(outcome=>outcome.status==='rejected');if(failed)throw failed.reason;}
   // Job inspection is a read: window persistence is never a prerequisite for Quit.
   async function runningJobs(){return (await Promise.all([...runtimes.values()].filter(runtime=>!runtime.starting).map(async runtime=>{
     try{return (await inspect(runtime)).jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}));}
     catch{return [{runtimeId:runtime.id,runtimeLabel:runtime.label,kind:'unresponsive runtime (active work unknown)'}];}
   }))).flat();}
-  return {command,identify,status,endTurn,stopRuntime,stopSession,reloadRuntime,notifyStopping,close,runningJobs,
+  return {command,identify,status,endTurn,stopRuntime,stopSession,reloadRuntime,notifyStopping,close,runningJobs,clients,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);}};
 }

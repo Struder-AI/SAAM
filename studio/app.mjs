@@ -78,7 +78,7 @@ function updateManualControls(sample){
     input.disabled=studioWork.busy||!values?.length||!machinePose.machineSession?.held(playState.seconds);
     if(!values?.length)return;
     input.min=Math.min(controls[i].min,values[i]);input.max=Math.max(controls[i].max,values[i]);input.value=values[i];
-    input.previousElementSibling.value=(Math.abs(values[i])<.05?0:values[i]).toFixed(1)+' '+controls[i].unit;
+    input.previousElementSibling.value=(Math.abs(values[i])<(0.1/2)?0:values[i]).toFixed(1)+' '+controls[i].unit;
   });
   $('#manual-reset').disabled=studioWork.busy||!machinePose.manualValues;
   $('#manual-status').textContent=machinePose.manualValues?(machinePose.machineSession?.error||sample?.snapshot?.diagnostics.map(d=>d.message).join(' · ')||(sample?'Manual pose · playback paused':'Solving pose…')):'';
@@ -109,7 +109,7 @@ const viewStorageKey=()=> 'saam-view:'+printSync.state?.printId;
 function saveView(){
   if(!printSync.state||playState.movieController)return;
   try{sessionStorage.setItem(viewStorageKey(),JSON.stringify({outputId:printSync.state.outputId,yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:orbitView.pan,fitBounds:orbitView.fitBounds,seconds:playState.seconds,tab:viewState.tab,
-    speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
+    speed:Number($('#playback-speed').value),previousLayerOpacity:Number($('#previous-layer-opacity').value),travel:$('#travel').checked,nozzleClearance:$('#nozzle-clearance').checked,followPlate:$('#follow-plate').checked,machineCameras:cameras.snapshot(cameraState())}));}catch{}
 }
 function restoreView(restoreTab=true){
   try{
@@ -120,7 +120,7 @@ function restoreView(restoreTab=true){
     $('#speed-label').value=$('#playback-speed').value+'×';
     if(Number.isFinite(saved.previousLayerOpacity))$('#previous-layer-opacity').value=saved.previousLayerOpacity;
     $('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';
-    $('#travel').checked=saved.travel===true;$('#follow-plate').checked=saved.followPlate!==false;
+    $('#travel').checked=saved.travel===true;$('#nozzle-clearance').checked=saved.nozzleClearance===true;$('#follow-plate').checked=saved.followPlate!==false;
     if(saved.outputId===printSync.state.outputId){
       if(Number.isFinite(saved.seconds))playState.seconds=Math.max(0,Math.min(duration(),saved.seconds));
       if(saved.fitBounds?.min?.length===3&&saved.fitBounds?.max?.length===3&&[...saved.fitBounds.min,...saved.fitBounds.max].every(Number.isFinite))orbitView.fitBounds=saved.fitBounds;
@@ -264,7 +264,7 @@ const views={
         ['First layer',p.firstLayerMm+' mm'],['Line width',p.lineWidthMm+' mm'],
         ['Flat / skin speed',p.planarSpeedMmS+' / '+p.skinSpeedMmS+' mm/s'],['First-layer speed',p.firstLayerSpeedMmS+' mm/s'],
         ['Travel / lift speed',p.travelSpeedMmS+' / '+p.zSpeedMmS+' mm/s'],['Retraction',p.retractMm+' mm at '+p.retractSpeedMmS+' mm/s'],
-        ['Cooling fan',p.fanPercent+'%'],['Minimum layer time',p.minimumLayerSeconds+' s'],
+        ['Cooling fan',p.fanPercent+'%'],['Cooling preference window',p.minimumLayerSeconds+' s'],
         ['Filament diameter',s.filamentMm+' mm'],['Placement','X '+state.plan.placement.xMm+' / Y '+state.plan.placement.yMm+' mm'],
         ['Machine non-planar limit',(declaredLimit??'—')+'° (profile declaration)'],
         ['Travel','Comb up to '+p.maxCombMm+' mm; otherwise clear the whole plan by '+p.liftMm+' mm'],
@@ -305,7 +305,7 @@ async function api(route,data) {
   }finally{if(target===studioWork.generationTarget){studioWork.generationTarget=null;$('#cancel-generation').hidden=true;}}
 }
 async function pollPreparation(){
-  const target=studioWork.generationTarget;if(!target||printSync.progressPolling)return;
+  const target=studioWork.generationTarget;if((!target&&!printSync.state?.outputGenerating)||printSync.progressPolling)return;
   printSync.progressPolling=true;
   try{
     const response=await fetch('/api/preparation');if(!response.ok)return;
@@ -314,9 +314,23 @@ async function pollPreparation(){
   }catch{/* The owning generation call reports failures. */}finally{printSync.progressPolling=false;}
 }
 function applyProgress(job,target=studioWork.generationTarget){
-  if(printSync.state&&job?.printId===printSync.state.printId){printSync.state.outputGenerating=['preparing','generating'].includes(job.status);render();}
-  if(!target||studioWork.generationTarget!==target||!job||job.studioInstanceId&&printSync.state&&job.studioInstanceId!==printSync.state.instanceId
-    ||job.printId!==target.printId||target.editRevision&&job.editRevision!==target.editRevision)return;
+  if(!job||job.studioInstanceId&&printSync.state&&job.studioInstanceId!==printSync.state.instanceId)return;
+  const current=printSync.state&&job.printId===printSync.state.printId;
+  // The server owns this Studio's calculation, whether the browser or agent
+  // started it. Adopt its identity for the same progress/cancellation controls.
+  if(current){
+    printSync.state.outputGenerating=['preparing','generating'].includes(job.status);
+    if(printSync.state.outputGenerating&&(!target||target.printId!==job.printId||target.editRevision&&target.editRevision!==job.editRevision))
+      target=studioWork.generationTarget={printId:job.printId,editRevision:job.editRevision};
+  }
+  if(!target||studioWork.generationTarget!==target||job.printId!==target.printId
+    ||target.editRevision&&job.editRevision!==target.editRevision){if(current)render();return;}
+  target.job=job;
+  if(job.status==='idle'){
+    studioWork.generationTarget=null;clearInterval(studioWork.importElapsedTimer);studioWork.importElapsedTimer=null;
+    $('#cancel-generation').hidden=true;if(current)render();return;
+  }
+  if(current)render();
   target.editRevision??=job.editRevision;
   target.jobId??=job.jobId;
   $('#cancel-generation').hidden=!job.cancellable;
@@ -357,6 +371,10 @@ async function loadAndAdoptStudioState(follow=false,reopen=false,fetchedState=nu
     // Serializable metadata is bound before the proxy-backed cached move store is adopted.
     bind:bindCachedProgram});
   printSync.state=adopted.state;printSync.stateTag=fetchedTag;chatUI.reflect();
+  if(studioWork.generationTarget&&studioWork.generationTarget.printId!==printSync.state.printId){
+    studioWork.generationTarget=null;clearInterval(studioWork.importElapsedTimer);studioWork.importElapsedTimer=null;
+    $('#cancel-generation').hidden=true;
+  }
   return {adopted,loaded,previous,presentationChanged,follow};
 }
 async function presentStudioState({adopted,loaded,previous,presentationChanged,follow}) {
@@ -382,6 +400,7 @@ async function presentStudioState({adopted,loaded,previous,presentationChanged,f
     await machinePose.machineSession.sample(playState.seconds,{manual:machinePose.manualValues,jog:machinePose.manualJog});
   }else{$('#machine-basis').textContent='';$('#machine-limitations').replaceChildren();}
   render();
+  if(printSync.state.outputGenerating)void pollPreparation();
   await acknowledgeDisplayedView(navigation.inspectionFailure);
 }
 async function ensureTourGeneration(follow=false){
@@ -478,7 +497,11 @@ function render() {
     settings:()=>[...view().facts(shown,'plan'),...machineSettings(shown,view().settings(shown)),...recipeRows(shown.plan)]});
   if(viewState.tab==='toolpath'&&output.previous)presentation.reviewNote='Previous toolpath — recent edits are not included. '+(presentation.reviewNote??'');
   if(output.generating)presentation.guidance='Preparing your toolpath…';
-  if(!studioWork.busy)activity(output.generating?'Preparing your toolpath…':'');
+  if(!studioWork.busy){
+    const job=studioWork.generationTarget?.job;
+    const progress=job?.printId===printSync.state.printId&&['preparing','generating','importing'].includes(job.status)?job.progress:null;
+    activity(progress?.stage??(output.generating?'Preparing your toolpath…':''),progress?.total>0?progress.completed/progress.total:null);
+  }
   $('#repair-review').hidden=viewState.tab!=='geometry'||!printSync.state.importRepair;
   $('#repair-summary').textContent=printSync.state.importRepair??'';
   // Limitations, including the recipe notes of the current recipe.
@@ -531,6 +554,8 @@ function render() {
   $('#confirm').disabled=controls.confirm.disabled;$('#confirm').textContent=controls.confirm.label;$('#confirm').hidden=controls.confirm.hidden;
   $('#confirm').setAttribute('aria-disabled',controls.confirm['aria-disabled']);
   if(reviewed)reviewed.hidden=controls.reviewedDownload.hidden;
+  const attribution=$('#reviewed-attribution');
+  if(attribution)attribution.hidden=controls.reviewedDownload.hidden||attribution.dataset.exportKey!==exportKey();
   $('#review-note').textContent=presentation.reviewNote;
   $('#playback').hidden=controls.playback.hidden;$('#play').disabled=controls.playback.playDisabled;
   $('#selection').hidden=controls.selection.hidden;
@@ -564,7 +589,7 @@ function readViewerSnapshot(options={}) {
     playbackSpeed:options.playbackSpeed??(playState.playing?Number($('#playback-speed').value):0),machineState:options.machineState??machineDisplay(position),
     state:printSync.state,shown,tab:viewState.tab,selected:viewState.selected,selectionLabel:viewState.selected?label(viewState.selected):'',showGeometry:showingGeometry(),
     camera:{yaw:orbitView.yaw,tilt:orbitView.tilt,zoom:orbitView.zoom,pan:[...orbitView.pan],fitBounds:orbitView.fitBounds},bounds:partBounds(),phaseColours:phasePalette(),cameraMode:cameras.mode,machineColors:viewState.machineColors,
-    settings:{showTravel:$('#travel').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
+    settings:{showTravel:$('#travel').checked,showNozzleClearance:$('#nozzle-clearance').checked,followPlate:$('#follow-plate').checked,previousLayerOpacity:Number($('#previous-layer-opacity').value)/100},
     playing:playState.playing,manualPose:Boolean(machinePose.manualValues),duration:duration(),interaction:orbitView.drag?(orbitView.drag.pan?'pan':'orbit'):null,
     performanceContext:{tab:viewState.tab,view:cameras.mode,solid:viewState.tab==='toolpath'&&viewer.sceneState().solid,moves:printSync.state?.program?.moves.length??0,canvasCss:[canvas.clientWidth,canvas.clientHeight],
       devicePixelRatio:+(devicePixelRatio||1).toFixed(3),userAgent:navigator.userAgent}};
@@ -672,6 +697,12 @@ async function download(){
   // This requests a native browser download. Browser/host save completion is
   // not observable here; leave a real link for a direct user-initiated retry.
   a.click();exportedThisSession.add(key);
+  const source=$('#reviewed-attribution')??document.createElement('a');
+  if(attachment.attribution){
+    if(!source.isConnected){source.id='reviewed-attribution';source.style.display='block';a.insertAdjacentElement('afterend',source);}
+    source.href=attachment.attribution.url;source.download=attachment.attribution.name;source.textContent='Source attribution';source.dataset.exportKey=key;source.hidden=false;
+  }else source.remove();
+  message([attachment.report?.notice,...(attachment.report?.limitations??[])].filter(Boolean).join(' '));
   const nextName=name?nextExportName(name):name;
   if(nextName!==name){
     $('#export-name').value=nextName;
@@ -698,7 +729,7 @@ $('#next').onclick=async()=>{
 $('#confirm').onclick=async()=>{
   if(!printSync.state||$('#confirm').disabled)return;message('');
   try{
-    await working('Downloading your reviewed file…',async()=>{
+    await working('Preparing your machine file…',async()=>{
       await download();
       if(studioWork.tourUI?.active()){await api('tour',{action:'finish'});await studioWork.tourUI.load();render();}
     },{preview:false});
@@ -741,6 +772,7 @@ $('#stl-file').onchange=async()=>{
 };
 $('#open-path').onsubmit=event=>{event.preventDefault();openPrint($('#print-path').value.trim());};
 $('#travel').onchange=requestDraw;
+$('#nozzle-clearance').onchange=requestDraw;
 $('#follow-plate').onchange=()=>{const fit=mode=>mode==='machine'?fitMachine():fitDisplayedPart();cameras.refit(fit);orbitView.fitBounds=fit(cameras.mode);$('#fit-program').textContent='Fit all moves';saveView();requestDraw();};
 $('#playback-speed').oninput=()=>{$('#speed-label').value=$('#playback-speed').value+'×';};
 $('#previous-layer-opacity').oninput=()=>{$('#previous-layer-opacity-label').value=$('#previous-layer-opacity').value+'%';saveView();requestDraw();};
@@ -833,7 +865,18 @@ function seekTourLayer(startAt,feature='contour'){
 function createStudioTour(){
   return createTourUI({post:api,refresh,working,setTab,isBusy:()=>studioWork.busy,state:()=>printSync.state,seek:seekTourLayer});
 }
-async function loadStudio(){await studioWork.tourUI.load();await refresh();}
+async function loadStudio(){
+  await studioWork.tourUI.load();await refresh();
+  const inspection=new URLSearchParams(location.search),seconds=Number(inspection.get('time'));
+  if(!inspection.has('nozzle-clearance')&&!inspection.has('time'))return;
+  if(inspection.has('output')&&inspection.get('output')!==printSync.state?.outputId){message('This inspection link refers to a different saved toolpath.',true);return;}
+  if(inspection.get('nozzle-clearance')==='1')$('#nozzle-clearance').checked=true;
+  if(printSync.state?.program){
+    clearManual();stop();viewState.tab='toolpath';layerFade.reset();
+    if(inspection.has('time')&&Number.isFinite(seconds))playState.seconds=Math.max(0,Math.min(duration(),seconds));
+    render();
+  }
+}
 function scheduleChange(){
   if(printSync.changeTimer)clearTimeout(printSync.changeTimer);
   printSync.changeTimer=setTimeout(()=>{
@@ -846,9 +889,31 @@ function scheduleChange(){
 // and acknowledge the displayed result even when the saved print is unchanged.
 function studioUpdate(event){
   if(event.detail.kind==='progress'){applyProgress(event.detail.status);return;}
+  if(event.detail.kind==='visual-check'){void captureViewerFrame(event.detail);return;}
   const {kinds=[]}=event.detail;
   if(kinds.includes('print')){printSync.stateUpdate++;if(printSync.state)render();}
   if(kinds.includes('print')||kinds.includes('generation')||kinds.includes('tour')||kinds.includes('requests'))scheduleChange();
+}
+async function captureViewerFrame(request){
+  const reply={id:request.id,bundleId:request.bundleId,target:request.target,stage:request.stage};
+  try{
+    while(studioWork.busy||printSync.polling)await painted();
+    await working('Preparing visual check…',async()=>{
+      await refresh(true);
+      const evidence=printSync.state.work?.snapshot;
+      if(printSync.state.work?.printId!==request.bundleId
+        ||['revision','inputKey','geometryKey','generationKey'].some(key=>(evidence?.[key]??null)!==(request.target[key]??null)))
+        throw Error('Studio is displaying different saved inputs.');
+      if(request.stage==='toolpath'&&!(presentedState()??printSync.state).program)throw Error('Studio has no toolpath to display.');
+      stop();viewState.tab=request.stage;viewState.selected=null;
+      Object.assign(orbitView,DEFAULT_CAMERA,{zoom:1,pan:[0,0],fitBounds:null});
+      if(request.stage==='toolpath'){playState.seconds=duration();layerFade.reset();}
+      render();draw({updateUI:false});
+      reply.target=evidence;reply.png=canvas.toDataURL('image/png');
+      if(request.stage==='toolpath')reply.phases=phasePalette();
+    },{preview:false});
+  }catch(error){reply.error=error.message;message(error.message,true);}
+  try{await api('visual-check',reply);}catch(error){message('Visual check unavailable: '+error.message,true);}
 }
 function studioVisible(){if(document.visibilityState==='visible')scheduleChange();}
 function stopFallbackPolling(){clearInterval(printSync.stateFallbackTimer);clearInterval(printSync.progressFallbackTimer);printSync.stateFallbackTimer=printSync.progressFallbackTimer=null;}

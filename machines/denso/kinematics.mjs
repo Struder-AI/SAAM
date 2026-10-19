@@ -89,7 +89,7 @@ export function createKinematics({frame,dimensions}){
     // Machine kinematics: a branch measure this close to zero (elbow in mm, wrist sine
     // dimensionless) sits on the singularity and belongs to neither branch. Value kept
     // pending an owner decision on the arm's repeatability as the band.
-    const BRANCH_NEUTRAL=1e-5,sign=v=>Math.abs(v)<BRANCH_NEUTRAL?0:Math.sign(v);
+    const BRANCH_NEUTRAL=PROGRAM_STEP_MM,sign=v=>Math.abs(v)<BRANCH_NEUTRAL?0:Math.sign(v);
     const branch=q=>[sign(g.forearmMm*Math.cos(q[2]*Math.PI/180)+g.elbowOffsetMm*Math.sin(q[2]*Math.PI/180)),sign(Math.sin(q[4]*Math.PI/180))];
     const chosen=branch(seed);
     // The damped step keeps reducing the pose residual while the seed branch can

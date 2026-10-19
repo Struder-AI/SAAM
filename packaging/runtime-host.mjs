@@ -51,10 +51,10 @@ async function command(message){
   const properties=z.toJSONSchema(definition.schema,{target:'draft-7',io:'input'}).properties??{},args={...message.args};
   for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
   if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
-  definition.schema.parse(args);
   const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
     bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
-  return {ok:true,result:await chat.invoke(operationName,args)};
+  if(message.nativeContact)void chat.endTurn(message.nativeContact.reason,message.nativeContact.context).catch(error=>console.error('Client lifecycle recovery: '+error.message));
+  return {ok:true,result:await chat.invoke(operationName,args,{nativeContext:message.nativeContext})};
 }
 async function start(args){
   const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();
@@ -78,6 +78,7 @@ async function start(args){
       adoptWindow:async args=>request('adopt',args)}});
   host.runtime.observeOperations(event=>send({type:'operation',event}));
   host.runtime.observeEvents(event=>send({type:'event',event}));
+  host.runtime.observeClientEvents(event=>request('client-event',event));
   // A reload, or an open after this runtime exited unexpectedly, brings back its windows; every other Studio opens on request.
   await host.runtime.restoreStudios(args.windows??[]);
   return {contract:orchestratorContract};
@@ -85,7 +86,7 @@ async function start(args){
 async function handle(message){
   if(message.type==='start')return start(message.args);
   if(!host.runtime)throw Error('Runtime is not ready.');
-  if(message.type==='end-turn')return host.runtime.endTurn(message.args.chatId,message.args.reason);
+  if(message.type==='end-turn')return host.runtime.endTurn(message.args.chatId,message.args.reason,message.args.contact);
   if(message.type==='command')return command(message.args);
   if(message.type==='status')return {jobs:await host.runtime.runningJobs(),active:host.runtime.activeCount(),studios:host.runtime.studios()};
   if(message.type==='open')return host.runtime.openStudio(message.args);

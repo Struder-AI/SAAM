@@ -4,13 +4,9 @@
 // PRINT_RESOLUTION_MM; constructed points converge to PROGRAM_STEP_MM, below what
 // a program can write and far below the judgements made on them.
 
-import { BUILD_SCALE_MM, PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM } from '../dimensions.mjs';
+import {TOLERANCE,ROUNDING_MM} from '../dimensions.mjs';
 
-export const TOLERANCE = {
-  chord: PRINT_RESOLUTION_MM, // maximum sagitta of a constructed polyline: no coarser than print resolution
-  parameter: PROGRAM_STEP_MM / BUILD_SCALE_MM, // root-finding convergence: program resolution on a build-scale domain
-  domainFraction: PRINT_RESOLUTION_MM / BUILD_SCALE_MM // a share of a parameter domain worth print resolution on a build-scale patch
-};
+export {TOLERANCE};
 
 export function requireThat(condition, message) { if (!condition) throw new Error(message); }
 
@@ -30,18 +26,21 @@ export function normalize(a) {
 // Bisection with a secant step. Used for 1D root finds along patch boundaries
 // and along rays; f must bracket a sign change on [a, b].
 export function findRoot(f, a, b, fa = f(a), fb = f(b), tolerance = TOLERANCE.parameter) {
-  requireThat(fa === 0 || fb === 0 || fa * fb < 0, 'Root finding needs a bracketed sign change.');
+  requireThat([a,b,fa,fb,tolerance].every(Number.isFinite)&&a<=b&&tolerance>0,'Root finding needs finite ordered bounds, values and positive tolerance.');
+  requireThat(fa === 0 || fb === 0 || (fa < 0)!==(fb < 0), 'Root finding needs a bracketed sign change.');
   if (fa === 0) return a;
   if (fb === 0) return b;
-  let lo = a, hi = b, flo = fa, fhi = fb;
-  for (let i = 0; i < 200 && hi - lo > tolerance; i++) {
-    const span = hi - lo;
-    let mid = lo + span * (flo / (flo - fhi));
-    // Keep the secant step inside the bracket, otherwise fall back to bisection.
-    if (!(mid > lo + span / 1000 && mid < hi - span / 1000)) mid = (lo + hi) / 2; // a thousandth of the bracket: secant safeguard, not a tolerance
+  const bracket={lo:a,hi:b,flo:fa,fhi:fb};
+  while (bracket.hi - bracket.lo > tolerance) {
+    const span=bracket.hi-bracket.lo,secant=bracket.lo+span*(bracket.flo/(bracket.flo-bracket.fhi));
+    // A central secant step or bisection shrinks the bracket by at least 1/4.
+    // Work follows requested precision; exhaustion never returns an unmet root.
+    const mid=secant>bracket.lo+span/4&&secant<bracket.hi-span/4?secant:bracket.lo+span/2;
+    requireThat(mid>bracket.lo&&mid<bracket.hi,'Root bracket cannot reach requested tolerance at coordinate precision.');
     const fm = f(mid);
+    requireThat(Number.isFinite(fm),'Root function returned a non-finite value inside its bracket.');
     if (fm === 0) return mid;
-    if ((fm < 0) === (flo < 0)) { lo = mid; flo = fm; } else { hi = mid; fhi = fm; }
+    if ((fm < 0) === (bracket.flo < 0)) { bracket.lo = mid; bracket.flo = fm; } else { bracket.hi = mid; bracket.fhi = fm; }
   }
-  return (lo + hi) / 2;
+  return bracket.lo+(bracket.hi-bracket.lo)/2;
 }

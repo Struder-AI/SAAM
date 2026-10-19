@@ -75,8 +75,8 @@ function manufacturingVolume(volume){
 
 // The recipe values besides geometry that change the manufacturing geometry.
 export function manufacturingInput(plan){
-  return {spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.repeat?.translation||a.within?.length).map(a=>({
-      ...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:a.within.map(manufacturingVolume)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
+  return {spatialInstructions:(plan.slices?.assignments??[]).filter(a=>a.geometry||a.repeat?.translation||a.within?.length).map(a=>({
+      ...(a.geometry?{geometry:manufacturingGeometry(a.geometry)}:{}),...(a.repeat?.translation?{repeat:a.repeat}:{}),...(a.within?.length?{within:a.within.map(manufacturingVolume)}:{})})).sort((a,b)=>JSON.stringify(a).localeCompare(JSON.stringify(b)))};
 }
 
 export {solidGeometry};

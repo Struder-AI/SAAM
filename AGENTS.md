@@ -1,11 +1,15 @@
 # SAAM agent entry point
 
 SAAM makes 3D printed parts through conversation. A **print bundle** holds one
-part's geometry, **recipe** (`plan.json`), review records and checked machine
-program. Geometry skills shape it; toolpath skills deposit material; hybrid skills
+part's geometry, **recipe** (`plan.json`), neutral toolpath and review records.
+Geometry skills shape it; toolpath skills deposit material; hybrid skills
 do both. Their results compose one machine-independent **SAAMpath**. The person
 reviews in Studio and exports from there; that Export is the one confirmation,
-and it writes the current settings' exact toolpath.
+and it translates the captured path/settings into a program for download.
+
+Given this repository to install or start using SAAM, follow the [installation guide](https://github.com/Struder-AI/SAAM/releases/latest/download/INSTALL.md)
+before the role actions below. It owns desktop/local-access checks, release installation,
+client permissions and verification of a working session. [SETUP.md](SETUP.md) is for source checkouts.
 
 This entry point serves source and installed SAAM. Every role's onboarding reads
 shared `<SAAM home>/local/LOCAL-AGENT-NOTES.md`; [local notes](core/application/README.md#local-agent-notes)

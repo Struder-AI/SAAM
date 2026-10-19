@@ -1,24 +1,24 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 // A finite normal band as a closed, sectionable solid. Native chart evaluation
 // defines its boundary; an explicitly measured mesh supplies existing solid
 // membership and reverse sections. It is not a bounding-box ownership proxy.
 import {surfaceRegion} from './surface-region.mjs';
-import {prepareSurfaceOffset} from './surface-offset.mjs';
+import {offsetSurfaceChart} from './offset-chart.mjs';
+import {evaluateSurface} from './surface-evaluation.mjs';
 import {makeMesh} from './mesh.mjs';
 import {requireThat,distance,cross,dot} from './tolerance.mjs';
 
-export function normalBandVolume({shell,selection,fromMm=0,toMm,offsetTightness=1,toleranceMm=.01,sampleStepMm=.5}){
+export function normalBandVolume({shell,selection,fromMm=0,toMm,offsetTightness=1,toleranceMm=CONSTRUCTION_TOLERANCE_MM,sampleStepMm=.5}){
   requireThat(Number.isFinite(fromMm)&&Number.isFinite(toMm)&&toMm>fromMm,'A normal band needs increasing finite depth bounds.');
   requireThat(toleranceMm>0&&sampleStepMm>0&&Number.isFinite(toleranceMm)&&Number.isFinite(sampleStepMm),'Normal-band sampling needs positive physical tolerances.');
   requireThat(offsetTightness>=0&&offsetTightness<=1,'Normal-band offset tightness must be 0–1.');
-  const chart=surfaceRegion(shell,selection);
-  const loose=selection.kind==='spline'&&offsetTightness<1?prepareSurfaceOffset({patch:shell.patches.find(p=>p.name===selection.patch),periodicU:selection.periodicU}):null;
+  const chart=surfaceRegion(shell,selection,selection.kind==='spline'?{reachMm:toleranceMm,normalRangeMm:[fromMm,toMm],tightness:offsetTightness}:null);
+  const lower=offsetSurfaceChart(chart,fromMm,{shell,selection,tightness:offsetTightness}),upper=offsetSurfaceChart(chart,toMm,{shell,selection,tightness:offsetTightness});
   const at=(u,v,depth)=>{
-    const e=chart.at(u,v),exact=e.point.map((x,k)=>x+depth*e.normal[k]);
-    if(!loose)return exact;
-    const [U,V]=selection.uvBounds.map(([a,b],i)=>a+[u,v][i]*(b-a)),point=loose.at(U,V,depth*selection.normalSide);
-    return point.map((x,k)=>x+offsetTightness*(exact[k]-x));
+    const a=evaluateSurface(lower,[u,v]).point,b=evaluateSurface(upper,[u,v]).point,t=(depth-fromMm)/(toMm-fromMm);
+    return a.map((x,k)=>x+t*(b[k]-x));
   };
-  const divide=(breaks,count)=>breaks.slice(1).flatMap((b,i)=>Array.from({length:count},(_,j)=>breaks[i]+(b-breaks[i])*j/count)).concat(1);
+  const divide=(breaks,count)=>{const selected=[0,...breaks.filter(value=>value>0&&value<1),1];return selected.slice(1).flatMap((b,i)=>Array.from({length:count},(_,j)=>selected[i]+(b-selected[i])*j/count)).concat(1);};
   let previousError=Infinity;
   for(let count=1;;count*=2){
     const axes=[divide(chart.breaksU,count),divide(chart.breaksV,count),Array.from({length:count+1},(_,i)=>fromMm+(toMm-fromMm)*i/count)];

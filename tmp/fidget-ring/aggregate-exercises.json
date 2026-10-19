@@ -1,0 +1,87 @@
+[
+  {
+    "case": "rigidly rotated spinner",
+    "elapsedMs": 14858.8563,
+    "hierarchy": {
+      "slices": 76,
+      "wholeSlices": 76,
+      "refinedSlices": 0,
+      "executionUnits": 76,
+      "courses": 14217
+    },
+    "queries": {
+      "rootBytes": 29919784,
+      "rootHits": 8012,
+      "rangeQueries": 20663,
+      "rangeCacheHits": 0,
+      "rangeSubdivisions": 0,
+      "nozzlePairs": 0,
+      "substratePairs": 0,
+      "cacheBytes": 13078192,
+      "peakCacheBytes": 13078192,
+      "materialRegionQueries": 0,
+      "materialRegionCells": 0
+    }
+  },
+  {
+    "case": "independent true supporting contact",
+    "summary": {
+      "hierarchy": {
+        "slices": 2,
+        "wholeSlices": 2,
+        "refinedSlices": 0,
+        "executionUnits": 2,
+        "courses": 2
+      },
+      "cooling": {
+        "sliceChoices": 0,
+        "courseChoices": 0,
+        "neighborhoodQueries": 0,
+        "estimatedDepositionSeconds": 0.6666666666666666
+      },
+      "aggregateProofs": {
+        "slices": 2,
+        "producerGroups": 2,
+        "certifiableSlices": 2,
+        "referenceGraph": {
+          "slope": 0,
+          "courses": 2
+        },
+        "sphereCourses": 0,
+        "orderedWholeGroups": 2,
+        "trustedHistoryPairs": 0,
+        "resolvedAccessGroups": 2
+      },
+      "refinement": {
+        "solves": 1,
+        "refinements": 0,
+        "relaxedTraversalChunks": 0,
+        "rejectedTraversals": 0,
+        "splitCourses": 0
+      },
+      "executionUnits": 2,
+      "physicalOrdering": {
+        "nozzleDependencies": 0,
+        "materialDependencies": 1
+      },
+      "queries": {
+        "rootBytes": 4096,
+        "rootHits": 2,
+        "rangeQueries": 2,
+        "rangeCacheHits": 0,
+        "rangeSubdivisions": 0,
+        "nozzlePairs": 0,
+        "substratePairs": 1,
+        "cacheBytes": 0,
+        "peakCacheBytes": 2048,
+        "materialRegionQueries": 1,
+        "materialRegionCells": 1
+      }
+    }
+  },
+  {
+    "case": "hard opposing prerequisite",
+    "code": "SOURCE_ORDER_UNRESOLVED",
+    "message": "Source ordering is unresolved at physical interruption resolution."
+  }
+]

@@ -2,9 +2,16 @@
   "schema": "saam-machine/1",
   "id": "ultimaker-s5",
   "name": "Ultimaker S5",
-  "revision": 8,
+  "revision": 9,
   "units": "mm",
-  "planarWallToleranceMm": 0.01,
+  "nozzleGeometry": {
+    "name": "UltiMaker AA 0.4",
+    "includedAngleDeg": 90,
+    "tipDiameterMm": 1,
+    "quality": "cad-derived",
+    "source": "https://github.com/Ultimaker/Ultimaker3/blob/master/2103/2103-E/2103-E.STEP",
+    "note": "Outer tip radius 0.5 mm at the outlet plane; external taper half-angle 45 degrees. Infinite taper is a clearance envelope; heater block and carriage are not modeled."
+  },
   "kinematics": "cartesian-fixed-vertical-nozzle",
   "bounds": {
     "min": [
@@ -148,7 +155,10 @@
     "protocol": "griffin-managed-no-routine-leveling",
     "zAfterStartupMm": 20,
     "handsOverRetracted": true,
-    "primingStrokes": { "lineLengthMm": 100, "clearanceMm": 4 },
+    "primingStrokes": {
+      "lineLengthMm": 100,
+      "clearanceMm": 4
+    },
     "validation": "standard S5 Griffin startup without a per-job leveling routine is assumed; installed firmware and verification are optional metadata"
   },
   "sources": [

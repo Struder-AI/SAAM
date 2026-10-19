@@ -9,8 +9,6 @@ import { ROUNDING_RELATIVE } from '../dimensions.mjs';
 const SINGULAR_METRIC = ROUNDING_RELATIVE ** 2;
 
 function baseSurfaceDerivatives(patch, u, v) {
-  requireThat(u >= patch.domainU[0] && u <= patch.domainU[1] && v >= patch.domainV[0] && v <= patch.domainV[1],
-    'Surface offset reaches the patch boundary; provide a larger regular patch or reduce the offset.');
   const su = findSpan(patch.knotsU, patch.nu, patch.orderU, u), sv = findSpan(patch.knotsV, patch.nv, patch.orderV, v);
   const bu = basisDerivatives(patch.knotsU, su, u, patch.orderU, Math.min(2, patch.orderU - 1));
   const bv = basisDerivatives(patch.knotsV, sv, v, patch.orderV, Math.min(2, patch.orderV - 1));
@@ -39,9 +37,10 @@ function baseSurfaceDerivatives(patch, u, v) {
 // native patch give second derivatives of its unit normal without finite
 // differencing, so distances in an offset chart remain physical millimetres.
 export function surfaceDerivatives(patch,u,v,{normalMm=0}={}){
-  const base=baseSurfaceDerivatives(patch,u,v);
+  requireThat(u >= patch.domainU[0] && u <= patch.domainU[1] && v >= patch.domainV[0] && v <= patch.domainV[1],
+    'Surface offset reaches the patch boundary; provide a larger regular patch or reduce the offset.');
   requireThat(Number.isFinite(normalMm),'Surface normal offset must be finite.');
-  if(normalMm===0)return base;
+  if(normalMm===0)return baseSurfaceDerivatives(patch,u,v);
   const su=findSpan(patch.knotsU,patch.nu,patch.orderU,u),sv=findSpan(patch.knotsV,patch.nv,patch.orderV,v);
   const bu=basisDerivatives(patch.knotsU,su,u,patch.orderU,Math.min(3,patch.orderU-1)),bv=basisDerivatives(patch.knotsV,sv,v,patch.orderV,Math.min(3,patch.orderV-1));
   const h=new Map(),s=new Map(),choose=[[1],[1,1],[1,2,1],[1,3,3,1]];
@@ -58,7 +57,12 @@ export function surfaceDerivatives(patch,u,v,{normalMm=0}={}){
   }
   const add=(...vectors)=>vectors[0].map((_,k)=>vectors.reduce((n,v)=>n+v[k],0)),scale=(v,n)=>v.map(x=>x*n);
   const U=s.get('1:0'),V=s.get('0:1'),UU=s.get('2:0'),UV=s.get('1:1'),VV=s.get('0:2');
-  const A=cross(U,V),L=Math.hypot(...A),N=scale(A,1/L);
+  // The third-order rational calculation already contains the base point
+  // and tangents; do not evaluate the complete second-order field again.
+  const A=cross(U,V),baseDet=dot(A,A);
+  requireThat(Number.isFinite(baseDet)&&baseDet>dot(U,U)*dot(V,V)*SINGULAR_METRIC&&h.get('0:0')[3]>0,
+    'Surface offset requires a regular patch without poles or singular tangents.');
+  const L=Math.hypot(...A),N=scale(A,1/L);
   const Au=add(cross(UU,V),cross(U,UV)),Av=add(cross(UV,V),cross(U,VV));
   const Auu=add(cross(s.get('3:0'),V),scale(cross(UU,UV),2),cross(U,s.get('2:1')));
   const Auv=add(cross(s.get('2:1'),V),cross(UU,VV),cross(U,s.get('1:2')));
@@ -66,7 +70,7 @@ export function surfaceDerivatives(patch,u,v,{normalMm=0}={}){
   const Lu=dot(N,Au),Lv=dot(N,Av),Nu=scale(add(Au,scale(N,-Lu)),1/L),Nv=scale(add(Av,scale(N,-Lv)),1/L);
   const second=(Aij,Ai,Ni,Nj,Li,Lj)=>scale(add(Aij,scale(Ni,-Lj),scale(Nj,-Li),scale(N,-dot(Nj,Ai)-dot(N,Aij))),1/L);
   const Nuu=second(Auu,Au,Nu,Nu,Lu,Lu),Nuv=second(Auv,Au,Nu,Nv,Lu,Lv),Nvv=second(Avv,Av,Nv,Nv,Lv,Lv);
-  const point=add(base.point,scale(N,normalMm)),du=add(U,scale(Nu,normalMm)),dv=add(V,scale(Nv,normalMm));
+  const point=add(s.get('0:0'),scale(N,normalMm)),du=add(U,scale(Nu,normalMm)),dv=add(V,scale(Nv,normalMm));
   const duu=add(UU,scale(Nuu,normalMm)),duv=add(UV,scale(Nuv,normalMm)),dvv=add(VV,scale(Nvv,normalMm));
   const normal=cross(du,dv),det=dot(normal,normal),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
   requireThat(Number.isFinite(det)&&det>E*G*SINGULAR_METRIC,'Normal-offset surface has a singular tangent or local focal collapse; reduce normalMm.');

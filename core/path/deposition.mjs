@@ -77,7 +77,7 @@ export function strokeRange(stroke,from=0,to){
 // Process scale, deferred: the default should be the print's lineWidthMm*layerMm*
 // PRINT_RESOLUTION_MM (a bead shorter than print resolution cannot change the print);
 // kept until vase and Bambu change curves, which trim, are regression-checked.
-const VANISHING_BEAD_MM3=1e-3;
+const VANISHING_BEAD_MM3=PRINT_RESOLUTION_MM * 1 /* mm2 reference section */;
 export function trimVanishingEnd(stroke,minimumMm3=VANISHING_BEAD_MM3) {
   let tail=0,keep=stroke.volumesMm3.length;
   while(keep>1&&tail+stroke.volumesMm3[keep-1]<minimumMm3)tail+=stroke.volumesMm3[--keep];

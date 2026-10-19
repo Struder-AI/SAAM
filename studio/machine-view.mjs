@@ -1,3 +1,4 @@
+import {TOLERANCE,ROUNDING_MM} from '../core/dimensions.mjs';
 import {dot,cross,invert,point} from '../core/geom/frame.mjs';
 // Studio's primitive vocabulary. Model equations and joint policy stay with providers.
 
@@ -10,7 +11,7 @@ function require(value,message){if(!value)throw Error('Machine presentation: '+m
 function validatePresentationRigid(t){
   require(t&&vector(t.translationMm)&&Array.isArray(t.rotation)&&t.rotation.length===3&&t.rotation.every(vector),'invalid rigid frame');
   const r=t.rotation;
-  require(r.every((row,i)=>r.every((other,j)=>Math.abs(dot(row,other)-(i===j?1:0))<=1e-6))&&Math.abs(dot(r[0],cross(r[1],r[2]))-1)<=1e-6,'frame must be a right-handed rotation');
+  require(r.every((row,i)=>r.every((other,j)=>Math.abs(dot(row,other)-(i===j?1:0))<=TOLERANCE.domainFraction))&&Math.abs(dot(r[0],cross(r[1],r[2]))-1)<=TOLERANCE.domainFraction,'frame must be a right-handed rotation');
 }
 function binding(b){require(b&&['printId','revision','outputId','modelKey'].every(k=>typeof b[k]==='string'),'missing model/source identity');}
 // Whether a component shape is a supported primitive with valid dimensions.
@@ -50,7 +51,7 @@ export function validateSnapshot(s,d,request){
   require(s.diagnostics.every(x=>typeof x.code==='string'&&typeof x.message==='string'&&['info','warning','error'].includes(x.severity)&&(!x.componentIds||x.componentIds.every(id=>d.components.some(c=>c.id===id)))),'invalid diagnostics');
   if(s.status!=='unavailable'){
     require(s.worldFromFrame.part&&s.worldFromFrame.world,'missing source alignment');
-    const w=s.worldFromFrame.world;require(w.translationMm.every(v=>Math.abs(v)<1e-6)&&w.rotation.every((row,i)=>row.every((v,j)=>Math.abs(v-(i===j?1:0))<1e-6)),'world is not identity');
+    const w=s.worldFromFrame.world;require(w.translationMm.every(v=>Math.abs(v)<ROUNDING_MM)&&w.rotation.every((row,i)=>row.every((v,j)=>Math.abs(v-(i===j?1:0))<TOLERANCE.domainFraction)),'world is not identity');
   }
   if(s.status==='ready')require(d.components.every(c=>s.worldFromFrame[c.frameId]),'ready pose omits components');
   return s;

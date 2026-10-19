@@ -1,15 +1,11 @@
 # Gridfinity: development
 
-[gridfinity.mjs](scripts/gridfinity.mjs) owns construction and parameter
-validation: rounded rectangular rings form indexed convex lofts, and the shared
-Manifold boundary performs unions and differences. Arcs are inscribed polygons
-with a common segment count from a 4 mm maximum radius, and output passes the
-closed-mesh validation. [record.mjs](scripts/record.mjs) hashes mesh and
-parameters together, detecting stale pairs (not forged records); reopening and
-slicing use the saved mesh. [edit.mjs](scripts/edit.mjs) returns recipe values;
-[the lifecycle](../../core/print/extension-edits.mjs) applies them for `saam`.
-A compiled record from `compileGridfinity` can be a part's geometry in a
-complete plan; assembly transforms act after local construction.
+[gridfinity.mjs](scripts/gridfinity.mjs) owns dimensions and parameters; shared
+[Geometry construction](../../core/geom/README.md#geometry-query-boundary) owns exact
+rounded profiles, lofts, Booleans and derived output. Records retain parameters
+and ordinary `solid` geometry; legacy meshes remain readable. Reopening/slicing
+uses the saved solid. [edit.mjs](scripts/edit.mjs) returns recipe values for the
+[Bundle lifecycle](../../core/print/extension-edits.mjs); assembly placement follows local construction.
 
 ## Dimensions
 
@@ -25,9 +21,7 @@ SAAM trims the plate at 4.75 mm to keep a web between cells.
 
 ## Verification
 
-`node --test skills/gridfinity/tests/*.test.mjs` covers sections, cavities,
-mating intersections, parameter errors, text composition, assemblies,
-access and the review/export lifecycle in temporary bundles. No physical print is validated. Label ramps, screw holes, scoops,
-half-grid variants and object-shaped insert cutouts are not implemented. The
-only refusal is a subdivision the solid kernel cannot address. Dated checks are
-in the [development record](references/development-record.md).
+[Access checks](tests/access.test.mjs) cover Bundle creation, edits and stale revisions.
+[DEVLOG](../../DEVLOG.md) records native sections/output and composition probes; physical fit is unvalidated.
+Label ramps, screw holes, scoops, half-grid variants and object-shaped cutouts remain unimplemented.
+Construction/recovery follows [shared Geometry](../../core/geom/README.md#native-boolean-construction).

@@ -2,7 +2,7 @@
 import {subtract as sub,dot,cross} from './tolerance.mjs';
 import {separatedTriangles,MESH_DEGENERATE_MM2} from './mesh.mjs';
 import {nearestBoxQuery,triangleBoxes} from './triangle-bvh.mjs';
-import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 export function closestTrianglePoint(p,a,b,c) {
   const ab=sub(b,a),ac=sub(c,a),ap=sub(p,a),d1=dot(ab,ap),d2=dot(ac,ap);
@@ -116,5 +116,5 @@ export function diagonalPatchBound(xyz,exact,h,t,v,w,allowanceMm){
   const delta=H.map((x,k)=>(x-V[k])*d+u[k]*a-z[k]*b),square=normSquaredExact(delta),allowance=exact.number(allowanceMm),bound=allowance*allowance*d*d;
   if(square>=bound)return null;
   const distance=allowanceMm*Math.sqrt(exactRatio(square,bound));
-  return square===0n?0:distance+Math.max(Number.MIN_VALUE,Math.abs(distance)*2**-48);
+  return square===0n?0:distance+Math.max(Number.MIN_VALUE,Math.abs(distance)*(FLOAT64_EPSILON*16));
 }

@@ -1,11 +1,11 @@
-import {surfaceIsoCurve} from '../../geom/surface-curves.mjs';
+import {surfaceIsoCurve,curvePoint} from '../../geom/surface-curves.mjs';
 import {sampleCurveIntervals} from '../../geom/curve-sampling.mjs';
 import {requireThat,distance} from '../tolerance.mjs';
-import {PRINT_RESOLUTION_MM} from '../../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,BOOLEAN_TOLERANCE_MM} from '../../dimensions.mjs';
 // Horizontal periodic-patch sections retain NURBS form through offset and
 // crossing resolution. Sampling supplies perimeter correspondence afterward.
 import {evaluateCurve} from '../../geom/nurbs.mjs';
-import {prepareCurveOffsets} from '../../geom/curve-offset.mjs';
+import {preparePlanarCurveOffsets} from '../../geom/curve-offset.mjs';
 import {contourPath} from '../../geom/contour-path.mjs';
 import {prepareContourFamily} from '../../geom/prepared-contours.mjs';
 
@@ -22,7 +22,7 @@ export function sampleCurveContour(pieces,toleranceMm){
   const points=[];
   for(const curve of pieces){
     const breaks=[...new Set([curve.domain[0],...curve.knots.filter(t=>t>curve.domain[0]&&t<curve.domain[1]),curve.domain[1]])];
-    const samples=sampleCurveIntervals({at:t=>evaluateCurve(curve,t),cuts:breaks,toleranceMm,stepMm:Infinity});
+    const samples=sampleCurveIntervals({at:t=>({point:curvePoint(curve,(t-curve.domain[0])/(curve.domain[1]-curve.domain[0]))}),cuts:breaks,toleranceMm,stepMm:Infinity});
     const first=samples[0].point.slice(0,2);
     if(!points.length)points.push(first);
     else requireThat(distance(points.at(-1),first)<=PRINT_RESOLUTION_MM,'Resolved contour pieces do not meet.');
@@ -33,7 +33,7 @@ export function sampleCurveContour(pieces,toleranceMm){
 }
 
 // Defaults are process scale: a contour chord tolerance and a sampling step of one narrow line.
-export function prepareSleeveContours({patch,rangeMm,toleranceMm=.005,stepMm=.4}){
+export function prepareSleeveContours({patch,rangeMm,toleranceMm=BOOLEAN_TOLERANCE_MM,stepMm=.4}){
   requireThat(patch&&Array.isArray(rangeMm)&&rangeMm.length===2&&rangeMm.every(Number.isFinite)&&rangeMm[1]>rangeMm[0],
     'Sleeve contours need a patch and a positive finite height range.');
   const [start,end]=rangeMm,[v0,v1]=patch.domainV,cache=new Map();
@@ -44,7 +44,7 @@ export function prepareSleeveContours({patch,rangeMm,toleranceMm=.005,stepMm=.4}
     let prepared=cache.get(z);
     if(!prepared){
       const curve=horizontalSleeveCurve(patch,v,z);
-      prepared={source:curve,offsets:prepareCurveOffsets({curves:[{curve,closed:true}]})};
+      prepared={source:curve,offsets:preparePlanarCurveOffsets({curves:[{curve,closed:true}]})};
       if(cache.size>=128)cache.delete(cache.keys().next().value);
       cache.set(z,prepared);nativeSections++;
     }

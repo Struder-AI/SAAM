@@ -1,3 +1,4 @@
+import {GENERATION_PARAMETERS} from '../dimensions.mjs';
 // Shell-specific adapter for the shared print lifecycle.
 import { createBundleWorkflow } from './workflow.mjs';
 import {VERSION,BUILD_DATE} from './version.mjs';
@@ -56,11 +57,11 @@ export async function pathSource(plan){
   // absence still belongs to the source snapshot, so installing or repairing
   // it invalidates an earlier partial path before the next generation.
   const selected=await generationExtensionSources(plan);
-  const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,selected])).digest('hex');
+  const hash=createHash('sha256').update(JSON.stringify([version,PATH_CONTRACT,NEUTRAL_PATH_CONTRACT,selected,GENERATION_PARAMETERS])).digest('hex');
   return {release:version,hash};
 }
 
-export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, readConstructedPath, prepareGeneration, commitGeneration, restoreRevision, checkPathBundle, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
+export const {root, EXPORT_NAME, proposedPlan, initBundle, loadBundle, loadBundleSnapshot, migrateBundle, readDrawnPath, readConstructedPath, prepareGeneration, commitGeneration, restoreRevision, adjustBundle, updatePlan, generateBundle, exportReviewed, setDeferredSetupSave, setPhaseColours, applySettingsSnapshot}=createBundleWorkflow({
   kind:'shell',defaults,readRecipe,patchPlan,createGeometry,normalizePlan,manufacturingInput,presentGeometry,
   generatePath:generatePreparedPath,pathDependencies,pathSource,generationContract:PATH_CONTRACT,
   version:VERSION,buildDate:BUILD_DATE,exportName:'part.gcode'

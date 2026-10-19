@@ -80,7 +80,7 @@ footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
     <h2>Caveats: where "capabilities skills can call" doesn't quite fit</h2>
     <ol>
       <li><b>There is no declared skill API.</b> Skills import core modules by relative path (<code class="i">../../../core/…</code>). This list is what they actually import, so it's the <i>de facto</i> surface. Only parts of it have written contracts: shared offsets and intersections (<code class="i">core/region/README.md</code>, which skills are <i>required</i> to use), skill-result composition (<code class="i">core/path/README.md</code>) and geometry for skill authors (<code class="i">core/geom/README.md</code>).</li>
-      <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">sliceResults</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. <code class="i">core/print/bundle.mjs</code> also imports pipe-cladding directly.</li>
+      <li><b>Calls go both ways.</b> Core calls toolpath skills too: <code class="i">core/print/generate.mjs</code> statically imports each producer (<code class="i">sliceResults</code>, <code class="i">vaseWallResult</code>, <code class="i">waveResults</code> …) and dispatches it. Producers return <code class="i">{id, operations, report}</code> to the composer. Cladding uses ordinary Slice settings.</li>
       <li><b>Some skills are mostly core.</b> mesh-tools and advanced-vase-wall have no scripts of their own. Repair lives in <code class="i">core/print/repair-stl.mjs</code> and core geometry, and advanced vase is part of vase-wall. text and heat-set-inserts put their main work in <code class="i">core/print/text.mjs</code> and <code class="i">heat-set.mjs</code>. rimming-normal reuses rimming-planar's producer.</li>
       <li><b>Not included:</b> imports from skill tests only, such as <code class="i">core/tests/fixtures/*</code> and <code class="i">core/export/registry|griffin|bambu</code>. gridfinity's catalog description is literally "gridfinity" (its manual says this is intentional), so its description here is taken from the manual body.</li>
     </ol>
@@ -103,17 +103,15 @@ const SKILLS = [
     ['geom/support-surface','geom/tolerance','path/spacing','region/section-offset']],
   ['rimming-normal','toolpath','Rimming walls whose paired beads follow 3D surface-normal offsets (nonplanar).',
     ['geom/support-surface','geom/tolerance','path/spacing','region/section-offset'],'via rimming-planar producer'],
-  ['draped-skin','toolpath','Nonplanar top-skin strokes that follow a sloped or curved roof instead of flat-layer steps.',
-    ['geom/query','geom/tolerance','path/builder','path/compose','path/spacing','region/boolean','region/offset','region/region2d']],
-  ['wave-overhangs','toolpath','Experimental continuous wave passes over spline slices, grown from assigned supported seeds.',
+  ['wave-overhangs','guidance','Experimental continuous wave passes over spline slices, grown from assigned supported seeds.',
     ['geom/reference-surface','geom/surface-derivatives','geom/tolerance','machine/profile','print/bundle','print/plan','region/intersection','region/offset','region/region2d','region/surface-offset']],
   ['vase-wall','toolpath','Hollow vase or tube printed as one continuous rising spiral, with an optional solid base.',
     ['geom/contour-path','geom/cylinder','geom/mesh-distance','geom/mesh-sleeve','geom/mesh','geom/polyline','geom/prepared-contours','geom/prepared-radial-contact','geom/query','geom/sleeve-frame','geom/tolerance','path/deposition','print/bundle','print/plan','region/intersection','region/offset','region/region2d']],
   ['advanced-vase-wall','toolpath','Tiled and authored patterns on a sleeve, with optional fitted mesh sleeves and loose offsets.',
     ['geom/contour-path','geom/cylinder','geom/mesh-distance','geom/mesh-sleeve','geom/mesh','geom/polyline','geom/prepared-contours','geom/prepared-radial-contact','geom/query','geom/sleeve-frame','geom/tolerance','path/deposition','print/bundle','print/plan','region/intersection','region/offset','region/region2d'],'manual only; runs vase-wall scripts'],
-  ['thick-lip','toolpath','Thickens a vase-wall top edge into a rigid, optionally rolled rim.',
+  ['thick-lip','guidance','Thickens a vase-wall top edge into a rigid, optionally rolled rim.',
     ['geom/polyline','geom/query','geom/tolerance','path/builder','region/offset','region/region2d']],
-  ['pipe-cladding','toolpath','Lengthwise and helical cladding wrapped around a substrate (DENSO RC8A and rotary).',
+  ['pipe-cladding','guidance','Author axial and helical coatings with ordinary Slice.',
     ['geom/cylinder','geom/query','geom/spline-tube','geom/surface-offset','geom/surface-region','geom/tolerance','machine/profile','path/spacing','print/bundle','print/plan','region/intersection','region/normal-surface']],
   ['thingi10k','geometry','Find and download STL meshes from the Thingi10K mirror, keeping attribution and license.',
     ['file-write','machine/profile','print/import-stl']],
@@ -160,7 +158,7 @@ const CAPS = [
     ['geom/tessellate', [['tessellateShell','Tessellate a spline shell into a mesh within a set tolerance.']]],
     ['geom/reference-surface', [
       ['referencePatch','Validate and build a NURBS patch from a control net.'],
-      ['referenceSurface','Place a reference surface relative to a part.']]],
+      ['referenceSurface','Resolve a numerical surface reference with evaluation and native capabilities.']]],
     ['geom/surface-region', [
       ['surfaceRegion','Resolve a selected spline-UV or mesh-strip area of a shell.'],
       ['validateSurfaceSelection','Check a surface-selection spec.']]],
@@ -208,10 +206,6 @@ const CAPS = [
       ['dedupe','Remove coincident consecutive points from a loop.'],
       ['scanlineFill','Parallel scanlines at a spacing and angle, clipped to a region.']]],
     ['region/perimeters', [['perimeterLoops','Wall loops inset from a region.']]],
-    ['region/reservation', [
-      ['clipReservedRegion','Remove a reserved process cavity from a layer region.'],
-      ['clipAboveSurface','Keep only the part of a region that lies over a published lower surface.'],
-      ['surfaceStroke','Horizontal stroke resolved above a published surface interface.']]],
     ['region/surface-offset', [['offsetSurfaceRegion','Offset UV loops on a patch by physical distance.']]],
     ['region/section-offset', [['offsetSurfaceSection','Offset a section chain across a surface, horizontally or along normals.']]],
     ['region/normal-surface', [['sampleSurfaceCurve','Sample a UV curve on a chart with a normal offset.']]],

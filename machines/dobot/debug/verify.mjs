@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {LuaRuntime,LuaTable,LuaSubsetError} from './dobot-lua-subset.mjs';
-import {requireThat,distance,num,config,transform,inverse,equal,motionProfile,WAIT_COMMAND_MS} from '../dobot.mjs';
+import {requireThat,distance,controllerNumber,config,transform,inverse,equal,motionProfile,WAIT_COMMAND_MS} from '../dobot.mjs';
 // Debug-only machine verification (machine-verify): executes the written Lua in
 // a bounded subset runtime. Generation, reopen, Studio and delivery never load
 // it; scripts/machine-verify.mjs runs it. Delete it after a physical trial.
@@ -10,12 +10,13 @@ export function verify(bytes,plan,machine,Export){
   requireThat([...entries.keys()].sort().join()==='global.lua,manifest.json,src0.lua,src1.lua','Dobot bundle must contain exactly global.lua, src1.lua, src0.lua and manifest.json.');
   const manifest=JSON.parse(entries.get('manifest.json').toString('utf8'));
   requireThat(manifest.schema==='saam-dobot-program/1'&&manifest.machineId===machine.id&&manifest.entry==='src0.lua'&&manifest.setupHash===digest(plan.setup)&&manifest.machineHash===digest(machine),'Dobot manifest does not match the locked machine/setup.');
-  requireThat(equal(manifest.initialPositionMm??[],c.initialPositionMm)&&manifest.relayPolicy===c.relayPolicy,'Dobot manifest start/policy mismatch.');
-  return {...interpretDobotFiles(Object.fromEntries(['global.lua','src1.lua','src0.lua'].map(name=>[name,entries.get(name).toString('utf8')])),plan,machine),limitations:manifest.limitations??[]};
+  requireThat(equal(manifest.initialPositionMm??[],c.initialPositionMm,Export.kinematics.dimensions.PRINT_RESOLUTION_MM)&&manifest.relayPolicy===c.relayPolicy,'Dobot manifest start/policy mismatch.');
+  return {...interpretDobotFiles(Object.fromEntries(['global.lua','src1.lua','src0.lua'].map(name=>[name,entries.get(name).toString('utf8')])),plan,machine,Export.kinematics.dimensions),limitations:manifest.limitations??[]};
 }
 
 
-function interpretDobotFiles(files,plan,machine,moves=[]) {
+function interpretDobotFiles(files,plan,machine,{PROGRAM_DECIMALS},moves=[]) {
+  const num=value=>controllerNumber(value,PROGRAM_DECIMALS+5);
   const c=config(plan,machine);
   requireThat(Object.keys(files).sort().join()==='global.lua,src0.lua,src1.lua'&&Object.values(files).every(s=>typeof s==='string'),'Missing Dobot Lua source files.');
   const sourceLines=Object.fromEntries(Object.entries(files).map(([name,text])=>[name,text.split(/\r?\n/)]));

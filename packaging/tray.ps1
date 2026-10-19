@@ -1,9 +1,9 @@
-param([int]$Port,[string]$Token,[int]$AppPid,[string]$RaiseScript)
+param([int]$Port,[string]$Token,[int]$AppPid,[string]$RaiseScript,[Parameter(Mandatory=$true)][int]$Contract)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 function Invoke-Control([string]$Command,[bool]$Force=$false,[string]$StudioInstanceId='',[string]$RuntimeId='',[string]$Display='') {
-  $body = @{contract=2;command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
+  $body = @{contract=$Contract;command=$Command;force=$Force;studioInstanceId=$StudioInstanceId;runtimeId=$RuntimeId;display=$Display} | ConvertTo-Json -Compress
   # Without -TimeoutSec the request waits while SAAM works on it, such as an open that
   # starts a runtime. A failure throws SAAM's error (its 400 body), else the HTTP error.
   try { Invoke-RestMethod -Uri "http://127.0.0.1:$Port/control" -Method Post -Headers @{'X-SAAM-Control'=$Token} -ContentType 'application/json' -Body $body }
@@ -35,6 +35,9 @@ $newInstance = $menu.Items.Add('New Instance')
 $newInstance.add_Click({ try { Show-Studio 'new-instance' } catch { Show-Problem $_.Exception.Message } })
 $end = New-Object System.Windows.Forms.ToolStripSeparator
 [void]$menu.Items.Add($end)
+$statusProblem = $menu.Items.Add('Status unavailable')
+$statusProblem.Enabled = $false
+$statusProblem.Visible = $false
 $update = $menu.Items.Add('Update')
 $update.Visible = $false
 function Add-Entry($Item,[string]$Tag='',[scriptblock]$Click) {
@@ -71,7 +74,17 @@ function Build-Menu($Status) {
     } catch { Show-Problem $_.Exception.Message } } }
   }
 }
-function Refresh-Menu { try { Build-Menu (Invoke-Control 'status') } catch { Build-Menu $null } }
+function Refresh-Menu {
+  try {
+    Build-Menu (Invoke-Control 'status')
+    $statusProblem.Visible = $false
+    $notify.Text = 'SAAM'
+  } catch {
+    $statusProblem.ToolTipText = $_.Exception.Message
+    $statusProblem.Visible = $true
+    $notify.Text = 'SAAM - status unavailable'
+  }
+}
 $menu.add_Opening({ Refresh-Menu })
 $update.add_Click({
   try {

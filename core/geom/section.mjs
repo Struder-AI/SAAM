@@ -269,7 +269,10 @@ function split(patch, g, a, b, depth,chordMm=TOLERANCE.chord) {
   const mid = contourPointNear(patch, g, (a.u + b.u) / 2, (a.v + b.v) / 2, b.u - a.u, b.v - a.v);
   if (!mid) return [b];
   const chordMid = scale(add(a.point, b.point), 0.5);
-  if (distance(mid.point, chordMid) <= chordMm) return [b];
+  const nativeMid=evaluateSurface(patch,[(a.u+b.u)/2,(a.v+b.v)/2]).point;
+  // Trims consume the UV polyline too. A straight world contour can have a
+  // curved UV image on a nonuniform planar chart.
+  if(Math.max(distance(mid.point,chordMid),distance(nativeMid,chordMid))<=chordMm)return [b];
   return [...split(patch, g, a, mid, depth + 1,chordMm), ...split(patch, g, mid, b, depth + 1,chordMm)];
 }
 
@@ -281,7 +284,14 @@ function contourPointNear(patch, g, u, v, du, dv) {
   if (!(scale0 > 0)) return null;
   const pu = -dv / scale0, pv = du / scale0;
   const centre = g(u, v);
-  if (Math.abs(centre) <= PROGRAM_STEP_MM) return { u, v, point: evaluateSurface(patch, [u, v]).point };
+  let weight=1;
+  if(patch.cp){
+    const weights=new Float64Array(patch.nu*patch.nv);
+    for(let i=0;i<weights.length;i++)weights[i]=patch.cp[4*i+3];
+    weight=evaluateScalar(patch,weights,u,v);
+  }
+  // The native scalar is a homogeneous numerator; its residual is physical only after division by weight.
+  if (Math.abs(centre) <= PROGRAM_STEP_MM*weight) return { u, v, point: evaluateSurface(patch, [u, v]).point };
   for (let step = scale0 / 8; step <= scale0 * 2; step *= 2) {
     for (const direction of [1, -1]) {
       const su = clamp(u + pu * step * direction, patch.domainU), sv = clamp(v + pv * step * direction, patch.domainV);

@@ -1,11 +1,9 @@
 // Slice constructs deposition from one prepared region/surface/gap description.
 // Neither curvature, wrapping nor consumer names select a different pipeline.
-import {sliceKey} from '../geom/slice.mjs';
-import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {measureSurfaceRegion} from '../geom/surface-region-measure.mjs';
+import {surfaceConnectionMaterial} from '../geom/material-envelope.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {layerStrokes,mapSliceStrokes,loopMaterial,fillMaterial} from '../region/layer-strokes.mjs';
+import {layerStrokes,mapSliceStrokes} from '../region/layer-strokes.mjs';
 import {sliceGapCurves} from '../region/slice-gaps.mjs';
 import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {lineSpacing} from '../path/spacing.mjs';
@@ -17,16 +15,15 @@ function evaluateRegionBatch({id,reference,strokes,gap,speedMmS,process,filament
   return depositCurveBatches({id,batches:[{key:0,curves,speedMmS}],process,filament,sequential:false})[0];
 }
 
-function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
+function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
   const width=process.lineWidthMm,operations=[],stackLayers=[];
-  const report={depositionFamily:'slice',layers:0,skippedLayers:0,areaMm2:0,loops:0,fillRows:0,solidAreaMm2:0,...extra};
+  const report={depositionFamily:'slice',layers:0,skippedLayers:0,loops:0,fillRows:0,...extra};
   for(const layer of layers){
     const {index,slice,region,preparedStrokes:strokes}=layer;
     requireThat(strokes&&layer.gap,'Slice needs prepared strokes and gap inputs.');
-    const s=layer.settings,pitch=layer.pitchMm;
-    const measure=loops=>measureSurfaceRegion(slice,loops,{sampleStepMm:s.sampleStepMm,lineWidthMm:width});
-    const measured=measure(region);
-    if(!measured.areaMm2){report.skippedLayers++;continue;}
+    const s=layer.settings;
+    if(!region.length){report.skippedLayers++;continue;}
+    const connectionMaterial=surfaceConnectionMaterial(slice,region,{sampleStepMm:s.sampleStepMm,lineWidthMm:width});
     if(strokes.constructionReport){report.fillOrder=strokes.constructionReport;
       if(strokes.constructionReport.notes?.length)report.notes=[...(report.notes??[]),...strokes.constructionReport.notes.map(note=>'Slice '+id+' layer '+index+': '+note)];}
     const boundaries=mapSliceStrokes(strokes.walls,slice,{frames:true,sampleStepMm:s.sampleStepMm}).map(curve=>{
@@ -34,31 +31,25 @@ function sliceResult({id,settings,layers,filament=null,totalLayerCount=layers.le
       return !duplicate?curve:{...curve,closed:true,points:curve.points.slice(0,-1),chartPoints:curve.chartPoints.slice(0,-1),normals:curve.normals.slice(0,-1),frameSamples:curve.frameSamples?.slice(0,-1)};
     });
     stackLayers.push({...layer,curves:boundaries,fillCurves:strokes.fill,infillCurves:strokes.infill});
-    report.solidAreaMm2+=measure(strokes.solidRegion).areaMm2;
     report.loops+=strokes.walls.length;report.fillRows+=strokes.infill.length+strokes.fill.length;
     const speedMmS=layer.firstBedLayer?process.firstLayerSpeedMmS:process.planarSpeedMmS;
     for(const [group,found] of [['walls',strokes.walls],['infill',strokes.infill],['fill',strokes.fill]]){
       if(!found.length)continue;
       const roles=s.roles??settings.roles;
-      const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
+      const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,directionRequired:false,seamRequired:false,role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
       if(!deposited)continue;
       const lifted=deposited.strokes,heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planar=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
-      const opId=id+':'+index+':'+group,spacing=group==='infill'?pitch/s.fillDensity:pitch;
-      let covered;
-      operations.push({...deposited,id:opId,layerId:planar?'planar:'+top:'slice:'+sliceKey(slice),phase:planar?'planar':'curves',layer:index,rank:top,
-        after:[],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
+      const opId=id+':'+index+':'+group;
+      operations.push({...deposited,id:opId,layerId:stackId+':layer:'+index,stackId,phase:planar?'planar':'curves',layer:index,rank:top,
+        after:[...(s.operationAfter?.all??[]),...(s.operationAfter?.[group]??[])],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
         stackDirection:layer.direction??null,...(s.continuous?{continuous:true,regionId:id+':'+index}:{}),
         order:s.order??(group==='walls'?(lifted.every(stroke=>stroke.closed&&!stroke.volumesMm3)?'nearest':'given'):lifted.every(stroke=>stroke.scanlineCell!==undefined)?'nearest-cells':'given'),
-        region:measured.worldRegion,slice,ownershipIndex:index,
-        get materialRegion(){return covered??=(group==='walls'?loopMaterial(region,{widthMm:width,loops:s.loops,spacingFactor:s.spacingFactor},{outward:layer.outward??false,slice,sampleStepMm:s.sampleStepMm}):
-          fillMaterial(group==='infill'?strokes.sparseRegion:strokes.solidRegion,width,{slice,sampleStepMm:s.sampleStepMm})).map(loop=>loop.map(uv=>evaluateSurface(slice,uv).point.slice(0,2)));},
-        materialCoverage:group!=='walls'&&spacing>width+PRINT_RESOLUTION_MM?'sparse':'area',materialGeometry:measured.materialGeometry,
+        slice,ownershipIndex:index,
+        materialGeometry:connectionMaterial??{kind:'bounds',maxZ:top},
         ...((Object.hasOwn(s.process??{},'fanPercent')||layer.ordinal===1)?{fanPercent:process.fanPercent}:{}),...(filament===null?{}:{filament})});
     }
-    report.layers++;report.areaMm2+=measured.areaMm2;
+    report.layers++;
   }
-  const widths=operations.flatMap(operation=>operation.strokes.flatMap(stroke=>stroke.segmentMetadata?.map(m=>m.beadWidthMm).filter(Number.isFinite)??[]));
-  if(widths.length){report.minBeadWidthMm=Math.min(...widths);report.maxBeadWidthMm=Math.max(...widths);}
   return {id,operations,report,stackLayers};
 }
 
@@ -70,7 +61,8 @@ export function fillSliceRegion(region,{source,angleDeg=null,role='fill'}={}){
   const strokes=layerStrokes(region,{...settings,widthMm:width,loops:0,fillDensity:1,solidDensity:1,fillPattern:'rectilinear',fillAngleDeg:angle,patternAngleDeg:angle,
     solid:null,fillOrder:null,slice:source.slice,direction:source.direction,layer:source,material:region,outward:false,
     loopBoundary:region,wallToleranceMm:source.process.planarWallToleranceMm,phaseMm:source.slice.origin?.[2]??source.slice.offsetMm??0});
-  const curves=strokes.fill.map(stroke=>({closed:stroke.closed,uv:{reference:{kind:'slice',assignment:source.stackId,index},points:stroke.points},role,
+  const curves=strokes.fill.map(stroke=>({closed:stroke.closed,orderGroup:stroke.scanlineCell,directionRequired:false,seamRequired:false,
+    uv:{reference:{kind:'slice',assignment:source.stackId,index},points:stroke.points},role,
     beadWidthMm:width,sampleStepMm:settings.sampleStepMm}));
   return {curves,report:{curves:curves.length,widthMm:width,pitchMm:lineSpacing(width,settings),angleDeg:angle}};
 }
@@ -79,6 +71,6 @@ export function fillSliceRegion(region,{source,angleDeg=null,role='fill'}={}){
 export function sliceContextResult(record,{layerIndex=null}={}){
   const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
   requireThat(layers.length,'Slice construction context has no requested layer.');
-  const result=sliceResult({...record.spec,layers},record.context);
+  const result=sliceResult({...record.spec,stackId:record.stackId??record.spec.id,layers},record.context);
   return {...result,referenceStack:{...record.referenceStack,layers:result.stackLayers},stackId:record.stackId};
 }

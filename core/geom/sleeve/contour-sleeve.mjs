@@ -57,10 +57,7 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   const reference=fitMode==='mesh'?createFittedSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress})
     :fitMode==='automatic'?createAutomaticSleeveReference({shell,settings,start,end,centerlineOffsetMm:centerlineOffset,onProgress}):null;
   const sectionAt=reference?.sectionAt??createSectionQuery(shell,{minFeatureMm:settings.minFeatureMm});
-  // The wall follows a section with one outer boundary whose inset is one loop
-  // ({outer,loop,curve,holes}). Any other section (islands, or an inset that
-  // splits or collapses) is plain ({islands}): each inset island is a closed
-  // layer boundary of its own, and the spiral joins only followed layers.
+  // One continuous wall follows one source outer and one offset boundary.
   function section(z) {
     const key=z.toFixed(10);if(cache.has(key))return cache.get(key);
     sectionQueries++;
@@ -74,26 +71,25 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
       loop.length===lastContours[i].length&&loop.every((p,j)=>p[0]===lastContours[i][j][0]&&p[1]===lastContours[i][j][1]))){
       return cacheSection(key,lastValue);
     }
-    // Fitted spline sections already have chord-controlled contours. A second,
+    // Fitted and native spline sections already have chord-controlled contours. A second,
     // coarser per-height RDP pass can switch retained vertices discontinuously
     // and defeat the tighter prepared-map allowance, forcing thousands of
     // offset rebuilds. Keep its original contour; mesh cuts still need removal
     // of collinear triangle seams before quantization and offsets: a raw
     // tessellation seam is a near-collinear step that an inward offset can split
-    // off as a degenerate sliver, leaving the inset with two loops. Patterns
+    // off as a degenerate sliver, leaving the inset with two loops. Mesh patterns
     // re-anchor and grid-round for phase stability through patternContour; the
     // standard wall only needs the seam removed. Fitted-sleeve and native spline
     // cuts are already chord-controlled and keep their exact contour.
     const seamTolerance=Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/4,meshCut=!reference&&shell.kind==='triangle-mesh';
-    const prepare=raw=>settings.phaseStableContours&&!reference?patternContour(raw,seamTolerance):meshCut?cleanPlanarLoop(raw,seamTolerance):raw;
+    const prepare=raw=>settings.phaseStableContours&&meshCut?patternContour(raw,seamTolerance):meshCut?cleanPlanarLoop(raw,seamTolerance):raw;
     const outers=cut.loops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3).map(prepare);
     const offsetLoops=offsetRegion(outers,centerlineOffset,{precisionMm:OFFSET_PRECISION_MM,arcToleranceMm:settings.boundaryToleranceMm/4});
     const islands=offsetLoops.filter(loop=>loopArea(loop)>0).map(loop=>dedupe(loop)).filter(loop=>loop.length>=3);
     // A pattern follows only the outer boundary: interior offset holes do not
     // supply another wall. The standard wall follows an inset without holes.
-    if(outers.length!==1||islands.length!==1||!settings.phaseStableContours&&offsetLoops.length!==1){
-      const value={islands};lastContours=cut.loops;lastValue=value;return cacheSection(key,value);
-    }
+    requireThat(outers.length===1&&islands.length===1&&(settings.phaseStableContours||offsetLoops.length===1),
+      `The vase section at Z ${z} mm needs one source and inset boundary; disconnected islands, splits or collapse need separate Slice work.`);
     const outer=outers[0],loop=islands[0],curve=contourPath(loop,seam);
     // Keep the projection anchor outside every section. The first seam itself
     // can lie inside later, expanding contours, where its nearest projection
@@ -133,15 +129,15 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
   }
   const boundaryStack=()=>{
     const levels=[start];for(let z=start+pitch;z<end-PRINT_RESOLUTION_MM;z+=pitch)levels.push(z);levels.push(end);
-    const plain=[],layers=levels.map((z,index)=>{
+    const layers=levels.map((z,index)=>{
       let loops;
       if(reference){const count=Math.max(16,Math.ceil(reference.referenceLengthMm/settings.sampleStepMm));loops=[Array.from({length:count},(_,i)=>reference.map(reference.pointAt(i/count,z,0)))];}
-      else {const frame=section(z);if(!frame.curve)plain.push(index);loops=frame.curve?[frame.curve.breakpoints().slice(0,-1).map(n=>[...n.p,z])]:frame.islands.map(loop=>loop.map(p=>[...p,z]));}
+      else {const frame=section(z);loops=[frame.curve.breakpoints().slice(0,-1).map(n=>[...n.p,z])];}
       const normal=[0,0,1];
       return {index,heightMm:index?z-levels[index-1]:firstHeight,offsetMm:z-start,slice:{kind:'plane',origin:[0,0,z],normal,xAxis:[1,0,0],yAxis:[0,1,0]},
         curves:loops.map(points=>({closed:true,points,frameSamples:points.map(sliceFrame)}))};
     });
-    return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers,plain};
+    return {direction:[0,0,1],pitchMm:pitch,firstLayerMm:firstHeight,layers};
   };
   const mappingErrorMm=reference?.mappingErrorMm??Math.min(settings.toleranceMm,settings.boundaryToleranceMm)/8;
   const validatedFrames=new WeakSet();
@@ -162,10 +158,7 @@ export function prepareContourSleeve({shell,baseMm:base,startMm:start,endMm:end,
     const point=reference?reference.map(reference.pointAt(u,z,0)):mappedPoint(u,z);
     return {point,normal:[0,0,1],frame:sliceFrame(point)};
   }};
-  // With plain layers there is no one wall to evaluate between layers: the
-  // stack carries layer boundaries only, and the spiral joins its followed run
-  // through their chart while plain layers print as closed loops (spiralStackCurve).
   return {base,start,end,firstHeight,referenceLengthMm:reference?.referenceLengthMm??section(start).curve?.length??null,mapping,mappingErrorMm,
-    referenceStack(){const {plain,...stack}=boundaryStack();return plain.length?stack:{...stack,boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
+    referenceStack(){const stack=boundaryStack();return {...stack,boundary,coordinate:{startMm:start,endMm:end,pitchMm:pitch},chartStepMm:settings.minFeatureMm/2};},
     report(){return {sectionQueries,nudgedSections,offsetPrecisionMm:OFFSET_PRECISION_MM,...reference?.report(),...contours?.report()};}};
 }

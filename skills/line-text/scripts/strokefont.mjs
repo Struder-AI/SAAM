@@ -1,12 +1,10 @@
 import {createHash} from 'node:crypto';
 import {readFileSync} from 'node:fs';
 
+export function createStrokeFont(Geometry){
+const {ROUNDING_RELATIVE}=Geometry.dimensions;
+
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-// (the other line-text modules import it from here).
-export const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs ROUNDING_RELATIVE (ROUNDING_MM over BUILD_SCALE_MM); this runtime has no release-relative imports
-const ROUNDING_RELATIVE=PRINT_RESOLUTION_MM/1000/1000;
 // Font coordinates are font units spanning about one em (1000 units), so the
 // rounding guard there is the dimensionless one across that span.
 const ROUNDING_UNITS=ROUNDING_RELATIVE*1000;
@@ -44,7 +42,7 @@ function flattenCubic(p0, p1, p2, p3, tolerance, out, depth = 0) {
 const ARGUMENTS = {M: 2, L: 2, H: 1, V: 1, C: 6, S: 4, Q: 4, T: 2, Z: 0};
 
 // Full SVG path syntax except arcs, which none of the bundled fonts use.
-export function parsePathData(d, {toleranceUnits = 1, closeEpsilon = 0.5} = {}) {
+function parsePathData(d, {toleranceUnits = (1000*Geometry.dimensions.TOLERANCE.unitFraction), closeEpsilon = (500*Geometry.dimensions.TOLERANCE.unitFraction)} = {}) {
   const tokens = [...d.matchAll(/([MmLlHhVvCcSsQqTtAaZz])|(-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)/g)].map(m => m[1] ?? Number(m[2]));
   const strokes = [];
   let current = null, at = [0, 0], start = [0, 0], lastCubic = null, lastQuad = null, i = 0, command = null;
@@ -119,7 +117,7 @@ function kerningSide(names, chars, byName) {
   return set;
 }
 
-export function parseStrokeFont(svg, {id, toleranceUnits = 1} = {}) {
+function parseStrokeFont(svg, {id, toleranceUnits = (1000*Geometry.dimensions.PRINT_RESOLUTION_MM)} = {}) {
   const face = attributes(/<font-face\b[^>]*>/s.exec(svg)?.[0] ?? '');
   const fontTag = attributes(/<font\b[^>]*>/s.exec(svg)?.[0] ?? '');
   const unitsPerEm = Number(face['units-per-em'] ?? 1000);
@@ -152,16 +150,16 @@ export function parseStrokeFont(svg, {id, toleranceUnits = 1} = {}) {
   };
 }
 
-export function loadStrokeFont(path, options = {}) {
+function loadStrokeFont(path, options = {}) {
   return parseStrokeFont(readFileSync(path, 'utf8'), options);
 }
 
 // Font kerning value that narrows the pair, in font units.
-export const kernUnits = (font, left, right) => font.kerning.get(left + right) ?? 0;
+const kernUnits = (font, left, right) => font.kerning.get(left + right) ?? 0;
 
 // Measured, not declared: the bundled fonts' cap-height headers do not match
 // their glyphs (EMS Casual Hand's 'A' rises to 828 against a declared 500).
-export function fontMetrics(font) {
+function fontMetrics(font) {
   if (font.metrics) return font.metrics;
   const top = chars => {
     let best = null;
@@ -186,4 +184,7 @@ export function fontMetrics(font) {
   requireThat(capHeight > 0, `Font ${font.id} has no measurable capital height.`);
   font.metrics = {capHeight, xHeight: xHeight ?? capHeight * 0.7, ascender: top('bdfhkl') ?? capHeight, descender: bottom('gjpqy') ?? 0};
   return font.metrics;
+}
+
+return {parsePathData,parseStrokeFont,loadStrokeFont,kernUnits,fontMetrics};
 }

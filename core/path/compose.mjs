@@ -1,221 +1,505 @@
+// Source operations enter once as compact curves; execution refers to ranges.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {depositionCourses,physicalOrdering} from './physical-order.mjs';
-// Skill results describe deposition operations. The composer advances explicit
-// planning state through scheduled operations and returns action chunks.
+import {curveAt,curveRange,curveHasLength,curveParameterAtLength,curveClosestParameter,prepareCurvePath} from './curve-path.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
+import {orderSliceCourses,selectTraversal} from './course-order.mjs';
+import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
+import {prepareRangeScene} from './physical-order.mjs';
+import {CoolingOrder} from './cooling-order.mjs';
+import {manufacturingDependencies,constructionHistory,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
+import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
+import {prepareBeadQualification} from './bead-qualification.mjs';
+import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planTransfer,
+  planExtrusion,planDwell,planSelection,planProcess,planDepositRange} from './planning.mjs';
 
-import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planPark,planTravel,planMove,
-  planExtrusion,planDwell,planLayerCooling,planSelection,planProcess} from './planning.mjs';
-
-// Schedule once, then advance explicit motion state through operations. Layer and
-// obstacle ledgers are local scheduling work, never shared builder state.
-export function planComposition(initialState,skillResults,rules={},onProgress) {
-  const resolved=resolveOperationOrder(skillResults,rules,{onProgress,start:initialState.position});
-  const operations=resolved.operations.map(op=>{
-    const layerId=initialState.selections&&/^planar:[\d.e+-]+$/.test(op.layerId)?'planar:'+Number(Number(op.layerId.slice(7)).toFixed(5)):op.layerId;
-    return {...op,layerId};
-  });
-  const nozzleScene={index:resolved.physical.index,beads:resolved.physical.beads,byStart:resolved.physical.byStart,occupied:new Set(),withinGroups:new Set(),groupPrefixes:new Map()};
-  const elapsed=new Map(),paid=new Map(),actions=new ActionAccumulator(),layers=new Set();
-  const layerIndices=initialState.selections?new Map([...new Set(operations.map(op=>op.layerId))].map((id,i)=>[id,i])):null;
-  let state=initialState,completed=0,last=null;
-  onProgress?.({stage:'Planning print moves',completed,total:operations.length});
-  for(const op of operations){
-    if(last&&last.layerId!==op.layerId&&!last.continuous){
-      const cooling=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);
-      state=cooling.state;actions.add(cooling.actions);paid.set(last.layerId,(paid.get(last.layerId)??0)+(cooling.coolingSeconds??0));
-    }
-    const planned=planOperation(state,layerIndices?{...op,layer:layerIndices.get(op.layerId)}:op,{nozzleScene,layerSeconds:elapsed.get(op.layerId)??0});
-    state=planned.state;actions.add(planned.actions);elapsed.set(op.layerId,planned.operationSeconds);layers.add(op.layerId);last=op;
-    onProgress?.({stage:'Planning print moves',completed:++completed,total:operations.length});
-  }
-  if(last&&!last.continuous){const cooled=planLayerCooling({...state,layerSeconds:(elapsed.get(last.layerId)??0)+(paid.get(last.layerId)??0)},nozzleScene);state=cooled.state;actions.add(cooled.actions);}
-  return planningResult({...state,operationId:undefined},actions.finish(),{nozzleScene,summary:{operationOrder:operations.map(op=>op.id),layers:layers.size,
-    physicalOrdering:{substrateDependencies:resolved.physical.substrateDependencies,nozzleDependencies:resolved.physical.nozzleDependencies,
-      nozzle:'Effectively infinite sharp cone; 15 degree included angle; carriage unchecked.'}}});
-}
-
-export function planOperation(initialState,op,options={}) {
-  const entered=planOperationEntry(initialState,op,options);
-  const deposited=planPreparedOperation(entered.state,op,options);
-  return planningResult(deposited.state,{chunks:[entered.actions,deposited.actions]},{operationSeconds:deposited.operationSeconds});
-}
-
-export function planOperationEntry(initialState,op,{layerSeconds=0,nozzleScene}={}) {
-  const contextual=planContext({...initialState,layerSeconds,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
+export function planOperationEntry(initialState,op) {
+  const contextual=planContext({...initialState,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
   const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
   const configured=planProcess(selected.state,op.process);
-  const prepared=planOperationStart(configured.state,op,nozzleScene);
+  const prepared=planOperationStart(configured.state,op);
   return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
 }
 
-// The caller has already applied selection, temperature and parking actions.
-export function planPreparedOperation(initialState,op,{nozzleScene,finishLayer=false}={}) {
-  const strokes=op.strokes;
-  const actions=new ActionAccumulator();
-  let state=initialState;
-  for(const stroke of strokes){
-    const approached=planStrokeApproach(state,stroke,op,nozzleScene);
-    const depositedStroke=planStrokeDeposition(approached.state,stroke,op);
-    state=depositedStroke.state;actions.add(approached.actions);actions.add(depositedStroke.actions);
-    for(const point of stroke.points)for(const i of nozzleScene.byStart.get(point)??[])if(nozzleScene.beads[i].operationId===op.id){
-      nozzleScene.occupied.add(i);nozzleScene.groupPrefixes.set(op.id,Math.max(nozzleScene.groupPrefixes.get(op.id)??-1,i));}
-    if(!nozzleScene.withinGroups.has(op.id))nozzleScene.withinGroups=new Set([...nozzleScene.withinGroups,op.id]);
-  }
-  const restored=planOperationEnd(state,op,nozzleScene),operationSeconds=restored.state.layerSeconds;
-  const cooled=finishLayer?planLayerCooling(restored.state,nozzleScene):planningResult(restored.state);
-  actions.add(restored.actions);actions.add(cooled.actions);
-  return planningResult(planProcess(cooled.state).state,actions.finish(),{operationSeconds});
-}
-
-export function planOperationStart(state,op,nozzleScene) {
+export function planOperationStart(state,op) {
   const fan=op.fanPercent!==undefined?planFan(state,op.fanPercent):planningResult(state);
-  if(op.nozzleC===undefined)return fan;
-  const parked=planPark(fan.state,nozzleScene),heated=planNozzle(parked.state,op.nozzleC);
-  return planningResult(heated.state,{chunks:[fan.actions,parked.actions,heated.actions]});
+  if(op.nozzleC===undefined||fan.state.nozzleC===op.nozzleC)return fan;
+  const heated=planNozzle(fan.state,op.nozzleC);
+  return planningResult(heated.state,{chunks:[fan.actions,heated.actions]});
 }
 
-export function planOperationEnd(state,op,nozzleScene) {
-  if(op.nozzleC===undefined)return planningResult(state);
-  const parked=planPark(state,nozzleScene),restored=planNozzle(parked.state,op.restoreNozzleC);
-  return planningResult(restored.state,{chunks:[parked.actions,restored.actions]});
-}
-
-function segmentExtras(stroke,op,index) {
-  return {role:stroke.role,...(stroke.poses?{pose:stroke.poses[index+1]}:{}),
-    ...(stroke.beadWidthMm!==undefined?{beadWidthMm:stroke.beadWidthMm}:{}),
-    ...(stroke.beadHeightMm!==undefined?{beadHeightMm:stroke.beadHeightMm}:{}),
-    ...(op.regionId?{region:op.regionId}:{}),...(stroke.segmentMetadata?.[index]??{})};
-}
-
-export function planStrokeApproach(state,stroke,op,nozzleScene) {
-  requireThat(stroke.points.length>=(stroke.stationaryExtrusion?1:2),'An operation stroke needs at least two points or an explicit stationary extrusion.');
-  requireThat(!stroke.poses||stroke.poses.length===stroke.points.length,'Stroke pose/point count differs.');
-  // Depositing connections are explicit finalized strokes, never late material.
-  const travel=planTravel(state,stroke.points[0],nozzleScene,stroke.poses?.[0]);
-  return planningResult(travel.state,travel.actions,
-    {connected:false,travelKind:travel.travelKind});
-}
-
-export function planStrokeDeposition(initialState,stroke,op) {
-  const actions=new ActionAccumulator();
-  let state=initialState;
-  if(stroke.stationaryExtrusion){
-    requireThat(stroke.points.length===1&&!stroke.closed,'Stationary extrusion needs one point.');
-    const extruded=planExtrusion(state,stroke.stationaryExtrusion.volumeMm3,stroke.stationaryExtrusion.flowMm3S);
-    const holdSeconds=stroke.stationaryExtrusion.holdSeconds??0,held=planDwell(extruded.state,holdSeconds);
-    state={...held.state,layerSeconds:held.state.layerSeconds+holdSeconds};actions.add(extruded.actions);actions.add(held.actions);
-  }
-  for(let i=1;i<stroke.points.length;i++){
-    const volume=stroke.volumesMm3?stroke.volumesMm3[i-1]:distance(stroke.points[i-1],stroke.points[i])*stroke.beadAreaMm2;
-    requireThat(Number.isFinite(volume)&&volume>=0,'Invalid operation deposition volume.');
-    const speed=stroke.segmentMetadata?.[i-1]?.speedMmS??stroke.speedMmS;
-    requireThat(Number.isFinite(speed),'Invalid operation deposition speed.');
-    const moved=planMove(state,stroke.points[i],speed,volume,segmentExtras(stroke,op,i-1));
-    state=moved.state;actions.add(moved.actions);
-  }
-  return planningResult(state,actions.finish());
-}
-
-export function scheduleOperations(skillResults,rules={}) {
-  return resolveOperationOrder(skillResults,rules).operations;
-}
-
-function resolveOperationOrder(skillResults,rules,{onProgress,start}={}){
-  const batch=validateOperationBatch(skillResults);
-  const declared=prepareOperationDependencies(batch.operations,batch.byId,rules),splitConnectors=new Set();
-  for(;;){
-    const partition=depositionCourses(batch.operations,{splitConnectors});
-    try{return solveCourseOrder(batch,declared,partition,{onProgress,start});}
-    catch(error){
-      if(!['PRINT_ORDER_CONFLICT','CONTINUOUS_NOZZLE_CONFLICT'].includes(error.code))throw error;
-      const affected=new Set(error.operations??[error.operation]);
-      const refinable=partition.courses.filter(course=>affected.has(course.id)&&!splitConnectors.has(course.sourceOperation)&&
-        course.strokes.length>1&&!course.continuous&&!course.strokes.some(stroke=>stroke.stationaryExtrusion));
-      if(!refinable.length)throw error;
-      for(const course of refinable)splitConnectors.add(course.sourceOperation);
-      onProgress?.({stage:'Refining interruptible connections',completed:splitConnectors.size,total:batch.operations.length});
-    }
-  }
-}
-
-function solveCourseOrder(batch,declared,{courses,groups,sequence},{onProgress,start}){
-  const prerequisites=new Map(courses.map(course=>[course.id,new Set([...declared.get(course.sourceOperation)].flatMap(id=>groups.get(id)))]));
-  for(const edge of sequence)prerequisites.get(edge.after).add(edge.before);
-  const physical=physicalOrdering(courses,{onProgress,prerequisites});
-  for(const edge of physical.edges)prerequisites.get(edge.after).add(edge.before);
-  const priorityById=prepareOperationPriorities(courses,batch.resultIndex);
-  const operations=orderReadyOperations(courses,priorityById,prerequisites,{start,physicalEdges:[...sequence,...physical.edges]});
-  return {operations,physical};
-}
-
-export function validateOperationBatch(skillResults) {
-  const operations = skillResults.flatMap(result => result.operations);
-  const resultIndex = new Map(skillResults.flatMap((r,i)=>r.operations.map(op=>[op.id,i])));
-  const byId = new Map();
-  for (const operation of operations) {
-    requireThat(typeof operation.id === 'string' && operation.id && !byId.has(operation.id), 'Duplicate or missing operation id.');
-    requireThat(typeof operation.layerId === 'string' && operation.layerId && Number.isFinite(operation.rank), 'Operation needs a layer reference and finite scheduling rank.');
-    requireThat(Array.isArray(operation.strokes)&&!operation.travelPolicy,'Operation needs deposition strokes, without runtime travel callbacks.');
-    requireThat(operation.order==='given','Scheduling consumes finalized deposition order.');
-    byId.set(operation.id, operation);
-  }
-  return {operations,resultIndex,byId};
+export function planOperationEnd(state,op) {
+  if(op.nozzleC===undefined||state.nozzleC===op.restoreNozzleC)return planningResult(state);
+  return planNozzle(state,op.restoreNozzleC);
 }
 
 export function prepareOperationPriorities(operations,resultIndex) {
   return new Map(operations.map((op,index)=>[op.id,{result:op.constructionRank??resultIndex.get(op.sourceOperation??op.id),index}]));
 }
 
-export function prepareOperationDependencies(operations,byId,{order=[],dependencies=[]}={}) {
-  const prerequisites = new Map(operations.map(op => [op.id, new Set(op.after ?? [])]));
-  for (const [id, after] of prerequisites) for (const predecessor of after)
-    requireThat(byId.has(predecessor) && id !== predecessor, id===predecessor
-      ?`Operation ${id} cannot depend on itself.`:`Operation ${id} depends on unknown operation ${predecessor}; use an exact operation ID.`);
-  // Recipe composition entries that name no operation of this path match
-  // nothing; a repeated order entry keeps its first place.
-  for (const edge of dependencies)
-    if (byId.has(edge.before) && byId.has(edge.after) && edge.before !== edge.after) prerequisites.get(edge.after).add(edge.before);
-  const sequence = [...new Set(order)].filter(id => byId.has(id));
-  // Explicit order is an additional precedence constraint, never permission to
-  // bypass geometry/support dependencies. Omitted operations remain schedulable.
-  for (let i = 1; i < sequence.length; i++) prerequisites.get(sequence[i]).add(sequence[i - 1]);
-  return prerequisites;
-}
+// Compact-source graph. Whole-operation prerequisites use completion barriers,
+// so an operation with N courses followed by M courses needs O(N+M) edges.
+// Neither polyline vertices nor profile keys create scheduling nodes.
 
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[]}={}) {
-  const nodes=operations.map(op=>({op,...priorityById.get(op.id),
-    remaining:prerequisites.get(op.id).size,following:[]}));
-  const nodesById=new Map(nodes.map(node=>[node.op.id,node]));
-  for(const node of nodes)for(const id of prerequisites.get(node.op.id))nodesById.get(id).following.push(node);
-  const ready=[],scheduled=[];
-  const cursor={point:start??operations[0]?.strokes[0]?.points[0]??[0,0,0],axis:null};
-  for(const node of nodes)if(node.remaining===0)ready.push(node);
-  while(ready.length){
-    const cost=node=>{const stroke=node.op.strokes[0],point=stroke?.points[0]??cursor.point,axis=stroke?.poses?.[0]?.toolAxis;
-      return distance(cursor.point,point)+(cursor.axis&&axis?(node.op.process?.lineWidthMm??.4)*(1-cursor.axis.reduce((sum,v,i)=>sum+v*axis[i],0)):0);};
-    const chosen=ready.reduce((best,node,i)=>cost(node)<cost(ready[best])-PRINT_RESOLUTION_MM?i:
-      Math.abs(cost(node)-cost(ready[best]))<=PRINT_RESOLUTION_MM&&(node.result<ready[best].result||node.result===ready[best].result&&node.index<ready[best].index)?i:best,0);
-    const next=ready.splice(chosen,1)[0];scheduled.push(next.op);
-    cursor.point=next.op.strokes.at(-1)?.points.at(-1)??cursor.point;cursor.axis=next.op.strokes.at(-1)?.poses?.at(-1)?.toolAxis??null;
-    for(const node of next.following)if(--node.remaining===0)ready.push(node);
+// Proof subdivisions are not execution fragments. Keep source coverage exact,
+// canonicalize only proposed interruption locations, and re-solve all contacts.
+function executionCut(reader,course,u,existing){
+  if(!(u>course.from&&u<course.to)||existing.has(u))return null;
+  const boundaries=[course.from,...existing,course.to].sort((a,b)=>a-b),i=boundaries.findIndex(value=>value>u),a=boundaries[i-1],b=boundaries[i];
+  const usable=(from,to)=>curveHasLength(reader,course.curveId,from,to,PRINT_RESOLUTION_MM);
+  const left=usable(a,u),right=usable(u,b);
+  if(a!==course.from&&!left||b!==course.to&&!right)return null;
+  const target=PRINT_RESOLUTION_MM+ROUNDING_MM;
+  if(!left)u=curveParameterAtLength(reader,course.curveId,a,b,target);
+  else if(!right)u=curveParameterAtLength(reader,course.curveId,a,b,target,{fromEnd:true});
+  if(!(u>a&&u<b))return null;
+  return usable(a,u)&&usable(u,b)?u:null;
+}
+function courseCuts(reader,course,values){
+  const retained=new Set();
+  for(const u of [...new Set(values)].sort((a,b)=>a-b)){
+    const cut=executionCut(reader,course,u,retained);if(cut!==null)retained.add(cut);
   }
-  if(scheduled.length!==operations.length){
-    const unresolved=new Set(nodes.filter(node=>node.remaining).map(node=>node.op.id));
-    const done=new Set(),found={ids:[]};
-    for(const root of unresolved){
-      if(done.has(root)||found.ids.length)continue;
-      const stack=[{id:root,after:[...prerequisites.get(root)].filter(id=>unresolved.has(id)),at:0}],positions=new Map([[root,0]]);
-      while(stack.length&&!found.ids.length){
-        const frame=stack.at(-1);
-        if(frame.at===frame.after.length){done.add(frame.id);positions.delete(frame.id);stack.pop();continue;}
-        const next=frame.after[frame.at++];
-        if(positions.has(next)){found.ids=stack.slice(positions.get(next)).map(item=>item.id);break;}
-        if(!done.has(next)){positions.set(next,stack.length);stack.push({id:next,after:[...prerequisites.get(next)].filter(id=>unresolved.has(id)),at:0});}
+  return [...retained].sort((a,b)=>a-b);
+}
+export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=null,blockedTraversals=new Set(),openedCourses=new Set()}={}){
+  const operations=Object.values(source.operations),manufacturing=manufacturingDependencies(source);
+  const originals=new Map(operations.flatMap(operation=>(operation.courses??[]).map(course=>[course.id,course])));
+  const units=[],nodes=[],groups=new Map(),prerequisites=new Map(),courseGroups=new Map(),counter={next:0};
+  // Completion references can finish a whole soft chunk; naming one course
+  // does not interrupt its connected deposition. A real ordering cycle opens
+  // that chunk below. Backwards or external course requirements stay explicit.
+  const constrained=new Set();
+  for(const operation of operations){
+    const courses=operation.courses??[];if(!courses.some(course=>course.after?.length))continue;
+    const positions=new Map(courses.map((course,index)=>[course.id,index]));
+    for(const [index,course] of courses.entries())for(const previous of course.after??[])
+      if(!positions.has(previous)||positions.get(previous)>=index){constrained.add(course.id);constrained.add(previous);}
+  }
+  function node(operation,ranges,barrier=null,traversalKey=null){
+    const id='schedule:'+counter.next++,injection=operation.kind==='inject'?operation.injection:null;
+    const entry=barrier?null:injection?{point:injection.at,pose:injection.pose}:curveAt(reader,ranges[0].curveId,ranges[0].from);
+    const last=ranges.at(-1),exit=barrier?null:injection?entry:curveAt(reader,last.curveId,last.to,{side:'left'});
+    const value={id,sourceOperation:operation.id,layerId:operation.layerId,operation,process:source.processes[operation.processId],
+      ranges,entry,exit,barrier,label:operation.id+(ranges.length===1?' ['+ranges[0].id+' '+ranges[0].from+'..'+ranges[0].to+']':''),
+      constructionRank:operation.constructionRank??0,...(traversalKey?{traversalKey}:{})};
+    if(!barrier&&!injection&&operation.interruptible&&!operation.continuous){
+      const endpoint=(range,end)=>curveAt(reader,range.curveId,end?range.to:range.from,end?{side:'left'}:{});
+      const reversible=ranges.every(range=>range.directionRequired===false&&(range.seamRequired!==true||
+        range.from!==originals.get(range.id).from||distance(endpoint(range,false).point,endpoint(range,true).point)<=ROUNDING_MM));
+      const loop=ranges.length===1&&ranges[0].interruptible&&ranges[0].seamRequired===false&&
+        source.manufacturing?.courseTraversal?.[ranges[0].id]?.seamFree!==false&&distance(entry.point,exit.point)<=ROUNDING_MM?ranges[0]:null;
+      if(reversible||loop){
+        const variants=[ranges];
+        if(reversible){
+          variants.push(ranges.toReversed().map(range=>({...range,reverse:true})));
+          if(ranges.length>1)variants.push(ranges.toReversed(),ranges.map(range=>({...range,reverse:true})));
+        }
+        const traversal=ranges=>{
+          const ends=ranges.map(range=>{const a=endpoint(range,false),b=endpoint(range,true);return range.reverse?[b,a]:[a,b];});
+          const key=JSON.stringify(ranges.map(range=>[range.id,range.from,range.to,Boolean(range.reverse)]));
+          return {key,ranges,entry:ends[0][0],exit:ends.at(-1)[1],
+            extraDistance:ends.slice(1).reduce((sum,[start],i)=>sum+distance(ends[i][1].point,start.point),0)};
+        };
+        const requiredOrder=ranges.some(range=>range.after?.length);
+        const allowed=variant=>{
+          if(blockedTraversals.has(variant.key))return false;
+          if(variant.ranges.some(range=>{
+            const policy=source.manufacturing?.courseTraversal?.[range.id];
+            return policy&&!policy.directions.includes(Boolean(range.reverse));
+          }))return false;
+          if(!requiredOrder)return true;
+          const positions=new Map(variant.ranges.map((range,index)=>[range.id,index]));
+          return variant.ranges.every((range,index)=>(range.after??[]).every(previous=>!positions.has(previous)||positions.get(previous)<index));
+        };
+        value.traversals=variants.map(traversal).filter(allowed);
+        if(loop){
+          const memo={point:null,choices:null,seams:null};
+          value.traversalsAt=point=>{
+            if(memo.seams===value.supportSeams&&memo.point?.every((v,i)=>v===point[i]))return memo.choices;
+            const closest=curveClosestParameter(reader,loop.curveId,loop.from,loop.to,point,{toleranceMm:PRINT_RESOLUTION_MM});
+            // Moving a cyclic entry needs no microscopic fragment or arc-length
+            // inversion. An entry this close to an endpoint keeps that seam.
+            const seam=closest>loop.from&&closest<loop.to&&
+              curveHasLength(reader,loop.curveId,loop.from,closest,PRINT_RESOLUTION_MM)&&
+              curveHasLength(reader,loop.curveId,closest,loop.to,PRINT_RESOLUTION_MM)?closest:null,choices=[...value.traversals];
+            for(const entry of new Set([seam,...(value.supportSeams??[])].filter(u=>u!==null&&u>loop.from&&u<loop.to))){
+              const head={...loop,to:entry},tail={...loop,from:entry};choices.push(traversal([tail,head]));
+              if(reversible)choices.push(traversal([{...head,reverse:true},{...tail,reverse:true}]));
+            }
+            memo.point=[...point];memo.seams=value.supportSeams;memo.choices=choices.filter(allowed);return memo.choices;
+          };
+        }
       }
     }
-    const cycle=new Set(found.ids),reasons=physicalEdges.filter(edge=>cycle.has(edge.before)&&cycle.has(edge.after));
-    throw Object.assign(Error('Print ordering contains a cycle: '+found.ids.join(' → ')),{code:'PRINT_ORDER_CONFLICT',operations:found.ids,physicalDependencies:reasons});
+    nodes.push(value);prerequisites.set(id,new Set());
+    if(!barrier){
+      units.push(value);
+      for(const range of ranges){if(!courseGroups.has(range.id))courseGroups.set(range.id,{operation,members:[]});courseGroups.get(range.id).members.push(value);}
+    }
+    return value;
   }
-  return scheduled;
+  for(const operation of operations){
+    const members=[];
+    if(operation.kind==='inject'||!operation.interruptible)members.push(node(operation,operation.courses??[]));
+    else {
+      let pending=[];
+      function appendChunk(ranges){
+        if(!ranges.length)return;
+        const forward=ranges.every(range=>source.manufacturing?.courseTraversal?.[range.id]?.directions.includes(false)??true);
+        const reverse=ranges.every(range=>range.directionRequired===false&&(source.manufacturing?.courseTraversal?.[range.id]?.directions.includes(true)??true));
+        if(ranges.length>1&&!forward&&!reverse){
+          for(const range of ranges)members.push(node(operation,[range]));return;
+        }
+        const key=JSON.stringify(ranges.map(course=>[course.id,course.from,course.to])),opened=openedCourses;
+        if(opened?.size&&ranges.some(course=>opened.has(course.id))){
+          const segment={from:0};
+          for(const [i,course] of ranges.entries())if(opened.has(course.id)){
+            appendChunk(ranges.slice(segment.from,i));members.push(node(operation,[course]));segment.from=i+1;
+          }
+          appendChunk(ranges.slice(segment.from));
+        }else if(ranges.length>1&&!relaxedChunks?.has(key))members.push(node(operation,ranges,null,key));
+        else for(const course of ranges)members.push(node(operation,[course]));
+      }
+      function flush(){
+        appendChunk(pending);pending=[];
+      }
+      for(const course of operation.courses){
+        const breaks=course.interruptible?courseCuts(reader,course,cuts.get(course.id)??[]):[];
+        if(relaxedChunks===null||breaks.length||constrained.has(course.id)){
+          flush();const parameters=[course.from,...breaks,course.to];
+          for(let i=1;i<parameters.length;i++)members.push(node(operation,[{...course,from:parameters[i-1],to:parameters[i]}]));
+          continue;
+        }
+        const previous=pending.at(-1),cell=previous?.orderGroup??previous?.provenance?.cell;
+        if(previous&&!(cell!==undefined&&cell===(course.orderGroup??course.provenance?.cell))&&
+          distance(curveAt(reader,previous.curveId,previous.to,{side:'left'}).point,curveAt(reader,course.curveId,course.from).point)>ROUNDING_MM)flush();
+        pending.push(course);
+      }
+      flush();
+    }
+    requireThat(members.length>0,'Source operation has no execution unit.');
+    const begin=members.length===1?members[0]:node(operation,[],'begin');
+    const end=members.length===1?members[0]:node(operation,[],'end');
+    if(members.length>1)for(const member of members){prerequisites.get(member.id).add(begin.id);prerequisites.get(end.id).add(member.id);}
+    groups.set(operation.id,{members,begin,end});
+  }
+  const completionNodes=new Map(),layerGroups=new Map(),prototype=operations[0];
+  for(const [id,start] of manufacturing.starts){
+    const group=groups.get(id);
+    if(group){completionNodes.set(start,group.begin);completionNodes.set(manufacturing.ends.get(id),group.end);continue;}
+    const begin=node(prototype,[],'completion-begin'),end=node(prototype,[],'completion-end');
+    begin.layerId=null;end.layerId=null;completionNodes.set(start,begin);completionNodes.set(manufacturing.ends.get(id),end);
+  }
+  for(const id of manufacturing.courseStarts.keys()){
+    const group=courseGroups.get(id);
+    const begin=group.members.length===1?group.members[0]:node(group.operation,[],'course-begin');
+    const end=group.members.length===1?group.members[0]:node(group.operation,[],'course-end');
+    if(group.members.length>1)for(const member of group.members){prerequisites.get(member.id).add(begin.id);prerequisites.get(end.id).add(member.id);}
+    completionNodes.set(manufacturing.courseStarts.get(id),begin);completionNodes.set(manufacturing.courseEnds.get(id),end);
+  }
+  for(const [id,layer] of Object.entries(source.layers))if(layer.completionId)layerGroups.set(id,{id,index:layer.index,
+    begin:completionNodes.get(manufacturing.starts.get(layer.completionId)),end:completionNodes.get(manufacturing.ends.get(layer.completionId))});
+  for(const [id,parents] of manufacturing.parents){
+    const after=completionNodes.get(id);
+    for(const parent of parents){const before=completionNodes.get(parent);if(before!==after)prerequisites.get(after.id).add(before.id);}
+  }
+  for(const [id,group] of courseGroups)if(group.members.length>1){
+    const course=originals.get(id);
+    if(course.directionRequired!==false)for(let i=1;i<group.members.length;i++)prerequisites.get(group.members[i].id).add(group.members[i-1].id);
+    else if(course.seamRequired===true)for(const member of group.members.slice(1))prerequisites.get(member.id).add(group.members[0].id);
+  }
+  return {units,nodes,groups,prerequisites,layerGroups,byId:new Map(nodes.map(node=>[node.id,node]))};
+}
+
+function retainedNozzleEdges(graph,requirements){
+  const courses=new Map(),edges=[];
+  for(const unit of graph.units)for(const range of unit.ranges){
+    if(!courses.has(range.id))courses.set(range.id,[]);
+    courses.get(range.id).push({unit,range});
+  }
+  for(const witness of requirements.values()){
+    const receiver=witness.receiver,material=witness.material;
+    const a=courses.get(receiver.id)?.find(({range})=>range.from<=receiver.from&&range.to>=receiver.to);
+    const b=courses.get(material.id)?.find(({range})=>range.from<=material.from&&range.to>=material.to);
+    // A chunk change preserves the witnessed intervals. A cut through either
+    // interval needs a fresh contact query instead of lifting the old edge.
+    if(a&&b&&a.unit!==b.unit)edges.push({before:a.unit.id,after:b.unit.id,kind:'nozzle-access',witness,
+      beforeOperation:a.unit.sourceOperation,afterOperation:b.unit.sourceOperation});
+  }
+  return edges;
+}
+
+export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry,nozzleGeometries=null}={}){
+  const cuts=new Map(),relaxedChunks=new Set(),openedCourses=new Set(),blockedTraversals=new Set(),history={solves:0,refinements:0};
+  const accessGeometry=nozzleGeometry??source.manufacturing?.accessGeometry??DEFAULT_NOZZLE_GEOMETRY;
+  const certified=source.manufacturing?.contract===CONSTRUCTION_CONTRACT&&
+    [accessGeometry,...(nozzleGeometries?[nozzleGeometries.default,...Object.values(nozzleGeometries.filaments??{})]:[])].filter(Boolean).every(geometry=>
+      geometry.includedAngleDeg<=source.manufacturing.accessGeometry.includedAngleDeg&&geometry.tipDiameterMm<=source.manufacturing.accessGeometry.tipDiameterMm);
+  const construction=source.manufacturing?.contract===CONSTRUCTION_CONTRACT?constructionHistory(source):null;
+  const trusted=certified?construction:null;
+  const unbound=unit=>construction&&(unit.ranges.length?unit.ranges.map(range=>range.id):[unit.sourceOperation]).some(id=>
+    !(construction.hasPrerequisites(id)??construction.hasPrerequisites(unit.sourceOperation)));
+  const related=(before,after)=>trusted&&(trusted.covers(before,after)||trusted.covers(after,before));
+  function trustedUnits(a,b){
+    if(!trusted)return false;
+    if(related(a.sourceOperation,b.sourceOperation))return true;
+    const left=a.ranges.length?a.ranges.map(range=>range.id):[a.sourceOperation],right=b.ranges.length?b.ranges.map(range=>range.id):[b.sourceOperation];
+    return left.every(x=>right.every(y=>related(x,y)||related(x,b.sourceOperation)||related(a.sourceOperation,y)));
+  }
+  const selfProofs={entries:new Map(),bytes:0};
+  const nozzleRequirements=new Map();
+  const courseOwners=new Map(Object.values(source.operations).flatMap(operation=>(operation.courses??[]).map(course=>[course.id,{operation,course}])));
+  const sourceDependencies=manufacturingDependencies(source);
+  const authored=precedenceLookup([...sourceDependencies.parents.keys()],[...sourceDependencies.parents].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
+  for(;;){
+    const graph=prepareSourceUnits(source,reader,{cuts,relaxedChunks,blockedTraversals,openedCourses});
+    const priorities=prepareOperationPriorities(graph.nodes,new Map()),state={scene:null,edges:retainedNozzleEdges(graph,nozzleRequirements)};history.solves++;
+    for(const edge of state.edges)graph.prerequisites.get(edge.after).add(edge.before);
+    try{
+      // Establish native groups and process barriers before any fine occupancy.
+      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges});
+      state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,nozzleGeometry:accessGeometry,nozzleGeometries,selfProofs});
+      const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
+      for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
+      function nativeBefore(before,after){
+        const a=source.layers[before],b=source.layers[after];
+        return Boolean(a?.completionId&&b?.completionId&&a.stackId===b.stackId&&construction?.covers(a.completionId,b.completionId));
+      }
+      function precedes(before,after){
+        return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
+      }
+      function producer(unit){return source.layers[unit.layerId]?.stackId??unit.operation.construction;}
+      function relevant(a,b){return (!certified||producer(a)!==producer(b))&&!state.scene.proofs.producerClear(producer(a),producer(b));}
+      function addEdge(before,after,kind,witness){
+        if(before===after||precedes(before,after))return;
+        if(precedes(after,before))progress.cyclic=true;
+        graph.prerequisites.get(after).add(before);proofs.record(before,after);state.edges.push({before,after,kind,witness,
+          beforeOperation:graph.byId.get(before).sourceOperation,afterOperation:graph.byId.get(after).sourceOperation});
+      }
+      // Geometry has selected enclosure slices. Scheduling alone chooses the
+      // completion barrier or finer material ranges using this solve's scene.
+      const materialAccess=new Map(),materialReadiness={slicePrerequisites:0,refinedSlices:0};
+      const materialEdges=new Set(),fineScopes=new Set();
+      for(const unit of graph.units){
+        const operation=unit.operation;let matched=false;
+        for(const requirement of operation.requiredMaterial??[]){
+          const fine=new Set();
+          for(const layerId of requirement.layerIds??[]){
+            const key=JSON.stringify([operation.id,layerId]);let access=materialAccess.get(key);
+            if(!access){
+              const tool=state.scene.geometryForFilament(operation.filament??source.planning.selection?.filament);
+              let clear=tool.includedAngleDeg<=accessGeometry.includedAngleDeg&&tool.tipDiameterMm<=accessGeometry.tipDiameterMm&&
+                state.scene.proofs.stationaryClear(operation.injection.at,operation.injection.pose,layerId),witness;
+              if(!clear){const contact=state.scene.nozzleHits(unit,id=>graph.byId.get(id)?.layerId===layerId).next();clear=contact.done;witness=contact.value?.witness;}
+              access={clear,witness};materialAccess.set(key,access);
+            }
+            if(access.clear){
+              const completion=graph.layerGroups.get(layerId);if(!completion)continue;
+              addEdge(completion.end.id,graph.groups.get(operation.id).begin.id,'required-material');materialEdges.add(key);matched=true;
+            }else {fine.add(layerId);fineScopes.add(key);}
+          }
+          // Native scopes keep their own completion/closure inspection. Only
+          // envelopes without a native provider discover unlayered material.
+          if(!requirement.layerIds||!requirement.layerIds.length||fine.size)for(const hit of state.scene.requiredHits(requirement,id=>{
+            const other=graph.byId.get(id);
+            return other.sourceOperation!==unit.sourceOperation&&(other.operation.part??null)===(requirement.part??null)&&
+              (!requirement.layerIds||!requirement.layerIds.length&&other.layerId===null||fine.has(other.layerId));
+          })){
+            const layerId=hit.unit.layerId;
+            if(layerId&&construction?.covers(source.layers[layerId].completionId,operation.id))throw Object.assign(
+              Error('Required whole-slice completion blocks injection access for '+operation.id+'. Select enclosure material before its closing work.'),
+              {code:'MATERIAL_ACCESS_CONFLICT',operation:operation.id,layerId,witness:materialAccess.get(JSON.stringify([operation.id,layerId]))?.witness});
+            addEdge(hit.unit.id,graph.groups.get(unit.sourceOperation).begin.id,'required-material',hit.witness);matched=true;
+          }
+        }
+        if(operation.requiredMaterial?.length&&!matched)throw Object.assign(Error('Required enclosure material resolves to no produced material for '+operation.id+'.'),
+          {code:'MISSING_REQUIRED_MATERIAL',operation:operation.id});
+        if(progress.cyclic)break;
+      }
+      materialReadiness.slicePrerequisites=materialEdges.size;materialReadiness.refinedSlices=fineScopes.size;
+      const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
+      const groupId=unit=>unit.layerId??unit.sourceOperation;
+      const qualification=prepareBeadQualification(state.scene,{
+        needsQualification:(unit,range)=>unbound(unit)&&!(construction.hasPrerequisites(range.id)??construction.hasPrerequisites(unit.sourceOperation)),
+        acceptMaterial:(unit,other)=>unit.id!==other.id&&producerOf(unit)!==producerOf(other)&&!trustedUnits(unit,other)&&
+          !state.scene.proofs.supportApart(groupId(unit),groupId(other))});
+      function qualifiedOrder(options,refineSupport=true){
+        for(;;){
+          try{return orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{...options,readiness:qualification});}
+          catch(error){
+            if(error.code!=='BEAD_SUPPORT_WAIT')throw error;
+            // An aggregate proposal cannot commit a support alternative before
+            // uncovered nozzle constraints have been resolved.
+            if(!refineSupport)return null;
+            const waiting=error.blocked.map(({op})=>qualification.waiting(op,error.available,id=>!precedes(op.id,id)));
+            const choice=waiting.find(result=>result.status==='waiting');
+            if(!choice)throw Object.assign(Error('Bead contact cannot qualify for '+waiting[0].operation+' / '+waiting[0].failure.courseId+': '+waiting[0].failure.reason+'.'),
+              {code:'BEAD_UNSUPPORTED',...waiting[0]});
+            for(const edge of choice.requirements)addEdge(edge.before,edge.after,edge.kind,edge.witness);
+          }
+        }
+      }
+      // Every native slice or unlayered operation is an aggregate query group.
+      // An unresolved Inject/Trace group does not disable proofs for its peers.
+      const accessGroups=new Set(),queryGroups=new Map();
+      for(const unit of graph.units){const id=groupId(unit);if(!queryGroups.has(id))queryGroups.set(id,[]);queryGroups.get(id).push(unit);}
+      const ids=[...queryGroups.keys()];
+      // Try a complete native-group order before resolving pairwise exclusions.
+      // A group need only clear the material actually preceding it, not every
+      // future group in another producer. Construction prerequisites stay hard.
+      const useAggregate=certified&&!progress.cyclic&&new Set(graph.units.map(producer)).size>1;
+      const aggregateCooling=useAggregate&&graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
+      const aggregate=useAggregate?qualifiedOrder(
+        {start,physicalEdges:state.edges,cooling:aggregateCooling,groupAccess:state.scene.proofs},false):null;
+      const aggregateClear=Boolean(aggregate?.groupOrder&&state.scene.proofs.orderedClear(aggregate.groupOrder));
+      if(aggregateClear)for(const id of ids)accessGroups.add(id);
+      state.scene.proofs.summary.orderedWholeGroups=aggregateClear?ids.length:0;
+      const peerGroups=new Map();
+      for(const id of ids){const unit=queryGroups.get(id)[0],owner=producer(unit);if(!peerGroups.has(owner))
+        peerGroups.set(owner,ids.filter(other=>relevant(unit,queryGroups.get(other)[0])));}
+      function groupBefore(a,b){
+        if(nativeBefore(a,b))return true;
+        const before=graph.layerGroups.get(a)??graph.groups.get(a),after=graph.layerGroups.get(b)??graph.groups.get(b);
+        return a!==b&&proofs.proves(before.end.id,after.begin.id);
+      }
+      const historyId=id=>source.layers[id]?.completionId??id;
+      const trustedGroupPairs=new Set();
+      if(!aggregateClear)for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>{
+        if(related(historyId(id),historyId(other))){trustedGroupPairs.add(JSON.stringify([id,other]));return true;}
+        return state.scene.proofs.clear(id,other)||groupBefore(id,other);
+      }))accessGroups.add(id);
+      state.scene.proofs.summary.trustedHistoryPairs=trustedGroupPairs.size;
+      Object.assign(state.scene.proofs.summary,{resolvedAccessGroups:accessGroups.size});
+      if(!progress.cyclic)onProgress?.({stage:'Resolving deposition group access',completed:accessGroups.size,total:queryGroups.size});
+      // Follow discovered blockers first, then collect independent conflicts
+      // in this graph before opening implicated traversal chunks.
+      const access={pending:graph.units.toReversed(),visited:new Set()};
+      if(!progress.cyclic)while(access.pending.length){
+        const unit=access.pending.pop();if(access.visited.has(unit.id))continue;
+        const completed=access.visited.size;access.visited.add(unit.id);
+        if(accessGroups.has(groupId(unit)))continue;
+        onProgress?.({stage:'Resolving curve nozzle access',completed,total:graph.units.length});
+        for(const hit of state.scene.nozzleHits(unit,id=>id!==unit.id&&relevant(unit,graph.byId.get(id))&&!trustedUnits(unit,graph.byId.get(id))&&!state.scene.proofs.clear(groupId(unit),groupId(graph.byId.get(id)))&&
+          !precedes(unit.id,id))){
+          if(!hit.witness?.provisional){
+            const witness=state.scene.mutualConflict(hit.witness?.receiver,hit.witness?.material);
+            if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
+              {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[unit.sourceOperation,hit.unit.sourceOperation]});
+            if(hit.witness?.receiver&&hit.witness.material){
+              const a=hit.witness.receiver,b=hit.witness.material;
+              nozzleRequirements.set(JSON.stringify([a.id,a.from,a.to,a.at,b.id,b.from,b.to,b.at]),hit.witness);
+            }
+          }
+          addEdge(unit.id,hit.unit.id,'nozzle-access',hit.witness);
+          if(!access.visited.has(hit.unit.id))access.pending.push(hit.unit);
+        }
+      }
+      const cooling=aggregateClear?aggregateCooling:graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
+      const ordered=aggregateClear?aggregate:qualifiedOrder({start,physicalEdges:state.edges,cooling});
+      for(const unit of ordered.operations)if(!unit.barrier&&!certified){
+        const body=state.scene.byId.get(unit.id);
+        // Certify the selected traversal after external ordering has settled;
+        // conflict refinement can split these convenience chunks beforehand.
+        if(!(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
+          record.ref.to===unit.ranges[i].to&&Boolean(record.ref.reverse)===Boolean(unit.ranges[i].reverse))))body.records=unit.ranges.map(state.scene.interval);
+        try{state.scene.verifySelf(unit);}catch(error){
+          if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
+          throw error;
+        }
+      }
+      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,materialReadiness,beadQualification:qualification.stats,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
+        edges:state.edges,refinement:{...history,relaxedTraversalChunks:relaxedChunks?.size??0,rejectedTraversals:blockedTraversals.size,
+          splitCourses:cuts.size}};
+    }catch(error){
+      if(error.traversalChoice&&!blockedTraversals.has(error.traversalChoice)){blockedTraversals.add(error.traversalChoice);continue;}
+      if(error.code!=='PRINT_ORDER_CONFLICT'&&error.code!=='CONTINUOUS_NOZZLE_CONFLICT')throw error;
+      const implicated=new Set(error.refinementCourses??error.operations??[]),before=openedCourses.size;
+      const witnesses=error.witness?[error.witness]:(error.physicalDependencies??[]).map(edge=>edge.witness).filter(Boolean);
+      const involved=new Set(witnesses.flatMap(witness=>[witness.receiver?.id,witness.material?.id]).filter(Boolean));
+      for(const unit of graph.units)if(implicated.has(unit.id)&&unit.traversalKey){
+        const opened=new Set(unit.ranges.filter(range=>involved.has(range.id)||!state.scene&&!witnesses.length).map(range=>range.id));
+        if(!opened.size)continue;
+        for(const id of opened)openedCourses.add(id);
+        relaxedChunks.add(unit.traversalKey);
+      }
+      if(openedCourses.size>before)continue;
+      if(!state.scene){
+        if(!state.edges.length)throw error;
+        state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,nozzleGeometry:accessGeometry,nozzleGeometries,selfProofs});
+      }
+      const reasons=error.physicalDependencies??[];
+      if(authored.cyclic||reasons.some(edge=>edge.kind==='nozzle-access'&&authored.has(
+        sourceDependencies.ends.get(graph.byId.get(edge.after).sourceOperation),sourceDependencies.starts.get(graph.byId.get(edge.before).sourceOperation))))throw error;
+      for(const edge of reasons)if(edge.kind==='nozzle-access'){
+        const witness=state.scene.mutualConflict(edge.witness?.receiver,edge.witness?.material);
+        if(witness)throw Object.assign(Error('Two deposited sections mutually block nozzle access; changing their order or splitting the curves cannot resolve it.'),
+          {code:'NOZZLE_MUTUAL_CONFLICT',witness,operations:[graph.byId.get(edge.before).sourceOperation,graph.byId.get(edge.after).sourceOperation]});
+      }
+      for(const required of reasons.filter(edge=>edge.kind==='required-material'))for(const blocked of reasons.filter(edge=>edge.kind==='nozzle-access')){
+        if(required.afterOperation!==blocked.beforeOperation)continue;
+        const witness=state.scene.materialAccessConflict(required.witness,blocked.witness);
+        if(witness)throw Object.assign(Error('Required enclosure material blocks its consumer at the same deposition event.'),
+          {code:'MATERIAL_ACCESS_CONFLICT',operation:required.afterOperation,witness});
+      }
+      const added=[];
+      function addCut(id,u){
+        const owner=courseOwners.get(id);if(!owner?.operation.interruptible||!owner.course.interruptible||!(u>owner.course.from&&u<owner.course.to))return;
+        if(!cuts.has(id))cuts.set(id,new Set());const values=cuts.get(id),cut=executionCut(reader,owner.course,u,values);
+        if(cut!==null){values.add(cut);added.push({id,u:cut});}
+      }
+      const proposals=witnesses.flatMap(witness=>state.scene.cutsForWitness(witness).map(proposal=>({...proposal,material:proposal.courseId===witness.material?.id}))).map(proposal=>{
+        const owner=courseOwners.get(proposal.courseId),existing=cuts.get(proposal.courseId);
+        const parameters=owner?.operation.interruptible&&owner.course.interruptible?[...new Set(proposal.parameters)].filter(u=>u>owner.course.from&&u<owner.course.to&&!existing?.has(u)):[];
+        return {...proposal,parameters};
+      }).filter(proposal=>proposal.parameters.length).sort((a,b)=>a.parameters.length-b.parameters.length||Number(b.material)-Number(a.material));
+      if(proposals.length)for(const u of proposals[0].parameters)addCut(proposals[0].courseId,u);
+      if(!added.length)for(const witness of witnesses)for(const ref of [witness.receiver,witness.material])if(ref){
+        addCut(ref.id,ref.from);addCut(ref.id,ref.to);
+        if(ref.at!==undefined)addCut(ref.id,ref.at);
+        else addCut(ref.id,(ref.from+ref.to)/2);
+      }
+      if(!added.length)throw Object.assign(Error('Source ordering is unresolved at physical interruption resolution.'),
+        {code:'SOURCE_ORDER_UNRESOLVED',cause:error,witnesses});
+      history.refinements++;
+      onProgress?.({stage:'Refining witnessed curve conflicts'});
+    }
+  }
+}
+
+export function planSourceComposition(initialState,source,reader,onProgress,order=null){
+  const solved=order??resolveSourceOrder(source,reader,{onProgress,start:initialState.position}),scene=solved.scene;
+  const actions=new ActionAccumulator(),cursor={state:initialState};
+  for(const [completed,unit] of solved.units.entries()){
+    const operation={...unit.operation,process:unit.process,phase:unit.operation.phase??unit.operation.kind,layer:unit.operation.layer??source.layers[unit.layerId]?.index??0};
+    const entered=planOperationEntry(cursor.state,operation);
+    cursor.state=entered.state;actions.add(entered.actions);
+    // Process changes can park the nozzle after ordering. Choose
+    // this chunk's entry from that actual position, preserving the proven DAG.
+    if(unit.traversals?.length)selectTraversal(unit,{point:cursor.state.position,axis:cursor.state.pose.toolAxis},selected=>{
+      scene.byId.get(selected.id).records=selected.ranges.map(scene.interval);if(!solved.internalCertified)scene.verifySelf(selected);
+    });
+    if(operation.kind==='inject'){
+      const injection=operation.injection,approached=planTransfer(cursor.state,injection.at,injection.pose);
+      const extruded=planExtrusion(approached.state,injection.volumeMm3,injection.flowMm3S),held=planDwell(extruded.state,injection.holdSeconds);
+      cursor.state=held.state;
+      actions.add(approached.actions);actions.add(extruded.actions);actions.add(held.actions);scene.recordDeposit(unit.id,0);
+    }else for(const [i,range] of unit.ranges.entries()){
+      const entry=curveAt(reader,range.curveId,range.reverse?range.to:range.from,range.reverse?{side:'left'}:{}),approached=planTransfer(cursor.state,entry.point,entry.pose);
+      const deposited=planDepositRange(approached.state,source,reader,range,scene.byId.get(unit.id).records[i]);
+      cursor.state=deposited.state;actions.add(approached.actions);actions.add(deposited.actions);
+      scene.recordDeposit(unit.id,i+1);
+    }
+    const ended=planOperationEnd(cursor.state,operation);cursor.state=ended.state;actions.add(ended.actions);
+    onProgress?.({stage:'Planning source ranges',completed:completed+1,total:solved.units.length});
+  }
+  const count=kind=>solved.edges.filter(edge=>edge.kind===kind).length;
+  return planningResult({...planProcess(cursor.state).state,operationId:undefined},actions.finish(),{
+    summary:{hierarchy:solved.hierarchy,cooling:solved.cooling,materialReadiness:solved.materialReadiness,beadQualification:solved.beadQualification,aggregateProofs:scene.proofs.summary,refinement:solved.refinement,executionUnits:solved.units.length,
+      physicalOrdering:{nozzleDependencies:count('nozzle-access'),materialDependencies:count('required-material')+count('substrate')},queries:{...scene.stats}}});
+}
+
+// Ordering-only callers use the same admitted source and solver as scheduling.
+export function scheduleOperations(source,options={}){
+  requireThat(source?.schema==='saampath/2','Operation ordering requires compact constructed SAAMpath.');
+  return resolveSourceOrder(source,prepareCurvePath(source),options).units;
 }

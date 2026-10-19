@@ -4,14 +4,14 @@ import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import {createRequire} from 'node:module';
-import {readInstance,runningInstance,readyInstance,controlRequest,controlWaitMs} from '../core/application/control.mjs';
+import {runningInstance,readyInstance,controlRequest,controlWaitMs} from '../core/application/control.mjs';
 import {selectRuntime,orchestratorContract,contractProblem} from '../core/application/runtime-selection.mjs';
 import {homePaths,canonicalHome} from '../core/application/home.mjs';
 
 // help answers from this code alone; status, quit and stop-runtime reach a running SAAM
 // only; the other commands start SAAM when none runs.
 const globalCommands=new Set(['status','quit','update','diagnostics']);
-const startsSaam=new Set(['open','call','wait','start-tour','reload-runtime','update','diagnostics']),runningOnly=new Set(['status','quit','stop-runtime','stop-session']);
+const startsSaam=new Set(['open','new-instance','call','wait','start-tour','reload-runtime','update','diagnostics']),runningOnly=new Set(['status','quit','stop-runtime','stop-session']);
 const camel=name=>name.replace(/-([a-z])/g,(_match,letter)=>letter.toUpperCase());
 function enabled(value){return value===true||value==='true';}
 export function commandInput(args,environment=process.env){
@@ -40,29 +40,9 @@ export function commandInput(args,environment=process.env){
   }
   if(parsed.options.codeRoot===true)throw Error('Supply codeRoot.');
   if(parsed.options.background!==undefined&&![true,false,'true','false'].includes(parsed.options.background))throw Error('Background accepts true or false.');
-  const chatId=parsed.options.chatId??environment.CLAUDE_CODE_SESSION_ID??environment.CODEX_SESSION_ID;
+  const chatId=parsed.options.chatId??environment.CLAUDE_CODE_SESSION_ID??environment.CODEX_THREAD_ID??environment.CODEX_SESSION_ID;
   return {...parsed,chatId:chatId??randomUUID(),fallbackChatId:!chatId,
-    client:environment.CLAUDE_CODE_SESSION_ID?'claude':environment.CODEX_SESSION_ID?'codex':null};
-}
-// Client hooks (client setup registers them) report events as JSON on stdin. The agent is
-// with the person after a turn ends, the person writes or interrupts, or the chat closes;
-// a subagent's events (agent_id) and other notifications mean nothing here.
-const counterReasons={Stop:'turn',StopFailure:'turn',Interrupt:'interrupt',UserPromptSubmit:'message',SessionEnd:'closed',PermissionRequest:'input',Elicitation:'input'};
-function counterReason(event){
-  if(event.agent_id)return null;
-  if(event.hook_event_name==='PreToolUse')return ['AskUserQuestion','ExitPlanMode'].includes(event.tool_name)?'input':null;
-  if(event.hook_event_name==='Notification')return event.notification_type==='idle_prompt'?'turn'
-    :['permission_prompt','elicitation_dialog','elicitation_url_dialog'].includes(event.notification_type)?'input':null;
-  return counterReasons[event.hook_event_name]??null;
-}
-// Reaches only a running SAAM and prints nothing, because the client reads hook output.
-async function clientEvent(input){
-  const chunks=[];if(!input.isTTY)for await(const chunk of input)chunks.push(Buffer.from(chunk));
-  const text=Buffer.concat(chunks).toString('utf8').trim(),event=text?JSON.parse(text):{},reason=counterReason(event);
-  const instance=reason&&event.session_id?await readInstance():null;
-  if(!instance)return;
-  try{await controlRequest(instance,{command:'end-turn',chatId:event.session_id,reason});}
-  catch(error){if(error.result)throw error;/* No SAAM answers at its record: nothing is attached. */}
+    client:environment.CLAUDE_CODE_SESSION_ID?'claude':environment.CODEX_THREAD_ID||environment.CODEX_SESSION_ID?'codex':null};
 }
 // Help describes the operations of the code this command runs, which a runtime started
 // from it would offer, without starting an orchestrator, runtime or window.
@@ -73,7 +53,7 @@ async function help(runtime,operationName){
   try{
     const operation=operationName?local.operations.find(value=>value.name===operationName):null;
     if(operationName&&!operation)throw Error('Unknown SAAM operation '+operationName+'.');
-    return {ok:true,instructions,commands:['open','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','stop-session --studio-instance-id ID','update','quit'],
+    return {ok:true,instructions,commands:['open','new-instance','help [OP]','call OP --input FILE|--stdin|--flags','wait','start-tour','status','reload-runtime','stop-runtime','stop-session --studio-instance-id ID','update','quit'],
       operations:(operation?[operation]:local.operations).map(value=>({name:value.name,description:value.description,readOnly:value.readOnly,
         ...(operation?{input:z.toJSONSchema(value.schema,{target:'draft-7',io:'input'})}:{})})),
       runtime:{id:runtime.id,label:runtime.label}};
@@ -81,7 +61,8 @@ async function help(runtime,operationName){
 }
 export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>console.log(JSON.stringify(value))}={}){
   const parsed=commandInput(args);
-  if(parsed.command==='client-event')return clientEvent(input);
+  // Cached retired hooks may finish before the required client restart.
+  if(parsed.command==='client-event'){if(!input.isTTY)for await(const chunk of input){}return;}
   const identity=!['help','status','diagnostics','open','update','quit'].includes(parsed.command)
     ?{chatId:parsed.chatId,...(parsed.fallbackChatId?{nextCommand:'Pass --chat-id '+parsed.chatId+' on every later saam command in this chat.'}:{})}:{};
   const selection={runtime:null};

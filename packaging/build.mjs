@@ -51,10 +51,10 @@ function executablePlatform(bytes){
   }
   return null;
 }
-// Tracked files a maker's installation does not need: development maps and
-// tooling, tests, the relay service and this packager.
-const EXCLUDED=[/^dev-map(-OLD)?\//,/^relay\//,/^tools\//,/^scripts\/bench\//,/^\.(claude|codex|github)\//,/^core\/tests\//,
-  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^plans\//,/^adapters\/mcp\//,
+// Tracked files a maker's installation does not need: development tooling,
+// tests, the relay service and this packager.
+const EXCLUDED=[/^relay\//,/^tools\//,/^scripts\/bench\//,/^scripts\/check-repo\.mjs$/,/^\.(claude|codex|github)\//,/^core\/tests\//,
+  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^adapters\/mcp\//,
   /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
 
 // SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.

@@ -1,10 +1,10 @@
 import {requireThat,normalize,cross,dot,distance} from '../private/toolpath/numeric.mjs';
 import {transportCurveFrames} from '../geom/curve-frame.mjs';
 import {widenPlanarStrokes} from '../geom/stroke-topology.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE,BOOLEAN_TOLERANCE_MM,CONSTRUCTION_TOLERANCE_MM,COARSE_CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 // Deferred shape judgement: a band crossing itself should be judged at print resolution,
 // but two segments either side of one shorter segment would then read as crossing.
-const CROSSING_MM=1e-7;
+const CROSSING_MM=(ROUNDING_MM/10);
 
 
 // A width rule as read: unknown fields are named in ignored, and a rule without
@@ -52,7 +52,7 @@ export function parallelBeadGroup(curves,rule){
     const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;
     if(radius<=PRINT_RESOLUTION_MM){output.push(...curves.map(c=>({...c,beadWidthMm:construction.beadWidthMm})));continue;}
     // Process scale: arc chord a sixteenth of the bead width, held between fixed bounds.
-    for(const points of widenPlanarStrokes(curves,radius,{origin,xAxis:x,normal,arcToleranceMm:Math.max(.005,Math.min(.05,construction.beadWidthMm/16))}))output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points});
+    for(const points of widenPlanarStrokes(curves,radius,{origin,xAxis:x,normal,arcToleranceMm:Math.max(BOOLEAN_TOLERANCE_MM,Math.min(COARSE_CHORD_TOLERANCE_MM,construction.beadWidthMm/16))}))output.push({...curve,closed:true,beadWidthMm:construction.beadWidthMm,points});
   }
   return output;
 }
@@ -67,7 +67,7 @@ function transportedBeadBand(curve,construction,rule){
     const plus=points.map((p,i)=>p.map((v,a)=>v+radius*frames[i].v[a])),minus=points.map((p,i)=>p.map((v,a)=>v-radius*frames[i].v[a]));
     if(frame.closed){output.push({...curve,closed:true,points:plus,beadWidthMm:construction.beadWidthMm,frameReport:{method:'parallel-transport',seamCorrectionRad:frame.seamCorrectionRad}},{...curve,closed:true,points:minus.toReversed(),beadWidthMm:construction.beadWidthMm,frameReport:{method:'parallel-transport',seamCorrectionRad:frame.seamCorrectionRad}});continue;}
     // Process scale: cap arcs keep a fixed hundredth-of-a-mm chord (or the radius when smaller).
-    const count=Math.max(2,Math.ceil(Math.PI/(2*Math.acos(Math.max(-1,1-Math.min(.01,radius)/radius))))),joined=[...plus];
+    const count=Math.max(2,Math.ceil(Math.PI/(2*Math.acos(Math.max(-1,1-Math.min(CONSTRUCTION_TOLERANCE_MM,radius)/radius))))),joined=[...plus];
     const cap=(index,sign,skipLast)=>{const {u,v}=frames[index],p=points[index];for(let j=1;j<=count-(skipLast?1:0);j++){const a=j*Math.PI/count;joined.push(p.map((x,k)=>x+radius*sign*(v[k]*Math.cos(a)+u[k]*Math.sin(a))));}};
     cap(points.length-1,1,false);joined.push(...minus.slice(0,-1).toReversed());cap(0,-1,true);
     output.push({...curve,closed:true,points:joined,beadWidthMm:construction.beadWidthMm,frameReport:{method:'parallel-transport',seamCorrectionRad:frame.seamCorrectionRad}});

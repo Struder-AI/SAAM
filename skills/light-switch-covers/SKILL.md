@@ -17,14 +17,13 @@ pocket, screw holes/head seats and countersinks. Raised lettering prints face up
 recessed and flush two-color lettering permit either orientation. Rear-pocket
 support and face-down raised-motif clearance appear in preview and source notes.
 
-Save/load JSON preserves the design; successful preview also saves through the
-host. STL and separate color-part downloads share coordinates. Two-color handoffs retain separate plate/label Slice assignments. Configure two
-logical filaments and assign these components in Studio; preview colors are intent. Colors do not infer AMS trays. Bundle geometry is
-ordinary meshes; the workspace design is historical provenance, not authority.
+Save/load preserves the design; successful preview saves through the host. STL/color downloads share coordinates; two-color handoffs retain plate/label
+Slice assignments for two logical filaments. Preview colors do not infer AMS trays.
+Bundles retain ordinary native/Boolean geometry; meshes serve previews/downloads.
+The design remains historical provenance.
 
-The fire-safety responsibility popup opens once per browser session and can be
-reopened. Users are responsible for the fire safety of their covers. Fit and
-electrical material qualification have not been established.
+The fire-safety popup opens once per browser session and can be reopened. Users
+are responsible for fire safety; fit/material qualification is unestablished.
 
 The [catalog](catalog.json), [research](RESEARCH.md), [parameter specification](PARAMETERS.md)
 and [two-color example](designs/kitchen-porch.json) belong to this same workspace.

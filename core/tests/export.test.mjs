@@ -6,12 +6,20 @@ import { exportProgram } from '../export/registry.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
+import {joinSaamPath} from '../path/saampath.mjs';
+import {pathActions,pathSummary} from '../path/curve-path.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker/ultimaker-s5.json','utf8'));
 const plan=defaults();
 plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
-const path=schedulePath(await generatePath(plan,machine));
+const source=await generatePath(plan),sourcePathId='export-fixture';
+const schedule=schedulePath(source,{sourcePathId});
+const joined=joinSaamPath({sourcePathId,deposition:source,schedule});
+// These writer-envelope checks also insert ordinary physical actions. Use the
+// compatibility view deliberately; compact machine execution has its own flow.
+const path={schema:'saampath/1',initialPosition:schedule.initialPosition,initialPose:schedule.initialPose,
+  completion:schedule.completion,summary:pathSummary(joined),actions:[...pathActions(joined)]};
 const emit=async(m=machine,p=path)=>(await exportProgram(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes;
 
 test('machine templates preserve the last working S5 envelope',async()=>{
@@ -37,7 +45,7 @@ test('a snapshot without program templates writes with the installed profile tem
   const old=structuredClone(machine);delete old.outputs[0].program;
   const {bytes,report}=await exportProgram(path,plan,old,{generatorVersion:VERSION,buildDate:BUILD_DATE});
   assert.equal(bytes,await emit());
-  assert.ok(report.limitations.some(text=>/no program templates; the installed profile's were used/.test(text)));
+  assert.ok(!report.limitations.some(text=>/program templates/.test(text)));
 });
 
 test('a pause longer than one G4 command is written as commands that sum to it',async()=>{

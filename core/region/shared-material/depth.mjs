@@ -2,7 +2,7 @@
 // Mesh distances use their original triangles; NURBS surface exclusion uses
 // rational derivative bounds, never a presentation tessellation. Failure to find
 // a witness resolves spatial features to program precision, not a print grid.
-import {containsPoint} from '../../geom/query.mjs';
+import {containsPoint,prepareSolidBoundsQuery,interiorCentersWithin} from '../../geom/query.mjs';
 import {createMeshDistanceQuery} from '../../geom/mesh-distance.mjs';
 import {evaluate,gradientBound} from '../../geom/nurbs.mjs';
 import {dot} from '../../geom/frame.mjs';
@@ -77,12 +77,16 @@ function buildSolidBalls(geometry){
 }
 
 export function prepareSharedInterior({solids,slabs=[]}){
-  const queries=solids.map(solidBalls);
-  if(queries.some(q=>!q))return {supported:false};
-  for(const {fromMm,toMm,axis=[0,0,1]} of slabs)queries.push((point,radius)=>{
-    const h=dot(axis,point),r=radius*Math.hypot(...axis);
-    return h-r>=fromMm-ROUNDING_MM&&h+r<=toMm+ROUNDING_MM?1:h+r<fromMm||h-r>toMm?-1:0;
-  });
+  const supported=g=>g.kind==='boolean'?g.operands.every(supported):g.kind==='triangle-mesh'||Array.isArray(g.patches);
+  if(!solids.every(supported))return {supported:false};
+  const required=new Set(),excluded=new Set();
+  function constrain(g,inside=true){
+    const values=inside?required:excluded;if(values.has(g))return;values.add(g);
+    if(g.kind!=='boolean')return;
+    if(inside&&g.operation==='intersection'||!inside&&g.operation==='union')for(const operand of g.operands)constrain(operand,inside);
+    else if(inside&&g.operation==='difference'){constrain(g.operands[0]);for(const operand of g.operands.slice(1))constrain(operand,false);}
+  }
+  solids.forEach(g=>constrain(g));let queries=null,boxes=null;
   const bounds={min:[0,1,2].map(k=>Math.max(...solids.map(s=>s.bounds.min[k]))),max:[0,1,2].map(k=>Math.min(...solids.map(s=>s.bounds.max[k])))};
   for(const {fromMm,toMm,axis=[0,0,1]} of slabs){
     const k=axis.findIndex(v=>Math.abs(v)===1);
@@ -94,9 +98,18 @@ export function prepareSharedInterior({solids,slabs=[]}){
   return {supported:true,find(depthMm){
     const radius=Math.max(ROUNDING_MM,depthMm/2-ROUNDING_MM),min=bounds.min.map(x=>x+radius),max=bounds.max.map(x=>x-radius);
     if(min.some((x,k)=>x>max[k]))return null;
+    for(const negative of excluded)for(const positive of required)if(interiorCentersWithin(positive,negative,radius))return null;
+    if(!queries){
+      queries=solids.map(solidBalls);boxes=solids.map(prepareSolidBoundsQuery);
+      for(const {fromMm,toMm,axis=[0,0,1]} of slabs)queries.push((point,radius)=>{
+        const h=dot(axis,point),r=radius*Math.hypot(...axis);
+        return h-r>=fromMm-ROUNDING_MM&&h+r<=toMm+ROUNDING_MM?1:h+r<fromMm||h-r>toMm?-1:0;
+      });
+    }
     const pending=[{min,max}];
     while(pending.length){
       const box=pending.pop(),point=box.min.map((x,k)=>(x+box.max[k])/2),half=box.max.map((x,k)=>(x-box.min[k])/2),reach=Math.hypot(...half);
+      if(boxes.some(query=>query(box)===-1))continue;
       if(queries.every(query=>query(point,radius)===1))return point;
       if(queries.some(query=>query(point,reach)===-1))continue;
       if(radius>reach&&queries.some(query=>query(point,radius-reach)!==1))continue;

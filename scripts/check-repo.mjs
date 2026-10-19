@@ -1,3 +1,4 @@
+import {parse} from 'acorn';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,7 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const excluded = new Set(['.git', '.claude', '.local', '.saam', 'Prints', 'node_modules', 'dist', 'build']);
 // Dated records of past work name the files as they were then; their targets are not required
 // to still exist, and the records are never rewritten to keep a link alive.
-const historical = new Set(['DEVLOG.md', 'DECISIONS.md']);
+const historical = new Set(['DEVLOG.md', 'DECISIONS.md', 'plans/dev-maps.md']);
 const documents = [];
 async function walk(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -44,7 +45,7 @@ for (const path of documents) {
     const [target,fragment] = match[1].split('#');
     if (/^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
     checked.links++;
-    if (historical.has(relative(root, path))) continue;
+    if (historical.has(relative(root, path).split(sep).join('/'))) continue;
     const resolved = target ? resolve(dirname(path), decodeURIComponent(target)) : path;
     if (!resolved.startsWith(root + sep)) errors.push(`${relative(root,path)}: link escapes repository: ${target}`);
     else try {
@@ -78,16 +79,31 @@ try {
 } catch (error) {
   if (error.status !== 1) errors.push('Could not check curated-example visibility.');
 }
-// Tolerance literals: a raw small number in code outside core/dimensions.mjs is a
-// tolerance that does not name its class (core/README.md#dimensions-and-tolerances).
+// Tolerance policy: named accuracy defaults come from core/dimensions.mjs or
+// print dimensions. The small-literal ledger also retains non-tolerance shape/UI values.
 // Counts per file may only fall; --write-tolerance-baseline records lower counts.
 const toleranceLiteral = /(?<![\w.])(?:\d+(?:\.\d+)?e-\d+|0?\.00\d+)(?![\w.])|Number\.EPSILON/g;
-const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging|machines)\/.*\.(mjs|js|cpp)$/.test(path)
-  && !/(^|\/)tests?\/|\.test\.mjs$/.test(path) && path !== 'core/dimensions.mjs');
+const toleranceFiles = tracked.filter(path => /^(core|studio|skills|packaging|machines|workspaces)\/.*\.(mjs|js|cpp)$/.test(path)
+  && !/(^|\/)(tests?|sets)\/|\.test\.mjs$/.test(path) && path !== 'core/dimensions.mjs');
+// This catches ordinary .01/.02 defaults the small-number ratchet cannot see.
+const toleranceName=/toleran|epsilon|precision|accuracy|resolution|rounding|slack/i;
+function rawToleranceDefaults(node,path){
+  if(!node||typeof node!=='object')return;
+  const name=node.type==='VariableDeclarator'?node.id?.name:node.type==='AssignmentPattern'?node.left?.name:
+    node.type==='Property'&&!node.computed?node.key?.name??node.key?.value:null;
+  const value=node.type==='VariableDeclarator'?node.init:node.type==='AssignmentPattern'?node.right:node.type==='Property'?node.value:null;
+  if(typeof name==='string'&&toleranceName.test(name)&&value?.type==='Literal'&&typeof value.value==='number'&&value.value>0)
+    errors.push(`Raw tolerance default in ${path}:${value.loc.start.line} (${name}): reference core/dimensions.mjs.`);
+  for(const [key,value] of Object.entries(node))if(key!=='loc'){
+    if(Array.isArray(value)){for(const child of value)rawToleranceDefaults(child,path);}
+    else if(value&&typeof value==='object')rawToleranceDefaults(value,path);
+  }
+}
 const toleranceCounts = {};
 for (const path of toleranceFiles) {
   // A tracked file removed by the current change is absent until checkpoint.
   const source=await readFile(resolve(root,path),'utf8').catch(error=>{if(error.code==='ENOENT')return '';throw error;});
+  if(/\.(mjs|js)$/.test(path))rawToleranceDefaults(parse(source,{ecmaVersion:'latest',sourceType:'module',locations:true}),path);
   const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
   const count = code.match(toleranceLiteral)?.length ?? 0;
   if (count) toleranceCounts[path] = count;

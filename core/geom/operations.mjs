@@ -1,9 +1,14 @@
+import {prepareSurfaceRay,surfaceRayIntersections} from './surface-ray.mjs';
+import {enclosedAxialProfile} from './enclosed-profile.mjs';
+import * as dimensions from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
+import {curvePairSurface,closedEdgeSpans} from './edge-surface.mjs';
 // Every extension host supplies these same CAD operations. Backend loading and
 // native objects stay here; callers supply ordinary geometry and explicit options.
-import {rhino} from './runtime.mjs';
+import {compileBlobField} from './blob-field-compile.mjs';
 import {buildShell,resolveGeometrySelections,resolveMaterialGeometry,translateShell} from './build.mjs';
 import {booleanShell as combineSolids} from './boolean-solid.mjs';
-import {constructSolids} from './solid-operations.mjs';
+import {constructSolids,constructGeometry,materialPresence} from './solid-operations.mjs';
 import {makeMesh} from './mesh.mjs';
 import {mappedRegionMaterial} from './mapped-region-material.mjs';
 import {textOutlines} from './text-outline.mjs';
@@ -23,30 +28,35 @@ import {intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurve
 import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
 import {surfaceDerivatives} from './surface-derivatives.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
+import {surfaceCurveImages} from './surface-curve-image.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {sampleSpatialCurve,distinctPolyline,curveLength} from './spatial-curve.mjs';
 import {transportCurveFrames} from './curve-frame.mjs';
 import {prepareContourSleeve} from './sleeve/contour-sleeve.mjs';
 import {detectMeshSleeveInterval} from './sleeve/mesh-sleeve.mjs';
 import {strokeTopology,widenPlanarStrokes} from './stroke-topology.mjs';
-import {referenceSurface} from './reference-surface.mjs';
+import {referenceSurface,selectedFace} from './reference-surface.mjs';
 import {surfaceRegion} from './surface-region.mjs';
 import {prepareSolidDistance,solidDistance} from './solid-distance.mjs';
 import {extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery} from './extruded-segments.mjs';
 import {rodFrame,point} from './frame.mjs';
+import {convexVolume} from './convex-clearance.mjs';
+import {revolvedProfile} from './revolved-profile.mjs';
+import {loftProfiles,roundedRectangleProfile,transformGeometry} from './solid-profiles.mjs';
 import {geometrySelections} from './selections.mjs';
+import {extendSurface} from './surface-extend.mjs';
 
-async function buildGeometry(geometry){return buildShell(await rhino(),geometry,{native:false});}
-const operations=Object.freeze({buildGeometry,combineSolids,constructSolids,makeMesh,rodFrame,point,geometrySelections,
+function buildGeometry(geometry){return buildShell(null,geometry,{native:false});}
+const operations=Object.freeze({enclosedAxialProfile,prepareSurfaceRay,surfaceRayIntersections,resolutionMm:PRINT_RESOLUTION_MM,dimensions:Object.freeze({...dimensions}),curvePairSurface,closedEdgeSpans,compileBlobField,buildGeometry,combineSolids,constructSolids,constructGeometry,materialPresence,makeMesh,convexVolume,rodFrame,point,revolvedProfile,loftProfiles,roundedRectangleProfile,transformGeometry,geometrySelections,
     resolveGeometrySelections,resolveMaterialGeometry,translateShell,mappedRegionMaterial,textOutlines,textLayout,
     matchCurveControls,ribbon,loftPolygons,topAt,createSectionQuery,containsPoint,
     closeMeshPatchToPlane,horizontalSlice,planeSlice,patchSlice,sliceStack,section,prepareSection,
     offsetRegion,difference,intersect,union,regionArea,loopArea,pointSegmentDistance,
     clipLineToRegion,clipPlanarCurveToRegion,intersectSurfaceSheet,offsetSliceRegion,strokeSliceRegion,clipSliceCurves,
-    evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,curvePoint,sampleCurveIntervals,
+    evaluateSurface,mappedSurface,surfaceDerivatives,surfaceIsoCurve,surfaceCurveImages,curvePoint,sampleCurveIntervals,
     sampleSpatialCurve,distinctPolyline,curveLength,transportCurveFrames,
     prepareContourSleeve,detectMeshSleeveInterval,strokeTopology,widenPlanarStrokes,
-    referenceSurface,surfaceRegion,prepareSolidDistance,solidDistance,
+    referenceSurface,selectedFace,surfaceRegion,extendSurface,prepareSolidDistance,solidDistance,
     extrudedSegmentBounds,extrudedSegmentsContain,raycastExtrudedSegments,prepareExtrudedSegmentQuery});
 
 export function geometryOperations(){return operations;}

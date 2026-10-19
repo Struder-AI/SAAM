@@ -35,7 +35,7 @@ The tree holds intent only. Status, evidence and scheduling stay in the [release
 | [Settings](settings.md) | Machine/material profiles, remembered setups, local preferences |
 | [Application](application.md) | The tray orchestrator, runtimes, the one `saam` route, chats |
 | [Deployment and releases](deployment.md) | Home folder, installer, update, relay and diagnostics, packaging, releases |
-| [Development](development.md) | Dev maps, dev tools, how agents work with the owner |
+| [Development](development.md) | Architecture, local tools, how agents work with the owner |
 | [Principles](principles.md) | Code shape, complexity, tolerances, limits and checks, rules |
 
 ## Cross-cutting principles

@@ -1,8 +1,10 @@
 // Existing surface charts share point, normal and first-derivative evaluation.
 // Coordinates retain their native units; offsets are physical millimetres.
 import {evaluate} from './nurbs.mjs';
-import {heightSlicePoint,heightSliceNormal,referenceHeight} from './height-slice.mjs';
+import {surfaceDerivatives} from './surface-derivatives.mjs';
 import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
+import {prepareSurfaceReference,surfaceReferenceRecord} from './surface-record.mjs';
+import {faceContainsUv} from './surface-trim.mjs';
 
 const rings=new WeakMap();
 function sleeveRing(layer,u){
@@ -21,13 +23,11 @@ function sleeveRing(layer,u){
 }
 
 export function evaluateSurface(surface,[u,v],normalMm=0){
+  if(surface.representation)return evaluateSurface(prepareSurfaceReference(surface),[u,v],normalMm);
   let e;
   if(surface.cp||surface.kind==='patch')e=evaluate(surface.patch??surface,u,v);
   else if(surface.kind==='plane')e={point:surface.origin.map((x,k)=>x+u*surface.xAxis[k]+v*surface.yAxis[k]),normal:surface.normal,du:surface.xAxis,dv:surface.yAxis};
-  else if(surface.kind==='height-field'){
-    const point=heightSlicePoint(surface,[u,v]),normal=heightSliceNormal(surface,[u,v]);
-    e={point,normal,du:[1,0,-normal[0]/normal[2]],dv:[0,1,-normal[1]/normal[2]]};
-  }else if(surface.kind==='sleeve-chart'){
+  else if(surface.kind==='sleeve-chart'){
     const layers=surface.layers;
     requireThat(layers?.length>=2,'A sleeve reference needs at least two boundary layers.');
     requireThat(v>=-TOLERANCE.parameter&&v<=layers.length-1+TOLERANCE.parameter,'Sleeve curve lies outside the along-coordinate domain.');
@@ -43,10 +43,11 @@ export function evaluateSurface(surface,[u,v],normalMm=0){
 
 // Coverage is explicit for partial height references and bounded native charts.
 export function surfaceChartCovers(surface,uv){
+  if(surface.representation)return surfaceChartCovers(prepareSurfaceReference(surface),uv);
   if(surface.kind==='slice-chart')return surfaceChartCovers(surface.slice,uv);
-  if(surface.kind==='height-field')return Boolean(referenceHeight(surface.reference,...uv));
   const native=surface.kind==='patch'?surface.patch:surface;
-  return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter);
+  if(native.cp&&native.trimLoops)return faceContainsUv(native,...uv);
+  return [native.domainU,native.domainV].every((b,k)=>!b||uv[k]>=b[0]-TOLERANCE.parameter&&uv[k]<=b[1]+TOLERANCE.parameter)&&(!surface.at?.covers||surface.at.covers(...uv));
 }
 // An affine chart selection preserves native parameters and derivative units.
 export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=false}={}){
@@ -59,5 +60,50 @@ export function mappedSurface(surface,bounds,domain,{normalSide=1,periodicU=fals
     requireThat(e.normal,'Surface has a singular tangent at this chart point.');
     return {...e,uv,normal:e.normal.map(x=>x*normalSide),du:e.du?.map(x=>x*scale[0]),dv:e.dv?.map(x=>x*scale[1])};
   };
-  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(surface.knotsU,bounds[0],0),breaksV:breaks(surface.knotsV,bounds[1],1),periodicU};
+  // Differential capability belongs to this evaluator's identity. A wrapper
+  // replacing at cannot accidentally inherit derivatives of the old geometry.
+  const prepared=surface.representation?prepareSurfaceReference(surface):surface,native=prepared.patch??prepared;
+  at.covers=(u,v)=>surfaceChartCovers(surface,[u,v].map((x,k)=>bounds[k][0]+(x-domain[k][0])*scale[k]));
+  if(native.cp||prepared.at?.nativeImage)at.nativeImage=chart=>{
+    const coordinates=chart.map(uv=>uv.map((x,k)=>bounds[k][0]+(x-domain[k][0])*scale[k]));
+    return native.cp?{surface:native,chart:coordinates}:prepared.at.nativeImage(coordinates);
+  };
+  const differential=native.cp?(u,v,options)=>surfaceDerivatives(native,u,v,options):prepared.at?.derivatives;
+  if(differential)at.derivatives=(u,v,{normalMm=0,...options}={})=>{
+    const coordinates=[u,v];
+    requireThat(coordinates.every((x,k)=>x>=domain[k][0]-TOLERANCE.parameter&&x<=domain[k][1]+TOLERANCE.parameter),'Surface derivative outside selected region.');
+    const uv=coordinates.map((x,k)=>bounds[k][0]+Math.max(0,Math.min(domain[k][1]-domain[k][0],x-domain[k][0]))*scale[k]);
+    const e=differential(...uv,{...options,normalMm:normalMm*normalSide});
+    return {...e,du:e.du.map(x=>x*scale[0]),dv:e.dv.map(x=>x*scale[1]),duu:e.duu.map(x=>x*scale[0]**2),
+      duv:e.duv.map(x=>x*scale[0]*scale[1]),dvv:e.dvv.map(x=>x*scale[1]**2),normal:e.normal.map(x=>x*normalSide),
+      uvOf:vector=>e.uvOf(vector).map((x,k)=>x/scale[k])};
+  };
+  return {at,source:surface,domainU:domain[0],domainV:domain[1],breaksU:breaks(native.knotsU??prepared.breaksU,bounds[0],0),breaksV:breaks(native.knotsV??prepared.breaksV,bounds[1],1),periodicU,
+    referenceRecord:{representation:'mapped-surface',source:surfaceReferenceRecord(surface),bounds,domain,normalSide,periodicU}};
+}
+
+// A rigid translation preserves the chart, frames and numerical capabilities.
+export function translatedSurface(surface,translation){
+  requireThat(Array.isArray(translation)&&translation.length===3&&translation.every(Number.isFinite),'Surface translation needs finite XYZ.');
+  const original=surface.representation?prepareSurfaceReference(surface):surface;
+  const referenceRecord={representation:'translated-surface',source:surfaceReferenceRecord(original),translation};
+  if(original.kind==='plane')return {...original,origin:original.origin.map((value,k)=>value+translation[k]),referenceRecord};
+  const native=original.kind==='patch'?original.patch:original.cp?original:null;
+  if(native){
+    const cp=Float64Array.from(native.cp);
+    for(let i=0;i<cp.length;i+=4)for(let k=0;k<3;k++)cp[i+k]+=translation[k]*cp[i+3];
+    const moved={...native,cp};return original.kind==='patch'?{...original,patch:moved,referenceRecord}:{...moved,referenceRecord};
+  }
+  const at=(u,v)=>{const e=evaluateSurface(original,[u,v]);return {...e,point:e.point.map((value,k)=>value+translation[k])};};
+  at.covers=(u,v)=>surfaceChartCovers(original,[u,v]);
+  if(original.at?.derivatives)at.derivatives=(u,v,options)=>{
+    const e=original.at.derivatives(u,v,options);return {...e,point:e.point.map((value,k)=>value+translation[k])};
+  };
+  if(original.at?.nativeImage)at.nativeImage=chart=>{
+    const image=original.at.nativeImage(chart);if(!image)return null;
+    const cp=Float64Array.from(image.surface.cp);
+    for(let i=0;i<cp.length;i+=4)for(let k=0;k<3;k++)cp[i+k]+=translation[k]*cp[i+3];
+    return {...image,surface:{...image.surface,cp}};
+  };
+  return {...original,at,referenceRecord};
 }

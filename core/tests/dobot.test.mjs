@@ -16,11 +16,10 @@ import {LuaRuntime} from '../../machines/dobot/debug/dobot-lua-subset.mjs';
 import {initBundle,generateBundle,loadBundle,adjustBundle} from '../print/bundle.mjs';
 import {syntheticDobotSetup} from './fixtures/dobot.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 const release={generatorVersion:'SYNTHETIC TEST',buildDate:'2026-09-09'};
 function fixture(){
   const machine=loadMachine('dobot-mg400'),plan=syntheticDobotSetup(defaults(machine));
-  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;plan.slices.assignments.push(skinAssignment({id:'skin'}));
+  plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:2});plan.process.minimumLayerSeconds=0;
   return {machine,plan};
 }
 test('Dobot unconfigured profile generates and shows the SAAMpath; only the program waits',async()=>{
@@ -36,14 +35,13 @@ test('Dobot unconfigured profile generates and shows the SAAMpath; only the prog
     assert.match(state.outputAvailability,/Dobot installation is unconfigured/);
   }finally{await rm(dir,{recursive:true,force:true});}
 });
-test('Dobot export preserves three skill paths and reports relay estimates separately',async()=>{
+test('Dobot export preserves solid and sparse paths and reports relay estimates separately',async()=>{
   const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
   const {bytes,report}=(await exportProgram(path,plan,machine,release)),prepared=(await preparePath(path,plan,machine)),program=pathPreview(prepared,{plan});
   assert.deepEqual(bytes,(await exportProgram(path,plan,machine,release)).bytes);
   assert.equal(report.moves,prepared.actions.filter(a=>a.kind==='move').length);
   assert.ok(program.moves.some(m=>/^body:\d+:fill$/.test(m.operation)),'solid top and bottom layers');
   assert.ok(program.moves.some(m=>/^body:\d+:infill$/.test(m.operation)),'sparse infill');
-  assert.ok(program.moves.some(m=>m.operation?.startsWith('skin:')));
   assert.equal(report.materialModel,'relay-estimate');
   assert.ok(report.estimatedRelayVolumeMm3>0);assert.notEqual(report.volumeMm3,report.estimatedRelayVolumeMm3);
   assert.ok(report.seconds>0);

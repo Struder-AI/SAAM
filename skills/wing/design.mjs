@@ -1,8 +1,12 @@
-import {airfoilProfile,airfoilSection,PRINT_RESOLUTION_MM,ROUNDING_MM} from './airfoils.mjs';
 
-export const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,sweepDeg:0,airfoil:'naca2412',camber:0.02,thickness:0.12,wingletHeightMm:90,maxSectionHeightMm:180,maxChordMm:250,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
+export function createWingDesign(Geometry,airfoils){
+const {PRINT_RESOLUTION_MM,ROUNDING_MM}=Geometry.dimensions;
+const {airfoilProfile,airfoilSection}=airfoils;
 
-export function wingDesign(input={}){
+
+const wingDefaults=Object.freeze({schema:'saam-wing/1',name:'Wing study',spanMm:900,chordMm:160,taper:1,sweepDeg:0,airfoil:'naca2412',camber:0.02,thickness:0.12,wingletHeightMm:90,maxSectionHeightMm:180,maxChordMm:250,flaps:true,flapStart:0.35,flapEnd:0.75,flapChord:0.26,rodDiameterMm:5,pivotDiameterMm:3,clearanceMm:0.2,gapMm:0.8,beadWidthMm:0.45,layerMm:0.25,speedMmS:20});
+
+function wingDesign(input={}){
   if(!input||typeof input!=='object'||Array.isArray(input))throw Error('Expected a wing design.');
   // Read earlier saved designs; new designs persist the explicit limit.
   const {sectionHeightMm,...values}=input;
@@ -21,7 +25,7 @@ export function wingDesign(input={}){
 
 // Span is the print Z axis. Mandatory stations remain exact; intermediate
 // divisions distribute each interval evenly, avoiding a tiny last fragment.
-export function wingSections(input){
+function wingSections(input){
   const d=wingDesign(input),half=d.spanMm/2,mandatory=[0,half];
   if(d.flaps)mandatory.push(d.flapStart*half,d.flapEnd*half);
   mandatory.sort((a,b)=>a-b);
@@ -41,15 +45,15 @@ export function wingSections(input){
   return {design:d,cuts,pieces,rods:[{id:'front',xMm:d.chordMm*.28,diameterMm:d.rodDiameterMm,fromMm:0,toMm:rodEndMm},{id:'rear',xMm:d.chordMm*.5,diameterMm:d.rodDiameterMm,fromMm:0,toMm:rodEndMm},...(d.flaps?[{id:'pivot',xMm:d.chordMm*(1-d.flapChord)+d.pivotDiameterMm/2+d.clearanceMm+d.beadWidthMm,diameterMm:d.pivotDiameterMm,fromMm:half*d.flapStart+d.gapMm/2,toMm:half*d.flapEnd-d.gapMm/2}]:[])]};
 }
 
-export function foil(d,x,chord){
+function foil(d,x,chord){
   const {center,half}=airfoilSection(d.airfoil,x/chord,d.thickness,d.camber);
   return {center:center*chord,half:half*chord};
 }
 
-export const wingletThickness=d=>2*Math.ceil(2/(2*d.layerMm))*d.layerMm;
-export const sweepOffsetMm=(d,span)=>Math.tan(d.sweepDeg*Math.PI/180)*span;
+const wingletThickness=d=>2*Math.ceil(2/(2*d.layerMm))*d.layerMm;
+const sweepOffsetMm=(d,span)=>Math.tan(d.sweepDeg*Math.PI/180)*span;
 
-export function wingStation(d,piece,span){
+function wingStation(d,piece,span){
   const half=d.spanMm/2,chord=d.chordMm*(1-(1-d.taper)*span/half),sweep=sweepOffsetMm(d,span);
   // Quarter-chord sweep leaves every reinforcement bore on one straight axis.
   const shift=sweep+(d.chordMm-chord)/4;
@@ -62,7 +66,7 @@ export function wingStation(d,piece,span){
 
 // Correspondence is by authored feature: skin sample, web side, bore arc.
 // It does not search for a new seam or fit away a narrow internal excursion.
-export function sectionRoute(d,piece,span,{webs=true}={}){
+function sectionRoute(d,piece,span,{webs=true}={}){
   const s=wingStation(d,piece,span),w=d.beadWidthMm;
   const edge=(x,side)=>{const f=foil(d,x-s.shift,s.chord);return f.center+side*Math.max(w*.35,f.half-w/2);};
   const lo=s.lo+w/2,hi=s.hi-w/2;
@@ -87,4 +91,7 @@ export function sectionRoute(d,piece,span,{webs=true}={}){
   }
   skin(previous,hi,1);push(hi,edge(hi,1));skin(hi,lo,-1,80);push(lo,edge(lo,-1));
   return points;
+}
+
+return {wingDefaults,wingDesign,wingSections,foil,wingletThickness,sweepOffsetMm,wingStation,sectionRoute};
 }

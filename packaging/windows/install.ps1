@@ -285,7 +285,7 @@ if (-not $isolated) {
 $clientArgs = @((Join-Path $SaamRoot 'packaging\client-setup.mjs'), $SaamHome)
 if ($isolated) { $clientArgs += '--no-register' }
 & (Join-Path $SaamRoot 'runtime\node.exe') @clientArgs
-if ($LASTEXITCODE -ne 0) { Write-Host 'SAAM is installed; ask the agent to repair client registration.' }
+$clientSetupComplete = $LASTEXITCODE -eq 0
 
 # An update refreshes only the shortcuts the person still has; it adds the
 # console shortcut for someone who keeps the Start Menu one.
@@ -314,8 +314,10 @@ Set-Shortcut $UninstallLink $powershell "-NoProfile -ExecutionPolicy Bypass -Fil
 }
 
 Write-Host ''
-Write-Host "SAAM $version is installed."
-if (-not $NoShortcuts) { Write-Host 'Start from the SAAM icon; choose Quit from its tray menu to stop. New chats see saam after restarting the client.' }
+Write-Host "SAAM $version application is installed."
+if ($clientSetupComplete) { Write-Host 'Client setup command completed. Finish restart, permissions and session verification in INSTALL.md.' }
+else { Write-Host 'Client setup is incomplete. Read the errors above and run saam call repair_client_setup from your desktop agent.' }
+if (-not $NoShortcuts) { Write-Host 'Start from the SAAM icon; choose Quit from its tray menu to stop.' }
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
 # Startup removes the completed workspace; SAAM owns first-run evidence from here.
 Set-WorkspaceOwner 'complete'

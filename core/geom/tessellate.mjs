@@ -3,7 +3,7 @@ import {curvePoint} from './surface-curves.mjs';
 import {evaluate} from './nurbs.mjs';
 import {makeMesh} from './mesh.mjs';
 import {requireThat,distance} from './tolerance.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_MM,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 function closest(curve,p){
   let best=0,score=Infinity;
@@ -17,7 +17,7 @@ function closest(curve,p){
 // -> a closed mesh with {tessellation, notes}. Solid operations (Booleans,
 // text, heat-set, distance fields) need a closed solid; an open shell names its
 // open patch edges here, at the point of use.
-export function tessellateShell(shell,{toleranceMm=0.02}={}){
+export function tessellateShell(shell,{toleranceMm=CHORD_TOLERANCE_MM}={}){
   if(shell.kind==='triangle-mesh')return shell;
   requireThat(shell.patches,'Solid operations take a mesh or spline shell.');
   const open=shell.closure.unmatched;

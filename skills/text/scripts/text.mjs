@@ -21,14 +21,14 @@ export function textFeature(spec){
 }
 
 // -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
-export async function compileText(base,features,{buildGeometry,constructSolids,textOutlines,textLayout,mappedRegionMaterial,toleranceMm=0.02,maxEdgeMm=1,standalone=false}={}){
-  requireThat(typeof buildGeometry==='function'&&typeof constructSolids==='function'&&[textOutlines,textLayout,mappedRegionMaterial].every(operation=>typeof operation==='function')&&Array.isArray(features)&&features.length>0,
+export async function compileText(base,features,{buildGeometry,constructGeometry,textOutlines,textLayout,mappedRegionMaterial,dimensions,toleranceMm=dimensions.CHORD_TOLERANCE_MM,maxEdgeMm=1,standalone=false}={}){
+  requireThat(typeof buildGeometry==='function'&&typeof constructGeometry==='function'&&[textOutlines,textLayout,mappedRegionMaterial].every(operation=>typeof operation==='function')&&Array.isArray(features)&&features.length>0,
     'Text needs Geometry construction, font outlines, layout and mapped-region operations and at least one feature.');
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0&&Number.isFinite(maxEdgeMm)&&maxEdgeMm>0,'Text toleranceMm and maxEdgeMm must be positive.');
   const normalized=features.map(textFeature);
   requireThat(new Set(normalized.map(f=>f.id)).size===normalized.length,'Text feature ids must be unique.');
   const target=base?await buildGeometry(base):null;
-  let result=target&&!standalone?target:null;
+  let result=base&&!standalone?base:null;
   const materials=new Map();let baseUncut=Boolean(result);
   if(result)materials.set('base',result);
   const difference=(a,b)=>({operation:'difference',operands:[a,b]});
@@ -46,9 +46,9 @@ export async function compileText(base,features,{buildGeometry,constructSolids,t
     else {baseUncut=false;for(const [id,material] of materials)materials.set(id,difference(material,textSolid));}
     result=result?{operation:f.mode==='raised'?'union':'difference',operands:[result,textSolid]}:textSolid;
   }
-  const [mesh,...parts]=result?await constructSolids([result,...materials.values()],{toleranceMm}):[null];
-  const record={...textTemplate(),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,vertices:mesh?.vertices??[],triangles:mesh?.triangles??[]};
-  record.materialParts=[...materials.keys()].flatMap((id,i)=>!parts[i]?[]:[{id,geometry:id==='base'&&baseUncut?null:{shape:'mesh',source:null,vertices:parts[i].vertices,triangles:parts[i].triangles}}]);
+  const [built,...parts]=result?await constructGeometry([result,...materials.values()],{toleranceMm}):[null];
+  const record={...textTemplate({solid:true}),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,solid:built?.geometry??{shape:'mesh',source:null,vertices:[],triangles:[]}};
+  record.materialParts=[...materials.keys()].flatMap((id,i)=>parts[i].empty?[]:[{id,geometry:id==='base'&&baseUncut?null:parts[i].geometry}]);
   if(standalone)record.standalone=true;
-  return {geometry:record,notes:mesh?mesh.notes??[]:['The text leaves no material.']};
+  return {geometry:record,notes:[...built?.notes??[],...(!built||built.empty?['The text leaves no material.']:[])]};
 }

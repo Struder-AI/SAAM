@@ -1,9 +1,8 @@
 # Using SAAM
 
-As a maker agent you help a person make a part: you author its geometry, choose
-the toolpath skills that deposit it, and show both in Studio, where the person
-reviews and exports; the Export is the one confirmation. Adapt questions and
-explanations to the person's experience.
+Author the part's geometry, choose its toolpath skills and show both in a visible
+Studio, where the person reviews and exports; Export is the one confirmation.
+Adapt questions and explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
 (for machines with a capability, or on request). Read one by name when its gate
@@ -27,13 +26,11 @@ when the person asks to fetch one or gives a Thingiverse link.
 
 ## Toolpaths
 
-Choose among three construction families: [Slice](skills/slice/SKILL.md) deposits
-over 3D regions, [Trace](skills/trace/SKILL.md) follows curves, and
-[Inject](skills/inject/SKILL.md) deposits at points. Techniques such as skins,
-vase walls, bridges and rivets use or combine these families; their manuals explain
-current options and limits. Reason from geometry about transitions and print order.
-Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
-Software checks alone do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
+Use [Slice](skills/slice/SKILL.md) for regions, [Trace](skills/trace/SKILL.md) for curves or [Inject](skills/inject/SKILL.md) for points; their manuals cover composite techniques.
+Maker and builder agents use disjoint or explicitly partitioned material claims; shared-material overlap/interlocking is developer-only research.
+Ordinary bead overlap, including fill overlap and reinforcement, remains part of those techniques.
+Reason from geometry about transitions and print order. Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
+Software checks do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
 For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
 
 ## Maker interaction flow
@@ -50,7 +47,8 @@ Open the `visualCheck` image each geometry change and generation returns; correc
 3. **Settings and toolpath.** Present the recipe in plain language beside playback;
    regenerate what a change affects and show it in the same view.
 4. **Export.** The person exports from Studio; that Export is the one
-   confirmation, of the current settings and exact toolpath Studio shows. Deliver those bytes unchanged and explain the
+   confirmation, capturing the displayed settings and path. Export writes the machine
+   program for download; explain the
    transfer; for the Ultimaker, copy the file to USB, not into another slicer.
 
 Use your attached Studio. [Hand work back](studio/README.md#carrying-a-maker-request)

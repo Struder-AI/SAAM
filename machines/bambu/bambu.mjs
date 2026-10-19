@@ -25,12 +25,15 @@ function configuration(plan,machine){
   return output;
 }
 function contextFor(path,plan,machine,release){
-  const moves=path.actions.filter(a=>a.kind==='move'),points=[path.initialPosition,...moves.map(m=>m.to)];
-  const deposits=moves.filter(m=>m.volumeMm3>0);requireThat(deposits.length,'Bambu output needs deposition.');
+  const state={pathMaxZ:path.initialPosition[2],deposits:0},layers=new Set();
+  for(const action of path.actions)if(action.kind==='move'){
+    state.pathMaxZ=Math.max(state.pathMaxZ,action.to[2]);
+    if(action.volumeMm3>0){state.deposits++;layers.add(`${action.phase}:${action.layer}`);}
+  }
+  requireThat(state.deposits>0,'Bambu output needs deposition.');
   const bounds=path.summary?.boundsMm;
-  const layers=new Set(deposits.map(m=>`${m.phase}:${m.layer}`));
   const context={schema:'saam-bambu-artifact/1',contract:machine.outputs.find(o=>o.id===plan.output).program.contract,release,bounds,initialPosition:path.initialPosition,
-    pathMaxZ:points.reduce((maximum,p)=>Math.max(maximum,p[2]),-Infinity),layers:layers.size};
+    pathMaxZ:state.pathMaxZ,layers:layers.size};
   checkContext(context,plan,machine);return context;
 }
 function checkContext(c,plan,machine){
@@ -105,32 +108,15 @@ export function createAdapter(Export){
   return {output:'bambu-gcode',poses:false,
     settings:{key:'bambu',validate(plan){
       feederSelector(plan,plan.machine);validateBambuConnections(plan.setup.bambu.amsConnections??null,plan.machine);
-    },rows},
+    }},
     export:(prepared,settings)=>exportBambu(prepared,settings,settings.machine,settings.release,Export)};
-}
-// Studio settings rows: startup, the colour-change purge and each declared material's nozzle and feed.
-function rows({machine,setup,process,output}){
-  const result=[['Bambu startup',setup.bambu.fast_start?'Fast — reuse calibration; skip optional scans and vibration tests':'Full — calibration follows startup controls / printer choices']];
-  const declared=[...new Set([setup.filament,...(setup.filaments??[]).keys()])].filter(i=>i!==undefined&&i!==null);
-  const change=machine.outputs.find(o=>o.id===output)?.constraints;
-  if(declared.length>1&&change?.materialChangeMode==='single-nozzle-ams')result.push(['AMS colour changes',`${change.materialChangeFlushMm3} mm³ purged into the rear chute per change, plus priming. No tower; service time/material are additional to part totals.`]);
-  for(const id of declared){
-    const entry=setup.filaments?.[id],tool=entry?.tool??setup.tool;
-    const nozzleMm=tool===setup.tool?setup.nozzleMm:setup.bambu.otherNozzleMm;
-    const p={...process,...entry?.process};
-    const ams=entry?.source?.type==='ams'?{unit:entry.source.unit,slot:entry.source.slot}:
-      entry?.source?.type==='external'?null:id===setup.filament?setup.ams:null;
-    const source=entry?.source?.type==='external'?'External spool':entry?.source?.type==='ams-ht'?`Requested AMS HT ${entry.source.unit}`:ams?`Requested AMS ${ams.unit}, slot ${ams.slot}`:'Automatic material/colour matching';
-    result.push([`Filament ${id+1}`,`${machine.tools.find(t=>t.index===tool)?.label??`Tool ${tool}`} · ${nozzleMm} mm nozzle · ${setup.material} ${entry?.colour??setup.filamentColor??''} · ${entry?.nozzleC??setup.nozzleC}°C · ${source}`],
-      [`Filament ${id+1} · Process`,`${p.lineWidthMm} mm bead · ${p.layerMm} mm layers`]);
-  }
-  return result;
 }
 // Package totals, layer lists and thumbnails come from what the body writer
 // wrote; the body is never read back.
 function exportBambu(path,plan,machine,release,Export){
   const output=configuration(plan,machine);
-  const filamentSequence=[plan.setup.filament,...path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament)];
+  const filamentSequence=[plan.setup.filament];
+  for(const action of path.actions)if(action.kind==='toolChange')filamentSequence.push(action.filament);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
   const {body,segments}=exportBambuBody(path,plan,machine,Export);
   const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0,untimedMoves=0;

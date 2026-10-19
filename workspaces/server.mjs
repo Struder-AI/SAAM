@@ -1,3 +1,4 @@
+import * as dimensions from '../core/dimensions.mjs';
 import {createServer} from 'node:http';
 import {readFile,mkdir,open,rm} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
@@ -6,7 +7,7 @@ import {replaceFile} from '../core/file-write.mjs';
 import {computationWorker,workerMemoryError} from '../core/print/computation-job.mjs';
 import {recoverWorkspaceExport,currentWorkspaceExport,lockWorkspaceExport,beginWorkspaceExport,publishWorkspaceExport,finishWorkspaceExport,retireWorkspaceExport,workspaceExportPath} from './export-publication.mjs';
 import {loadWorkspaceRuntime,requireWorkspaceCurrent,workspacePieces} from '../core/extensions/workspaces.mjs';
-import {relativeExtensionFile} from '../core/extensions/library.mjs';
+import {readExtension,relativeExtensionFile} from '../core/extensions/library.mjs';
 
 const contentTypes={'.html':'text/html','.css':'text/css','.mjs':'text/javascript','.js':'text/javascript','.json':'application/json','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.woff2':'font/woff2'};
 
@@ -126,6 +127,10 @@ export async function startWorkspace({extensionId,port=0,directory,appRoot,dataR
           return send(res,await createBundles(request.design),202);
         }
         if(req.method!=='GET')return send(res,{error:'Not found'},404);
+        if(url.pathname==='/_saam/dimensions.mjs'){
+          res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});
+          return res.end(Object.entries(dimensions).map(([name,value])=>'export const '+name+'=Object.freeze('+JSON.stringify(value)+');').join('\n'));
+        }
         if(url.pathname==='/_saam/workspace.mjs'){
           res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'no-store'});return res.end(await readFile(new URL('./client.mjs',import.meta.url)));
         }

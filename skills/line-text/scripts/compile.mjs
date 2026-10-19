@@ -1,7 +1,13 @@
-import {chainStrokes, layoutText, strokeBounds, translateStrokes} from './layout.mjs';
-import {JOIN_FRACTION} from './measure.mjs';
-import {planLineText} from './plan.mjs';
-import {PRINT_RESOLUTION_MM} from './strokefont.mjs';
+
+export function createTextCompiler(Geometry,layout,measure,plan){
+const {PRINT_RESOLUTION_MM}=Geometry.dimensions;
+const {chainStrokes,layoutText,strokeBounds,translateStrokes}=layout;
+const {JOIN_FRACTION}=measure;
+const {planLineText}=plan;
+
+
+
+
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 const round = v => Math.round(v * 1000) / 1000;
@@ -24,7 +30,7 @@ function nearestOnStroke(p, stroke) {
 // short of another stroke of its own glyph is extended onto it. Only gaps up to
 // toleranceMm are closed; the bundled fonts have no gaps between 0.03 and 0.04 of
 // cap height, so this tolerance separates drawing imprecision from a real gap.
-export function snapJunctions(strokes, toleranceMm) {
+function snapJunctions(strokes, toleranceMm) {
   const byGlyph = new Map();
   for (const s of strokes) { const k = glyphKey(s); if (!byGlyph.has(k)) byGlyph.set(k, []); byGlyph.get(k).push(s); }
   return strokes.map(s => {
@@ -45,7 +51,7 @@ export function snapJunctions(strokes, toleranceMm) {
 // A mark a bead would fully cover is a dot, not a loop: a closed stroke no wider
 // than twice the bead collapses to its center, and a dot already inside a neighbor's
 // bead is dropped (EMS Invite's M carries one such stray point).
-export function collapseMarks(strokes, widthMm) {
+function collapseMarks(strokes, widthMm) {
   const collapsed = strokes.map(s => {
     if (!s.closed) return s;
     const b = strokeBounds([s]);
@@ -61,7 +67,7 @@ export function collapseMarks(strokes, widthMm) {
 const lengthOf = s => segments(s.points, s.closed).reduce((sum, [a, b]) => sum + Math.hypot(b[0] - a[0], b[1] - a[1]), 0);
 
 // Word to explicit Trace centerlines, each carrying one bead.
-export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, layers = 2, layerMm = .2, firstLayerMm = layerMm, id = 'text', letterSpacingMm = 0, align = 'left', chain = true, onInfeasible = 'reduce',strokeTopology}) {
+function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, layers = 2, layerMm = .2, firstLayerMm = layerMm, id = 'text', letterSpacingMm = 0, align = 'left', chain = true, onInfeasible = 'reduce',strokeTopology}) {
   requireThat(Number.isInteger(layers) && layers >= 1, 'layers must be a positive integer.');
   const plan = planLineText({font, text, heightMm, weight, stemRatio, beadRangeMm, onInfeasible,strokeTopology});
   requireThat(plan.feasible, plan.warnings.at(-1));
@@ -88,4 +94,7 @@ export function lineText({font, text, heightMm, weight, stemRatio, beadRangeMm, 
       ...(laid.missing.length ? {notes: [`Font ${font.id} has no glyph for ${laid.missing.map(c => JSON.stringify(c)).join(', ')}; left out.`]} : {})
     }
   };
+}
+
+return {snapJunctions,collapseMarks,lineText};
 }

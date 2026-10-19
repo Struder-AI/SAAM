@@ -1,4 +1,4 @@
-import {distance,requireThat} from '../private/toolpath/numeric.mjs';
+import {requireThat} from '../private/toolpath/numeric.mjs';
 import {ROUNDING_RELATIVE} from '../dimensions.mjs';
 
 
@@ -17,21 +17,15 @@ export function spiralHeight(profile,turn){
   return turn<=1?profile.startMm:Math.min(profile.endMm,profile.startMm+(turn-1)*profile.pitchMm);
 }
 
-// Mapped samples and their unwrapped turns determine gaps and cooling speed.
+// Mapped samples and their unwrapped turns determine bead gaps.
 // This returns a curve, not deposited volume, and never selects a skill.
-export function spiralBeadCurve({profile,points,turns,role='spiral',speedMmS,minimumTurnSeconds=0}){
+export function spiralBeadCurve({profile,points,turns,role='spiral',speedMmS}){
   requireThat(points.length===turns.length&&points.length>=2&&turns.every((t,i)=>Number.isFinite(t)&&(!i||t>turns[i-1])),
     'A spiral needs matching mapped points and increasing turn coordinates.');
-  const lengths=points.slice(1).map((p,i)=>distance(points[i],p)),turnLengths=new Map();
-  for(let i=0;i<lengths.length;i++){
-    const turn=Math.floor((turns[i]+turns[i+1])/2);turnLengths.set(turn,(turnLengths.get(turn)??0)+lengths[i]);
-  }
-  const complete=[...turnLengths].filter(([turn])=>turn+1<=profile.turns+ROUNDING_RELATIVE).map(([,length])=>length);
-  const speed=Math.min(speedMmS,minimumTurnSeconds>0?Math.min(...complete)/minimumTurnSeconds:Infinity);
-  const heightsMm=lengths.map((length,i)=>{
+  const heightsMm=points.slice(1).map((_,i)=>{
     const mid=(turns[i]+turns[i+1])/2;
     return turns[i+1]<=1+ROUNDING_RELATIVE?profile.firstHeightMm:spiralHeight(profile,mid)-spiralHeight(profile,mid-1);
   });
-  return {role,closed:false,points,heightsMm,speedMmS:speed,
+  return {role,closed:false,points,heightsMm,speedMmS,
     segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(t<=1+ROUNDING_RELATIVE?{contactRole:'foundation'}:{}),...(profile.levelEnd&&turns[i]>=profile.risingTurns-ROUNDING_RELATIVE?{boundaryRole:'rim'}:{})}))};
 }

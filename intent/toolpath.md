@@ -25,9 +25,9 @@ Sources: [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) (agent wording
 
 Summary: Trace deposits along curves; surface producers supply curves and their coordinate references. Geometry stores Trace curves and Inject points; solid-free bundles can show them before generation, with auxiliary geometry hidden when appropriate (owner approval, 2026-10-12).
 
-[Breakaway bridge supports](../skills/bridge-supports/SKILL.md) interpolate matched control nets between selected base and landing curves, open or closed, into ordinary Trace. Bases may be on the bed or printed material. Part edges receive an outward half-bead ribbon before interpolation; the factor is code-tunable, not agent-facing. Requested average layer height determines divisions. Dependencies name the actual supporting base and later bridge, allowing support and part to advance together. Membranes remain ordinary Slice guidance; stepped reduction is excluded.
+[Breakaway bridge supports](../skills/bridge-supports/SKILL.md) interpolate matched control nets between selected base and landing curves, open or closed, into ordinary Trace. Bases may be on the bed or printed material. Part edges receive an outward half-bead ribbon before interpolation; the factor is code-tunable, not agent-facing. Requested average layer height determines divisions. Dependencies name the actual supporting base and later bridge, allowing support and part to advance together. Membrane and bridging share printed-edge straight spans. Waves interpolate from a printed base to a final geometric edge; stepped reduction masks ordinary native slices.
 
-[Heat-set reinforcement](../skills/heat-set-inserts/SKILL.md) keeps Boolean bore walls from the main Slice. Trace adds walls to reach max(4,N+1), with the star in the final added wall. Fixed fin sheets intersect actual inherited layers; physical offsets and every boundary's wall band clip their curves. Added walls/fins overlap unchanged main infill. Blind pads exclude existing dense coverage. Each heat Trace follows its main layer before its successor.
+[Heat-set reinforcement](../skills/heat-set-inserts/SKILL.md) keeps Boolean bore walls from the main Slice. Trace adds walls to reach max(4,N+1), with the star in the final added wall. Fixed fin sheets intersect actual inherited layers; physical offsets and every boundary's wall band clip their curves. Added walls/fins overlap unchanged main infill. Blind pads exclude existing dense coverage. Reinforcement joins its native slice completion; the successor waits for both, with no main-layer barrier.
 
 Sources: Codex 01a0f65b; [Extensions](extensions.md#advanced-vase-is-an-extension); owner, 2026-10-03 (Codex 01a102ba, 18:25/18:32 UTC), on curve/point geometry and visibility; owner, 2026-10-12: "That statement seems fine."; owner, Codex 01a1324b, 2026-10-12/13, control-point supports, edge contacts and fixed-fin/shared-layer reinforcement.
 
@@ -69,14 +69,16 @@ Sources: Codex 01a0ff63 03:42-04:55; Codex 01a102a0 17:14; Claude 98e25b54 15:40
 >
 > "I don't feel like we've seen eye-to-eye yet on slab under skin. After restart, you should explain to me in more depth what is going on there." — owner, 2026-10-05 (Claude 98e25b54 15:43)
 
-Summary: operations that do the same thing share one wiring. **Owner question pending**: no dedicated slab-under-skin mechanism exists (a slab and a draped skin are ordinary Slice assignments); the explanation the owner asked for is not recorded.
+Summary: equivalent operations share one wiring. Owner clarification, 2026-10-17: standard support is an independent solid and ordinary Slice, with common manufactured-contact readiness; the part owns its underside. Membrane and bridging share edge construction. Draped skin is removed.
 
 Sources: [0.3.3 "One wiring for slab-under-skin"](../plans/0.3.3.md) (retired); `.local/team/questions.md` (after-restart note).
 
 ## Overlapping material regions
 > "Forget the slice stack crossing check, get rid of it entirely. Just let overlapping material regions co-exist (don't bother even reporting), since we are about to fix it in 0.4.0 anyway. And it should never happen anyway, that would be an agent error already. And now the agent gets an image, so even if it does happen, the image will probably catch it, or the user will see it. Make sure you fully remove all signs of the overlapping material regions checks, and all current intent OTHER THAN the plan in 0.4.0. I don't want this coming back to life until 0.4.0." — owner, 2026-10-11, on audit item G22
 
-Summary: overlapping slice and material claims co-exist, each assignment printing its own claimed region; shared ownership is 0.4.0 intent.
+Owner, 2026-10-16: "We need to remove our support of using them by maker and builder agents. Developer agents can use, to keep working on them."
+
+Summary: shared-material overlap/interlocking is developer-only research; [maker and builder work](../MAKERS.md#toolpaths) uses disjoint or explicitly partitioned claims. Ordinary bead overlap is separate.
 
 Sources: [0.3.7 "Overlapping material regions"](../plans/0.3.7.md); [0.4.0 "Material overlap and shared ownership"](../plans/0.4.0.md) (agent wording).
 
@@ -111,11 +113,11 @@ Sources: [D-032](../DECISIONS.md#d-032--separate-standard-and-advanced-vase-mode
 
 Owner, 2026-10-14: "It should determine what is underneath (not just vertical, a cladding side wall would be underneath the next one, for example), it should determine what lines/operations would block the subsequent printing of others, instead of making the agent figure all that out beforehand." "Note that we are only considering nozzle, we don't check carriage collisions yet." "It needs to be agnostic to z direction, so it can support multi-axis printers." Implementation authorized: "Good, do it." Temporary nozzle: "It doesn't matter. Effectively infinite. The machine can't ever pass under existing material." Then: "let's change the default tip so it's a sharp cone instead, maybe 15 degrees."
 
-Owner clarification, 2026-10-14: "overlapping lines is fine - as in the heat set reinforcement fins. Only if the *nozzle* intersects with an existing line is there a problem (and there should be a small forgiveness margin)." Margin: "It should be much higher, maybe .1mm".
+Owner clarification, 2026-10-14: "overlapping lines is fine - as in the heat set reinforcement fins. Only if the *nozzle* intersects with an existing line is there a problem (and there should be a small forgiveness margin)." Margin: "It should be much higher, maybe .1mm". Owner, 2026-10-16: "No, if it's hitting the boundary we clearly need a .2 forgiveness".
 
-Summary: scheduling infers local substrate and nozzle-access ordering, combines it with explicit process dependencies and interleaves interruptible courses in arbitrary orientations. Deposition overlap is allowed. The default nozzle is an effectively infinite sharp cone (agent interpretation: 15-degree included angle), with 0.1 mm surface forgiveness. Carriage collision avoidance and thermal optimization remain deferred. The [scheduling manual](../core/path/README.md) owns the implementation contract.
-
-Sources: [D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent); [0.4.0 scheduling, collision and thermal rows](../plans/0.4.0.md).
+Owner, 2026-10-17: "But just because a slice in a stack has a dependency, doesn't mean it prints right after the dependency. That's where the scheduler comes in." Implementation authorized: "Okay, start work, set the goal, don't stop until this intention is implemented."
+Summary (agent wording, approved 2026-10-17): construction publishes valid deposition and minimal prerequisites; ordered slices require their immediate predecessor, and manufactured-surface consumers require their exact base. Scheduling preserves those requirements, resolves external interference and ranks ready work by cooling/entry preferences. Export realizes physical travel and selected-nozzle access. The [scheduling manual](../core/path/README.md) owns the contract; carriage collisions, cooling dwell and slowdown remain deferred.
+Sources: [D-026](../DECISIONS.md#d-026--closest-region-entry-first-defer-heat-considerations); [0.2.0](../plans/0.2.0.md#settled-intent); [0.3.9](../plans/0.3.9.md); [0.4.0](../plans/0.4.0.md); Codex 01a14aa3, 2026-10-17.
 
 ## Recommended values are not limits
 > "0.3 is an arbitrary limit for no good reason, don't follow it, and change the guidance so it's "suggested for standard printing" or something rather than being presented as an actual limit." — owner, 2026-10-03 (Codex 01a0ff8a 02:20)

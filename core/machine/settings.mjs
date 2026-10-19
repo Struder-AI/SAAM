@@ -1,3 +1,4 @@
+import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 // Reusable machine/material/installation settings. Consumers keep selected
 // snapshots; reading a bundle never consults this store. The owner supplies the
 // store folder (`machineSetups`); without one, nothing is remembered or recalled.
@@ -6,6 +7,7 @@ import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
 import {replaceFile} from '../private/settings/file-write.mjs';
+import {DEFAULT_MINIMUM_BRIDGE_RATIO} from '../path/process-controls.mjs';
 
 const setupFor=(machineSetups,machine)=>resolve(machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
@@ -61,12 +63,12 @@ export function settingsDefaults(machine){
     setup:structuredClone(machine?.defaultSetup??GENERIC_SETUP),
     process:{
       lineWidthMm:0.4,
-      planarWallToleranceMm:machine?.planarWallToleranceMm??0.01,
+      planarWallToleranceMm:machine?.planarWallToleranceMm??CONSTRUCTION_TOLERANCE_MM,
       planarSpeedMmS:20,skinSpeedMmS:10,firstLayerSpeedMmS:12,travelSpeedMmS:60,zSpeedMmS:5,
       retractMm:6.5,retractSpeedMmS:25,liftMm:1,maxCombMm:6,
-      fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,
+      fanPercent:100,maxFlowMm3S:4,minimumLayerSeconds:6,minimumBridgeRatio:DEFAULT_MINIMUM_BRIDGE_RATIO,
       experimentalDeposition:false,primeLine:null,clearanceResponsibility:'operator',
-      clearanceNote:'No collision model is implemented; the operator owns physical clearance.',
+      clearanceNote:'Nozzle clearance uses the saved geometry envelope; carriage, fixtures and physical qualification remain the operator’s responsibility.',
       ...structuredClone(machine?.defaultProcess??{}),firstLayerMm:0.2,layerMm:0.2
     },
     output:machine?.outputs[0].id??null
@@ -129,10 +131,9 @@ export async function withMachineSetupExport(machineSetups,machine,action){
 
 // Material is not machine: the print's material settings stay across a machine change.
 const MATERIAL_FIELDS=['material','nozzleC','filament','filaments'];
-// A machine change selects setup and output; authored process and material
-// values stay, so the SAAMpath stays current. A remembered setup or the new
-// machine's defaults fill only what the print lacks. A placement left at the
-// previous default moves to the new bed's centre; a chosen one keeps its position.
+// A machine change preserves authored process/material values; Bundle rechecks
+// the schedule's nozzle dimensions. Remembered/default setup fills omissions.
+// Default placement follows the new bed; a chosen position stays.
 export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){
   const material=Object.fromEntries(MATERIAL_FIELDS.filter(key=>previous.setup?.[key]!==undefined).map(key=>[key,structuredClone(previous.setup[key])]));
   const setup=previousMachine?{...settings.setup,...material}:{...settings.setup,...previous.setup};

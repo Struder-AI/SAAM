@@ -1,186 +1,132 @@
-# Skill composition and travel
+# SAAMpath and scheduling
 
-Operation contracts, scheduling, shared motion state and travel over deposited
-material. [Material regions](../region/README.md#material-ownership-and-surface-contact)
-define ownership and interfaces; [print lifecycle](../print/README.md) owns plan
-locking, generation and review.
+Contract **SP2, updated 2026-10-17** owns the compact source, execution and reader shipped in 0.3.9.
 
-## Skill-result composition
+## Ownership and pipeline
 
-Material regions resolves claims upstream; Application prepares work dependencies.
-Extensions read prepared geometry/material intent and name work prerequisites.
-Toolpath constructs Slice, Trace and Inject, applies Modulation, and freezes
-stroke order, poses and connections; core lowers work prerequisites to emitted IDs.
-Bundle saves this completed SAAMpath operation graph; Scheduling reads it to
-choose execution order and add travel, retraction, cooling and finishing.
-Exporters add machine startup and service motions.
+Geometry owns numerical shapes, evaluation and conservative bounds. Material regions prepares claims; interlock cadence is developer-only research.
+Toolpath finalizes deposition, minimal manufacturing prerequisites and internal access validity. Bundle stores immutable source once. Scheduling chooses ready work and endpoint transfers; Export realizes selected-machine access, routes and axes. Studio and exporters share the numerical reader.
+Native layers are producer records; no stage reconstructs them or treats their surfaces as solid. Regular native curves survive process edits. Native witnesses and certified surface mappings retain NURBS. Sampled fits require whole-interval position bounds, positive speed and a constant material plane; their budget is at most five print-resolution units and 1/80 of each deposited dimension. Unproved frames retain samples. Serialized size selects storage; `summary.compaction` records bounds.
 
-`planOperationEntry` applies context, selection and the operation's resolved `process`;
-`planPreparedOperation` emits strokes/ending/cooling and restores material defaults.
-Retraction debt retains its amount and speed across process changes. Travel
-follows the nozzle-clear route. Zero `retractMm`
-prevents new withdrawal. `planningPath` assembles deltas; `contextualActions` streams
-labels including `layerId` (reset first, null clears), moves, speeds and gap samples.
+## Stored deposition: `saampath/2`
 
-Slice can emit derived poses: `toolPose:{}` stays upright along print Z;
-`{alignToSliceNormal:true}` follows its normal. The `tilt` field channel modulates
-either baseline. Omitted pose output keeps ordinary three-axis motion. A pose is
-`{toolAxis, toolUp}` in the part frame, an internal result, not a recipe input
-(an older path's `rotaryDeg` is ignored); machine axes come from the machine's
-kinematics. Entry, reorientation, cooling, parking and finishing use the deposited
-scene and tool axis. The path's `planning` may supply `start` and
-`motion:{initialPose,retreatMm}`; default entry retreats from its first stroke.
-Axis speed limits belong downstream; turns in place use the machine's rate.
+Records contain finite serializable numbers in the part frame (mm, seconds, mm3). Tables use opaque nonempty string IDs, stable within one Bundle path identity; they never encode surface JSON.
+Source tables are `curves`, `layers`, `surfaces`, `processes`, `operations` and `completions`, with `manufacturing`, `planning`, `summary` and optional provenance/generator metadata.
 
-Toolpath's private results contain operations and reports. Each saved operation
-has a unique `id`, `layerId`, numeric `rank`, exact `after` prerequisites,
-resolved process/material selection, and finalized strokes. Rank is a scheduling
-coordinate, not universally Z. Strokes hold XYZ points, speed, role, poses and
-uniform bead area or per-segment volume/metadata. Closed loops have an explicit
-closing edge. Independent strokes can interleave; declared continuous courses
-remain atomic. Toolpath emits no travel callbacks. Scheduling prepares its own
-indexes and travel queries from finalized beads and poses. Construction-local
-`connectNearby` requests are resolved into depositing strokes before publication.
+- A curve is `{geometry, profiles}`. Geometry is `{kind:'polyline',points}`,
+  `{kind:'nurbs',degree,knots,controlPoints,weights?}`, or `{kind:'point',point}`.
+  NURBS use Geometry's existing positive-weight, full-knot representation.
+  Closing edges are explicit. Curves are continuous; disconnected spans are
+  separate curves. Point curves serve orientation-only travel, never moving extrusion.
+- Parameter `u` is immutable on `[0,1]`: cumulative chord length for a polyline;
+  normalized active knot domain for NURBS; elapsed interpolation for a point.
+  Splitting a traversal never renormalizes the source or its profiles.
+- `profiles` holds `widthMm`, `speedMmS`, `materialNormal`, `pose`, and `material`.
+  Width/speed are constants or `{interpolation:'step'|'linear',knots:[[u,value],...]}`.
+  Normals are unit vectors or keyed profiles with `interpolation:'slerp'`.
+  Poses are `{toolAxis,toolUp}` or keyed profiles with `interpolation:'frame'`.
+  Frame interpolation uses Geometry's existing shortest rigid-frame interpolation,
+  retaining roll. Antipodal normal keys require an authored intermediate direction.
+  Publication removes redundant width/feed/frame keys and compacts generated normal/material fields with continuous interval proofs, preserving roll, exact course totals and zero-material intervals. Connected atomic or explicitly required consecutive courses share width/feed/frame endpoints over one bead width, capped at half each course.
+- Keys strictly increase, include 0 and 1, and cover the domain. Step values are
+  right-continuous except at 1; callers can request a knot's left limit.
+  Deposition requires positive width and an explicit material normal. Toolpath
+  resolves ordinary three-axis poses explicitly; `materialNormal` never implies pose.
+  Optional normal alignment uses a canonical up direction; only an explicit
+  producer `referenceAlong` requests roll from a reference frame.
+  Travel can omit width, normal and material, but always supplies pose and speed.
+- Material has one authority: `{kind:'area',areaMm2:profile}` integrates nonnegative area against arc length;
+  `{kind:'cumulative',interpolation:'monotone',knots:[[u,totalMm3],...]}` retains every stored total and interpolates monotone C1 volume. Omitted interpolation retains older linear meaning.
+  One prepared law supplies point rates, interval bounds and stable local integration; never subtract nearly equal evaluated totals. Local area is dV/ds.
+  Positive volume on zero length or unbounded density is invalid. No separate height or segment-volume authority.
+- A layer is `{stackId,index,sequence,surfaceId,completionId}`: Slice's native identity and declared sequence position, including adjusted shared-material layers. Each completion lists only its immediate predecessor. Neither index nor rank means world Z. `surfaces` retains Geometry references once. Trace has `layerId:null`, including when it uses a Slice chart; reference and manufacturing membership are distinct.
+- A moving operation is `{id,kind:'deposit',layerId,processId,filament,after,
+  interruptible,courses,...}`. Each course is `{id,curveId,from,to,interruptible,
+  role?,provenance?,after?,orderGroup?,directionRequired?,seamRequired?}`, with `0 <= from < to <= 1`. Course IDs are source-wide unique.
+  Each whole course is initially one scheduling unit; vertices and profile keys
+  do not create execution boundaries. Curves/profile data are referenced, never copied into refinements.
+  `processes` deduplicates the existing resolved process records; `planning`
+  retains defaults, explicit start and motion settings. `process.minimumBridgeRatio` (0..1, default 0.8) qualifies unsupported gaps by straight contact-to-contact distance / original curve length; assignment and material overrides inherit normally.
+- Operation `after` names operations or completion IDs; course `after` names source-wide courses.
+  Every prerequisite finishes before its consumer starts. Completion records `{kind,members,after}` retain required work without expanding its courses; assignment completion uses terminal work. Recipe selectors `{assignment,index?,part?}` resolve to exact producer/slice completion. `substrate` attaches an independently selected manufactured base. Manufactured slice/exterior references derive their actual slice or stack prerequisites from nominal material frontiers; independent geometry charts leave them empty. Finite support contacts constrain only touched slices. Continuous walls advertise their owned frontier, with only a terminal boundary for open patterns. Construction lowers local curve names/parallel expansions and removes transitively implied prerequisites.
+  Consecutive courses sharing `orderGroup` form a soft traversal chunk; internal requirements survive splitting. Slice retains uninterrupted fill cells; splits/merges end cells. Scheduling chooses permitted entry/reversal and transfer endpoints, opening implicated courses for external interference. Later cuts preserve those openings. Group names impose no hard precedence.
+  `interruptible:false` makes an operation or course atomic. Otherwise pieces may interleave/reorder subject to physical/declared constraints. `directionRequired:false` permits reversal; `seamRequired:false` permits cyclic entry changes on interruptible closed courses. Material and poses retain their source locations. A required seam stays first even after refinement. Producers declare permitted directions/seams; ordinary Slice normally frees both. Causal fronts, Trace and atomic/continuous work retain authored requirements.
+- A stationary operation has `kind:'inject'`, no courses, and
+  `injection:{at,pose,volumeMm3,flowMm3S,holdSeconds}`. Existing `requiredMaterial`,
+  occupied geometry, process selection and scoped `nozzleC`/`restoreNozzleC` retain their meanings. Injection is atomic. Construction binds enclosure volumes to owned slices independently of other consumers. Scheduling requires those completions when clear and inspects material ranges for closure conflicts; empty native scopes discover unlayered providers. Unbound Trace work has no preparation waits; explicit contact sources select their own producer. A shared material/access event is an irreducible cycle.
 
-[Wave overhangs](../../skills/wave-overhangs/SKILL.md) publish one atomic operation
-and one continuous stroke per accepted spline slice. A slice is the cooling unit;
-there is no interleaving, retraction or travel between its fronts. Whole-component
-seed and successor dependencies bind through the same composer, with slices in
-array order. The producer rejects geometry requiring disconnected passes.
-Material ownership is explicit; fronts do not publish a finished surface chart.
+## Stored execution: `saam-schedule/1`
 
-`core/path/compose.mjs` schedules the saved deposition through one geometric
-ordering operation. Independent strokes can interleave; continuous courses stay
-atomic. Connector chains retain order but split at stroke boundaries when grouping
-causes a conflict. Original IDs own motion context and process prerequisites;
-course IDs identify execution. Construction references remain separate.
+`schedulePath(deposition,{sourcePathId,onProgress?})` returns `{schema:'saam-schedule/1',sourcePathId,initialPosition,initialPose,motionCurves,execution,summary,completion}` without Bundle I/O or machine selection. Neutral `completion.transfers:'intent'` identifies endpoint connections, not collision-cleared physical routes.
+Source and schedule join as `{sourcePathId,deposition,schedule}`; mismatched identity fails. Export uses the same solver with actual nozzle dimensions, realizes transfers against deposited prefixes and saves a separate `transfers:'resolved'` schedule with the program. Studio reopens that output's saved execution; machine changes retain unchanged neutral source and schedule.
 
-[physical-order.mjs](./physical-order.mjs) derives local substrate contacts and swept-nozzle
-prerequisites. [precedence.mjs](./precedence.mjs) omits checks already implied by
-substrate or explicit process order; reported edges are sufficient constraints,
-not every contact. Its bounded dense cache falls back to exact per-source search.
-Geometry's [convex-clearance.mjs](../geom/convex-clearance.mjs) owns convex queries,
-slice-partitioned spatial indexing and continuous sweeps. Proven order filters whole slices;
-one confirmed witness proves each relationship. Rotating hull candidates refine
-until exact cones intersect or smaller hulls separate, without extra forgiveness.
-Bead normals and tool poses supply directions, with no world-Z ordering. Ready
-work favors nearby entries and small pose changes. Explicit `composition.order`,
-`composition.dependencies` and operation `after` remain prerequisites. Conflicts
-name affected courses and relationships; indivisible self-obstruction needs a path
-change or interruptible boundary. Known cycles are reported before nozzle scans.
+`execution` is ordered data. `{kind:'deposit',courseId,from,to,reverse?}` references a source subset; bounds stay increasing, and `reverse:true` traverses from `to` to `from` with positive material. `{kind:'travel',curveId,from,to,durationSeconds?}`
+references `motionCurves`, using the same curve/profile representation.
+`{kind:'inject',operationId}` references its source injection. Fan, temperature,
+toolChange, dwell and context retain their action fields and delta semantics; resolved machine execution adds retract/recover. Context labels source operations, layers and provenance; it cannot override material or pose profiles. Travel has zero deposited volume.
+Optional travel duration preserves timed rotation; otherwise machine rate applies. Each moving source course is covered exactly once, without gaps or duplicated volume; scheduler cuts coalesce or move within print resolution and all contacts are re-solved; each injection executes once. A failed solve produces a finding, never
+a partially successful schedule or unchecked fallback motion.
 
-The temporary nozzle is an effectively infinite sharp cone: 15-degree included
-angle (7.5-degree half-angle), with numerical length beyond the scene. A 0.1 mm
-surface forgiveness permits small contact; deposited lines may overlap.
-Carriage, fixtures, joints, gravity, fusion and unsupported-span printability are
-outside this model; no supports are added. Moving beads supply occupancy; stationary injection needs authored occupied
-geometry to supply substrate or obstacle volume.
+## Shared numerical reader
 
-Execution retains material selection, retraction and per-layer cooling debt across
-interleaving. Actual beads, including connectors and modulation, supply occupancy;
-sparse strands remain separate, with no saved travel-height snapshots.
+Toolpath owns `core/path/curve-path.mjs`; deterministic queries can memoize privately without mutating source.
 
-An assembly's `geometry.parts` holds named components with `geometry` and
-`xMm/yMm/zMm` translations; native geometry preserves each component's representation.
-A slice assignment's `part` selects its component (`null` means all), producing
-one owner per component. A roof surface-domain assignment selects its assembly component through the same part field. Assemblies accept supported spline builders
-and validated meshes; they are not automatic boolean solids. Assign regions
-and geometry deliberately; component selection is part of the reviewed recipe.
+| Export | Result and semantics |
+|---|---|
+| `prepareCurvePath({curves})` | Admitted curve-table/query handle (a source can be passed directly); no eager whole-path tessellation. |
+| `curveAt(handle,curveId,u,{side='right'}={})` | `{point,tangent,pose,widthMm,speedMmS,materialNormal,areaMm2}`; absent travel channels stay absent; tangent is null only at a singularity/point. |
+| `curveRange(handle,curveId,from,to,options={})` | Conservative `{bounds:{min,max},lengthMm:[lo,hi],volumeMm3:[lo,hi],widthMm:[lo,hi],areaMm2:[lo,hi],tangentCone,chordErrorMm,normalCone,poseCone,breaks}`. Missing travel channels stay absent. |
+| `curveHasLength(handle,curveId,from,to,minimumMm)` | Geometry proves a minimum physical length without a complete integral; rounding-sized uncertainty conservatively returns false. |
+| `curveParameterAtLength(handle,curveId,from,to,distanceMm,{fromEnd=false,toleranceMm}={})` | Source parameter at physical distance, certified by Geometry; defaults to rounding accuracy. |
+| `curveClosestParameter(handle,curveId,from,to,point,{toleranceMm}={})` | Source parameter nearest a point within the requested distance accuracy; Geometry owns projection/bounds. Geometry stays unchanged. |
+| `curveSpans(handle,curveId,from,to,options)` | Lazy iterable of bounded local spans, each `{from,to,start,end,range}`; endpoints are `curveAt` records, range is `curveRange`. |
+| `linearizePath(view,options)` | Lazy existing-style contextual action stream from the joined path, for consumers needing segments. Never the persisted authority. |
 
-[Standard vase](../../skills/vase-wall/SKILL.md) generates a sleeve curve for Trace; [advanced vase](../../skills/advanced-vase-wall/SKILL.md) supplies sleeve-
-mapped Trace batches. Both use shared bead construction and composition. Their
-manuals own fitting, sampling, explicit path and placement controls. A continuous operation
-cannot interleave with infill in the same height band; a planar successor needs
-a level terminal boundary. The sleeve is reference geometry, never an implicit
-wall, foundation or filled support sheet. Dependent contact uses finalized beads
-and explicit prerequisites, preserving the gaps in patterned material.
+Cones `{axis,halfAngleRad}` enclose regular tangents/normals (full sphere when unproved; null for a point). `chordErrorMm` bounds distance to the interval's endpoint segment;
+it does not assert linear timing. `poseCone:{reference,halfAngleRad}` bounds full SO(3) frame deviation, including roll.
+`breaks` lists interior vertices, knots and profile discontinuities. Position bounds include both endpoints; attribute bounds use the right limit at `from` and left limit at `to`. Overlapping bounds alone prove no collision.
+`curveRange` accepts positive `lengthToleranceMm` and absolute `volumeToleranceMm3` or relative `volumeToleranceRatio`; omission permits coarse bounds. Arc length spends one physical query budget, independent of knots.
+Views require positive `positionToleranceMm`, `orientationToleranceRad` and either volume tolerance. Defaults bound volume uncertainty to 0.1% of material, independent of job/course counts; authored cumulative material stays exact. Explicit absolute budgets bound the requested range/path total and take precedence. Position bounds chord deviation; orientation bounds full-frame interpolation. Reverse spans retain increasing source bounds. Nearby compatible boundaries may coalesce within physical tolerance; positive zero-length moves are invalid.
+Subdivision certifies convergent length/volume bounds; zero deposition stays exact.
+Shared numerical shapes belong to Geometry; path/material semantics stay here. Query resolution never changes identity, profiles or accumulated material. Serialization never rounds cuts into gaps.
+Geometry/profile/material knots are query information, not compulsory output moves. Physical arc-length tolerance governs nearby view boundaries and material placement; provenance cannot force microscopic extrusion. Unknown movement is a precision finding, not proof of a singularity.
 
-## Finished surfaces
+## Scheduler obligations
 
-### Stationary deposition and operation temperature
+The final scheduler is one generic interleaving engine over immutable manufactured work. Its input is SAAMpath: finalized deposition geometry/material/poses, native stack membership, minimal producer-owned prerequisites and construction-validity declarations. Its output is an execution schedule referencing that source exactly once, with permitted splits, traversal choices, process transitions and endpoint transfer intent. It neither authors deposition nor repairs missing known manufacturing prerequisites.
 
-An operation can supply a one-point stroke with
-`stationaryExtrusion: {volumeMm3, flowMm3S, holdSeconds}`. Composition approaches
-through the same travel/retraction state, meters volume with a shared `extrude`
-action, holds, and accounts for it in layer cooling. It never encodes injection
-as a tiny XYZ move or as retraction recovery.
+Producers guarantee their internal construction and validity against their declared prerequisites and the required construction history; they publish every necessary prerequisite automatically. Neutral scheduling trusts those construction relationships and resolves only potentially interfering interactions outside their coverage. An arbitrary preference/order edge is not a construction guarantee. A native slice requires its immediate predecessor; this establishes readiness, not adjacency in execution. Known solid-exterior consumers select required slice/stack completions without inspecting deposition paths. Explicit printed-edge references select their named course completion. An empty prerequisite list imposes no producer-order constraint: scheduling determines feasible placement from actual work and geometry, without a discovery opt-in. It does not imply build-plate attachment or permission to print first.
 
-Optional `nozzleC` and required paired `restoreNozzleC` scope a nozzle temperature
-to an operation. The composer parks before changing temperature and before
-restoring it. [Process controls](./process-controls.mjs) own export temperature
-validation; machine adapters own command semantics. Current
-filament-axis G-code outputs support these actions; relay outputs reject them.
-[Plastic weld](../../skills/plastic-weld/SKILL.md) is their first producer.
+Scheduling ranks ready work by access, cooling and entry. It trusts producer validity and first tries whole slices/operations against their actual deposited prefix; future work need not be clear yet. Aggregate bounds also exclude impossible support contacts. Unproved interactions descend through producer/group bounds to implicated paths/intervals. Inconclusive bounds require inspection, not necessarily interleaving. Open a slice only when actual constraints require some before external work and some after; contracting it exposes a cycle. Cut an interruptible course only when that condition persists after allowed whole-course order/traversal choices. Hard prerequisites survive refinement; true event-level cycles fail. Vertex counts, world Z, cooling and producer/skill names cannot require splitting. Numerical subdivision creates no execution cuts. Trace and Inject share this proof hierarchy.
 
-Its cavity reservations remain open until all enclosing layers are complete.
-Injection prerequisites and cover-layer dependencies use the ordinary scheduler;
-explicit orders cannot bypass them. An atomic path that conflicts with that
-sequence needs a different region assignment or injection height.
+Manufacturing prerequisites remain hard. Access constraints must have actual geometric witnesses; overlapping bounds only request refinement. Splitting preserves geometry, material, poses, required direction/seam and exact source coverage. Unresolvable prerequisites, access or numerical precision produce a finding, never silently dropped dependencies or an unchecked schedule. Sparse gaps remain absent. [Bead qualification](bead-qualification.mjs) combines finite contact intervals wider than half the bead, using both section dimensions and local frames; cached geometry is discovered only as needed. Ready selection accepts sufficient available providers; only blocked aggregate ordering introduces supporting edges for refinement. Connected depositing courses share their actual contact anchors and bridge ratio; travel breaks a chain. Free ends have only a half-width allowance. Qualification retains all source geometry for subsequent checks. Cooling only ranks ready work.
 
-[finished-surface.mjs](./finished-surface.mjs) connects surface consumers to
-material producers without a skill-name allowlist in the consumer. A result's
-`finishedSurfaces` entries carry its native shell identity, material height
-extent, coverage description, a boundary-membership query and source operation
-IDs. `publishFinishedBoundary` returns a new result with shell, side and top
-boundary adapters, or accepts a producer's own membership query. Callers use
-that returned result; the incoming result and its operations are preserved. These are nominal design
-boundaries, not reconstructed bead textures or measured physical surfaces.
+Machine selection is not an input to neutral scheduling. Producers publish internal validity, native slice order and explicit prerequisites under `manufacturing.accessGeometry`; no generic construction certification reruns collision scheduling. The neutral model is 80° included / 0.9 mm flat, with the shared 0.2 mm forgiveness for motion and Inject. Scheduling resolves uncovered interference and enclosure requirements. Export reuses neutral order for contained tools and rechecks larger tools, then realizes physical transfers, reorientation and parking against deposited prefixes. Adapters own installation startup/priming, tool changes and axes. `process.primeLine` is an Export-only override in bed coordinates; an ordinary sacrificial Trace remains ordinary part work.
 
-The shared whole-component and regional adapters publish ordinary fill/infill,
-automatic vase walls and draped roofs. Vase side queries exclude the hollow
-center and cap; an unfinished spiral rim reduces the fully supplied side height.
-Mapped patterns retain their no-implicit-surface contract. Top queries
-respect the producing roof's slope limit. Sparse material retains its coverage
-classification and does not become a verified continuous support surface.
+There is no skill-specific scheduler, global layer-height ordering, inferred solid from a reference surface, geometry mutation or support generation here. Local material normals and explicit poses define access; parking follows the tool frame. Carriage and fixture collision remain outside the current nozzle/bead model. Sparse graphs and bounded evictable caches preserve correctness without arbitrary failure budgets.
 
-`consumeFinishedSurface` binds a selected native spline or mesh chart to the
-matching component's published boundaries. Chart samples must lie within a
-published extent and boundary, and the consumer inherits source operation
-dependencies. Slice stacks use normal-depth bands; physical cell fill supports
-open rows or periodic helices and it accepts a finished boundary regardless of which
-producer supplies it. This interface does not add chart unwrapping, arbitrary
-multi-patch routing, physical contact verification or a second scheduler.
+## Work ownership and migration acceptance
 
-## Line spacing
+One integrated workstream owns SP2 completion; there is no separate scheduler-task dependency. Scheduling owns ordering/execution, Toolpath owns publication/material/profile semantics, Bundle owns saved identity, and Geometry owns numerical shapes/frames. Keep these interfaces consolidated.
+Current source/completion contracts invalidate older generated paths; exact saved programs remain readable. This document owns the seam; Geometry owns numerical queries.
 
-[spacing.mjs](./spacing.mjs) derives nominal centerline pitch from bead width and
-one optional per-skill `spacingFactor`: a finite positive number, defaulting
-to `1`. Values below 1 intentionally overlap adjacent beads; values above 1
-leave space between them. Producers use that pitch for course placement and the actual bead width
-for cross section and segment volume. Agents never need to match independent
-pitch and extrusion settings. Plan validation checks regional overrides through
-the same contract.
+New writers use compact source/execution. One compatibility reader retains saved paths/programs; current scheduling requires regeneration. Preserve reviewed/exported snapshots and remove superseded routes, samplers and expanded persisted motion after migration.
+Verify native curves, faithful polyline fallback, varying material/poses, atomic
+chains, injections, process changes and shared-material native layers. Report
+source/schedule bytes separately, peak memory, CPU/wall time and refinement counts
+on pinned real and individually authored adversarial examples, including multi-axis
+versions. Independently verify continuous changing-pose motion; obtain human
+visual review when useful. Compression alone is not evidence of faster scheduling.
+Canonical bead/Studio geometry unification, shared-material redesign, map solving, cooling dwell and slowdown are separate work. Full suites require local-note approval.
 
-Ordinary and surface-stack Slice assignments implement it. Fill density divides the
-derived pitch. Slice loops retain the exterior contacting bead
-and space successive loops inward. Cladding uses its own factor for axial cells and helix pitch,
-while its substrate retains the settings of its producing patterns. Normal shell/layer separation is
-unchanged. Vase-wall's vertical spiral progression is outside this interface.
+## Retained construction interfaces
 
-Circular track counts and native surface metrics still fit local bead widths;
-cell width is divided by the factor before computing extrusion. Edge
-tapers use bead width, not widened pitch. Surface spacing remains sampled, with
-the periodic-cell field's sampled metric. Exporters own fixed-relay flow representation.
-The setting does not add a material profile or establish physical printability.
-
-Planar interiors with factors above 1 publish sparse coverage; spaced walls
-publish their individual bands. A spaced draped skin publishes only its final bead strips,
-so a successor cannot consume its gaps as a continuous material surface.
-Ordinary factor-1 recipes retain their existing deposition behavior.
-
-## Whole-plan travel requirement
-
-The same nozzle sweep governs printing precedence and transfers through material
-already deposited. Direct motion is used when clear. A blocked fixed-pose transfer
-retreats along the nozzle axis, crosses an exterior plane and approaches along
-that axis. Changing poses route around an enclosing sphere, with every segment
-checked over its continuously interpolated orientation. Exterior clearance grows
-when needed; no fixed search budget truncates a route. The current effectively
-infinite cone cannot pass beneath existing material.
-
-[planning.mjs](./planning.mjs) emits that solved route through ordinary travel,
-retraction and recovery actions. Upright moves retain ordinary three-axis output;
-posed moves retain orientation for multi-axis exporters. The scheduler owns the
-occupied-bead ledger and adds material after each course. Park, cooling and
-finishing withdraw along the current tool axis. The obsolete planar/height-field
-travel policies, footprint obstacle ledger and world-Z hop route are removed.
+[Finished surfaces](./finished-surface.mjs) retain nominal shell/coverage provenance. Manufactured prerequisites use completion identities; sparse patterns remain sparse material, including when their chart is used for placement. An assignment's `part` selects its named assembly component.
+[Spacing](./spacing.mjs) derives pitch from bead width times positive
+`spacingFactor` (default 1), divided by fill density where applicable. Actual width
+and normal gap determine material; overlap/spacing does not establish printability.
+[Process controls](./process-controls.mjs) retain scoped temperature validation;
+machine adapters own command semantics. Direct travel preserves pressure; routed
+travel retracts. Debt retains amount/speed through interleaving; zero retract
+prevents withdrawal. [Print lifecycle](../print/README.md) owns generation and review;
+[Material regions](../region/README.md) owns claims, cadence and surface contact.

@@ -8,7 +8,6 @@ import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { defaults } from '../print/plan.mjs';
-import {skinAssignment} from '../../skills/draped-skin/scripts/prepare.mjs';
 import {
   initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, exportReviewed,
   changeMachine, proposedPlan
@@ -21,10 +20,9 @@ import {splineBlock,splineBox} from './fixtures/spline-shapes.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
 const clone = value => structuredClone(value);
 
-// Small enough to slice quickly, still a spline top surface with a real skin.
+// A compact native solid for the review and exact-delivery workflow.
 function smallPlan() {
   const plan = defaults();
-  plan.slices.assignments.push(skinAssignment({id:'skin'}));
   plan.geometry = splineBlock({runMm:16,widthMm:12,heightsMm:[[3, 3, 3, 3], [3, 4, 4, 3], [3, 4, 4, 3], [3, 3, 3, 3]]});
   plan.process = { ...plan.process, minimumLayerSeconds: 0 };
   return plan;
@@ -76,24 +74,24 @@ test('a shell print stores native geometry as its named faces', async t => {
   assert.deepEqual(state.skills, ['slice']);
 });
 
-test('development generation of a shell print reports its roof domain', async t => {
+test('development and production generation retain reviewed neutral paths', async t => {
   const dir = await fixture(t);
   const checks = await generateBundle(dir, { development: true });
   assert.equal(checks.mode, 'development');
-  assert.equal(checks.surfaceDomain.maxSlopeDeg,90,'the default roof domain includes every upward-facing slope independently of machine');
-  assert.ok(Number.isFinite(checks.surfaceDomain.surfaceMaxSlopeDeg)&&checks.surfaceDomain.surfaceMaxSlopeDeg>0,'the authored roof slope is reported');
   assert.ok((await loadBundle(dir)).program);
   const production=await generateBundle(dir);assert.equal(production.mode,'production');
 });
 
-test('the reviewed export delivers the exact program bytes', async t => {
+test('the reviewed export returns repeatable bytes without storing a program', async t => {
   const dir = await fixture(t);
   await generateBundle(dir);
   const state = await loadBundle(dir, { program: 'source' });
   assert.ok(state.program && !state.programError);
   const delivered = await exportReviewed(state);
-  assert.match(delivered.file, /part\.gcode$/);
-  assert.deepEqual(await readFile(delivered.file), await readFile(resolve(dir,state.review.generation.file)));
+  assert.match(delivered.bytes.toString(),/G1/);
+  assert.deepEqual(delivered.bytes,(await exportReviewed(state)).bytes);
+  assert.equal(state.review.generation.file,undefined);
+  await assert.rejects(readFile(resolve(dir,'delivery/part.gcode')),{code:'ENOENT'});
 });
 
 test('reopening verifies the locked plan and detects a stale program', async t => {
@@ -160,14 +158,10 @@ test('remembered S5 setup carries into the next shell print without a firmware v
 
 test('selecting one skill still produces one program from one plan', async t => {
   const plan = smallPlan();
-  plan.slices.assignments=plan.slices.assignments.filter(a=>a.surface?.kind!=='roof');
   const dir = await fixture(t, plan);
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
   assert.deepEqual(state.skills, ['slice']);
-  const {pathPreview}=await import('../../studio/path-preview.mjs'),{readDrawnPath}=await import('../print/bundle.mjs');
-  assert.ok(!pathPreview(JSON.parse(await readDrawnPath(state))).moves.some(move => move.operation?.startsWith('skin:')), 'no skin is printed when it is not selected');
-  assert.equal(state.pathSummary.surfaceDomain, undefined);
 });
 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {

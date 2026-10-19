@@ -9,21 +9,17 @@ direction or simulate molten cavity filling. The ring remains at the commanded
 location afterward; the final CAD model still describes the intended finished
 part. Thermal wait time is not simulated.
 
-The [machine presentation contract](./KINEMATICS.md#implemented-consumer) owns
-the simple ghost overlay, Machine view, shared depth/compositing strategy and
-model-provider boundary. Its neutral palette and assembly bounds are separate
-from toolpath colors, bead detail and default part framing described below.
+The [machine contract](./KINEMATICS.md#implemented-consumer) owns ghost/Machine views and their providers. **Nozzle clearance** draws a fixed 6 mm length of the saved nozzle model: dashed nominal, orange after surface allowance, with dimensions and provenance. Legacy output uses the generic estimate. It follows playback/manual pose, persists per tab and appears in movies without changing collision rules or programs.
 
 ## Studio performance and display detail
 
-Studio times interactive redraws. A burst is one continuous orbit, pan, zoom or
-playback run; when it ends the browser posts a summary to
-`POST /api/view-performance`, and `GET /api/view-performance` returns the last 20
-from server memory. Each report carries frame spacing, main-thread draw time,
-material-pass time, per-quality-level timings, canvas size, the material
-renderer's draw statistics and the WebGL renderer string. A renderer named
-Microsoft Basic Render Driver, SwiftShader or llvmpipe means the browser is
-rasterizing on the CPU. Read these reports before instrumenting a page by hand.
+Studio decodes the saved source through the shared reader with display accuracy:
+at most 0.02 mm, line width / 20 and layer height / 10. This drawing budget never
+reaches source geometry or Export. Interactive orbit/pan/zoom/playback bursts post
+timings to `POST /api/view-performance`; GET returns the last 20 reports. They
+include frame spacing, main-thread/material-pass cost, quality levels, canvas size,
+draw statistics and WebGL renderer. Basic Render Driver, SwiftShader or llvmpipe
+indicate CPU rendering. Read these reports before instrumenting the page.
 
 While the toolpath view moves, motion quality follows the measured frame cost:
 above 50 ms it lowers the material render resolution (half, then a third with

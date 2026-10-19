@@ -55,24 +55,23 @@ export function hasUnpreparedEdit(requests=[],snapshot){
 }
 
 export function inspectionReceipt(request,view,{superseded=false}={}){
-  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed&&!request.inspectionSuperseded
     &&view?.ready&&!view.loading&&request.printId===view.printId&&request.inspectionTarget
     &&(request.inspectionTarget.revision===view.snapshot?.revision
       ?!request.inspectionTarget.stage||request.inspectionTarget.stage===view.snapshot?.stage
       :superseded&&Boolean(view.snapshot?.revision)));
 }
 export function inspectionFailure(request,view){
-  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed
+  return Boolean(request?.episode&&!request.workActive&&!request.handbackPending&&!request.inspectionPresented&&!request.inspectionFailed&&!request.inspectionSuperseded
     &&request.inspectionTarget&&view?.errorAt&&request.printId===view.printId
-    &&request.inspectionTarget.revision===view.snapshot?.revision
-    &&(!request.inspectionTarget.stage||request.inspectionTarget.stage===view.errorStage));
+    &&request.inspectionTarget.revision===view.snapshot?.revision);
 }
 export function summarizeWork(requests=[],{view}={}){
   const scoped=requests.filter(r=>r.episode&&(!view?.printId||r.printId===view.printId));
   const latest=scoped.reduce((value,r)=>Math.max(value,r.episodeStartedAt??r.createdAt),0);
   const relevant=scoped.filter(r=>(r.episodeStartedAt??r.createdAt)===latest);
-  const active=relevant.some(r=>r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!inspectionReceipt(r,view)&&!inspectionFailure(r,view));
+  const active=relevant.some(r=>r.workActive||r.handbackPending||r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!r.inspectionSuperseded&&!inspectionReceipt(r,view)&&!inspectionFailure(r,view));
   const failure=relevant.findLast(r=>['failed','cancelled'].includes(r.status)&&!r.workActive);
-  const inspectionTarget=relevant.findLast(r=>!r.workActive&&!r.handbackPending&&r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed)?.inspectionTarget??null;
+  const inspectionTarget=relevant.findLast(r=>!r.workActive&&!r.handbackPending&&r.inspectionTarget&&!r.inspectionPresented&&!r.inspectionFailed&&!r.inspectionSuperseded)?.inspectionTarget??null;
   return {active:Boolean(view?.loading||active),inspectionTarget,message:relevant.findLast(r=>r.inspectionFailed)?.inspectionFailed??failure?.message??'',stage:active?'all':view?.loading?(view.loadingStage??'all'):null};
 }

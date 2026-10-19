@@ -1,5 +1,10 @@
 # Bundle
 
+## Retained neutral work
+> "Bundle should not store exported gcode or other machine adapter code." — owner, 2026-10-18 (architecture audit follow-up)
+
+Summary: Bundle retains geometry, recipe, neutral SAAMpath, review snapshots and export receipts; Export produces transient machine bytes from the captured path/settings. This supersedes earlier program-retention descriptions. [Architecture decision](../docs/adr/0002-neutral-bundles-and-transient-export.md).
+
 The print bundle: the one shared part state, what it holds and what it serves. [Index](README.md)
 
 ## Bundle is the only shared part state
@@ -39,7 +44,7 @@ Sources: [0.3.3 "Bundle evidence and output diagnostics"](../plans/0.3.3.md).
 ## Old bundles update when work resumes
 > "Any stale bundles should be updated to new versions only at the point after the upgrade when that bundle is actively being worked on. Reduce complexity" — owner, 2026-10-01 (Codex 01a0f8f8 22:30)
 
-Summary: after an upgrade a bundle is updated only when someone works on it again, with no bulk migration (a split-file bundle converts on its first read, keeping its original files); saved geometry and SAAMpath stay viewable without extension code, and an old recipe generates with notes on what was filled, ignored or skipped.
+Summary: updates happen only during active work, with no bulk migration. The owner's 2026-10-18 trivial-migration rule supersedes the earlier split-file converter: opening must not rebuild geometry or copy artifacts. Unsupported old layouts receive a compact deprecation message; their files remain untouched. Supported saved geometry and SAAMpath stay viewable without adapter code.
 
 Sources: [0.3.1 "Retained behavior and extensions"](../plans/0.3.1.md); [0.3.4 "Old recipes say how to generate"](../plans/0.3.4.md); [0.3.7 "Old recipes pass through" and "Old bundles convert on first read"](../plans/0.3.7.md).
 

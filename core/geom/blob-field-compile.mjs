@@ -1,4 +1,6 @@
 // Explicit blob field -> manufacturing mesh conversion; slicing and Studio use the mesh.
+import {executeGeometry} from './execution.mjs';
+import {receiveGeometry} from '../print/geometry.mjs';
 import {solidKernel,solidFromMesh,preciseSolidMesh} from './solid.mjs';
 import {makeMesh} from './mesh.mjs';
 import {prepareBlobField,evaluateBlobField,blobFieldBounds} from './blob-field.mjs';
@@ -7,12 +9,19 @@ import {requireThat,cross} from './tolerance.mjs';
 
 // The extraction lattice follows edgeMm and the points' extent; there is no
 // work budget, so a fine edgeMm over a large field is slow rather than refused.
-export async function compileBlobField(field,{edgeMm}={}){
+export async function compileBlobField(field,{signal,progress,timeoutMs,...options}={}){
+  const record=await executeGeometry('blob-field',{field,options},{signal,progress,timeoutMs,subject:'Blob field construction'});
+  return receiveGeometry(record);
+}
+
+export async function compileBlobFieldValue(field,{edgeMm,signal,progress=()=>{}}={}){
+  signal?.throwIfAborted();progress({stage:'extract'});
   field=structuredClone(field);
   const prepared=prepareBlobField(field);blobFieldBounds(field);
   const extraction={compiler:BLOB_FIELD_COMPILER,edgeMm};validateBlobFieldExtraction(extraction);
   const surface=extractBlobSurface(prepared,field,edgeMm);
   requireThat(surface.triangles.length>0,'Blob field extraction is empty; raise strengths or reaches, or lower edgeMm.');
+  signal?.throwIfAborted();progress({stage:'validate'});
   // The bed plane Z = 0 cuts the closed surface into an exact flat base.
   const kernel=await solidKernel();let whole,solid;
   try{

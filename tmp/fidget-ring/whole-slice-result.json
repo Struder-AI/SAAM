@@ -1,0 +1,72 @@
+{
+  "elapsedMs": 5048.4107,
+  "summary": {
+    "composition": {
+      "hierarchy": {
+        "slices": 76,
+        "wholeSlices": 76,
+        "refinedSlices": 0,
+        "executionUnits": 76,
+        "courses": 14217
+      },
+      "cooling": {
+        "sliceChoices": 0,
+        "courseChoices": 495,
+        "neighborhoodQueries": 17983,
+        "estimatedDepositionSeconds": 5478.325387319864
+      },
+      "aggregateProofs": {
+        "slices": 76,
+        "producerGroups": 2,
+        "certifiableSlices": 76,
+        "referenceGraph": {
+          "slope": 0,
+          "courses": 14217
+        },
+        "sphereCourses": 0,
+        "orderedWholeGroups": 76,
+        "trustedHistoryPairs": 0,
+        "resolvedAccessGroups": 76
+      },
+      "refinement": {
+        "solves": 1,
+        "refinements": 0,
+        "relaxedTraversalChunks": 0,
+        "rejectedTraversals": 0,
+        "splitCourses": 0
+      },
+      "executionUnits": 986,
+      "physicalOrdering": {
+        "nozzleDependencies": 0,
+        "materialDependencies": 0
+      },
+      "queries": {
+        "rootBytes": 29919784,
+        "rootHits": 8443,
+        "rangeQueries": 20232,
+        "rangeCacheHits": 0,
+        "rangeSubdivisions": 0,
+        "nozzlePairs": 0,
+        "substratePairs": 0,
+        "cacheBytes": 12205368,
+        "peakCacheBytes": 12205368,
+        "materialRegionQueries": 0,
+        "materialRegionCells": 0
+      }
+    },
+    "construction": {
+      "operations": 156,
+      "courses": 14217,
+      "dependencies": 0
+    },
+    "travel": {
+      "travelMm": 13492.002885930176,
+      "retractions": 0,
+      "printMm": 106500.5181692818,
+      "printMmBounds": [
+        106500.5181692818,
+        106500.5181692818
+      ]
+    }
+  }
+}

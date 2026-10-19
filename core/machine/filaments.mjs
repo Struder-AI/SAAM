@@ -1,6 +1,6 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 
-const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS'];
+const PROCESS_FIELDS=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','skinSpeedMmS','firstLayerSpeedMmS','maxFlowMm3S','retractMm','retractSpeedMmS','minimumBridgeRatio'];
 const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 
 // Filaments a recipe assigns to deposition assignments, in recipe
@@ -18,7 +18,8 @@ function material(plan,index){
 export function materialProcess(plan,index){
   const process=material(plan,index).process??{};
   // Layer and line steps are judged by the assignments that use them.
-  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>PROCESS_FIELDS.includes(k)&&(STEP_FIELDS.includes(k)||Number.isFinite(process[k]))),'Invalid filament process override.');
+  requireThat(process&&typeof process==='object'&&!Array.isArray(process)&&Object.keys(process).every(k=>PROCESS_FIELDS.includes(k)&&(STEP_FIELDS.includes(k)||Number.isFinite(process[k]))&&
+    (k!=='minimumBridgeRatio'||process[k]>=0&&process[k]<=1)),'Invalid filament process override.');
   return {...plan.process,...process};
 }
 

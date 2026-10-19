@@ -1,5 +1,10 @@
 # Application
 
+## Future web-agent access
+> "Future work, no release target" — owner, 2026-10-18 (architecture audit follow-up, on general web-agent support)
+
+Summary: general web-agent access is future intent without a scheduled release; the implemented route remains local desktop clients through Application.
+
 The SAAM application: the tray orchestrator, runtimes, the single `saam` route, chats and their attachment. [Index](README.md)
 
 ## One orchestrator in the tray

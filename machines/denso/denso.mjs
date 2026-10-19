@@ -2,14 +2,6 @@ import {createHash} from 'node:crypto';
 import {createKinematics,heldTableDeg} from './kinematics.mjs';
 export const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 export const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]);
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs BUILD_SCALE_MM; this runtime has no release-relative imports
-const BUILD_SCALE_MM=1000;
-// Print resolution as a direction or angle: tilting the tool by this much moves a
-// point at build scale by print resolution (degrees are finer than radians).
-const POSE_RESOLUTION=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
-
 export const toWork=(point,c,rotateZ)=>rotateZ(point,c.workYawDeg).map((v,i)=>v+c.workOffsetMm[i]);
 // Installation values in setup.denso. Null means unresolved, permitting
 // geometry review but never machine export.
@@ -29,29 +21,17 @@ export function validateDensoConfiguration(plan,{required=false}={},validateDire
   if(required)requireThat(!missing.length,'DENSO installation is unconfigured: '+missing.join(', ')+(missing.length>1?' are':' is')+' not set. Synthetic setup belongs only in development prints.');
   return {configured:!missing.length,missing};
 }
-const value=v=>v===null||v===undefined?'Not set':Array.isArray(v)?v.join(', '):String(v);
-// Studio settings rows: the installation as configured.
-const rows=({machine,setup})=>{const c=setup.denso;return [
-  ['Robot / controller',machine.name],['Installation provenance',c.configurationSource??'Not supplied (optional)'],['Mounting',c.mounting],
-  ['Tool / work frame',value(c.toolFrame)+' / '+value(c.workFrame)],['Arm group / figure',value(c.armGroup)+' / '+value(c.figure)],
-  ['Rotary interface',c.rotaryInterface??'Not confirmed'],['External axis',c.rotaryAxis+' · sign '+c.rotarySign+' · zero '+c.rotaryZeroDeg+'°'],
-  ['Rotary center',value(c.rotaryCenterMm)+' mm'],['Work offset / yaw',value(c.workOffsetMm)+' mm / '+c.workYawDeg+'°'],
-  ['External starting point',value(c.initialPositionMm)+' mm'],['Table angle (held)',heldTableDeg(c)+'°'],
-  ['Starting tool direction',value(c.initialPose.toolAxis)],['Starting tool up',value(c.initialPose.toolUp)],
-  ['Relay output',value(c.extrusionOutput)],['Relay-material estimate',Number.isFinite(c.extrusionRateMm3S)&&c.extrusionRateMm3S>0?c.extrusionRateMm3S+' mm³/s external rate':'Unavailable; optional positive external rate'],
-  ['Tool retreat',c.retreatMm+' mm'],['Heating',c.temperatureControl+' · '+setup.nozzleC+' / '+setup.bedC+'°C'],
-  ['Motion interpretation','Nominal Cartesian progress; table held at its setup angle; controller IK; robot feasibility deferred']];};
 export function createAdapter(Export){
   const kinematics=createKinematics(Export.kinematics);
   return {output:'denso-pacscript',poses:true,
-    settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair),rows},
+    settings:{key:'denso',validate:(settings,options)=>validateDensoConfiguration(settings,options,Export.frame.validateDirectionPair)},
     export:(prepared,settings)=>exportDenso(prepared,settings,settings.machine,settings.release,Export,kinematics)};
 }
 // A relay switches extrusion on and off; the SAAMpath's retraction and fan
 // settings have no command and are left out of the program.
 const relayOmissions=omitted=>omitted.size?[`The external relay arrangement omits requested ${[...omitted].join(' and ')} actions; the robot program has no ${[...omitted].join(' or ')} control.`]:[];
 const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
-const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(8));};
+const controllerNumber=(x,decimals)=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');return Number(x.toFixed(decimals));};
 // Every axis comes from DENSO's kinematics: the table angle it chooses and the
 // toolhead in the room frame; the controller solves the arm (figure c.figure).
 // A robot command needs a positive time: a move without a positive speed is
@@ -59,6 +39,10 @@ const num=x=>{requireThat(Number.isFinite(x),'Nonfinite PacScript number.');retu
 const commandSpeed=(action,defaults)=>action.speedMmS>0?action.speedMmS:action.volumeMm3>0?defaults.planarSpeedMmS:defaults.travelSpeedMmS;
 const defaultedNote=(count,defaults)=>count?[`${count} move(s) had no positive speed and are written at the profile default (deposition ${defaults.planarSpeedMmS} mm/s, travel ${defaults.travelSpeedMmS} mm/s).`]:[];
 function exportDenso(path,plan,machine,release,Export,kinematics){
+  const {PRINT_RESOLUTION_MM,BUILD_SCALE_MM,PROGRAM_DECIMALS}=Export.kinematics.dimensions;
+  const num=x=>controllerNumber(x,PROGRAM_DECIMALS+3);
+  // Direction tolerance: print resolution across the machine reference span.
+  const POSE_RESOLUTION=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
   const c=plan.setup.denso,{rotateZ,validateDirectionPair}=Export.frame;
   requireThat(distance(path.initialPosition,c.initialPositionMm)<PRINT_RESOLUTION_MM,'DENSO initial position differs from setup.');
   const upright={toolAxis:[0,0,-1],toolUp:[0,1,0]},initial=path.initialPose??upright;

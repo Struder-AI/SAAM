@@ -1,0 +1,669 @@
+{
+  "machineId": "bambu-h2d",
+  "plan": {
+    "process": {
+      "layerMm": 0.2,
+      "lineWidthMm": 0.4,
+      "nozzleC": 215,
+      "firstLayerMm": 0.2
+    },
+    "placement": {
+      "yMm": 150,
+      "xMm": 140
+    },
+    "setup": {
+      "filamentColor": "#1677FF",
+      "ams": null,
+      "bambu": {
+        "fast_start": true,
+        "otherNozzleMm": 0.4,
+        "plate": "textured_plate",
+        "amsConnections": null
+      },
+      "nozzleC": 215,
+      "bedC": 60,
+      "material": "PLA",
+      "filamentMm": 1.75,
+      "nozzleMm": 0.4,
+      "tool": 0,
+      "buildVolumeC": 0,
+      "filaments": [
+        {
+          "colour": "#1677FF",
+          "tool": 0,
+          "id": "GFA00",
+          "source": {
+            "type": "auto"
+          }
+        },
+        {
+          "colour": "#FF7A16",
+          "tool": 1,
+          "id": "GFA00",
+          "source": {
+            "type": "auto"
+          }
+        }
+      ],
+      "core": "Hardened steel 0.4",
+      "filament": 0
+    },
+    "slices": {
+      "assignments": [
+        {
+          "filament": 0,
+          "fillDensity": 0.3,
+          "id": "blue-left",
+          "solidBottom": 3,
+          "part": null,
+          "solidTop": 3,
+          "within": [
+            {
+              "geometry": {
+                "shape": "spline",
+                "patches": [
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          12,
+                          0
+                        ]
+                      ],
+                      [
+                        [
+                          12,
+                          0,
+                          0
+                        ],
+                        [
+                          12,
+                          12,
+                          0
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "bottom"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0,
+                          2
+                        ],
+                        [
+                          0,
+                          12,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          12,
+                          0,
+                          2
+                        ],
+                        [
+                          12,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "top"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          12,
+                          0,
+                          0
+                        ],
+                        [
+                          12,
+                          0,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "front"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          12,
+                          0
+                        ],
+                        [
+                          0,
+                          12,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          12,
+                          12,
+                          0
+                        ],
+                        [
+                          12,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "back"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          0,
+                          0,
+                          0
+                        ],
+                        [
+                          0,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          0,
+                          12,
+                          0
+                        ],
+                        [
+                          0,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "left"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          12,
+                          0,
+                          0
+                        ],
+                        [
+                          12,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          12,
+                          12,
+                          0
+                        ],
+                        [
+                          12,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "right"
+                  }
+                ]
+              },
+              "kind": "geometry"
+            }
+          ],
+          "loops": 2,
+          "description": "Blue left jaw with 4 mm joint overlap"
+        },
+        {
+          "filament": 1,
+          "fillDensity": 0.3,
+          "id": "orange-right",
+          "solidBottom": 3,
+          "part": null,
+          "solidTop": 3,
+          "within": [
+            {
+              "geometry": {
+                "shape": "spline",
+                "patches": [
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          8,
+                          0,
+                          0
+                        ],
+                        [
+                          8,
+                          12,
+                          0
+                        ]
+                      ],
+                      [
+                        [
+                          20,
+                          0,
+                          0
+                        ],
+                        [
+                          20,
+                          12,
+                          0
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "bottom"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          8,
+                          0,
+                          2
+                        ],
+                        [
+                          8,
+                          12,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          20,
+                          0,
+                          2
+                        ],
+                        [
+                          20,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "top"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          8,
+                          0,
+                          0
+                        ],
+                        [
+                          8,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          20,
+                          0,
+                          0
+                        ],
+                        [
+                          20,
+                          0,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "front"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          8,
+                          12,
+                          0
+                        ],
+                        [
+                          8,
+                          12,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          20,
+                          12,
+                          0
+                        ],
+                        [
+                          20,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "back"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          8,
+                          0,
+                          0
+                        ],
+                        [
+                          8,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          8,
+                          12,
+                          0
+                        ],
+                        [
+                          8,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "left"
+                  },
+                  {
+                    "controlPoints": [
+                      [
+                        [
+                          20,
+                          0,
+                          0
+                        ],
+                        [
+                          20,
+                          0,
+                          2
+                        ]
+                      ],
+                      [
+                        [
+                          20,
+                          12,
+                          0
+                        ],
+                        [
+                          20,
+                          12,
+                          2
+                        ]
+                      ]
+                    ],
+                    "degreeU": 1,
+                    "degreeV": 1,
+                    "name": "right"
+                  }
+                ]
+              },
+              "kind": "geometry"
+            }
+          ],
+          "loops": 2,
+          "description": "Orange right jaw with 4 mm joint overlap"
+        }
+      ],
+      "version": 1
+    },
+    "geometry": {
+      "shape": "spline",
+      "patches": [
+        {
+          "controlPoints": [
+            [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                12,
+                0
+              ]
+            ],
+            [
+              [
+                20,
+                0,
+                0
+              ],
+              [
+                20,
+                12,
+                0
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "bottom"
+        },
+        {
+          "controlPoints": [
+            [
+              [
+                0,
+                0,
+                2
+              ],
+              [
+                0,
+                12,
+                2
+              ]
+            ],
+            [
+              [
+                20,
+                0,
+                2
+              ],
+              [
+                20,
+                12,
+                2
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "top"
+        },
+        {
+          "controlPoints": [
+            [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2
+              ]
+            ],
+            [
+              [
+                20,
+                0,
+                0
+              ],
+              [
+                20,
+                0,
+                2
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "front"
+        },
+        {
+          "controlPoints": [
+            [
+              [
+                0,
+                12,
+                0
+              ],
+              [
+                0,
+                12,
+                2
+              ]
+            ],
+            [
+              [
+                20,
+                12,
+                0
+              ],
+              [
+                20,
+                12,
+                2
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "back"
+        },
+        {
+          "controlPoints": [
+            [
+              [
+                0,
+                0,
+                0
+              ],
+              [
+                0,
+                0,
+                2
+              ]
+            ],
+            [
+              [
+                0,
+                12,
+                0
+              ],
+              [
+                0,
+                12,
+                2
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "left"
+        },
+        {
+          "controlPoints": [
+            [
+              [
+                20,
+                0,
+                0
+              ],
+              [
+                20,
+                0,
+                2
+              ]
+            ],
+            [
+              [
+                20,
+                12,
+                0
+              ],
+              [
+                20,
+                12,
+                2
+              ]
+            ]
+          ],
+          "degreeU": 1,
+          "degreeV": 1,
+          "name": "right"
+        }
+      ]
+    },
+    "schema": "saam-shell-plan/1",
+    "generatorVersion": "0.1.0",
+    "output": "bambu-gcode"
+  },
+  "bundleId": "development/experience-039-overlap-20261016/overlap-joint",
+  "expectedStudio": {
+    "studioInstanceId": "dde715093326ec47f37c8147a3aa06d4",
+    "bundleId": null,
+    "selectionVersion": "af9679f84a1bce965dd86f0f8740523c"
+  }
+}

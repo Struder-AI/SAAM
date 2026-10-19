@@ -1,0 +1,121 @@
+{
+  "frames": [
+    {
+      "function": "length",
+      "location": {
+        "scriptId": "122",
+        "lineNumber": 21,
+        "columnNumber": 32
+      }
+    },
+    {
+      "function": "simplexClosest",
+      "location": {
+        "scriptId": "136",
+        "lineNumber": 70,
+        "columnNumber": 86
+      }
+    },
+    {
+      "function": "convexSeparation",
+      "location": {
+        "scriptId": "136",
+        "lineNumber": 82,
+        "columnNumber": 18
+      }
+    },
+    {
+      "function": "convexIntersects",
+      "location": {
+        "scriptId": "136",
+        "lineNumber": 173,
+        "columnNumber": 9
+      }
+    },
+    {
+      "function": "queryPair",
+      "location": {
+        "scriptId": "135",
+        "lineNumber": 512,
+        "columnNumber": 10
+      }
+    },
+    {
+      "function": "pair",
+      "location": {
+        "scriptId": "135",
+        "lineNumber": 498,
+        "columnNumber": 18
+      }
+    },
+    {
+      "function": "nozzleHits",
+      "location": {
+        "scriptId": "135",
+        "lineNumber": 587,
+        "columnNumber": 24
+      }
+    },
+    {
+      "function": "resolveSourceOrder",
+      "location": {
+        "scriptId": "132",
+        "lineNumber": 323,
+        "columnNumber": 18
+      }
+    },
+    {
+      "function": "planSourceComposition",
+      "location": {
+        "scriptId": "132",
+        "lineNumber": 451,
+        "columnNumber": 15
+      }
+    },
+    {
+      "function": "schedulePath",
+      "location": {
+        "scriptId": "120",
+        "lineNumber": 19,
+        "columnNumber": 17
+      }
+    },
+    {
+      "function": "",
+      "location": {
+        "scriptId": "89",
+        "lineNumber": 10,
+        "columnNumber": 13
+      }
+    }
+  ],
+  "captures": [
+    {
+      "function": "queryPair",
+      "value": {
+        "result": {
+          "type": "string",
+          "value": "{\"a\":{\"id\":\"outer-ring:body:0:walls:course:0\",\"curveId\":\"curve:outer-ring:body:0:walls:course:0\",\"from\":0.2499964857849627,\"to\":0.49999574103963107,\"interruptible\":true,\"directionRequired\":false,\"role\":\"perimeter\",\"seamRequired\":false},\"b\":{\"id\":\"inner-disc:body:23:walls:course:2\",\"curveId\":\"curve:inner-disc:body:23:walls:course:2\",\"from\":0.27430215138899894,\"to\":0.2812464305132744,\"interruptible\":true,\"directionRequired\":false,\"role\":\"perimeter-inner\",\"seamRequired\":false,\"reverse\":true},\"stats\":{\"rootBytes\":29919784,\"rootHits\":2013,\"rangeQueries\":23472,\"rangeCacheHits\":64822,\"rangeSubdivisions\":34634,\"nozzlePairs\":66795,\"supportPairs\":0,\"cacheBytes\":16775568,\"peakCacheBytes\":16777216,\"materialIndexBuilds\":130,\"materialIndexCells\":6699,\"materialIndexBytes\":6859776,\"peakMaterialIndexBytes\":6859776},\"pending\":1}"
+        }
+      }
+    },
+    {
+      "function": "nozzleHits",
+      "value": {
+        "result": {
+          "type": "string",
+          "value": "{\"unit\":\"outer-ring:body:0:walls\",\"seen\":0}"
+        }
+      }
+    },
+    {
+      "function": "resolveSourceOrder",
+      "value": {
+        "result": {
+          "type": "string",
+          "value": "{\"history\":{\"solves\":1,\"refinements\":0},\"visited\":1,\"accessLayers\":2,\"supportLayers\":0}"
+        }
+      }
+    }
+  ]
+}

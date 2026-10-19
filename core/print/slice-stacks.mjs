@@ -4,13 +4,17 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {intersect} from '../region/intersection.mjs';
 import {volumeSection} from '../region/layer-region.mjs';
-import {horizontalSlice} from '../geom/slice.mjs';
+import {translateSlice} from '../geom/slice.mjs';
+import {mappedSurface} from '../geom/surface-evaluation.mjs';
+import {surfaceChartBounds} from '../region/surface-operations.mjs';
+import {normalize} from '../private/toolpath/numeric.mjs';
 import {offsetSurfaceChart} from '../geom/offset-chart.mjs';
 import {surfaceRegion} from '../geom/surface-region.mjs';
-import {terminalBoundaryReference} from './terminal-boundary.mjs';
+import {surfaceNeighborhood} from '../geom/surface-neighborhood.mjs';
+import {preparedSurfaceReference} from './prepared-surface.mjs';
 
 export function referenceSliceContext({assignment,shell,process,volumes}){
-  const source=assignment.surface.kind==='terminal'?assignment.surface.assignment:assignment.contact?.source??null;
+  const source=assignment.surface.kind==='slice'?assignment.surface.assignment:null;
   const stack=assignment.stack??process,band=assignment.within.find(v=>v.kind==='normal-band');
   let layers=[];
   if(band){
@@ -27,7 +31,7 @@ export function referenceSliceContext({assignment,shell,process,volumes}){
   return {spec:{id,settings:assignment,layers,filament:assignment.filament,totalLayerCount:layers.length},
     reference:{source,selection:assignment.surface,volumes:assignment.within.map((v,i)=>v.kind==='slab'?{...v,fromMm:(shell?.bounds.min[2]??0)+v.fromMm,toMm:v.toMm===null?Infinity:(shell?.bounds.min[2]??0)+v.toMm}:v.kind==='geometry'?{kind:'geometry',geometry:volumes?.get(assignment.id)?.[i]}:v)},referenceStack:{layers},stackId:id,
     context:{shell,process,startMm:shell?.bounds.min[2]??0,endMm:shell?.bounds.max[2]??0,
-      report:{owner:id,part:assignment.part,referenceStackKind:band?'normal':'terminal'}},
+      report:{owner:id,part:assignment.part,referenceStackKind:band?'normal':'slice'}},
     owner:{id,assignment,part:assignment.part},layerOrder:layers.map(layer=>({index:layer.index,rank:(shell?.bounds.max[2]??0)+(band?0:(layer.index+1)*stack.layerMm)})),
     };
 
@@ -36,22 +40,47 @@ export function referenceSliceContext({assignment,shell,process,volumes}){
 export function prepareReferenceSliceStack(record,{source,references={}}={}){
   if(!record.reference)return record;
   const assignment=record.spec.settings,{shell,process}=record.context,selection=record.reference.selection;
-  if(selection.kind==='terminal'){
-    const reference=terminalBoundaryReference({assignment,source,references});
-    let z=reference.zStartMm;
+  if(selection.kind==='slice'){
+    const reference=preparedSurfaceReference({assignment,source,references});
+    const bounds=surfaceChartBounds(reference.slice,reference.region.flat());
+    const direction=stackDirection(assignment.stack?.direction??reference.direction??reference.slice.normal);
+    const native=reference.slice.patch??(reference.slice.cp?reference.slice:null);
+    const depths=record.spec.layers.reduce((values,layer)=>[...values,layer.offsetMm??values.at(-1)+layer.heightMm],[0]);
+    const tightness=assignment.stack?.offsetTightness??assignment.fillOrder?.offsetTightness??1;
+    const neighborhood=native&&!direction?surfaceNeighborhood(native,{boundsUv:bounds,
+      reachMm:offsetReachMm(assignment,process.lineWidthMm),tightness,
+      normalRangeMm:[Math.min(...depths),Math.max(...depths)]}):null;
+    const chartBounds=neighborhood?.boundsUv??bounds,chart=mappedSurface(neighborhood?.surface??reference.slice,chartBounds,chartBounds);
+    const advance={depth:0};
     const layers=record.spec.layers.map(layer=>{
-      z+=layer.heightMm;
-      const slice=horizontalSlice(z),points=reference.boundary.flat(),extent={min:[0,1].map(k=>Math.min(...points.map(p=>p[k]))),max:[0,1].map(k=>Math.max(...points.map(p=>p[k])))};
-      let region=reference.boundary;for(const volume of record.reference.volumes){const cut=volumeSection(volume,{slice},extent);if(cut!==null)region=intersect(region,cut);}
-      return {...layer,slice,region,gap:{normalMm:layer.heightMm},onSubstrate:true};
+      advance.depth+=layer.heightMm;
+      const depth=layer.offsetMm??advance.depth,slice=direction?translateSlice(reference.slice,direction.map(value=>value*depth)):
+        {...offsetSurfaceChart(chart,depth,{nativePatch:native,tightness}),kind:'surface-chart'};
+      const extent={min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])};
+      const material={region:reference.region};
+      for(const volume of record.reference.volumes)if(volume.kind!=='normal-band'){
+        const cut=volumeSection(volume,{slice},extent);if(cut!==null)material.region=intersect(material.region,cut);
+      }
+      return {...layer,slice,region:material.region,...(direction?{direction,translationMm:layer.heightMm}:{}),gap:{normalMm:layer.heightMm},onSubstrate:true};
     });
-    return {...record,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers},context:{...record.context,startMm:reference.zStartMm,
-      endMm:z,report:{...record.context.report,startMm:reference.zStartMm,topMm:z}},layerOrder:layers.map(layer=>({index:layer.index,rank:layer.slice.origin[2]}))};
+    return {...record,prerequisites:reference.prerequisites,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers},
+      layerOrder:layers.map((layer,ordinal)=>({index:layer.index,rank:ordinal}))};
   }
-  const chart=surfaceRegion(shell,selection);
-  const depth=assignment.within[0].toMm,tightness=assignment.stack?.offsetTightness??assignment.fillOrder?.offsetTightness??1;
+  const band=assignment.within.find(v=>v.kind==='normal-band'),depth=band.toMm,tightness=assignment.stack?.offsetTightness??assignment.fillOrder?.offsetTightness??1;
+  const reachMm=offsetReachMm(assignment,process.lineWidthMm);
+  const chart=surfaceRegion(shell,selection,selection.kind==='spline'?{reachMm,normalRangeMm:[band.fromMm,band.toMm],tightness}:null);
   const layoutReference=offsetSurfaceChart(chart,depth,{shell,selection,tightness});
-  const layers=record.spec.layers.map(layer=>({...layer,slice:{...offsetSurfaceChart(chart,layer.offsetMm,{shell,selection,tightness}),kind:'surface-chart',domainU:[0,1],domainV:[0,1]},
-    layoutReference,gap:{normalMm:layer.heightMm},onSubstrate:true,settings:{fillDirection:assignment.fillOrder?.directions?.[layer.index%assignment.fillOrder.directions.length],order:'given'}}));
+  const layers=record.spec.layers.map(layer=>{
+    const slice={...offsetSurfaceChart(chart,layer.offsetMm,{shell,selection,tightness}),kind:'surface-chart'};
+    const clipped={region:chart.regionUv?intersect(layer.region,chart.regionUv):layer.region};
+    for(const volume of record.reference.volumes)if(volume.kind!=='normal-band'){
+      const cut=volumeSection(volume,{slice},{min:[0,0],max:[1,1]});if(cut!==null)clipped.region=intersect(clipped.region,cut);
+    }
+    return {...layer,slice,region:clipped.region,layoutReference,gap:{normalMm:layer.heightMm},onSubstrate:true,
+      settings:{fillDirection:assignment.fillOrder?.directions?.[layer.index%assignment.fillOrder.directions.length],order:'given'}};
+  });
   return {...record,spec:{...record.spec,layers},referenceStack:{...record.referenceStack,layers}};
 }
+function stackDirection(direction){return direction&&direction!=='normal'?normalize(direction):null;}
+function offsetReachMm(assignment,widthMm){return Math.max(widthMm,...[assignment,...(assignment.sliceOverrides??[])].map(settings=>
+  -(settings.loopInsetMm??assignment.loopInsetMm??widthMm/2)+widthMm/2));}

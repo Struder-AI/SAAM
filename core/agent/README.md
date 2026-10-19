@@ -1,9 +1,9 @@
 # Source agent toolkit
 
 Making, Studio, tours, chat attachment, requests and workspace jobs belong to the
-[SAAM application](../application/README.md). This toolkit reads source guidance
-and dev maps; it creates no runtime, Studio, owner, request journal or diagnostics
-service. [MAKERS](../../MAKERS.md), [BUILDERS](../../BUILDERS.md) and
+[SAAM application](../application/README.md). This toolkit reads published source
+guidance; it creates no runtime, Studio, request journal or diagnostics service.
+[MAKERS](../../MAKERS.md), [BUILDERS](../../BUILDERS.md) and
 [developer context](../../DEVELOPER-CONTEXT.md) own their roles.
 
 Run from the checkout root:
@@ -11,31 +11,26 @@ Run from the checkout root:
 ```powershell
 node scripts/agent-toolkit.mjs builder-onboarding --area skills
 node scripts/agent-toolkit.mjs developer-onboarding --area core/geom
+node scripts/agent-toolkit.mjs read-guidance architecture
+node scripts/agent-toolkit.mjs read-guidance docs/adr/0001-text-architecture-and-local-dev-maps.md
 node scripts/agent-toolkit.mjs read-skill text --maker --builder --machine ultimaker-s5
 node scripts/agent-toolkit.mjs read-guidance MAKERS.md#standard-parameter-policy
-node scripts/agent-toolkit.mjs read-map 0
-node scripts/agent-toolkit.mjs read-map @link/0/2/3
-node scripts/agent-toolkit.mjs regenerate
 node scripts/agent-toolkit.mjs context-budget
 ```
 
-`maker-onboarding` remains a source context read; installed maker work uses
-`saam call maker_onboarding`. All roles receive [shared local notes](../application/README.md#local-agent-notes).
-Skill reads default to maker; `--maker`, `--builder`, `--developer` select roles.
-Missing optional manuals are reported. `ID#heading` reads a complete maker section;
-`--machine` opens applicable advanced sections and `--all` opens everything.
-The reader returns published links, omitted headings/gates and unreadable markers. Local extensions
-use the selected catalog; their source remains outside the app.
+Developer onboarding delivers the glossary, full developer context and
+[architecture specification](../../ARCHITECTURE.md). Repeated --area options add
+the named component manuals; an unknown area is reported. The shared specification
+and decision records are Markdown versioned with source. Optional local development
+tools are described in the checkout's local notes and run independently.
 
-Map reads follow the [read contract](../../dev-map/README.md#commands): map 0,
-then a box, then `@link/MAP/FROM/TO` for an arrow's leaf arrows, then the source
-at `file:lines` with ordinary file tools. Reads never return code. The default
-set is `030-influence`; installation and service work passes
-`--set 030-deployment`. Run `regenerate` after each task. Indexes change on
-regeneration; record names and files. `--area` names an area (a builder reads its manuals,
-a developer the maps owning its code) or a map address, and may repeat.
+All roles receive [shared local notes](../application/README.md#local-agent-notes).
+Installed maker work uses `saam call maker_onboarding`; maker-onboarding here is a
+source context read. Skill reads default to maker; --maker, --builder and --developer
+select roles. Missing optional manuals are reported. ID#heading reads a complete
+maker section; --machine opens applicable advanced sections and --all opens everything.
+The reader returns published links, omitted headings/gates and unreadable markers.
 
-`context-budget` measures assembled manuals and the full application operation
-catalog without starting the app or its release service. Its isolated temporary
-print library is disposed after measurement. It does not omit capabilities to
-meet a context target. Outputs are JSON; failures set a nonzero exit code.
+context-budget measures assembled manuals and the application operation catalog
+without starting the app or release service. Its isolated temporary print library
+is disposed after measurement. Outputs are JSON; failures set a nonzero exit code.

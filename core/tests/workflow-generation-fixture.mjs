@@ -4,6 +4,8 @@ import {join} from 'node:path';
 import {createBundleWorkflow} from '../print/workflow.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
+import {generatePreparedPath} from '../print/bundle.mjs';
+import {curveAssignment} from '../print/curves.mjs';
 
 export function generationWorkflow(events=[],onGenerate=()=>{}){
   let generateHook;const machine=loadMachine('ultimaker-s5');
@@ -12,10 +14,8 @@ export function generationWorkflow(events=[],onGenerate=()=>{}){
     createGeometry:async parameters=>({bytes:Buffer.from(JSON.stringify(parameters)),descriptor:{nativeFile:'model.mesh.json',parameters}}),
     async generatePath(plan){
       events.push('generate');onGenerate();await generateHook?.();
-      return {schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:[...machine.tools[plan.setup.tool].startupXY,machine.startup.zAfterStartupMm],
-        summary:{travel:{totalMm:1},nonplanarLimit:null},actions:[
-          {kind:'move',phase:'planar',layer:0,to:[100,100,1],speedMmS:10,volumeMm3:0},
-          {kind:'move',phase:'planar',layer:0,to:[101,100,1],speedMmS:10,volumeMm3:.04}]};
+      return generatePreparedPath({...plan,geometry:undefined,slices:{assignments:[curveAssignment({id:'fixture-line',curves:[
+        {closed:false,points:[[0,0,.2],[1,0,.2]],heightMm:.2,beadWidthMm:.4,speedMmS:10}]})]}});
     }});
   return {api,set generateHook(hook){generateHook=hook;}};
 }

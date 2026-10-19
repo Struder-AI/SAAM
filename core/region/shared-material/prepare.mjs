@@ -4,18 +4,22 @@
 // Distances are mm; layer regions retain their slice's native chart coordinates.
 // Settings stay with each claimant; returned layers contain no constructed strokes.
 import {difference,intersect,union} from '../intersection.mjs';
+import {allocateChartClaims} from '../ownership.mjs';
 import {offsetRegion} from '../offset.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../../dimensions.mjs';
 import {prepareSharedInterior} from './depth.mjs';
 import {boundaryCaps} from './caps.mjs';
 import {sliceKey,planeSlice,sliceBoundaryEdges,sliceStack,translateSlice,prepareSliceRay,sliceRayIntersections,sliceChartStep} from '../../geom/slice.mjs';
 import {evaluateSurface} from '../../geom/surface-evaluation.mjs';
-import {sampledChartRegion} from '../../geom/height-slice.mjs';
+import {sampledChartRegion} from '../../geom/chart-region.mjs';
 import {volumeSection} from '../layer-region.mjs';
 import {dot} from '../../geom/frame.mjs';
 
 // Shared-claim depth, independent of bead overlap and nozzle forgiveness.
 const MIN_SHARED_CLAIM_DEPTH_MM=.1;
+// Component placement does not make an independent Slice solid part material.
+const materialKey=owner=>JSON.stringify([owner.part,owner.assignment.geometry?owner.assignment.id:null]);
+const sameMaterial=(a,b)=>materialKey(a)===materialKey(b);
 
 const claimInterior=owners=>prepareSharedInterior({solids:[...new Set(owners.flatMap(owner=>[owner.shell,...owner.within.filter(v=>v.kind==='geometry').map(v=>v.geometry)]))],slabs:owners.flatMap(owner=>owner.within.filter(v=>v.kind==='slab'))});
 const chartBounds=region=>({min:[0,1].map(k=>Math.min(...region.flat().map(p=>p[k]))),max:[0,1].map(k=>Math.max(...region.flat().map(p=>p[k])))});
@@ -75,6 +79,7 @@ function retimeLayers(owner,others,heightMm,claimAt,onProgress){
     const first=from+step;
     for(let offset=first;previous<to-PRINT_RESOLUTION_MM;offset+=step){
       const end=Math.min(offset,to),advance=end-previous,transition=Math.abs(advance-step)>PRINT_RESOLUTION_MM;
+      if(!(Number.isFinite(end)&&advance>0))throw Object.assign(Error('Shared layer retiming cannot advance at floating-point precision.'),{code:'SHARED_LAYER_PRECISION'});
       if(transition)transitions++;
       const character=nominal.slice(i,last+1).reduce((best,candidate)=>Math.abs(candidate.offsetMm-end)<Math.abs(best.offsetMm-end)?candidate:best,nominal[i]);
       layers.push({...nominal[i],offsetMm:end,slice:translateSlice(stack.base,stack.direction.map(v=>v*end)),translationMm:advance,
@@ -84,6 +89,18 @@ function retimeLayers(owner,others,heightMm,claimAt,onProgress){
     i=last+1;
   }
   return {referenceStack:{...stack,layers:layers.map((layer,index)=>({...layer,characterIndex:layer.characterIndex??layer.index,index}))},participating:participating.filter(Boolean).length,transitions};
+}
+
+// Shared and exclusive courses on the same native chart must become one
+// region before toolpath construction. Repeated pitch arithmetic can differ by
+// floating-point rounding; exact serialized slice keys are only a fast lookup.
+function sameLayerChart(a,b){
+  if(a.kind!==b.kind)return false;
+  const close=(x,y,tolerance)=>x.every((v,k)=>Math.abs(v-y[k])<=tolerance);
+  if(a.kind==='plane')return close(a.origin,b.origin,ROUNDING_MM)&&
+    close(a.normal,b.normal,ROUNDING_RELATIVE)&&close(a.xAxis,b.xAxis,ROUNDING_RELATIVE);
+  if(a.kind==='patch'&&a.referencePatch===b.referencePatch)return close(a.translation,b.translation,ROUNDING_MM);
+  return sliceKey(a)===sliceKey(b);
 }
 
 function sharedStack(source,pitchMm,bounds){
@@ -97,31 +114,40 @@ function sharedStack(source,pitchMm,bounds){
   return sliceStack({base,direction:source.direction,pitchMm,firstLayerMm:pitchMm},bounds);
 }
 
-function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
+function prepareMaterialClaims(inputOwners,{claimAt,onProgress,sharedMaterial}){
+  if(!sharedMaterial)return {owners:inputOwners,notes:[],reports:new Map(),frames:[],
+    allocate(region,claims,{owner,retainUnclaimed}){return allocateChartClaims(region,claims,{principal:owner,retainUnclaimed});}};
   const explicit=inputOwners.filter(o=>o.kind==='part'&&o.within.length),groups=explicit.map(owner=>[owner]),interiors=new Map(),policies=new Map(),notes=[],reports=new Map();
   const interior=members=>{
     const key=members.map(o=>o.id).join('|');
-    if(!interiors.has(key))interiors.set(key,claimInterior(members));
+    if(!interiors.has(key)){
+      const query=claimInterior(members);
+      interiors.set(key,{supported:query.supported,witness:query.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null});
+    }
     return interiors.get(key);
   };
-  for(let i=0;i<explicit.length;i++)for(let j=i+1;j<explicit.length;j++){
-    const a=explicit[i],b=explicit[j];if(a.part!==b.part)continue;
+  const byPart=new Map();for(const owner of explicit){const key=materialKey(owner);if(!byPart.has(key))byPart.set(key,[]);byPart.get(key).push(owner);}
+  const pairCount=[...byPart.values()].reduce((n,owners)=>n+owners.length*(owners.length-1)/2,0);let checked=0;
+  for(const claimants of byPart.values())for(let i=0;i<claimants.length;i++)for(let j=i+1;j<claimants.length;j++){
+    const a=claimants[i],b=claimants[j];
+    onProgress?.({stage:'Checking material overlap',completed:checked++,total:pairCount,assignment:a.assignment.id});
     const query=interior([a,b]);
-    if(!query.supported||!query.find(MIN_SHARED_CLAIM_DEPTH_MM))continue;
+    if(!query.witness)continue;
     const first=groups.find(g=>g.includes(a)),second=groups.find(g=>g.includes(b));
     if(first!==second){first.push(...second);groups.splice(groups.indexOf(second),1);}
   }
   const replacements=new Map(),cadences=new Map(),frames=[];
   for(const group of groups){
     group.sort((a,b)=>explicit.indexOf(a)-explicit.indexOf(b));
-    const principal=group[0],query=interior(group);
-    const witness=group.length>1&&query.supported?query.find(MIN_SHARED_CLAIM_DEPTH_MM):null;
+    const principal=group[0],query=group.length>1?interior(group):null;
+    const witness=query?.witness;
     // A connected set need not have an n-way common volume. Its first actual
     // junction supplies the reference point; each active subset is partitioned.
     let point=witness;
     if(!point)for(let i=0;i<group.length&&!point;i++)for(let j=i+1;j<group.length&&!point;j++){
-      const pair=interior([group[i],group[j]]);if(pair.supported)point=pair.find(MIN_SHARED_CLAIM_DEPTH_MM);
+      point=interior([group[i],group[j]]).witness;
     }
+    if(point)onProgress?.({stage:'Resolving shared material',assignment:principal.assignment.id});
     const joint=group.length>1&&point?cadence(group,point):null;
     for(const owner of group){
       let referenceStack=owner.referenceStack,adjustment=null;
@@ -138,11 +164,11 @@ function prepareMaterialClaims(inputOwners,{claimAt,onProgress}){
     const key=members.map(o=>o.id).join('|');if(policies.has(key))return policies.get(key);
     const originals=members.map(o=>original.get(o)),principal=members[0],query=interior(originals);
     const result={principal,members,interlock:false};policies.set(key,result);
-    if(!query.supported||!query.find(MIN_SHARED_CLAIM_DEPTH_MM)){
+    if(!query.witness){
       notes.push(`Shared material ${key}: overlap is assigned solely to ${principal.id}; ${query.supported?`minimum shared-claim depth ${MIN_SHARED_CLAIM_DEPTH_MM} mm could not be established`:'the native claim has no interior-depth query'}.`);
       return result;
     }
-    const frame=frames.find(frame=>frame.members.includes(principal)),stack=frame?.principal.referenceStack??principal.referenceStack,normal=stack.base.kind==='plane'?stack.base.normal:stack.direction,joint=cadences.get(principal)??cadence(originals,query.find(MIN_SHARED_CLAIM_DEPTH_MM));
+    const frame=frames.find(frame=>frame.members.includes(principal)),stack=frame?.principal.referenceStack??principal.referenceStack,normal=stack.base.kind==='plane'?stack.base.normal:stack.direction,joint=cadences.get(principal)??cadence(originals,query.witness);
     Object.assign(result,{interlock:true,stack,bandMm:joint.periodMm,startMm:stack.firstLayerMm-stack.pitchMm,ray:prepareSliceRay(stack.base,stack.direction),normal});
     return result;
   };
@@ -202,7 +228,6 @@ import {prepareSection,section} from '../section.mjs';
 import {lineSpacing} from '../../path/spacing.mjs';
 function chartExtent(owner, slice) {
   if(slice.kind==='patch')return {min:[slice.patch.domainU[0],slice.patch.domainV[0]],max:[slice.patch.domainU[1],slice.patch.domainV[1]]};
-  if(slice.kind==='height-field')return {min:owner.shell.bounds.min.slice(0,2),max:owner.shell.bounds.max.slice(0,2)};
   const corners = Array.from({ length: 8 }, (_, i) => [0, 1, 2].map(k => ((i >> k) & 1 ? owner.shell.bounds.max[k] : owner.shell.bounds.min[k]) - slice.origin[k]));
   const points = corners.map(p => [slice.xAxis, slice.yAxis].map(axis => axis.reduce((n, v, k) => n + v * p[k], 0)));
   const box = regionBox([points]);
@@ -219,7 +244,7 @@ function failedSlicePreparation(assignment,error){
   if(error.name==='AbortError')throw error;
   error.assignment=assignment.id;throw error;
 }
-export function prepareMaterialRegions(inputOwners, { bands = [], substrate = null, onProgress } = {}) {
+export function prepareMaterialRegions(inputOwners, { bands = [], substrate = null, onProgress, sharedMaterial = false } = {}) {
   const cache = new Map();
   const cached = (key, make) => { if (!cache.has(key)) cache.set(key, make()); return cache.get(key); };
   // A section that does not close joins gaps up to the owner's line width.
@@ -230,7 +255,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
   const partSection = (owner, slice) => partCut(owner, slice).loops;
   const material = (owner, slice) => cached(`material|${owner.sectionKey??owner.part}|${owner.widthMm}|${sliceKey(slice)}`, () => {
     let region = partSection(owner, slice);
-    for (const band of bands.filter(b => b.part === owner.part)) {
+    for (const band of bands.filter(b => b.part === owner.part&&(!owner.assignment.geometry||b.sourceId===owner.assignment.id))) {
       const cut = volumeSection({ kind: 'slab', fromMm: band.startMm, toMm: band.endMm }, { slice }, chartExtent(owner, slice));
       region = cut === null ? [] : difference(region, cut);
     }
@@ -241,8 +266,8 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
     return cuts.length ? cuts.reduce((a, b) => a.length && b.length ? intersect(a, b) : []) : null;
   });
   const claimAt=(owner,layer)=>{const own=material(owner,layer.slice),cut=volume(owner,layer);return cut===null?own:intersect(own,cut);};
-  onProgress?.({stage:'Resolving shared material'});
-  const shared=prepareMaterialClaims(inputOwners,{claimAt,onProgress}),owners=shared.owners;
+  if(sharedMaterial)onProgress?.({stage:'Checking material overlap'});
+  const shared=prepareMaterialClaims(inputOwners,{claimAt,onProgress,sharedMaterial}),owners=shared.owners;
   const explicit = owners.filter(o => o.kind === 'part' && o.within.length), results = [];
   const characterAt=(owner,point)=>{
     const ray=cached('ray|'+owner.id,()=>prepareSliceRay(owner.referenceStack.base,owner.referenceStack.direction)),hits=sliceRayIntersections(ray,point);
@@ -257,12 +282,12 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
     try{
     const referenceStack = principal.referenceStack, layers = [], materialMasks = new Map(), findings = [];
     for (const layer of referenceStack.layers) {
-      onProgress?.({ stage: 'Slicing layers', completed: done++, total });
+      onProgress?.({ stage: 'Slicing layers', completed: done++, total, assignment: principal.assignment.id, layer: layer.index });
       const own = material(principal, layer.slice);
       materialMasks.set(layer.index, own);
       findings.push({ layer, cut: partCut(principal, layer.slice) });
       if (!own.length) continue;
-      const candidates = explicit.filter(o => o.part === principal.part);
+      const candidates = explicit.filter(o => sameMaterial(o,principal));
       let region, boundary = own;
       if (principal.kind === 'outline') {
         boundary = partSection(principal, layer.slice);
@@ -297,7 +322,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
         onProgress?.({stage:'Preparing shared courses',assignment:owner.assignment.id,completed:layer.index,total:stack.layers.length});
         const own=material(owner,layer.slice);grid.push({index:layer.index,region:own});if(!own.length)continue;
         const jointLayer={...layer,sharedHeightMm:stack.base===source.base?layer.offsetMm*stack.meanProjection:start+layer.offsetMm*stack.meanProjection};
-        const region=shared.allocate(own,explicit.filter(other=>other.part===owner.part).map(other=>({owner:other,region:volume(other,layer)})),{owner,layer:jointLayer,joint:true});
+        const region=shared.allocate(own,explicit.filter(other=>sameMaterial(other,owner)).map(other=>({owner:other,region:volume(other,layer)})),{owner,layer:jointLayer,joint:true});
         if(!region.length)continue;
         const point=evaluateSurface(layer.slice,frameHits[0]?.chartPoint??region[0][0]).point;
         added.push({...jointLayer,region,material:own,sharedMaterial:true,patternDirection:owner.referenceStack.direction,
@@ -306,8 +331,10 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       }
       const same=new Map(record.layers.map(layer=>[sliceKey(layer.slice),layer]));
       for(const layer of added){
-        const existing=same.get(sliceKey(layer.slice));
-        if(existing&&Math.abs(existing.translationMm-layer.translationMm)<=ROUNDING_MM&&existing.characterIndex===layer.characterIndex)existing.region=union(existing.region,layer.region);
+        const compatible=candidate=>Math.abs(candidate.translationMm-layer.translationMm)<=ROUNDING_MM&&
+          candidate.characterIndex===layer.characterIndex&&sameLayerChart(candidate.slice,layer.slice);
+        const exact=same.get(sliceKey(layer.slice)),existing=exact&&compatible(exact)?exact:record.layers.find(compatible);
+        if(existing)existing.region=union(existing.region,layer.region);
         else record.layers.push(layer);
       }
       record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);
@@ -316,8 +343,8 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       }catch(error){failedSlicePreparation(owner.assignment,error);}
     }
   }
-  for(const part of new Set(shared.frames.map(frame=>frame.principal.part))){
-    const records=results.filter(record=>record.owner.part===part&&record.owner.kind==='part'),partOwners=records.map(record=>record.owner);
+  for(const key of new Set(shared.frames.map(frame=>materialKey(frame.principal)))){
+    const records=results.filter(record=>materialKey(record.owner)===key&&record.owner.kind==='part'),partOwners=records.map(record=>record.owner),part=partOwners[0].part;
     const solids=[...new Set(partOwners.flatMap(owner=>[owner.shell,...owner.within.filter(v=>v.kind==='geometry').map(v=>v.geometry)]))];
     const slabs=[...partOwners.flatMap(owner=>owner.within.filter(v=>v.kind==='slab')),...bands.filter(b=>b.part===part).map(b=>({fromMm:b.startMm,toMm:b.endMm}))];
     const boundaries=boundaryCaps(solids,{slabs,bounds:partOwners[0].shell.bounds});
@@ -327,7 +354,7 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
       const frame=shared.frames.find(frame=>frame.members.includes(owner));
       const regimes=[{joint:false,direction:owner.referenceStack.direction,advanceMm:owner.referenceStack.layers.reduce((n,layer)=>Math.max(n,layer.translationMm),owner.referenceStack.translationStepMm)}];
       if(frame)regimes.push({joint:true,direction:frame.principal.referenceStack.direction,advanceMm:frame.joint.periodMm/frame.joint.counts[frame.members.indexOf(owner)]/frame.principal.referenceStack.meanProjection});
-      const at=(slice,joint)=>shared.allocate(material(owner,slice),explicit.filter(other=>other.part===part).map(other=>({owner:other,region:volume(other,{slice,index:-1})})),{owner,layer:{slice,index:-1},retainUnclaimed:!owner.within.length,joint});
+      const at=(slice,joint)=>shared.allocate(material(owner,slice),explicit.filter(other=>sameMaterial(other,owner)).map(other=>({owner:other,region:volume(other,{slice,index:-1})})),{owner,layer:{slice,index:-1},retainUnclaimed:!owner.within.length,joint});
       const added=[];
       for(const regime of regimes)for(const face of boundaries.faces){
         const projection=dot(face.slice.normal,regime.direction);if(Math.abs(projection)<=ROUNDING_RELATIVE)continue;
@@ -343,9 +370,26 @@ export function prepareMaterialRegions(inputOwners, { bands = [], substrate = nu
         added.push({index:-1,slice,region,material:material(owner,slice),direction:regime.direction,translationMm:regime.advanceMm,heightMm:regime.advanceMm*Math.abs(projection),
           ...character,materialGrid:{layers:grid,index:0},patternDirection:owner.referenceStack.direction,boundaryCourse:true,referenceFrame:{base:slice,direction:regime.direction,offsetMm:0}});
       }
-      record.layers.push(...added);record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);
+      const before=record.layers.length;
+      for(const layer of added){
+        // Closing faces supplement native courses; a coincident course is not
+        // its own predecessor. Compare coverage in the closing face's chart.
+        for(const existing of record.layers){
+          const a=existing.slice,b=layer.slice;
+          if(a.kind!=='plane'||b.kind!=='plane'||a.normal.some((v,k)=>Math.abs(v-b.normal[k])>ROUNDING_RELATIVE)||
+            Math.abs(dot(a.normal,a.origin.map((v,k)=>v-b.origin[k])))>ROUNDING_MM)continue;
+          const covered=existing.region.map(loop=>loop.map(uv=>{
+            const delta=evaluateSurface(a,uv).point.map((v,k)=>v-b.origin[k]);
+            return [dot(delta,b.xAxis),dot(delta,b.yAxis)];
+          }));
+          layer.region=difference(layer.region,covered);
+          if(!layer.region.length)break;
+        }
+        if(layer.region.length)record.layers.push(layer);
+      }
+      record.layers.sort((a,b)=>a.ownerOffsetMm-b.ownerOffsetMm);
       record.layers=record.layers.map((layer,index)=>({...layer,index}));record.referenceStack={...record.referenceStack,layers:record.layers};
-      if(added.length)record.sharedReport={...record.sharedReport,boundaryCourses:added.length};
+      if(record.layers.length>before)record.sharedReport={...record.sharedReport,boundaryCourses:record.layers.length-before};
     }
     const references=records.flatMap(record=>record.layers.map(layer=>({id:record.owner.id+':'+layer.index,slice:layer.slice,region:layer.region,frame:layer.referenceFrame})));
     for(const record of records)for(const layer of record.layers)layer.gap={advanceMm:layer.translationMm,direction:layer.direction,

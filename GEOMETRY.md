@@ -6,12 +6,12 @@ Trace/Inject recipe entries reference these IDs as `geometry:"id"` and retain de
 
 ## Spline surfaces
 
-`geometry: {shape: "spline", patches: [...]}` is a shell of untrimmed NURBS
-patches. A patch is `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?}`:
-`controlPoints` is rows along U, each a list of points along V, each `[x,y,z]` or
-`[x,y,z,weight]`. Degrees are 1–5 and below the control count. Omitted knots are
-clamped uniform; a supplied vector is complete (count + degree + 1 values).
-Orientation does not matter.
+`geometry: {shape: "spline", patches: [...]}` retains patches `{name, degreeU, degreeV, controlPoints, knotsU?, knotsV?, trimLoops?, normalSide?}`.
+`controlPoints` has rows along U and points along V: `[x,y,z]` or `[x,y,z,weight]`.
+Curves and surface axes use degree 2 or 3; straight/ruled geometry may use degree 1. Add spans for detail. Knots default to clamped uniform; supplied vectors are complete (count + degree + 1).
+Each `trimLoops` entry is a UV polyline or `{curves:[{points:UV[]}|{nurbs:{degree,knots,controlPoints,weights?}},…]}`.
+Curves join into closed loops inside the knot domain: outer loops counterclockwise, holes clockwise; no crossings or touching.
+Trimmed shells use outward `normalSide: 1` (default) or `-1` for reversed `du × dv`; untrimmed shells infer orientation.
 
 **What a control net expresses**
 
@@ -30,10 +30,10 @@ Orientation does not matter.
 - Creases: separate patches meet at an edge, or a knot repeats `degree` times.
 - Local shaping: move interior controls; add rows or columns for more freedom.
 
-**Closure.** A shell is closed when every patch edge coincides with another edge,
-with the same patch's opposite edge (a seam), or collapses to a point (a pole).
-Sharing boundary control points and knots between neighbours makes this exact. An
-open shell saves and shows; each layer slices what closes; [booleans](#booleans) need closed solids.
+**Closure.** Trim boundaries, or rectangular edges when no trims are supplied,
+must pair with neighbouring faces, a seam or a collapsed pole. Core sews shared
+boundaries and reports gaps. Open shells save and show; each layer slices what closes.
+[Booleans](#booleans) need closed solids.
 
 **Worked forms**
 
@@ -54,11 +54,9 @@ open shell saves and shows; each layer slices what closes; [booleans](#booleans)
 - *A surface.* One patch saves and shows as it is. To print it as a sheet, add a copy
   offset along its normal and degree-1 strips ruling their edges.
 
-**Named patches.** Slicing uses the patches themselves, not a tessellation, and
-skills address surfaces by patch name: the roof a draped skin follows (a patch
-named `bottom` is never draped), the sleeve cladding coats, the slice a wave
-grows on, the reference text bends onto. Trimmed faces are not supported; cut
-openings with patch layout or a [boolean difference](#booleans).
+**Named patches.** Skills select surfaces by name. Sections and containment use
+surfaces and trims; Studio derives triangles. SAAM's 3DM stores supporting surfaces
+and verified SAAM UV curve metadata, not a Rhino trimmed Brep. Sampling remains derived from the retained curves.
 
 ## Blob field
 
@@ -103,15 +101,14 @@ recognized defects and reports cancellable progress.
 
 ## Booleans
 
-`geometry: {shape: "boolean", operation, operands: [...]}` combines two or more
-spline, mesh, blob-field, gridfinity or boolean operands in the same coordinates. `union`
-joins them, `intersection` keeps what they share, and `difference` subtracts
-every later operand from the first: a drilled plate is a box minus a cylinder.
-Operands are closed solids; a result with no material saves and shows empty, with a note.
-Spline sections remain exact; named-patch operations need a plain spline part.
-Optional `displayOperand` selects a zero-based operand for the geometry preview; manufacturing still uses the full Boolean. Standard support uses `0` to hide its support solid. Nested choices compose.
+`geometry: {shape: "boolean", operation, operands: [...]}` combines spline, mesh,
+blob-field, gridfinity or Boolean solids in the same coordinates. `union` joins,
+`intersection` keeps shared material, and `difference` subtracts later operands.
+Closed spline operands use [native surface construction](core/geom/README.md#native-boolean-construction), with automatic recovery reported in notes.
+Mesh/mixed inputs combine sections; empty results stay empty. [Named faces](core/geom/reference-surface.mjs) retain source charts through cuts, bounded by surviving regions and holes.
+`displayOperand` selects a zero-based preview operand; manufacturing uses the full Boolean. Choices nest.
 `combine_geometry`: `{operation, operand, part?}` adds to the print or one component;
-repeating the operation appends, except a display-selected solid stays nested so additions remain visible. Apply text/heat-set metadata after combining.
+Repeats append; display-selected solids stay nested. Apply text/heat-set metadata afterward.
 
 ## Assembly
 
@@ -148,8 +145,7 @@ Geometry is recipe data that `create_bundle` and `adjust_recipe` take whole: sen
 
 ## Computing geometry with scripts
 
-A script computes only an operation's input, such as a large, repetitive or
-formula-driven recipe, passed by file to `create_bundle`, `adjust_recipe`, `blob_field`
-or `combine_geometry` ([command line](core/print/USAGE.md#command-line)); SAAM makes the
-geometry and program ([working boundaries](MAKERS.md#working-boundaries)). On Windows, import
-SAAM modules with `file:///` URLs; [`circlePoints`](core/geom/cylinder.mjs) gives a mesh prism's circle.
+Scripts compute inputs for the [print tools](core/print/USAGE.md#command-line);
+SAAM constructs and publishes them ([boundaries](MAKERS.md#working-boundaries)).
+[Shared Geometry construction](core/geom/README.md#geometry-query-boundary) retains
+native profiles/solids and derives meshes when needed. Windows imports use `file:///` URLs.

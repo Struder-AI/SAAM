@@ -20,7 +20,7 @@ export function orderStrokes(strokes, from) {
         }
       } else {
         const head = distance(cursor, stroke.points[0]);
-        const tail = distance(cursor, stroke.points[stroke.points.length - 1]);
+        const tail = stroke.directionRequired===true?Infinity:distance(cursor, stroke.points[stroke.points.length - 1]);
         const d = Math.min(head, tail);
         if (d < bestDistance) { bestDistance = d; best = i; bestRotation = tail < head ? -1 : 0; }
       }
@@ -58,6 +58,7 @@ export function orderScanlineCells(strokes, from) {
         {point:cell.at(-1).points[0],rows:true,strokes:false}
       ];
       for (const entry of entries) {
+        if(entry.strokes&&cell.some(stroke=>stroke.directionRequired===true))continue;
         const gap = distance(cursor, entry.point);
         if (gap < bestDistance) {
           best = i; reverseRows = entry.rows; reverseStrokes = entry.strokes; bestDistance = gap;

@@ -203,7 +203,7 @@ write_desktop_shortcut() {
 }
 
 main() {
-  local here source archive version target staging launcher wait_pid='' workspace='' workspace_token='' waited applications bundle staged_bundle backup backup_bundle home legacy_data legacy_app transaction
+  local here source archive version target staging launcher wait_pid='' workspace='' workspace_token='' waited applications bundle staged_bundle backup backup_bundle home legacy_data legacy_app transaction client_setup_complete=1
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --wait-pid) wait_pid="${2:-}"; [[ "$wait_pid" =~ ^[0-9]+$ ]] || fail 'Give --wait-pid a process id.' ;;
@@ -370,15 +370,20 @@ LAUNCHER
       fi
     done
     export PATH="$target:$PATH"
-    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" || echo 'SAAM is installed; ask the agent to repair client setup.'
+    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" || client_setup_complete=0
   else
-    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" --no-register || echo 'Client guidance setup failed.'
+    "$target/runtime/node" "$target/packaging/client-setup.mjs" "$home" --no-register || client_setup_complete=0
   fi
   # Updates keep the shortcut if present, without recreating one the person removed.
   if [ -z "$wait_pid" ] && [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ]; then write_desktop_shortcut "$bundle" "$HOME/Desktop/SAAM.app"; fi
 
   echo
-  echo "SAAM ${version} is installed."
+  echo "SAAM ${version} application is installed."
+  if [ "$client_setup_complete" -eq 1 ]; then
+    echo 'Client setup command completed. Finish restart, permissions and session verification in INSTALL.md.'
+  else
+    echo 'Client setup is incomplete. Read the errors above and run saam call repair_client_setup from your desktop agent.'
+  fi
   echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
   echo 'and stop it with Quit in Studio or the SAAM menu. Restart clients to discover saam.'
   echo "Your prints and settings stay in $(data_folder)."

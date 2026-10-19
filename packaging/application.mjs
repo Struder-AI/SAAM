@@ -138,7 +138,9 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       if(message.command==='stop-session')return {ok:true,...await state.runtime.stopSession(message)};
       // A client hook may be held to a second or two (Codex Interrupt, SessionEnd), so it is answered
       // at once; the hand-back waits for the chat's operation underway.
-      if(message.command==='end-turn'){void state.runtime.endTurn(message.chatId,message.reason).catch(error=>console.error('Client event failed: '+error.message));return {ok:true};}
+      if(message.command==='client-lifecycle')return state.runtime.clients.event(message.event);
+      if(message.command==='client-inbox')return state.runtime.clients.inbox(message);
+      if(message.command==='client-ack')return state.runtime.clients.acknowledge(message);
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};
       return state.runtime.command(message);

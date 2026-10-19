@@ -1,14 +1,46 @@
 // Open spline references are independent of printable, closed part geometry.
-import {requireGeometry} from './query.mjs';
-import {evaluateSurface,mappedSurface} from './surface-evaluation.mjs';
+import {mappedSurface} from './surface-evaluation.mjs';
 import {requireThat,cross,normalize} from './tolerance.mjs';
 import {DIRECTION_TOLERANCE} from './frame.mjs';
+import {requireSplineDegree} from './nurbs.mjs';
+import {section} from '../region/section.mjs';
+import {faceTrimRegion,nameOperandFaces} from './surface-trim.mjs';
+import {union,intersect,difference} from '../region/intersection.mjs';
+
+const selectedFaces=new WeakMap();
+// A manufactured face is its retained native chart and current bounded region.
+// Boolean implementation names are not reference identities; sourceName survives
+// native trimming, and mixed boundaries are queried on that same chart.
+export function selectedFace(solid,name){
+  requireThat(solid&&typeof name==='string','Select a named manufactured face.');
+  if(!selectedFaces.has(solid))selectedFaces.set(solid,new Map());
+  const cache=selectedFaces.get(solid);if(cache.has(name))return cache.get(name);
+  const faces=faceSources(solid),named=faces.filter(patch=>patch.name===name);
+  const candidates=named.length?named:faces.filter(patch=>patch.sourceName===name);
+  requireThat(candidates.length,'Selected manufactured face is missing: '+name+'.');
+  const first=candidates[0],sameChart=patch=>['nu','nv','orderU','orderV'].every(key=>patch[key]===first[key])&&
+    ['cp','knotsU','knotsV'].every(key=>patch[key].length===first[key].length&&patch[key].every((value,i)=>value===first[key][i]));
+  requireThat(candidates.every(sameChart),'Selected manufactured face is ambiguous: '+name+'.');
+  const region=union(candidates.flatMap(faceTrimRegion),[]),patch={...first,name,sourceName:first.sourceName??first.name,trimLoops:region};
+  if(solid.kind==='boolean'||solid.kind==='assembly'){
+    const slice={kind:'patch',patch},minus=section(solid,slice,{side:'negative'}).loops,plus=section(solid,slice,{side:'positive'}).loops;
+    patch.trimLoops=intersect(region,union(difference(minus,plus),difference(plus,minus)));
+  }
+  cache.set(name,patch);return patch;
+}
+function faceSources(solid){
+  if(solid.patches)return solid.patches;
+  const children=(solid.operands??solid.components??[]).map(faceSources);
+  return nameOperandFaces(children).map(face=>({...face.patch,name:face.name,sourceName:face.patch.sourceName??face.patch.name}));
+}
 
 export function referencePatch(spec){
   const {degreeU,degreeV,controlPoints}=spec;
   requireThat(Array.isArray(controlPoints)&&controlPoints.length>=2,'Reference needs a rectangular control net.');
   const nu=controlPoints.length,nv=controlPoints[0]?.length;
-  for(const [d,n] of [[degreeU,nu],[degreeV,nv]])requireThat(Number.isInteger(d)&&d>=1&&d<=5&&n>d,'Reference spline degree must be 1–5 and less than its control count.');
+  for(const [d,n] of [[degreeU,nu],[degreeV,nv]]){
+    requireSplineDegree(d);requireThat(n>d,'Reference spline degree must be less than its control count.');
+  }
   requireThat(controlPoints.every(row=>Array.isArray(row)&&row.length===nv&&row.every(p=>Array.isArray(p)&&[3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length===3||p[3]>0))),'Reference points must be XYZ or XYZ plus positive weight.');
   const knotsU=fullKnots(nu,degreeU,spec.knotsU),knotsV=fullKnots(nv,degreeV,spec.knotsV);
   const cp=Float64Array.from(controlPoints.flatMap(row=>row.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,p[2]*w,w];})));
@@ -26,7 +58,8 @@ function fullKnots(n,d,supplied){
 // [x, y, z] or [x, y, z, w]. A periodic curve supplies its unclamped knots and
 // repeats its first `degree` controls at the end.
 export function referenceCurve({degree,controlPoints,knots}){
-  requireThat(Array.isArray(controlPoints)&&Number.isInteger(degree)&&degree>=1&&degree<=5&&controlPoints.length>degree,'Curve degree must be 1–5 and less than its control count.');
+  requireSplineDegree(degree);
+  requireThat(Array.isArray(controlPoints)&&controlPoints.length>degree,'Curve degree must be less than its control count.');
   requireThat(controlPoints.every(p=>Array.isArray(p)&&[2,3,4].includes(p.length)&&p.every(Number.isFinite)&&(p.length<4||p[3]>0)),'Curve points must be XY, XYZ or XYZ plus positive weight.');
   const n=controlPoints.length,k=fullKnots(n,degree,knots);
   const cp=Float64Array.from(controlPoints.flatMap(p=>{const w=p[3]??1;return [p[0]*w,p[1]*w,(p[2]??0)*w,w];}));
@@ -34,32 +67,27 @@ export function referenceCurve({degree,controlPoints,knots}){
 }
 
 export function referenceSurface(spec,part){
-  requireThat(spec&&['plane','spline','part','top'].includes(spec.kind),'Text reference must be plane, spline, part or top.');
-  const fields={top:['kind','normalSide'],plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
+  requireThat(spec?.kind!=='top','Deprecated top surface reference.');
+  requireThat(spec&&['plate','plane','spline','part'].includes(spec.kind),'Surface reference must be plate, plane, spline or named part face.');
+  const fields={plate:['kind'],plane:['kind','origin','xAxis','yAxis','normalSide'],part:['kind','patch','sizeMm','uvBounds','normalSide'],spline:['kind','degreeU','degreeV','controlPoints','knotsU','knotsV','sizeMm','uvBounds','normalSide']};
   requireThat(Object.keys(spec).every(k=>fields[spec.kind].includes(k)),'Unknown text reference field.');
   const normalSide=spec.normalSide??1;
   requireThat([1,-1].includes(normalSide),'Reference normalSide must be 1 or -1.');
-  if(spec.kind==='top'){
-    requireThat(part,'Top reference needs an original part; use a plane or spline for standalone text.');
-    requireGeometry(part,['top-surface']);
-    return (x,y)=>{
-      const e=evaluateSurface({kind:'height-field',reference:{kind:'roof',geometry:part},offsetMm:0,normalDepthMm:0},[x,y]);
-      return {...e,normal:e.normal.map(n=>n*normalSide)};
-    };
-  }
+  // Plate is a named reference in the canonical print frame; machine placement
+  // is applied downstream. It names no manufactured producer.
+  if(spec.kind==='plate')return referenceSurface({kind:'plane',origin:[0,0,0],xAxis:[1,0,0],yAxis:[0,1,0]});
   if(spec.kind==='plane'){
     const {origin,xAxis,yAxis}=spec;
     requireThat([origin,xAxis,yAxis].every(p=>Array.isArray(p)&&p.length===3&&p.every(Number.isFinite)),'Plane needs origin, xAxis and yAxis XYZ vectors.');
     const x=normalize(xAxis),y=normalize(yAxis);
     requireThat(Math.abs(x.reduce((sum,v,i)=>sum+v*y[i],0))<DIRECTION_TOLERANCE,'Plane axes must be perpendicular.');
     const n=normalize(cross(x,y)).map(v=>v*normalSide);
-    return (a,b)=>evaluateSurface({kind:'plane',origin,xAxis:x,yAxis:y,normal:n},[a,b]);
+    return {kind:'plane',origin,xAxis:x,yAxis:y,normal:n};
   }
-  const patch=spec.kind==='spline'?referencePatch(spec):part?.patches?.find(p=>p.name===spec.patch);
-  requireThat(patch,'Selected text reference patch is missing; mesh parts need an independent plane or spline reference.');
+  const patch=spec.kind==='spline'?referencePatch(spec):selectedFace(part,spec.patch);
   const size=spec.sizeMm;
   requireThat(Array.isArray(size)&&size.length===2&&size.every(v=>Number.isFinite(v)&&v>0),'Spline mapping needs positive sizeMm [width,height].');
   const bounds=spec.uvBounds??[patch.domainU,patch.domainV];
   requireThat(Array.isArray(bounds)&&bounds.length===2&&bounds.every((b,i)=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]&&b[0]>=[patch.domainU,patch.domainV][i][0]&&b[1]<=[patch.domainU,patch.domainV][i][1]),'Text reference UV bounds exceed the patch.');
-  return mappedSurface(patch,bounds,[[0,size[0]],[0,size[1]]],{normalSide}).at;
+  return mappedSurface(patch,bounds,[[0,size[0]],[0,size[1]]],{normalSide});
 }

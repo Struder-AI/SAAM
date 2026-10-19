@@ -13,14 +13,17 @@
 // Closed loops touching no boundary are seeded by subdividing both patches.
 // A boundary edge lying in the other surface is itself an intersection curve.
 //
-// Kept limits (sampling, as in planar sectioning): a closed interior loop, or
-// a pair of boundary crossings, closer together than seedMm can be missed.
-// Tangential contact (n1 parallel to n2) ends a branch; flat pieces lying in
-// one plane are reported as coplanar, not traced; a pole edge is not a curve.
-import { evaluate } from './nurbs.mjs';
+// Initial seeds do not decide completeness: control hulls and interval root
+// bounds audit the remaining cells to chord/solve accuracy. Unresolved connected
+// contacts larger than that accuracy fail, allowing Geometry recovery to retry.
+// Tangencies and incomplete traces fail early; a collapsed pole is not a curve.
+import { evaluate,requireSplineDegree } from './nurbs.mjs';
+import {intersect} from '../region/intersection.mjs';
 import { cross, dot, subtract, distance, length, TOLERANCE } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import { DIRECTION_TOLERANCE } from './frame.mjs';
+import {faceTrimRegion} from './surface-trim.mjs';
+import {splitBezierNet,restrictBezierNet,bernsteinProductWeights} from './bezier-net.mjs';
 
 // Tolerances (core/README.md#dimensions-and-tolerances). A stalled solve still lands on
 // both surfaces within print resolution. Domain membership is in parameter units.
@@ -31,7 +34,7 @@ import { DIRECTION_TOLERANCE } from './frame.mjs';
 const PARAMETER_EPSILON = TOLERANCE.parameter, POINT_TOLERANCE = PROGRAM_STEP_MM, TANGENT_LIMIT = DIRECTION_TOLERANCE;
 const stalled = (x, step) => step.every((d, k) => x[k] + d === x[k]);
 // An edge-coincidence probe steps this fraction of the edge's domain (a probe offset, not a tolerance).
-const PROBE_FRACTION = 1e-4;
+const PROBE_FRACTION = (100*TOLERANCE.domainFraction);
 
 // ---------------------------------------------------------------- Bezier pieces
 
@@ -68,6 +71,7 @@ function refineRow(points, knots, degree) {
 // rows along U, with their parameter ranges.
 const PIECES = new WeakMap();
 export function bezierPieces(patch) {
+  requireSplineDegree(patch.orderU-1);requireSplineDegree(patch.orderV-1);
   if (!PIECES.has(patch)) PIECES.set(patch, extractPieces(patch));
   return PIECES.get(patch);
 }
@@ -86,21 +90,10 @@ function extractPieces(patch) {
   return pieces;
 }
 
-function splitNet(piece, direction) {
-  const { net, p, q } = piece, half = (a, b) => a.map((c, n) => (c + b[n]) / 2);
-  const casteljau = line => {
-    const left = [], right = [];let level = line;
-    while (level.length) { left.push(level[0]); right.unshift(level.at(-1)); level = level.slice(1).map((pt, i) => half(level[i], pt)); }
-    return [left, right];
-  };
-  if (direction === 'u') {
-    const mid = (piece.u[0] + piece.u[1]) / 2, left = [], right = [];
-    const columns = Array.from({ length: q + 1 }, (_, j) => casteljau(net.map(row => row[j])));
-    for (let i = 0; i <= p; i++) { left.push(columns.map(c => c[0][i])); right.push(columns.map(c => c[1][i])); }
-    return [{ ...piece, u: [piece.u[0], mid], net: left }, { ...piece, u: [mid, piece.u[1]], net: right }];
-  }
-  const mid = (piece.v[0] + piece.v[1]) / 2, split = net.map(casteljau);
-  return [{ ...piece, v: [piece.v[0], mid], net: split.map(s => s[0]) }, { ...piece, v: [mid, piece.v[1]], net: split.map(s => s[1]) }];
+function splitNet(piece,direction){
+  const range=direction==='u'?piece.u:piece.v,mid=(range[0]+range[1])/2;
+  const [left,right]=splitBezierNet(piece.net,direction==='u'?0:1);
+  return [{...piece,[direction]:[range[0],mid],net:left},{...piece,[direction]:[mid,range[1]],net:right}];
 }
 
 function describe(piece) {
@@ -115,7 +108,7 @@ function describe(piece) {
   const n = length(normal);normal = n > 0 ? normal.map(x => x / n) : null;
   const offset = normal ? dot(normal, points[0]) : 0;
   const flatness = normal ? Math.max(...points.map(p => Math.abs(dot(normal, p) - offset))) : Infinity;
-  return { ...piece, min, max, size: distance(min, max), extentU, extentV, normal, offset, flatness };
+  return { ...piece, hullPoints:points,sourceNet:piece.sourceNet??piece.net,sourceU:piece.sourceU??piece.u,sourceV:piece.sourceV??piece.v,min, max, size: distance(min, max), extentU, extentV, normal, offset, flatness };
 }
 
 // ------------------------------------------------------------------ linear algebra
@@ -242,12 +235,31 @@ export function projectToSurface(S, p, guess) {
   return { uv: x, distance: distance(p, b.point) };
 }
 
+// A bounded global projection tries each rational knot cell. Seeded Newton
+// alone can stop at a polar singularity or the wrong side of a periodic chart.
+export function projectSurfacePoint(patch,point,{guess=null,toleranceMm=ROUNDING_MM}={}){
+  const middle=[patch.domainU,patch.domainV].map(([low,high])=>(low+high)/2);
+  const state={best:projectToSurface(patch,point,guess??middle)};
+  if(state.best.distance<=toleranceMm)return state.best;
+  for(const piece of bezierPieces(patch))for(const fractions of [[.5,.5],[0,.5],[1,.5],[.5,0],[.5,1]]){
+    const seed=[piece.u,piece.v].map(([low,high],k)=>low+fractions[k]*(high-low));
+    const candidate=projectToSurface(patch,point,seed);
+    if(candidate.distance<state.best.distance)state.best=candidate;
+    if(candidate.distance<=toleranceMm)return candidate;
+  }
+  return state.best;
+}
+
 // An edge of E lying in S along an interval: the intersection curve there is
 // the edge itself. Walk the edge while it stays on S.
-function coincidentRun(E, edge, S, hit, { chordMm, toleranceMm }) {
+function coincidentRun(E, edge, S, hit, { chordMm }) {
   const range = EDGES[edge].along ? E.domainV : E.domainU, span = range[1] - range[0];
   const onS = (t, guess) => { const point = evaluate(E, ...EDGES[edge].at(E, t), false).point, pr = projectToSurface(S, point, guess);
-    return pr.distance <= toleranceMm ? { t, point, uv: pr.uv } : null; };
+    return pr.distance <= POINT_TOLERANCE ? { t, point, uv: pr.uv } : null; };
+  // A shape-contact tolerance extends a coincident run beyond the bounded
+  // face, especially at a shallow crossing. Membership here is a root solve;
+  // constrain it to program resolution before searching either endpoint.
+  if(!onS(hit.t,hit.s))return null;
   const probe = onS(clampTo(hit.t + PROBE_FRACTION * span, range), hit.s) ?? onS(clampTo(hit.t - PROBE_FRACTION * span, range), hit.s);
   if (!probe || Math.abs(probe.t - hit.t) < ROUNDING_RELATIVE * span) return null;
   const walk = direction => {
@@ -282,15 +294,15 @@ function boundaryHits(E, S, eIsA, { seedMm, toleranceMm, chordMm }) {
   }
   const edgeRange = edge => EDGES[edge].along ? E.domainV : E.domainU;
   for (const [c, s] of leaves) {
-    if (runs.some(r => r.edge === c.edge && c.range[0] >= r.from - TOLERANCE.parameter && c.range[1] <= r.to + TOLERANCE.parameter)) continue;
     // An edge lying in S makes the point system singular; there the edge
     // itself is the intersection curve.
     const tMid = (c.range[0] + c.range[1]) / 2, onEdge = evaluate(E, ...EDGES[c.edge].at(E, tMid));
     const projected = projectToSurface(S, onEdge.point, [(s.u[0] + s.u[1]) / 2, (s.v[0] + s.v[1]) / 2]);
     if (projected.distance <= toleranceMm) {
+      if(runs.some(run=>run.edge===c.edge&&runContains(S,run,tMid,onEdge.point,projected.uv)))continue;
       const dC = EDGES[c.edge].along ? onEdge.dv : onEdge.du, normal = evaluate(S, ...projected.uv).normal;
       if (normal && Math.abs(dot(dC, normal)) <= DIRECTION_TOLERANCE * length(dC)) {
-        const run = coincidentRun(E, c.edge, S, { t: tMid, s: projected.uv, point: onEdge.point }, { chordMm, toleranceMm });
+        const run = coincidentRun(E, c.edge, S, { t: tMid, s: projected.uv, point: onEdge.point }, { chordMm });
         if (run) { runs.push({ edge: c.edge, from: run[0].t, to: run.at(-1).t, run }); continue; }
       }
     }
@@ -305,6 +317,16 @@ function boundaryHits(E, S, eIsA, { seedMm, toleranceMm, chordMm }) {
 }
 
 // ------------------------------------------------------------------ marching
+
+// A run is a native edge interval, independent of which subdivision leaf
+// proposed its seed. Only its partner chart distinguishes periodic images.
+function runContains(surface,record,t,point,uv){
+  if(t<record.from||t>record.to)return false;
+  const index=record.run.findIndex(sample=>sample.t>=t),end=index<0?record.run.length-1:index,start=Math.max(0,end-1);
+  const first=record.run[start],last=record.run[end],fraction=last.t===first.t?0:(t-first.t)/(last.t-first.t);
+  const guess=first.uv.map((value,k)=>value+fraction*(last.uv[k]-value)),projected=projectToSurface(surface,point,guess);
+  return projected.distance<=POINT_TOLERANCE&&chartParametersNear(surface,uv,projected.uv,POINT_TOLERANCE);
+}
 
 function tangent(s) {
   if (!s.a.normal || !s.b.normal) return null;
@@ -404,41 +426,300 @@ function inwardTangent(A, B, s) {
 // Curve ends: 'boundary' (exactly on a patch boundary), 'closed', 'edge' (a
 // boundary edge lying in the other surface), 'tangent', or a failure to report.
 // Defaults: chord and on-surface tolerance at print resolution; seed and step are process scale.
-export function intersectPatches(A, B, { chordMm = TOLERANCE.chord, seedMm = 0.4, stepMm = 2, toleranceMm = PRINT_RESOLUTION_MM } = {}) {
-  const options = { chordMm, seedMm, stepMm, toleranceMm };
-  const fromA = boundaryHits(A, B, true, options), fromB = boundaryHits(B, A, false, options);
-  const curves = [...fromA.runs, ...fromB.runs].map(r => ({ points: r.points, uvA: r.eIsA ? r.uvE : r.uvS, uvB: r.eIsA ? r.uvS : r.uvE, closed: false, ends: ['edge', 'edge'] }));
-  const onRun = p => curves.some(c => c.points.some((q, i) => i && segmentDistance(p, c.points[i - 1], q) <= toleranceMm));
+export function intersectPatches(A, B, { chordMm = TOLERANCE.chord, seedMm = 0.4, stepMm = 2, toleranceMm = PRINT_RESOLUTION_MM,onDiscovery=ignoreDiscovery,initialCurves=null } = {}) {
+  const options = { chordMm, seedMm, stepMm, toleranceMm,onDiscovery };
+  const fromA=initialCurves?{runs:[],hits:[]}:boundaryHits(A,B,true,options),fromB=initialCurves?{runs:[],hits:[]}:boundaryHits(B,A,false,options);
+  const curves=(initialCurves??[]).map(curve=>refineIntersectionCurve(A,B,curve,chordMm)),points=[];
+  const pointEvent=sample=>points.push({point:sample.a.point,uvA:sample.x.slice(0,2),uvB:sample.x.slice(2),kind:tangent(sample)?'bounded-point':'singular-contact'});
+  for(const run of [...fromA.runs,...fromB.runs]){
+    const curve=refineIntersectionCurve(A,B,{points:run.points,uvA:run.eIsA?run.uvE:run.uvS,uvB:run.eIsA?run.uvS:run.uvE,closed:false,ends:['edge','edge']},chordMm);
+    if(!curves.some(prior=>sameParameterTrace(A,B,prior,curve)))curves.push(curve);
+  }
+  const traceToleranceMm=chordMm+toleranceMm;
+  const onRun=hit=>curves.some(curve=>traceContains(A,B,curve,hit.x,hit.point,traceToleranceMm));
   // One endpoint: the same point within print resolution, and parameters within print
   // resolution read in parameter units (unit or mm-length domains), which keeps a seam
   // point apart from its twin a whole period away.
   const endpoints = [];
-  for (const h of [...fromA.hits, ...fromB.hits]) {
-    if (onRun(h.point) || endpoints.some(e => distance(e.point, h.point) <= PRINT_RESOLUTION_MM && e.x.every((v, k) => Math.abs(v - h.x[k]) <= PRINT_RESOLUTION_MM))) continue;
+  for (const raw of [...fromA.hits, ...fromB.hits]) {
+    const bounded=snapBoundaryState(A,B,state(A,B,raw.x)),h={x:bounded.x,point:bounded.a.point};
+    if (onRun(h) || endpoints.some(e => distance(e.point, h.point) <= PRINT_RESOLUTION_MM && e.x.every((v, k) => Math.abs(v - h.x[k]) <= PRINT_RESOLUTION_MM))) continue;
     endpoints.push({ ...h, used: false });
   }
-  const record = (states, closed, ends) => curves.push({ points: states.map(s => s.a.point), uvA: states.map(s => [s.x[0], s.x[1]]),
-    uvB: states.map(s => [s.x[2], s.x[3]]), closed, ends });
+  const record = (states, closed, ends) => curves.push(refineIntersectionCurve(A,B,{ points: states.map(s => s.a.point), uvA: states.map(s => [s.x[0], s.x[1]]),
+    uvB: states.map(s => [s.x[2], s.x[3]]), closed, ends },chordMm));
   for (const e of endpoints) {
     if (e.used) continue;
-    const start = state(A, B, e.x), T = inwardTangent(A, B, start);
+    const start = snapBoundaryState(A,B,state(A,B,e.x)), T = inwardTangent(A, B, start);
     e.used = true;
-    if (!T) continue;          // the curve only touches the boundary here
+    if (!T) {pointEvent(start);continue;} // no common inward branch in these bounded charts
     const run = march(A, B, start, T, endpoints, options);
     record(run.states, false, ['boundary', run.end]);
   }
+  const failed=curves.find(curve=>curve.ends?.some(end=>['tangent','stalled','missed-boundary'].includes(end)));
+  if(failed){
+    const error=new Error('Surface intersection '+A.name+'/'+B.name+' has an incomplete trace ('+failed.ends.join(', ')+').');
+    error.code='SURFACE_TRACE_FAILED';throw error;
+  }
   // Closed loops inside both patches touch no boundary: seed them by subdivision.
   const { pairs, coplanar } = subdivide(A, B, options);
-  const near = p => curves.some(c => c.points.some((q, i) => i && segmentDistance(p, c.points[i - 1], q) <= seedMm));
-  for (const [a, b] of pairs) {
-    const seed = projectToCurve(A, B, [(a.u[0] + a.u[1]) / 2, (a.v[0] + a.v[1]) / 2, (b.u[0] + b.u[1]) / 2, (b.v[0] + b.v[1]) / 2]);
-    if (!seed || !inside(A, seed.x[0], seed.x[1]) || !inside(B, seed.x[2], seed.x[3]) || near(seed.a.point)) continue;
-    const T = tangent(seed);
-    if (!T) continue;
-    const run = march(A, B, seed, T, endpoints, options);
-    record(run.states, run.end === 'closed', run.end === 'closed' ? ['closed', 'closed'] : ['interior', run.end]);
+  const near=seed=>curves.some(curve=>traceContains(A,B,curve,seed.x,seed.a.point,traceToleranceMm));
+  const pending=[...pairs],uncertain=[],discovery={method:'adaptive-control-hull',resolutionMm:Math.max(chordMm,toleranceMm),subdivisions:0,contractions:0,visited:0,collapsedContacts:0};
+  while(pending.length){
+    discovery.visited++;
+    if(discovery.visited%128===0)onDiscovery({pending:pending.length,curves:curves.length,visited:discovery.visited});
+    const [a,b]=pending.pop(),box=intersectionBox(a,b);
+    if(!box||!cellMeetsFace(A,a)||!cellMeetsFace(B,b)||controlHullsSeparated(a,b))continue;
+    const segments=localTraceSegments(a,b,curves,discovery.resolutionMm);
+    if(intersectionBoxCovered(box,segments,discovery.resolutionMm)||certifiesKnownCurveGraph(a,b,segments))continue;
+    const contraction=contractRootCell(a,b);
+    if(contraction===false)continue;
+    if(contraction){pending.push(contraction);discovery.contractions++;continue;}
+    const projected=projectToCurve(A,B,[(a.u[0]+a.u[1])/2,(a.v[0]+a.v[1])/2,(b.u[0]+b.u[1])/2,(b.v[0]+b.v[1])/2]);
+    const seed=projected?snapBoundaryState(A,B,projected):null;
+    if(seed&&inside(A,seed.x[0],seed.x[1])&&inside(B,seed.x[2],seed.x[3])&&!near(seed)){
+      const T=inwardTangent(A,B,seed);
+      if(!T)pointEvent(seed);
+      else{
+        const forward=march(A,B,seed,T,endpoints,options);
+        if(forward.end==='closed')record(forward.states,true,['closed','closed']);
+        else{
+          const reverse=march(A,B,seed,T.map(value=>-value),endpoints,options);
+          record([...reverse.states].reverse().concat(forward.states.slice(1)),false,[reverse.end,forward.end]);
+        }
+        const last=curves.at(-1);
+        if(last.ends.some(end=>['stalled','missed-boundary','tangent'].includes(end)))break;
+        pending.push([a,b]);continue;
+      }
+    }
+    if(Math.max(a.size,b.size)<=discovery.resolutionMm){uncertain.push(box);continue;}
+    const {target,axis}=discoverySplit(a,b);
+    const range=axis==='u'?target.u:target.v,mid=(range[0]+range[1])/2;
+    if(!(mid>range[0]&&mid<range[1]))throw Error('Surface intersection discovery cannot progress at floating-point precision.');
+    for(const half of splitNet(target,axis).map(describe))pending.push(target===a?[half,b]:[a,half]);
+    discovery.subdivisions++;
   }
-  return { curves, coplanar };
+  discovery.collapsedContacts=collapseUncertainContacts(uncertain,discovery.resolutionMm);
+
+  return { curves, coplanar, points, discovery };
+}
+
+// A parametric interval-Newton certificate proves one continuous root graph
+// through a cell. This avoids resolving a known transverse curve down to the
+// accuracy grid, while still subdividing cells that may contain another loop.
+function ignoreDiscovery(){}
+const trimmedCellCache=new WeakMap();
+function cellMeetsFace(patch,piece){
+  if(!patch.trimLoops)return true;
+  if(!trimmedCellCache.has(patch))trimmedCellCache.set(patch,new WeakMap());
+  const cache=trimmedCellCache.get(patch);if(cache.has(piece))return cache.get(piece);
+  const [[u0,u1],[v0,v1]]=[piece.u,piece.v].map(([low,high])=>[low-ROUNDING_RELATIVE,high+ROUNDING_RELATIVE]);
+  const meets=intersect([[[u0,v0],[u1,v0],[u1,v1],[u0,v1]]],faceTrimRegion(patch)).length>0;
+  cache.set(piece,meets);return meets;
+}
+
+const traceSegmentCache=new WeakMap();
+function localTraceSegments(a,b,curves,toleranceMm){
+  const box=intersectionBox(a,b),segments=[];
+  if(!box)return segments;
+  // Traces have a physical chord error. Contracted parameter cells can be much
+  // narrower than that error, so UV overlap can discard an already traced root.
+  // These bounds select candidates; coverage and root proofs still certify them.
+  for(const curve of curves){
+    if(!traceSegmentCache.has(curve))traceSegmentCache.set(curve,curve.points.slice(1).map((point,i)=>{
+      const first=[...curve.uvA[i],...curve.uvB[i]],last=[...curve.uvA[i+1],...curve.uvB[i+1]];
+      const firstPoint=curve.points[i];
+      return {first,last,min:point.map((value,k)=>Math.min(value,firstPoint[k])),max:point.map((value,k)=>Math.max(value,firstPoint[k])),firstPoint,lastPoint:point};
+    }));
+    for(const segment of traceSegmentCache.get(curve)){
+      if(box.min.every((low,k)=>segment.min[k]<=box.max[k]+toleranceMm&&segment.max[k]>=low-toleranceMm))segments.push(segment);
+    }
+  }
+  return segments;
+}
+function certifiesKnownCurveGraph(a,b,segments){
+  const ranges=[a.u,a.v,b.u,b.v];
+  for(let free=0;free<4;free++){
+    const points=[],spans=[];
+    for(const {first,last} of segments){
+      if(first[free]===last[free])continue;
+      const low=Math.max(ranges[free][0],Math.min(first[free],last[free])),high=Math.min(ranges[free][1],Math.max(first[free],last[free]));
+      if(!(high>low))continue;
+      spans.push([low,high]);
+      for(const value of [low,high])points.push(first.map((coordinate,k)=>coordinate+(value-first[free])/(last[free]-first[free])*(last[k]-coordinate)));
+    }
+    const coverage={high:ranges[free][0]};
+    for(const [low,high] of spans.sort((x,y)=>x[0]-y[0])){if(low>coverage.high)break;coverage.high=Math.max(coverage.high,high);}
+    if(coverage.high<ranges[free][1])continue;
+    const expanded=ranges.map(([lo,hi],k)=>{
+      const left=Math.min(lo,...points.map(point=>point[k])),right=Math.max(hi,...points.map(point=>point[k])),margin=k===free?0:(right-left)/8;
+      return [left-margin,right+margin];
+    });
+    if(parametricRootBounds(expandedPiece(a,expanded.slice(0,2)),expandedPiece(b,expanded.slice(2)),free).graph)return true;
+  }
+  return false;
+}
+function expandedPiece(piece,ranges){
+  const source=[piece.sourceU,piece.sourceV];
+  const relative=ranges.map(([low,high],k)=>[(low-source[k][0])/(source[k][1]-source[k][0]),(high-source[k][0])/(source[k][1]-source[k][0])]);
+  // The certificate may extend the underlying polynomial beyond a trimmed
+  // knot cell. This gives boundary roots an interior neighbourhood; the actual
+  // trace and retained face stay in their original domains.
+  const state={net:piece.sourceNet};
+  for(const [axis,[low,high]] of relative.entries()){
+    const right=low===0?state.net:splitBezierNet(state.net,axis,low)[1];
+    state.net=high===1?right:splitBezierNet(right,axis,(high-low)/(1-low))[0];
+  }
+  return {net:state.net,u:ranges[0],v:ranges[1]};
+}
+function projectedControlBounds(net,direction,origin){
+  const values=net.flat().map(point=>dot(direction,point.slice(0,3).map((value,k)=>value/point[3]-origin[k]))),guard=ROUNDING_MM*direction.reduce((sum,value)=>sum+Math.abs(value),0);
+  return [Math.min(...values)-guard,Math.max(...values)+guard];
+}
+const derivativeBoundsCache=new WeakMap();
+function derivativeControlBounds(piece,axis){return derivativeControlData(piece,axis).bounds;}
+function derivativeControlData(piece,axis){
+  if(!derivativeBoundsCache.has(piece))derivativeBoundsCache.set(piece,new Map());
+  const cache=derivativeBoundsCache.get(piece);if(cache.has(axis))return cache.get(axis);
+  const net=piece.net,origin=net[0][0].slice(0,3).map(value=>value/net[0][0][3]);
+  const scaled=net.map(row=>row.map(point=>[...point.slice(0,3).map((value,k)=>value-origin[k]*point[3]),point[3]]));
+  const p=scaled.length-1,q=scaled[0].length-1,degree=axis===0?p:q,range=axis===0?piece.u:piece.v;
+  const differentiated=axis===0?scaled.slice(1).map((row,i)=>row.map((point,j)=>point.map((value,k)=>(value-scaled[i][j][k])*degree/(range[1]-range[0])))):
+    scaled.map(row=>row.slice(1).map((point,j)=>point.map((value,k)=>(value-row[j][k])*degree/(range[1]-range[0]))));
+  const r=differentiated.length-1,s=differentiated[0].length-1,wu=bernsteinProductWeights(p,r),wv=bernsteinProductWeights(q,s);
+  const coefficients=Array.from({length:p+r+1},()=>Array.from({length:q+s+1},()=>[0,0,0]));
+  for(let i=0;i<=p;i++)for(let j=0;j<=q;j++)for(let k=0;k<=r;k++)for(let l=0;l<=s;l++)for(let coord=0;coord<3;coord++)
+    coefficients[i+k][j+l][coord]+=wu[i][k]*wv[j][l]*(differentiated[k][l][coord]*scaled[i][j][3]-scaled[i][j][coord]*differentiated[k][l][3]);
+  const weights=scaled.flat().map(point=>point[3]),denominators=[Math.min(...weights)**2,Math.max(...weights)**2];
+  const bounds=[0,1,2].map(k=>{
+    const values=coefficients.flat().flatMap(point=>denominators.map(weight=>point[k]/weight)),guard=ROUNDING_MM/(range[1]-range[0]);
+    return [Math.min(...values)-guard,Math.max(...values)+guard];
+  });
+  const result={bounds,coefficients:coefficients.flat(),denominators,span:range[1]-range[0]};
+  cache.set(axis,result);return result;
+}
+function projectedDerivativeBounds(piece,axis,direction){
+  const data=derivativeControlData(piece,axis),values=data.coefficients.flatMap(point=>data.denominators.map(weight=>dot(direction,point)/weight));
+  const guard=ROUNDING_MM/data.span*direction.reduce((sum,value)=>sum+Math.abs(value),0);
+  return [Math.min(...values)-guard,Math.max(...values)+guard];
+}
+function scaledInterval(interval,scale){return scale>=0?interval.map(value=>value*scale):[interval[1]*scale,interval[0]*scale];}
+function parametricRootBounds(a,b,free){
+  if([...a.net.flat(),...b.net.flat()].some(point=>!(point[3]>0)))return {};
+  const ranges=[a.u,a.v,b.u,b.v],dependent=[0,1,2,3].filter(k=>k!==free),radii=dependent.map(k=>(ranges[k][1]-ranges[k][0])/2);
+  if(radii.some(value=>!(value>0)))return {};
+  const duA=derivativeControlBounds(a,0),dvA=derivativeControlBounds(a,1),duB=derivativeControlBounds(b,0),dvB=derivativeControlBounds(b,1);
+  const columns=[duA,dvA,duB.map(interval=>scaledInterval(interval,-1)),dvB.map(interval=>scaledInterval(interval,-1))];
+  const midpoint=columns.map(column=>column.map(([lo,hi])=>(lo+hi)/2));
+  const jacobian=[0,1,2].map(row=>dependent.map(k=>midpoint[k][row]));
+  const inverseColumns=[0,1,2].map(k=>solveLinear(jacobian,[0,1,2].map(j=>j===k?1:0)));
+  if(inverseColumns.some(column=>!column))return {};
+  const inverse=[0,1,2].map(row=>inverseColumns.map(column=>column[row]));
+  const fixedA=restrictBezierNet(a.net,[0,1].map(k=>free===k?[0,1]:[.5,.5])),fixedB=restrictBezierNet(b.net,[0,1].map(k=>free===k+2?[0,1]:[.5,.5]));
+  const origin=fixedA[0][0].slice(0,3).map(value=>value/fixedA[0][0][3]);
+  const result={graph:true,excluded:false,ranges:ranges.map(range=>[...range])};
+  for(let row=0;row<3;row++){
+    // Precondition the coefficients before taking interval hulls. Bounding
+    // XYZ independently first loses the correlation along a curved free axis.
+    const left=projectedControlBounds(fixedA,inverse[row],origin),right=projectedControlBounds(fixedB,inverse[row],origin);
+    const offset=[right[0]-left[1],right[1]-left[0]],bound={radius:0};
+    for(let col=0;col<3;col++){
+      const variable=dependent[col],direction=inverse[row].map(value=>value*(variable<2?1:-1));
+      const derivative=projectedDerivativeBounds(variable<2?a:b,variable%2,direction),diagonal=row===col?1:0;
+      const entry=[diagonal-derivative[1],diagonal-derivative[0]];
+      bound.radius+=Math.max(Math.abs(entry[0]),Math.abs(entry[1]))*radii[col];
+    }
+    const axis=dependent[row],middle=(ranges[axis][0]+ranges[axis][1])/2;
+    result.ranges[axis]=[Math.max(ranges[axis][0],middle+offset[0]-bound.radius),Math.min(ranges[axis][1],middle+offset[1]+bound.radius)];
+    if(offset[0]-bound.radius>radii[row]||offset[1]+bound.radius<-radii[row])result.excluded=true;
+    if(!(Math.max(Math.abs(offset[0]),Math.abs(offset[1]))+bound.radius<radii[row]))result.graph=false;
+  }
+  return result;
+}
+
+// Every root remains inside its interval-Newton image. Contracting that image
+// removes empty parameter space without repeatedly bisecting the curve's free
+// direction (especially important for almost tangent or doubly curved faces).
+function contractRootCell(a,b){
+  const ranges=[a.u,a.v,b.u,b.v];
+  for(let free=0;free<4;free++){
+    const bounds=parametricRootBounds(a,b,free);
+    if(bounds.excluded)return false;
+    if(!bounds.ranges||!bounds.ranges.some(([low,high],k)=>high-low<(ranges[k][1]-ranges[k][0])*.75))continue;
+    const restrict=(piece,domains)=>{
+      const prior=[piece.u,piece.v],relative=domains.map(([low,high],k)=>[(low-prior[k][0])/(prior[k][1]-prior[k][0]),(high-prior[k][0])/(prior[k][1]-prior[k][0])]);
+      return describe({...piece,net:restrictBezierNet(piece.net,relative),u:domains[0],v:domains[1]});
+    };
+    return [restrict(a,bounds.ranges.slice(0,2)),restrict(b,bounds.ranges.slice(2))];
+  }
+  return null;
+}
+
+function pieceBending(piece,axis){
+  const net=piece.net,points=net.map(row=>row.map(point=>point.slice(0,3).map(value=>value/point[3])));
+  const lines=axis===0?points[0].map((_,j)=>points.map(row=>row[j])):points;
+  const bend=lines.reduce((largest,line)=>line.reduce((prior,point,i)=>{
+    const f=i/(line.length-1),chord=line[0].map((value,k)=>value+f*(line.at(-1)[k]-value));
+    return Math.max(prior,distance(point,chord));
+  },largest),0);
+  const twist=length(points[0][0].map((value,k)=>value-points.at(-1)[0][k]-points[0].at(-1)[k]+points.at(-1).at(-1)[k]))/4;
+  return Math.max(bend,twist);
+}
+function discoverySplit(a,b){
+  const choices=[a,b].flatMap(target=>['u','v'].map((axis,k)=>({target,axis,bend:pieceBending(target,k),extent:k?target.extentV:target.extentU})));
+  const curved=choices.some(choice=>choice.bend>ROUNDING_MM);
+  return choices.reduce((best,choice)=>!best||(curved?choice.bend>best.bend:choice.extent>best.extent)?choice:best,null);
+}
+
+function controlHullsSeparated(a,b){
+  const origin=a.hullPoints[0];
+  const directions=[a.normal,b.normal,cross(a.normal,b.normal),a.normal.map((value,k)=>value+b.normal[k]),a.normal.map((value,k)=>value-b.normal[k])];
+  for(const direction of directions){
+    const magnitude=length(direction);if(magnitude<=ROUNDING_RELATIVE)continue;
+    const project=piece=>piece.hullPoints.map(point=>dot(direction,point.map((value,k)=>value-origin[k])));
+    const left=project(a),right=project(b),guard=ROUNDING_MM*magnitude;
+    if(Math.max(...left)<Math.min(...right)-guard||Math.max(...right)<Math.min(...left)-guard)return true;
+  }
+  return false;
+}
+
+function intersectionBox(a,b){
+  const min=a.min.map((value,k)=>Math.max(value,b.min[k])),max=a.max.map((value,k)=>Math.min(value,b.max[k]));
+  if(min.some((value,k)=>value>max[k]+ROUNDING_MM))return null;
+  return {min,max:max.map((value,k)=>Math.max(value,min[k]))};
+}
+function intersectionBoxCovered(box,segments,toleranceMm){
+  const corners=[0,1].flatMap(x=>[0,1].flatMap(y=>[0,1].map(z=>[x,y,z].map((side,k)=>side?box.max[k]:box.min[k]))));
+  for(const {firstPoint:first,lastPoint:last} of segments){
+    const direction=last.map((value,k)=>value-first[k]),squared=dot(direction,direction);
+    if(corners.every(point=>{
+      const t=squared?Math.max(0,Math.min(1,dot(point.map((value,k)=>value-first[k]),direction)/squared)):0;
+      return distance(point,first.map((value,k)=>value+t*direction[k]))<=toleranceMm;
+    }))return true;
+  }
+  return false;
+}
+function collapseUncertainContacts(cells,toleranceMm){
+  const pending=[...cells],groups=[];
+  while(pending.length){
+    const first=pending.pop(),box={min:[...first.min],max:[...first.max]};
+    const state={changed:true};
+    while(state.changed){
+      state.changed=false;
+      for(let i=pending.length-1;i>=0;i--){
+        if(!intersectionBox(box,pending[i]))continue;
+        const cell=pending.splice(i,1)[0];
+        for(let k=0;k<3;k++){box.min[k]=Math.min(box.min[k],cell.min[k]);box.max[k]=Math.max(box.max[k],cell.max[k]);}
+        state.changed=true;
+      }
+    }
+    if(distance(box.min,box.max)>2*toleranceMm){
+      const error=new Error('Surface intersection has a connected unresolved contact larger than its construction accuracy.');
+      error.code='UNRESOLVED_SURFACE_CONTACT';throw error;
+    }
+    groups.push(box);
+  }
+  return groups.length;
 }
 
 function subdivide(A, B, { seedMm, toleranceMm }) {
@@ -460,8 +741,117 @@ function subdivide(A, B, { seedMm, toleranceMm }) {
   return { pairs, coplanar };
 }
 
-function segmentDistance(p, a, b) {
-  const d = subtract(b, a), l = dot(d, d);
-  const t = l > 0 ? Math.max(0, Math.min(1, dot(subtract(p, a), d) / l)) : 0;
-  return distance(p, a.map((v, k) => v + t * d[k]));
+// A root can stop a few microns from a chart edge. Preserve its chart
+// identity while bringing that bounded contact onto the edge before deciding
+// whether a common inward curve branch exists.
+function snapBoundaryState(A,B,sample){
+  const x=[...sample.x];
+  for(const [offset,patch] of [[0,A],[2,B]]){
+    for(const [axis,domain] of [patch.domainU,patch.domainV].entries()){
+      const value=Math.abs(x[offset+axis]-domain[0])<=Math.abs(x[offset+axis]-domain[1])?domain[0]:domain[1];
+      const uv=x.slice(offset,offset+2),snapped=[...uv];snapped[axis]=value;
+      if(distance(evaluate(patch,...uv,false).point,evaluate(patch,...snapped,false).point)<=POINT_TOLERANCE)x[offset+axis]=value;
+    }
+  }
+  return state(A,B,x);
+}
+
+// One curve has three approximations: its world chord and its two UV
+// polylines evaluated on their surfaces. Refine all three to the same budget.
+// World-only chord checks do not bound a nonlinear chart's trim image.
+export function refineIntersectionCurve(A,B,curve,chordMm){
+  if(curve.points.length<2)return curve;
+  const input=curve.points.map((point,i)=>curveRootState(A,B,{point,x:[...curve.uvA[i],...curve.uvB[i]]})),output=[];
+  for(let i=1;i<input.length;i++){
+    const pending=[[input[i-1],input[i]]];
+    while(pending.length){
+      const [rawFirst,rawLast]=pending.pop();
+      const first=alignPoleChart(A,B,rawFirst,rawLast),last=alignPoleChart(A,B,rawLast,rawFirst);
+      if(!output.length||output.at(-1).x.some((value,k)=>value!==first.x[k]))output.push(first);
+      const guess=first.x.map((value,k)=>(value+last.x[k])/2),left=evaluate(A,...guess.slice(0,2)),right=evaluate(B,...guess.slice(2)),projected=projectToCurve(A,B,guess);
+      if(!projected)throw Error('Surface intersection cannot refine its shared face charts.');
+      const middle=curveRootState(A,B,{point:projected.a.point,x:projected.x}),chord=first.point.map((value,k)=>(value+last.point[k])/2);
+      const error=Math.max(distance(left.point,chord),distance(right.point,chord),distance(middle.point,chord));
+      if(error<=chordMm){output.push(last);continue;}
+      if(middle.x.every((value,k)=>value===first.x[k])||middle.x.every((value,k)=>value===last.x[k]))
+        throw Error('Surface intersection chart refinement cannot progress at floating-point precision.');
+      pending.push([middle,last],[first,middle]);
+    }
+  }
+  return {...curve,points:output.map(sample=>sample.point),uvA:output.map(sample=>sample.x.slice(0,2)),uvB:output.map(sample=>sample.x.slice(2)),chartChordMm:chordMm};
+}
+
+const collapsedEdgeCache=new WeakMap();
+function collapsedSurfaceEdges(patch){
+  if(collapsedEdgeCache.has(patch))return collapsedEdgeCache.get(patch);
+  const pieces=bezierPieces(patch),edges=[];
+  for(const [axis,domain] of [patch.domainU,patch.domainV].entries())for(const [side,value] of domain.entries()){
+    const controls=pieces.filter(piece=>(axis?piece.v:piece.u)[side]===value).flatMap(piece=>
+      axis?piece.net.map(row=>row[side?row.length-1:0]):piece.net[side?piece.net.length-1:0]);
+    if(!controls.length)continue;
+    const point=controls[0].slice(0,3).map(coordinate=>coordinate/controls[0][3]);
+    if(controls.every(h=>distance(point,h.slice(0,3).map(coordinate=>coordinate/h[3]))<=ROUNDING_MM))edges.push({axis,value,point});
+  }
+  collapsedEdgeCache.set(patch,edges);return edges;
+}
+
+function curveRootState(A,B,sample){
+  for(const [offset,patch,other,otherOffset] of [[0,A,B,2],[2,B,A,0]]){
+    for(const edge of collapsedSurfaceEdges(patch)){
+      if(distance(sample.point,edge.point)>POINT_TOLERANCE)continue;
+      const projected=projectToSurface(other,edge.point,sample.x.slice(otherOffset,otherOffset+2));
+      if(projected.distance>POINT_TOLERANCE)continue;
+      const x=[...sample.x];x[offset+edge.axis]=edge.value;
+      x[otherOffset]=projected.uv[0];x[otherOffset+1]=projected.uv[1];
+      return {point:evaluate(A,...x.slice(0,2),false).point,x};
+    }
+  }
+  return sample;
+}
+
+// At a proved collapsed edge, its free parameter belongs to the incident ray.
+// Consecutive rays keep separate UV aliases joined by a zero-length world edge.
+function alignPoleChart(A,B,endpoint,neighbor){
+  const x=[...endpoint.x];
+  for(const [offset,patch] of [[0,A],[2,B]])for(const edge of collapsedSurfaceEdges(patch))
+    if(x[offset+edge.axis]===edge.value)x[offset+1-edge.axis]=neighbor.x[offset+1-edge.axis];
+  return {point:endpoint.point,x};
+}
+
+// The same boundary probe can be reached from several overlapping Bezier
+// leaves. Matching polylines at root accuracy are one trace, including reversal.
+// Preserve different UV charts at periodic seams even at equal world points.
+function sameParameterTrace(A,B,a,b){
+  if(a.points.length!==b.points.length)return false;
+  for(const direction of [1,-1]){
+    const same=a.uvA.every((uv,i)=>{
+      const j=direction>0?i:b.uvA.length-1-i;
+      return distance(a.points[i],b.points[j])<=POINT_TOLERANCE&&
+        uv.every((value,k)=>Math.abs(value-b.uvA[j][k])<=TOLERANCE.parameter*((k?A.domainV:A.domainU)[1]-(k?A.domainV:A.domainU)[0]))&&
+        a.uvB[i].every((value,k)=>Math.abs(value-b.uvB[j][k])<=TOLERANCE.parameter*((k?B.domainV:B.domainU)[1]-(k?B.domainV:B.domainU)[0]));
+    });
+    if(same)return true;
+  }
+  return false;
+}
+
+// A root already belongs to a sampled trace within chord plus solve error.
+// Compare both charts as well as world distance so periodic twins and nearby
+// independent branches retain their identities.
+function chartParametersNear(patch,uv,expected,toleranceMm){
+  const e=evaluate(patch,...uv),delta=expected.map((value,k)=>value-uv[k]);
+  if(!e.normal)return delta.every((value,k)=>Math.abs(value)<=TOLERANCE.domainFraction*((k?patch.domainV:patch.domainU)[1]-(k?patch.domainV:patch.domainU)[0]));
+  return Math.hypot(...e.du.map((value,k)=>value*delta[0]+e.dv[k]*delta[1]))<=toleranceMm;
+}
+
+function traceContains(A,B,curve,x,point,toleranceMm){
+  for(let i=1;i<curve.points.length;i++){
+    const first=curve.points[i-1],last=curve.points[i],direction=subtract(last,first),square=dot(direction,direction);
+    const fraction=square?Math.max(0,Math.min(1,dot(subtract(point,first),direction)/square)):0;
+    if(distance(point,first.map((value,k)=>value+fraction*direction[k]))>toleranceMm)continue;
+    const uvA=curve.uvA[i-1].map((value,k)=>value+fraction*(curve.uvA[i][k]-value));
+    const uvB=curve.uvB[i-1].map((value,k)=>value+fraction*(curve.uvB[i][k]-value));
+    if(chartParametersNear(A,x.slice(0,2),uvA,toleranceMm)&&chartParametersNear(B,x.slice(2),uvB,toleranceMm))return true;
+  }
+  return false;
 }

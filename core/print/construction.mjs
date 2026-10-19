@@ -3,39 +3,44 @@ import {prepareSliceContexts} from './slice-material.mjs';
 import {AssignmentFailure,constructDepositionResults} from './slice-deposition.mjs';
 import {prepareDepositionWork} from './deposition-work.mjs';
 
-// A language error is a SAAM bug, still reported as the assignment's.
-const INTERNAL_ERRORS=['TypeError','RangeError','ReferenceError','SyntaxError'];
-const failureNote=({assignment,family,cause})=>`${family[0].toUpperCase()+family.slice(1)} ${assignment} produced nothing: ${INTERNAL_ERRORS.includes(cause.name)
-  ?`internal error (${cause.name}: ${cause.message}); this is a SAAM bug, report it with saam call report_bug`:cause.message}`;
+import {finalizeConstructionReferences} from './construction-references.mjs';
+import {assignmentGeneration} from './assignment-generation.mjs';
 
 // Deposition of every assignment. A failing assignment produces nothing and
-// says why; the print is generated again without it, so what the others
-// deposit never depends on its partial work. -> {results,
+// says why; retries retain completed work only while its prepared inputs and
+// producers remain unchanged. -> {results,
 // summary, notes}: notes are the slice stacks' notes, each result's report
 // notes (such as its contact spans) and each failure.
 export function finalizedSliceResults(args){
-  const failures=[];
+  const generation=args.generation??assignmentGeneration(args.plan),retainedWork=new Map(),preparedConstructions=new Map(),preparedLayouts=new Map();
+  generation.register(args.plan,args.assignmentOwners);
+  for(const [id,error] of args.geometryFailures??[])generation.fail(id,error);
   for(;;){
-    try{return finalizeAssignments(args,failures);}catch(error){
-      if(error.name==='AbortError'||!error.assignment||failures.some(failure=>failure.assignment===error.assignment))throw error;
-      const failure=error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
+    try{const result=finalizeAssignments({...args,generation,retainedWork,preparedConstructions,preparedLayouts});if(result)return result;}catch(error){
+      if(error.name==='AbortError'||!error.assignment||generation.hasFailed(error.assignment))throw error;
+      const owner=args.assignmentOwners?.get(error.assignment)??error.assignment;
+      const failure=owner!==error.assignment?new AssignmentFailure({sourceId:owner,kind:error.family??'slice'},error.cause??error):error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
       args.onProgress?.({stage:'Deposition failed',assignment:failure.assignment,family:failure.family,error:{name:failure.cause.name,message:failure.cause.message,stack:failure.cause.stack}});
-      failures.push(failure);
+      generation.fail(failure.assignment,failure);
     }
   }
 }
-function finalizeAssignments(args,failures){
-  const excluded=new Set(failures.map(failure=>failure.assignment));
-  const plan={...args.plan,slices:{...args.plan.slices,assignments:args.plan.slices.assignments.filter(a=>!excluded.has(a.id))}};
-  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded.has(band.sourceId)),
-    geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded.has(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded.has(volume.sourceId))});
+function finalizeAssignments(args){
+  const generation=args.generation,excluded=id=>generation.hasFailed(id);
+  const plan=generation.retain(args.plan);
+  const sliced=prepareSliceContexts({...args,plan,bands:(args.bands??[]).filter(band=>!excluded(band.sourceId)),
+    geometryCuts:(args.geometryCuts??[]).filter(cut=>!excluded(cut.sourceId)),solidVolumes:(args.solidVolumes??[]).filter(volume=>!excluded(volume.sourceId))});
   const contexts=sliced.contexts;
-  const constructions=(args.constructions??[]).filter(context=>!excluded.has(context.assignment.id));
-  const work=(args.work??[]).filter(node=>!excluded.has(node.sourceId??node.key));
-  const curveSources=(args.curveSources??[]).filter(context=>!excluded.has(context.assignment.id));
-  const nodes=prepareDepositionWork(contexts,constructions,work,args.workDependencies,curveSources,{plan,shells:args.shells});
+  const constructions=(args.constructions??[]).filter(context=>!excluded(context.assignment.id));
+  const curveSources=(args.curveSources??[]).filter(context=>!excluded(context.assignment.id));
+  const nodes=prepareDepositionWork(contexts,constructions,curveSources,{plan,shells:args.shells,onProgress:args.onProgress,
+    preparedConstructions:args.preparedConstructions,preparedLayouts:args.preparedLayouts});
+  generation.captureWork(nodes);
+  if(nodes.some(node=>excluded(node.sourceId??node.key)))return null;
   const generated=constructDepositionResults({...args,nodes,curveSources},contexts);
-  const produced=generated.results,nothing=!produced.some(result=>result.operations.length);
-  return {...generated,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...failures.map(failureNote),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
+  const produced=finalizeConstructionReferences(plan,generated.results);
+  if(produced.some(result=>excluded(result.report?.owner??result.id)))return null;
+  const nothing=!produced.some(result=>result.operations.length);
+  return {...generated,results:produced,notes:[...sliced.notes,...produced.flatMap(result=>result.report?.notes??[]),...generation.notes(),...(nothing?['Nothing to print: no assignment produced material.']:[])]};
 }
 

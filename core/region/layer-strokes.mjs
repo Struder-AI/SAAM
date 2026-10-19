@@ -17,7 +17,6 @@ import {TOLERANCE} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {offsetSliceRegion} from './surface-operations.mjs';
 import {metricFillStrokes} from './metric-fill.mjs';
-import {frontLayerStrokes} from './seeded-fronts.mjs';
 
 // region: owned loops in the chart. material: the part's sliced material on
 // the layer (the region itself by default). Every owner walls all its boundaries.
@@ -44,16 +43,16 @@ export function sliceLayerLayout(region, { widthMm, loops, fillDensity, fillOver
     const distance = (loopInsetMm??widthMm/2) + ring * pitch;
     const found=offset(boundary,outward?distance:-distance);
     if (!found.length) break;
-    // Simplify only the finished deposition contour to machine precision; the
-    // offset region keeps owning material topology.
-    const cleaned = found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm));
-    for (const points of cleaned)
-      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, closed: true, points, beadWidthMm: widthMm });
+    // Only plane coordinates are millimetres. Surface offsets already simplify
+    // physically; applying a planar millimetre tolerance to UV destroys that work.
+    const cleaned = !slice||slice.kind==='plane'?found.map(loop => cleanPlanarLoop(loop, wallToleranceMm === 0 ? PRINT_RESOLUTION_MM : wallToleranceMm)):found;
+    for (const [loop,points] of cleaned.entries())
+      walls.push({ role: ring === 0 ? 'perimeter' : 'perimeter-inner', ringIndex:ring, edge:{loop,ring},closed: true, points, beadWidthMm: widthMm });
   }
   // Fill reaches half a bead beyond the last loop, less the overlap welding
   // fill to walls. The region offset retains material topology at collapse.
   const inset = widthMm * (loops + 0.5 - fillOverlap) - widthMm / 2 + Math.max(0, loops - 1) * (pitch - widthMm);
-  const interior = outward ? [] : ['surface-cells','fronts'].includes(fillOrder?.kind)&&loops===0?region:
+  const interior = outward ? [] : fillOrder?.kind==='surface-cells'&&loops===0?region:
     offset(boundary,loops>0?-(loopInsetMm===null?widthMm/2+inset:loopInsetMm+(loops-1)*pitch+widthMm*(1-fillOverlap)):-widthMm/2);
   const dense = fillDensity >= 1;
   const solidRegion = dense ? interior : solid?.length ? intersect(interior, solid) : [];
@@ -66,10 +65,6 @@ export function layerStrokes(region, options) {
     slice=null,fillOrder=null,layer=null,direction=null,layoutReference=slice,fillState=null,fillDirection=null}=options;
   const pitch=lineSpacing(widthMm,{spacingFactor});
   const {walls,interior,solidRegion,sparseRegion}=options.preparedLayout??sliceLayerLayout(region,options);
-  if(fillOrder?.kind==='fronts'){
-    const fronts=[];for(const [owned,density] of [[solidRegion,solidDensity],[sparseRegion,fillDensity]])if(owned.length&&density>0)fronts.push(frontLayerStrokes({...layer,slice,region:owned,direction},{...fillOrder,lineSpacingMm:fillOrder.lineSpacingMm/density,sampleStepMm,lineWidthMm:widthMm}));
-    return {walls,infill:[],fill:fronts.flatMap(front=>front.curves),interior,sparseRegion,solidRegion,constructionReport:fronts.at(-1)?.report};
-  }
   const fillOptions={pitch,fillDensity,fillPattern,patternAngleDeg,sampleStepMm,direction};
   let constructionReport, nextFillState;
   const reference=slice??horizontalSlice(phaseMm);
@@ -81,27 +76,12 @@ export function layerStrokes(region, options) {
       toleranceMm:fillOrder.toleranceMm,direction:fillDirection??fillOrder.directions[(layer?.index??0)%fillOrder.directions.length],
       heightMm:layer.heightMm,speedMmS:layer.speedMmS,layoutChart:layoutReference,startU:fillState?.nextU??0,axialStart:fillState?.nextAxial??0});
     const cells=[...(solidRegion.length?[construct(solidRegion,solidDensity)]:[]),...(sparseRegion.length?[construct(sparseRegion,fillDensity)]:[])];
-    const metric=cells.length?{...cells.at(-1),strokes:cells.flatMap(cell=>cell.strokes)}:{strokes:[],report:{points:0},nextU:fillState?.nextU??0,nextAxial:fillState?.nextAxial??0};
+    const metric=cells.length?{...cells.at(-1),strokes:cells.flatMap((cell,i)=>cell.strokes.map(stroke=>({...stroke,...(stroke.orderGroup?{orderGroup:i+':'+stroke.orderGroup}:{})})))}:{strokes:[],report:{points:0},nextU:fillState?.nextU??0,nextAxial:fillState?.nextAxial??0};
     fill=metric.strokes;infill.length=0;constructionReport=metric.report;nextFillState={nextU:metric.nextU,nextAxial:metric.nextAxial};
   }
   return {walls,infill,fill,interior,sparseRegion,solidRegion,constructionReport,nextFillState};
 
 }
-
-// Material the loops of a layer cover: the band inward from the loop boundary,
-// one ring per loop when loops are spaced wider than a bead, within the region.
-export function loopMaterial(region, { widthMm, loops, spacingFactor }, {outward=false,slice=null,sampleStepMm=.2} = {}) {
-  if (outward) return region;
-  const pitch = lineSpacing(widthMm, { spacingFactor });
-  const offset=distance=>offsetSliceRegion(slice,region,distance,{sampleStepMm});
-  if (pitch === widthMm) return difference(region, offset(-widthMm * loops));
-  return union(Array.from({ length: loops }, (_, ring) => difference(ring ? offset(-ring * pitch) : region,
-    offset(-ring * pitch - widthMm))).flat(), []);
-}
-
-// Material fill strokes cover: their region grown by half a bead. Coverage
-// takes part in booleans, so it is built to the chord tolerance.
-export const fillMaterial = (region, widthMm, {slice=null,sampleStepMm=.2}={}) => region.length ? offsetSliceRegion(slice,region,widthMm/2,{sampleStepMm,arcToleranceMm:TOLERANCE.chord}) : [];
 
 // Coordinate mapping is independent of bead/process calculation. The plane
 // chart is isometric; mapped XYZ curve lengths keep physical millimetres.

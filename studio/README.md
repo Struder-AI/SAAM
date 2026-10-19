@@ -25,7 +25,7 @@ when attaching or using `capture_bundle`. Never borrow another chat's ID.
 State responses identify their server instance. A restarted page reloads for new
 credentials; old credentials cannot acknowledge a result. Restart source runs
 after changing imported code so servers and workers use the same snapshot. A code
-change alone does not make unchanged checked bytes stale.
+change alone does not remove the saved toolpath.
 
 For downloads, distinguish an HTTP response from a saved file. Use the browser's
 supported download action, or return browser control for the person's click;
@@ -71,19 +71,18 @@ combined settings/toolpath confirmation.
 
 ### Geometry and program views
 
-Selection identifies the current geometry revision and native object or mesh
-face. Edge names describe adjacent surfaces/components and connected edges;
-geometry changes clear these display identities. Generic geometry editing is
-deferred.
+Selection identifies the current revision and native object or mesh face; geometry changes clear these identities.
+Native previews retain face IDs and evaluated corner normals for shading and crease detection.
+Edge names describe adjacent surfaces/components and connected edges. Generic geometry editing is deferred.
 
 A matching toolpath view queues one [short-travel advisory](../core/export/README.md#short-travel-advisory)
 per export. Acknowledge it and describe the findings; it neither blocks review
 nor requests repair. Reopening an acknowledged export does not resend it.
 
 The toolpath view draws the SAAMpath, the completed output's or else the saved one, at its
-placement; the adapter's stored report supplies notice, estimates and limitations, and its
-settings rows follow the common settings. Next generates without a machine; Export waits
-for the program, whose missing machine, exporter or installation the review note names. Development preview supplies no confirmation or authority to deliver.
+placement, with neutral path estimates and captured settings. Next generates without
+a machine; Export requires a selected printer and checks its writer/installation
+then. Development previews remain review-only.
 
 ## Opening local prints in Studio
 
@@ -94,8 +93,8 @@ bundle changes all tabs of that Studio; mutation requests carry print identity
 so an old tab cannot export a newly selected print.
 
 Opening checks saved artifacts without regenerating current files. A saved
-SAAMpath with no checked machine program is labeled as neutral source and cannot
-export. A tour starts with geometry and generates when its toolpath
+SAAMpath remains viewable without any machine program; Export creates one from
+the reviewed path and selected settings. A tour starts with geometry and generates when its toolpath
 lesson opens. Outside tours, a fresh bundle starts in geometry view.
 
 An obsolete calculation is cancelled when its inputs change. While replacing a
@@ -145,10 +144,8 @@ identity with edits; an unchecked program summary is not a failed check.
 | Geometry-only work | No generation solely to finish or undim. |
 | Tour toolpath lesson | Generate in Studio; retain the lesson's exact-result requirement. |
 
-Omit `resultStage` unless a particular view is required. Studio requests and client
-hooks (`saam client-event`) hand work back on turn end, interjection, input or closure.
-Codex hooks require user trust in `/hooks`. Claude questions/permissions pause directly;
-Esc has no immediate hook: the next prompt or idle notification supplies the signal.
+Omit `resultStage` unless a particular view is required. [Native client events](../core/application/README.md#client-queue-monitoring)
+hand work back on turn end, interjection, input or closure, without command-hook trust.
 
 Follow [client queue monitoring](../core/application/README.md#client-queue-monitoring)
 after acknowledging completed work; quiet expiry preserves attachment and work.
@@ -163,7 +160,7 @@ sequence, time, kind, delivery class, instance and print. Held events wait for a
 read; delivered events wake waits and include the held remainder. Reading drains
 the queue; notifications alone do not. `get_studio_events`, operation responses
 and `saam wait` carry observations plus live job progress. Act on the latest
-state and use sequence numbers to recognize repeats.
+state and stable event IDs to recognize repeats.
 
 | Delivered | Held |
 |---|---|
@@ -204,7 +201,7 @@ Missing model data may stop its worker while source motion remains available.
 
 [server.mjs](server.mjs) runs the one generation job for the bundle it shows, for
 the person, a tour step or an agent (`server.generate`, inside the agent's held
-edit). Bundle's `generateBundle` reuses a current checked program or runs the
+edit). Bundle's `generateBundle` reuses a current neutral result or runs the
 [generation worker](../core/print/generation-worker.mjs) under that reservation.
 Cancellation stops the worker until its commit is acknowledged; then immutable
 output and atomic manifest replacement finish. A person's failed generation
@@ -216,9 +213,9 @@ becomes an agent request; an agent's is that agent's error outcome and an event.
 [agent-ui.mjs](agent-ui.mjs) reports rendering and ignores obsolete responses.
 Durable request records and live event queues cannot substitute for rendering.
 
-Export captures the exact displayed checked program. It does not regenerate
-or reinterpret current files; later edits cannot change captured
-download bytes. Reopening separately validates stored artifacts.
+Export captures the displayed path and settings before queued work. Machine
+preparation/writing returns transient download bytes; later edits do not change
+the capture. Reopening uses saved neutral artifacts and never runs the writer.
 
 ### Playback storage and movie resources
 

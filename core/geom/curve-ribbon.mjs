@@ -6,7 +6,7 @@
 // helix's turns, stay.
 import {evaluateCurve} from './nurbs.mjs';
 import {requireThat} from './tolerance.mjs';
-import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {ROUNDING_MM,ROUNDING_RELATIVE,TOLERANCE} from '../dimensions.mjs';
 import {requireCurve,looseCurveField,curveAtDepth,sideAt} from './curve-offset.mjs';
 import {extract,join,curveCrossings} from './curve-ops.mjs';
 
@@ -67,7 +67,7 @@ export function foldCuts(moved,source,closed=false){
     // Widen windows before and after the reversal until the loop's closing
     // crossing appears, starting from a millionth of the period (a seed width, not a tolerance).
     let cut=null;
-    for(let width=Math.max(r1-r0,P*1e-6);;width*=2){
+    for(let width=Math.max(r1-r0,P*TOLERANCE.domainFraction);;width*=2){
       const a0=Math.max(s0,r0-width),b1=Math.min(s1,r1+width);
       if(a0<r0&&b1>r1){
         // A pair lists its curves in either order.

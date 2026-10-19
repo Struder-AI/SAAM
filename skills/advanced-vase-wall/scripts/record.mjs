@@ -1,14 +1,11 @@
 // Selected extension record validation. No release-relative code is needed to
 // validate a saved sleeve before regeneration.
-export function advancedVaseRecordRuntime(){
+export function advancedVaseRecordRuntime({dimensions}){
+  const {PRINT_RESOLUTION_MM,BUILD_SCALE_MM}=dimensions;
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
   // Patterns use sleeve coordinates, never independent world XYZ.
 
 // A turns pattern's perimeter position is periodic; a sized pattern's arc is not.
-// copies core/dimensions.mjs PRINT_RESOLUTION_MM; this runtime has no release-relative imports
-const PRINT_RESOLUTION_MM=1e-3;
-// copies core/dimensions.mjs BUILD_SCALE_MM; this runtime has no release-relative imports
-const BUILD_SCALE_MM=1000;
 // Joined paths meet to print resolution once mapped: a third of it per coordinate
 // (arc or turn, height, offset) keeps the mapped gap inside it. A turn fraction
 // scales by a perimeter of at most build scale.

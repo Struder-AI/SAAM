@@ -3,12 +3,9 @@
 export const SKILL_IDS = Object.freeze([
   'slice', 'trace', 'inject'
 ]);
-export const EXTENSION_IDS = Object.freeze(['advanced-vase-wall','vase-wall','bridging','draped-skin','wave-overhangs','thick-lip','pipe-cladding','plastic-weld','heat-set-inserts','text','line-text','thingi10k','gridfinity','standard-support','bridge-supports','hole-transitions','wing','light-switch-covers']);
-// These extensions consume named plan.skills configuration. Other dependencies
-// are already represented by geometry shapes or construction assignments.
-export const EXTENSION_CONFIGURATION_IDS=Object.freeze(['plastic-weld']);
+export const EXTENSION_IDS = Object.freeze(['advanced-vase-wall','vase-wall','bridging','plastic-weld','heat-set-inserts','text','line-text','thingi10k','gridfinity','standard-support','bridge-supports','hole-transitions','wing','light-switch-covers']);
 export const BUILDER_IDS = Object.freeze(['mesh-tools']);
-export const GUIDANCE_IDS = Object.freeze(['line-network','hole-supports']);
+export const GUIDANCE_IDS = Object.freeze(['line-network','hole-supports','pipe-cladding','thick-lip','wave-overhangs']);
 // Skills whose settings carry spacingFactor (core/path/spacing.mjs); slice
 // assignments carry their own.
 export const SPACING_SKILLS = Object.freeze([]);

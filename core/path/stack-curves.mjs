@@ -1,6 +1,6 @@
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,dot,cross,normalize,distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 import {sampleAuthoredCurve} from './authored-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
@@ -34,32 +34,18 @@ function stackNormal(sleeve,u,v){
   return normalize(a.map((x,k)=>x+(b[k]-x)*t));
 }
 
-// A boundary function is the wall itself; its layers only label segments, so
-// any layer count and shape spirals. A sleeve chart is interpolated between
-// layer boundaries: it joins the longest run of consecutive joinable layers,
-// and every other layer prints its boundaries as separate closed layers
-// (layerCurves; one note names them). Without such a run, profile is null and
-// layerCurves hold every layer.
+// One continuous wall needs one boundary at every source section. Invalid
+// topology is rejected before constructing any alternative deposition.
 export function spiralStackCurve({referenceStack,firstHeightMm,widthMm,speedMmS,role='spiral',...options}){
   requireThat(firstHeightMm>0&&widthMm>0&&Number.isFinite(speedMmS),'Spiral joining needs positive bead values and a speed.');
-  const bead={firstHeightMm,widthMm,speedMmS,role,...options};
-  if(referenceStack.boundary)return {...spiralRun(referenceStack,bead),layerCurves:[]};
-  const runs=[];
-  for(const layer of referenceStack.layers){const run=runs.at(-1);if(run?.joinable&&joinable(layer))run.layers.push(layer);else runs.push({joinable:joinable(layer),layers:[layer]});}
-  const joined=runs.filter(run=>run.joinable&&run.layers.length>=2).reduce((best,run)=>run.layers.length>(best?.layers.length??0)?run:best,null)?.layers??[];
-  const separate=referenceStack.layers.filter(layer=>!joined.includes(layer)),whole=joined.length===referenceStack.layers.length;
-  // A part of the stack takes the chart's own layer coordinate.
-  const spiral=joined.length?spiralRun({...referenceStack,layers:joined,...(whole?{}:{coordinate:undefined})},bead):{profile:null,notes:[]};
-  // Collapsed boundaries carry nothing to print.
-  const layerCurves=separate.flatMap(layer=>(layer.curves??[]).filter(curve=>curve.points?.length>=(curve.closed?3:2)).map(curve=>({...curve,role,speedMmS,beadWidthMm:widthMm,
-    heightMm:layer.heightMm??firstHeightMm,segmentMetadata:curve.points.slice(curve.closed?0:1).map(()=>({layer:layer.index}))})));
-  const notes=separate.length?[`Spiral stack: ${layerList(separate.map(layer=>layer.index))} printed plain, not spiral-joined; a spiral joins consecutive layers that each have one closed boundary${joined.length?`, here ${layerList(joined.map(layer=>layer.index))}`:''}.`]:[];
-  return {...spiral,layerCurves,notes:[...spiral.notes,...notes]};
+  requireThat(referenceStack.boundary||referenceStack.layers.length>=2&&referenceStack.layers.every(joinable),
+    'A spiral needs one continuous boundary throughout; disconnected islands, split or collapsed sections need separate Slice work.');
+  return spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,role,...options});
 }
 
 // Process scale: default sampling step and chord tolerance of a spiral, for a 0.4 mm
 // line; widthMm is in scope but the defaults are kept so existing spirals do not move.
-function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=.02,minimumTurnSeconds=0,role}){
+function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,sampleStepMm=.4,toleranceMm=CHORD_TOLERANCE_MM,role}){
   const n=referenceStack.layers.length,sleeve=referenceStack.boundary?null:boundarySleeve(referenceStack);
   const coordinate=referenceStack.coordinate??{startMm:0,endMm:n-1,pitchMm:1};
   const foundationHeightMm=referenceStack.layers[0].heightMm??firstHeightMm;
@@ -86,7 +72,7 @@ function spiralRun(referenceStack,{firstHeightMm,widthMm,speedMmS,levelEnd=true,
       return {...frame,u,v:cross(normal,u),normal};
     })};
   }
-  const bead=spiralBeadCurve({profile,points:curve.points,turns,role,speedMmS,minimumTurnSeconds});
+  const bead=spiralBeadCurve({profile,points:curve.points,turns,role,speedMmS});
   // A layer gap that reverses (the stack folds back) deposits nothing there.
   const gaps=referenceStack.boundary?bead.heightsMm:curve.points.slice(1).map((point,i)=>{
     const a=curve.frameSamples[i].point,b=curve.frameSamples[i+1].point,u=(a[0]+b[0])/2,v=(a[1]+b[1])/2;

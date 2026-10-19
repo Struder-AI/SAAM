@@ -1,12 +1,11 @@
 import {sampleSpatialCurve} from '../geom/spatial-curve.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
-import {referenceSurface} from '../geom/reference-surface.mjs';
+import {referenceSurface,selectedFace} from '../geom/reference-surface.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
 
 import {curvePoint} from '../geom/surface-curves.mjs';
 
-import {heightReferenceBounds} from '../geom/height-slice.mjs';
 import {transportCurveFrames} from '../geom/curve-frame.mjs';
 import {strokeRange} from './deposition.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
@@ -41,22 +40,24 @@ export function curveProfile(values,t,fallback){
   return Array.isArray(x)?x.map((v,k)=>v+(y[k]-v)*s):x+(y-x)*s;
 }
 
-function referenceEntry(reference,references,repetition){
-  if(reference.kind==='surface')return {at:referenceSurface(reference.surface,references?.[`part:${reference.part??''}`]?.shell),
-    domainU:[0,reference.surface.sizeMm[0]],domainV:[0,reference.surface.sizeMm[1]]};
+function curveReferenceSurface(reference,references,repetition=null){
+  if(reference.kind==='surface'){
+    return referenceSurface(reference.surface,references?.[`part:${reference.part??''}`]?.shell);
+  }
+  if(reference.kind==='patch'&&references?.[`part:${reference.part??''}`])return selectedFace(references[`part:${reference.part??''}`].shell,reference.name);
   const key=reference.kind==='patch'?`patch:${reference.part??''}:${reference.name}`:`${reference.kind}:${reference.assignment}`;
   const found=references?.[key];requireThat(found,`Curve reference ${key} is unavailable.`);
   if(reference.kind==='slice'){
-    const index=reference.index??repetition,layer=found.layers?.find(l=>l.index===index);
-    requireThat(layer,`Curve reference ${key} has no layer ${index}.`);return layer.slice;
+    const index=reference.index??repetition,layer=index===null?found.layers?.findLast(layer=>layer.slice):found.layers?.find(l=>l.index===index);
+    requireThat(layer,`Curve reference ${key} has no selected prepared surface.`);return layer.slice;
   }
   return found.patch??{kind:'sleeve-chart',layers:found.layers,domainU:[0,1],domainV:[0,found.layers.length-1]};
 }
 // Process scale: default chord tolerance of an authored curve, a twentieth of a 0.4 mm
 // line; callers normally pass the repetition's own toleranceMm.
-const AUTHORED_CHORD_MM=.02;
-export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,0,0],toleranceMm=AUTHORED_CHORD_MM,sampleStepMm=1}={}){
-  const input=curve.uv??curve,surface=curve.uv?referenceEntry(input.reference,references,repetition):null;
+const AUTHORED_CHORD_MM=CHORD_TOLERANCE_MM;
+export function sampleAuthoredCurve(curve,{references={},repetition=null,offset=[0,0,0],toleranceMm=AUTHORED_CHORD_MM,sampleStepMm=1}={}){
+  const input=curve.uv??curve,surface=curve.uv?curveReferenceSurface(input.reference,references,repetition):null;
   const {samples,sourceSegments}=sampleSpatialCurve({points:input.points,nurbs:input.nurbs,closed:curve.closed,surface,normalMm:input.normalMm??0},
     {offset,toleranceMm:curve.toleranceMm??toleranceMm,sampleStepMm:curve.sampleStepMm??sampleStepMm,
       cuts:Object.values(curve.vary??{}).flatMap(v=>v.map(p=>p[0])),chartSteps:curve.uv?.reference.kind==='sleeve'?[.125,.25]:[]});
@@ -67,7 +68,17 @@ export function sampleAuthoredCurve(curve,{references={},repetition=0,offset=[0,
     const n=s.normal,tangent=s.du;
     const u=normalize(tangent.map((v,i)=>v-dot(tangent,n)*n[i]));return {point:[...s.chart,input.normalMm??0],u,v:cross(n,u),normal:n};
   });result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
-  return applyCurveProfiles(result,curve);
+  if(surface&&input.points&&!(input.normalMm??0))result.nativeSurface={surface,translation:offset};
+  const profiled=applyCurveProfiles(result,curve);
+  if(vary)profiled.profilePath={parameters:profiled.curveParameters,vary,
+    widthsMm:profiled.widthsMm,speedsMmS:profiled.segmentMetadata?.map(m=>m.speedMmS)};
+  // Exact spatial NURBS survive process/profile finalization. Any subsequent
+  // mapping, connection or displacement changing these points invalidates this
+  // witness at publication and publishes the actual finalized polyline instead.
+  if(nurbs&&!uv)profiled.nativePath={geometry:{kind:'nurbs',...nurbs,
+    controlPoints:nurbs.controlPoints.map(p=>p.map((value,i)=>value+offset[i]))},
+    points:profiled.points,parameters:profiled.curveParameters};
+  return profiled;
 }
 
 export function applyCurveProfiles(input,curve){
@@ -137,10 +148,9 @@ function samplePiecewiseCurve(source,chart,path,{offset=[0,0,0],toleranceMm=AUTH
 export function constructAuthoredCurves(curve,options={}){
   let offsetChart=null,offsetDescriptor=null;
   if(curve.uv?.normalMm){
-    const entry=referenceEntry(curve.uv.reference,options.references,options.repetition??0);
-    if(entry.layers||entry.reference?.kind==='roof'){
-      const bounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
-      offsetDescriptor=entry.layers?{kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]}:{kind:'slice-chart',slice:entry,domainU:[bounds.min[0],bounds.max[0]],domainV:[bounds.min[1],bounds.max[1]]};
+    const entry=curveReferenceSurface(curve.uv.reference,options.references,options.repetition??null);
+    if(entry.layers){
+      offsetDescriptor={kind:'sleeve-chart',layers:entry.layers,domainU:[0,1],domainV:[0,entry.layers.length-1]};
       offsetChart=piecewiseChart(offsetDescriptor,{normalMm:curve.uv.normalMm,toleranceMm:(curve.toleranceMm??options.toleranceMm??AUTHORED_CHORD_MM)/4});
       offsetDescriptor={...offsetDescriptor,atlas:offsetChart};
     }
@@ -151,9 +161,8 @@ export function constructAuthoredCurves(curve,options={}){
   if(construction.parallelCount===1)return [applyCurveProfiles({...source,beadWidthMm:construction.beadWidthMm},curve)];
   let paths=[];
   if(curve.uv){
-    const entry=referenceEntry(curve.uv.reference,options.references,options.repetition??0);
-    const heightBounds=entry.kind==='height-field'?heightReferenceBounds(entry.reference):null;
-    const patch=offsetDescriptor??(entry.cp?entry:entry.patch)??(heightBounds?{kind:'slice-chart',slice:entry,domainU:[heightBounds.min[0],heightBounds.max[0]],domainV:[heightBounds.min[1],heightBounds.max[1]]}:entry.layers?entry:null);
+    const entry=curveReferenceSurface(curve.uv.reference,options.references,options.repetition??null);
+    const patch=offsetDescriptor??(entry.cp?entry:entry.patch)??(entry.layers?entry:entry.at?{...entry,kind:'surface-chart'}:null);
     if(entry.kind==='plane'){
       const plane=entry;
       paths=parallelBeadCurves({...source,curveParameters:undefined},curve.widthRule).map(c=>{
@@ -161,7 +170,7 @@ export function constructAuthoredCurves(curve,options={}){
         return {...mapped,frameSamples:mapped.points.map(p=>{const d=p.map((x,k)=>x-plane.origin[k]-(options.offset?.[k]??0));return {point:[dot(d,plane.xAxis),dot(d,plane.yAxis),curve.uv.normalMm??0],u:plane.xAxis,v:plane.yAxis,normal:plane.normal};})};
       });
     }else{
-    requireThat(patch,'Parallel surface curves require a native patch, plane or height-field chart.');
+    requireThat(patch,'Parallel surface curves require a native patch, plane or evaluated surface chart.');
     const chartPoints=offsetChart?source.chartPoints:source.frameSamples.map(f=>f.point.slice(0,2));
     for(let k=0;k<Math.ceil(construction.parallelCount/2);k++){
       const radius=(construction.parallelCount-1)*construction.pitchMm/2-k*construction.pitchMm;

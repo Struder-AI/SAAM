@@ -1,42 +1,34 @@
 // Application prepares work and extension dependencies before Toolpath runs.
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {prepareSliceLayer,prepareFrontSeed} from './slice-preparation.mjs';
+import {isDeepStrictEqual} from 'node:util';
+import {prepareSliceLayer} from './slice-preparation.mjs';
 import {prepareReferenceSliceStack} from './slice-stacks.mjs';
+import {prepareOwnedSliceRegions} from './slice-material.mjs';
 import {layerStrokes} from '../region/layer-strokes.mjs';
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareTraceSourceLayer} from './trace-source-preparation.mjs';
-import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {assignmentFamily} from './slice-settings.mjs';
 import {AssignmentFailure,assignmentWork} from './assignment-failure.mjs';
-// Extensions see prepared work only. Core retains the translation from work
-// keys to whichever operations construction actually emits.
-export function depositionWorkDescription(node){
-  const record=node.record,context=node.context??record.context,assignment=context.assignment??record.spec.settings;
-  const layers=record?record.spec.layers.filter(layer=>node.index===null||layer.index===node.index):[];
-  const heights=layers.flatMap(layer=>layer.slice?layer.region?.flatMap(loop=>loop.map(uv=>evaluateSurface(layer.slice,uv).point[2]))??[]:[]);
-  const points=assignment.curves?.flatMap(curve=>curve.points??[])??assignment.points?.map(record=>record.point)??[];
-  const repeat=assignment.repeat?.translation?.[2]??0,repetitions=assignment.repeat?.count??1;
-  const authored=points.flatMap(point=>[point[2],point[2]+repeat*(repetitions-1)]);
-  const range=values=>values.reduce(([low,high],value)=>[Math.min(low,value),Math.max(high,value)],[Infinity,-Infinity]);
-  const heightRange=heights.length?range([...heights,node.nominalRank]):authored.length?range(authored):
-    [context.startMm??node.nominalRank,context.endMm??node.nominalRank];
-  return {key:node.key,kind:node.kind,construction:node.construction,sourceId:node.sourceId,part:node.part,index:node.index,
-    rank:node.nominalRank,startMm:context.startMm??context.shell?.bounds.min[2]??node.nominalRank,
-    endMm:context.endMm??context.shell?.bounds.max[2]??node.nominalRank,assignment,process:context.process,
-    reference:record?.reference?.selection??null,layers,
-    heightRange,
-    details:context.details??null};
-}
-
+import {traceSurfaceReadiness,referenceSliceReadiness,contactSliceReadiness,nativeBaseReadiness} from './surface-readiness.mjs';
 // Expand construction and recipe constraints once to exact work-node keys.
-export function prepareDepositionWork(contexts,constructions=[],work=[],dependencies=()=>({dependencies:[],notes:[]}),curveSources=[],{plan,shells=[]}={}){
+export function prepareDepositionWork(contexts,constructions=[],curveSources=[],{plan,shells=[],onProgress,preparedConstructions=new Map(),preparedLayouts=new Map()}={}){
+  constructions=constructions.map(context=>{
+    if(!context.prepare)return context;
+    if(!preparedConstructions.has(context))preparedConstructions.set(context,
+      assignmentWork({sourceId:context.assignment.id,kind:context.kind??'trace'},()=>context.prepare(context)));
+    return preparedConstructions.get(context);
+  });
+  const materialReferences=constructions.flatMap(context=>(context.materialSurfaces??[]).map(surface=>({
+    owner:{assignment:{id:surface.reference.assignment},part:surface.part,shell:context.shell},
+    spec:{layers:surface.layers},prerequisite:surface.reference})));
+  const materials=[...contexts,...materialReferences];
   const references={},active=new Set(),resolvedRecords=new Set();
-  for(const [part,shell] of shells)for(const patch of shell.patches??[])references['patch:'+(part??'')+':'+patch.name]={patch};
+  for(const [part,shell] of shells)references['part:'+(part??'')]={shell};
   const resolveTrace=context=>{
     if(resolvedRecords.has(context))return;
     const a=context.assignment;
     requireThat(!active.has(context),'Prepared reference dependencies form a cycle.');active.add(context);
-    const names=[a.source?.assignment,a.repeat?.stack,...(a.curves??[]).map(curve=>curve.uv?.reference?.assignment)].filter(Boolean);
+    const names=[a.source?.assignment,a.substrate?.assignment,a.repeat?.stack,...(a.curves??[]).map(curve=>curve.uv?.reference?.assignment)].filter(Boolean);
     const hosts=contexts.filter(record=>names.includes(record.owner.assignment.id)||names.includes(record.spec.id));
     for(const host of hosts)resolve(host);
     if(a.source){
@@ -54,29 +46,34 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
     if(resolvedRecords.has(record))return;
     const assignment=record.owner.assignment;
     requireThat(!active.has(record),'Slice reference dependencies form a cycle.');active.add(record);
-    const source=record.reference?.selection.kind==='terminal'?contexts.find(other=>other!==record&&other.owner.assignment.id===record.reference.source&&other.owner.part===record.owner.part)??
+    const source=record.reference?.selection.kind==='slice'?contexts.find(other=>other!==record&&other.owner.assignment.id===record.reference.source&&other.owner.part===record.owner.part)??
       [...constructions,...curveSources].find(other=>other.assignment.id===record.reference.source&&other.assignment.part===record.owner.part):null;
     if(source?.spec)resolve(source);
     else if(source?.assignment.construction==='curves')resolveTrace(source);
-    if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareReferenceSliceStack(record,{source,references})));
-    let fillState;
-    record.preparedLayers=new Map();
-    for(const [ordinal,layer] of record.spec.layers.entries()){
-      const onSubstrate=layer.onSubstrate??Boolean(record.contact);
-      const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,substrate:onSubstrate?null:record.context.substrate??null}};
-      const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
-      if(nominal.settings.fillOrder?.kind==='fronts'&&nominal.settings.fillOrder.seedUv===null){
-        const selected=record.contact?.source;
-        const supporting=contexts.filter(other=>other!==record&&other.owner.part===record.owner.part&&(selected?other.owner.assignment.id===selected:!other.contact&&!other.reference));
-        for(const other of supporting)resolve(other);
-        const prior=record.spec.layers.filter(other=>other.index<layer.index);
-        const predecessors=[...prior.slice(-1),...supporting.flatMap(other=>other.spec.layers)];
-        const seedUv=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareFrontSeed(input,{predecessors,substrate:input.gap.substrate??null,sampleStepMm:nominal.settings.sampleStepMm,toleranceMm:nominal.settings.fillOrder.toleranceMm}));
-        nominal.strokeSettings={...nominal.strokeSettings,fillOrder:{...nominal.settings.fillOrder,seedUv},layer:{...nominal.strokeSettings.layer,seedSource:'prepared-material'}};
+    if(record.reference)Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareOwnedSliceRegions(prepareReferenceSliceStack(record,{source,references}))));
+    const contactSources=[...(assignment.contact?.surfaces??[]).map(surface=>surface.source),...(assignment.contact?.source&&typeof assignment.contact.source==='object'?[assignment.contact.source]:[])];
+    for(const contact of contactSources)for(const supporting of contexts.filter(other=>other!==record&&other.owner.assignment.id===contact.assignment&&
+      other.owner.part===(Object.hasOwn(contact,'part')?contact.part:record.owner.part)))if(supporting.spec.layers.some(layer=>!layer.slice))resolve(supporting);
+    Object.assign(record,assignmentWork({sourceId:assignment.id,kind:'slice'},()=>contactSliceReadiness(record,contexts,plan)));
+    const layoutInputs={spec:record.spec,context:record.context,referenceStack:record.referenceStack,contact:record.contact};
+    const prior=preparedLayouts.get(record.spec.id);
+    if(prior&&isDeepStrictEqual(prior.inputs,layoutInputs)){
+      record.preparedLayers=prior.layers;
+      onProgress?.({stage:'Reusing Slice layout',assignment:assignment.id,completed:record.spec.layers.length,total:record.spec.layers.length});
+    }else{
+      let fillState;
+      record.preparedLayers=new Map();
+      for(const [ordinal,layer] of record.spec.layers.entries()){
+        onProgress?.({stage:'Preparing Slice layout',assignment:assignment.id,layer:layer.index,completed:ordinal,total:record.spec.layers.length});
+        const onSubstrate=layer.onSubstrate??Boolean(record.contact);
+        const input={...layer,onSubstrate,fillState,gap:layer.gap??{advanceMm:layer.translationMm??layer.heightMm,direction:layer.direction,substrate:onSubstrate?null:record.context.substrate??null}};
+        const nominal=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>prepareSliceLayer(record.spec,record.context,input));
+        const strokes=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>layerStrokes(layer.region,{...nominal.strokeSettings,preparedLayout:nominal.preparedLayout}));
+        fillState=strokes.nextFillState;
+        record.preparedLayers.set(layer.index,{...nominal,preparedStrokes:strokes,ordinal,firstBedLayer:!onSubstrate&&ordinal===0});
       }
-      const strokes=assignmentWork({sourceId:assignment.id,kind:'slice'},()=>layerStrokes(layer.region,{...nominal.strokeSettings,preparedLayout:nominal.preparedLayout}));
-      fillState=strokes.nextFillState;
-      record.preparedLayers.set(layer.index,{...nominal,preparedStrokes:strokes,ordinal,firstBedLayer:!onSubstrate&&ordinal===0});
+      onProgress?.({stage:'Preparing Slice layout',assignment:assignment.id,completed:record.spec.layers.length,total:record.spec.layers.length});
+      preparedLayouts.set(record.spec.id,{inputs:layoutInputs,layers:record.preparedLayers});
     }
     record.spec={...record.spec,layers:record.spec.layers.map(layer=>record.preparedLayers.get(layer.index))};
     record.referenceStack={...record.referenceStack,layers:record.spec.layers};
@@ -86,56 +83,60 @@ export function prepareDepositionWork(contexts,constructions=[],work=[],dependen
   };
   for(const record of contexts)assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>resolve(record));
   for(const context of curveSources)assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>resolveTrace(context));
+  for(const record of contexts)record.prerequisites=assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>referenceSliceReadiness(record,materials));
+  constructions=constructions.map(context=>context.assignment.construction==='curves'&&!context.assignment.source?
+    {...context,assignment:assignmentWork({sourceId:context.assignment.id,kind:'trace'},()=>traceSurfaceReadiness(context.assignment,materials,shells))}:context);
+  for(const record of contexts)Object.assign(record,assignmentWork({sourceId:record.owner.assignment.id,kind:'slice'},()=>nativeBaseReadiness(record,materials)));
   const baseNodes=contexts.flatMap(record=>{
-    const units=record.referenceStack.constructTogether?[{index:null,rank:record.layerOrder[0]?.rank??0}]:record.layerOrder;
-    return units.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
-      construct:record.constructWork,providesSurface:record.providesSurface,nominalRank:unit.rank,index:unit.index,record,first:i===0,requires:[]}));
+    const layers=new Map(record.spec.layers.map(layer=>[layer.index,layer]));
+    return record.layerOrder.map((unit,i)=>({key:`slice:${record.spec.id}:${unit.index}`,kind:'slice',construction:record.spec.settings.construction??'slice',sourceId:record.owner.assignment.id,part:record.owner.part,
+      index:unit.index,layer:layers.get(unit.index),record,first:i===0,requires:[]}));
   }).concat(constructions.map(context=>({key:`${context.assignment.construction}:${context.assignment.id}`,kind:context.kind??assignmentFamily(context.assignment),construction:context.assignment.construction,
-    construct:context.construct,providesSurface:context.providesSurface,sourceId:context.assignment.id,part:context.assignment.part??null,nominalRank:context.endMm??context.shell?.bounds.max[2]??0,context,requires:[]}))).concat(work);
+    construct:context.construct,sourceId:context.assignment.id,part:context.assignment.part??null,context,materialContexts:materials,requires:[]})));
+  const sourceSlices=new Map();
+  for(const node of baseNodes.filter(node=>node.kind==='slice'))for(const name of new Set([node.sourceId,node.record.spec.id])){
+    if(!sourceSlices.has(name))sourceSlices.set(name,[]);sourceSlices.get(name).push(node);
+  }
   const followers=curveSources.flatMap(context=>{
-    const source=context.assignment.source,matching=baseNodes.filter(node=>node.kind==='slice'&&(node.sourceId===source.assignment||node.record.spec.id===source.assignment)&&(context.assignment.part===null||context.assignment.part===node.part));
-    if(!matching.length)return [{key:'curves:'+context.assignment.id,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:context.assignment.part,context,nominalRank:0,requires:[]}];
+    const source=context.assignment.source,matching=(sourceSlices.get(source.assignment)??[]).filter(node=>context.assignment.part===null||context.assignment.part===node.part);
+    if(!matching.length)return [{key:'curves:'+context.assignment.id,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:context.assignment.part,context,requires:[]}];
     return matching.map(parent=>({key:'curves:'+context.assignment.id+':'+parent.record.spec.id+':'+parent.index,kind:'trace',construction:'curves',sourceId:context.assignment.id,part:parent.part,
-      context:{...context,assignment:{...context.assignment,part:parent.part}},parentKey:parent.key,index:parent.index,nominalRank:parent.nominalRank,requires:[parent.key]}));
+      context:{...context,assignment:{...context.assignment,part:parent.part}},parentKey:parent.key,index:parent.index,requires:[parent.key]}));
   });
-  const nodes=baseNodes.map(node=>({...node,requires:[...node.requires,...followers.filter(follower=>node.requires.includes(follower.parentKey)).map(follower=>follower.key)]})).concat(followers);
-  const descriptions=nodes.map(node=>assignmentWork(node,()=>depositionWorkDescription(node)));
+  const nodes=baseNodes.concat(followers);
+  const workCompletions=new Map(),completionKey=node=>'work-completion:'+JSON.stringify([node.sourceId,node.part]);
+  const byPart=new Map(),beforePart=new Map(),byReference=new Map();
+  const addCompletion=(index,part,completion)=>{if(!index.has(part))index.set(part,new Set());index.get(part).add(completion);};
+  for(const node of nodes){
+    const key=completionKey(node);
+    if(!workCompletions.has(key))workCompletions.set(key,{key,kind:'completion',sourceId:node.sourceId,part:node.part,requires:[]});
+    const completion=workCompletions.get(key);completion.requires.push(node.key);
+    addCompletion(byPart,node.part,completion);
+    const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
+    for(const part of assignment.dependencies?.beforeParts??[])addCompletion(beforePart,part,completion);
+    for(const name of new Set([node.sourceId,node.record?.spec.id].filter(name=>name!==undefined))){
+      if(!byReference.has(name))byReference.set(name,{all:[],indices:new Map()});
+      const index=byReference.get(name);index.all.push(node);
+      if(!index.indices.has(node.index))index.indices.set(node.index,[]);index.indices.get(node.index).push(node);
+    }
+  }
+  const referenced=(name,index)=>index===undefined?byReference.get(name)?.all??[]:byReference.get(name)?.indices.get(index)??[];
   const declared=nodes.map(node=>assignmentWork(node,()=>{
     const assignment=node.kind==='slice'?node.record.spec.settings:node.context.assignment;
-    const needs=new Set(node.requires),execution=new Set(node.kind==='slice'?[]:node.requires),defaults=new Set();
-    const references=node.construction==='curves'?[assignment.repeat?.stack,...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference&&reference.kind!=='patch').map(reference=>reference.assignment)].filter(Boolean):[];
-    for(const other of nodes){
-      if(other===node)continue;
-      const offers=other.kind==='slice'?other.record.spec.settings:other.context.assignment;
-      if(other.sourceId!==node.sourceId&&(assignment.dependencies?.afterParts.includes(other.part)||offers.dependencies?.beforeParts.includes(node.part))){needs.add(other.key);execution.add(other.key);}
-      if(references.includes(other.sourceId)||references.includes(other.record?.spec.id))needs.add(other.key);
-      if(node.kind==='slice'&&node.record.reference&&other.part===node.part){
-        if(node.record.reference.source!==null&&other.sourceId===node.record.reference.source)needs.add(other.key);
-        if(node.record.reference.source===null&&(other.providesSurface||other.kind==='slice'&&!other.record.reference))defaults.add(other.key);
-      }
-      if(node.kind==='trace'&&assignment.curves?.some(c=>c.contact)&&(other.kind!=='trace'||nodes.indexOf(other)<nodes.indexOf(node)))defaults.add(other.key);
-
-    }
-    if(node.kind==='slice'&&node.first&&node.record.contact?.source!==null&&node.record.contact?.source!==undefined)
-      if(!nodes.some(other=>other.sourceId===node.record.contact.source&&other.part===node.part))throw new AssignmentFailure(node,Error('Contact source names an absent producer or a different part.'));
-    const declaredDependencies=assignmentWork(node,()=>dependencies(descriptions[nodes.indexOf(node)],descriptions));
-    for(const key of declaredDependencies.dependencies){needs.add(key);execution.add(key);}
-    return {...node,requires:[...needs],executionRequires:[...execution],defaults:[...defaults],dependencyNotes:declaredDependencies.notes};
+    const needs=new Set(node.requires);
+    const references=node.construction==='curves'?[
+      ...(assignment.repeat?.stack?(assignment.repeat.indices??[undefined]).map(index=>({assignment:assignment.repeat.stack,index})):[]),
+      ...assignment.curves.map(curve=>curve.uv?.reference).filter(reference=>reference?.assignment),
+      ...assignment.curves.filter(curve=>typeof curve.contact?.source==='string').map(curve=>({assignment:curve.contact.source}))]:[];
+    for(const part of assignment.dependencies?.afterParts??[])for(const other of byPart.get(part)??[])
+      if(other.sourceId!==node.sourceId)needs.add(other.key);
+    for(const other of beforePart.get(node.part)??[])if(other.sourceId!==node.sourceId)needs.add(other.key);
+    for(const reference of references)for(const other of referenced(reference.assignment,reference.index))if(other!==node)needs.add(other.key);
+    if(node.kind==='slice'&&node.record.reference?.selection.kind==='slice')
+      for(const other of referenced(node.record.reference.source,node.record.reference.selection.index))if(other!==node&&other.part===node.part&&other.sourceId===node.record.reference.source)needs.add(other.key);
+    if(node.kind==='slice'&&node.first&&typeof node.record.contact?.source==='string')
+      if(!workCompletions.has(completionKey({sourceId:node.record.contact.source,part:node.part})))throw new AssignmentFailure(node,Error('Contact source names an absent producer or a different part.'));
+    return {...node,requires:[...needs]};
   }));
-  // Unnamed substrate/bridge inputs use available producers, excluding explicit
-  // downstream consumers. Explicit recipe edges always retain their meaning.
-  const dependsOn=(key,target,seen=new Set())=>{
-    if(key===target)return true;if(seen.has(key))return false;seen.add(key);
-    return (declared.find(node=>node.key===key)?.requires??[]).some(prior=>dependsOn(prior,target,seen));
-  };
-  const prepared=declared.map(({defaults,...node})=>({...node,requires:[...new Set([...node.requires,...defaults.filter(key=>!dependsOn(key,node.key))])]}));
-  const byKey=new Map(prepared.map(node=>[node.key,node]));
-  const reaches=(key,target,seen=new Set())=>{
-    if(key===target)return true;if(seen.has(key))return false;seen.add(key);
-    return (byKey.get(key)?.requires??[]).some(prior=>reaches(prior,target,seen));
-  };
-  // A completion already includes its predecessors. Retain only independent
-  // prerequisites; preserve cyclic edges so construction reports the real error.
-  return prepared.map(node=>({...node,requires:node.requires.filter(key=>!node.requires.some(other=>
-    other!==key&&reaches(other,key)&&!reaches(key,other)))}));
+  return declared.concat([...workCompletions.values()]);
 }

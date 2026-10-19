@@ -2,13 +2,14 @@ import {requireThat} from '../private/toolpath/numeric.mjs';
 import {materialProcess} from '../machine/filaments.mjs';
 
 
-const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent','liftMm','retractMm'];
+const fields=['firstLayerMm','layerMm','lineWidthMm','planarSpeedMmS','firstLayerSpeedMmS','fanPercent','liftMm','retractMm','minimumBridgeRatio'];
 // An assignment whose layer or line step is unusable produces nothing (plan.mjs).
 const steps=['firstLayerMm','layerMm','lineWidthMm'];
 
 export function validateAssignmentProcess(overrides) {
-  requireThat(overrides===null||overrides&&typeof overrides==='object'&&!Array.isArray(overrides)&&Object.keys(overrides).every(key=>fields.includes(key)&&(steps.includes(key)||Number.isFinite(overrides[key]))),
-    'Assignment process must be null or finite firstLayerMm, layerMm, lineWidthMm, planarSpeedMmS, firstLayerSpeedMmS, fanPercent, liftMm and retractMm overrides.');
+  requireThat(overrides===null||overrides&&typeof overrides==='object'&&!Array.isArray(overrides)&&Object.keys(overrides).every(key=>fields.includes(key)&&(steps.includes(key)||Number.isFinite(overrides[key]))&&
+    (key!=='minimumBridgeRatio'||overrides[key]>=0&&overrides[key]<=1)),
+    'Assignment process needs supported finite overrides; minimumBridgeRatio must be between 0 and 1.');
   return overrides;
 }
 
@@ -33,7 +34,7 @@ export function assignmentFilament(plan,assignment) {
 
 export function depositionAssignments(plan,{expandParts=true}={}) {
   return plan.slices.assignments.flatMap(assignment=>{
-    const parts=expandParts&&!assignment.construction&&assignment.part===null&&plan.geometry?.shape==='assembly'
+    const parts=expandParts&&!assignment.construction&&!assignment.geometry&&assignment.part===null&&plan.geometry?.shape==='assembly'
       ?plan.geometry.parts.map(part=>part.id):[assignment.part];
     return parts.map(part=>{
       const selected=part===assignment.part?assignment:{...assignment,part};

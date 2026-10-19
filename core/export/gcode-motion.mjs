@@ -6,6 +6,8 @@ import {validateTemperatureC} from '../private/export/temperature.mjs';
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
 const DWELL_COMMAND_MS=60000;
+// Feed commands keep two fewer decimals than fine internal program quantities.
+const FEED_DECIMALS=Math.max(0,PROGRAM_DECIMALS-2),FEED_SCALE=10**FEED_DECIMALS;
 const fmt=n=>Number(n.toFixed(PROGRAM_DECIMALS)).toString();
 const comment=text=>String(text).replace(/[\r\n]+/g,' ');
 
@@ -24,6 +26,7 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   let residualE=0;
   const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2,tally={seconds:0,untimedMoves:0,volumeMm3:0,collapsedDepositMoves:0,terminalUnwrittenVolumeMm3:0,filamentStepVolumeMm3:area*10**-PROGRAM_DECIMALS,strokes:[],layers:new Set()};
   let tag='',operation='',writtenE=0,writtenPosition=path.initialPosition.map(value=>Number(value.toFixed(XYZ_PROGRAM_DECIMALS)));
+  tally.boundsMm={min:[...writtenPosition],max:[...writtenPosition]};
   // This body is also embedded in machine templates. Establish XYZ and feed on
   // its first use, then rely only on modal state written by this exporter.
   const modal={};
@@ -38,16 +41,17 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   // positive leaves the move out of the time estimate.
   const motion=(command,target,extrusion,feed)=>{
     let line=command;
+    if(target)for(let k=0;k<3;k++){tally.boundsMm.min[k]=Math.min(tally.boundsMm.min[k],target[k]);tally.boundsMm.max[k]=Math.max(tally.boundsMm.max[k],target[k]);}
     if(target)for(let i=0;i<3;i++)line+=field('XYZ'[i],target[i]);
     if(extrusion!==undefined)line+=` E${extrusion}`;
-    const written=Number(feed.toFixed(3));
+    const written=Number(feed.toFixed(FEED_DECIMALS));
     line+=field('F',written);
     lines.push(line);
     return written/60;
   };
   // Written feed in mm/min, rounded down; an authored speed passes through and a
   // positive one below that precision is the smallest positive feed.
-  const feedOf=mmS=>{const steps=Math.floor(mmS*60*1000);return (mmS>0?Math.max(steps,1):steps)/1000;};
+  const feedOf=mmS=>{const steps=Math.floor(mmS*60*FEED_SCALE);return (mmS>0?Math.max(steps,1):steps)/FEED_SCALE;};
   const timed=(lengthMm,speedMmS)=>{if(!(speedMmS>0))tally.untimedMoves++;return knownSeconds(lengthMm,speedMmS);};
   const deposit=(a,from,to,amount,seconds)=>{
     tally.volumeMm3+=amount*area;tally.seconds+=seconds;

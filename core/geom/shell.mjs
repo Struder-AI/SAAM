@@ -1,26 +1,26 @@
-// A shell of untrimmed bivariate spline patches.
-//
-// This is the geometry contract the pattern skills accept. Every face is a full
-// rectangular (u,v) patch, so a face's section is the zero contour of g over the
-// whole domain: no trim classification is needed, which matters because
-// rhino3dm exposes no parameter-space trim curves (BrepTrim carries topology
-// indices only, and BrepFace.loops is unbound in this build).
-//
-// Closure is therefore measured numerically: a non-degenerate patch boundary
-// matched by no other boundary is open. An open shell builds, shows and slices
-// what closes on each layer; solid operations name its open edges (tessellate.mjs).
+// Native spline shells retain each patch's UV face region. Trimmed boundaries
+// share sewn curves; full rectangular patches retain their existing seam/pole
+// closure measurement. Open shells display and slice what closes per layer.
 
 import { evaluate } from './nurbs.mjs';
 import {surfaceIsoCurve,curvePoint} from './surface-curves.mjs';
 import { sectionPatch } from './section.mjs';
 import { TOLERANCE, requireThat, distance, distance2, dot, subtract } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM } from '../dimensions.mjs';
+import {trimSectionChains} from './surface-trim.mjs';
+import {sewSurfaceBoundary} from './surface-topology.mjs';
 
 const BOUNDARY_SAMPLES = 16;
 // Section pieces whose ends lie within print resolution join.
 const JOIN_TOLERANCE = PRINT_RESOLUTION_MM;
 
 export function makeShell(patches, { name = 'shell' } = {}) {
+  if(patches.some(patch=>patch.trimLoops)){
+    const faces=patches.map((patch,sourceFace)=>({...patch,sourceFace,normalSide:patch.normalSide??1}));
+    const topology=sewSurfaceBoundary(faces,[],{toleranceMm:PRINT_RESOLUTION_MM});
+    return {name,kind:'surface-solid',patches:faces,empty:!faces.length,bounds:shellBounds(faces),topology,
+      closure:{unmatched:topology.unmatched},intersections:[],contacts:[],notes:[],construction:{method:'authored-trimmed-surfaces',toleranceMm:PRINT_RESOLUTION_MM}};
+  }
   // Closure, not a patch count, decides whether a shell is solid: one
   // revolved patch closing on its own seam and poles is a whole sphere.
   const shell = { name, patches, empty:patches.length===0, bounds: shellBounds(patches) };
@@ -139,10 +139,13 @@ export function sectionShell(shell, slice, options = {}) {
 // clockwise (seen from the normal).
 function sectionShellAt(shell, slice, nudge, { minFeatureMm = 0.4, gapMm = 0 } = {}) {
   const plane = { normal: slice.normal, offset: dot(slice.normal, slice.origin) + nudge };
-  const cuts = shell.patches.map(patch => sectionPatch(patch, plane, { minFeatureMm }));
+  const cuts = shell.patches.map(patch => {
+    const cut=sectionPatch(patch,plane,{minFeatureMm});
+    return {...cut,chains:trimSectionChains(patch,cut.chains,{plane})};
+  });
   const coincident = cuts.filter(cut => cut.coincident).length;
   const chains = cuts.flatMap(cut => cut.coincident ? [] : cut.chains.filter(chain => chain.length > 1).map(chain => chain.map(p => p.point)));
-  const { loops, open } = joinChains(chains);
+  const { loops, open } = joinChains(chains,shell.construction?.toleranceMm??JOIN_TOLERANCE);
   const closed = closeOpenChains(open.map(chain => toChart(chain, slice)), gapMm);
   return { loops: orientLoops([...loops.map(loop => toChart(loop, slice)), ...closed.loops]), open: closed.open, coincident };
 }
@@ -185,15 +188,15 @@ const midpoint = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 // Join per-patch chains into closed loops using 3D endpoint proximity. Adjacent
 // patches share the boundary geometrically, so their chain ends coincide.
-function joinChains(chains) {
+function joinChains(chains,toleranceMm=JOIN_TOLERANCE) {
   const pool = chains.map(points => [...points]);
   const loops = [], open = [];
   while (pool.length) {
     let chain = pool.pop();
     for (;;) {
-      if (chain.length > 2 && distance(chain[0], chain[chain.length - 1]) <= JOIN_TOLERANCE) { loops.push(chain); chain = null; break; }
+      if (chain.length > 2 && distance(chain[0], chain[chain.length - 1]) <= toleranceMm) { loops.push(chain); chain = null; break; }
       const tip = chain[chain.length - 1];
-      let best = -1, reverse = false, bestDistance = JOIN_TOLERANCE;
+      let best = -1, reverse = false, bestDistance = toleranceMm;
       for (let i = 0; i < pool.length; i++) {
         const head = distance(tip, pool[i][0]), tail = distance(tip, pool[i][pool[i].length - 1]);
         if (head <= bestDistance) { best = i; reverse = false; bestDistance = head; }

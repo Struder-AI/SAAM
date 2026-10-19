@@ -6,22 +6,20 @@ import {compileText,textFeature} from '../scripts/text.mjs';
 import {constructSolids} from '../../../core/geom/solid-operations.mjs';
 import {geometryOperations} from '../../../core/geom/operations.mjs';
 import {solidKernel,solidFromMesh} from '../../../core/geom/solid.mjs';
-import {makeMesh} from '../../../core/geom/mesh.mjs';
-import {rhino} from '../../../core/geom/runtime.mjs';
-import {buildShell} from '../../../core/geom/build.mjs';
 
 const fontPath=new URL('./fixtures/Abel-Regular.ttf',import.meta.url);
 const bytes=await readFile(fontPath),font={data:bytes.toString('base64'),sha256:createHash('sha256').update(bytes).digest('hex')};
-const r=await rhino(),buildGeometry=g=>buildShell(r,g),Geometry=await geometryOperations();
+const Geometry=geometryOperations();
 const plane={kind:'plane',origin:[0,0,3],xAxis:[1,0,0],yAxis:[0,1,0]};
 const feature=(patch={})=>textFeature({text:'BO',font,reference:plane,positionMm:[2,2],sizeMm:7,...patch});
-const compile=async(target,features,options={})=>(await compileText(target,features,{...Geometry,buildGeometry,constructSolids,...options})).geometry;
+const compile=async(target,features,options={})=>(await compileText(target,features,{...Geometry,...options})).geometry;
 const volume=async mesh=>{const k=await solidKernel(),s=solidFromMesh(k,mesh);try{return s.volume();}finally{s.delete();}};
 
 test('lettering finer than the retired triangle ceiling compiles and stays valid',async()=>{
   // Over 100,000 triangles: the former fixed ceiling refused this before any
   // refinement ran. Only a request the 32-bit kernel cannot address is refused.
   const record=await compile(null,[feature({overlapMm:0})],{maxEdgeMm:0.035});
-  assert.ok(record.triangles.length>100000,`triangles: ${record.triangles.length}`);
-  assert.ok(await volume(makeMesh(record.vertices,record.triangles))>0);
+  const [mesh]=await constructSolids([record]);
+  assert.ok(mesh.triangles.length>100000,`triangles: ${mesh.triangles.length}`);
+  assert.ok(await volume(mesh)>0);
 });
