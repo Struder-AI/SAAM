@@ -49,6 +49,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | Skill | Use |
 |---|---|
 | [wing](wing/SKILL.md) | Experimental interactive wing design workspace with source-backed airfoils and self-contained print bundles. |
+| [gridfinity-planner](gridfinity-planner/SKILL.md) | Experimental workspace that fits a gridfinity grid to a drawer, paints bins into it by filament colour and packs them onto build plates as ordinary print bundles. |
 
 ## Advanced sections
 

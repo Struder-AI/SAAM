@@ -3,7 +3,7 @@
 export const SKILL_IDS = Object.freeze([
   'slice', 'trace', 'inject'
 ]);
-export const EXTENSION_IDS = Object.freeze(['advanced-vase-wall','vase-wall','bridging','plastic-weld','heat-set-inserts','text','line-text','thingi10k','gridfinity','standard-support','bridge-supports','hole-transitions','wing','light-switch-covers']);
+export const EXTENSION_IDS = Object.freeze(['advanced-vase-wall','vase-wall','bridging','plastic-weld','heat-set-inserts','text','line-text','thingi10k','gridfinity','standard-support','bridge-supports','hole-transitions','wing','light-switch-covers','gridfinity-planner']);
 export const BUILDER_IDS = Object.freeze(['mesh-tools']);
 export const GUIDANCE_IDS = Object.freeze(['line-network','hole-supports','pipe-cladding','thick-lip','wave-overhangs']);
 // Skills whose settings carry spacingFactor (core/path/spacing.mjs); slice

@@ -1,0 +1,12 @@
+{
+  "schema":"saam-extension/1",
+  "id":"gridfinity-planner",
+  "kind":"workspace",
+  "dependencies":[{"id":"gridfinity"},{"id":"text"}],
+  "entries":{"workspace-runtime":{"file":"workspace.mjs","export":"createGridfinityPlannerWorkspace"}},
+  "workspace":{"ui":"ui"},
+  "license":"Apache-2.0; bundled Abel font SIL-OFL-1.1",
+  "provenance":"SAAM workspace built on the gridfinity and text extensions, requested by Timothy Keller 2026-10-07; Struder logo from studio/struder-logo.png; font provenance and OFL in fonts/.",
+  "credits":[{"name":"Timothy Keller","role":"Concept, workflow requirements and design review"},{"name":"Claude Code","role":"Implementation and SAAM extension integration"}],
+  "support":{"status":"community","maintainer":null,"scope":"No designated maintainer or Struder support commitment. Physical fit, the grid-gap default, label legibility and stacking are untested."}
+}

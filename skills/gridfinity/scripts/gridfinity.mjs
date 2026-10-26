@@ -6,7 +6,7 @@ const COMMON={kind:'bin',xUnits:1,yUnits:1,toleranceMm:null};
 const OPTIONS={
   bin:{heightUnits:3,wallMm:1.2,floorMm:2.25,compartmentsX:1,compartmentsY:1,stackingLip:true,magnetHoles:false},
   blank:{heightUnits:1,magnetHoles:false},
-  baseplate:{floorMm:1.2}
+  baseplate:{floorMm:1.2,paddingLeftMm:0,paddingRightMm:0,paddingFrontMm:0,paddingBackMm:0}
 };
 // An edit merges into the saved parameters; a changed kind keeps only the common
 // ones (footprint and tolerance), since its other settings mean something else.
@@ -27,7 +27,7 @@ export function gridfinityParameters(input={},toleranceMm){
   if(kind!=='baseplate'){
     range('heightUnits',1,Number.MAX_SAFE_INTEGER,true);requireThat(typeof p.magnetHoles==='boolean','magnetHoles must be boolean.');
   }
-  if(kind==='baseplate')range('floorMm',0,Infinity);
+  if(kind==='baseplate')for(const key of ['floorMm','paddingLeftMm','paddingRightMm','paddingFrontMm','paddingBackMm'])range(key,0,Infinity);
   if(kind==='bin'){
     range('heightUnits',1,Number.MAX_SAFE_INTEGER,true);range('wallMm',Number.MIN_VALUE,3.75);range('floorMm',Number.MIN_VALUE,Infinity);
     requireThat(p.wallMm<3.75,'Wall thickness must leave a positive inner corner radius.');
@@ -52,8 +52,10 @@ export async function compileGridfinity(input={}, {constructGeometry,roundedRect
   const w=42*p.xUnits-0.5,d=42*p.yUnits-0.5,cx=21*p.xUnits,cy=21*p.yUnits;
     let solid;
     if(p.kind==='baseplate'){
-      const floor=p.floorMm,top=floor+4.75;
-      solid=block(w+0.5,d+0.5,4,0,top,cx,cy);
+      // Padding widens the solid border beyond the socket grid, which stays at
+      // the origin: left/front extend toward -X/-Y, right/back toward +X/+Y.
+      const floor=p.floorMm,top=floor+4.75,{paddingLeftMm:l,paddingRightMm:r,paddingFrontMm:f,paddingBackMm:b}=p;
+      solid=block(w+0.5+l+r,d+0.5+f+b,4,0,top,cx+(r-l)/2,cy+(b-f)/2);
       const sockets=[];
       for(let x=0;x<p.xUnits;x++)for(let y=0;y<p.yUnits;y++){
         // 5 mm reference socket, trimmed 0.25 mm below its zero-width rim.
