@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Gridfinity planner · SAAM</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+<header>
+  <div class="brand"><img src="/struder-logo.png" alt="Struder" class="brand-logo"><span>SAAM Gridfinity planner</span></div>
+  <nav id="steps" aria-label="Planner steps"></nav>
+  <div class="header-actions"><span id="status" role="status"></span></div>
+</header>
+<main>
+  <section class="view">
+    <div class="view-head"><div><p class="eyebrow" id="view-eyebrow"></p><h1 id="view-title"></h1></div><div class="view-buttons" id="view-buttons"></div></div>
+    <div class="stage" id="stage"></div>
+    <div class="view-foot"><span id="view-foot-left"></span><span id="view-foot-right"></span></div>
+  </section>
+  <aside id="panel" aria-live="polite"></aside>
+</main>
+<footer class="info"><div data-saam-workspace-info></div></footer>
+<div id="menu" role="menu" hidden><button id="menu-edit" role="menuitem">Edit</button><button id="menu-delete" role="menuitem">Delete</button></div>
+<script type="module" src="/app.mjs"></script>
+</body></html>

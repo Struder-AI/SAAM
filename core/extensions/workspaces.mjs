@@ -3,6 +3,7 @@ import {listExtensions,resolveExtensions,loadExtensionEntry} from './library.mjs
 import {geometryOperations} from '../geom/operations.mjs';
 import {recipeDefaults} from '../print/plan.mjs';
 import {curveAssignment} from '../print/curves.mjs';
+import {machineIds,loadMachine} from '../machine/profile.mjs';
 
 export const workspaceIdentity=resolved=>{
   const selected=resolved.at(-1);
@@ -14,17 +15,33 @@ export async function listWorkspaces(options={}){
   return (await listExtensions(options)).extensions.filter(item=>item.manifest.kind==='workspace')
     .map(({id,digest,origin,manifest})=>({id,digest,origin,kind:'workspace',workspace:manifest.workspace,dependencies:manifest.dependencies,manual:`extensions/${id}/SKILL.md`}));
 }
+// Flat-bed printers a workspace can lay parts out for: the printable area is
+// where every tool reaches. Facts only; bundles still choose their machine in Studio.
+export function workspacePrinter(id){
+  const machine=loadMachine(id),bounds=machine.tools.map(tool=>tool.bounds??machine.bounds);
+  if(!machine.kinematics?.startsWith('cartesian'))throw Error(`${machine.name} has no flat build plate for workspace layout.`);
+  return {id:machine.id,name:machine.name,
+    printableMm:{min:[0,1,2].map(i=>Math.max(...bounds.map(b=>b.min[i]))),max:[0,1,2].map(i=>Math.min(...bounds.map(b=>b.max[i])))},
+    filamentChanges:machine.outputs.some(output=>output.id==='bambu-gcode')};
+}
+const workspacePrinters=()=>machineIds().filter(id=>loadMachine(id).kinematics?.startsWith('cartesian')).map(workspacePrinter);
+
 export async function loadWorkspaceRuntime(extensionId,options={}){
   const resolved=await resolveExtensions([extensionId],options),selected=resolved.at(-1);
   if(selected.manifest.kind!=='workspace')throw Error(`Extension ${extensionId} is not a workspace.`);
   const create=await loadExtensionEntry(extensionId,'workspace-runtime',options);
   const Geometry=await geometryOperations();
-  const compileText=selected.manifest.dependencies.some(dependency=>dependency.id==='text')
-    ?await loadExtensionEntry('text','geometry-compile',options):null;
+  const declares=id=>selected.manifest.dependencies.some(dependency=>dependency.id===id);
+  const compileText=declares('text')?await loadExtensionEntry('text','geometry-compile',options):null;
+  // A declared gridfinity dependency builds its bins and baseplates with the
+  // same Geometry operations its own create entry receives.
+  const gridfinityPlan=declares('gridfinity')?await loadExtensionEntry('gridfinity','geometry-create',options):null;
+  const gridfinity=gridfinityPlan?Object.freeze({create:parameters=>gridfinityPlan(null,parameters,Geometry)}):null;
   const definition=await create(Object.freeze({
     Geometry,
     Toolpath:Object.freeze({recipeDefaults,curveAssignment}),
-    Extensions:Object.freeze(compileText?{text:Object.freeze({compileText})}:{})
+    Extensions:Object.freeze({...(compileText?{text:Object.freeze({compileText})}:{}),...(gridfinity?{gridfinity}:{})}),
+    Machine:Object.freeze({printers:workspacePrinters,printer:workspacePrinter})
   }));
   for(const name of ['normalize','preview','pieces','construct'])
     if(typeof definition?.[name]!=='function')throw Error(`Workspace ${extensionId} needs ${name}.`);

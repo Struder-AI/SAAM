@@ -56,12 +56,15 @@ Blanks take `heightUnits` (default 1, positive whole count) and `magnetHoles`: f
 solid body up to nominal height, without cavities or rim. Baseplates take
 `floorMm` (default 1.2, nonnegative), the backing under the sockets; zero is an
 open frame, and plate height is `floorMm + 4.75`. Baseplates have no magnet pockets.
+`paddingLeftMm`, `paddingRightMm`, `paddingFrontMm` and `paddingBackMm` (default 0,
+nonnegative) widen the solid border to fit a drawer; the sockets stay on the grid
+at the origin, so left and front padding extend toward −X and −Y.
 
 ## Dimensions and fit
 
 Bin and blank footprints are `42 * units - 0.5`, with local minimum X/Y 0.25 and
 cell centres at `(21 + 42*i, 21 + 42*j)`; plates occupy the full `42 * units` from
-zero. Geometry begins at Z = 0 and new prints propose placement X/Y = 20 mm;
+zero, plus any padding. Geometry begins at Z = 0 and new prints propose placement X/Y = 20 mm;
 large grids can exceed a machine's bed. The dimensions target conventional
 gridfinity mating geometry ([construction](DEVELOPER.md#dimensions)), but physical
 fit, magnet retention and stacking are untested and variants exist: print a small
