@@ -19,11 +19,9 @@ import {evaluateSurface,translatedSurface} from './surface-evaluation.mjs';
 // compare by 2D booleans alone.
 import { evaluate } from './nurbs.mjs';
 import {projectToPatch} from './field.mjs';
-import { regionArea } from '../region/region2d.mjs';
-import { intersect } from '../region/intersection.mjs';
 import { requireThat, add, scale, dot, cross, normalize, TOLERANCE } from './tolerance.mjs';
 import { PRINT_RESOLUTION_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
-import { DIRECTION_TOLERANCE } from './frame.mjs';
+import {surfaceMeanNormal} from './surface-mean-normal.mjs';
 
 const vector = v => Array.isArray(v) && v.length === 3 && v.every(Number.isFinite);
 
@@ -107,7 +105,6 @@ export function sliceBoundaryEdges(slice,loops) {
 // Integrate the oriented area vector, not unweighted vertex normals. The UV
 // grid is bounded by a physical pitch derived from the patch control net.
 export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=null}={}) {
-  const [u0,u1]=patch.domainU,[v0,v1]=patch.domainV;
   const extents=[0,1].map(axis=>{
     let max=0;
     for(let i=0;i<patch.nu;i++)for(let j=0;j<patch.nv;j++){
@@ -117,23 +114,7 @@ export function patchMeanNormal(patch,region=null,{sampleStepMm=.5,direction=nul
     }
     return max*(axis===0?patch.nu-1:patch.nv-1);
   });
-  const counts=extents.map(length=>Math.max(2,Math.ceil(length/sampleStepMm))),sum=[0,0,0];let areaMm2=0,minProjection=Infinity,maxProjection=-Infinity;
-  for(let i=0;i<counts[0];i++)for(let j=0;j<counts[1];j++){
-    const uv=[u0+(i+.5)*(u1-u0)/counts[0],v0+(j+.5)*(v1-v0)/counts[1]];
-    const hu=(u1-u0)/counts[0]/2,hv=(v1-v0)/counts[1]/2;
-    const weight=region?regionArea(intersect(region,[[[uv[0]-hu,uv[1]-hv],[uv[0]+hu,uv[1]-hv],[uv[0]+hu,uv[1]+hv],[uv[0]-hu,uv[1]+hv]]])):4*hu*hv;
-    if(!weight)continue;
-    const e=evaluate(patch,...uv),area=cross(e.du,e.dv);
-    if(direction){const projection=dot(normalize(area),direction);minProjection=Math.min(minProjection,projection);maxProjection=Math.max(maxProjection,projection);}
-    for(let k=0;k<3;k++)sum[k]+=area[k]*weight;
-    areaMm2+=Math.hypot(...area)*weight;
-  }
-  // A region with no area at print resolution has nothing to print: it answers
-  // no area and no normal, like an empty one. The whole reference needs a normal.
-  if(region&&areaMm2<=PRINT_RESOLUTION_MM*PRINT_RESOLUTION_MM)return {normal:null,meanNormal:null,areaMm2:0,sampleStepMm};
-  const length=Math.hypot(...sum);
-  requireThat(areaMm2>0&&length>areaMm2*ROUNDING_RELATIVE,'The reference patch has no unambiguous mean stacking normal; specify stack.direction.');
-  return {normal:sum.map(v=>v/length),meanNormal:sum.map(v=>v/areaMm2),areaMm2,sampleStepMm,...(direction?{minProjection,maxProjection}:{})};
+  return surfaceMeanNormal(patch,region,{sampleStepMm,direction,counts:extents.map(length=>Math.max(2,Math.ceil(length/sampleStepMm)))});
 }
 
 // A stack of one base slice: layer k is the base translated along the unit
@@ -180,7 +161,11 @@ export function sliceStack({ base, direction = null, normalRegion = null, pitchM
     const index=referenceIndex-firstIndex,stepMm=referenceIndex===0?firstTranslationMm:translationStepMm;
     layers.push({ index, referenceIndex, offsetMm:t, targetGapMm:referenceIndex===0?firstLayerMm:pitchMm,translationMm:stepMm,heightMm: stepMm * advance, direction:d, slice });
   }
-  return { base, direction: d, pitchMm, firstLayerMm,translationStepMm,firstTranslationMm,minProjectedGapMm:translationStepMm*(range?.minProjection??advance),maxProjectedGapMm:translationStepMm*(range?.maxProjection??advance),gapMetric:'area-mean-normal-projection',meanProjection,layers };
+  const minProjectedGapMm=translationStepMm*(range?.minProjection??advance),maxProjectedGapMm=translationStepMm*(range?.maxProjection??advance);
+  return { base, direction: d, pitchMm, firstLayerMm,translationStepMm,firstTranslationMm,minProjectedGapMm,maxProjectedGapMm,gapMetric:'area-mean-normal-projection',meanProjection,layers,
+    ...(metric?{meanNormal:metric.meanNormal,areaMm2:metric.areaMm2,gapEvidence:metric.evidence,
+      minSampledProjection:range.minProjection,maxSampledProjection:range.maxProjection,
+      minSampledProjectedGapMm:minProjectedGapMm,maxSampledProjectedGapMm:maxProjectedGapMm}:{}) };
 }
 
 // Range of a patch along a unit direction, from its control hull.

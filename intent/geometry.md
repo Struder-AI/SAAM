@@ -39,18 +39,29 @@ Sources: Codex 01a0f748, 01a0f76d; [0.3.1 component 2](../plans/0.3.1.md) (agent
 >
 > "That's bad bundling. And I think the backend does need to represent trimmed surfaces." — owner, 2026-09-28 ([D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface))
 
-Summary: boundaries are ordinary curves and SAAM adds no trimmed-surface support until a consumer needs it; the 09-28 need came from ribbons, which were then cut, and joined trimmed-face solids remain 0.4.0 intent.
+Summary: boundaries are ordinary curves and SAAM adds no trimmed-surface support until a consumer needs it; the 09-28 need came from ribbons, which were then cut, and joined trimmed-face solids remain 0.5.0 intent.
 
-Sources: Codex 01a0f755, 01a0f76d ("do not introduce trimmed-surface support"); [D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface); [0.4.0 "Joined trimmed-face solids"](../plans/0.4.0.md).
+Sources: Codex 01a0f755, 01a0f76d ("do not introduce trimmed-surface support"); [D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface); [0.5.0 "Joined trimmed-face solids"](../plans/0.5.0.md).
 
-## One offset; no ribbons
+## Physical offsets and the later curves-only ribbon contract
 > "ALL of our offsets need this behavior." — owner, 2026-09-28; "There's no such thing as a surface ribbon"; "I don't even think we need ribbons … We probably cut ribbons entirely to avoid confusion" ([D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface))
 >
 > "I want "offset(region,distance)" to have a better name that specifies the planar nature." … "We need to keep offset of a curve on a spline, nonplanar, surface." — owner, 2026-10-01 (Codex 01a0f5e7 07:39)
 >
 > "curveToPolyline sounds like a bad idea to me. This just duplicates behavior that slicing does later" — owner, 2026-10-01 (Codex 01a0f5e7 08:14)
 
-Summary: one offset moves curves within a reference surface (plane or spline patch) and always resolves collisions like a region offset; spline section outlines are NURBS curves, and ribbons are gone.
+The September/October 1 removal above is historical. Later owner direction,
+2026-10-13, explicitly retains a curves-only support ribbon with a generalized
+advance direction: [extension intent](extensions.md#extensions-do-their-own-work-and-deliver-to-bundle).
+Current bridge supports use that shared Geometry operation. It preserves the
+advance coordinate while displacing the curve laterally, without requiring a
+host surface. Local fold removal differs from resolving a planar material region.
+
+Physical offsets within a plane or a nonplanar reference surface remain distinct
+from that curve ribbon and from displacing a surface along its normals. The
+reviewable contracts are [2.4](../contracts/map.json), with separate operations
+and actual request/result meaning. The old unused surface-ribbon helper is not
+revived by the later curves-only contract.
 
 Sources: [D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displace-without-a-surface); Codex 01a0f5e7; [0.2.0 Scope "Offsets"](../plans/0.2.0.md#scope-and-deferrals).
 
@@ -61,9 +72,9 @@ Sources: [D-041](../DECISIONS.md#d-041--offsets-resolve-collisions-ribbons-displ
 >
 > "Okay so we've only been pretending to have boolean support. Have a worker assess what proper booleans look like … and schedule them for 0.4.0" — owner, 2026-10-03 (Codex 01a102a0 20:25)
 
-Summary: Geometry offers union, difference and intersection as tools; in 0.4.0 one robust 3D Boolean operation serves both construction and material ownership, replacing per-layer probes.
+Summary: Geometry offers union, difference and intersection as tools; in 0.5.0 one robust 3D Boolean operation serves both construction and material ownership, replacing per-layer probes.
 
-Sources: [D-040](../DECISIONS.md#d-040--geometry-is-authored-spline-patches-meshes-and-blob-fields); [0.4.0 "General 3D solid Booleans and ownership"](../plans/0.4.0.md).
+Sources: [D-040](../DECISIONS.md#d-040--geometry-is-authored-spline-patches-meshes-and-blob-fields); [0.5.0 "General 3D solid Booleans and ownership"](../plans/0.5.0.md).
 
 ## STL units are assumed
 > "Automatically choose reasonable units after load, based on part size. Can always be changed later if needed. This applies outside of tour as well. Note this in decisions - and we will likely change this policy later down the road." — owner, 2026-09-14 ([D-030](../DECISIONS.md#d-030--provisional-stl-units-assumption))
@@ -81,7 +92,7 @@ Sources: [D-030](../DECISIONS.md#d-030--provisional-stl-units-assumption).
 
 Summary: Studio repairs imports automatically and reports its exact source and outcome; sub-resolution repair features are closed and reported. The October 9 removal approval in [0.3.7](../plans/0.3.7.md) supersedes the earlier probable CGAL direction; repair now uses SAAM's JavaScript.
 
-Sources: [0.3.3 "Mesh import diagnostics"](../plans/0.3.3.md) (owner: "1. agree, write that into the 0.3.3 intent doc", Codex 01a0ff5c 01:46); [0.3.6 "Mesh repair redesign" and "Dimensions and tolerances"](../plans/0.3.6.md); [0.4.0 "Move away from CGAL"](../plans/0.4.0.md); [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries) (Studio owns import repair; agent wording); Codex 01a0ff63 02:04 ("We should have mesh fix tools to deal with that situation.").
+Sources: [0.3.3 "Mesh import diagnostics"](../plans/0.3.3.md) (owner: "1. agree, write that into the 0.3.3 intent doc", Codex 01a0ff5c 01:46); [0.3.6 "Mesh repair redesign" and "Dimensions and tolerances"](../plans/0.3.6.md); [0.5.0 "Move away from CGAL"](../plans/0.5.0.md); [D-043](../DECISIONS.md#d-043--complete-consolidation-and-role-boundaries) (Studio owns import repair; agent wording); Codex 01a0ff63 02:04 ("We should have mesh fix tools to deal with that situation.").
 
 ## Compute in C++ where it pays
 > "Okay so we can to incremental migration of select components from javascript to c++? That seems like the ideal approach" — owner, 2026-09-15 ([D-031](../DECISIONS.md#d-031--incremental-c-migration-of-selected-compute-components))

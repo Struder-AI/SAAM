@@ -2,7 +2,6 @@
 // a manual for the agent reading it: its client, its print's machine and what it asked for.
 import { lstat, readFile } from 'node:fs/promises';
 import { resolve, posix } from 'node:path';
-import { loadMachine } from '../machine/profile.mjs';
 import {readExtension} from '../extensions/library.mjs';
 
 const rootManuals = new Set(['AGENTS.md', 'README.md', 'MAKERS.md', 'GEOMETRY.md', 'BUILDERS.md', 'DEVELOPER-CONTEXT.md',
@@ -126,7 +125,8 @@ export function guidanceSection(markdown, anchor) {
 // What a machine opens: its capabilities, and its nonplanar limit for `nonplanar>=N`.
 export function machineOpens(selection) {
   if (!selection) return () => false;
-  const machine = typeof selection==='string'?loadMachine(selection):selection;
+  if(typeof selection!=='object')throw Error('Context requires captured machine settings, not a profile ID.');
+  const machine = selection;
   const capabilities = new Set(machine.capabilities ?? []);
   return token => {
     const [name, degrees] = token.split('>=');
@@ -140,7 +140,8 @@ export function machineOpens(selection) {
 // Closed sections are cut and listed in `omitted`; frontmatter and gate markers are dropped, line
 // endings are LF and relative links become repository paths.
 export function assembleGuidance(markdown, path, { anchor, machineId, machine, all = false } = {}) {
-  const { sections } = outline(markdown), opens = machineOpens(machine===undefined?machineId:machine);
+  if(machineId!==undefined&&machine===undefined)throw Error('Capture machine settings before assembling guidance.');
+  const { sections } = outline(markdown), opens = machineOpens(machine);
   let start = /^---\r?\n[\s\S]*?\r?\n---\r?\n/.exec(markdown)?.[0].length ?? 0, end = markdown.length, requested;
   if (anchor) {
     requested = sections.findIndex(section => section.anchor === anchor);
@@ -163,7 +164,7 @@ export function assembleGuidance(markdown, path, { anchor, machineId, machine, a
   return { text: repositoryLinks(text, path), omitted };
 }
 
-async function loadGuidance(root, guidanceId) {
+async function loadGuidance(root, guidanceId, {dataRoot}={}) {
   const [requested, encodedAnchor] = guidanceId.split('#');
   let path, anchor;
   try {
@@ -172,7 +173,7 @@ async function loadGuidance(root, guidanceId) {
   } catch { throw new Error('Invalid documentation path or heading.'); }
   if (!publishedPath(path)) throw new Error('Invalid documentation path. Use a repository-relative link from a manual.');
   if(path.startsWith('extensions/')){
-    const [,id,...parts]=path.split('/'),selected=await readExtension(id,{appRoot:root});
+    const [,id,...parts]=path.split('/'),selected=await readExtension(id,{appRoot:root,dataRoot});
     if(!selected||!parts.length||!selected.files.some(file=>file.path===parts.join('/')))
       throw new Error(`Extension guidance is missing: ${path}.`);
     return {path,anchor,markdown:await readFile(resolve(selected.directory,...parts),'utf8')};
@@ -188,8 +189,8 @@ async function loadGuidance(root, guidanceId) {
 }
 
 // The source as written: one file or section, its headings and resolved links.
-export async function readGuidance(root, guidanceId) {
-  const { path, anchor, markdown } = await loadGuidance(root, guidanceId);
+export async function readGuidance(root, guidanceId, options={}) {
+  const { path, anchor, markdown } = await loadGuidance(root, guidanceId, options);
   const text = guidanceSection(markdown, anchor);
   return { guidanceId, path, text, headings: outline(markdown).sections.map(({ title, anchor }) => ({ title, guidanceId: `${path}#${anchor}` })),
     links: guidanceLinks(text, path), guidanceIds };
@@ -198,11 +199,12 @@ export async function readGuidance(root, guidanceId) {
 // The source as an agent reads it (see assembleGuidance); `headings` adds the manual's headings
 // with their gates, for choosing a section to read by name; `markers` (builder and developer
 // reads) adds the marker lines it could not read.
-export async function readManual(root, guidanceId, { headings: withHeadings = false, markers: withMarkers = false, ...context } = {}) {
-  const { path, anchor, markdown } = await loadGuidance(root, guidanceId);
+export async function prepareManual(root,guidanceId,options={}){return {guidanceId,...await loadGuidance(root,guidanceId,options)};}
+export function assembleManual({guidanceId,path,anchor,markdown},{headings:withHeadings=false,markers:withMarkers=false,...context}={}){
   const { text, omitted } = assembleGuidance(markdown, path, { ...context, anchor }), { sections, unreadable } = outline(markdown);
   return { guidanceId, path, text, ...(omitted.length ? { omitted } : {}),
     ...(withMarkers && unreadable.length ? { unreadableMarkers: unreadable } : {}),
     ...(withHeadings ? { headings: sections.map(({ title, anchor, gate }) =>
       ({ title, guidanceId: `${path}#${anchor}`, ...(gate ? { gate: gateText(gate) } : {}) })) } : {}) };
 }
+export async function readManual(root,guidanceId,{dataRoot,...context}={}){return assembleManual(await prepareManual(root,guidanceId,{dataRoot}),context);}

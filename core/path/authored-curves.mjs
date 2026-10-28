@@ -1,5 +1,6 @@
 import {sampleSpatialCurve} from '../geom/spatial-curve.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
+import {surfaceTangentFrame} from '../geom/surface-frame.mjs';
 import {referenceSurface,selectedFace} from '../geom/reference-surface.mjs';
 import {requireThat,distance,normalize,cross} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_RELATIVE,CHORD_TOLERANCE_MM} from '../dimensions.mjs';
@@ -18,27 +19,10 @@ import {piecewiseChart,piecewiseChartFrame,mapPiecewiseChartPath,splitPiecewiseC
 import {authoredNurbs} from '../geom/spatial.mjs';
 export {authoredNurbs} from '../geom/spatial.mjs';
 
-// Profiles as read: increasing [t,value] pairs spanning 0..1, with positive
-// values (speeds need only be finite: they pass through; zero flow moves without
-// depositing). Any other key, such as pose (Slice output and field modulation
-// supply it), or an unusable profile is left out and named in ignored.
-const PROFILE_KEYS=['beadWidthMm','heightMm','flowMultiplier','speedMmS'];
-const usableProfile=(key,values)=>Array.isArray(values)&&values.length>=2&&values.every((p,i)=>Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&(!i||p[0]>values[i-1][0])&&Number.isFinite(p[1])&&(['speedMmS','flowMultiplier'].includes(key)||p[1]>0))
-  &&values[0][0]===0&&values.at(-1)[0]===1;
-export function readCurveProfiles(vary){
-  if(vary===undefined)return {vary:undefined,ignored:[]};
-  const entries=vary&&typeof vary==='object'&&!Array.isArray(vary)?Object.entries(vary):null;
-  if(!entries)return {vary:undefined,ignored:['vary']};
-  const usable=entries.filter(([key,values])=>PROFILE_KEYS.includes(key)&&usableProfile(key,values));
-  return {vary:usable.length?Object.fromEntries(usable):undefined,ignored:entries.filter(entry=>!usable.includes(entry)).map(([key])=>'vary.'+key)};
-}
+import {curveProfile} from './construction-profiles.mjs';
+export {readCurveProfiles,curveProfile} from './construction-profiles.mjs';
+export {reconcileAuthoredCorrespondence} from './authored-correspondence.mjs';
 export {distinctPolyline} from '../geom/spatial-curve.mjs';
-export function curveProfile(values,t,fallback){
-  if(!values)return fallback;
-  let i=1;while(i<values.length-1&&values[i][0]<t)i++;
-  const [a,x]=values[i-1],[b,y]=values[i],s=(t-a)/(b-a);
-  return Array.isArray(x)?x.map((v,k)=>v+(y[k]-v)*s):x+(y-x)*s;
-}
 
 function curveReferenceSurface(reference,references,repetition=null){
   if(reference.kind==='surface'){
@@ -64,14 +48,14 @@ export function sampleAuthoredCurve(curve,{references={},repetition=null,offset=
   const {nurbs,uv,vary,repetitions,widthRule,toleranceMm:tol,sampleStepMm:maxStep,...properties}=curve;
   const result={...properties,role:curve.role??'curve',closed:false,points:samples.map(s=>s.point),curveParameters:samples.map(s=>s.t)};
   if(curve.segmentMetadata)result.segmentMetadata=sourceSegments.map(segment=>({...curve.segmentMetadata[segment]}));
-  if(samples[0].normal){result.frameSamples=samples.map(s=>{
-    const n=s.normal,tangent=s.du;
-    const u=normalize(tangent.map((v,i)=>v-dot(tangent,n)*n[i]));return {point:[...s.chart,input.normalMm??0],u,v:cross(n,u),normal:n};
-  });result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
+  if(samples[0].normal){result.frameSamples=samples.map(s=>({point:[...s.chart,input.normalMm??0],...surfaceTangentFrame(s)}));
+    result.segmentMetadata=samples.slice(1).map((s,i)=>({...result.segmentMetadata?.[i],surfaceNormal:samples[i].normal}));}
   if(surface&&input.points&&!(input.normalMm??0))result.nativeSurface={surface,translation:offset};
   const profiled=applyCurveProfiles(result,curve);
   if(vary)profiled.profilePath={parameters:profiled.curveParameters,vary,
-    widthsMm:profiled.widthsMm,speedsMmS:profiled.segmentMetadata?.map(m=>m.speedMmS)};
+    widthsMm:profiled.widthsMm,speedsMmS:profiled.segmentMetadata?.map(m=>m.speedMmS),
+    ...(vary.rateMm3PerMm?{ratesMm2:profiled.curveParameters.slice(1).map((u,i)=>curveProfile(vary.rateMm3PerMm,(u+profiled.curveParameters[i])/2)),
+      aspects:profiled.curveParameters.slice(1).map((u,i)=>curveProfile(vary.aspectRatio,(u+profiled.curveParameters[i])/2))}:{})};
   // Exact spatial NURBS survive process/profile finalization. Any subsequent
   // mapping, connection or displacement changing these points invalidates this
   // witness at publication and publishes the actual finalized polyline instead.
@@ -109,6 +93,13 @@ export function applyCurveProfiles(input,curve){
   });
   const samples=result.points.map((point,i)=>({point,t:result.curveParameters[i],normal:result.frameSamples?.[i]?.normal}));
   if(vary){
+    if(vary.rateMm3PerMm||vary.aspectRatio){
+      requireThat(vary.rateMm3PerMm&&vary.aspectRatio,'Authored Paath profiles need both rateMm3PerMm and aspectRatio.');
+      const rates=samples.slice(1).map((s,i)=>curveProfile(vary.rateMm3PerMm,(s.t+samples[i].t)/2));
+      const aspects=samples.slice(1).map((s,i)=>curveProfile(vary.aspectRatio,(s.t+samples[i].t)/2));
+      result.widthsMm=rates.map((rate,i)=>Math.sqrt(rate*aspects[i]));
+      result.heightsMm=rates.map((rate,i)=>Math.sqrt(rate/aspects[i]));
+    }
     if(vary.beadWidthMm)result.widthsMm=samples.slice(1).map((s,i)=>curveProfile(vary.beadWidthMm,(s.t+samples[i].t)/2));
     if(vary.heightMm)result.heightsMm=samples.slice(1).map((s,i)=>curveProfile(vary.heightMm,(s.t+samples[i].t)/2));
     if(vary.flowMultiplier)result.flowMultipliers=samples.slice(1).map((s,i)=>curveProfile(vary.flowMultiplier,(s.t+samples[i].t)/2));

@@ -3,6 +3,13 @@ import {evaluateSurface} from './surface-evaluation.mjs';
 import {cross,dot,requireThat,distance,TOLERANCE} from './tolerance.mjs';
 import {ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 
+// Completed metric actions retain only their numerical tangents and scalars.
+function completedPhysicalMetric(du,dv){
+  const area=cross(du,dv),det=dot(area,area),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
+  requireThat(Number.isFinite(det)&&det>E*G*ROUNDING_RELATIVE**2,/* the tangents' angle sine above relative rounding */'Evaluated surface has a singular physical metric.');
+  return {normal:area.map(n=>n/Math.sqrt(det)),uvOf(vector){const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/det,(E*b-F*a)/det];}};
+}
+
 // Plain slice descriptors retain their native geometry. Numerical derivatives
 // supply the metric only where no analytic chart derivatives are available.
 export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=CONSTRUCTION_TOLERANCE_MM/* process scale: default derivative accuracy, ten times print resolution */}={}){
@@ -33,7 +40,6 @@ export function evaluatedSurfaceDerivatives(surface,u,v,{normalMm=0,toleranceMm=
   const us=[Math.max(domains[0][0],u-hu),Math.min(domains[0][1],u+hu)],vs=[Math.max(domains[1][0],v-hv),Math.min(domains[1][1],v+hv)];
   const corners=[pointAt(us[0],vs[0]),pointAt(us[1],vs[0]),pointAt(us[0],vs[1]),pointAt(us[1],vs[1])];
   const duv=[0,1,2].map(k=>(corners[3][k]-corners[2][k]-corners[1][k]+corners[0][k])/((us[1]-us[0])*(vs[1]-vs[0])));
-  const du=U.first,dv=V.first,area=cross(du,dv),det=dot(area,area),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
-  requireThat(Number.isFinite(det)&&det>E*G*ROUNDING_RELATIVE**2,/* the tangents' angle sine above relative rounding */'Evaluated surface has a singular physical metric.');
-  return {point,du,dv,duu:U.second,duv,dvv:V.second,normal:area.map(n=>n/Math.sqrt(det)),uvOf(vector){const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/det,(E*b-F*a)/det];},method:'adaptive-numerical-slice-chart'};
+  const du=U.first,dv=V.first,metric=completedPhysicalMetric(du,dv);
+  return {point,du,dv,duu:U.second,duv,dvv:V.second,normal:metric.normal,uvOf:metric.uvOf,method:'adaptive-numerical-slice-chart'};
 }

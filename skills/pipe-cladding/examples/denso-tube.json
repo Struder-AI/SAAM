@@ -4,7 +4,7 @@
     "schema": "saam-shell-plan/1",
     "generatorVersion": "0.1.0",
     "experimental": {
-      "substrateAdaptation": false
+
     },
     "skills": {
       "plastic-weld": {
@@ -114,7 +114,7 @@
           "dependencies": {
             "afterParts": [],
             "beforeParts": [],
-            "after": []
+            "after": ["body"]
           },
           "description": ""
         }

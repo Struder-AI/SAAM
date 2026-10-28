@@ -115,7 +115,7 @@ function dependencyCycle(operations,prerequisites){
   return [];
 }
 
-export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null,groupAccess=null,readiness=null}={}){
+export function orderReadyOperations(operations,priorityById,prerequisites,{start,physicalEdges=[],partitions=null,cooling=null,groupAccess=null,readiness=null,onProgress}={}){
   const nodes=operations.map(op=>({op,thermalOperations:[op],...priorityById.get(op.id),remaining:prerequisites.get(op.id).size,following:[],unit:null}));
   const byId=new Map(nodes.map(node=>[node.op.id,node]));
   const units=(partitions??operations.map(op=>[op.id])).map(ids=>({nodes:ids.map(id=>byId.get(id)),operations:ids.map(id=>byId.get(id).op),parents:new Set(),following:[],remaining:0,ready:[]}));
@@ -127,12 +127,40 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
   const entry=operations.find(operation=>operation.entry)?.entry;
   requireThat(!operations.length||start||entry,'Ordering needs a source entry position.');
   const ready=units.filter(unit=>!unit.remaining),scheduled=[],available=new Set(),cursor={point:start??entry?.point,axis:null};
+  const supported=new WeakSet(),activated=[],accessState=new WeakMap();let accessChecks=0;
+  function preferredEntries(entries){
+    if(!groupAccess)return entries;
+    const active=new Set(entries.map(node=>node.unit));
+    for(const node of entries)if(!accessState.has(node.unit)){
+      const own=node.unit.operations.find(op=>!op.barrier);
+      accessState.set(node.unit,{id:own?(own.layerId??own.sourceOperation??own.id):null,at:0,blocker:null});activated.push(node.unit);
+    }
+    return entries.filter(node=>{
+      const fact=accessState.get(node.unit);if(fact.id===null)return true;
+      if(fact.blocker&&active.has(fact.blocker))return false;
+      fact.blocker=null;
+      // Immutable access pairs need one scan per activation, not another
+      // ready-by-ready matrix after each selection. Removed blockers cannot
+      // become relevant again; newly eligible groups append to this cursor.
+      while(fact.at<activated.length){
+        const other=activated[fact.at++],peer=accessState.get(other);
+        if(other===node.unit||!active.has(other)||peer.id===null)continue;
+        if(++accessChecks%256===0)onProgress?.({stage:'Comparing eligible layer access',completed:accessChecks});
+        if(groupAccess.clear(fact.id,peer.id)&&!groupAccess.clear(peer.id,fact.id)){fact.blocker=other;return false;}
+      }
+      return true;
+    });
+  }
   while(ready.length){
     const blocked=[];
     const qualified=readiness?ready.filter(unit=>{
+      if(supported.has(unit))return true;
       const results=unit.operations.map(op=>({op,result:readiness.check(op,available)})),waiting=results.filter(item=>item.result.status!=='ready');
       if(waiting.length){blocked.push(...waiting);return false;}
       for(const {op,result} of results){op.supportAllows=result.permits;op.supportSeams=result.seams;}
+      // Contact-dependent permits/seams can gain choices as material arrives.
+      // Only availability-independent ready facts skip subsequent checks.
+      if(results.every(({result})=>!result.permits&&!result.seams?.length))supported.add(unit);
       return true;
     }):ready;
     const entries=qualified.filter(unit=>unit.ready.length).map(unit=>unit.ready[nearest(unit.ready,cursor).index]);
@@ -141,15 +169,7 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
     if(!entries.length)break;
     // Prefer ready aggregates that do not leave lower-access work behind.
     // This only proposes an order; the caller proves its whole deposited prefix.
-    const preferred=groupAccess?entries.filter(node=>{
-      const own=node.unit.operations.find(op=>!op.barrier);if(!own)return true;
-      const a=own.layerId??own.sourceOperation??own.id;
-      return !entries.some(other=>{
-        const peer=other.unit.operations.find(op=>!op.barrier);if(!peer)return false;
-        const b=peer.layerId??peer.sourceOperation??peer.id;
-        return groupAccess.clear(a,b)&&!groupAccess.clear(b,a);
-      });
-    }):entries;
+    const preferred=preferredEntries(entries);
     const choices=preferred.length?preferred:entries;
     const unit=choices[nearest(choices,cursor,{cooling,wholeSlice:true}).index].unit;ready.splice(ready.indexOf(unit),1);
     while(unit.ready.length){
@@ -159,6 +179,7 @@ export function orderReadyOperations(operations,priorityById,prerequisites,{star
     }
     if(unit.nodes.some(node=>node.remaining))break;
     for(const following of unit.following)if(!--following.remaining)ready.push(following);
+    onProgress?.({stage:'Ordering eligible work',completed:scheduled.length,total:operations.length});
   }
   if(scheduled.length!==operations.length){
     const cycle=dependencyCycle(operations,prerequisites);

@@ -16,7 +16,7 @@ export function prepareSleeveGeometry({shell,assignment,process,zStartMm=null,zE
 
 export function vaseWallRuntime({Geometry,Toolpath}) {
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
-  const {spiralStackCurve,traceResult,maximumPathAngle,strokeRange,publishFinishedBoundary}=Toolpath;
+  const {spiralStackCurve,traceResult,maximumPathAngle,strokeRange}=Toolpath;
 
 function standardVaseResult({assignment:settings,process,shell,geometry,after=settings.after}){
   const referenceStack=geometry.referenceStack();
@@ -39,8 +39,7 @@ function standardVaseResult({assignment:settings,process,shell,geometry,after=se
     turns:profile?.turns??0,spiralTurns:profile?.risingTurns??0,endTransition:settings.endTransition,levelRimMm:levelBoundary?geometry.end:null,
     points:centerline.points.length,speedMmS:curve.speedMmS??null,maximumAngleDeg:maximumPathAngle(centerline.points),...geometry.report(),
     ...(notes.length?{notes}:{})}};
-  return settings.meshSleeve?result:publishFinishedBoundary(result,{shell,boundary:'side',startMm:geometry.base,
-    endMm:geometry.end-(settings.endTransition==='level'?0:process.layerMm),toleranceMm:settings.boundaryToleranceMm});
+  return result;
 }
 
   return {standardVaseResult,

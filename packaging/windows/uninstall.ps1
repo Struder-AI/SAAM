@@ -4,7 +4,7 @@ param([switch]$Yes)
 
 . (Join-Path $PSScriptRoot 'common.ps1')
 
-function Wait-ForClose { Write-Host ''; Read-Host 'Press Enter to close this window' | Out-Null }
+function Wait-ForClose { if ($Yes) { return }; Write-Host ''; Read-Host 'Press Enter to close this window' | Out-Null }
 
 $data = Get-SaamDataFolder
 if (Test-SaamRunning) { Write-Host 'SAAM is running. Choose Quit in Studio or the SAAM tray menu, then uninstall again.' -ForegroundColor Red; Wait-ForClose; exit 1 }
@@ -19,9 +19,12 @@ if (-not $env:SAAM_INSTALL_TEST_ROOT) {
   catch { Write-Host $_.Exception.Message; $unregistered = $false }
   if (-not $unregistered) { Write-Host 'Remove the registrations named above from Claude Code and Codex yourself.' -ForegroundColor Red }
 }
-foreach ($link in $Shortcuts) { if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force } }
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-[Environment]::SetEnvironmentVariable('Path', (($userPath -split ';' | Where-Object { $_.TrimEnd('\') -ine $SaamRoot.TrimEnd('\') }) -join ';'), 'User')
+# A disposable trial added no shortcuts or PATH entry; the ones named here are the person's.
+if (-not $env:SAAM_INSTALL_TEST_ROOT) {
+  foreach ($link in $Shortcuts) { if (Test-Path -LiteralPath $link) { Remove-Item -LiteralPath $link -Force } }
+  $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+  [Environment]::SetEnvironmentVariable('Path', (($userPath -split ';' | Where-Object { $_.TrimEnd('\') -ine $SaamRoot.TrimEnd('\') }) -join ';'), 'User')
+}
 # This script runs from the folder it removes; leave it first.
 Set-Location -LiteralPath $env:TEMP
 try { Remove-Folder $SaamRoot }
@@ -31,5 +34,5 @@ Write-Host ''
 Write-Host 'SAAM is uninstalled.' -ForegroundColor Green
 Write-Host "Your prints, extensions and remembered setups remain in $(Join-Path $data 'local')."
 Write-Host 'Delete that folder yourself if you no longer want them. Installing SAAM again picks them up.'
-if (-not $Yes) { Wait-ForClose }
+Wait-ForClose
 exit 0

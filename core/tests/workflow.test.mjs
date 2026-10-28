@@ -2,19 +2,25 @@
 // delivery of the exact reviewed bytes. None of these checks establish that a part prints.
 
 import {home} from './temporary-home.mjs';
+import {createPart, editPart} from '../application/part-execution.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { defaults } from '../print/plan.mjs';
-import {
-  initBundle, loadBundle, generateBundle, updatePlan, adjustBundle, exportReviewed,
-  changeMachine, proposedPlan
-} from '../print/bundle.mjs';
+import {loadBundle, changeMachine} from '../print/bundle.mjs';
+import {adjustRecipe} from '../print/edit-operations.mjs';
+import {proposedPlan} from '../print/plan.mjs';
+import {exportReviewed} from '../export/reviewed-export.mjs';
+// Export returns an owned artifact; the test reads its bytes and releases it.
+const exportedBytes=async state=>{const {artifact}=await exportReviewed(state);try{return await artifact.materialize();}finally{await artifact.release();}};
+import {generateBundle} from '../application/generation.mjs';
 import {saveSetup} from '../machine/settings.mjs';
+import {installedMachine} from '../machine/profile.mjs';
 import { createStudio } from '../../studio/server.mjs';
 import { machineChangedReview } from '../print/workflow.mjs';
+import {recipeSkills} from '../print/summary.mjs';
 
 import {splineBlock,splineBox} from './fixtures/spline-shapes.mjs';
 import {createChatChannel} from '../application/chat-requests.mjs';
@@ -31,7 +37,7 @@ function smallPlan() {
 async function fixture(t, plan = smallPlan()) {
   const dir = await mkdtemp(resolve(tmpdir(), 'saam-synthetic-shell-'));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  await initBundle(dir, plan, { machineId: 'ultimaker-s5' });
+  await createPart(dir, plan, { machineId: 'ultimaker-s5' });
   return dir;
 }
 
@@ -57,7 +63,7 @@ test('changing printer leaves the program stale and rejects stale edits',async t
   const machineSetups=dir,setupFile=resolve(machineSetups,'bambu-h2d.json');
   await writeFile(setupFile,JSON.stringify({schema:'saam-machine-setup/1',machineId:'bambu-h2d',setup:{tool:1,core:'Hardened steel 0.6',nozzleMm:0.6,material:'PLA',filamentColor:'#8B5A2B',ams:{unit:2,slot:4}}}));
   const next=await changeMachine(dir,'bambu-h2d',{expectedRevision:state.revision,machineSetups});
-  assert.equal(next.machine.id,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
+  assert.equal(next.machineId,'bambu-h2d');assert.equal(next.plan.output,'bambu-gcode');
   assert.equal(next.plan.setup.nozzleMm,0.6);
   assert.equal(next.artifacts.program,'stale');
   assert.deepEqual(next.plan.geometry,state.plan.geometry);
@@ -71,7 +77,7 @@ test('a shell print stores native geometry as its named faces', async t => {
   assert.equal(state.kind, 'shell');
   assert.equal(state.geometry.schema, 'saam-shell-geometry/1');
   assert.deepEqual(state.geometry.features.map(feature => feature.id), ['top', 'bottom', 'front', 'right', 'back', 'left']);
-  assert.deepEqual(state.skills, ['slice']);
+  assert.deepEqual(recipeSkills(state.plan), ['slice']);
 });
 
 test('development and production generation retain reviewed neutral paths', async t => {
@@ -87,9 +93,9 @@ test('the reviewed export returns repeatable bytes without storing a program', a
   await generateBundle(dir);
   const state = await loadBundle(dir, { program: 'source' });
   assert.ok(state.program && !state.programError);
-  const delivered = await exportReviewed(state);
-  assert.match(delivered.bytes.toString(),/G1/);
-  assert.deepEqual(delivered.bytes,(await exportReviewed(state)).bytes);
+  const delivered = await exportedBytes(state);
+  assert.match(delivered.toString(),/G1/);
+  assert.deepEqual(delivered,await exportedBytes(state));
   assert.equal(state.review.generation.file,undefined);
   await assert.rejects(readFile(resolve(dir,'delivery/part.gcode')),{code:'ENOENT'});
 });
@@ -106,7 +112,7 @@ test('reopening verifies the locked plan and detects a stale program', async t =
   // A plan edit leaves the generated program stale until it is regenerated.
   const plan = clone(before.plan);
   plan.process.planarSpeedMmS = 18;
-  await updatePlan(dir, plan, before.revision);
+  await editPart(dir, plan, before.revision);
   const after = await loadBundle(dir);
 });
 
@@ -117,15 +123,15 @@ test('geometry and settings edits leave the program stale', async t => {
   const stale = state.revision;
 
   // A settings change drops the final plan/export approval.
-  await adjustBundle(dir, { slices: { assignments: [{ ...state.plan.slices.assignments[0], loops: 3 }] } });
+  await adjustRecipe(dir, { slices: { assignments: [{ ...state.plan.slices.assignments[0], loops: 3 }] } });
   state = await loadBundle(dir);
   assert.equal(state.plan.slices.assignments[0].loops, 3);
   assert.equal(state.artifacts.program, 'stale');
 
-  await assert.rejects(updatePlan(dir, state.plan, stale), /stale/);
-  await adjustBundle(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
+  await assert.rejects(editPart(dir, state.plan, stale), /stale/);
+  await adjustRecipe(dir,{process:{primeLine:{startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:10}}});
   state=await loadBundle(dir);assert.equal(state.plan.process.primeLine.endMm[0],20);
-  await adjustBundle(dir,{process:{primeLine:{passes:[
+  await adjustRecipe(dir,{process:{primeLine:{passes:[
     {startMm:[5,5],endMm:[20,5],zMm:.2,widthMm:.4,heightMm:.2,speedMmS:6},
     {startMm:[20,7],endMm:[5,7],zMm:.2,widthMm:.6,heightMm:.2,speedMmS:8}
   ]}}});
@@ -133,7 +139,7 @@ test('geometry and settings edits leave the program stale', async t => {
 
   // A chat request replaces the patch list as a whole (arrays replace), which
   // rewrites the 3DM and invalidates final review as well.
-  await adjustBundle(dir, { geometry: { patches: splineBox({ runMm: 16, widthMm: 12, heightMm: 5 }).patches } });
+  await adjustRecipe(dir, { geometry: { patches: splineBox({ runMm: 16, widthMm: 12, heightMm: 5 }).patches } });
   state = await loadBundle(dir);
   assert.equal(state.geometry.parameters.shape, 'spline');
   assert.equal(state.geometry.boundsMm.max[2], 5);
@@ -142,15 +148,15 @@ test('geometry and settings edits leave the program stale', async t => {
 test('remembered S5 setup carries into the next shell print without a firmware version', async t => {
   const dir = await fixture(t);
   const machineSetups = dir, setupFile = resolve(machineSetups, 'ultimaker-s5.json');
-  const edited=await adjustBundle(dir, { setup: { nozzleC: 205 } });
-  await saveSetup(edited.machine,edited.plan.setup,{machineSetups,source:'Synthetic remembered-setup fixture'});
+  const edited=await adjustRecipe(dir, { setup: { nozzleC: 205 } });
+  await saveSetup(installedMachine(edited.machineId),edited.plan.setup,{machineSetups,source:'Synthetic remembered-setup fixture'});
   const saved = JSON.parse(await readFile(setupFile, 'utf8'));
   assert.equal(saved.schema, 'saam-machine-setup/1');
   assert.equal(saved.setup.startupVerified, false);
 
   const next = resolve(dir, 'next-print');
   const {plan:nextPlan}=await proposedPlan('ultimaker-s5',{machineSetups});nextPlan.geometry=smallPlan().geometry;
-  await initBundle(next, nextPlan, { machineId: 'ultimaker-s5' });
+  await createPart(next, nextPlan, { machineId: 'ultimaker-s5' });
   const state = await loadBundle(next, { program: false });
   assert.equal(state.plan.setup.nozzleC, 205);
   assert.equal(state.plan.setup.firmwareVersion, '');
@@ -161,7 +167,7 @@ test('selecting one skill still produces one program from one plan', async t => 
   const dir = await fixture(t, plan);
   await generateBundle(dir, { development: true });
   const state = await loadBundle(dir);
-  assert.deepEqual(state.skills, ['slice']);
+  assert.deepEqual(recipeSkills(state.plan), ['slice']);
 });
 
 test('Studio reviews a shell print and delivers it under its own export name', async t => {

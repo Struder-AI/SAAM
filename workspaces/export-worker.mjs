@@ -2,11 +2,12 @@ import {parentPort,workerData} from 'node:worker_threads';
 import {mkdir,writeFile,readFile,rm,cp,lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 import {loadWorkspaceRuntime,workspacePieces} from '../core/extensions/workspaces.mjs';
-import {initBundle} from '../core/print/bundle.mjs';
+import {createPart} from '../core/application/part-execution.mjs';
 import {replaceFile} from '../core/file-write.mjs';
 const savedRevision=async dir=>JSON.parse(await readFile(join(dir,'plan.json'),'utf8')).bundle.revision;
 
-// One handoff operation for every workspace. Only Bundle persists part state.
+// One handoff operation for every workspace. Runtime's part execution builds
+// each piece; only Bundle persists part state.
 export async function createWorkspaceBundles({extensionId,extension,design,directory,appRoot,dataRoot,previous},progress=()=>{}){
   const loaded=await loadWorkspaceRuntime(extensionId,{appRoot,dataRoot});
   if(JSON.stringify(loaded.extension)!==JSON.stringify(extension))throw Error('The workspace extension changed before construction. Reopen it before saving bundles.');
@@ -27,7 +28,7 @@ export async function createWorkspaceBundles({extensionId,extension,design,direc
       const fields=new Set(['schema','generatorVersion','geometry','process','skills','slices','modulations','experimental','composition']);
       for(const key of Object.keys(plan))if(!fields.has(key))throw Error(`Workspace construction cannot supply ${key}.`);
       const workspace={schema:'saam-workspace-source/1',extension,source:constructionSource,requirements};
-      await initBundle(join(directory,piece.id),{...plan,workspace});
+      await createPart(join(directory,piece.id),{...plan,workspace});
       const prior=previous?.record.bundles.find(entry=>entry.id===piece.id);
       const initialRevision=await savedRevision(join(directory,piece.id));
       const retained=prior?await retainEditedBundle(previous,prior,join(directory,piece.id)):false;

@@ -12,20 +12,20 @@ function combinedBounds(bounds){
 
 export class CoolingOrder {
   constructor(source,scene){
-    this.bodies=new Map();this.recent=new Map();this.clock=0;this.groups=new WeakMap();this.records=scene.byId;
+    this.bodies=new Map();this.recent=new Map();this.clock=0;this.groups=new WeakMap();this.scene=scene;
     this.summary={sliceChoices:0,courseChoices:0,neighborhoodQueries:0,estimatedDepositionSeconds:0};
     for(const body of scene.byId.values()){
       const unit=body.unit,window=unit.process.minimumLayerSeconds;
       if(!(window>0))continue;
       const bounds=[];
-      for(const record of body.records){
-        if(!(record.depth[1]>0))continue;
+      for(const ref of unit.ranges){
+        const fact=scene.rangeBounds(ref);if(!(fact.depth>0))continue;
         // Process-scale neighborhood: one bead width or depth around its path,
         // in all three dimensions, independent of build direction.
-        const margin=Math.max(record.range.widthMm[1],record.depth[1]);
-        bounds.push({min:record.range.bounds.min.map(v=>v-margin),max:record.range.bounds.max.map(v=>v+margin)});
+        const margin=Math.max(fact.width,fact.depth);
+        bounds.push({min:fact.bounds.min.map(v=>v-margin),max:fact.bounds.max.map(v=>v+margin)});
       }
-      if(unit.operation.kind==='inject'){
+      if(unit.operation.kind==='inject'&&unit.operation.injection.volumeMm3>0){
         const {at}=unit.operation.injection,margin=unit.process.lineWidthMm;
         bounds.push({min:at.map(v=>v-margin),max:at.map(v=>v+margin)});
       }
@@ -63,13 +63,13 @@ export class CoolingOrder {
     const started=this.clock,body=this.bodies.get(operation.id);
     if(operation.operation.kind==='inject'){
       const injection=operation.operation.injection;
-      this.clock+=injection.volumeMm3/injection.flowMm3S+injection.holdSeconds;
-    }else for(const record of this.records.get(operation.id).records){
-      const speed=this.source.curves[record.ref.curveId].profiles.speedMmS;
+      this.clock+=(injection.volumeMm3>0?injection.volumeMm3/injection.flowMm3S:0)+injection.holdSeconds;
+    }else for(const ref of operation.ranges){
+      const speed=this.source.curves[ref.curveId].profiles.speedMmS;
       const maximum=typeof speed==='number'?speed:speed.knots.reduce((best,[,value])=>Math.max(best,value),0);
       // Reuse the existing length/feed lower estimate. Travel and machine
       // acceleration are deliberately absent from this ordering heuristic.
-      this.clock+=record.range.lengthMm[0]/maximum;
+      this.clock+=this.scene.rangeBounds(ref).lengthMm/maximum;
     }
     if(body)this.recent.set(operation.id,started+body.window);
     for(const [id,until] of this.recent)if(until<=this.clock)this.recent.delete(id);

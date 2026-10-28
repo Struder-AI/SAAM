@@ -20,7 +20,9 @@ Sources: [D-009](../DECISIONS.md#d-009--the-viewer-runs-the-delivered-machine-fi
 >
 > "These should just present identically to the user. They should be the the same code wiring too, right? Both should keep showing the last toolpath, and warn that it's not current. One concept here, not two, don't give the user extra things to know about or give us extra code to maintain." — owner, 2026-10-11 (refusals audit item G17, overriding the 2026-10-03 geometry case)
 
-Summary: the person's Export captures the displayed path/settings without a live-currency recheck; after any edit the previous toolpath remains shown and exportable until regeneration starts. The October 18 [neutral-bundle direction](bundle.md#retained-neutral-work) moves machine writing to Export; bundles retain no machine program.
+> "Export remains available after generation is ready, even if upstream changes haven't delivered the next export version yet. This extension regeneration we are discussing is all upstream of that." — owner, 2026-10-21 (contract migration chat)
+
+Summary: the person's Export captures the completed displayed path/settings without a live-currency recheck. Edits and upstream regeneration leave that result available for Export while a replacement is produced. The October 21 clarification supersedes the October 3 regeneration veto. The October 18 [neutral-bundle direction](bundle.md#retained-neutral-work) moves machine writing to Export; bundles retain no machine program.
 
 Sources: Codex 01a0f706 10:52 ("There shouldn't really be any special cases here."); Codex 01a102a0 17:33; [0.3.1 Export bullet](../plans/0.3.1.md); [0.2.0 Settled intent](../plans/0.2.0.md#settled-intent) ("the person confirms settings and exact toolpath"); owner's guidance prompt 2026-10-02 (three-approval ceremony removed; supersedes [D-011](../DECISIONS.md#d-011--three-human-approval-stages)); [Bundle](bundle.md#bundle-state-no-fingerprints-or-approvals).
 

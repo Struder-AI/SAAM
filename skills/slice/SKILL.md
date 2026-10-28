@@ -55,15 +55,14 @@ Assignments carry the normal fields; optional fields below may be omitted.
 Volumes use the schemas' `kind`; unbounded owners keep explicit claims' remainder.
 Use disjoint or explicitly partitioned claims under the [role boundary](../../MAKERS.md#toolpaths). Each owner walls its boundaries; solid masks follow the part's material.
 
-References select a plane, native surface, or `{kind:"slice",assignment,index?}`.
-Omitting `index` selects the last prepared surface in declared sequence, independent
-of orientation, position or numeric labels. Geometry and minimal completion
-prerequisites remain separate; [lips](../thick-lip/SKILL.md) use the same reference.
+References select horizontal/plane geometry, translated patches, native charts, or `{kind:"slice",assignment,index?}`.
+Omitting `index` selects the last prepared surface in declared sequence, independent of orientation, position or numeric labels; [lips](../thick-lip/SKILL.md) use the same reference.
 
-`stack.direction:"normal"` uses a spline/mesh-strip chart and one `normal-band`;
-optional `geometry` volumes clip its slices to solids. A spline `patch` is a name
-or authored patch. Offsets derive a finite tangent neighborhood automatically, preserving
-the native interior. Regularity failures name the required extent; periodic U stays joined.
+- Spline chart: `{kind:"spline",patch,periodicU,normalSide,uvBounds,extend?}`. Supply a named or authored patch, explicit boolean `periodicU`, `normalSide:1|-1`, and two increasing finite native UV intervals; bounds need not be [0,1]. Optional boolean `extend` continues untrimmed patches tangentially to bounds containing their native domain.
+- Mesh chart: `{kind:"mesh-strip",rows,periodicU,normalSide}` uses a rectangular grid of native vertex indices along V, successive rows along U, and two native triangles per cell; no `uvBounds`. Supply explicit boolean periodicity and signed normal. Periodic U seams must match position/normal, with a duplicate final mesh row; revise rows after vertex changes.
+- Translated references use `{kind:"patch",patch:name,offsetMm}` or `{kind:"spline",patch:authored,offsetMm}`, with finite height offset; these are distinct from normal-stack charts.
+
+`stack.direction:"normal"` uses a complete spline/mesh chart and one `normal-band`; optional `geometry` volumes clip its slices to solids. Offsets derive finite tangent neighborhoods, preserving native interiors; regularity failures name the required extent and periodic U stays joined.
 `stack.offsetTightness` blends tangent-extended fitted offsets with exact normal offsets of the extended reference ([cladding](../pipe-cladding/SKILL.md)).
 
 Ordinary rectilinear/grid/triangle rows use [physical surface offsets](../../core/region/README.md#shared-offset-functions),

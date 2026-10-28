@@ -166,7 +166,6 @@ function curveAssignmentRows(a,plan){
 }
 export function recipeRows(plan){
   const composition=plan.composition,rows=[];
-  rows.push(['Experimental substrate adaptation',plan.experimental?.substrateAdaptation?'On · final deposited contact sets gap and volume; surface-following constructions may change placement':'Off · nominal reference geometry and bead rules']);
   rows.push(['Process · Planar wall tolerance',plan.process.planarWallToleranceMm+' mm'],...sliceRows(plan));
   for(const m of plan.modulations?.modifiers??[])rows.push([m.id+' · Modulation',m.channel+' · '+m.field.kind+' field · amplitude '+m.amplitude+(m.channel==='displacement'?' mm':m.channel==='tilt'?'°':'')],
     [m.id+' · Applies to',(m.assignments?.join(', ')??'All assignments')+' · '+(m.roles?.join(', ')??'All stroke roles')],

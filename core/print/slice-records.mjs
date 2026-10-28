@@ -97,7 +97,7 @@ export function validateSliceAssignment(a,{parts,firstLayerMm}) {
     requireThat(a.loopInsetMm===undefined||Number.isFinite(a.loopInsetMm),'Loop inset must be finite.');
     requireThat(a.roles===undefined||a.roles&&typeof a.roles==='object'&&!Array.isArray(a.roles)&&Object.keys(a.roles).every(key=>['perimeter','perimeter-inner','infill','fill'].includes(key)&&typeof a.roles[key]==='string'&&a.roles[key].length),'Slice roles map stroke groups to named roles.');
     if(a.sliceOverrides!==undefined){
-      requireThat(Array.isArray(a.sliceOverrides)&&a.sliceOverrides.length>0&&a.sliceOverrides.every(batch=>batch&&Object.keys(batch).every(key=>[...Object.keys(SLICE_DEFAULTS),'loopInsetMm','roles','connectNearby','operationAfter','regionUv'].includes(key))),'sliceOverrides contains per-slice settings.');
+      requireThat(Array.isArray(a.sliceOverrides)&&a.sliceOverrides.length>0&&a.sliceOverrides.every(batch=>batch&&Object.keys(batch).every(key=>[...Object.keys(SLICE_DEFAULTS),'process','loopInsetMm','roles','connectNearby','operationAfter','regionUv'].includes(key))),'sliceOverrides contains per-slice settings.');
       for(const batch of a.sliceOverrides){const {sliceOverrides,...settings}=a;validateSliceAssignment({...settings,...batch},{parts,firstLayerMm});}
     }
     requireThat(a.join===null||Object.keys(a.join).sort().join()==='levelEnd,mode'&&a.join.mode==='spiral'&&typeof a.join.levelEnd==='boolean'&&a.loops===1&&a.fillDensity===0&&a.solidTop===0&&a.solidBottom===0,`Slice ${a.id}: spiral join requires {mode:'spiral',levelEnd:boolean}, one loop and no fill/solid caps.`);
@@ -130,7 +130,7 @@ export function validateSliceSurface(surface, id) {
   if(surface?.kind==='patch'){requireThat(Object.keys(surface).sort().join()==='kind,offsetMm,patch'&&typeof surface.patch==='string'&&Number.isFinite(surface.offsetMm),'A native patch reference needs patch name and offsetMm.');return;}
   if(surface?.kind==='spline'){
     const fields=['kind','offsetMm','patch'];
-    requireThat(Object.keys(surface).sort().join()===fields.sort().join()&&Number.isFinite(surface.offsetMm),`Slice ${id}: height references need finite offsetMm and a spline needs its authored patch.`);
+    requireThat(Object.keys(surface).sort().join()===fields.sort().join()&&Number.isFinite(surface.offsetMm),`Slice ${id}: a translated-height spline needs only kind, authored patch and finite offsetMm; a native spline chart needs patch, periodicU:boolean, normalSide:1|-1 and uvBounds (two increasing native UV intervals), with optional extend:boolean.`);
     validateSplineSolid({shape:'spline',patches:[surface.patch]});
     return;
   }

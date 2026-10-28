@@ -3,7 +3,8 @@
 import {ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {bezierPieces,projectToSurface} from './surface-intersection.mjs';
 import {bezierSpans} from './curve-ops.mjs';
-import {evaluate,evaluateCurve} from './nurbs.mjs';
+import {evaluate,evaluateCurve,nurbsCurveRecord} from './nurbs.mjs';
+import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-query.mjs';
 import {projectSurfacePoint} from './surface-intersection.mjs';
 import {surfaceIsoCurve} from './surface-curves.mjs';
 import {intersect,union,difference} from '../region/intersection.mjs';
@@ -357,4 +358,73 @@ export function curveCorrespondence(a,b){
     if(matchingBezierRegions(curvePieces(a,1),curvePieces(b,direction),[[0,1],[0,1]]))return direction;
   }
   return null;
+}
+
+// Proved common intervals of two bounded native curves. Parameters and the
+// affine map are normalized to each curve's full domain. A map is authoritative
+// only on its returned intervals: matching one span never certifies its rest.
+export function boundedCurveCorrespondence(a,rangeA,b,rangeB,{toleranceMm=ROUNDING_MM}={}){
+  const proposals=[],matches=[];
+  const propose=(scale,offset)=>{if(Number.isFinite(scale)&&scale&&Number.isFinite(offset)&&!proposals.some(p=>p.scale===scale&&p.offset===offset))proposals.push({scale,offset});};
+  const whole=curveCorrespondence(a,b);
+  if(whole)propose(whole,whole>0?0:1);
+  const spanA=a.domain[1]-a.domain[0],spanB=b.domain[1]-b.domain[0];
+  propose(spanA/spanB,(a.domain[0]-b.domain[0])/spanB);
+  propose(-spanA/spanB,(b.domain[1]-a.domain[0])/spanB);
+  for(const direction of [1,-1]){
+    const scale=direction*(rangeB[1]-rangeB[0])/(rangeA[1]-rangeA[0]);
+    propose(scale,(direction>0?rangeB[0]:rangeB[1])-scale*rangeA[0]);
+  }
+  const first=curvePieces(a,1),second=curvePieces(b,1);
+  const prove=()=>{
+    for(const {scale,offset} of proposals){
+      const mapped=second.map(piece=>({ranges:[piece.ranges[0].map(v=>(v-offset)/scale).sort((x,y)=>x-y),[0,1]],net:scale>0?piece.net:[...piece.net].reverse()}));
+      const target=rangeB.map(v=>(v-offset)/scale).sort((x,y)=>x-y);
+      const common=[Math.max(rangeA[0],target[0]),Math.min(rangeA[1],target[1])];
+      if(!(common[1]>common[0]))continue;
+      for(const p of first)for(const q of mapped){
+        const range=[Math.max(common[0],p.ranges[0][0],q.ranges[0][0]),Math.min(common[1],p.ranges[0][1],q.ranges[0][1])];
+        if(!(range[1]>range[0]))continue;
+        const cell=[range,[0,1]];
+        if(!sameRationalNets(restrictBezierNet(p.net,relativeRanges(p,cell)),restrictBezierNet(q.net,relativeRanges(q,cell)),toleranceMm))continue;
+        matches.push({sourceRange:range,targetRange:range.map(v=>offset+scale*v),scale,offset});
+      }
+    }
+  };
+  prove();
+  if(matches.length)return matches;
+  // Positions propose a parameter relation; only the whole rational cell proof
+  // above can accept it. Local positive-weight hulls reject disjoint candidates.
+  const hull=(pieces,range)=>{
+    const rows=pieces.filter(p=>p.ranges[0][1]>range[0]&&p.ranges[0][0]<range[1]).flatMap(p=>{
+      const cell=[[Math.max(p.ranges[0][0],range[0]),Math.min(p.ranges[0][1],range[1])],[0,1]];
+      return restrictBezierNet(p.net,relativeRanges(p,cell)).flat();
+    });
+    return {min:[0,1,2].map(k=>Math.min(...rows.map(p=>p[k]/p[3]))),max:[0,1,2].map(k=>Math.max(...rows.map(p=>p[k]/p[3])))};
+  };
+  const ha=hull(first,rangeA),hb=hull(second,rangeB);
+  if(ha.min.some((v,k)=>v>hb.max[k]+toleranceMm||hb.min[k]>ha.max[k]+toleranceMm))return [];
+  const pairs=[];
+  const project=(source,range,target,targetRange,reverse)=>{
+    const record=nurbsCurveRecord(target);
+    if(record.controlPoints.every(point=>point.every((v,k)=>v===record.controlPoints[0][k])))return;
+    const query=prepareNumericalCurve({kind:'nurbs',...record}),domain=target.domain,span=domain[1]-domain[0];
+    for(const u of [range[0],(range[0]+range[1])/2,range[1]]){
+      const point=evaluateCurve(source,source.domain[0]+u*(source.domain[1]-source.domain[0])).point;
+      let t=numericalCurveClosestParameter(query,...targetRange,point,{toleranceMm:ROUNDING_MM,maxDistanceMm:toleranceMm});
+      if(t===null)continue;
+      let error=Infinity,best=t;
+      for(;;){
+        const e=evaluateCurve(target,domain[0]+t*span),delta=e.point.map((v,k)=>v-point[k]),squared=dot(e.derivative,e.derivative),residual=Math.hypot(...delta);
+        if(residual>=error||!squared){t=best;break;}error=residual;best=t;
+        const next=Math.max(targetRange[0],Math.min(targetRange[1],t-dot(delta,e.derivative)/(squared*span)));
+        if(next===t)break;t=next;
+      }
+      pairs.push(reverse?[t,u]:[u,t]);
+    }
+  };
+  project(a,rangeA,b,rangeB,false);project(b,rangeB,a,rangeA,true);
+  proposals.length=0;
+  for(const [i,p] of pairs.entries())for(const q of pairs.slice(i+1))if(Math.abs(q[0]-p[0])>ROUNDING_RELATIVE){const scale=(q[1]-p[1])/(q[0]-p[0]);propose(scale,p[1]-scale*p[0]);}
+  prove();return matches;
 }

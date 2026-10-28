@@ -77,7 +77,7 @@ export function numericalCurveClosestParameter(curve,from,to,point,{toleranceMm=
   }
   const pending=[[from,to]];
   while(pending.length){
-    const [a,b]=pending.pop(),bounds=numericalCurveRange(curve,a,b).bounds;
+    const [a,b]=pending.pop(),bounds=nativeCurveBounds(curve,a,b);
     const lower=Math.hypot(...point.map((v,k)=>Math.max(0,bounds.min[k]-v,v-bounds.max[k])));
     if(lower>maxDistanceMm||lower>=best.distance-toleranceMm)continue;
     const mid=(a+b)/2;
@@ -113,12 +113,23 @@ function preparedNativePiece(curve,index){
   const result={rows,coefficients,rounding,lineCone,from:curve.parameters[index],to:curve.parameters[index+1]};
   curve.pieces.set(index,result);return result;
 }
-function nativePiece(curve,from,to){
+function nativePosition(curve,from,to){
   const prepared=preparedNativePiece(curve,nativeSpan(curve,from));
-  const domain=prepared.to-prepared.from,p=curve.native.order-1;
+  const domain=prepared.to-prepared.from;
   const restricted=[(from-prepared.from)/domain,(to-prepared.from)/domain];
-  const rows=restrictBezierLine(prepared.rows,restricted),coefficients=restrictBezierLine(prepared.coefficients,restricted);
+  const rows=restrictBezierLine(prepared.rows,restricted);
   const weights=rows.map(row=>row[3]),points=rows.map(row=>row.slice(0,3).map(v=>v/row[3]));
+  const rounding=prepared.rounding;
+  const bounds={min:[0,1,2].map(k=>Math.min(...points.map(p=>p[k]))-rounding),max:[0,1,2].map(k=>Math.max(...points.map(p=>p[k]))+rounding)};
+  return {prepared,domain,restricted,rows,weights,points,bounds};
+}
+function nativeCurveBounds(curve,from,to){
+  const cuts=[from,...interiorParameters(curve.breaks,from,to),to],pieces=cuts.slice(1).map((end,i)=>nativePosition(curve,cuts[i],end).bounds);
+  return {min:[0,1,2].map(k=>Math.min(...pieces.map(p=>p.min[k]))),max:[0,1,2].map(k=>Math.max(...pieces.map(p=>p.max[k])))};
+}
+function nativePiece(curve,from,to){
+  const {prepared,domain,restricted,rows,weights,points,bounds}=nativePosition(curve,from,to),p=curve.native.order-1;
+  const coefficients=restrictBezierLine(prepared.coefficients,restricted);
   const low=[0,1,2].map(k=>Math.min(...coefficients.map(c=>c[k]))),high=[0,1,2].map(k=>Math.max(...coefficients.map(c=>c[k])));
   const numeratorLow=Math.hypot(...low.map((v,k)=>v>0?v:high[k]<0?-high[k]:0));
   const numeratorHigh=Math.max(...coefficients.map(c=>Math.hypot(...c)));
@@ -138,7 +149,7 @@ function nativePiece(curve,from,to){
     return [0,1,2].map(k=>(1-fraction)*(left[k]-left[3]*points[0][k])+fraction*(right[k]-right[3]*points.at(-1)[k]));
   });
   const interpolationErrorMm=Math.max(...interpolationNumerator.map(vector=>Math.hypot(...vector)))/minWeight+rounding;
-  return {bounds:{min:[0,1,2].map(k=>Math.min(...points.map(p=>p[k]))-rounding),max:[0,1,2].map(k=>Math.max(...points.map(p=>p[k]))+rounding)},
+  return {bounds,
     lengthMm:[Math.max(0,distance(points[0],points.at(-1))-rounding,speed[0]*(to-from)),Math.min(speed[1]*(to-from),polygon+rounding)],speed,
     tangentCone:prepared.lineCone??(directions.length?normalCone(directions):{axis:[1,0,0],halfAngleRad:Math.PI}),interpolationErrorMm,
     chordErrorMm:p===1?0:Math.max(...points.map(point=>pointChordDistance(point,points[0],points.at(-1))))+rounding};

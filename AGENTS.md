@@ -13,23 +13,32 @@ client permissions and verification of a working session. [SETUP.md](SETUP.md) i
 
 This entry point serves source and installed SAAM. Every role's onboarding reads
 shared `<SAAM home>/local/LOCAL-AGENT-NOTES.md`; [local notes](core/application/README.md#local-agent-notes)
-own reads and updates. Source checkout notes stay in `.local/AGENTS.md`; builders
-and developers also read `.local/DEVELOPMENT.md`. For tours, read notes after launch.
+own reads and updates. In a source checkout, also read `.local/AGENTS.md` and,
+for builder/developer work, `.local/DEVELOPMENT.md`. For tours, read notes after launch.
 
 ## Choose your role
 
-Choose from the request; default to maker. Developer work, and builder work other
-than extensions in the home's extensions folder, needs a source checkout.
+Choose from the request; default to maker. Installed SAAM plus the home's local
+extensions folder is the default contributor workflow, using desktop chat for
+local authoring. Core, Studio and shared-interface development needs an explicitly
+chosen source checkout and development runtime. Examples and published source
+navigation do not require a writable copy of core.
 
 | Request | First action |
 |---|---|
 | A tour | `saam start-tour`, before any other read |
 | Edit an existing Studio print | Use its bundle/request identity on the first needed operation; load missing context as needed |
-| Make a part, printing advice, operate Studio (**maker**) | `saam call maker_onboarding` |
-| Author extensions, guidance, recipe helpers, assets or examples through existing interfaces (**builder**) | `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` |
+| Make a part or asset, printing advice, operate Studio (**maker**) | `saam call maker_onboarding` |
+| Build or change an extension through published interfaces (**builder**) | `saam call builder_onboarding` |
 | Change a core skill, core capability, Studio or shared interface (**developer**) | `node scripts/agent-toolkit.mjs developer-onboarding [--area AREA]` |
 | An unused checkout | [SETUP.md](SETUP.md) once, then reuse it |
 | Update SAAM | Tell the person that **Update** in Studio or the tray menu is the supported way; reinstall only if they still ask |
+
+Desktop and paired web calls use the same installed version and local extensions.
+A local extension with the same ID overrides its bundled copy for both routes.
+Core development selects `saam --code-root CHECKOUT ...` explicitly; ordinary
+`saam` selects installed code. Web access requires provider pairing/relay activation
+and is not yet available; desktop-local access needs neither.
 
 Onboarding supplies the whole starting context, once per session. Without commands,
 read [MAKERS.md](MAKERS.md), [BUILDERS.md](BUILDERS.md) or [DEVELOPER-CONTEXT.md](DEVELOPER-CONTEXT.md).
@@ -51,6 +60,8 @@ closing do not stop SAAM; Quit does.
 
 If client registration needs repair, run `saam call repair_client_setup` and
 handle its errors; the person may need to restart the client to reload permissions.
+
+Before submitting an agent bug report, read [bug-report guidance](core/application/README.md#bug-reports): explain one understood expectation gap compactly, or substantively narrow a difficult problem through specific diagnostic checks.
 
 ## Changing role
 

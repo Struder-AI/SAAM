@@ -23,7 +23,7 @@
 // (app/packaging/<os>/install.*). The installer unpacks app.tar straight into the
 // installation. An uncompressed tar in the deflated ZIP unpacked faster, with
 // Explorer then tar.exe, than a stored app.tar.gz, at the same download size.
-import {spawnSync} from 'node:child_process';
+import {spawn,spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import {existsSync} from 'node:fs';
 import {cp,mkdir,rm,writeFile,readFile,copyFile,mkdtemp,readdir,stat} from 'node:fs/promises';
@@ -33,7 +33,11 @@ import {resolve,dirname,join,relative,sep} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {parseArgs} from 'node:util';
 import {zipSync} from 'fflate';
+import {parse} from 'acorn';
 import {orchestratorContract} from '../core/application/runtime-selection.mjs';
+import {applicationFile,publishedSourceFile,PUBLISHED_SOURCE_MANIFEST} from '../core/contracts/publication.mjs';
+import {homePaths} from '../core/application/home.mjs';
+import {createTemporaryWorkspace} from '../core/application/temporary-workspace.mjs';
 
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const PLATFORMS={
@@ -51,21 +55,49 @@ function executablePlatform(bytes){
   }
   return null;
 }
-// Tracked files a maker's installation does not need: development tooling,
-// tests, the relay service and this packager.
-const EXCLUDED=[/^relay\//,/^tools\//,/^scripts\/bench\//,/^scripts\/check-repo\.mjs$/,/^\.(claude|codex|github)\//,/^core\/tests\//,
-  /^skills\/[^/]+\/tests\//,/^[^/]+\.html$/,/^result\.json$/,/^adapters\/mcp\//,
-  /^packaging\/(build\.mjs|README\.md|INSTALL\.md|windows\/|macos\/)/];
-
 // SAAM imports manifold-3d's root (core/geom/solid.mjs): manifold.js, which loads manifold.wasm.
 // Its other files and all its dependencies serve the manifoldCAD tooling (glTF and 3MF export,
 // sharp, esbuild, its CLI), so the package ships only these files and none of its dependencies.
 const PACKAGE_FILES={'manifold-3d':['package.json','LICENSE','manifold.js','manifold.wasm']};
 
+// Installed contribution consumes these same files through Context's published
+// readers. A writable source checkout is not an implicit dependency of that API.
+async function checkContributorFiles(files,sourceFiles){
+  const included=new Set(files),required=[
+    'core/contracts/publication.mjs',
+    'core/contracts/observations.mjs','core/agent/context-operations.mjs',
+    'core/agent/manuals.mjs','BUILDERS.md','MAKERS.md','skills/AUTHORING.md',
+    'skills/DIGEST.md','examples/prints/README.md',
+    ...sourceFiles.filter(file=>/^(skills|machines)\/[^/]+\/examples\//.test(file))
+  ];
+  const missing=[...new Set(required)].filter(file=>!included.has(file));
+  if(missing.length)throw Error(`Installed contributor assets are missing from the application package: ${missing.join(', ')}.`);
+}
+
 function run(command,args,options={}){
   const result=spawnSync(command,args,{stdio:'inherit',...options});
   if(result.status!==0)throw Error(`${command} ${args.join(' ')} failed (${result.status??result.error?.message}).`);
   return result;
+}
+// The setup process owns only this diagnostic home. Retain its PID until its
+// actual exit; cleanup cannot race its Studio or remove another owner's work.
+export async function checkPackagedSetup({app,node,paths}){
+  if(!paths?.home)throw Error('Package setup needs explicit diagnostic home paths.');
+  const workspace=await createTemporaryWorkspace('package-check',{paths});let exited;
+  try{
+    await workspace.prepareChild();
+    const child=spawn(resolve(node),['scripts/setup-check.mjs','--workspace-home',workspace.directory],
+      {cwd:resolve(app),stdio:'inherit',windowsHide:true});
+    let failure;
+    exited=new Promise(done=>{child.once('error',error=>{failure=error;});child.once('close',(code,signal)=>done({code,signal}));});
+    if(child.pid)await workspace.childStarted(child.pid);
+    const result=await exited;
+    if(failure)throw failure;
+    if(result.code!==0)throw Error(`Package setup check failed (${result.signal??result.code}).`);
+  }finally{
+    if(exited)await exited;
+    await workspace.childEnded();await workspace.release();
+  }
 }
 // Windows' own bsdtar reads and writes ZIP; a GNU tar earlier on PATH does not.
 const TAR=process.platform==='win32'?resolve(process.env.SystemRoot??'C:/Windows','System32','tar.exe'):'tar';
@@ -135,11 +167,18 @@ async function dependencySet(lock,source,into){
 
 // Every bare import in the application's own code must resolve to a file in its node_modules.
 async function checkImports(app,files){
-  const pattern=/(?:^|[^\w$.])(?:import|export)\s+(?:[^'"`;]*?\sfrom\s*)?['"]([^'"\n]+)['"]|(?:^|[^\w$.])import\s*\(\s*['"]([^'"\n]+)['"]\s*\)|(?:^|[^\w$.])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/gm;
   const missing=new Set();
   for(const file of files.filter(file=>/\.(m?js|cjs)$/.test(file))){
-    for(const match of (await readFile(resolve(app,file),'utf8')).matchAll(pattern)){
-      const specifier=match[1]??match[2]??match[3];
+    const tree=parse(await readFile(resolve(app,file),'utf8'),{ecmaVersion:'latest',sourceType:'module',allowReturnOutsideFunction:true}),specifiers=[];
+    function visit(node){
+      if(!node||typeof node!=='object')return;
+      const source=['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration','ImportExpression'].includes(node.type)?node.source:
+        node.type==='CallExpression'&&node.callee.type==='Identifier'&&node.callee.name==='require'?node.arguments[0]:null;
+      if(source?.type==='Literal'&&typeof source.value==='string')specifiers.push(source.value);
+      for(const value of Object.values(node))if(Array.isArray(value))value.forEach(visit);else if(value&&typeof value==='object')visit(value);
+    }
+    visit(tree);
+    for(const specifier of specifiers){
       if(/^(\.|\/|[a-z]+:)/.test(specifier)||builtinModules.includes(specifier))continue;
       const parts=specifier.split('/'),name=parts.slice(0,specifier.startsWith('@')?2:1).join('/'),subpath=['.',...parts.slice(name.split('/').length)].join('/');
       const folder=resolve(app,'node_modules',name),manifest=await readJson(join(folder,'package.json')).catch(()=>null);
@@ -229,9 +268,9 @@ async function main(){
   const selected=values['review-file']??[];
   if(selected.length&&!values.review)throw Error('--review-file requires --review.');
   const platformFile=file=>platforms.some(platform=>file.startsWith(`packaging/${PLATFORMS[platform].os}/`));
-  for(const file of selected)if(!untracked.includes(file)||(EXCLUDED.some(pattern=>pattern.test(file))&&!platformFile(file)))
+  for(const file of selected)if(!untracked.includes(file)||(!applicationFile(file)&&!platformFile(file)))
     throw Error(`Review source must be an untracked application file: ${file}`);
-  const unpacked=untracked.filter(file=>!file.startsWith(outputPrefix)&&(!EXCLUDED.some(pattern=>pattern.test(file))||platformFile(file))&&!selected.includes(file));
+  const unpacked=untracked.filter(file=>!file.startsWith(outputPrefix)&&(applicationFile(file)||platformFile(file))&&!selected.includes(file));
   if(unpacked.length)throw Error(`Untracked application files need explicit --review-file selections: ${unpacked.join(', ')}`);
   const dirty=spawnSync('git',['status','--porcelain','--untracked-files=no'],{cwd:root,encoding:'utf8'}).stdout.trim();
   if(dirty&&!values.review)throw Error('Release builds require a clean tracked snapshot. Use --review for an isolated candidate build.');
@@ -242,7 +281,8 @@ async function main(){
     const [,index,disk]=/^i\/(\S*)\s+w\/(\S*)/.exec(line),expected=index==='lf'&&/\beol=crlf\b/.test(line)?'crlf':index;
     return disk&&disk!==expected?[line.slice(line.indexOf('\t')+1)]:[];});
   if(stale.length)throw Error(`${stale.length} files on disk have line endings other than .gitattributes gives (e.g. ${stale.slice(0,3).join(', ')}); build from a fresh checkout.`);
-  const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&!EXCLUDED.some(pattern=>pattern.test(file)));
+  const files=[...tracked,...selected].filter(file=>existsSync(resolve(root,file))&&applicationFile(file));
+  await checkContributorFiles(files,[...tracked,...selected]);
   const modules=resolve(out,'modules');
   await rm(modules,{recursive:true,force:true});
   const count=await dependencySet(await readJson(resolve(root,'package-lock.json')),resolve(values.modules??resolve(root,'node_modules')),modules);
@@ -254,6 +294,7 @@ async function main(){
     const top=`SAAM-${values.version}-${platform}`,app=resolve(base,'stage','app'),folder=resolve(base,'stage',top);
     await rm(resolve(base,'stage'),{recursive:true,force:true});await mkdir(app,{recursive:true});await mkdir(folder,{recursive:true});
     for(const file of files){await mkdir(dirname(resolve(app,file)),{recursive:true});await copyFile(resolve(root,file),resolve(app,file));}
+    await writeFile(resolve(app,PUBLISHED_SOURCE_MANIFEST),JSON.stringify({version:1,files:[...new Set(files.filter(publishedSourceFile))].sort()},null,2)+'\n');
     await cp(resolve(root,'packaging',target.os),resolve(app,'packaging',target.os),{recursive:true});
     console.log(`${platform}: copied ${files.length} tracked files.`);
     await cp(modules,resolve(app,'node_modules'),{recursive:true});
@@ -279,7 +320,8 @@ async function main(){
     // on its own Node when this host can run it.
     const host=(process.platform==='win32'?'win':process.platform)+'-'+process.arch;
     if(host!==platform)console.warn(`Setup check: this ${host} host runs the ${platform} package's modules on its own Node ${process.version}.`);
-    run(host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,['scripts/setup-check.mjs'],{cwd:app});
+    await checkPackagedSetup({app,node:host===platform?resolve(runtime,target.binary.split('/').pop()):process.execPath,
+      paths:homePaths(resolve(out,'checks'))});
     run(TAR,['-cf',resolve(folder,'app.tar'),'-C',app,'.'],{env:TAR_ENV});
 
     // What installation needs before app.tar is unpacked. macOS has no double-click
@@ -297,11 +339,11 @@ async function main(){
     await writeFile(zip+'.sha256',`${digest}  ${top}.zip\n`);
     console.log(`Built ${zip}: ${((await stat(zip)).size/1e6).toFixed(1)} MB (${JSON.stringify(release)}).`);
     // To offer this build as an update, host the ZIP under the update host and add
-    // this entry to the relay's LATEST_RELEASE assets (see relay/wrangler.jsonc).
+    // this entry to the private provider's LATEST_RELEASE assets.
     console.log('LATEST_RELEASE asset:',JSON.stringify({[platform]:{url:(updateHost??'https://<update host>')+`/v${values.version}/${top}.zip`,sha256:digest}}));
   }
   await rm(modules,{recursive:true,force:true});
   await copyFile(resolve(root,'packaging','INSTALL.md'),resolve(out,'INSTALL.md'));
 }
 
-main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});
+if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url))main().catch(error=>{console.error('Build failed:',error.message);process.exitCode=1;});

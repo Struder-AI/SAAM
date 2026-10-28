@@ -10,8 +10,8 @@
 //   * Knot vectors omit the first and last superfluous knot, so their length is
 //     cpCount + order - 2. We restore the full vector on extraction.
 
-import { requireThat, cross, length, TOLERANCE } from './tolerance.mjs';
-import { ROUNDING_MM } from '../dimensions.mjs';
+import { requireThat, TOLERANCE } from './tolerance.mjs';
+import {physicalSurfaceNormal} from './surface-frame.mjs';
 
 // Straight/ruled geometry is linear; curved geometry is quadratic or cubic.
 export function requireSplineDegree(degree){
@@ -205,10 +205,8 @@ export function evaluate(patch, u, v, wantDerivatives = true) {
     dU[k] = (swu[k] - point[k] * swu[3]) / w;
     dV[k] = (swv[k] - point[k] * swv[3]) / w;
   }
-  const normalVector = cross(dU, dV);
-  const normalLength = length(normalVector);
   // A pole (a degenerate patch edge, as at a cap centre) has no unique normal.
-  const normal = normalLength > ROUNDING_MM ** 2 ? normalVector.map(c => c / normalLength) : null;
+  const normal=physicalSurfaceNormal(dU,dV,[patch.domainU[1]-patch.domainU[0],patch.domainV[1]-patch.domainV[0]]);
   return { point, du: dU, dv: dV, normal, degenerate: normal === null };
 }
 
@@ -256,12 +254,33 @@ export function evaluateScalar(patch, coefficients, u, v) {
   const spanU = findSpan(knotsU, nu, orderU, du), spanV = findSpan(knotsV, nv, orderV, dv);
   const bu = basisFunctions(knotsU, spanU, du, orderU);
   const bv = basisFunctions(knotsV, spanV, dv, orderV);
+  return scalarContraction(patch,coefficients,spanU,spanV,bu,bv);
+}
+
+function scalarContraction({nv,orderU,orderV},coefficients,spanU,spanV,bu,bv){
   let sum = 0;
   for (let i = 0; i < orderU; i++) {
     const iu = spanU - orderU + 1 + i;
     for (let j = 0; j < orderV; j++) sum += bu[i] * bv[j] * coefficients[iu * nv + spanV - orderV + 1 + j];
   }
   return sum;
+}
+
+const negativeZeroBasis=Symbol('negative zero basis parameter');
+function preparedAxisBasis(axis,t){
+  const parameter=clamp(t,axis.domain),key=Object.is(parameter,-0)?negativeZeroBasis:parameter,cached=axis.bases.get(key);
+  if(cached)return cached;
+  const span=findSpan(axis.knots,axis.count,axis.order,parameter),values=basisFunctions(axis.knots,span,parameter,axis.order),basis={span,values};
+  axis.bases.set(key,basis);return basis;
+}
+
+// One synchronous native section owns this snapshot and releases its private
+// bases with that section. Repeated axis parameters use the same arithmetic.
+export function prepareScalar(patch,coefficients){
+  const scalar={nv:patch.nv,orderU:patch.orderU,orderV:patch.orderV},values=Float64Array.from(coefficients);
+  const u={count:patch.nu,order:patch.orderU,knots:Float64Array.from(patch.knotsU),domain:[...patch.domainU],bases:new Map()},
+    v={count:patch.nv,order:patch.orderV,knots:Float64Array.from(patch.knotsV),domain:[...patch.domainV],bases:new Map()};
+  return (s,t)=>{const a=preparedAxisBasis(u,s),b=preparedAxisBasis(v,t);return scalarContraction(scalar,values,a.span,b.span,a.values,b.values);};
 }
 
 // Bound |dh/du| and |dh/dv| over one knot span from the control coefficients.

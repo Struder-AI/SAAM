@@ -11,18 +11,19 @@ export function finalizeConstructionReferences(plan,results){
 // The recipe's dependency declarations apply to every construction, including
 // ordinary slice stacks produced before their later-stage dependents.
 function applyDeclaredDependencies(plan,results){
-  const changes=[];
+  const changes=new Map(results.map(result=>[result,[]]));
   for(const result of results){
     const assignment=plan.slices.assignments.find(a=>a.id===(result.report?.owner??result.id));
     const dependencies=assignment?.dependencies;if(!dependencies)continue;
     const prior=results.filter(other=>other!==result&&dependencies.afterParts.includes(other.report?.part));
     const completion=other=>({assignment:other.report?.owner??other.id,part:other.report?.part??null});
     const after=[...dependencies.after,...prior.map(completion)];
-    for(const op of result.operations)if(after.length)changes.push({operationId:op.id,after,mode:'union'});
+    for(const reference of after)changes.get(result).push(reference);
     const before=results.filter(other=>other!==result&&dependencies.beforeParts.includes(other.report?.part));
-    for(const other of before)for(const op of other.operations)changes.push({operationId:op.id,after:[completion(result)],mode:'union'});
+    for(const other of before)changes.get(other).push(completion(result));
   }
-  return applyResultDependencies(results,changes);
+  return results.map(result=>({ ...result,logicalAfter:[...(result.logicalAfter??[]),...changes.get(result)],
+    operations:result.operations.map(operation=>({...operation,after:[...new Set([...(operation.after??[]),...changes.get(result)])]}))}));
 }
 
 // Resolve operation identities here; compact completion references are published
@@ -43,46 +44,25 @@ function resolveOperationReferences(plan,results){
       for(const [index,settings] of (assignment.sliceOverrides??[]).entries())for(const [group,after] of Object.entries(settings.operationAfter??{})){
         if(!after.length||JSON.stringify(after)===JSON.stringify(assignment.operationAfter?.[group]))continue;
         const targets=(byAssignment.get(assignment.id)??[]).filter(id=>group==='all'?id.includes(':'+assignment.id+':'+index+':')||id.startsWith(assignment.id+':'+index+':'):id.endsWith(':'+assignment.id+':'+index+':'+group)||id===assignment.id+':'+index+':'+group);
-        requireThat(targets.length,'Required Slice target was not constructed: '+assignment.id+':'+index+':'+group);
+        const emptyMember=group==='all'&&results.some(result=>(result.report?.owner??result.id)===assignment.id&&result.referenceStack?.layers.some(layer=>layer.index===index));
+        requireThat(targets.length||emptyMember,'Required Slice target was not constructed: '+assignment.id+':'+index+':'+group);
       }
     }
   });
-  return results.map(result=>assignmentWork({sourceId:result.report?.owner??result.id,kind:result.report?.depositionFamily??'slice'},()=>({...result,edgeAfter:result.edgeAfter??plan.slices.assignments.find(assignment=>assignment.id===(result.report?.owner??result.id))?.edgeAfter,operations:result.operations.map(operation=>{
-    const after=[...new Set((operation.after??[]).flatMap(previous=>{
+  return results.map(result=>assignmentWork({sourceId:result.report?.owner??result.id,kind:result.report?.depositionFamily??'slice'},()=>{
+    const resolve=references=>[...new Set((references??[]).flatMap(previous=>{
       requireThat(operationPrerequisite(previous),'Invalid operation prerequisite.');
+      // A recipe may name a whole producer by its assignment id.
+      if(typeof previous==='string'&&!ids.has(previous)&&byAssignment.has(previous))return [{assignment:previous}];
       if(typeof previous==='string'){requireThat(ids.has(previous),'Required operation was not constructed: '+previous);return [previous];}
-      const named=byAssignment.get(previous.assignment);
-      requireThat(named?.length,'Required assignment produced no operations: '+previous.assignment);
+      requireThat(byAssignment.has(previous.assignment),'Required assignment was not constructed: '+previous.assignment);
       return [previous];
     }))];
+    return {...result,logicalAfter:resolve(result.logicalAfter),
+      ...(result.referenceStack?{referenceStack:{...result.referenceStack,layers:result.referenceStack.layers.map(layer=>({...layer,logicalAfter:resolve(layer.logicalAfter)}))}}:{}),
+      edgeAfter:result.edgeAfter??plan.slices.assignments.find(assignment=>assignment.id===(result.report?.owner??result.id))?.edgeAfter,operations:result.operations.map(operation=>{
+    const after=resolve(operation.after);
     requireThat(!after.includes(operation.id),'An operation cannot require its own completion: '+operation.id);
     return {...operation,after};
-  })})));
-}
-
-// Dependency changes address operation IDs, which are unique within a composed
-// result batch. Apply ordered appends and ordered unions without changing earlier
-// stages' result, operation or prerequisite records. Geometry/policies stay shared.
-function applyResultDependencies(results,dependencyChanges){
-  if(!dependencyChanges.length)return results;
-  const changesByOperation=new Map();
-  for(const change of dependencyChanges){
-    if(!changesByOperation.has(change.operationId))changesByOperation.set(change.operationId,[]);
-    changesByOperation.get(change.operationId).push(change);
-  }
-  return results.map(result=>{
-    let changed=false;
-    const operations=result.operations.map(operation=>{
-      const changes=changesByOperation.get(operation.id);
-      if(!changes)return operation;
-      changed=true;
-      let after=[...(operation.after??[])];
-      for(const change of changes){
-        if(change.mode==='union')after=[...new Set([...after,...change.after])];
-        else after.push(...change.after);
-      }
-      return {...operation,after};
-    });
-    return changed?{...result,operations}:result;
-  });
+  })};}));
 }

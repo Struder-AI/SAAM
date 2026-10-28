@@ -1,10 +1,7 @@
 # Skills
 
-Read each chosen skill's manual (`read_skill`) before using it. "Experimental"
-marks a technique whose physical behaviour is unknown; a keyword-only description
-marks a skill to use only when the person names it. Read an advanced section
-(`title: gate; name`) by name when the print's machine meets its gate or the
-person asks: `read_skill ID#heading`, otherwise `read_guidance`.
+Read chosen manuals with `read_skill`. Experimental techniques are physically unqualified; keyword-only skills require the person to name them.
+Read advanced sections (`title: gate; name`) only when the machine meets their gate or the person asks: `read_skill ID#heading`; otherwise use `read_guidance`.
 
 <!-- BEGIN GENERATED SKILL DIGEST -->
 
@@ -22,6 +19,7 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 
 | Skill | Use |
 |---|---|
+| [supports](supports/SKILL.md) | Guidance for removable edge, underside and tree supports, chosen by unsupported feature and removal access. |
 | [line-network](line-network/SKILL.md) | Guidance for sparse frames and trusses made from Trace centerlines. |
 | [hole-supports](hole-supports/SKILL.md) | Experimental. Downward-hole printing with removable supports, a drill-through membrane, stepped reduction or wave fronts. |
 | [pipe-cladding](pipe-cladding/SKILL.md) | Guidance for axial or helical coatings using ordinary Slice over a selected surface. |
@@ -42,7 +40,9 @@ Recipes and techniques using Slice, Trace and Inject; no additional deposition f
 | [thingi10k](thingi10k/SKILL.md) | Find meshes by keyword or Thingiverse link and download STLs from the Thingi10K mirror. Always link the file's license. |
 | [gridfinity](gridfinity/SKILL.md) | gridfinity |
 | [standard-support](standard-support/SKILL.md) | Experimental authored supports from a selected underside, flat footprint or tree skeleton, closed to the bed and sliced infill-only. |
+| [bridge-supports](bridge-supports/SKILL.md) | Experimental. Two adjacent edge-following Trace paths between selected base and landing edges; a plate base is optional. |
 | [hole-transitions](hole-transitions/SKILL.md) | Experimental. Edge-based membranes and advancing shoulders, with stepped reduction. |
+| [light-switch-covers](light-switch-covers/SKILL.md) | Experimental workspace for labeled light switch covers with measured openings, raised or recessed text, color parts and relief motifs. |
 
 ## Workspace extensions
 

@@ -1,8 +1,9 @@
 import {homePaths} from '../application/home.mjs';
+import {relativePackageFile} from '../package-path.mjs';
 // Extension exchange and resolution. Release defaults are replaceable; the
 // user's copies live beside prints and survive installation updates.
 import {createHash,randomUUID} from 'node:crypto';
-import {access,lstat,mkdir,cp,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
+import {access,lstat,mkdir,cp,open,readFile,readdir,rename,rm,writeFile} from 'node:fs/promises';
 import {existsSync,readdirSync,readFileSync} from 'node:fs';
 import {createTemporaryWorkspace} from '../application/temporary-workspace.mjs';
 import {canonicalJson,canonicalHash} from '../canonical-json.mjs';
@@ -16,15 +17,26 @@ const PACKAGE_SCHEMA='saam-extension-package/1';
 const MANIFEST_SCHEMA='saam-extension/1';
 const loadedDigests=new Map();
 const sha256=bytes=>createHash('sha256').update(bytes).digest('hex');
+const IDENTITY_BUFFER_BYTES=64*1024;
+
+function validBase64(value){
+  if(typeof value!=='string'||value.length%4!==0)return false;
+  let end=value.length;
+  if(value.charCodeAt(end-1)===61)end--;
+  if(value.charCodeAt(end-1)===61)end--;
+  for(let i=0;i<end;i++){
+    const c=value.charCodeAt(i);
+    if(!(c>=65&&c<=90||c>=97&&c<=122||c>=48&&c<=57||c===43||c===47))return false;
+  }
+  return true;
+}
 
 export function extensionRoots({appRoot=applicationRoot,dataRoot}={}){
   return {bundled:resolve(appRoot,'skills'),machines:resolve(appRoot,'machines'),local:homePaths(dataRoot).extensions};
 }
 
 export function relativeExtensionFile(name){
-  if(typeof name!=='string'||!name||name.includes('\\')||name.startsWith('/')||name.split('/').some(part=>!part||part==='.'||part==='..')
-    ||/[\x00-\x1f:*?"<>|]/.test(name))throw Error(`Invalid extension file path: ${name}.`);
-  return name;
+  return relativePackageFile(name,'extension');
 }
 
 const relativeFile=relativeExtensionFile;
@@ -99,7 +111,18 @@ async function filesIn(directory,at=directory){
   return names.sort((a,b)=>a<b?-1:a>b?1:0);
 }
 
-async function extensionAt(directory,id){
+async function fileHash(file,buffer){
+  const handle=await open(file,'r'),hash=createHash('sha256');
+  try{
+    for(;;){
+      const {bytesRead}=await handle.read(buffer,0,buffer.length,null);
+      if(!bytesRead)return hash.digest('hex');
+      hash.update(buffer.subarray(0,bytesRead));
+    }
+  }finally{await handle.close();}
+}
+
+async function extensionAt(directory,id,{includeFiles=true,buffer}={}){
   const manifest=manifestText(await readFile(resolve(directory,'extension.json'),'utf8'),id);
   const names=await filesIn(directory);
   if(!names.includes('SKILL.md'))throw Error(`Extension ${id} has no SKILL.md guidance.`);
@@ -107,9 +130,17 @@ async function extensionAt(directory,id){
     throw Error(`Extension ${id} entry ${entry.file} is absent.`);
   if(manifest.kind==='workspace'&&!names.includes(manifest.workspace.ui+'/index.html'))throw Error(`Workspace ${id} has no UI index.html.`);
   for(const name of manifest.machines??[])if(!names.includes(name))throw Error(`Machine extension ${id} profile ${name} is absent.`);
-  const files=await Promise.all(names.map(async path=>({path,bytes:await readFile(resolve(directory,path))})));
-  const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
-  return {id,directory,manifest,digest,files};
+  if(includeFiles){
+    const files=await Promise.all(names.map(async path=>({path,bytes:await readFile(resolve(directory,path))})));
+    const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
+    return {id,directory,manifest,digest,files};
+  }
+  // Identity queries retain paths/digests, not package contents. One buffer is
+  // reused sequentially across every file and, for catalog/closure reads, package.
+  buffer??=Buffer.allocUnsafe(IDENTITY_BUFFER_BYTES);
+  const records=[];
+  for(const path of names)records.push({path,sha256:await fileHash(resolve(directory,path),buffer)});
+  return {id,directory,manifest,digest:canonicalHash(records)};
 }
 
 async function exists(path){try{await access(path);return true;}catch(error){if(error.code==='ENOENT')return false;throw error;}}
@@ -118,12 +149,20 @@ async function exists(path){try{await access(path);return true;}catch(error){if(
 const bundledDirectory=(roots,id)=>[roots.bundled,roots.machines].map(root=>resolve(root,id))
   .find(directory=>existsSync(resolve(directory,'extension.json')));
 
-export async function readExtension(id,options={}){
+async function selectedExtension(id,options,contents){
   if(!ID.test(id))throw Error(`Invalid extension id: ${id}.`);
   const roots=extensionRoots(options),local=resolve(roots.local,id),bundled=bundledDirectory(roots,id);
-  if(await exists(local))return {...await extensionAt(local,id),origin:'local'};
-  if(bundled)return {...await extensionAt(bundled,id),origin:'bundled'};
+  const localEntry=await lstat(local).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  if(localEntry?.isDirectory())return {...await extensionAt(local,id,contents),origin:'local'};
+  if(bundled)return {...await extensionAt(bundled,id,contents),origin:'bundled'};
   return null;
+}
+
+export async function readExtension(id,options={}){
+  return selectedExtension(id,options,{includeFiles:true});
+}
+export async function readExtensionIdentity(id,options={}){
+  return selectedExtension(id,options,{includeFiles:false});
 }
 
 // The selected copy of each extension in the given folders, first folder first,
@@ -136,7 +175,10 @@ function selectedManifests(folders){
     if(!existsSync(folder))continue;
     for(const item of readdirSync(folder,{withFileTypes:true}).sort((a,b)=>a.name<b.name?-1:a.name>b.name?1:0)){
       const directory=resolve(folder,item.name),file=resolve(directory,'extension.json');
-      if(!item.isDirectory()||!ID.test(item.name)||seen.has(item.name)||!existsSync(file))continue;
+      if(!item.isDirectory()||!ID.test(item.name)||seen.has(item.name))continue;
+      // A local package directory owns its ID even before a usable manifest
+      // exists. Bundled skill folders without manifests are not extensions.
+      if(origin!=='local'&&!existsSync(file))continue;
       seen.add(item.name);
       try{selected.push({id:item.name,origin,directory,manifest:manifestText(readFileSync(file,'utf8'),item.name)});}
       catch(error){skipped.push(skippedCopy(item.name,origin,error));}
@@ -148,15 +190,21 @@ function selectedManifests(folders){
 // Profile id -> the machine extension shipping it. Profiles are chosen by
 // synchronous callers, so this reads manifests only; a local copy wins, and a
 // profile id declared again is skipped in favour of the first.
-export function machineProfiles(options={}){
+export function machineProfileDeclarations(options={}){
   const roots=extensionRoots(options),profiles=new Map();
   const {selected,skipped}=selectedManifests([['local',roots.local],['bundled',roots.machines]]);
   for(const {id:extension,origin,directory,manifest} of selected)for(const name of manifest.machines??[]){
     const id=name.split('/').at(-1).slice(0,-'.json'.length);
     if(profiles.has(id))skipped.push({...skippedCopy(extension,origin,Error(`Machine profile ${id} is already declared by ${profiles.get(id).extension}.`)),profile:id});
-    else profiles.set(id,{extension,file:resolve(directory,name)});
+    else profiles.set(id,{profileId:id,extension,origin,declaration:name,file:resolve(directory,name),provenance:manifest.provenance??null});
   }
   return {profiles,skipped};
+}
+// Existing executable-provider callers retain their old catalog shape. This is
+// compatibility data selection, not authority to load or execute an entry.
+export function machineProfiles(options={}){
+  const {profiles,skipped}=machineProfileDeclarations(options);
+  return {profiles:new Map([...profiles].map(([id,{extension,file}])=>[id,{extension,file}])),skipped};
 }
 export const machineCatalog=(options={})=>machineProfiles(options).profiles;
 
@@ -167,16 +215,15 @@ export async function machineEntrySource(machineId,name,options={}){
   return entry?{exportName:entry.export,bytes:selected.files.find(file=>file.path===entry.file).bytes}:null;
 }
 
-// Every selected extension that reads whole, in id order, and each one skipped with its reason.
+// Every selected extension whose contents can be read, without retaining them.
 export async function listExtensions(options={}){
   const roots=extensionRoots(options),extensions=[];
   const {selected,skipped}=selectedManifests([['local',roots.local],['bundled',roots.bundled],['bundled',roots.machines]]);
-  const reads=await Promise.allSettled(selected.map(({id,directory})=>extensionAt(directory,id)));
-  reads.forEach((read,index)=>{
-    const {id,origin}=selected[index];
-    if(read.status==='fulfilled'){const {files,...entry}=read.value;extensions.push({...entry,origin});}
-    else skipped.push(skippedCopy(id,origin,read.reason));
-  });
+  const buffer=Buffer.allocUnsafe(IDENTITY_BUFFER_BYTES);
+  for(const {id,origin,directory} of selected){
+    try{extensions.push({...await extensionAt(directory,id,{includeFiles:false,buffer}),origin});}
+    catch(error){skipped.push(skippedCopy(id,origin,error));}
+  }
   const order=key=>(a,b)=>a[key]<b[key]?-1:a[key]>b[key]?1:0;
   return {extensions:extensions.sort(order('id')),skipped:skipped.sort(order('extension'))};
 }
@@ -185,17 +232,17 @@ export async function listExtensions(options={}){
 // Dependencies are visited in name order. The result is stable across
 // filesystem enumeration order.
 export async function resolveExtensions(ids,options={}){
-  const resolved=[],done=new Set(),visiting=[];
+  const resolved=[],done=new Set(),visiting=[],buffer=Buffer.allocUnsafe(IDENTITY_BUFFER_BYTES);
   async function visit(id){
     if(visiting.includes(id))throw Error(`Extension dependency cycle: ${[...visiting,id].join(' -> ')}.`);
-    const entry=await readExtension(id,options);
+    const entry=await selectedExtension(id,options,{includeFiles:false,buffer});
     if(!entry)throw Object.assign(Error(`Required extension ${id} is missing. Import it before regeneration.`),{code:'EXTENSION_MISSING'});
     if(done.has(id))return;
     visiting.push(id);
     for(const dependency of [...entry.manifest.dependencies].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0))
       await visit(dependency.id);
     visiting.pop();done.add(id);
-    const {files,...summary}=entry;resolved.push(summary);
+    resolved.push(entry);
   }
   for(const id of [...new Set(ids)].sort())await visit(id);
   return resolved;
@@ -211,7 +258,17 @@ export function extensionRuntimeSourceError(resolved){
   return null;
 }
 
-export async function loadExtensionEntry(id,name,options={}){
+function immutableSelection(value){
+  if(value&&typeof value==='object'){
+    for(const item of Object.values(value))immutableSelection(item);
+    Object.freeze(value);
+  }
+  return value;
+}
+
+// The binding and identity come from the same resolution before module loading.
+// The host retains this envelope; extension results cannot replace its identity.
+export async function loadExtensionInvocation(id,name,options={}){
   const resolved=await resolveExtensions([id],options),selected=resolved.at(-1),entry=selected.manifest.entries[name];
   if(!entry)throw Error(`Extension ${id} has no ${name} entry.`);
   const unavailable=extensionRuntimeSourceError(resolved);
@@ -219,7 +276,29 @@ export async function loadExtensionEntry(id,name,options={}){
   const module=await import(pathToFileURL(resolve(selected.directory,entry.file)).href);
   if(typeof module[entry.export]!=='function')throw Error(`Extension ${id} entry ${entry.file} does not export ${entry.export}.`);
   loadedDigests.set(selected.directory,selected.digest);
-  return module[entry.export];
+  const selection=immutableSelection({schema:'saam-extension-selection/1',extension:id,
+    entry:{name,file:entry.file,export:entry.export},
+    packages:resolved.map(({id,digest,origin,manifest})=>({id,digest,origin,
+      dependencies:manifest.dependencies.map(({id})=>id),
+      ...(manifest.license==null?{}:{license:manifest.license}),
+      ...(manifest.provenance==null?{}:{provenance:manifest.provenance}),
+      ...(manifest.credits?{credits:structuredClone(manifest.credits)}:{})}))});
+  return Object.freeze({entry:module[entry.export],selection});
+}
+
+export async function loadExtensionEntry(id,name,options={}){
+  return (await loadExtensionInvocation(id,name,options)).entry;
+}
+
+// Re-reading mutable source can reject a drifted invocation; it must never
+// replace the identity captured before execution with today's package identity.
+export async function verifyExtensionInvocation(selection,options={}){
+  const current=await resolveExtensions([selection.extension],options),entry=current.at(-1).manifest.entries[selection.entry.name];
+  if(current.length===selection.packages.length&&current.every((item,i)=>{
+    const captured=selection.packages[i];
+    return item.id===captured.id&&item.digest===captured.digest&&item.origin===captured.origin;
+  })&&entry?.file===selection.entry.file&&entry?.export===selection.entry.export)return;
+  throw Object.assign(Error(`Extension ${selection.extension} changed during invocation. Reload the runtime before editing again.`),{code:'EXTENSION_RELOAD_REQUIRED'});
 }
 
 export async function exportExtension(id,packageFile,options={}){
@@ -234,13 +313,13 @@ export async function exportExtension(id,packageFile,options={}){
 async function installFiles(id,files,options){
   const destination=resolve(extensionRoots(options).local,id);
   if(await exists(destination)){
-    const installed=await extensionAt(destination,id);
+    const installed=await extensionAt(destination,id,{includeFiles:false});
     const digest=canonicalHash(files.map(({path,bytes})=>({path,sha256:sha256(bytes)})));
     if(installed.digest===digest)return {...installed,origin:'local',unchanged:true};
     throw Error(`Local extension ${id} has changes. Keep it, or move it aside before importing another copy.`);
   }
   await mkdir(dirname(destination),{recursive:true});
-  const workspace=await createTemporaryWorkspace('extension'),prepared=resolve(workspace.directory,'entry');
+  const workspace=await createTemporaryWorkspace('extension',{paths:homePaths(options.dataRoot)}),prepared=resolve(workspace.directory,'entry');
   const staging=resolve(dirname(destination),`.${id}-${randomUUID()}.installing`);
   try{
     await mkdir(prepared);
@@ -252,7 +331,7 @@ async function installFiles(id,files,options){
     await cp(prepared,staging,{recursive:true,force:false,errorOnExist:true});
     await rename(staging,destination);
   }finally{try{await rm(staging,{recursive:true,force:true});}finally{await workspace.release();}}
-  return {...await extensionAt(destination,id),origin:'local',unchanged:false};
+  return {...await extensionAt(destination,id,{includeFiles:false}),origin:'local',unchanged:false};
 }
 
 // Import checks all bytes before writing anything and never evaluates scripts.
@@ -264,7 +343,7 @@ export async function importExtension(packageFile,options={}){
   const names=new Set(),files=[];
   for(const record of document.files){
     const path=relativeFile(record?.path);
-    if(names.has(path)||!DIGEST.test(record.sha256??'')||typeof record.base64!=='string'||!/^([A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(record.base64))
+    if(names.has(path)||!DIGEST.test(record.sha256??'')||!validBase64(record.base64))
       throw Error(`Invalid or duplicate package file: ${path}.`);
     names.add(path);
     const bytes=Buffer.from(record.base64,'base64');
@@ -290,7 +369,7 @@ export async function checkoutExtension(id,options={}){
   const roots=extensionRoots(options),bundled=bundledDirectory(roots,id);
   const local=resolve(roots.local,id);
   if(await exists(local)){
-    const selected=await extensionAt(local,id);
+    const selected=await extensionAt(local,id,{includeFiles:false});
     return {id,digest:selected.digest,directory:selected.directory,alreadyLocal:true};
   }
   if(!bundled)throw Error(`Bundled extension ${id} is missing.`);

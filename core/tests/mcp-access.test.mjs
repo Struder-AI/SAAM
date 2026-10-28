@@ -1,12 +1,15 @@
 // Shared import, checks and manual reading, isolated from real setup and print records.
 import './temporary-home.mjs';
+import {createPart} from '../application/part-execution.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, writeFile, rm, mkdir, symlink, link } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
-import { importSTLBundle } from '../print/import-stl.mjs';
-import { initBundle, loadBundle, proposedPlan, adjustBundle } from '../print/bundle.mjs';
+import { importSTLBundle } from '../application/import-stl.mjs';
+import {loadBundle} from '../print/bundle.mjs';
+import {adjustRecipe} from '../print/edit-operations.mjs';
+import {proposedPlan} from '../print/plan.mjs';
 import { defaults as shellDefaults } from '../print/plan.mjs';
 import { boxMesh } from './fixtures/mesh.mjs';
 import { readGuidance } from '../agent/manuals.mjs';
@@ -69,12 +72,12 @@ test('checks report ungenerated geometry and edits reject stale chat revisions',
   const plan = shellDefaults();
   plan.geometry = splineBox({runMm:12,widthMm:10,heightMm:1});
   plan.process.minimumLayerSeconds = 0;
-  await initBundle(dir, plan);
+  await createPart(dir, plan);
   const checked = await loadBundle(dir);
   assert.equal(checked.program ?? null, null);
   const patch = { process: { planarSpeedMmS: 23 } };
-  await assert.rejects(adjustBundle(dir, patch, { expectedRevision: 'stale' }), /stale/);
-  await adjustBundle(dir, patch, { expectedRevision: checked.revision });
+  await assert.rejects(adjustRecipe(dir, patch, { expectedRevision: 'stale' }), /stale/);
+  await adjustRecipe(dir, patch, { expectedRevision: checked.revision });
   const after = await loadBundle(dir);
   assert.equal(after.plan.process.planarSpeedMmS, 23);
 });

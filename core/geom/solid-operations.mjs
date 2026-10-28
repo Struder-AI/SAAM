@@ -9,6 +9,7 @@ import {revolvedProfile} from './revolved-profile.mjs';
 import {boxGeometry,polygonProfile,loftProfiles,transformGeometry} from './solid-profiles.mjs';
 import {rigid} from './frame.mjs';
 import {requireThat,distance} from './tolerance.mjs';
+import {executeGeometry,validateGeometryExecution} from './execution.mjs';
 
 async function prepareConstructions(requests){
   const cache=new Map(),materialInputs=new Map();
@@ -60,19 +61,29 @@ async function prepareConstructions(requests){
     throw Error('Unknown solid construction operation: '+request.operation);
   }
   const numerical=result=>result.solid??=buildShell(null,result.geometry,{material:true,native:false});
-  const results=[];for(const request of requests)results.push(await prepare(request));
+  const results=[];for(const request of requests)results.push(await prepare(request));return results;
+}
+function buildConstructions(results){
   const sources=results.filter(result=>!result.solid),built=buildShells(null,sources.map(result=>result.geometry),{material:true,native:false});
   sources.forEach((result,i)=>{result.solid=built[i];result.notes=[...new Set([...result.notes,...built[i].notes??[]])];});return results;
 }
 // Retained results are ordinary serializable geometry; empty results remain empty.
 export async function constructGeometry(requests,options={}){
+  validateGeometryExecution(options);
   const prepared=await prepareConstructions(requests);
   requireThat(prepared.every(result=>result.geometry),'Retained construction needs authored geometry, not an opaque prepared solid.');
+  const inspected=await executeGeometry('retained-material',{geometries:prepared.map(result=>result.geometry),options:{toleranceMm:options.toleranceMm}},options);
+  prepared.forEach((result,i)=>{result.notes=[...new Set([...result.notes,...inspected[i].notes])];});
+  return prepared.map((result,i)=>({geometry:inspected[i].present?result.geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},empty:!inspected[i].present,notes:result.notes}));
+}
+export async function inspectRetainedMaterial(geometries,options={}){
+  options.signal?.throwIfAborted();options.progress?.({stage:'Inspecting retained material'});
+  const prepared=buildConstructions(geometries.map(geometry=>({geometry,solid:null,notes:[]})));
   const present=await materialPresence(prepared.map(result=>result.solid),options);
-  return prepared.map((result,i)=>({geometry:present[i]?result.geometry:{shape:'mesh',source:null,vertices:[],triangles:[]},empty:!present[i],notes:result.notes}));
+  return prepared.map((result,i)=>({present:present[i],notes:result.notes}));
 }
 export async function constructSolids(requests,{toleranceMm=CHORD_TOLERANCE_MM}={}){
-  const prepared=await prepareConstructions(requests),kernel=await solidKernel(),meshes=[];
+  const prepared=buildConstructions(await prepareConstructions(requests)),kernel=await solidKernel(),meshes=[];
   for(const result of prepared){
     const mesh=await tessellateSolid(result.solid,{toleranceMm}),solid=solidFromMesh(kernel,mesh);
     try{requireThat(solid.status()==='NoError','Solid construction produced invalid geometry.');meshes.push(solid.isEmpty()?null:{...meshFromSolid(solid),notes:[...new Set([...result.notes,...mesh.notes??[]])]});}

@@ -432,9 +432,9 @@ function radialPose(radial,up){
 // plane for a fixed orientation, or around the enclosing sphere for changing
 // orientation. Every returned continuous move uses the same swept-volume query.
 export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose,options={}){
-  if(!nozzleMotionHits(index,occupied,from,to,fromPose,toPose,options).length)return [{point:to,pose:toPose}];
+  if(!nozzleMotionHits(index,occupied,from,to,fromPose,toPose,options).length)return {kind:'direct',waypoints:[{point:to,pose:toPose}]};
   const targetHits=nozzleMotionHits(index,occupied,to,to,toPose,toPose,options);
-  if(targetHits.length)return {blocked:targetHits};
+  if(targetHits.length)return {kind:'blocked',blocked:targetHits};
   const bounds=options.bounds??index.bounds,center=bounds.min.map((v,i)=>(v+bounds.max[i])/2);
   const radius=length(subtract(bounds.max,bounds.min))/2,gap=Math.max(PRINT_RESOLUTION_MM,options.clearanceMm??PRINT_RESOLUTION_MM);
   const outwardA=scale(fromPose.toolAxis,-1),outwardB=scale(toPose.toolAxis,-1);
@@ -460,12 +460,12 @@ export function nozzleMotionRoute(index,occupied,from,to,fromPose,toPose,options
     }
     const cursor={point:from,pose:fromPose},blocked=new Set();
     for(const next of route){for(const hit of nozzleMotionHits(index,occupied,cursor.point,next.point,cursor.pose,next.pose,options))blocked.add(hit);cursor.point=next.point;cursor.pose=next.pose;}
-    if(!blocked.size)return route;
+    if(!blocked.size)return {kind:'exterior-clearance',waypoints:route};
     // Increasing exterior clearance improves routing, rather than truncating a
     // valid job at a fixed iteration/distance budget. A blocked initial retreat
     // cannot be repaired by a larger exterior route.
     const retreat=nozzleMotionHits(index,occupied,from,a,fromPose,fromPose,options);
-    if(retreat.length)return {blocked:retreat};
+    if(retreat.length)return {kind:'blocked',blocked:retreat};
     state.clearance*=2;
     requireThat(Number.isFinite(state.clearance),'Nozzle exterior route has no representable clearance.');
   }

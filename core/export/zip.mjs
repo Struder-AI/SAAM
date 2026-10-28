@@ -7,10 +7,12 @@ import {deflateRawSync,inflateRawSync} from 'node:zlib';
 // ZIP32 has 32-bit member sizes and offsets. This is the container's actual
 // representational boundary, not a manufacturing/file-size policy. ZIP64 is
 // outside the currently declared machine artifact contract.
-const MAX=0xffffffff, MAX_ENTRIES=0xfffe;
+export const ZIP32_MAX=0xffffffff,ZIP32_MAX_ENTRIES=0xfffe;
+const MAX=ZIP32_MAX, MAX_ENTRIES=ZIP32_MAX_ENTRIES;
 const table=Uint32Array.from({length:256},(_,i)=>{for(let j=0;j<8;j++)i=(i>>>1)^((i&1)?0xedb88320:0);return i>>>0;});
-export function crc32(bytes){let c=0xffffffff;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
-const validName=name=>requireThat(typeof name==='string'&&name.length<256&&/^[A-Za-z0-9_\[\]./-]+$/.test(name)&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..'),'Invalid ZIP member name.');
+export function crc32(bytes,previous=0){let c=(previous^0xffffffff)>>>0;for(const b of bytes)c=table[(c^b)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
+export const validZipName=name=>requireThat(typeof name==='string'&&name.length<256&&/^[A-Za-z0-9_\[\]./-]+$/.test(name)&&!name.startsWith('/')&&name.split('/').every(p=>p&&p!=='.'&&p!=='..'),'Invalid ZIP member name.');
+const validName=validZipName;
 export function packZip(entries){
   requireThat(entries instanceof Map&&entries.size>0&&entries.size<=MAX_ENTRIES,'ZIP32 requires 1–65534 entries; ZIP64 is not supported.');
   const local=[],central=[];let offset=0;

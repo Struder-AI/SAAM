@@ -1,4 +1,5 @@
 import './temporary-home.mjs';
+import {createPart} from '../application/part-execution.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,access} from 'node:fs/promises';
@@ -9,7 +10,10 @@ import {validateSetup} from '../machine/rules.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 import {machineAdapter} from '../export/registry.mjs';
-import {initBundle,loadBundle,adjustBundle,generateBundle,proposedPlan} from '../print/bundle.mjs';
+import {loadBundle} from '../print/bundle.mjs';
+import {adjustRecipe} from '../print/edit-operations.mjs';
+import {proposedPlan} from '../print/plan.mjs';
+import {generateBundle} from '../application/generation.mjs';
 
 const ids=['bambu-x1-carbon','ultimaker-2-extended','ultimaker-3'];
 const authoredPlan=machine=>({...defaults(machine),geometry:splineBox({runMm:12,widthMm:10,heightMm:1})});
@@ -60,10 +64,10 @@ test('profiles without an exporter persist through shared setup review; generati
   for(const id of ids.slice(1)){
     const directory=join(root,id),machineSetups=join(root,'machine-setups');
     const {plan}=await proposedPlan(id,{machineSetups});plan.geometry=splineBox({runMm:12,widthMm:10,heightMm:1});
-    await initBundle(directory,plan,{machineId:id});
+    await createPart(directory,plan,{machineId:id});
     let state=await loadBundle(directory,{program:false});
-    assert.equal(state.machine.id,id);
-    await adjustBundle(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision});
+    assert.equal(state.machineId,id);
+    await adjustRecipe(directory,{setup:{material:'ABS',nozzleC:250,bedC:95}},{expectedRevision:state.revision});
     state=await loadBundle(directory,{program:false});assert.equal(state.plan.setup.material,'ABS');
     const progress=[];
     const result=await generateBundle(directory,{development:true,onProgress:event=>progress.push(event)});

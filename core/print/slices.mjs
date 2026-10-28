@@ -1,76 +1,78 @@
-// Slice constructs deposition from one prepared region/surface/gap description.
-// Neither curvature, wrapping nor consumer names select a different pipeline.
-import {surfaceConnectionMaterial} from '../geom/material-envelope.mjs';
+// Slice runs as one command chain per member: Stack decisions start the member,
+// Offset loops hand its wall Paath to Fill regions, Fill regions hand its
+// regions to Infill, and Infill hands its Paath to Slice Paath, which commands
+// Finalization. Stages answer queries for the values they hold; a member never
+// consults another member.
 import {requireThat} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
-import {layerStrokes,mapSliceStrokes} from '../region/layer-strokes.mjs';
-import {sliceGapCurves} from '../region/slice-gaps.mjs';
-import {depositCurveBatches} from '../path/curve-batches.mjs';
-import {lineSpacing} from '../path/spacing.mjs';
+import {sliceWallStrokes,sliceFillRegions} from '../region/layer-strokes.mjs';
+import {sliceStrokesPaath,conditionSlicePaath,combineSlicePaath,sliceBoundaryCurves} from './slice-paath.mjs';
+import {constructSliceInfill} from './slice-infill-paath.mjs';
+import {decideSliceStack,sliceStackChoices} from './slice-stack-decisions.mjs';
+import {finalizeSliceWork} from './slice-finalization.mjs';
 
-function evaluateRegionBatch({id,reference,strokes,gap,speedMmS,process,filament,sampleStepMm}){
-  const mapped=mapSliceStrokes(strokes,reference,{frames:true,sampleStepMm});
-  const curves=sliceGapCurves(mapped,reference,gap);
-  if(!curves.length)return null;
-  return depositCurveBatches({id,batches:[{key:0,curves,speedMmS}],process,filament,sequential:false})[0];
+// 3.1.2: closed wall loops on the member surface, as Paath.
+export function constructSliceWalls(member,{id,stackId=id,filament=null}={}){
+  const options=member.strokeSettings;
+  requireThat(options&&member.slice,'Slice walls need resolved member wall choices and a surface.');
+  const loops=member.region.length?sliceWallStrokes(member.region,options):[];
+  return sliceStrokesPaath([['walls',loops]],member,{id,stackId,filament});
 }
 
-function sliceResult({id,stackId=id,settings,layers,filament=null,totalLayerCount=layers.length},{process,report:extra={}}){
-  const width=process.lineWidthMm,operations=[],stackLayers=[];
-  const report={depositionFamily:'slice',layers:0,skippedLayers:0,loops:0,fillRows:0,...extra};
-  for(const layer of layers){
-    const {index,slice,region,preparedStrokes:strokes}=layer;
-    requireThat(strokes&&layer.gap,'Slice needs prepared strokes and gap inputs.');
-    const s=layer.settings;
-    if(!region.length){report.skippedLayers++;continue;}
-    const connectionMaterial=surfaceConnectionMaterial(slice,region,{sampleStepMm:s.sampleStepMm,lineWidthMm:width});
-    if(strokes.constructionReport){report.fillOrder=strokes.constructionReport;
-      if(strokes.constructionReport.notes?.length)report.notes=[...(report.notes??[]),...strokes.constructionReport.notes.map(note=>'Slice '+id+' layer '+index+': '+note)];}
-    const boundaries=mapSliceStrokes(strokes.walls,slice,{frames:true,sampleStepMm:s.sampleStepMm}).map(curve=>{
-      const duplicate=curve.points.length>2&&Math.hypot(...curve.points[0].map((v,k)=>v-curve.points.at(-1)[k]))<=PRINT_RESOLUTION_MM;
-      return !duplicate?curve:{...curve,closed:true,points:curve.points.slice(0,-1),chartPoints:curve.chartPoints.slice(0,-1),normals:curve.normals.slice(0,-1),frameSamples:curve.frameSamples?.slice(0,-1)};
-    });
-    stackLayers.push({...layer,curves:boundaries,fillCurves:strokes.fill,infillCurves:strokes.infill});
-    report.loops+=strokes.walls.length;report.fillRows+=strokes.infill.length+strokes.fill.length;
-    const speedMmS=layer.firstBedLayer?process.firstLayerSpeedMmS:process.planarSpeedMmS;
-    for(const [group,found] of [['walls',strokes.walls],['infill',strokes.infill],['fill',strokes.fill]]){
-      if(!found.length)continue;
-      const roles=s.roles??settings.roles;
-      const deposited=evaluateRegionBatch({id,reference:slice,strokes:found.map(stroke=>({...stroke,directionRequired:false,seamRequired:false,role:roles?.[stroke.role]??stroke.role})),gap:layer.gap,speedMmS,process,filament,sampleStepMm:s.sampleStepMm});
-      if(!deposited)continue;
-      const lifted=deposited.strokes,heights=lifted.flatMap(stroke=>stroke.points.map(point=>point[2])),top=Math.max(...heights),planar=top-Math.min(...heights)<=PRINT_RESOLUTION_MM;
-      const opId=id+':'+index+':'+group;
-      operations.push({...deposited,id:opId,layerId:stackId+':layer:'+index,stackId,phase:planar?'planar':'curves',layer:index,rank:top,
-        after:[...(s.operationAfter?.all??[]),...(s.operationAfter?.[group]??[])],strokes:lifted,connectNearby:s.connectNearby??true,layerIndex:layer.ordinal,layerCount:totalLayerCount,
-        stackDirection:layer.direction??null,...(s.continuous?{continuous:true,regionId:id+':'+index}:{}),
-        order:s.order??(group==='walls'?(lifted.every(stroke=>stroke.closed&&!stroke.volumesMm3)?'nearest':'given'):lifted.every(stroke=>stroke.scanlineCell!==undefined)?'nearest-cells':'given'),
-        slice,ownershipIndex:index,
-        materialGeometry:connectionMaterial??{kind:'bounds',maxZ:top},
-        ...((Object.hasOwn(s.process??{},'fanPercent')||layer.ordinal===1)?{fanPercent:process.fanPercent}:{}),...(filament===null?{}:{filament})});
-    }
-    report.layers++;
+// 3.1.3: the member's material inside the walls actually produced, divided by
+// the queried full-fill regions.
+export function deriveFillRegions(member,wallPaath,{fullFillRegions,density,overlap}){
+  if(!member.region.length)return {interior:[],solidRegion:[],sparseRegion:[]};
+  return sliceFillRegions(member.region,Object.values(wallPaath.correspondence),
+    {...member.strokeSettings,solid:fullFillRegions,fillDensity:density,fillOverlap:overlap});
+}
+
+// 3.1.5's construction report for one member.
+export function sliceMemberReport(member,wallPaath,infill,id){
+  return {depositionFamily:'slice',layers:member.region.length?1:0,skippedLayers:member.region.length?0:1,
+    loops:Object.keys(wallPaath.curves).length,fillRows:Object.values(infill.paath.operations).reduce((sum,operation)=>sum+operation.courses.length,0),
+    ...(infill.report?{fillOrder:infill.report,
+      ...(infill.report.notes?.length?{notes:infill.report.notes.map(note=>'Slice '+id+' layer '+member.index+': '+note)}:{})}:{})};
+}
+
+// The Construct Slice work receiver. `work` names the operation and what its
+// finalized members are associated with; `plan` is the construction request.
+export function constructSlice(spec,context,{work,plan,onProgress}){
+  const {id,filament=null,totalLayerCount=spec.layers.length}=spec,stackId=work.stackId??id,identity={id,stackId,filament};
+  const members=decideSliceStack(spec,context),choices=sliceStackChoices(members);
+  const walls=new Map(),regions=new Map(),finalized=new Map();
+  // 3.1.5 queries the member's wall Paath and process choices, then commands Finalization.
+  const slicePaath=(member,infill)=>{
+    requireThat(member.gap&&member.strokeSettings,'Slice needs resolved member choices and an explicit gap.');
+    const wallPaath=walls.get(member.index),process=choices.process(member.index);
+    const paath=conditionSlicePaath(combineSlicePaath([wallPaath,infill.paath]),member.slice,process,{filament});
+    const report={...context.report,depositionFamily:'slice',layers:0,skippedLayers:0,loops:0,fillRows:0};
+    const own=sliceMemberReport(member,wallPaath,infill,id);
+    for(const key of ['layers','skippedLayers','loops','fillRows'])report[key]+=own[key];
+    if(own.fillOrder)report.fillOrder=own.fillOrder;
+    if(own.notes?.length)report.notes=[...(report.notes??[]),...own.notes];
+    const stackLayer={...member,curves:sliceBoundaryCurves(wallPaath)};
+    return finalizeSliceWork({paath,member,owner:work.owner,part:work.part,toolPose:work.toolPose,filament:work.filament,
+      envelope:{id,stackId,totalLayerCount,report,stackLayers:[stackLayer],referenceStack:{...work.referenceStack,layers:[stackLayer]}}},{plan});
+  };
+  // 3.1.4 queries its pattern choices and commands Slice Paath.
+  const infill=(member,fillRegions)=>slicePaath(member,constructSliceInfill(member,fillRegions,choices.pattern(member.index),identity));
+  // 3.1.3 queries the member's full fill, retains its regions and commands Infill.
+  const fillRegions=(member,wallPaath)=>{
+    const derived=deriveFillRegions(member,wallPaath,choices.fill(member.index));
+    regions.set(member.index,derived);
+    return infill(member,derived);
+  };
+  // 3.1.2 constructs and retains the wall Paath and commands Fill regions.
+  const offsetLoops=member=>{
+    const wallPaath=constructSliceWalls(member,identity);
+    walls.set(member.index,wallPaath);
+    return fillRegions(member,wallPaath);
+  };
+  // 3.1.1 starts every member, empty or not.
+  for(const [ordinal,member] of members.entries()){
+    onProgress?.({stage:'Constructing Slice',layer:member.index,completed:ordinal,total:members.length});
+    finalized.set(member.index,offsetLoops(member));
   }
-  return {id,operations,report,stackLayers};
-}
-
-export function fillSliceRegion(region,{source,angleDeg=null,role='fill'}={}){
-  requireThat(source?.slice&&source.settings&&source.process,'Region fill needs a resolved source layer.');
-  const settings=source.settings,index=source.index??0,angles=settings.fillAnglesDeg;
-  const angle=angleDeg??(settings.rotateFill?angles[index%angles.length]:angles[0]);
-  const width=source.widthMm??source.process.lineWidthMm;
-  const strokes=layerStrokes(region,{...settings,widthMm:width,loops:0,fillDensity:1,solidDensity:1,fillPattern:'rectilinear',fillAngleDeg:angle,patternAngleDeg:angle,
-    solid:null,fillOrder:null,slice:source.slice,direction:source.direction,layer:source,material:region,outward:false,
-    loopBoundary:region,wallToleranceMm:source.process.planarWallToleranceMm,phaseMm:source.slice.origin?.[2]??source.slice.offsetMm??0});
-  const curves=strokes.fill.map(stroke=>({closed:stroke.closed,orderGroup:stroke.scanlineCell,directionRequired:false,seamRequired:false,
-    uv:{reference:{kind:'slice',assignment:source.stackId,index},points:stroke.points},role,
-    beadWidthMm:width,sampleStepMm:settings.sampleStepMm}));
-  return {curves,report:{curves:curves.length,widthMm:width,pitchMm:lineSpacing(width,settings),angleDeg:angle}};
-}
-
-
-export function sliceContextResult(record,{layerIndex=null}={}){
-  const layers=layerIndex===null?record.spec.layers:record.spec.layers.filter(layer=>layer.index===layerIndex);
-  requireThat(layers.length,'Slice construction context has no requested layer.');
-  const result=sliceResult({...record.spec,stackId:record.stackId??record.spec.id,layers},record.context);
-  return {...result,referenceStack:{...record.referenceStack,layers:result.stackLayers},stackId:record.stackId};
+  onProgress?.({stage:'Constructing Slice',completed:members.length,total:members.length});
+  return {members,finalized,fillRegions:index=>regions.get(index)};
 }

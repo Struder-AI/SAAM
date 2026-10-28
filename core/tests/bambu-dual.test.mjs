@@ -6,7 +6,7 @@ import {preparePath} from '../export/registry.mjs';
 import {settingsRows} from '../machine/settings-rows.mjs';
 import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
+import {scheduled,actionsOf,writePrepared} from './fixtures/scheduled.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
 import {pathPreview} from '../../studio/path-preview.mjs';
@@ -19,11 +19,11 @@ import {mixedNozzleFixture} from './fixtures/bambu-dual.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('mixed 0.4/0.8 H2D regions emit tower-free changes, distinct process grids and independently decoded tool state',async()=>{
-  const {plan,machine}=mixedNozzleFixture(),path=schedulePath(await generatePath(plan,machine));
+  const {plan,machine}=mixedNozzleFixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   const prepared=(await preparePath(path,plan,machine));
-  assert.ok(path.actions.filter(a=>a.kind==='toolChange').length>=3);
-  assert.ok(path.actions.filter(a=>a.kind==='toolChange').every(a=>!Object.hasOwn(a,'tool')));
-  assert.ok(prepared.actions.filter(a=>a.kind==='toolChange').every(a=>Number.isInteger(a.tool)));
+  assert.ok(actionsOf(path).filter(a=>a.kind==='toolChange').length>=3);
+  assert.ok(actionsOf(path).filter(a=>a.kind==='toolChange').every(a=>!Object.hasOwn(a,'tool')));
+  assert.ok(actionsOf(prepared).filter(a=>a.kind==='toolChange').every(a=>Number.isInteger(a.tool)));
   const {bytes,report}=(await exportProgram(path,plan,machine,release)),z=unpackZip(bytes),code=z.get('Metadata/plate_1.gcode').toString();
   assert.match(code,/^; filament: 1,2$/m,'USB header declares material IDs, not their count');
   assert.match(code,/^; filament_diameter: 1.75,1.75$/m);
@@ -79,7 +79,7 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
   const fixture=mixedNozzleFixture(),machine=fixture.machine;
   const plan=filamentPlan(fixture.plan,machine,1);
   plan.placement.xMm=310;
-  const path=schedulePath(await generatePath(plan,machine)),program=pathPreview((await preparePath(path,plan,machine)),{plan});
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),program=pathPreview((await preparePath(path,plan,machine)),{plan});
   assert.equal((await exportProgram(path,plan,machine,release)).report.envelope.job.filamentSequence[0],1);
   assert.ok(program.moves.some(m=>m.extruding&&m.tool===1&&m.to[0]>325));
   assert.ok(program.moves.filter(m=>m.extruding&&m.tool===0).every(m=>m.to[0]<=325));
@@ -87,14 +87,16 @@ test('mixed nozzle job can start on the right and use each nozzle’s own build 
 
 test('unsafe handoffs and automatic external-spool changes fail before packaging',async()=>{
   const {plan,machine}=mixedNozzleFixture();
-  const path=schedulePath(await generatePath(plan,machine)),first=path.actions.findIndex(a=>a.kind==='toolChange');
-  const bad=structuredClone(path);bad.actions[first].tool=0;
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),first=path.schedule.execution.findIndex(a=>a.kind==='toolChange');
+  const bad=structuredClone(path);bad.schedule.execution[first].tool=0;
   await assert.rejects(()=>exportProgram(bad,plan,machine,release),/physical tool/);
-  const unret=structuredClone(path);let i=first-1;while(unret.actions[i].kind!=='retract')i--;
-  unret.actions.splice(i,1);
-  await assert.rejects(()=>exportProgram(unret,plan,machine,release),/retract|withdrawal|recover/i);
+  // The neutral schedule carries change intent only; Export realizes the
+  // withdrawal, so an unretracted handoff is a prepared path for the writer.
+  const prepared=await preparePath(path,plan,machine),unret=actionsOf(prepared);let i=unret.findIndex(a=>a.kind==='toolChange')-1;while(unret[i].kind!=='retract')i--;
+  unret.splice(i,1);
+  await assert.rejects(()=>writePrepared({...prepared,actions:unret},plan,machine,release),/retract|withdrawal|recover/i);
   plan.setup.filaments[1].tool=0;
-  const same=schedulePath(await generatePath(plan,machine));
+  const same=scheduled(await generatePath(plan,machine),{machine,plan});
   await assert.rejects(()=>exportProgram(same,plan,machine,release),/require AMS feeds/);
 });
 
@@ -105,7 +107,7 @@ test('every supported H2D diameter pair keeps each change descriptor on its own 
     plan.setup.bambu.otherNozzleMm=right;plan.process.lineWidthMm=left;
     plan.setup.filaments[1].process.lineWidthMm=right;
     for(const part of plan.geometry.parts)part.geometry=splineBox({runMm:8,widthMm:8,heightMm:0.6});
-    const path=schedulePath(await generatePath(plan,machine)),{bytes,report}=(await exportProgram(path,plan,machine,release));
+    const path=scheduled(await generatePath(plan,machine),{machine,plan}),{bytes,report}=(await exportProgram(path,plan,machine,release));
     assert.deepEqual(auditBambu(bytes).plates[0].changes.issues,[]);
     assert.deepEqual(report.envelope.job.nozzleDiametersMm,[left,right]);
     assert.ok(report.envelope.job.filamentUsage.every(u=>u.volumeMm3>0));

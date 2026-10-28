@@ -7,14 +7,15 @@ import {readWidthRule} from '../path/parallel-curves.mjs';
 import {depositedCurveSegments} from '../path/deposited-curves.mjs';
 import {depositCurveBatches} from '../path/curve-batches.mjs';
 import {joinCurveSequence} from '../path/stack-curves.mjs';
-import {assignmentPlan} from './assignment-process.mjs';
 import {operationPrerequisite,validateEdgeAfter} from './operation-references.mjs';
 
 // Authored deposition joins the ordinary assignment list without inventing an
 // enclosing solid. A repeat is its own XYZ grid; it need not share other grids.
 export function curveAssignment({id,construction='curves',...options}) {
   requireThat(construction==='curves','Trace uses explicit curves; retired technique records require migration.');
-  return structuredClone({id,construction,part:null,filament:null,process:null,after:[],substrate:null,curves:[],repeat:null,sequence:false,ordered:false,repetitionIds:null,repetitionAfter:null,maxExcursionMm:null,source:null,toolPose:null,...options});
+  const pose=options.toolPose,record=pose&&typeof pose==='object'&&!Array.isArray(pose)&&(Object.getPrototypeOf(pose)===Object.prototype||Object.getPrototypeOf(pose)===null);
+  return structuredClone({id,construction,part:null,filament:null,toolIndex:null,process:null,after:[],substrate:null,curves:[],repeat:null,sequence:false,ordered:false,repetitionIds:null,repetitionAfter:null,maxExcursionMm:null,source:null,toolPose:null,description:'',...options,
+    ...(record?{toolPose:{alignToSliceNormal:false,...pose}}:{})});
 }
 
 export function validateCurveAssignment(a,{parts=null}={}) {
@@ -22,8 +23,10 @@ export function validateCurveAssignment(a,{parts=null}={}) {
   const expected=Object.keys(curveAssignment({construction:a.construction})).sort().join();
   requireThat(a.construction==='curves'&&Object.keys(a).filter(key=>!['operationAfter','edgeAfter'].includes(key)).sort().join()===expected,`Invalid ${a.construction} assignment fields.`);
   requireThat(typeof a.id==='string'&&/^[a-z][a-z0-9-]*$/.test(a.id),'Invalid curve assignment id.');
+  requireThat(typeof a.description==='string','Trace description must be a string.');
   requireThat(a.part===null||typeof a.part==='string'&&(parts===null||parts.includes(a.part)),'Curve assignment names an unknown part.');
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Curve filament must be null or a filament index.');
+  requireThat(a.toolIndex===null||Number.isSafeInteger(a.toolIndex)&&a.toolIndex>=0,'Curve toolIndex must be null or a neutral logical index.');
   requireThat(Array.isArray(a.after)&&a.after.every(operationPrerequisite),'Curve after must select manufactured work.');
   validateEdgeAfter(a.edgeAfter,a.id);
   requireThat(a.substrate===null||operationPrerequisite(a.substrate),'Trace substrate must select manufactured work.');
@@ -103,7 +106,7 @@ export function readAuthoredCurve(source){
   return {curve:{...curve,...points,...(curve.segmentMetadata?{segmentMetadata:distinct.segments.map(j=>curve.segmentMetadata[j])}:{})},ignored};
 }
 
-export function authoredCurveResult(assignment,{plan,process=plan.process,references={},modelResults=[],sourceLayer=null}) {
+export function authoredCurveResult(assignment,{process,references={},modelResults=[],sourceLayer=null}) {
   const referenceStack=sourceLayer?.referenceStack??(assignment.repeat?.stack?references[`slice:${assignment.repeat.stack}`]:null);
   requireThat(!assignment.repeat?.stack||referenceStack?.layers?.length,'Curve repeat needs an available named slice stack.');
   const indices=sourceLayer?[sourceLayer.index]:referenceStack?(assignment.repeat.indices??referenceStack.layers.map(l=>l.index)):null;
@@ -114,8 +117,8 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
     const index=indices?.[repetition]??repetition;
     const active=authored.filter(curve=>!curve.repetitions||curve.repetitions.includes(index));
     if(!active.length)continue;
-    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{references,repetition:referenceStack?index:null,offset:translation.map(v=>repetition*v)}).map(constructed=>({...constructed,sourceCurve:sourceCurves.get(curve)})));
     const heightMm=sourceLayer?.heightMm??(repetition===0?process.firstLayerMm:process.layerMm),speedMmS=sourceLayer?.speedMmS??(repetition===0?process.firstLayerSpeedMmS:process.planarSpeedMmS);
+    const curves=active.flatMap(curve=>constructAuthoredCurves(curve,{widthMm:process.lineWidthMm,heightMm,references,repetition:referenceStack?index:null,offset:translation.map(v=>repetition*v)}).map(constructed=>({...constructed,sourceCurve:sourceCurves.get(curve)})));
     if(referenceStack){const layer=referenceStack.layers.find(l=>l.index===(indices?.[repetition]??repetition));
       for(const curve of curves)if(curve.heightMm===undefined&&!curve.heightsMm&&curve.frameSamples)curve.heightsMm=curve.points.slice(1).map((_,i)=>{
         const n=curve.frameSamples[i].normal,d=referenceStack.direction??n;return (layer.heightMm??heightMm)*Math.abs(n.reduce((sum,x,k)=>sum+x*d[k],0));
@@ -127,7 +130,11 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
       if(curve.depositionAction)requireThat(curve.depositionAction.depthMm<actualHeightMm,'Press depth must remain within its deposition layer.');
       return {...curve,...(curve.depositionAction?{depositionAction:{...curve.depositionAction,layerHeightMm:actualHeightMm}}:{})};
     });
-    if(assignment.maxExcursionMm!==null){const heights=ready.flatMap(c=>c.points.map(p=>p[2]));requireThat(Math.max(...heights)-Math.min(...heights)<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');}
+    if(assignment.maxExcursionMm!==null){
+      let low=Infinity,high=-Infinity;
+      for(const curve of ready)for(const point of curve.points){low=Math.min(low,point[2]);high=Math.max(high,point[2]);}
+      requireThat(high-low<=assignment.maxExcursionMm+PRINT_RESOLUTION_MM,'Trace repetition exceeds its authored Z excursion limit.');
+    }
     const native=traceReferenceLayer(active,{assignment,sourceLayer,referenceStack,references,index});
     const name=assignment.repetitionIds?.[repetition]??repetition;
     const required=assignment.repetitionAfter&&Object.hasOwn(assignment.repetitionAfter,name)?assignment.repetitionAfter[name]:[];
@@ -146,13 +153,17 @@ export function authoredCurveResult(assignment,{plan,process=plan.process,refere
 
 // A chart reference supplies geometry and provenance, not stack membership.
 function traceReferenceLayer(curves,{assignment,sourceLayer,referenceStack,references,index}){
-  if(sourceLayer?.slice)return {slice:sourceLayer.slice,stackId:sourceLayer.stackId,ownershipIndex:sourceLayer.index};
+  if(sourceLayer?.slice){
+    const direction=sourceLayer.direction??sourceLayer.referenceStack?.direction;
+    return {slice:sourceLayer.slice,stackId:sourceLayer.stackId,ownershipIndex:sourceLayer.index,...(direction?{stackDirection:[...direction]}:{})};
+  }
   const refs=curves.map(curve=>curve.uv?.reference);
   if(!refs.length||!refs.every(ref=>ref?.kind==='slice'))return null;
   const first=refs[0],stack=referenceStack??references['slice:'+first.assignment],layerIndex=first.index??(referenceStack?index:stack?.layers.findLast(layer=>layer.slice)?.index);
   if(!refs.every(ref=>ref.assignment===first.assignment&&(ref.index??(referenceStack?index:layerIndex))===layerIndex))return null;
   const layer=stack?.layers.find(layer=>layer.index===layerIndex);
-  return layer?{slice:layer.slice,stackId:stack.stackId??first.assignment,ownershipIndex:layerIndex}:null;
+  const direction=layer?.direction??stack?.direction;
+  return layer?{slice:layer.slice,stackId:stack.stackId??first.assignment,ownershipIndex:layerIndex,...(direction?{stackDirection:[...direction]}:{})}:null;
 }
 
 // Authored and skill-mapped centerlines share bead calculation, joining,
@@ -175,15 +186,14 @@ export function traceResult(assignment,{batches,process,sequential=true,report={
     const closing=stroke.closed?distance(stroke.points.at(-1),stroke.points[0]):0;
     volumeMm3+=stroke.volumesMm3?stroke.volumesMm3.reduce((sum,v)=>sum+v,0):(length+closing)*stroke.beadAreaMm2;
   }
-  return {id:assignment.id,operations,report:{...report,...(joinNotes.length?{notes:[...(report.notes??[]),...joinNotes]}:{}),depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
+  return {id:assignment.id,operations:assignment.toolIndex===null?operations:operations.map(operation=>({...operation,toolIndex:assignment.toolIndex})),report:{...report,...(joinNotes.length?{notes:[...(report.notes??[]),...joinNotes]}:{}),depositionFamily:'trace',strokes:strokeCount,lengthMm,volumeMm3}};
 }
 
 // Construct raw Trace batches from prepared references and finalized predecessors.
 // The common finalizer owns all batch edits and subsequent contact diagnostics.
-export function curveAssignmentResult(assignment,{plan,modelResults,references={}}) {
+export function curveAssignmentResult(assignment,{process,modelResults,references={}}) {
   validateCurveAssignment(assignment);
-  const selected=assignmentPlan(plan,assignment);
-  return authoredCurveResult(assignment,{plan,process:selected.process,references,modelResults});
+  return authoredCurveResult(assignment,{process,references,modelResults});
 }
 
 // References carry evaluated data in placed world coordinates. A shared-owner

@@ -1,6 +1,6 @@
 // DENSO VS-068A4 arm plus external rotary table: this extension's kinematics
-// plug (machine-kinematics). The SAAMpath gives the toolhead position and
-// orientation in the part frame; every DENSO axis comes from here, for both the
+// plug (machine-kinematics). Canonical Paath gives position and tool axis;
+// this adapter derives continuous roll. Every DENSO axis comes from here, for both the
 // PacScript writer and Studio's machine view. Arm plus table is redundant: like
 // the arm's figure, DENSO chooses the table angle itself. It holds the table
 // at the setup's angle (setup.denso.tableDeg) for the whole program.
@@ -11,6 +11,29 @@ export const heldTableDeg=c=>c.tableDeg??c.initialPose?.rotaryDeg;
 export function createKinematics({frame,dimensions}){
   const {add,subtract:sub,scale,innerProduct:dot,cross,length:norm,mv,mm,transpose,identity,rotation,rigid,point,validateRigid,rotateZ,rotatePointZ}=frame;
   const {PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE}=dimensions;
+
+  // Adapter-owned sequence, seeded by the captured installation orientation.
+  // Paath's computational up vector never enters this machine roll policy.
+  function createToolOrientation(c){
+    frame.validateDirectionPair(c.initialPose?.toolAxis,c.initialPose?.toolUp);
+    let pair=[...['toolAxis','toolUp'].map(key=>[...c.initialPose[key]])];
+    const pose=()=>({toolAxis:[...pair[0]],toolUp:[...pair[1]]});
+    return {current:pose,next(axis){pair=frame.transportDirectionPair(...pair,axis);return pose();}};
+  }
+  function programOrientation({program,setup}){
+    if(program.orientation?.kind!=='paath-axis/1'||program.orientation.sourceSchema!=='saampath/3')return null;
+    const sequence=createToolOrientation(setup.denso),pairs=new Float64Array(program.moves.length*12);
+    for(let i=0;i<program.moves.length;i++){
+      const move=program.moves.at(i),from=sequence.next(move.toolAxisFrom??sequence.current().toolAxis),to=sequence.next(move.toolAxisTo??from.toolAxis);
+      pairs.set([...from.toolAxis,...from.toolUp,...to.toolAxis,...to.toolUp],i*12);
+    }
+    return {at(index,fraction){if(index<0||index>=program.moves.length)return {};
+      const offset=index*12,vector=i=>Array.from(pairs.subarray(offset+i,offset+i+3));
+      const move=program.moves.at(index),pair=move.toolAxisInterpolation==='slerp'?
+        frame.transportDirectionPair(vector(0),vector(3),frame.interpolateDirection(vector(0),vector(6),fraction)):
+        frame.interpolateDirectionPair([vector(0),vector(3)],[vector(6),vector(9)],fraction);
+      return {toolAxis:pair[0],toolUp:pair[1]};}};
+  }
 
   // The table: room (table-axis) frame from the part frame, about the
   // installed rotary centre.
@@ -137,5 +160,5 @@ export function createKinematics({frame,dimensions}){
       angularLeverMm:g.flangeMm+g.toolReachMm,reachMargins,
       inverse:local=>({...inverse(g,{tcp:local.translationMm,rotation:local.rotation},{seed:config.modelSeedDeg}),margins:reachMargins(local)})}};
   }
-  return Object.freeze({geometry,forward,inverse,wristFromPose,placeTool,view});
+  return Object.freeze({geometry,forward,inverse,wristFromPose,placeTool,view,createToolOrientation,programOrientation});
 }

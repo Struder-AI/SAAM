@@ -7,6 +7,7 @@ import {booleanShell} from './boolean-solid.mjs';
 import {requireThat} from './tolerance.mjs';
 import {geometrySelections} from './selections.mjs';
 import {translateSurfaceSolid} from './surface-topology.mjs';
+import {executeGeometry} from './execution.mjs';
 
 
 export function buildShell(rhino, geometry, options) {
@@ -78,6 +79,10 @@ export function resolveMaterialGeometry(geometries){
 // Each request returns ordinary geometry in the requested frame. A replacement
 // geometry (a within-volume) uses the selected component/partition's origin.
 // Null selects the whole source, including an assembly, at the source origin.
+export async function prepareGeometrySelections(geometry,requests,execution={}){
+  return executeGeometry('geometry-selections',{geometry,requests},{subject:'Geometry selection preparation',...execution});
+}
+
 export function resolveGeometrySelections(geometry,requests){
   const selections=geometry?geometrySelections(geometry):new Map();
   const selected=requests.map(({selection=null,geometry:replacement})=>{

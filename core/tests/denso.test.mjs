@@ -1,4 +1,5 @@
 import {home} from './temporary-home.mjs';
+import {createPart} from '../application/part-execution.mjs';
 import {createPlanningState,planningPath,planMove} from '../path/planning.mjs';
 import {contextualActions} from '../path/action-context.mjs';
 import test from 'node:test';
@@ -13,10 +14,12 @@ import {validateDensoConfiguration} from '../../machines/denso/denso.mjs';
 import {validateDirectionPair} from '../geom/frame.mjs';
 import {defaults,validatePlan} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
+import {scheduled,actionsOf,writePrepared} from './fixtures/scheduled.mjs';
 import {createGeometry} from '../print/geometry.mjs';
 import {rhino} from '../geom/runtime.mjs';
-import {initBundle,generateBundle,loadBundle,readDrawnPath} from '../print/bundle.mjs';
+import {loadBundle} from '../print/bundle.mjs';
+import {readDrawnPath} from '../../studio/drawn-path.mjs';
+import {generateBundle} from '../application/generation.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {uprightPose} from '../path/pose.mjs';
@@ -44,9 +47,9 @@ test('DENSO setup is unresolved by default; tube geometry uses the shared native
   const native=await createGeometry(plan.geometry);
   assert.equal(native.descriptor.nativeFile,undefined);
   const s5=loadMachine(),old=defaults(s5);old.geometry=plan.geometry;old.placement={xMm:100,yMm:100};
-  const path=schedulePath(await generatePath(old,s5));assert.ok((await exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'})).report.volumeMm3>0);
+  const path=scheduled(await generatePath(old,s5),{machine:s5,plan:old});assert.ok((await exportProgram(path,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'})).report.volumeMm3>0);
   old.slices.assignments.push(structuredClone(plan.slices.assignments.find(a=>a.stack?.direction==='normal')));validatePlan(old,s5);
-  const oriented=schedulePath(await generatePath(old,s5));assert.ok(oriented.actions.some(action=>action.pose),'derived poses survive machine-independent generation');
+  const oriented=scheduled(await generatePath(old,s5),{machine:s5,plan:old});assert.ok(actionsOf(oriented).some(action=>action.pose),'derived poses survive machine-independent generation');
   await assert.rejects(()=>exportProgram(oriented,old,s5,{generatorVersion:'test',buildDate:'2026-09-10'}),/cannot represent non-upright tool orientation/);
 });
 
@@ -54,7 +57,7 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
   // The cladding family resolves from the body's finished results; the work graph turns that source into operation prerequisites.
   const plan=small(),shell=buildShell(await rhino(),plan.geometry),completed=new Map();
   const {contexts}=prepareSliceContexts({plan,machine,shells:[[null,shell,true]],volumes:new Map()});
-  for(const node of prepareDepositionWork(contexts))completed.set(node.key,{node,result:finalizeDepositionResult(constructDepositionWork(node,completed,{plan}),plan)});
+  for(const node of prepareDepositionWork(contexts,[],[],{plan}))completed.set(node.key,{node,result:finalizeDepositionResult(constructDepositionWork(node,completed,{plan}),plan)});
   const operations=id=>[...completed.values()].filter(({node})=>node.sourceId===id).flatMap(({result})=>result.operations);
   const body=operations('body'),clad=operations('pipe-cladding'),last=body.at(-1).id;
   assert.deepEqual(scheduleOperations([{operations:[...clad,...body]}]).map(o=>o.id).slice(-3),[last,'pipe-cladding:0:fill','pipe-cladding:1:fill']);
@@ -66,11 +69,11 @@ test('same-height cylindrical shells retain explicit prerequisites in the existi
 test('existing mesh/spline regional skills use RC8A at fixed orientation',async()=>{
   for(const backend of ['mesh','spline']) {
     const plan=regionalStackPlan(machine,backend);plan.setup=small().setup;
-    const path=schedulePath(await generatePath(plan,machine)),program={...(await exportProgram(path,plan,machine)).report,moves:(await drawn(path,plan)).moves};
+    const path=scheduled(await generatePath(plan,machine),{machine,plan}),program={...(await exportProgram(path,plan,machine)).report,moves:(await drawn(path,plan)).moves};
     for(const phase of ['planar','vase-wall'])assert.ok(program.moves.some(m=>m.extruding&&m.phase===phase),phase);
     assert.ok(program.moves.some(m=>m.extruding&&m.operation?.startsWith('roof:roof-finish:')),'roof Slice deposition survives export');
     assert.ok(program.moves.every(m=>m.toolAxisTo[2]===-1));
-    near(program.volumeMm3,path.actions.reduce((sum,a)=>sum+(a.volumeMm3??0),0));
+    near(program.volumeMm3,actionsOf(path).reduce((sum,a)=>sum+(a.volumeMm3??0),0));
   }
 });
 
@@ -88,14 +91,16 @@ test('oriented motion preserves pose-only actions and unsupported outputs reject
 
 test('an older path rotaryDeg is ignored; timed stationary deposition reports its written timing, volume and relay estimate',async()=>{
   const plan=small(),c=plan.setup.denso;c.initialPositionMm=[10,0,1];c.workOffsetMm=[15,-8,12];c.workYawDeg=37;c.rotarySign=-1;c.rotaryZeroDeg=20;
-  const path={schema:'saampath/1',completion:{contract:'saam-neutral-motion/1'},initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
-  const {report}=(await exportProgram(path,plan,machine)),moves=(await drawn(path,plan)).moves,deposition=moves.filter(m=>m.extruding);
+  // Hand-built machine motion is a prepared path for the selected writer.
+  const path={schema:'saam-export-prepared/1',initialPosition:c.initialPositionMm,initialPose:c.initialPose,actions:[{kind:'move',to:[10,0,1],pose:{...uprightPose(),rotaryDeg:720},durationSeconds:4,speedMmS:10,volumeMm3:8,phase:'hoop',layer:0}]};
+  const {report}=(await writePrepared(path,plan,machine)),moves=pathPreview(path,{plan}).moves,deposition=moves.filter(m=>m.extruding);
   near(deposition.reduce((seconds,m)=>seconds+m.durationSeconds,0),4);near(report.volumeMm3,8);assert.ok(moves.every(m=>!('rotaryToDeg' in m)));near(report.estimatedRelayVolumeMm3,2.56);
 });
 
 test('tube export retains the substrate and normal-aligned axial/hoop shells outside it',async()=>{
-  const plan=small(),path=schedulePath(await generatePath(plan,machine)),program=await drawn(path,plan);
-  const order=path.summary.composition.operationOrder;assert.deepEqual(order.slice(-2),['pipe-cladding:0:fill','pipe-cladding:1:fill']);
+  const plan=small(),path=scheduled(await generatePath(plan,machine),{machine,plan}),program=await drawn(path,plan);
+  // The summary no longer lists operationOrder; the joined execution is the order.
+  const order=[...new Set([...contextualActions(path)].filter(({action})=>action.volumeMm3>0).map(({context})=>context.operation))];assert.deepEqual(order.slice(-2),['pipe-cladding:0:fill','pipe-cladding:1:fill']);
   const body=program.moves.filter(m=>m.extruding&&m.phase==='planar'),clad=program.moves.filter(m=>m.extruding&&m.operation?.startsWith('pipe-cladding:'));
   assert.ok(body.length&&clad.length);
   // The substrate stays inside the tube's exterior; cladding builds outward.
@@ -108,7 +113,7 @@ test('tube export retains the substrate and normal-aligned axial/hoop shells out
 
 test('RC8A uses the public bundle, the drawn SAAMpath and cold reopen without reslicing',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-denso-'));t.after(()=>rm(dir,{recursive:true,force:true}));const plan=small();
-  await initBundle(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
+  await createPart(dir,plan,{machineId:machine.id});const checks=await generateBundle(dir,{development:true});assert.equal(checks.mode,'development');
   const state=await loadBundle(dir);assert.equal(state.programError,undefined);
   const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>server.shutdown());
   const origin=`http://127.0.0.1:${server.address().port}`,fetcher=(url,...args)=>fetch(origin+url,...args),remote=outputView(await(await fetcher('/api/state')).json());

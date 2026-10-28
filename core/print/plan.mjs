@@ -1,5 +1,5 @@
 import {requireThat as requireThat_toolpath} from '../private/toolpath/numeric.mjs';
-import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,validateExtensionRecipe} from '../../skills/records.mjs';
+import {ASSIGNMENT_RECORDS,validateExtensionRecipe} from '../../skills/records.mjs';
 // Recipe (plan.json) for shell-based prints: geometry, placement, setup, shared
 // process settings, and the settings of each selected skill.
 //
@@ -10,7 +10,7 @@ import {ASSIGNMENT_RECORDS,GEOMETRY_RECORDS,validateExtensionRecipe} from '../..
 
 import {requireThat} from '../geom/tolerance.mjs';
 import {loadMachine} from '../machine/profile.mjs';
-import {settingsDefaults} from '../machine/settings.mjs';
+import {settingsDefaults,selectSettings} from '../machine/settings.mjs';
 import {makeMesh,hasMesh} from '../geom/mesh.mjs';
 import {splineSolidTemplate,validateSplineSolid,splineSolidBounds} from '../geom/spline-solid.mjs';
 import {blobFieldTemplate,validateBlobFieldRecord} from '../geom/blob-field-record.mjs';
@@ -22,7 +22,7 @@ import {defaultSlices,validateSlices} from "./slice-records.mjs";
 import {defaultModulations,readModulations,validateModulations} from '../path/modulation.mjs';
 import {modulationGeometrySources} from '../path/modulation-field.mjs';
 import {assignmentPlan,depositionAssignments} from './assignment-process.mjs';
-import {currentAssignmentForms,currentSupportForms} from './recipe-migration.mjs';
+import {currentAssignmentForms,currentGeometryForms,currentSupportForms} from './recipe-migration.mjs';
 
 // Fixed release metadata, so regenerating a reviewed plan is byte-identical.
 import {VERSION} from './version.mjs';
@@ -32,10 +32,18 @@ export function defaults(machine=loadMachine()) {
   return {...recipeDefaults(),...settingsDefaults(machine)};
 }
 
+// A new print's recipe defaults on a selected machine's settings, and the
+// notes from selecting them. Without a machine the recipe has no settings choice.
+export async function proposedPlan(machineId,options={}){
+  if(!machineId)return {plan:defaults(null),notes:[]};
+  const {machine,settings,notes}=await selectSettings(machineId,options);
+  return {plan:{...defaults(machine),...settings},notes};
+}
+
 export function recipeDefaults(){
   return {
     schema:'saam-shell-plan/1',generatorVersion:VERSION,
-    experimental:{substrateAdaptation:false,sharedMaterial:false},skills:{},
+    skills:{},
     slices:defaultSlices(),modulations:defaultModulations(),
     composition:{order:[],dependencies:[],filaments:[]}
   };
@@ -45,9 +53,9 @@ export function recipeDefaults(){
 // selected shape rather than against whichever shape is the default.
 export function geometryTemplate(shape,geometry) {
   if(shape==='spatial')return spatialTemplate();
+  if(shape==='extension')return partGeometryTemplate();
   if(shape==='blob-field')return blobFieldTemplate();
   if(shape==='boolean')return booleanSolidTemplate(geometry);
-  if(Object.hasOwn(GEOMETRY_RECORDS,shape))return GEOMETRY_RECORDS[shape].template(geometry);
   if(shape==='mesh')return {shape:'mesh',vertices:[],triangles:[],source:null};
   if(shape==='assembly')return {shape:'assembly',parts:[]};
   return splineSolidTemplate();
@@ -77,9 +85,21 @@ export function compileRecipe(plan){
 }
 export function validatePlan(plan){compileRecipe(plan);return plan;}
 
-// Authored forms (spline patches, meshes, assemblies of them) and the
-// compiled records of geometry skills.
-export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','spatial',...Object.keys(GEOMETRY_RECORDS)];
+// Authored forms (spline patches, meshes, assemblies of them), and part geometry records
+// kept for extensions.
+export const GEOMETRY_SHAPES=['spline','blob-field','mesh','boolean','assembly','spatial','extension'];
+const partGeometryTemplate=()=>({shape:'extension',extension:null,parameters:{},base:null,solid:null,materialParts:[],label:'',rows:[]});
+// SAAM reads a part geometry record's solid, material parts, base and display text; its
+// parameters belong to its extension, which checks them when it edits or builds.
+function validatePartGeometry(geometry){
+  requireThat_toolpath(Object.keys(geometry).sort().join()===Object.keys(partGeometryTemplate()).sort().join(),'Unexpected part geometry record fields.');
+  requireThat_toolpath(typeof geometry.extension==='string'&&/^[a-z][a-z0-9-]*$/.test(geometry.extension),'A part geometry record names its extension.');
+  requireThat_toolpath(isRecord(geometry.parameters),'A part geometry record keeps its parameters.');
+  requireThat_toolpath(isRecord(geometry.solid),'A part geometry record keeps its built solid.');
+  requireThat_toolpath(typeof geometry.label==='string'&&Array.isArray(geometry.rows)&&geometry.rows.every(row=>Array.isArray(row)&&row.length===2&&row.every(cell=>typeof cell==='string')),'Invalid part geometry display text.');
+  requireThat_toolpath(Array.isArray(geometry.materialParts)&&geometry.materialParts.every(part=>isRecord(part)&&Object.keys(part).sort().join()==='geometry,id'&&typeof part.id==='string')&&new Set(geometry.materialParts.map(part=>part.id)).size===geometry.materialParts.length,'Invalid or duplicate part geometry material part.');
+  if(geometry.base)validateGeometry(geometry.base);
+}
 
 const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 // Layer and line steps are read as authored: an assignment without a positive
@@ -90,8 +110,17 @@ const STEP_FIELDS=['firstLayerMm','layerMm','lineWidthMm'];
 // assignment forms (what a bundle presents and saves on its next commit),
 // generated is what generation uses, and notes name every field filled or
 // ignored, every form rewritten and every piece skipped.
-export function readRecipe(plan,machine=null){
-  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields)),current=forms.plan,generated=generationRecipe(current,forms.failures);
+// settingsAsSaved: a stored read. Setup, process, placement and output are
+// machine settings; they are returned exactly as saved, never completed from a
+// profile. The consumer that resolves settings reports a missing value.
+export function readRecipe(plan,machine=null,{settingsAsSaved=false}={}){
+  if(plan.experimental&&Object.hasOwn(plan.experimental,'substrateAdaptation')&&plan.experimental.substrateAdaptation!==false)
+    throw Error('Deprecated experimental.substrateAdaptation.');
+  // Retired developer switches left off change nothing; a switched-on one is
+  // named as ignored, since nothing in SAAM reads it.
+  if(isRecord(plan.experimental)&&Object.values(plan.experimental).every(value=>value===false)){const {experimental:_retired,...rest}=plan;plan=rest;}
+  plan=currentGeometryForms(plan);
+  const supports=currentSupportForms(plan),fields={filled:[],ignored:[]},forms=currentAssignmentForms(currentFields(supports.plan,machine,fields,settingsAsSaved)),current=forms.plan,generated=generationRecipe(current,forms.failures);
   return {plan:current,generated:generated.plan,failures:generated.failures,notes:[...supports.notes,...forms.notes,
     ...(fields.filled.length?[`Recipe fields filled from current defaults: ${fields.filled.join(', ')}; the next save or migrate_bundle records them.`]:[]),
     ...(fields.ignored.length?[`Recipe fields ignored, not read by this SAAM: ${fields.ignored.join(', ')}; the next save or migrate_bundle drops them.`]:[]),
@@ -103,22 +132,23 @@ export function readRecipe(plan,machine=null){
 // name, so no value moves to another field. Geometry is only trimmed: its
 // fields are never invented; retired geometric forms reject before reading.
 // A setup is machine-specific: completed, never trimmed.
-function currentFields(plan,machine,fields){
-  const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults={...base,...settings};
+const SETTINGS_SECTIONS=['setup','process','placement','output'];
+function currentFields(plan,machine,fields,settingsAsSaved){
+  const {skills,...base}=recipeDefaults(),settings=settingsDefaults(machine),defaults=settingsAsSaved?base:{...base,...settings};
   const present=isRecord(plan.skills)?plan.skills:{};
   const geometry=isRecord(plan.geometry)?geometryTemplate(plan.geometry.shape,plan.geometry):null;
-  noteFields(plan,{...defaults,...(Object.hasOwn(plan,'skills')?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})},'',fields,true);
-  for(const name of ['process','placement','experimental','composition','slices','modulations'])
+  const template={...defaults,...(Object.hasOwn(plan,'skills')?{skills}:{}),...(Object.hasOwn(plan,'geometry')?{geometry}:{}),...(Object.hasOwn(plan,'workspace')?{workspace:null}:{})};
+  noteFields(plan,template,'',fields,true,settingsAsSaved?{...template,...Object.fromEntries(SETTINGS_SECTIONS.map(name=>[name,null]))}:template);
+  for(const name of [...(settingsAsSaved?[]:['process','placement']),'composition','slices','modulations'])
     if(isRecord(plan[name]))noteFields(plan[name],defaults[name],name+'.',fields,true);
-  if(isRecord(plan.setup))for(const key of Object.keys(settings.setup))if(!Object.hasOwn(plan.setup,key))fields.filled.push('setup.'+key);
+  if(isRecord(plan.setup)&&!settingsAsSaved)for(const key of Object.keys(settings.setup))if(!Object.hasOwn(plan.setup,key))fields.filled.push('setup.'+key);
   if(geometry)noteFields(plan.geometry,geometry,'geometry.',fields,false);
-  const experimental=section(plan.experimental,base.experimental);
+  const savedSettings=Object.fromEntries(SETTINGS_SECTIONS.filter(name=>Object.hasOwn(plan,name)).map(name=>[name,structuredClone(plan[name])]));
   return {...defaults,...knownFields(plan,{...defaults,skills,geometry:null,workspace:null}),
-    process:section(plan.process,defaults.process),placement:section(plan.placement,defaults.placement),
-    experimental:{...experimental,substrateAdaptation:Boolean(experimental.substrateAdaptation),sharedMaterial:experimental.sharedMaterial===true},
+    ...(settingsAsSaved?savedSettings:{process:section(plan.process,defaults.process),placement:section(plan.placement,defaults.placement),
+      setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})}}),
     composition:currentComposition(section(plan.composition,base.composition)),
     slices:section(plan.slices,base.slices),modulations:section(plan.modulations,base.modulations),
-    setup:{...settings.setup,...(isRecord(plan.setup)?plan.setup:{})},
     skills:structuredClone(present),
     ...(geometry?{geometry:knownFields(plan.geometry,geometry)}:{})};
 }
@@ -140,6 +170,7 @@ function noteFields(value,template,path,fields,fill,known=template){
 // A value of the template's kind. Booleans are read by truthiness; lists and
 // open values are read by their consumers.
 function readable(value,fallback,key){
+  if(key==='output'&&value===null)return true;
   if(isRecord(fallback))return false;
   if(typeof fallback==='number')return STEP_FIELDS.includes(key)||Number.isFinite(value);
   if(typeof fallback==='string')return typeof value==='string'&&value.length>0;
@@ -230,7 +261,7 @@ const stepNote=(id,process,bad)=>`${id}: ${bad.map(key=>`${key} ${JSON.stringify
 // Inject places points; every other construction steps layers and lines.
 function producingAssignment(plan,solid,assignment,notes){
   if(!isRecord(assignment))return true;
-  const id=assignment.id??'An assignment',standalone=['curves','inject'].includes(assignment.construction)||!assignment.construction&&(assignment.geometry||assignment.surface?.kind==='slice');
+  const id=assignment.id??'An assignment',standalone=['curves','inject','paath'].includes(assignment.construction)||!assignment.construction&&(assignment.geometry||assignment.surface?.kind==='slice');
   if(!solid&&!standalone){notes.push(`${id} slices geometry and the recipe has none; it produces nothing.`);return false;}
   if(ASSIGNMENT_RECORDS[assignment.construction]?.requiresComponent&&(assignment.part??null)===null&&solid?.shape==='assembly'&&hasMesh(solid)){
     notes.push(`${id} needs one surface; this assembly has mesh components, so the whole assembly is not one. Choose its part; ${id} produces nothing.`);return false;
@@ -238,7 +269,7 @@ function producingAssignment(plan,solid,assignment,notes){
   if(typeof assignment.part==='string'&&solid?.shape==='assembly'&&solid.parts.some(part=>String(part.id).startsWith(assignment.part+'/'))){
     notes.push(`${id} names nested assembly ${assignment.part}; name one of its components (${assignment.part}/…) or null. ${id} produces nothing.`);return false;
   }
-  const process=processOf(plan,assignment),bad=unusableSteps(process,assignment.construction==='inject'?['lineWidthMm']:STEP_FIELDS);
+  const process=processOf(plan,assignment),bad=unusableSteps(process,assignment.construction==='paath'?[]:assignment.construction==='inject'?['lineWidthMm']:STEP_FIELDS);
   if(bad.length){notes.push(stepNote(id,process,bad));return false;}
   return true;
 }
@@ -272,7 +303,7 @@ function validateGeometry(geometry) {
   }
   if(geometry.shape==='spline')validateSplineSolid(geometry);
   if(geometry.shape==='boolean')authoredBounds(geometry);
-  GEOMETRY_RECORDS[geometry.shape]?.validate(geometry);
+  if(geometry.shape==='extension')validatePartGeometry(geometry);
   if(geometry.solid)validateGeometry(geometry.solid);
   for(const part of geometry.materialParts??[])if(part.geometry){requireThat(GEOMETRY_SHAPES.includes(part.geometry.shape),'Invalid material partition geometry.');validateGeometry(part.geometry);}
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
@@ -294,7 +325,7 @@ function authoredBounds(geometry){
   if(geometry.shape==='boolean')return booleanShell(validateBooleanSolid(geometry).operation,geometry.operands.map(operand=>({bounds:authoredBounds(operand)}))).bounds;
   if(geometry.shape==='spline')return splineSolidBounds(validateSplineSolid(geometry));
   if(geometry.shape==='blob-field')validateBlobFieldRecord(geometry);
-  else if(Object.hasOwn(GEOMETRY_RECORDS,geometry.shape))GEOMETRY_RECORDS[geometry.shape].validate(geometry);
+  else if(geometry.shape==='extension')validatePartGeometry(geometry);
   if(geometry.solid)return authoredBounds(geometry.solid);
   return makeMesh(geometry.vertices,geometry.triangles).bounds;
 }

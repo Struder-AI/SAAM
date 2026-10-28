@@ -1,6 +1,7 @@
 import {distance,dot,cross,normalize,requireThat,TOLERANCE} from './tolerance.mjs';
 import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,ROUNDING_MM,ROUNDING_RELATIVE,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {DIRECTION_TOLERANCE} from './frame.mjs';
+import {physicalSurfaceNormal} from './surface-frame.mjs';
 
 const sub=(a,b)=>a.map((x,k)=>x-b[k]);
 const add=(a,b,s=1)=>a.map((x,k)=>x+s*b[k]);
@@ -47,14 +48,15 @@ export function piecewiseChart(surface,{toleranceMm=CONSTRUCTION_TOLERANCE_MM/* 
     }
   }
   requireThat(triangles.length,'Piecewise chart has no nondegenerate surface facets.');
-  const periodic=surface.kind==='sleeve-chart',base=chartFromTriangles(triangles,periodic);
+  const periodic=surface.kind==='sleeve-chart',base=chartFromTriangles(triangles,periodic,[1,surface.layers.length-1]);
   return normalMm?roundedChart(base,{normalMm,toleranceMm}):{...base,toleranceMm,method:'ruled-sleeve-facet-unfolding'};
 }
 
-function chartFromTriangles(triangles,periodic){
+function chartFromTriangles(triangles,periodic,domainSpans){
   const faces=triangles.map(vertices=>{
     const [a,b,c]=vertices.map(v=>v.uv),[p,q,r]=vertices.map(v=>v.point),x=sub(b,a),y=sub(c,a),det=cross2(x,y);
-    const du=sub(q,p).map((v,k)=>(v*y[1]-(r[k]-p[k])*x[1])/det),dv=sub(q,p).map((v,k)=>((r[k]-p[k])*x[0]-v*y[0])/det),normal=normalize(cross(du,dv));
+    const du=sub(q,p).map((v,k)=>(v*y[1]-(r[k]-p[k])*x[1])/det),dv=sub(q,p).map((v,k)=>((r[k]-p[k])*x[0]-v*y[0])/det),normal=physicalSurfaceNormal(du,dv,domainSpans);
+    requireThat(normal,'Piecewise chart has a singular surface facet.');
     const E=dot(du,du),F=dot(du,dv),G=dot(dv,dv),D=E*G-F*F;
     return {vertices,du,dv,normal,neighbors:[null,null,null],uvOf(vector){const a=dot(du,vector),b=dot(dv,vector);return [(G*a-F*b)/D,(E*b-F*a)/D];}};
   });
@@ -66,7 +68,7 @@ function chartFromTriangles(triangles,periodic){
     if(edges.has(k)){const previous=edges.get(k);face.neighbors[edge]=previous;faces[previous.face].neighbors[previous.edge]={face:index,edge};}
     else edges.set(k,{face:index,edge});
   }
-  return {faces,periodic};
+  return {faces,periodic,domainSpans};
 }
 
 // Internal chart coordinates reserve room for each rounded strip. They never
@@ -128,7 +130,7 @@ function roundedChart(base,{normalMm,toleranceMm}){
     }
   }
   const oriented=triangles.map(t=>cross2(sub(t[1].uv,t[0].uv),sub(t[2].uv,t[0].uv))<0?[t[0],t[2],t[1]]:t);
-  return {...chartFromTriangles(oriented,base.periodic),base,faceVertices,normalMm,toleranceMm,method:'rounded-offset-facet-unfolding',roundSegments:count};
+  return {...chartFromTriangles(oriented,base.periodic,base.domainSpans),base,faceVertices,normalMm,toleranceMm,method:'rounded-offset-facet-unfolding',roundSegments:count};
 }
 
 function candidates(chart,uv){

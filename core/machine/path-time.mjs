@@ -1,4 +1,4 @@
-import {rotation,mm,mv,interpolateDirectionPair} from '../geom/frame.mjs';
+import {rotation,mm,mv,interpolateDirectionPair,interpolateDirection,transportDirectionPair} from '../geom/frame.mjs';
 // One path-time evaluator for playback and machine presentation.
 
 export function frameAtTime(moves, seconds) {
@@ -24,7 +24,11 @@ export function frameAtTime(moves, seconds) {
     const a=move.anglesFrom.map((v,i)=>(v+(move.anglesTo[i]-v)*fraction)*Math.PI/180);
     result.rotation=mm(rotation([0,0,1],a[2]),mm(rotation([0,1,0],a[1]),rotation([1,0,0],a[0])));
     result.toolAxis=mv(result.rotation,[0,0,-1]);result.toolUp=mv(result.rotation,[0,1,0]);
-  }else if(move.toolAxisFrom)
-    [result.toolAxis,result.toolUp]=interpolateDirectionPair([move.toolAxisFrom,move.toolUpFrom],[move.toolAxisTo,move.toolUpTo],fraction);
+  }else if(move.toolAxisFrom){
+    if(move.toolAxisInterpolation==='slerp'){
+      const axis=interpolateDirection(move.toolAxisFrom,move.toolAxisTo,fraction);
+      [result.toolAxis,result.toolUp]=transportDirectionPair(move.toolAxisFrom,move.toolUpFrom,axis);
+    }else [result.toolAxis,result.toolUp]=interpolateDirectionPair([move.toolAxisFrom,move.toolUpFrom],[move.toolAxisTo,move.toolUpTo],fraction);
+  }
   return result;
 }

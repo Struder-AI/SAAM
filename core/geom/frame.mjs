@@ -27,6 +27,18 @@ export function interpolateDirection(a,b,t,prepared){
   const left=Math.sin((1-t)*angle)/sine,right=Math.sin(t*angle)/sine;
   return a.map((v,i)=>v*left+b[i]*right);
 }
+// Transport a perpendicular direction by the shortest rotation of its primary
+// axis. No reference-up choice or machine policy: callers own the initial frame
+// and sequence. An opposed axis does not determine a unique transport plane.
+export function transportDirectionPair(primary,secondary,nextPrimary){
+  validateDirectionPair(primary,secondary);
+  requireThat(Array.isArray(nextPrimary)&&nextPrimary.length===3&&nextPrimary.every(Number.isFinite)&&Math.abs(length(nextPrimary)-1)<DIRECTION_TOLERANCE,'Frame direction must be a unit 3-vector.');
+  const from=unitDirection(primary),to=unitDirection(nextPrimary),v=cross(from,to),s=length(v),c=Math.max(-1,Math.min(1,dot(from,to)));
+  requireThat(c>=0||s>FLOAT64_EPSILON*64,'Opposed axes need an intermediate direction for frame transport.');
+  const rotated=s===0?[...secondary]:mv(rotation(scale(v,1/s),Math.atan2(s,c)),secondary);
+  const up=unitDirection(subtract(rotated,scale(to,dot(rotated,to))));
+  validateDirectionPair(to,up);return [to,up];
+}
 // A spherical interpolant satisfies r''=-angle^2*r. Its departure from its
 // endpoint chord is at most max|r''|/8. Apply this to both interpolants, then
 // convert their Euclidean separation to an angular bound using lower norms.

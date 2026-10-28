@@ -3,6 +3,7 @@ import {listExtensions,resolveExtensions,loadExtensionEntry} from './library.mjs
 import {geometryOperations} from '../geom/operations.mjs';
 import {recipeDefaults} from '../print/plan.mjs';
 import {curveAssignment} from '../print/curves.mjs';
+import {partGeometryBuilds} from './part-geometry.mjs';
 
 export const workspaceIdentity=resolved=>{
   const selected=resolved.at(-1);
@@ -19,12 +20,10 @@ export async function loadWorkspaceRuntime(extensionId,options={}){
   if(selected.manifest.kind!=='workspace')throw Error(`Extension ${extensionId} is not a workspace.`);
   const create=await loadExtensionEntry(extensionId,'workspace-runtime',options);
   const Geometry=await geometryOperations();
-  const compileText=selected.manifest.dependencies.some(dependency=>dependency.id==='text')
-    ?await loadExtensionEntry('text','geometry-compile',options):null;
   const definition=await create(Object.freeze({
     Geometry,
     Toolpath:Object.freeze({recipeDefaults,curveAssignment}),
-    Extensions:Object.freeze(compileText?{text:Object.freeze({compileText})}:{})
+    Extensions:await partGeometryBuilds(selected.manifest.dependencies.map(({id})=>id),options)
   }));
   for(const name of ['normalize','preview','pieces','construct'])
     if(typeof definition?.[name]!=='function')throw Error(`Workspace ${extensionId} needs ${name}.`);

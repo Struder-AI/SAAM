@@ -20,7 +20,7 @@ assignment, without automatic skin. Bundles always retain [geometry](../../GEOME
 
 `slice` adds/edits/removes one assignment; `adjust_recipe` patches the recipe; objects merge, arrays replace; omit `bundle`.
 Missing fields take defaults, unread ones are ignored, and an assignment without positive layer/line steps, or a prime pass or modulation without its numbers, produces nothing; `limitations` notes each. Old names and assignment forms read as current (Slice `courses` → `sliceOverrides`; Trace `courses` → `repetitions`, `courseIds` → `repetitionIds`, `repeat.family` → `repeat.stack`); the next save or `migrate_bundle` records the read recipe.
-`experimental.substrateAdaptation` defaults false. OFF uses nominal references without final-material contact/remapping; ON uses finalized deposition for gap/volume adjustment or surface-following placement and retains required-contact and gap rejection. Dependencies and bridge-anchor checks apply in both modes.
+Trace retains authored placement and nominal gaps. Explicit manufacturing prerequisites and Scheduler's support checks determine print readiness. The retired `experimental.substrateAdaptation:false` field is dropped on the next save; enabled legacy adaptation is deprecated.
 After a stale revision, reload and reassess. Reads omit geometry unless asked
 (`includeGeometry: true`). Geometry changes clear the active toolpath; recipe/setup edits retain the previous checked output and its original settings until regeneration. Studio export confirms the displayed output. Changing printer applies process defaults and keeps other
 choices, rejects an incompatible recipe, and names any gated guidance it opens.
@@ -39,9 +39,11 @@ route uses the same generation/export/review.
 
 ### Import an STL
 
-Units default to `auto`: SAAM assumes mm unless the raw size only fits the
-printer in inches ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)),
-and Studio shows the assumption. `set_stl_units` rescales a plain imported mesh,
+Units default to `auto`: SAAM prefers mm, but may infer inches for a small
+unitless model whose scaled size is plausible and fits the selected tool's bed.
+Without supplied bounds it stays mm; explicit mm/inch wins, and Studio shows the
+assumption ([D-030](../../DECISIONS.md#d-030--provisional-stl-units-assumption)).
+`set_stl_units` rescales a plain imported mesh,
 keeping edits and settings; text-wrapped or composed geometry needs its own edit.
 Studio and agent imports normalize vertices below print resolution, validate, then repair
 recognized defects; holes fill within 500 edges and a 2 mm boundary bounding-box diagonal.
@@ -108,7 +110,6 @@ saam wait
 ```
 
 Carry the fresh revision and request identity returned by `begin_studio_work`.
-For installed extensions use their named operation from `saam help`, carrying the
-request and current expected revision; its discovery-only actions leave the
-revision unchanged. Read the report and follow normal generation and review.
-Builders change extension source; makers change the print through this operation.
+For installed extensions use [`apply_extension`](../application/README.md); its
+manifest/manual owns `request`. Read its report, then generate and review.
+Builders edit extension source; makers edit the print through this operation.

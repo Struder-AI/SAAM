@@ -6,7 +6,7 @@
 const CHUNK=16384;
 const unchanged=row=>row;
 export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0},{annotate=unchanged}={}) {
-  let fieldsByName;
+  let fieldsByName;const categories=new WeakMap();
   const at=index=>{
     if(index<0)index+=data.length;
     if(index<0||index>=data.length)return undefined;
@@ -60,7 +60,10 @@ export function moveStore(data={length:0,fields:null,chunks:[],lineOffset:0},{an
       for(const field of data.fields){
         const value=row[field.name],column=chunk[field.name];
         if(field.width>1)column.set(value,offset*field.width);
-        else if(field.values){let id=field.values.indexOf(value);if(id<0){id=field.values.length;field.values.push(value);}column[offset]=id;}
+        else if(field.values){
+          let ids=categories.get(field);if(!ids){ids=new Map(field.values.map((value,index)=>[value,index]));categories.set(field,ids);}
+          if(!ids.has(value)){ids.set(value,field.values.length);field.values.push(value);}column[offset]=ids.get(value);
+        }
         else column[offset]=value;
       }
       return ++data.length;

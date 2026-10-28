@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {h2dColourFixture} from './fixtures/bambu-h2d-colours.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
+import {scheduled,actionsOf} from './fixtures/scheduled.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {unpackZip,packZip} from '../export/zip.mjs';
@@ -14,9 +14,9 @@ const release={generatorVersion:'test',buildDate:'2026-09-21'};
 test('H2D blue-orange-blue changes logical filament twice while retaining right 0.8 and checked layer heights',async()=>{
   const {plan,machine}=h2dColourFixture();
   plan.setup.filaments[1].process={retractMm:0.6};
-  const path=schedulePath(await generatePath(plan,machine)),prepared=(await preparePath(path,plan,machine));
-  assert.deepEqual(path.actions.filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
-  assert.deepEqual(prepared.actions.filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),prepared=(await preparePath(path,plan,machine));
+  assert.deepEqual(actionsOf(path).filter(a=>a.kind==='toolChange').map(a=>a.filament),[1,0]);
+  assert.deepEqual(actionsOf(prepared).filter(a=>a.kind==='toolChange').map(a=>[a.tool,a.filament]),[[1,1],[1,0]]);
   const {bytes,report}=(await exportProgram(path,plan,machine,release)),program=pathPreview(prepared,{plan}),code=unpackZip(bytes).get('Metadata/plate_1.gcode').toString();
   assert.deepEqual(report.envelope.job.filamentSequence,[0,1,0]);
   const deposits=program.moves.filter(m=>m.extruding);
@@ -50,16 +50,16 @@ test('H2D blue-orange-blue changes logical filament twice while retaining right 
 test('the requested 0.8/0.8 ALT changes only installed-nozzle declarations, not right-nozzle body or service commands',async()=>{
   const {plan,machine}=h2dColourFixture();
   const written=program=>({code:unpackZip(program.bytes).get('Metadata/plate_1.gcode').toString(),report:program.report});
-  const path=schedulePath(await generatePath(plan,machine)),normal=written((await exportProgram(path,plan,machine,release)));
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),normal=written((await exportProgram(path,plan,machine,release)));
   plan.setup.bambu.otherNozzleMm=0.8;
-  const alt=written((await exportProgram(schedulePath(await generatePath(plan,machine)),plan,machine,release)));
+  const alt=written((await exportProgram(scheduled(await generatePath(plan,machine),{machine,plan}),plan,machine,release)));
   const executable=code=>code.slice(code.indexOf('; EXECUTABLE_BLOCK_START'));
   assert.equal(executable(alt.code),executable(normal.code));
   assert.deepEqual(alt.report.envelope.job.nozzleDiametersMm,[0.8,0.8]);
 });
 
 test('H2D automatic colour switching rejects external feed',async()=>{
-  const {plan,machine}=h2dColourFixture(),path=schedulePath(await generatePath(plan,machine));
+  const {plan,machine}=h2dColourFixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   plan.setup.filaments[1].source={type:'external'};
   await assert.rejects(()=>exportProgram(path,plan,machine,release),/require AMS feeds/);
 });

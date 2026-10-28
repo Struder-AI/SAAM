@@ -6,6 +6,22 @@ interaction; the [print lifecycle](../core/print/README.md) owns validity and
 confirmation. [RENDERING](RENDERING.md) owns display and playback;
 [KINEMATICS](KINEMATICS.md) owns machine presentation.
 
+`agent-operations.mjs` owns agent review selection and tour control. Runtime admits
+chat/window identities and provides server lifetime, display and image capture;
+the controller selects/reuses the window, checks ownership and chooses the shown
+stage. Bundle values and their summary enter through the shared CLI query port.
+Tour participation manuals and notes are assembled by Context after tour startup.
+
+Phase-colour choices normalize in Studio and use a named shared CLI part-command
+route for Bundle's revision-checked metadata save. Changing a palette preserves
+the raw recipe and existing geometry, work, schedule and output identities.
+
+`get_tour` repeats pure saved-progress/request snapshots during its bounded wait.
+Stale display gates are derived without saving progress or creating a lesson
+baseline. Explicit Studio actions and view acknowledgements own those transitions.
+Legacy command replies still include associated tour/review views; extracting their
+owner does not claim those replies have been normalized to outcome-only contracts.
+
 ## Studio agent permissions
 
 Use `saam open`, `saam start-tour` and `saam call OP`; a checkout uses
@@ -166,11 +182,27 @@ state and stable event IDs to recognize repeats.
 |---|---|
 | Tour start/lesson/exit/finish; request queued/presented | Viewer opened/closed; exact view presented |
 | Generation failed/cancelled; import completed/failed/repair-started/cancelled | Generation started/finished; import started |
-| Print opened; export delivered | Confirmation; tour playback; example adoption; plan update |
+| Print opened; export ready | Confirmation; tour playback; example adoption; plan update |
 
 Camera, scrubbing, manual machine positioning, movie export and request
 bookkeeping are not person-action events. Elapsed job time is available during
 reads; no reliable repair ETA is inferred.
+
+## Inspect a contract wire value
+
+Ask an agent, for example, “What is x.x.x → y.y currently?” The agent resolves
+those map addresses to the canonical wire, reads `read_contract_observations`
+metadata and selects the occurrence for the requested part and run. Textual data
+is explained in chat; graphical data is selected with
+`request_review({bundleId, inspection:{observationId}})` in the part's Studio.
+The map viewer itself has no live-data Peek.
+
+Studio pins the exact retained occurrence and identifies its producer inputs;
+ordinary part changes do not replace it. Missing captures remain unavailable,
+and an older run is not presented as current. Supported Geometry, Paath and Slice
+values use shared Studio graphics; unsupported graphics retain complete data
+access with an explicit availability finding. Omit `inspection` from
+`request_review` to return to normal part review.
 
 ## Importing an STL in Studio
 
@@ -195,17 +227,36 @@ and epoch. IDs settle only matching pending calls; abort removes their consumer.
 Error/disposal rejects calls and terminates the worker. Source binding identifies
 print/revision/export; pose caching adds time/manual coordinates. A retained
 successful pose does not prove a later solve succeeded. Rebinding clears it.
-Missing model data may stop its worker while source motion remains available.
+Without a machine model, the worker remains available for canonical source queries.
+A compatibility path with no canonical source releases that worker after decoding.
 
-### Generation and cancellation
+[paath-view.mjs](paath-view.mjs) owns Paath presentation, source/playback controls
+and complete-data access for both ordinary review and retained selections. It uses
+[paath-queries.mjs](paath-queries.mjs) for finite selectors and local parameter/entity
+readouts. Opening the panel loads its selectors; changing source or closing the
+session cancels its pending query consumers. Diagnostic selection supplies provenance
+and a guarded value URL to this same view and source session. It has no Paath worker,
+schedule action or numerical controls of its own. An exact matching schedule opens
+ordinary playback; a source without one opens unordered source drawing.
 
-[server.mjs](server.mjs) runs the one generation job for the bundle it shows, for
-the person, a tour step or an agent (`server.generate`, inside the agent's held
-edit). Bundle's `generateBundle` reuses a current neutral result or runs the
-[generation worker](../core/print/generation-worker.mjs) under that reservation.
-Cancellation stops the worker until its commit is acknowledged; then immutable
-output and atomic manifest replacement finish. A person's failed generation
-becomes an agent request; an agent's is that agent's error outcome and an event.
+The worker owns the decoded source and optional schedule. The main page receives
+finite drawing frames, operation/course selector pages and requested local values.
+Curve preparation retains only the current
+curve; revisiting recreates it from the same source. Whole-source bounds/counts are
+prepared only for a drawing request, independently of local parameter queries.
+Disposal terminates the worker and
+rejects pending queries. Complete downloads use the selected observation's existing route.
+Server serialization and worker JSON parsing still require whole values; scheduled
+playback still expands moves. Finite frames do not establish bounded memory for those paths.
+
+### Calculations and cancellation
+
+Application owns generic and blob geometry jobs; Studio projects their accepted
+selection/job identity, elapsed time and cancellation even before a print exists.
+`server.generate` owns person/tour/agent toolpath work under the held reservation;
+Bundle reuses a current result or runs its [worker](../core/print/generation-worker.mjs).
+Cancellation stops calculation until saving is acknowledged, then publication drains.
+A person's generation failure becomes an agent request; an agent's remains its error outcome and event.
 
 ### Request completion and display
 
@@ -213,8 +264,10 @@ becomes an agent request; an agent's is that agent's error outcome and an event.
 [agent-ui.mjs](agent-ui.mjs) reports rendering and ignores obsolete responses.
 Durable request records and live event queues cannot substitute for rendering.
 
-Export captures the displayed path and settings before queued work. Machine
-preparation/writing returns transient download bytes; later edits do not change
+Export captures a ready displayed path and settings at the click and starts
+independently of the Studio edit/generation queue. Upstream regeneration leaves
+the completed displayed result exportable until a replacement is ready. Machine preparation/writing
+returns transient download bytes; later edits do not change
 the capture. Reopening uses saved neutral artifacts and never runs the writer.
 
 ### Playback storage and movie resources

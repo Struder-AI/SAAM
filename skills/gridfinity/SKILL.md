@@ -13,24 +13,24 @@ and delivery follow the usual [print tools](../../core/print/USAGE.md). The shor
 frontmatter keeps discovery to the name.
 ## Create and edit
 
-The `gridfinity` tool creates a print:
+`apply_extension` with `extensionId: "gridfinity"` and a `machineId` creates a print:
 
 ```json
 {
-  "bundleId": "organizers/small-bin", "action": "create", "machineId": "ultimaker-s5",
-  "parameters": {"kind": "bin", "xUnits": 2, "yUnits": 1, "heightUnits": 3, "compartmentsX": 2}
+  "bundleId": "organizers/small-bin", "extensionId": "gridfinity", "machineId": "ultimaker-s5",
+  "request": {"kind": "bin", "xUnits": 2, "yUnits": 1, "heightUnits": 3, "compartmentsX": 2}
 }
 ```
 
-To edit, call it with `action: "update"`, `bundleId`, `expectedRevision` and a
-partial `parameters` object; omitted parameters stay as saved. Omit `machineId`
-on updates, and supply `part` with the component id for an assembly. A new
-`kind` keeps the footprint and tolerance and takes that kind's defaults for the
-rest. Invalid settings, stale revisions and construction failures reject before saving;
-export checks machine bounds, and
-`create` never overwrites a print. Dimension edits invalidate geometry and
-settings/toolpath confirmations; `adjust_recipe` on the compiled solid or parameters
-is rejected unless it supplies a complete newly compiled record.
+To edit, call `apply_extension` without `machineId`, with `bundleId`,
+`expectedRevision` and a partial `request`; omitted parameters stay as saved.
+Supply `part` with the component id for an assembly. A new `kind` keeps the
+footprint and tolerance and takes that kind's defaults for the rest. Invalid
+settings, stale revisions and construction failures reject before saving;
+export checks machine bounds, and creating never overwrites a print. Lettering
+added on the bin is rebuilt on the edited bin. Dimension edits
+invalidate geometry and settings/toolpath confirmations; `adjust_recipe` on the
+compiled solid or parameters is rejected.
 
 ## Parameters
 

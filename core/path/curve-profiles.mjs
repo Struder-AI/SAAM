@@ -5,6 +5,7 @@ import {validatePose,interpolatePose} from './pose.mjs';
 import {interpolateDirection,dot,DIRECTION_TOLERANCE} from '../geom/frame.mjs';
 import {restrictBezierLine} from '../geom/bezier-net.mjs';
 import {FLOAT64_EPSILON} from '../dimensions.mjs';
+import {MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO} from './process-controls.mjs';
 
 export const keyed=profile=>profile!==null&&typeof profile==='object'&&!Array.isArray(profile)&&Array.isArray(profile.knots);
 export function profileInterval(profile,u,side='right'){
@@ -20,10 +21,11 @@ export function interiorKeys(knots,from,to){
   const start=keyIndex(knots,from,'right')+1,end=keyIndex(knots,to,'left')+1;
   return knots.slice(start,end).filter(([u])=>u>from&&u<to);
 }
-export function validateKeys(knots,validate){
+export function validateKeys(knots,validate,{pairedLimits=false}={}){
   requireThat(Array.isArray(knots)&&knots.length>=2&&knots[0][0]===0&&knots.at(-1)[0]===1,'Profile keys must cover [0,1].');
   for(const [i,key] of knots.entries()){
-    requireThat(Array.isArray(key)&&key.length===2&&Number.isFinite(key[0])&&(!i||key[0]>knots[i-1][0]),'Profile parameters must strictly increase.');
+    const paired=pairedLimits&&Array.isArray(key)&&i>1&&i<knots.length-1&&key[0]===knots[i-1]?.[0]&&knots[i-2]?.[0]<key[0]&&knots[i+1]?.[0]>key[0];
+    requireThat(Array.isArray(key)&&key.length===2&&Number.isFinite(key[0])&&(!i||key[0]>knots[i-1][0]||paired),'Profile parameters increase, with at most one paired interior left/right limit.');
     validate(key[1]);
   }
 }
@@ -31,14 +33,14 @@ const scalar=value=>requireThat(Number.isFinite(value),'Profile value must be fi
 const normal=value=>requireThat(Array.isArray(value)&&value.length===3&&value.every(Number.isFinite)&&Math.abs(Math.hypot(...value)-1)<DIRECTION_TOLERANCE,'Material normal must be a unit vector.');
 export function validateProfile(profile,channel){
   if(!keyed(profile)){validateValue(profile,channel);return;}
-  const interpolation=channel==='pose'?'frame':channel==='materialNormal'?'slerp':null;
+  const interpolation=channel==='pose'?'frame':['materialNormal','toolAxis'].includes(channel)?'slerp':null;
   requireThat(interpolation?profile.interpolation===interpolation:['step','linear'].includes(profile.interpolation),'Invalid profile interpolation.');
-  validateKeys(profile.knots,value=>validateValue(value,channel));
-  if(channel==='materialNormal')for(const [i,[,value]] of profile.knots.entries())if(i)
+  validateKeys(profile.knots,value=>validateValue(value,channel),{pairedLimits:profile.interpolation==='linear'&&['rateMm3PerMm','aspectRatio','speedMmS'].includes(channel)});
+  if(['materialNormal','toolAxis'].includes(channel))for(const [i,[,value]] of profile.knots.entries())if(i)
     requireThat(dot(value,profile.knots[i-1][1])>-1+DIRECTION_TOLERANCE**2,'Antipodal normals need an authored intermediate direction.');
 }
 function validateValue(value,channel){
-  if(channel==='pose')validatePose(value);else if(channel==='materialNormal')normal(value);else scalar(value);
+  if(channel==='pose')validatePose(value);else if(['materialNormal','toolAxis'].includes(channel))normal(value);else scalar(value);
 }
 // Profile interpolation and local range estimates share finite scalar arithmetic.
 export function interpolateScalar(x,y,t){
@@ -63,6 +65,39 @@ export function profileValues(profile,from,to,{endSide='left'}={}){
 export function scalarRange(profile,from,to,options){
   const values=profileValues(profile,from,to,options);
   return values.reduce(([lo,hi],value)=>[Math.min(lo,value),Math.max(hi,value)],[Infinity,-Infinity]);
+}
+
+// Advice is independent of mathematical admission. On each common linear
+// interval a nonnegative rate is either zero throughout or positive inside.
+// Include its inward aspect limits even at zero-rate endpoints; keep paired
+// jumps separate. The supplied geometry and material are always preserved.
+export function depositionAspectAdvisories(profiles,{label='Moving deposition',scope={},from=0,to=1}={}){
+  const rate=profiles.rateMm3PerMm,aspect=profiles.aspectRatio;
+  if(rate===undefined||scalarRange(rate,from,to)[1]===0||
+    scalarRange(aspect,from,to)[0]>=MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO)return [];
+  const cuts=[...new Set([from,to,...[rate,aspect].flatMap(profile=>keyed(profile)?profile.knots.map(([u])=>u).filter(u=>u>from&&u<to):[])])].sort((a,b)=>a-b);
+  const advisories=[];
+  function advise(from,to,minimum){
+    advisories.push({code:'DEPOSITION_ASPECT_ADVISORY',severity:'advisory',scope,interval:[from,to],aspectRatioMinimum:minimum,
+      recommendation:'MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO',minimumRecommendedAspectRatio:MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO,
+      message:`${label}: positive deposition has width/height below MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO=${MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO} on u=${from}..${to}. This may be an unrealistic print expectation; the requested geometry and material are preserved.`});
+  }
+  for(let i=1;i<cuts.length;i++){
+    const from=cuts[i-1],to=cuts[i],maximumRate=Math.max(profileAt(rate,from),profileAt(rate,to,'left')),
+      a=profileAt(aspect,from),b=profileAt(aspect,to,'left'),minimumAspect=Math.min(a,b);
+    if(maximumRate>0&&minimumAspect<MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO){
+      const crossing=a===b?null:from+(to-from)*(MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO-a)/(b-a);
+      advise(a>=MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO?crossing:from,b>=MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO?crossing:to,minimumAspect);
+    }
+  }
+  const intervals=advisories.length;let covered=0;
+  for(const u of cuts){
+    while(covered<intervals&&advisories[covered].interval[1]<u)covered++;
+    if(covered<intervals&&advisories[covered].interval[0]<=u)continue;
+    for(const side of u===from?['right']:u===to?['left']:['left','right'])
+      if(profileAt(rate,u,side)>0&&profileAt(aspect,u,side)<MIN_RECOMMENDED_DEPOSITION_ASPECT_RATIO){advise(u,u,profileAt(aspect,u,side));break;}
+  }
+  return advisories;
 }
 
 // Compile cumulative material once. Point density, interval density and partial

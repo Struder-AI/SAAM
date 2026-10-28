@@ -30,9 +30,16 @@ when its display installation is explicit; it does not establish the RC8A
 encoder/FIG mapping or authorize output.
 Profile bounds are display/design coordinates, not enforced robot reach.
 
-The SAAMpath has optional `initialPose` and per-move `pose`: `toolAxis` is tool Z
-toward extrusion and `toolUp` is tool Y, unit and perpendicular, in part
-coordinates. The table angle is DENSO's own choice ([kinematics](#kinematics)):
+Canonical Paath `/3` specifies tool Z toward extrusion, with no authored roll.
+Its numerical `toolUp` is not a machine roll command. DENSO transports the
+captured `setup.denso.initialPose` frame along successive tool axes by shortest
+rotation, rejecting opposed axes without an intermediate direction. The same
+procedure serves writing and canonical source machine presentation; historical
+authored poses and mechanism studies retain their orientation semantics.
+Neutral Studio moves and Export's physical transfers can differ, so their
+transported frames are not promised to be identical program motion. This is
+not robot feasibility or calibration evidence.
+The table angle is DENSO's own choice ([kinematics](#kinematics)):
 rotation by `setup.denso.tableDeg` about `rotaryCenterMm` maps the part into the
 stationary room. Installation translation/yaw maps that room
 to a calibrated RC8A Work frame with Z parallel to the bed axis. Ceiling mounting

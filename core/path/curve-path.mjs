@@ -3,7 +3,9 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareNumericalCurve,numericalCurveAt,numericalCurveRange,numericalCurveHasLength,numericalCurveParameterAtLength,numericalCurveClosestParameter,normalCone,frameCone} from '../geom/curve-query.mjs';
 import {validateProfile,validateKeys,keyed,profileAt,profileValues,scalarRange,interiorKeys,interpolateScalar,prepareMaterialProfile,materialProfileDensity,materialProfileRange,materialProfileVolume,materialProfileDeviation} from './curve-profiles.mjs';
-import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM,TOLERANCE} from '../dimensions.mjs';
+import {PRINT_RESOLUTION_MM,BUILD_SCALE_MM,TOLERANCE,ROUNDING_MM} from '../dimensions.mjs';
+import {axisPose} from './pose.mjs';
+import {stationaryAt,stationaryActions} from './injection.mjs';
 
 // Display/program local views share explicit tolerances, independent of the
 // saved identity. A caller can request a different bounded view.
@@ -24,9 +26,33 @@ export function pathInitialPosition(view){
 }
 export const pathInitialPose=view=>view?.initialPose??view?.schedule?.initialPose;
 export const pathCompletion=view=>view?.completion??view?.schedule?.completion;
+export function injectionAt(operation,u=0){
+  const injection=operation.injection;
+  requireThat(operation.kind==='inject'&&injection,'Expected a stationary Paath entity.');
+  return injection.toolAxis?stationaryAt(operation,u):{...injection,point:injection.at,pose:injection.pose,toolIndex:operation.toolIndex??operation.filament};
+}
+// Construction references consume bounded local views of exact canonical work.
+// No sampled stroke is retained as another source authority.
+export function* operationCurveSpans(operation,options=PATH_VIEW_TOLERANCES){
+  if(operation.canonicalWork){
+    const payload=operation.canonicalWork,handle=prepareCurvePath({curves:payload.curves});
+    for(const course of payload.operation.courses??[]){
+      const segments=course.provenance?.segments??[],cuts=segments.flatMap(segment=>[segment.from,segment.to]);
+      for(const span of attributeSpans(handle,course.curveId,course.from,course.to,options,cuts))yield {...span,
+        role:course.role,labels:courseLabels(handle,course.curveId,segments,span,options.positionToleranceMm)};
+    }
+    return;
+  }
+  const entity=operation.canonicalEntity;
+  if(!entity||entity.stationary)return;
+  const handle=prepareCurvePath({curves:{entity:{geometry:entity.geometry,profiles:entity.profiles}}});
+  yield* attributeSpans(handle,'entity',0,1,options);
+}
 export function* pathActions(view,options=PATH_VIEW_TOLERANCES){
   const dx=view?.placement?.xMm??0,dy=view?.placement?.yMm??0;
-  for(const action of linearizePath(view,options))yield (dx||dy)&&action.kind==='move'?{...action,to:[action.to[0]+dx,action.to[1]+dy,action.to[2]]}:action;
+  for(const action of linearizePath(view,options))yield (dx||dy)?{...action,
+    ...(action.kind==='move'?{to:[action.to[0]+dx,action.to[1]+dy,action.to[2]]}:{}),
+    ...(action.at?{at:[action.at[0]+dx,action.at[1]+dy,action.at[2]]}:{})}:action;
 }
 
 const positive=value=>Number.isFinite(value)&&value>0;
@@ -36,6 +62,7 @@ const rangeValid=(from,to)=>Number.isFinite(from)&&Number.isFinite(to)&&from>=0&
 const finiteNonnegative=value=>requireThat(Number.isFinite(value)&&value>=0,'Material must be finite and nonnegative.');
 function prepareCurve(curve){
   requireThat(curve&&curve.geometry&&curve.profiles,'A curve needs geometry and profiles.');
+  if(curve.profiles.toolAxis!==undefined)return prepareAnchoredCurve(curve);
   const geometry=prepareNumericalCurve(curve.geometry),profiles=curve.profiles;
   validateProfile(profiles.pose,'pose');validateProfile(profiles.speedMmS,'speedMmS');
   for(const channel of ['widthMm','materialNormal'])if(profiles[channel]!==undefined)validateProfile(profiles[channel],channel);
@@ -68,6 +95,33 @@ function prepareCurve(curve){
   }
   return prepared;
 }
+function prepareAnchoredCurve(curve){
+  const geometry=prepareNumericalCurve(curve.geometry),profiles=curve.profiles;
+  requireThat(Object.keys(profiles).every(key=>['toolAxis','speedMmS','rateMm3PerMm','aspectRatio','materialNormal'].includes(key)),'Unknown canonical Paath anchor channel.');
+  requireThat(!['pose','widthMm','material'].some(key=>Object.hasOwn(profiles,key)),'Paath anchors cannot contain deprecated material, width or pose authority.');
+  requireThat(curve.geometry.kind!=='nurbs'||curve.geometry.degree>=1&&curve.geometry.degree<=3,'Paath NURBS degree must be 1–3.');
+  validateProfile(profiles.toolAxis,'toolAxis');
+  for(const key of ['speedMmS','rateMm3PerMm','aspectRatio'])if(profiles[key]!==undefined){
+    validateProfile(profiles[key],key);
+    requireThat(!keyed(profiles[key])||profiles[key].interpolation==='linear','Paath scalar anchors interpolate linearly.');
+  }
+  requireThat(profiles.speedMmS!==undefined,'Paath needs requested speed.');
+  const depositing=profiles.rateMm3PerMm!==undefined;
+  if(depositing){
+    requireThat(profiles.aspectRatio!==undefined&&profiles.materialNormal!==undefined,'Deposition needs aspect and independent material normal.');
+    validateProfile(profiles.materialNormal,'materialNormal');
+    requireThat(scalarRange(profiles.rateMm3PerMm,0,1,{endSide:'right'})[0]>=0&&scalarRange(profiles.aspectRatio,0,1,{endSide:'right'})[0]>0,'Paath rate must be nonnegative and aspect positive.');
+    const rate=scalarRange(profiles.rateMm3PerMm,0,1,{endSide:'right'}),aspect=scalarRange(profiles.aspectRatio,0,1,{endSide:'right'});
+    requireThat(Number.isFinite(rate[1]*aspect[1])&&Number.isFinite(rate[1]/aspect[0]),'Paath section dimensions must remain finite.');
+    requireThat(curve.geometry.kind!=='point'||scalarRange(profiles.rateMm3PerMm,0,1,{endSide:'right'})[1]===0,'Stationary material needs an explicit dose.');
+  }
+  const breaks=[...new Set([...geometry.breaks,...Object.values(profiles).flatMap(p=>keyed(p)?p.knots.map(([u])=>u):[])])].filter(u=>u>0&&u<1).sort((a,b)=>a-b);
+  const priorities=new Map(geometry.breaks.map(u=>[u,1]));
+  for(const key of ['rateMm3PerMm','aspectRatio','speedMmS'])if(keyed(profiles[key]))
+    for(const [i,[u]] of profiles[key].knots.entries())if(i&&u===profiles[key].knots[i-1][0])priorities.set(u,2);
+  return {geometry,profiles,breaks,viewCuts:[...priorities].sort(([a],[b])=>a-b),canonical:true,
+    material:depositing?{measure:'length',density:profiles.rateMm3PerMm}:null};
+}
 export function prepareCurvePath({curves}){
   requireThat(curves&&typeof curves==='object'&&!Array.isArray(curves),'Curve table must be an ID keyed object.');
   if(Object.isFrozen(curves)&&preparedTables.has(curves))return preparedTables.get(curves);
@@ -87,6 +141,16 @@ function density(curve,u,side,speed){
 export function curveAt(handle,curveId,u,{side='right'}={}){
   requireThat(Number.isFinite(u)&&u>=0&&u<=1&&['right','left'].includes(side),'Invalid source parameter or limit side.');
   const curve=selected(handle,curveId),at=numericalCurveAt(curve.geometry,u,side),result={point:at.point,tangent:at.tangent};
+  if(curve.canonical){
+    for(const [key,profile] of Object.entries(curve.profiles))result[key]=profileAt(profile,u,side);
+    result.pose=axisPose(result.toolAxis);
+    if(result.rateMm3PerMm!==undefined){
+      result.areaMm2=result.rateMm3PerMm;
+      result.widthMm=Math.sqrt(result.rateMm3PerMm*result.aspectRatio);
+      result.heightMm=Math.sqrt(result.rateMm3PerMm/result.aspectRatio);
+    }
+    return result;
+  }
   for(const channel of ['pose','widthMm','speedMmS','materialNormal'])if(curve.profiles[channel]!==undefined)result[channel]=profileAt(curve.profiles[channel],u,side);
   const areaMm2=density(curve,u,side,at.speed);if(areaMm2!==undefined)result.areaMm2=areaMm2;
   return result;
@@ -109,7 +173,7 @@ function materialRange(curve,from,to,geometric,options){
   const areaMm2=scalarRange(material.density,from,to);
   const interior=keyed(material.density)?interiorKeys(material.density.knots,from,to):[];
   if(interior.length){
-    const cuts=[from,...interior.map(([u])=>u),to],volumeMm3=[0,0];
+    const cuts=[from,...new Set(interior.map(([u])=>u)),to],volumeMm3=[0,0];
     for(const [i,end] of cuts.slice(1).entries()){
       const child={...options,...(options.volumeToleranceMm3?{volumeToleranceMm3:options.volumeToleranceMm3*(end-cuts[i])/(to-from)}:{})};
       const range=localRange(curve,cuts[i],end,child);volumeMm3[0]+=range.volumeMm3[0];volumeMm3[1]+=range.volumeMm3[1];
@@ -133,6 +197,20 @@ function materialRange(curve,from,to,geometric,options){
 }
 function localRange(curve,from,to,options,geometry=numericalCurveRange(curve.geometry,from,to,options)){
   const profiles=curve.profiles;
+  if(curve.canonical){
+    const directions=profileValues(profiles.toolAxis,from,to),axisCone=normalCone(directions);
+    const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,tangentCone:geometry.tangentCone,chordErrorMm:geometry.chordErrorMm,
+      ...materialRange(curve,from,to,geometry,options),toolAxisCone:axisCone,
+      poseCone:{reference:axisPose(directions[0]),halfAngleRad:axisCone.halfAngleRad===0?0:Math.PI},breaks:interiorBreaks(curve.breaks,from,to)};
+    if(profiles.rateMm3PerMm!==undefined){
+      const rate=scalarRange(profiles.rateMm3PerMm,from,to),aspect=scalarRange(profiles.aspectRatio,from,to);
+      result.rateMm3PerMm=rate;result.aspectRatio=aspect;
+      result.widthMm=[Math.sqrt(rate[0]*aspect[0]),Math.sqrt(rate[1]*aspect[1])];
+      result.heightMm=[Math.sqrt(rate[0]/aspect[1]),Math.sqrt(rate[1]/aspect[0])];
+      result.normalCone=normalCone(profileValues(profiles.materialNormal,from,to));
+    }
+    return result;
+  }
   const result={bounds:geometry.bounds,lengthMm:geometry.lengthMm,tangentCone:geometry.tangentCone,chordErrorMm:geometry.chordErrorMm,...materialRange(curve,from,to,geometry,options),
     poseCone:frameCone(profileValues(profiles.pose,from,to)),breaks:interiorBreaks(curve.breaks,from,to)};
   if(profiles.widthMm!==undefined)result.widthMm=scalarRange(profiles.widthMm,from,to);
@@ -219,12 +297,20 @@ function* boundedSpans(handle,id,curve,from,to,rangeFrom,rangeTo,options){
   const moves=start.point.some((value,i)=>value!==end.point[i]);
   // A single frame segment is exact. A span crossing frame keys needs an
   // enclosure certificate; agreeing endpoints alone can hide an entire turn.
-  const pose=curve.profiles.pose;
+  const pose=curve.canonical?curve.profiles.toolAxis:curve.profiles.pose;
   const frameExact=!keyed(pose)||!interiorKeys(pose.knots,from,to).length;
-  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(frameExact||4*frameCone(profileValues(pose,from,to)).halfAngleRad<=options.orientationToleranceRad)){
+  const orientationCone=curve.canonical?normalCone(profileValues(pose,from,to)):frameCone(profileValues(pose,from,to));
+  if(geometry.interpolationErrorMm<=options.positionToleranceMm&&(frameExact||4*orientationCone.halfAngleRad<=options.orientationToleranceRad)){
     const measured=geometry.lengthMm[1]-geometry.lengthMm[0]<=settings.lengthToleranceMm?geometry:numericalCurveRange(curve.geometry,from,to,settings);
     const range=localRange(curve,from,to,settings,measured);
-    if(moves||!(range.volumeMm3?.[1]>0)){
+    const chord=Math.hypot(...end.point.map((value,k)=>value-start.point[k]));
+    // A short reversing span can have tiny positional error and an arbitrarily
+    // shorter chord. Preserve bead section as well as interval volume in every
+    // reader, including coarse display views and machine output.
+    const height=range.heightMm?.[1]??(range.widthMm?(range.areaMm2?.[1]??0)/range.widthMm[0]:0);
+    const excess=Math.max(0,measured.lengthMm[1]-chord-ROUNDING_MM);
+    const sectionError=height>0&&excess>0?(chord>0?height*excess/chord:Infinity):0;
+    if((moves||!(range.volumeMm3?.[1]>0))&&sectionError<=options.positionToleranceMm){
       yield {from,to,start,end,range,positionErrorMm:geometry.interpolationErrorMm};return;
     }
   }
@@ -240,11 +326,12 @@ function sourceCourses(deposition){
 export function* linearizePath(view,options){
   tolerances(options);
   if((view?.schema==='saampath/1'||view?.schema==='saam-export-prepared/1')&&view.actions){yield* view.actions;return;}
-  requireThat(view?.deposition?.schema==='saampath/2'&&view.schedule?.schema==='saam-schedule/1'&&view.sourcePathId===view.schedule.sourcePathId,
+  requireThat(['saampath/2','saampath/3'].includes(view?.deposition?.schema)&&view.schedule?.schema==='saam-schedule/1'&&view.sourcePathId===view.schedule.sourcePathId,
     'Compact path needs its exact source/schedule identity.');
   const {deposition,schedule}=view,source=prepareCurvePath(deposition),motion=prepareCurvePath({curves:schedule.motionCurves}),courses=sourceCourses(deposition);
   const ranges=options.volumeToleranceMm3===undefined?1:schedule.execution.reduce((count,entry)=>count+(entry.kind==='deposit'||entry.kind==='travel'?1:0),0);
   const resolution={...options,...(options.volumeToleranceMm3===undefined?{}:{volumeToleranceMm3:options.volumeToleranceMm3/Math.max(1,ranges)})};
+  const stationary={skipDwell:false};
   for(const entry of schedule.execution){
     if(entry.kind==='deposit'){
       const found=courses.get(entry.courseId);requireThat(found,'Unknown execution course.');
@@ -256,15 +343,21 @@ export function* linearizePath(view,options){
         const context={kind:'context',phase:operation.phase??'deposit',layer:labels.layer??operation.layer??0,layerId:operation.layerId,
           operation:labels.operation??operation.id,role:labels.role??course.role??null,travel:null,connector:labels.connector??null,region:operation.regionId??null};
         if(!state.context||Object.keys(context).some(key=>context[key]!==state.context[key])){yield context;state.context=context;}
-        yield {...spanMove(span,entry.reverse),sourceRange:{curveId:course.curveId,from:span.from,to:span.to,...(entry.reverse?{reverse:true}:{})}};
+        yield {...spanMove(span,entry.reverse),entityId:entry.entityId,scheduleIndex:entry.scheduleIndex,
+          toolIndex:operation.toolIndex??operation.filament,sourceRange:{curveId:course.curveId,from:span.from,to:span.to,...(entry.reverse?{reverse:true}:{})}};
       }
     }else if(entry.kind==='travel'){
-      for(const span of attributeSpans(motion,entry.curveId,entry.from,entry.to,resolution))yield {...spanMove(span),
+      for(const span of attributeSpans(motion,entry.curveId,entry.from,entry.to,resolution))yield {...spanMove(span),entityId:entry.entityId,scheduleIndex:entry.scheduleIndex,
         ...(entry.durationSeconds?{durationSeconds:entry.durationSeconds*(span.to-span.from)/(entry.to-entry.from)}:{})};
     }else if(entry.kind==='inject'){
       const operation=deposition.operations[entry.operationId];requireThat(operation?.kind==='inject','Unknown execution injection.');
       yield {kind:'context',phase:operation.phase??'inject',layer:operation.layer??0,layerId:operation.layerId,operation:operation.id,role:null,travel:null,connector:null,region:operation.regionId??null};
-      yield {kind:'extrude',volumeMm3:operation.injection.volumeMm3,flowMm3S:operation.injection.flowMm3S,pose:operation.injection.pose};
+      if(operation.injection.toolAxis){
+        yield* stationaryActions(operation,resolution.orientationToleranceRad,{entityId:entry.entityId,scheduleIndex:entry.scheduleIndex});
+        stationary.skipDwell=operation.injection.holdSeconds>0;
+      }else yield {kind:'extrude',volumeMm3:operation.injection.volumeMm3,flowMm3S:operation.injection.flowMm3S,pose:operation.injection.pose,toolIndex:operation.filament};
+    }else if(entry.kind==='dwell'&&stationary.skipDwell){
+      stationary.skipDwell=false;
     }else yield entry;
   }
 }
@@ -296,7 +389,7 @@ function materialInterpolationError(handle,id,span){
 function* linearAttributeSpans(handle,id,span,from,to,options,speedScale){
   const {start,end,range}=span,widthMm=range.widthMm?.[1]??1,scale=options.positionToleranceMm/widthMm;
   const speed=scalarRange(selected(handle,id).profiles.speedMmS,span.from,span.to);
-  const sectionExtent=range.widthMm?widthMm/2+(range.areaMm2?.[1]??0)/range.widthMm[0]:0;
+  const sectionExtent=range.widthMm?widthMm/2+(range.heightMm?.[1]??(range.areaMm2?.[1]??0)/range.widthMm[0]):0;
   const volume=range.volumeMm3?interpolateScalar(...range.volumeMm3,.5):0;
   // Exact interval volume fixes total material. Prefix variation only moves
   // that material along this chord: its transported distance is bounded by

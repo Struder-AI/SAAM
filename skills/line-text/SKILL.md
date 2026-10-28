@@ -7,10 +7,9 @@ metadata:
 
 # Single-line text
 
-[Call `line-text`](../../core/print/USAGE.md#command-line) to add,
-replace or remove lettering in a print. Each centerline receives one bead;
-glyph coverage, excessive stroke weight and filled counters are reported.
-The saved Trace curves regenerate without this extension.
+Use [`saam call apply_extension`](../../core/application/README.md) with `extensionId:"line-text"` to add, replace or remove lettering.
+Each centerline receives one bead; glyph coverage, excessive weight and filled counters are reported.
+Saved Trace curves regenerate without this extension. Its `request`:
 
 ```json
 {"id":"label","fontId":"hershey-sans-1","text":"SAAM","heightMm":6,

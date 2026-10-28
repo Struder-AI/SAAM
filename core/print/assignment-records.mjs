@@ -3,11 +3,13 @@
 import {ordinarySliceAssignment,assignmentFamily} from './slice-settings.mjs';
 import {curveAssignment} from './curves.mjs';
 import {injectionAssignment} from './injection.mjs';
+import {paathAssignment} from './paath.mjs';
 import {ASSIGNMENT_RECORDS} from '../../skills/records.mjs';
 
 export function depositionAssignment(options){
   if(ASSIGNMENT_RECORDS[options.construction])return ASSIGNMENT_RECORDS[options.construction].make(options);
   if(options.construction==='inject')return injectionAssignment(options);
+  if(options.construction==='paath')return paathAssignment(options);
   if(options.construction)return curveAssignment(options);
   return ordinarySliceAssignment(options);
 }

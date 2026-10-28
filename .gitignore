@@ -31,6 +31,14 @@ Thumbs.db
 /.local/
 /relay/.local/
 
+# Provider-owned relay/MCP source is maintained in a separate private project.
+/relay/
+/adapters/mcp/
+
+# Provider-owned relay/MCP source is maintained in a separate private project.
+/relay/
+/adapters/mcp/
+
 # Tour recipes are source; generated preview/export bundles stay local.
 /examples/prints/*/prepared/
 

@@ -2,14 +2,12 @@ import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 // Reusable machine/material/installation settings. Consumers keep selected
 // snapshots; reading a bundle never consults this store. The owner supplies the
 // store folder (`machineSetups`); without one, nothing is remembered or recalled.
-import {readFile,mkdir,open,rm} from 'node:fs/promises';
-import {resolve,dirname} from 'node:path';
 import {loadMachine} from './profile.mjs';
 import {requireThat} from '../private/settings/numeric.mjs';
-import {replaceFile} from '../private/settings/file-write.mjs';
+import {readRememberedSetup} from './settings-memory.mjs';
+export {saveSetup} from './settings-memory.mjs';
 import {DEFAULT_MINIMUM_BRIDGE_RATIO} from '../path/process-controls.mjs';
 
-const setupFor=(machineSetups,machine)=>resolve(machineSetups,machine.id+'.json');
 export const SETTINGS_FIELDS=Object.freeze(['setup','process','output','placement']);
 
 const settingsRecord=value=>value&&typeof value==='object'&&!Array.isArray(value);
@@ -45,12 +43,16 @@ export function resolveSettingsPatch(previous,patch){
   return settings;
 }
 
+// The selected tool may have its own bed; otherwise use the machine envelope.
+export function machineBounds(machine,tool){
+  return machine?.tools.find(t=>t.index===tool)?.bounds??machine?.bounds;
+}
 // The XY offset that puts the part on the selected tool's bed: the bed's centre,
 // with the part's footprint centred there when its bounds are known. Without a
 // machine the part stays at its own origin.
 export function defaultPlacement(machine,tool,boundsMm){
   if(!machine)return {xMm:0,yMm:0};
-  const plate=machine.tools.find(t=>t.index===tool)?.bounds??machine.bounds,part=i=>boundsMm?(boundsMm.min[i]+boundsMm.max[i])/2:0;
+  const plate=machineBounds(machine,tool),part=i=>boundsMm?(boundsMm.min[i]+boundsMm.max[i])/2:0;
   return {xMm:(plate.min[0]+plate.max[0])/2-part(0),yMm:(plate.min[1]+plate.max[1])/2-part(1)};
 }
 
@@ -75,72 +77,43 @@ export function settingsDefaults(machine){
   };
 }
 
-// The machine's remembered setup record, or null; unreadable when the file is
-// not JSON or is recorded for another machine or format.
-async function rememberedSetup(machineSetups,machine){
-  const text=machineSetups?await readFile(setupFor(machineSetups,machine),'utf8').catch(error=>{if(error.code==='ENOENT')return null;throw error;}):null;
-  if(text===null)return {saved:null,unreadable:false};
-  try{
-    const saved=JSON.parse(text);
-    if(saved?.schema==='saam-machine-setup/1'&&saved.machineId===machine.id)return {saved,unreadable:false};
-  }catch(error){if(!(error instanceof SyntaxError))throw error;}
-  return {saved:null,unreadable:true};
-}
-
 // An unreadable remembered setup leaves the profile's defaults and a note; the
 // file stays for the next successful export to replace.
-export async function selectSettings(machineId,{machineSetups}={}){
-  const machine=loadMachine(machineId),settings=settingsDefaults(machine),{saved,unreadable}=await rememberedSetup(machineSetups,machine);
+export async function selectSettings(machineId,{machineSetups,appRoot,dataRoot}={}){
+  const machine=loadMachine(machineId,{appRoot,dataRoot}),settings=settingsDefaults(machine),{saved,unreadable}=await readRememberedSetup(machine.id,{machineSetups});
   const notes=unreadable?[`Remembered setup for ${machine.name} couldn't be read; using defaults.`]:[];
   if(saved){
     const remembered=Object.fromEntries(Object.entries(neutralMaterials(saved.setup)??{}).filter(([key])=>Object.hasOwn(settings.setup,key)));
     settings.setup={...settings.setup,...remembered,materialGuid:remembered.materialGuid||settings.setup.materialGuid};
   }
+  settings.placement=defaultPlacement(machine,settings.setup.tool);
   return {machine,settings,notes};
 }
 
-export async function saveSetup(machine,setup,{machineSetups,source='Last successful export',exportReceipt}={}){
-  requireThat(machine&&setup&&machineSetups,'Choose a machine, setup and setup store before remembering settings.');
-  const file=setupFor(machineSetups,machine);
-  await replaceFile(file,JSON.stringify({schema:'saam-machine-setup/1',machineId:machine.id,
-    setup:structuredClone(setup),source,...(exportReceipt?{exportReceipt}:{}),updatedAt:new Date().toISOString()},null,2)+'\n');
-  return file;
-}
-
-// Hold the machine's store lock before copying an export, through remembering
-// its exact setup. Serializing only the final store write would invert exports.
-export async function withMachineSetupExport(machineSetups,machine,action){
-  const lock=setupFor(machineSetups,machine)+'.export.lock',writer={handle:null,unreadable:0};
-  await mkdir(dirname(lock),{recursive:true});
-  for(;;){
-    try{writer.handle=await open(lock,'wx');break;}
-    catch(error){
-      if(error.code!=='EEXIST')throw error;
-      const busy=Error('Machine setup has an interrupted export writer. Inspect '+lock+' before recovery.');
-      const holder=await readFile(lock,'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT'||error instanceof SyntaxError)return null;throw error;});
-      if(!(Number.isInteger(holder?.pid)&&holder.pid>0)&&++writer.unreadable>40)throw busy;
-      if(Number.isInteger(holder?.pid)&&holder.pid>0){
-        try{process.kill(holder.pid,0);}catch(error){if(error.code==='ESRCH')throw busy;throw error;}
-      }
-      await new Promise(function waitForExport(done){setTimeout(done,25);});
-    }
-  }
-  try{await writer.handle.writeFile(JSON.stringify({pid:process.pid,time:new Date().toISOString()}));return await action();}
-  finally{await writer.handle.close();await rm(lock);}
+// Initial publication overlays authored values on one retained selection.
+// Known host-derived defaults resolve after the part bounds are available.
+export function resolveInitialSettings(plan,{machine,settings},{boundsMm,placementOrigins}={}){
+  const base=structuredClone(settings),patch=Object.fromEntries(SETTINGS_FIELDS.filter(key=>Object.hasOwn(plan,key)).map(key=>[key,plan[key]]));
+  const resolved={...base,...resolveSettingsPatch(base,patch)};
+  const centered=defaultPlacement(machine,resolved.setup?.tool??machine.defaultSetup.tool,boundsMm);
+  if(!Object.hasOwn(plan,'placement'))resolved.placement=centered;
+  else if(settingsRecord(plan.placement))resolved.placement={...centered,...structuredClone(plan.placement)};
+  for(const axis of ['xMm','yMm'])if(placementOrigins?.[axis]==='derived')resolved.placement={...resolved.placement,[axis]:centered[axis]};
+  return resolved;
 }
 
 // Material is not machine: the print's material settings stay across a machine change.
 const MATERIAL_FIELDS=['material','nozzleC','filament','filaments'];
 // A machine change preserves authored process/material values; Bundle rechecks
 // the schedule's nozzle dimensions. Remembered/default setup fills omissions.
-// Default placement follows the new bed; a chosen position stays.
-export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm}={}){
+// Only known-derived coordinates follow the new bed; authored/unknown stay.
+export function resolveMachineSettings(previous,previousMachine,{machine,settings},{boundsMm,placementOrigins}={}){
   const material=Object.fromEntries(MATERIAL_FIELDS.filter(key=>previous.setup?.[key]!==undefined).map(key=>[key,structuredClone(previous.setup[key])]));
+  if(previous.setup?.filamentColor!=null)material.filamentColor=structuredClone(previous.setup.filamentColor);
   const setup=previousMachine?{...settings.setup,...material}:{...settings.setup,...previous.setup};
-  const same=(a,b)=>a?.xMm===b.xMm&&a?.yMm===b.yMm,tool=previous.setup?.tool??previousMachine?.defaultSetup.tool;
-  const defaulted=!previous.placement||same(previous.placement,defaultPlacement(previousMachine,tool,boundsMm))
-    ||same(previous.placement,defaultPlacement(previousMachine,tool));
+  const centered=defaultPlacement(machine,setup.tool,boundsMm),placement={...previous.placement};
+  for(const axis of ['xMm','yMm'])if(placementOrigins?.[axis]==='derived')placement[axis]=centered[axis];
   return {setup,output:!previousMachine&&machine.outputs.some(output=>output.id===previous.output)?previous.output:settings.output,
     process:{...settings.process,...previous.process},
-    placement:defaulted?defaultPlacement(machine,setup.tool,boundsMm):previous.placement};
+    placement};
 }

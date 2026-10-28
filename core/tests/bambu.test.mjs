@@ -1,4 +1,5 @@
 import {home} from './temporary-home.mjs';
+import {createPart} from '../application/part-execution.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -8,12 +9,15 @@ import {createHash} from 'node:crypto';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
+import {scheduled,actionsOf} from './fixtures/scheduled.mjs';
+import {pathSummary,pathInitialPosition} from '../path/curve-path.mjs';
 import {exportProgram} from '../export/registry.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {placedPath} from '../path/placement.mjs';
 import {packZip,unpackZip} from '../export/zip.mjs';
-import {initBundle,generateBundle,loadBundle} from '../print/bundle.mjs';
+import {loadBundle} from '../print/bundle.mjs';
+import {presentBundle} from '../../studio/bundle-presentation.mjs';
+import {generateBundle} from '../application/generation.mjs';
 import {createStudio} from '../../studio/server.mjs';
 import {boxMesh} from './fixtures/mesh.mjs';
 import {resolveBambuJob} from '../../machines/bambu/bambu-job.mjs';
@@ -28,7 +32,7 @@ function fixture(tool=0,nozzleMm=0.4){
 }
 test('H2D maps logical material zero to either physical nozzle and round trips the shared Slice paths',async()=>{
   for(const tool of [0,1]){
-    const {machine,plan}=fixture(tool),path=schedulePath(await generatePath(plan,machine));
+    const {machine,plan}=fixture(tool),path=scheduled(await generatePath(plan,machine),{machine,plan});
     const {bytes,report}=(await exportProgram(path,plan,machine,release)),entries=unpackZip(bytes);
     assert.deepEqual(bytes,(await exportProgram(path,plan,machine,release)).bytes,'archive bytes are deterministic');
     const code=entries.get(GCODE).toString();
@@ -43,9 +47,9 @@ test('H2D maps logical material zero to either physical nozzle and round trips t
     assert.match(entries.get('Metadata/model_settings.config').toString(),new RegExp(`key="filament_maps" value="${tool+1}"`));
     assert.deepEqual(JSON.parse(entries.get('Metadata/filament_sequence.json')).plate_1.nozzle_sequence,[tool]);
     assert.equal(entries.get(GCODE+'.md5').toString(),createHash('md5').update(code).digest('hex'));
-    assert.equal(report.moves,(await preparePath(path,plan,machine)).actions.filter(a=>a.kind==='move').length);
+    assert.equal(report.moves,actionsOf(await preparePath(path,plan,machine)).filter(a=>a.kind==='move').length);
     assert.equal(report.envelope.simulation,'not simulated');
-    assert.ok(report.envelope.endClearanceZ>=path.summary.boundsMm.max[2]+10);
+    assert.ok(report.envelope.endClearanceZ>=pathSummary(path).boundsMm.max[2]+10);
     assert.ok(!code.includes('wedge.stl'),'reference objects are not reused');
     const project=JSON.parse(entries.get('Metadata/project_settings.config'));
     assert.equal(project.machine_start_gcode,code.split('; EXECUTABLE_BLOCK_START\n')[1].split(';SAAM_BODY_BEGIN\n')[0]);
@@ -60,7 +64,7 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
     const {machine,plan}=fixture(tool,0.8);plan.setup.filamentColor='#8B5A2B';
     // A physical tray request does not rename the job's single logical filament.
     plan.setup.ams=tool===0?{unit:1,slot:4}:{unit:2,slot:3};const selector=0;
-    const path=schedulePath(await generatePath(plan,machine));
+    const path=scheduled(await generatePath(plan,machine),{machine,plan});
     const bytes=(await exportProgram(path,plan,machine,release)).bytes,entries=unpackZip(bytes);
     const nozzles=tool===0?['0.8','0.4']:['0.4','0.8'];
     assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.8);
@@ -85,7 +89,7 @@ test('H2D 0.8 mm setup uses selected nozzle metadata and round trips on either t
   }
 });
 test('H2D needs no colour or AMS choice, and rejects only a malformed one',async()=>{
-  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   assert.equal(plan.setup.filamentColor,null);assert.equal(plan.setup.ams,null);
   const entries=unpackZip((await exportProgram(path,plan,machine,release)).bytes),code=entries.get(GCODE).toString();
   // No AMS request uses one logical filament and the declared default colour.
@@ -102,23 +106,26 @@ test('H2D needs no colour or AMS choice, and rejects only a malformed one',async
   await assert.rejects(()=>exportProgram(path,asks,noFeeder,release),/declares no AMS/);
 });
 test('H2D 0.6 mm setup uses selected right-nozzle metadata and round trips',async()=>{
-  const {machine,plan}=fixture(1,0.6),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(1,0.6),path=scheduled(await generatePath(plan,machine),{machine,plan});
   const bytes=(await exportProgram(path,plan,machine,release)).bytes,entries=unpackZip(bytes);
   assert.equal(JSON.parse(entries.get('Metadata/plate_1.json')).nozzle_diameter,0.6);
   assert.deepEqual(JSON.parse(entries.get('Metadata/project_settings.config')).nozzle_diameter,['0.4','0.6']);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/nozzle id="1" extruder_id="2" nozzle_diameter="0.6"/);
 });
 test('H2D requires startup handoff, supported heating and shutdown clearance',async()=>{
-  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   const changed=structuredClone(machine);changed.outputs[0].program.start.push('M999');await assert.rejects(()=>exportProgram(path,plan,changed,release),/Bambu tool\/startup contract mismatch/);
   const unavailable=structuredClone(machine);unavailable.outputs[0].implemented=false;await assert.rejects(()=>exportProgram(path,plan,unavailable,release),/No exporter/);
   const chamber=structuredClone(plan);chamber.setup.buildVolumeC=40;await assert.rejects(()=>exportProgram(path,chamber,machine,release),/chamber heating/);
-  const tall=structuredClone(path);tall.summary.boundsMm.max[2]=315;tall.actions.at(-1).to=[100,100,317];
+  // The compact pair has no end move to raise; its schedule closes with a travel to the same height.
+  const tall=structuredClone(path),end=actionsOf(path).findLast(a=>a.kind==='move').to;tall.deposition.summary.boundsMm.max[2]=315;
+  tall.schedule.motionCurves['travel:tall']={geometry:{kind:'polyline',points:[end,[100,100,317]]},profiles:{speedMmS:120,toolAxis:[0,0,-1]}};
+  tall.schedule.execution.push({kind:'travel',curveId:'travel:tall',from:0,to:1,entityId:'travel:["travel:tall"]',scheduleIndex:tall.schedule.execution.length});
   await assert.rejects(()=>exportProgram(tall,plan,machine,release),/shutdown clearance/);
 });
 
 test('H2D fresh export is deterministic and its thumbnails agree',async()=>{
-  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   const {bytes}=(await exportProgram(path,plan,machine,release));
   assert.deepEqual(bytes,(await exportProgram(path,plan,machine,release)).bytes,'archive bytes are deterministic');
   const entries=unpackZip(bytes),thumbnail=entries.get('Metadata/plate_1.png');
@@ -126,7 +133,7 @@ test('H2D fresh export is deterministic and its thumbnails agree',async()=>{
 });
 
 test('H2D restores initial XY/Z registration before loading',async()=>{
-  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   const current=(await exportProgram(path,plan,machine,release)).bytes,code=unpackZip(current).get(GCODE).toString();
   const start=code.split(';SAAM_BODY_BEGIN\n')[0];
   assert.match(start,/G28 X T300\nG150\.1 F18000\nG150\.3 F18000/);
@@ -143,19 +150,19 @@ test('H2D restores initial XY/Z registration before loading',async()=>{
 test('X1 Carbon shares the Bambu exporter with its own envelope, shutdown and package facts',async()=>{
   const machine=loadMachine('bambu-x1-carbon'),plan=defaults(machine);plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
   plan.setup.ams={unit:2,slot:1};
-  const path=schedulePath(await generatePath(plan,machine)),{bytes,report}=(await exportProgram(path,plan,machine,release));
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),{bytes,report}=(await exportProgram(path,plan,machine,release));
   assert.deepEqual(bytes,(await exportProgram(path,plan,machine,release)).bytes,'archive bytes are deterministic');
-  const moves=(await preparePath(path,plan,machine)).actions.filter(a=>a.kind==='move'),{envelope}=report;
+  const moves=actionsOf(await preparePath(path,plan,machine)).filter(a=>a.kind==='move'),{envelope}=report;
   assert.equal(envelope.contract,'x1c-saam-startup-v5');assert.equal(report.moves,moves.length);
   const entries=unpackZip(bytes),code=entries.get(GCODE).toString(),[start,rest]=code.split(';SAAM_BODY_BEGIN\n'),end=rest.split(';SAAM_BODY_END\n')[1];
-  const bounds=placedPath(path,plan.placement).summary.boundsMm,top=bounds.max[2];
+  const bounds=pathSummary(placedPath(path,plan.placement)).boundsMm,top=bounds.max[2];
   assert.ok(!/\{[A-Za-z]+\}/.test(start+end),'every template value is rendered');
   assert.match(start,/^M140 S60\nM190 S60$/m);assert.match(start,/^M109 S195$/m,'wipe temperature follows the nozzle temperature');
   assert.match(start,/^M620 S0A\n(?:.*\n)*?T0\n(?:.*\n)*?M621 S0A$/m,'a profile with no declared trays keeps one entry, named as position 0');
   assert.ok(start.includes(`G29 A X${bounds.min[0]} Y${bounds.min[1]} I${bounds.max[0]-bounds.min[0]} J${bounds.max[1]-bounds.min[1]}\n`),'bed leveling covers the placed part');
   assert.ok(!/^M73 P/m.test(start+end),'reference progress estimates are not reused');
   assert.ok(start.endsWith('G1 Z20 F300\nG1 X100 Y100 F3600\nM400\n'));
-  const pathTop=Math.max(path.initialPosition[2],...moves.map(m=>m.to[2]));
+  const pathTop=Math.max(pathInitialPosition(path)[2],...moves.map(m=>m.to[2]));
   assert.equal(envelope.endClearanceZ,Math.max(pathTop,top+0.5),'X1 shutdown lifts just clear of the part and never below the completed path');
   assert.ok(end.includes(`G1 Z${envelope.endClearanceZ} F900\n`)&&end.includes(`G1 Z${Math.min(250,100+top)} F600\nG1 Z${Math.min(250,100+top)-2}\n`));
   const project=JSON.parse(entries.get('Metadata/project_settings.config')),slice=entries.get('Metadata/slice_info.config').toString();
@@ -174,7 +181,7 @@ test('Bambu selected nozzle, other nozzle, plate and temperature stay coherent a
     const {machine,plan}=fixture(tool,diameter);
     plan.setup.bambu.otherNozzleMm=0.6;plan.setup.bambu.plate=plate;
     plan.setup.nozzleC=225;plan.setup.bedC=65;
-    const {bytes,report}=(await exportProgram(schedulePath(await generatePath(plan,machine)),plan,machine,release)),z=unpackZip(bytes);
+    const {bytes,report}=(await exportProgram(scheduled(await generatePath(plan,machine),{machine,plan}),plan,machine,release)),z=unpackZip(bytes);
     const code=z.get(GCODE).toString(),p=JSON.parse(z.get('Metadata/project_settings.config'));
     assert.equal(p.machine_start_gcode,code.split('; EXECUTABLE_BLOCK_START\n')[1].split(';SAAM_BODY_BEGIN\n')[0]);
     assert.equal(p.machine_end_gcode,code.split(';SAAM_BODY_END\n')[1].split('; EXECUTABLE_BLOCK_END\n')[0]);
@@ -203,7 +210,7 @@ test('logical filament selection reaches both load blocks, detection and every p
   const {machine,plan}=fixture(1,0.8);plan.setup.ams={unit:2,slot:4};
   plan.setup.filaments=[{id:'GFA00',colour:'#111111'},{id:'GFA01',colour:'#222222'},{id:'GFA00',colour:'#AABBCC'}];
   plan.setup.filament=2;plan.setup.filamentColor='#AABBCC';
-  const z=unpackZip((await exportProgram(schedulePath(await generatePath(plan,machine)),plan,machine,release)).bytes);
+  const z=unpackZip((await exportProgram(scheduled(await generatePath(plan,machine),{machine,plan}),plan,machine,release)).bytes);
   const code=z.get(GCODE).toString(),slice=z.get('Metadata/slice_info.config').toString();
   for(const command of ['M620 S2A H-1','T2 H-1','M621 S2A'])assert.equal(code.split('\n').filter(l=>l===command).length,2);
   assert.match(code,/^M620\.6 I2 H-1 W1$/m);assert.doesNotMatch(code,/^M620 S7A|^T7 H/m);
@@ -224,7 +231,7 @@ test('logical filament selection reaches both load blocks, detection and every p
 });
 
 test('Bambu rejects conflicting declarations and unsupported settings before producing a program',async()=>{
-  const {machine,plan}=fixture(),path=schedulePath(await generatePath(plan,machine));
+  const {machine,plan}=fixture(),path=scheduled(await generatePath(plan,machine),{machine,plan});
   for(const [patch,message] of [
     [{core:'Hardened steel 0.8'},/core and selected nozzle/],
     [{bambu:{...plan.setup.bambu,plate:'unknown'}},/build plate/],
@@ -251,7 +258,7 @@ test('startup choices are explicit and X1 smooth plate has no textured correctio
   for(const id of ['bambu-h2d','bambu-x1-carbon']){
     const machine=loadMachine(id),plan=defaults(machine);plan.geometry=boxMesh();
     plan.setup.bambu.plate='hot_plate';Object.assign(plan.setup.bambu.startup,{bedLeveling:'on',flowCalibration:'off'});
-    const path=schedulePath(await generatePath(plan,machine)),z=unpackZip((await exportProgram(path,plan,machine,release)).bytes),code=z.get(GCODE).toString();
+    const path=scheduled(await generatePath(plan,machine),{machine,plan}),z=unpackZip((await exportProgram(path,plan,machine,release)).bytes),code=z.get(GCODE).toString();
     assert.match(code,/M1002 set_flag g29_before_print_flag=1\nM1002 set_flag extrude_cali_flag=0/);
     assert.doesNotMatch(code,/G29\.1 Z-0\.0[24]/);
     assert.match(code,/M1002 judge_flag g29_before_print_flag/);
@@ -295,7 +302,7 @@ test('declared logical filaments preserve independent nozzle assignments on ever
     plan.setup.bambu.otherNozzleMm=tool===0?0.8:0.4;
     plan.setup.filaments=[{id:'GFA00',colour:'#00AE42',tool:1},{id:'GFA00',colour:'#FFFF00',tool:0}];
     plan.setup.filament=1-tool;
-    const path=schedulePath(await generatePath(plan,machine)),bytes=(await exportProgram(path,plan,machine,release)).bytes,z=unpackZip(bytes);
+    const path=scheduled(await generatePath(plan,machine),{machine,plan}),bytes=(await exportProgram(path,plan,machine,release)).bytes,z=unpackZip(bytes);
     const settings=JSON.parse(z.get('Metadata/project_settings.config')),code=z.get(GCODE).toString();
     for(const key of ['filament_map','filament_map_2','filament_nozzle_map']){
       if(key==='filament_map_2')assert.equal(settings[key],undefined);
@@ -319,9 +326,9 @@ test('ZIP format rejects unsafe names, damaged directories and unreferenced byte
 });
 test('H2D Studio reviews extracted G-code without sending the program in state',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-h2d-workflow-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  const {plan,machine}=fixture();await initBundle(dir,plan,{machineId:machine.id});
+  const {plan,machine}=fixture();await createPart(dir,plan,{machineId:machine.id});
   await generateBundle(dir);const state=await loadBundle(dir);assert.equal(state.programError,undefined);
-  assert.equal(state.exportName,'part.gcode.3mf');assert.equal(state.outputAvailability,null);
+  const shown=await presentBundle(state);assert.equal(shown.exportName,'part.gcode.3mf');assert.equal(shown.outputAvailability,null);
   const server=createStudio(dir,{libraryRoot:home,chat:createChatChannel(home,{ownerId:'studio:test'}).binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`;
   const view=await(await fetch(origin+'/api/state')).json();assert.equal(view.exportName,'part.gcode.3mf');assert.equal(view.code,undefined);assert.equal(view.program.code,undefined);
@@ -331,7 +338,7 @@ test('H2D Studio reviews extracted G-code without sending the program in state',
 test('fast_start skips optional checks, keeps startup handoff and rejects contradictory requests on both Bambu profiles',async()=>{
   for(const id of ['bambu-h2d','bambu-x1-carbon']){
     const machine=loadMachine(id),plan=defaults(machine);plan.geometry=boxMesh();plan.process.minimumLayerSeconds=0;
-    const path=schedulePath(await generatePath(plan,machine));
+    const path=scheduled(await generatePath(plan,machine),{machine,plan});
     const full=unpackZip((await exportProgram(path,plan,machine,release)).bytes).get(GCODE).toString().split(';SAAM_BODY_BEGIN')[0];
     assert.match(full,/M970\.3/);assert.match(full,/M1006 S1/);
     plan.setup.bambu.fast_start=true;
@@ -370,7 +377,7 @@ test('single used filament with a nonzero logical ID remains that ID in the USB 
   const {machine,plan}=fixture(1,0.8);
   plan.setup.filaments=[{id:'GFA00',colour:'#808080',tool:0},{id:'GFA00',colour:'#0000FF',tool:1}];
   plan.setup.filament=1;
-  const path=schedulePath(await generatePath(plan,machine)),bytes=(await exportProgram(path,plan,machine,release)).bytes,entries=unpackZip(bytes);
+  const path=scheduled(await generatePath(plan,machine),{machine,plan}),bytes=(await exportProgram(path,plan,machine,release)).bytes,entries=unpackZip(bytes);
   assert.match(entries.get(GCODE).toString(),/^; filament: 2$/m);
   assert.match(entries.get('Metadata/slice_info.config').toString(),/<filament id="2"/);
   assert.deepEqual(JSON.parse(entries.get('Metadata/plate_1.json')).filament_ids,[1]);

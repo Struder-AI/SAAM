@@ -1,3 +1,4 @@
+import {PATH_CONTRACT} from '../path/contracts.mjs';
 // Derive review decisions from state whose persisted validity was established by
 // the bundle workflow. This projection never validates output or grants approval.
 // The shown toolpath is the completed output when it loads, else the saved SAAMpath.
@@ -9,7 +10,8 @@ export function completedOutputState(state,{generating=state.outputGenerating===
   const savedPath=!output&&Boolean(state.review?.path)&&!state.neutralPathError;
   return {generating:Boolean(generating),available,current:Boolean(current),
     previous:available?!current:savedPath&&state.artifacts?.path!=='current',
-    exportable:available&&!generating&&Boolean(output.machine)&&output.review.generation.mode==='production',
+    exportable:available&&Boolean(output.machineId)&&output.review.generation.mode==='production'
+      &&output.path?.contract===PATH_CONTRACT&&output.path.qualification?.status!=='failed',
     inspectable:available||savedPath,
     receipt:!generating&&(Boolean(current)||savedPath&&state.artifacts?.path==='current')};
 }

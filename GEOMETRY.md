@@ -131,6 +131,21 @@ the points; outer loops run counterclockwise, holes clockwise). Each top gives
 the highest surface crossing, its normal, slope and surface name, or `zMm: null`
 where the line misses the part.
 
+## Selecting edges
+
+`intersect_geometry` accepts `request.edges` and `includeLoops:true` to return source selectors, resolved curves and manufacturing targets without constructing deposition. `Recipe.selectEdge` and edge-support `base`/`landing` accept the same selectors.
+
+| Source | Selector |
+|---|---|
+| Mesh edge or connected chain | `{model:{path:[0],vertices:[12,16,20]},slice:{assignment:"body"}}`; `path` traverses Boolean operands (omit for the root). Consecutive vertex IDs share actual source triangle edges. Add `closed:true` for a closed chain; omit `vertices` to discover mesh edges. |
+| Named spline face boundary | `{model:{face:"top",loop:0,edge:2},slice:{assignment:"body"}}`; omit `edge` for the whole face boundary loop. Optional `path` selects an operand. |
+| Prepared Slice boundary | `{slice:{assignment:"body",index:12,part:null},loop:0}` |
+| Authored XYZ/NURBS curve | `{geometry:"rim",normal:[0,0,1],readiness:{assignment:"body",index:12}}` |
+
+Optional `range:[from,to]` trims any source: normalized arc length for polylines or native parameter for NURBS. A closed curve can cross its seam with `to > 1` (at most one turn). Source identity and orientation survive trimming. Model/saved-curve selectors carry outer `part:"component-id"` for an assembly; coordinates stay in that component's frame.
+
+Model edges return all crossed native Slice bands as `targets`. Their optional `slice` selects an owning assignment; indices are derived from the edge. Advance direction comes from that stack, with an optional explicit `normal` override. Native Slice selectors derive one readiness value. Saved curves retain separately supplied readiness and normal; they are independent geometry, rather than references to a solid edge.
+
 <!-- requires: nonplanar -->
 ### Surface regions
 

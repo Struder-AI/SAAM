@@ -8,7 +8,7 @@ import {summary as applicationSummary} from '../application/runtime.mjs';
 const state=(overrides={})=>({
   dir:'Prints/example',kind:'shell',revision:'revision',geometryId:'geometry',geometryInputId:'geometry',
   plan:{geometry:{shape:'shell'},output:'gcode'},geometry:{boundsMm:{}},
-  machine:{id:'machine',name:'Machine'},skills:[],limitations:[],
+  machineId:'machine',skills:[],limitations:[],
   review:{generation:null},program:undefined,programError:undefined,
   outputAvailability:null,...overrides
 });

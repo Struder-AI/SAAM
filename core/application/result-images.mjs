@@ -5,9 +5,10 @@ import {resolve} from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {createTemporaryWorkspace} from './temporary-workspace.mjs';
 
-export function createResultImages(){
+export function createResultImages({paths}={}){
+  paths=paths===undefined?undefined:Object.freeze({...paths});
   const owned={workspace:null,current:new Map(),retired:new Set()};
-  async function folder(){return (owned.workspace??=createTemporaryWorkspace('visual-check')).then(workspace=>workspace.directory);}
+  async function folder(){return (owned.workspace??=createTemporaryWorkspace('visual-check',{paths})).then(workspace=>workspace.directory);}
   async function retire(){
     for(const file of owned.retired)try{await rm(file,{force:true});owned.retired.delete(file);}catch(error){if(!['EBUSY','EPERM','EACCES'].includes(error.code))throw error;}
   }

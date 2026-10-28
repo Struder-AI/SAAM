@@ -3,13 +3,12 @@ import {writeFile,unlink,readFile,rm} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {randomBytes} from 'node:crypto';
 import {resolve} from 'node:path';
-import {userInfo} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createRuntimeRegistry,describeJobs} from './runtime-registry.mjs';
 import {migrateRuntimeState,restoreRuntimeState} from './runtime-state.mjs';
 import {homePaths,canonicalHome,pathIdentity} from '../core/application/home.mjs';
 import {migrateLocalData,restoreLocalData} from '../core/application/home-layout.mjs';
-import {applicationPort,readInstance,controlRequest,leaseHolder,controlWaitMs} from '../core/application/control.mjs';
+import {applicationPort,readInstance,controlRequest,leaseHolder,controlWaitMs,currentUsername} from '../core/application/control.mjs';
 import {orchestratorContract,orchestratorRoot,contractProblem} from '../core/application/runtime-selection.mjs';
 import {createReleaseService,releaseConfiguration} from './release-service.mjs';
 import {installUpdate} from './update.mjs';
@@ -32,7 +31,7 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
   if(pathIdentity(codeRoot)!==pathIdentity(await orchestratorRoot()))throw Object.assign(Error('Only the installed SAAM application starts the orchestrator. Run this checkout through scripts/saam.mjs.'),{code:'ORCHESTRATOR_REQUIRED'});
   const reports=createDiagnosticReports({home:paths.home});
   const previous=await readInstance();
-  if(previous?.user&&previous.user!==userInfo().username)throw Error('SAAM is running for '+previous.user+'.');
+  if(previous?.user&&previous.user!==currentUsername())throw Error('SAAM is running for '+previous.user+'.');
   // A launch is the person's own: this process shows the Studio the open answers (launch.mjs).
   const opening=openOnStart?{command:'open',display:'caller'}:{command:'status'};
   const state={runtime:null,services:null,tray:null,control:null,stopping:null,migration:null,runtimeMigration:null},token=randomBytes(24).toString('hex');
@@ -141,12 +140,13 @@ export async function startApplication({autoOpen=true,openOnStart=true,tray=true
       if(message.command==='client-lifecycle')return state.runtime.clients.event(message.event);
       if(message.command==='client-inbox')return state.runtime.clients.inbox(message);
       if(message.command==='client-ack')return state.runtime.clients.acknowledge(message);
+      if(message.command==='ack-response-events')return state.runtime.acknowledgeResponseEvents(message.receipt);
       if(message.command==='quit')return {ok:true,...await quit(message.force===true)};
       if(message.command==='update')return {ok:true,...await state.services.update({force:message.force===true})};
       return state.runtime.command(message);
     }
 
-    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:orchestratorContract,codeRoot,user:userInfo().username};
+    const record={instanceId,pid:process.pid,port:state.control.address().port,token,version:config.version,contract:orchestratorContract,codeRoot,user:currentUsername()};
     if(tray&&!process.env.NODE_TEST_CONTEXT){
       state.tray=await startTray(record);
       if(state.tray.problem)await report({kind:'tray-unavailable',error:state.tray.problem},{firstRun:true});

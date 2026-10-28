@@ -15,10 +15,17 @@ the resulting solid in Studio as usual.
 ## Tools and edits
 
 Start from an existing shell or mesh print, including an imported STL. MCP
-`apply_text` takes `bundleId`, current `expectedRevision` and `request`. For an
-assembly, select one component with a request-level `"part": "id"` beside
-`feature`, `remove` or `standalone`; a single-part print omits it, and an unknown
-id is rejected. Coordinates and references stay in that component's millimetres.
+`apply_extension` takes `bundleId`, `extensionId: "text"`, current
+`expectedRevision` and `request` (`feature`, `remove`, `standalone`,
+`toleranceMm`, `maxEdgeMm`). For an assembly, select one component with
+`"part": "id"` beside `request`; a single-part print omits it, and an unknown id
+is rejected. Coordinates and references stay in that component's millimetres.
+Removing raised text that a Slice assignment selects needs the replacement
+`assignments` list beside `request`, saved in the same revision.
+
+Text stays editable on top of other extensions' geometry: when the part beneath
+it changes (a Gridfinity size, a heat-set insert), the lettering is rebuilt on
+the new part from its saved features.
 
 `fontPath` is an absolute font path on the SAAM computer; the tool saves the
 font bytes and hash, so later edits don't depend on installed fonts. For a font

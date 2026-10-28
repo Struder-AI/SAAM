@@ -1,7 +1,8 @@
 // An ambient offset reference retains its chart, independent of fill or stacking.
 import {prepareSurfaceOffset} from './surface-offset.mjs';
 import {evaluateSurface} from './surface-evaluation.mjs';
-import {requireThat,normalize,cross} from './tolerance.mjs';
+import {requireThat} from './tolerance.mjs';
+import {physicalSurfaceNormal} from './surface-frame.mjs';
 import {surfaceReferenceRecord,numericalGeometryRecord} from './surface-record.mjs';
 import {selectedSplinePatch} from './surface-region.mjs';
 import {extendSurface} from './surface-extend.mjs';
@@ -19,7 +20,9 @@ export function offsetSurfaceChart(chart,depth,{shell,selection,nativePatch=null
     const exact=tightness?chart.at.derivatives(u,v,{normalMm:depth}):null;
     const blend=key=>exact?loose[key].map((value,k)=>value+tightness*(exact[key][k]-value)):loose[key];
     const du=blend('du'),dv=blend('dv');
-    return {point:blend('point'),du,dv,normal:normalize(cross(du,dv)).map(value=>value*normalSide)};
+    const normal=physicalSurfaceNormal(du,dv,[chart.domainU[1]-chart.domainU[0],chart.domainV[1]-chart.domainV[0]]);
+    requireThat(normal,'Surface offset has a singular tangent at this chart point.');
+    return {point:blend('point'),du,dv,normal:normal.map(value=>value*normalSide)};
   };
   const exactAt=depth&&chart.at.derivatives?(u,v)=>chart.at.derivatives(u,v,{normalMm:depth}):(u,v)=>evaluateSurface(chart,[u,v],depth);
   const at=offsetField?fittedAt:exactAt;

@@ -85,12 +85,14 @@ function buildMachineDescriptor(machine,config,binding,{frameIds,components,mach
   return {schema:'saam-machine-presentation/1',binding,label:machine.name,basis:config.basis??'Nominal design geometry; source-command motion',frameIds,components,machineBoundsWorldMm,limitations:limits,controls};
 }
 
-function sampleMachinePresentation(program,descriptor,mechanism,layout,request){
+function sampleMachinePresentation(program,descriptor,mechanism,layout,request,orientation){
   const {binding,components,controls}=descriptor;
   const {solve,sourcePose,probeMargins,extraStatic,angularLever}=mechanism;
   if(!Number.isFinite(request.seconds)||request.seconds<0||request.seconds>durationOf(program))throw Error('Machine sample time outside source duration');
   if(request.manual!==undefined&&(!controls.length||!Array.isArray(request.manual)||request.manual.length!==controls.length||!request.manual.every(Number.isFinite)))throw Error('Invalid manual machine coordinates');
-  const sourceAt=frameAtTime(program.moves,request.seconds);let {at,controlValues}=sourceAt.point?controlPose(layout,sourceAt,request.manual):{at:sourceAt,controlValues:[]};
+  const sourceAt=frameAtTime(program.moves,request.seconds);
+  if(orientation&&sourceAt.point)Object.assign(sourceAt,orientation.at(Math.max(0,sourceAt.active),sourceAt.fraction));
+  let {at,controlValues}=sourceAt.point?controlPose(layout,sourceAt,request.manual):{at:sourceAt,controlValues:[]};
   let result={worldFromFrame:{},diagnostics:[]};
   try{if(at.point){
     if(request.jog){
@@ -119,13 +121,14 @@ function sampleMachinePresentation(program,descriptor,mechanism,layout,request){
 export async function createMachinePresentation({program,machine,setup={},kinematics=null,sourceIdentity,signal}){
   signal?.throwIfAborted();if(!isGantry(machine)&&!kinematics)return null;
   const config={...machine.kinematicModel,...setup.kinematicModel};
-  const binding={...sourceIdentity,modelKey:JSON.stringify([1,machine.id,machine.revision,config,setup.tool])};
+  const binding={...sourceIdentity,modelKey:JSON.stringify([2,machine.id,machine.revision,config,setup])};
   const mechanism=buildMachineMechanism({machine,setup,config,kinematics});
   const layout=machineControlLayout(mechanism);
   const descriptor=buildMachineDescriptor(machine,config,binding,mechanism,layout);
+  const orientation=kinematics?.programOrientation?.({program,setup});
   let disposed=false;
   return {descriptor,async sample(request,{signal}={}){
     signal?.throwIfAborted();if(disposed)throw Error('Machine presentation disposed');
-    return sampleMachinePresentation(program,descriptor,mechanism,layout,request);
+    return sampleMachinePresentation(program,descriptor,mechanism,layout,request,orientation);
   },dispose(){disposed=true;}};
 }

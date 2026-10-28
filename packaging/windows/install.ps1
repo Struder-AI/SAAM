@@ -171,7 +171,7 @@ if (-not (Test-Path -LiteralPath $releaseFile) -or -not (Test-Path -LiteralPath 
 $tar = Join-Path $env:SystemRoot 'System32\tar.exe'
 if (-not (Test-Path -LiteralPath $tar)) { Stop-WithMessage "This Windows has no $tar, which SAAM's installer needs (Windows 10 version 1803 or later)." }
 $version = [string](Get-Content -LiteralPath $releaseFile -Raw -Encoding UTF8 | ConvertFrom-Json).version
-if ($version -notmatch '^\d{1,6}\.\d{1,6}\.\d{1,6}$') { Stop-WithMessage 'The release has no valid version. Nothing was changed.' }
+if ($version -notmatch '^\d{1,6}\.\d{1,6}\.\d{1,6}(-[\w.]+)?$') { Stop-WithMessage 'The release has no valid version. Nothing was changed.' }
 $requiredFiles = @('runtime/node.exe', 'release.json', 'packaging/launch.mjs', 'scripts/saam.mjs', 'packaging/migrate-home.mjs', 'packaging/client-setup.mjs', 'packaging/installer-report.mjs', 'packaging/windows/SAAM.ico', 'packaging/windows/SAAM.vbs', 'packaging/windows/SAAM.cmd', 'packaging/windows/saam-command.cmd')
 # Validate the release payload before even requesting home authorization.
 $entries = @(& $tar -tf $archive)
@@ -321,15 +321,13 @@ if (-not $NoShortcuts) { Write-Host 'Start from the SAAM icon; choose Quit from 
 Write-Host "Your prints and settings stay in $(Get-SaamDataFolder)."
 # Startup removes the completed workspace; SAAM owns first-run evidence from here.
 Set-WorkspaceOwner 'complete'
-if (-not $NoLaunch) {
+# SAAM always runs on the canonical home, so a disposable trial never starts it.
+if ($isolated) { Write-Host 'Isolated trial: SAAM was not started.' }
+elseif (-not $NoLaunch) {
   Write-Diagnostic 'starting'
   $FirstRun = $false
   Write-Host 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'
-  if ($isolated) {
-    Start-Process -FilePath (Join-Path $SaamRoot 'runtime\node.exe') -ArgumentList (Join-Path $SaamRoot 'packaging\launch.mjs') -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
-  } else {
-    Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
-  }
+  Start-Process -FilePath $wscript -ArgumentList $launcher -WorkingDirectory $env:USERPROFILE -WindowStyle Hidden
 }
 Stop-InstallerTranscript
 exit 0

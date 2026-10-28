@@ -7,6 +7,7 @@ import {defaults} from '../print/plan.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
 import {joinSaamPath} from '../path/saampath.mjs';
+import {schedulingNozzleInputs} from '../machine/nozzle.mjs';
 import {NEUTRAL_PATH_CONTRACT} from '../path/dependencies.mjs';
 import {AdaptationMotion,machinePriming} from '../private/export/adaptation-motion.mjs';
 import {preparePath} from '../export/registry.mjs';
@@ -19,7 +20,7 @@ test('S5 prepared paths recover, sacrificial strokes, then the part on either no
     plan.setup.tool=tool;plan.process.retractMm=retractMm;plan.process.minimumLayerSeconds=0;
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     const source=await generatePath(plan,machine),sourcePathId='prime-fixture';
-    const path=joinSaamPath({sourcePathId,deposition:source,schedule:schedulePath(source,{sourcePathId})});
+    const path=joinSaamPath({sourcePathId,deposition:source,schedule:schedulePath(source,{sourcePathId,nozzleTypes:schedulingNozzleInputs(machine,plan)})});
     const prepared=(await preparePath(path,plan,machine)),program={moves:pathPreview(prepared,{plan}).moves,
       events:[...prepared.actions].map((a,i)=>({...a,line:i+1})).filter(a=>['retract','recover'].includes(a.kind)).map((a,i,all)=>({...a,kind:a.kind==='recover'&&!all.slice(0,i).some(x=>x.kind==='retract')?'startup-recover':a.kind}))};
     const depositing=program.moves.filter(m=>m.extruding),prime=depositing.filter(m=>m.phase==='prime');

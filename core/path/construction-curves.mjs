@@ -7,11 +7,16 @@ import {strokeRange} from './deposition.mjs';
 import {prepareNumericalCurve,numericalCurveRegular} from '../geom/curve-query.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 
+// Finalization transfers these strokes unchanged to publication. Retain failed
+// storage fits too, so publication does not repeat an expensive rejected fit.
+const retainedCurves=new WeakMap();
 function regularGeometry(geometry){
   return numericalCurveRegular(prepareNumericalCurve(geometry));
 }
 
 export function constructionCurve(input,surface){
+  const retained=retainedCurves.get(input);
+  if(retained&&retained.surface===surface)return retained.path;
   const stroke=input.closed?strokeRange(input):input,points=stroke.points;
   const witness=stroke.nativePath?.points;
   if(witness&&(points===witness||points.length===witness.length&&points.every((point,i)=>point.every((value,k)=>value===witness[i][k])))&&
@@ -32,17 +37,34 @@ export function constructionCurve(input,surface){
   // Reserve at most 5 microns for fitting, tightened to 1/80 of the smallest
   // deposited dimension. Geometry certifies this caller-owned physical budget;
   // native witnesses above never pass through the sampled-curve fitter.
-  let toleranceMm=5*PRINT_RESOLUTION_MM;
+  const budget={toleranceMm:5*PRINT_RESOLUTION_MM,extentMm:PRINT_RESOLUTION_MM};
   for(const record of [stroke,...stroke.segmentMetadata??[]])
     for(const value of [record.beadWidthMm,record.beadHeightMm,record.normalGapMm])
-      if(Number.isFinite(value)&&value>0)toleranceMm=Math.min(toleranceMm,value/80);
-  const fitted=fitSampledCurve(points,{planeNormal:normal,toleranceMm});
+      if(Number.isFinite(value)&&value>0){budget.toleranceMm=Math.min(budget.toleranceMm,value/80);budget.extentMm=Math.max(budget.extentMm,value);}
+  // The parameter carries material. Bound its local metric too: shortening a
+  // tiny zigzag while conserving volume would otherwise inflate its section.
+  const fitted=fitSampledCurve(points,{planeNormal:normal,toleranceMm:budget.toleranceMm,
+    relativeSpeedTolerance:Math.min(1/80,budget.toleranceMm/budget.extentMm)});
   return fitted?{...fitted,fitted:true}:null;
 }
 export function retainConstructionCurves(result){
   return {...result,operations:result.operations.map(operation=>({...operation,strokes:operation.strokes.map(stroke=>{
     if(stroke.stationaryExtrusion)return stroke;
     const nativePath=constructionCurve(stroke,operation.slice);
-    return nativePath?{...stroke,nativePath}:stroke;
+    const retained=nativePath?{...stroke,nativePath}:stroke;
+    retainedCurves.set(retained,{surface:operation.slice,path:nativePath});
+    return retained;
   })}))};
+}
+
+// Carry the already selected sampled geometry across an exact zero-edge closure.
+export function transferConstructionCurveSelection(source,target,surface){
+  const selected=retainedCurves.get(source);
+  if(!selected||selected.surface!==surface||selected.path!==null)throw Error('Expected retained sampled construction geometry.');
+  const a=source.closed?strokeRange(source):source,b=target.closed?strokeRange(target):target;
+  const edges=a.points.slice(1).map((point,i)=>({point,i})).filter(({point,i})=>point.some((value,k)=>value!==a.points[i][k]));
+  if(b.points.length!==edges.length+1||edges.some(({point,i},j)=>point.some((value,k)=>value!==b.points[j+1][k])||a.points[i].some((value,k)=>value!==b.points[j][k])))
+    throw Error('Construction geometry transfer needs identical ordered positive edges.');
+  retainedCurves.set(target,selected);
+  return {completed:true};
 }

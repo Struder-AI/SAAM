@@ -5,16 +5,23 @@ Owner direction, 2026-10-18:
 > Bundle should not store exported gcode or other machine adapter code.
 
 Bundle retains geometry, recipe, immutable neutral SAAMpath, reviewed input
-snapshots and factual export receipts. Machine program templates remain in
-extensions. Existing historical program files are not copied, required or used
+snapshots and factual export receipts. Machine extensions supply program
+templates; the selected literal template data is retained with captured machine
+inputs, as clarified in [ADR 0003](0003-captured-machine-profile-data.md).
+Executable adapters remain extension code. Existing historical program files are not copied, required or used
 by the current workflow; this change does not delete the user's old files.
 
 Generation completes neutral construction and scheduling without invoking an
 adapter. Studio reviews that saved result. The person's Export captures its path
-and settings before queued work, then machine preparation/writing produces bytes
+and settings at the ready click, then machine preparation/writing produces bytes
 for download without storing them in the bundle. An adapter failure leaves saved
 work intact. Production uses writer facts; optional interpretation remains a
 developer diagnostic. This supersedes earlier program-retention descriptions.
+
+Owner clarification, 2026-10-21: a ready Export starts independently of unrelated
+Studio tasks; it does not enter their edit/generation queue. A completed result
+remains exportable while upstream work produces its replacement, superseding
+the earlier rule that regeneration disabled Export.
 
 The owner's “trivial migration only” rule applies: field aliases and direct
 references are sufficient for supported manifests. Retired split-file bundles

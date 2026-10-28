@@ -9,15 +9,17 @@ export function sampleCurveIntervals({at,cuts=[0,1],stepMm,toleranceMm,chartStep
   const ordered=[...new Set(cuts)].sort((a,b)=>a-b),samples=[{...at(ordered[0]),t:ordered[0]}];
   const evaluate=t=>({...at(t),t});
   for(let i=1;i<ordered.length;i++){
-    const stack=[[samples.at(-1),evaluate(ordered[i])]];
+    const stack=[{a:samples.at(-1),b:evaluate(ordered[i]),midpoint:null}];
     while(stack.length){
-      const [a,b]=stack.pop(),fractions=[.25,.5,.75],probes=fractions.map(f=>evaluate(a.t+(b.t-a.t)*f));
+      const {a,b,midpoint}=stack.pop(),fractions=[.25,.5,.75],middleT=a.t+(b.t-a.t)*.5;
+      const probes=[evaluate(a.t+(b.t-a.t)*.25),
+        midpoint&&Object.is(midpoint.t,middleT)?midpoint:evaluate(middleT),evaluate(a.t+(b.t-a.t)*.75)];
       const error=Math.max(...probes.map((p,j)=>distance(p.point,a.point.map((v,k)=>v+(b.point[k]-v)*fractions[j]))));
       const chartOkay=chartSteps.every((limit,k)=>!Number.isFinite(limit)||Math.abs(b.chart[k]-a.chart[k])<=limit);
       if(chartOkay&&distance(a.point,b.point)<=stepMm&&error<=toleranceMm){samples.push(b);continue;}
       const mid=probes[1];
       requireThat(mid.t>a.t&&mid.t<b.t,'Curve refinement cannot progress at requested physical tolerance.');
-      stack.push([mid,b],[a,mid]);
+      stack.push({a:mid,b,midpoint:probes[2]},{a,b:mid,midpoint:probes[0]});
     }
   }
   return samples;

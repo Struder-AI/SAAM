@@ -6,7 +6,7 @@ research, parameter specification and example remain in one portable workspace.
 The old standalone server and direct native/private imports have been removed.
 
 Construction uses shared Geometry `buildGeometry`/`constructSolids` and the
-declared Text dependency’s `compileText`. Final meshes and ordinary Slice assignments
+declared Text dependency’s `build`. Final meshes and ordinary Slice assignments
 are self-contained Bundle contributions. Saved design is historical provenance;
 Studio owns subsequent editing, settings, generation and Export.
 

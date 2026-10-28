@@ -31,8 +31,8 @@ function positiveSpeed(rows){
 // and derivatives. Work in each control's local coordinate frame, reusing small
 // scratch arrays, rather than building two complete de Casteljau triangles for
 // every sampled edge. These are the same Bernstein whole-edge certificates.
-function differenceBound(rows,points,parameters,first,last){
-  const state={error:0,edge:first+1},degree=rows.length-1;
+function differenceBound(rows,points,parameters,first,last,relativeSpeedTolerance){
+  const state={error:0,edge:first+1,forward:true},degree=rows.length-1;
   const errors=new Float64Array(rows.length*3),magnitudes=new Float64Array(rows.length);
   const from=parameters[first],span=parameters[last]-from;
   for(let i=first+1;i<=last;i++){
@@ -63,11 +63,21 @@ function differenceBound(rows,points,parameters,first,last){
       const error=Math.hypot(errors[j*3],errors[j*3+1],errors[j*3+2])+FLOAT64_EPSILON*32*magnitudes[j];
       if(error>state.error){state.error=error;state.edge=i;}
     }
+    // Positional closeness alone can erase a complete short reversal. The
+    // restricted derivative hull must advance along every original edge.
+    const edge=points[i].map((value,k)=>value-points[i-1][k]),edgeLength=Math.hypot(...edge);
+    for(let j=0;j<degree;j++){
+      const x=edge[0]/degree+errors[(j+1)*3]-errors[j*3],y=edge[1]/degree+errors[(j+1)*3+1]-errors[j*3+1],z=edge[2]/degree+errors[(j+1)*3+2]-errors[j*3+2];
+      const projection=(x*edge[0]+y*edge[1]+z*edge[2])/edgeLength,speed=Math.hypot(x,y,z);
+      if(projection<=FLOAT64_EPSILON*32*speed)state.forward=false;
+      if(relativeSpeedTolerance!==undefined&&(projection<edgeLength/degree*(1-relativeSpeedTolerance)||speed>edgeLength/degree*(1+relativeSpeedTolerance)))state.forward=false;
+    }
   }
   return state;
 }
-export function fitSampledCurve(points,{toleranceMm,forceNative=false,planeNormal=null}={}){
+export function fitSampledCurve(points,{toleranceMm,forceNative=false,planeNormal=null,relativeSpeedTolerance}={}){
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Curve fitting needs a positive physical error budget.');
+  requireThat(relativeSpeedTolerance===undefined||Number.isFinite(relativeSpeedTolerance)&&relativeSpeedTolerance>0&&relativeSpeedTolerance<1,'Curve fitting needs a relative speed budget between zero and one.');
   if(points.length<2)return null;
   const plane=planeNormal?{normal:planeNormal.map(v=>v/Math.hypot(...planeNormal)),origin:points[0]}:null;
   if(plane){
@@ -79,14 +89,15 @@ export function fitSampledCurve(points,{toleranceMm,forceNative=false,planeNorma
   if(!(lengths.at(-1)>0)||lengths.some((value,i)=>i&&value===lengths[i-1]))return null;
   const parameters=lengths.map(value=>value/lengths.at(-1)),pieces=[],pending=[[0,points.length-1]],maximum={error:0};
   while(pending.length){
-    const [first,last]=pending.pop(),line=[points[first],points[last]],straight=differenceBound(line,points,parameters,first,last);
+    const [first,last]=pending.pop(),line=[points[first],points[last]],straight=differenceBound(line,points,parameters,first,last,relativeSpeedTolerance);
     const candidate=straight.error<=toleranceMm?line:controls(points,parameters,first,last);
-    const rows=plane?candidate.map(point=>{
+    const projected=plane?candidate.map(point=>{
       const distance=point.reduce((sum,v,k)=>sum+(v-plane.origin[k])*plane.normal[k],0);
       return point.map((v,k)=>v-distance*plane.normal[k]);
     }):candidate;
-    const bound=rows===line?straight:differenceBound(rows,points,parameters,first,last);
-    if(last===first+1||bound.error<=toleranceMm&&positiveSpeed(rows)){
+    const rows=projected.every((point,i)=>point.every((value,k)=>value===candidate[i][k]))?candidate:projected;
+    const bound=rows===line?straight:differenceBound(rows,points,parameters,first,last,relativeSpeedTolerance);
+    if(last===first+1||bound.error<=toleranceMm&&bound.forward&&positiveSpeed(rows)){
       pieces.push({rows,from:parameters[first],to:parameters[last]});maximum.error=Math.max(maximum.error,bound.error);continue;
     }
     // Keep error-directed refinement balanced by point count. Repeated turns

@@ -22,8 +22,9 @@ export async function constructEdgePaths(plan,request){
   const width=positive(request.beadWidthMm??process.lineWidthMm,'beadWidthMm'),speed=positive(request.speedMmS??process.planarSpeedMmS,'speedMmS');
   const spacing=positive(request.spacingMm??width,'spacingMm'),sampleStepMm=positive(request.sampleStepMm??width/2,'sampleStepMm');
   const normal=base.materialNormal?.map(v=>v*(request.normalSide??1));
-  requireThat(base.readiness,'A base edge needs separate manufacturing readiness.');
-  const curves=[],after=[base.readiness],repetitionIds=[],repetitionAfter={};
+  const baseRequirements=base.targets??(base.readiness?[base.readiness]:[]);
+  requireThat(baseRequirements.length,'A base edge needs manufactured Slice targets or separate readiness.');
+  const curves=[],after=[...baseRequirements],repetitionIds=[],repetitionAfter={};
   if(request.mode==='wave'){
     requireThat(target,'An advancing front needs its base edge and final geometric edge.');
     const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal});
@@ -37,12 +38,13 @@ export async function constructEdgePaths(plan,request){
   }else{
     let rows,referenceNormal=normal;
     if(target){
-      requireThat(target.readiness,'Both bridge bounds need manufacturing readiness.');
+      const targetRequirements=target.targets??(target.readiness?[target.readiness]:[]);
+      requireThat(targetRequirements.length,'Both bridge bounds need manufactured Slice targets or separate readiness.');
       const pair=Geometry.curvePairSurface(base.curve,target.curve,{correspondence:request.correspondence,normal}),surface=Geometry.referenceSurface(pair.surface);
       const first=Geometry.sampleSpatialCurve(base.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm}),second=Geometry.sampleSpatialCurve(target.curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm});
       const count=Math.max(1,Math.ceil(Math.max(Geometry.curveLength(first.samples.map(s=>s.point)),Geometry.curveLength(second.samples.map(s=>s.point)))/spacing));
       rows=Array.from({length:count+(base.closed?0:1)},(_,i)=>[Geometry.evaluateSurface(surface,[i/count,0]).point,Geometry.evaluateSurface(surface,[i/count,1]).point]);
-      referenceNormal??=Geometry.evaluateSurface(surface,[.37,.5]).normal;after.push(target.readiness);
+      referenceNormal??=Geometry.evaluateSurface(surface,[.37,.5]).normal;after.push(...targetRequirements);
     }else ({rows,normal:referenceNormal}=Geometry.closedEdgeSpans(base.curve,{spacingMm:spacing,normal,angleDeg:request.angleDeg,sampleStepMm}));
     requireThat(rows.length,'The selected boundary produces no bridge spans.');
     const shifted=rows.map((row,i)=>{

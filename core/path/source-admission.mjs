@@ -1,21 +1,53 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {prepareCurvePath,curveAt} from './curve-path.mjs';
-import {validatePose,samePose} from './pose.mjs';
+import {validatePose,samePose,axisPose} from './pose.mjs';
+import {validateProfile,scalarRange,depositionAspectAdvisories} from './curve-profiles.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
-import {validateManufacturing,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
+import {validateStationaryAction} from './injection.mjs';
+import {stationaryAt} from './injection.mjs';
+import {validateManufacturing,manufacturingDependencies,CONSTRUCTION_CONTRACT,RETIRED_CONSTRUCTION_CONTRACTS} from './manufacturing.mjs';
+import {jsonChunks} from '../json-chunks.mjs';
 
 const table=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const id=value=>typeof value==='string'&&value.length>0;
 const interval=(from,to)=>Number.isFinite(from)&&Number.isFinite(to)&&from>=0&&from<to&&to<=1;
 const point=value=>Array.isArray(value)&&value.length===3&&value.every(Number.isFinite);
-export function serializableSource(value){
-  if(typeof value==='number'){requireThat(Number.isFinite(value),'SAAMpath contains non-finite numerical data.');return value+0;}
-  if(Array.isArray(value)||ArrayBuffer.isView(value))return Array.from(value,serializableSource);
-  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).filter(([,v])=>v!==undefined).map(([k,v])=>[k,serializableSource(v)]));
-  requireThat(value===null||['string','boolean'].includes(typeof value),'SAAMpath contains non-serializable data.');return value;
+const admittedPaths=new WeakSet(),executionPairs=new WeakMap(),ownedSourceValues=new WeakSet();
+// Only this publication/import boundary establishes reusable identity. Frozen
+// caller data and serialized validity assertions are not admission evidence.
+export function admitPath(input){
+  if(admittedPaths.has(input))return input;
+  requireThat(input?.schema==='saampath/3'||input?.schema==='saam-schedule/1','Deprecated SAAMpath source; regenerate it.');
+  const copy=serializableSource(input);
+  if(copy.schema==='saampath/3')admitSource(copy);else admitSchedule(copy);
+  admittedPaths.add(copy);return copy;
+}
+// This owner's private admission establishes the frozen plain-data graph;
+// arbitrary frozen caller objects cannot opt into a trusted serializer mode.
+export function admittedPathChunks(input){return jsonChunks(admitPath(input));}
+// Capture mutable inputs; later composites can share only records this boundary
+// already copied and froze. Ownership alone never admits a source or schedule.
+export function serializableSource(input){
+  const copies=new WeakMap(),active=new WeakSet();
+  function capture(value){
+    if(typeof value==='number'){requireThat(Number.isFinite(value),'SAAMpath contains non-finite numerical data.');return value+0;}
+    if(value&&typeof value==='object'){
+      if(ownedSourceValues.has(value))return value;
+      requireThat(!active.has(value),'SAAMpath contains cyclic non-serializable data.');
+      if(copies.has(value))return copies.get(value);
+      active.add(value);
+      const copy=Array.isArray(value)||ArrayBuffer.isView(value)?Array.from(value,capture):
+        Object.fromEntries(Object.entries(value).filter(([,v])=>v!==undefined).map(([k,v])=>[k,capture(v)]));
+      active.delete(value);Object.freeze(copy);ownedSourceValues.add(copy);copies.set(value,copy);return copy;
+    }
+    requireThat(value===null||['string','boolean'].includes(typeof value),'SAAMpath contains non-serializable data.');return value;
+  }
+  return capture(input);
 }
 export function admitSource(source){
+  requireThat(source.schema==='saampath/3','Deprecated SAAMpath source; regenerate it.');
   for(const key of ['curves','layers','surfaces','processes','operations'])requireThat(table(source[key])&&Object.keys(source[key]).every(id),'Source needs ID keyed '+key+'.');
+  requireThat(source.sectionReference==='top'&&Object.values(source.curves).every(curve=>curve.profiles?.toolAxis!==undefined),'Paath needs top-reference placement and axis anchors.');
   const reader=prepareCurvePath(source);
   for(const process of Object.values(source.processes))requireThat(process.minimumBridgeRatio===undefined||
     Number.isFinite(process.minimumBridgeRatio)&&process.minimumBridgeRatio>=0&&process.minimumBridgeRatio<=1,'minimumBridgeRatio must be between 0 and 1.');
@@ -32,6 +64,7 @@ export function admitSource(source){
   }
   const courses=new Set();
   for(const [key,operation] of Object.entries(source.operations)){
+    requireThat(Number.isSafeInteger(operation.toolIndex)&&operation.toolIndex>=0&&!Object.hasOwn(operation,'filament'),'Paath entities need a neutral logical toolIndex.');
     for(const requirement of operation.requiredMaterial??[])requireThat(requirement.layerIds===undefined||Array.isArray(requirement.layerIds)&&new Set(requirement.layerIds).size===requirement.layerIds.length&&requirement.layerIds.every(value=>value===null||Object.hasOwn(source.layers,value)),
       'Scoped material readiness must select existing native slices or unlayered producers.');
     for(const field of ['discoverSubstrate','resolveSubstrate','resolveInternalSubstrate','suppliesSubstrate'])requireThat(operation[field]===undefined||operation[field]===true,'Invalid substrate-contact declaration.');
@@ -41,13 +74,16 @@ export function admitSource(source){
       'Operation needs process, native layer or null, and interruptibility.');
     if(operation.kind==='deposit'){
       requireThat(Array.isArray(operation.courses)&&operation.courses.length>0,'Moving operation needs courses.');
+      requireThat(operation.foundation===undefined||operation.foundation==='stack','Operation foundation must be stack when present.');
       for(const course of operation.courses){
         requireThat(course.directionRequired===undefined||typeof course.directionRequired==='boolean','Course directionRequired must be boolean.');
         requireThat(course.seamRequired===undefined||typeof course.seamRequired==='boolean','Course seamRequired must be boolean.');
         requireThat(course.orderGroup===undefined||id(course.orderGroup),'Course orderGroup must be a nonempty local name.');
+        requireThat(course.founded===undefined||Array.isArray(course.founded)&&course.founded.every(([a,b],i)=>course.from<=a&&a<b&&b<=course.to&&(!i||a>=course.founded[i-1][1])),
+          'Course founded intervals must be increasing, disjoint and within the course.');
         requireThat(id(course.id)&&!courses.has(course.id)&&Object.hasOwn(source.curves,course.curveId)&&interval(course.from,course.to)&&typeof course.interruptible==='boolean',
           'Invalid or duplicated source course.');courses.add(course.id);
-        requireThat(source.curves[course.curveId].geometry.kind!=='point'&&source.curves[course.curveId].profiles.material,'Moving deposition needs material on a moving curve.');
+        requireThat(source.curves[course.curveId].geometry.kind!=='point'&&source.curves[course.curveId].profiles.rateMm3PerMm!==undefined,'Moving deposition needs rate anchors on a moving curve.');
         if(course.seamRequired===true){
           const start=curveAt(reader,course.curveId,course.from).point,end=curveAt(reader,course.curveId,course.to,{side:'left'}).point;
           requireThat(start.every((v,i)=>Math.abs(v-end[i])<=ROUNDING_MM),'A required seam belongs to a closed course.');
@@ -55,9 +91,10 @@ export function admitSource(source){
       }
     }else{
       const injection=operation.injection;
-      requireThat(operation.kind==='inject'&&!operation.courses&&operation.interruptible===false&&point(injection?.at)&&
-        Number.isFinite(injection.volumeMm3)&&injection.volumeMm3>0&&Number.isFinite(injection.flowMm3S)&&injection.flowMm3S>0&&Number.isFinite(injection.holdSeconds)&&injection.holdSeconds>=0,
-        'Inject needs an atomic finite metered stationary operation.');validatePose(injection.pose);
+      requireThat(operation.kind==='inject'&&!operation.courses&&operation.interruptible===false&&point(injection?.at),
+        'Inject needs an atomic finite metered stationary operation.');
+      validateStationaryAction(injection);
+      requireThat(!Object.hasOwn(injection,'pose'),'Stationary Paath stores tool axis without authored roll.');validateProfile(injection.toolAxis,'toolAxis');
     }
   }
   for(const operation of Object.values(source.operations))for(const [index,course] of (operation.courses??[]).entries()){
@@ -71,7 +108,7 @@ export function admitSource(source){
   validateManufacturing(source);
   if(source.manufacturing){
     const validity=source.manufacturing;
-    requireThat([CONSTRUCTION_CONTRACT,'saam-construction-access/1','saam-construction-access/2'].includes(validity.contract)&&table(validity.accessGeometry)&&table(validity.courseTraversal),
+    requireThat([CONSTRUCTION_CONTRACT,...RETIRED_CONSTRUCTION_CONTRACTS,'saam-construction-access/1','saam-construction-access/2'].includes(validity.contract)&&table(validity.accessGeometry)&&table(validity.courseTraversal),
       'Manufacturing validity needs its access model and permitted traversal exceptions.');
     requireThat(Number.isFinite(validity.accessGeometry.includedAngleDeg)&&validity.accessGeometry.includedAngleDeg>0&&validity.accessGeometry.includedAngleDeg<180&&
       Number.isFinite(validity.accessGeometry.tipDiameterMm)&&validity.accessGeometry.tipDiameterMm>=0,'Invalid construction access geometry.');
@@ -82,12 +119,24 @@ export function admitSource(source){
   requireThat(table(source.planning)&&table(source.summary),'Source needs planning and summary records.');
   return source;
 }
+// Diagnostic query over exact admitted moving ranges. Stationary dose/hold and
+// unused portions of reusable curves do not invent moving section advice.
+export function sourceDepositionAdvisories(source){
+  const advisories=[];
+  for(const [operationId,operation] of Object.entries(source.operations))if(operation.kind==='deposit')for(const course of operation.courses)
+    advisories.push(...depositionAspectAdvisories(source.curves[course.curveId].profiles,
+      {label:'Paath '+operationId+' / '+course.id,scope:{operationId,courseId:course.id,curveId:course.curveId},from:course.from,to:course.to}));
+  return advisories;
+}
 export function admitSchedule(schedule){
   requireThat(id(schedule.sourcePathId)&&point(schedule.initialPosition)&&table(schedule.motionCurves)&&Array.isArray(schedule.execution),
     'Schedule needs exact source identity, initial position, motion curves and execution.');
   validatePose(schedule.initialPose);prepareCurvePath({curves:schedule.motionCurves});
   requireThat(table(schedule.summary)&&table(schedule.completion),'Schedule needs summary and completion records.');
   for(const curve of Object.values(schedule.motionCurves)){
+    if(curve.profiles.toolAxis!==undefined){
+      requireThat(curve.profiles.rateMm3PerMm===undefined||scalarRange(curve.profiles.rateMm3PerMm,0,1,{endSide:'right'})[1]===0,'Travel cannot deposit material.');continue;
+    }
     const material=curve.profiles.material;
     if(material)requireThat(material.kind==='cumulative'?material.knots.at(-1)[1]===0:
       typeof material.areaMm2==='number'?material.areaMm2===0:material.areaMm2.knots.every(([,value])=>value===0),'Travel cannot deposit material.');
@@ -112,8 +161,17 @@ function validateEvent(entry){
   else throw Error('Invalid execution event: '+entry.kind);
 }
 export function validateExecutionSource(source,schedule){
+  const reusable=admittedPaths.has(source)&&admittedPaths.has(schedule),known=reusable?executionPairs.get(source)?.get(schedule):null;
+  if(known)return known;
   const courses=new Map(),coverage=new Map(),injections=new Set(),operationIndices=new Map(),courseIndices=new Map();
   const reader=prepareCurvePath(source),motion=prepareCurvePath({curves:schedule.motionCurves}),cursor={point:schedule.initialPosition,pose:schedule.initialPose};
+  let previousOperation;
+  function recordOperation(id,index){
+    const chronology=operationIndices.get(id);
+    if(chronology){chronology.last=index;if(previousOperation!==id)chronology.runs++;}
+    else operationIndices.set(id,{first:index,last:index,runs:1});
+    previousOperation=id;
+  }
   for(const operation of Object.values(source.operations))for(const course of operation.courses??[])courses.set(course.id,{course,operation});
   for(const [index,entry] of schedule.execution.entries()){
     if(entry.kind==='deposit'){
@@ -127,11 +185,12 @@ export function validateExecutionSource(source,schedule){
       const pieces=coverage.get(entry.courseId)??[];pieces.push({from:entry.from,to:entry.to,reverse:entry.reverse,index});coverage.set(entry.courseId,pieces);
       const chronology=courseIndices.get(entry.courseId);
       if(chronology)chronology.last=index;else courseIndices.set(entry.courseId,{first:index,last:index});
-      const indices=operationIndices.get(found.operation.id)??[];indices.push(index);operationIndices.set(found.operation.id,indices);
+      recordOperation(found.operation.id,index);
     }else if(entry.kind==='inject'){
       requireThat(source.operations[entry.operationId]?.kind==='inject'&&!injections.has(entry.operationId),'Injection must execute once.');
-      const injection=source.operations[entry.operationId].injection;requireContinuation(cursor,injection.at,injection.pose);
-      injections.add(entry.operationId);operationIndices.set(entry.operationId,[index]);
+      const operation=source.operations[entry.operationId],start=stationaryAt(operation),end=stationaryAt(operation,1);
+      requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
+      injections.add(entry.operationId);recordOperation(entry.operationId,index);
     }else if(entry.kind==='travel'){
       const start=curveAt(motion,entry.curveId,entry.from),end=curveAt(motion,entry.curveId,entry.to,{side:'left'});
       requireContinuation(cursor,start.point,start.pose);cursor.point=end.point;cursor.pose=end.pose;
@@ -149,34 +208,40 @@ export function validateExecutionSource(source,schedule){
     for(const previous of course.after??[])requireThat(courseIndices.get(previous)?.last<courseIndices.get(course.id).first,
       'Execution violates a required course dependency.');
   }
-  const completionIndices=new Map();
-  function completionRange(id){
-    if(completionIndices.has(id))return completionIndices.get(id);
-    const operation=operationIndices.get(id);
-    if(operation)return [operation[0],operation.at(-1)];
-    const course=courseIndices.get(id);if(course)return [course.first,course.last];
-    const completion=source.completions?.[id];requireThat(completion,'Execution prerequisite names absent work.');
-    const range=[Infinity,-Infinity];
-    for(const member of completion.members){const bounds=completionRange(member);range[0]=Math.min(range[0],bounds[0]);range[1]=Math.max(range[1],bounds[1]);}
-    completionIndices.set(id,range);return range;
+  // Virtual completion nodes have no execution index. Carry chronological
+  // lower bounds through the same containment/prerequisite DAG instead of
+  // letting an empty range automatically satisfy its dependents.
+  const graph=manufacturingDependencies(source,{includeComposition:false}),fixed=new Map(),lower=new Map(),following=new Map(),remaining=new Map(),ready=[];
+  for(const [id,indices] of operationIndices){fixed.set(graph.starts.get(id),2*indices.first);fixed.set(graph.ends.get(id),2*indices.last+1);}
+  for(const [id,indices] of courseIndices)if(graph.courseStarts.has(id)){
+    const start=graph.courseStarts.get(id),end=graph.courseEnds.get(id);
+    if(!fixed.has(start))fixed.set(start,2*indices.first);
+    if(!fixed.has(end))fixed.set(end,2*indices.last+1);
   }
-  for(const [id,completion] of Object.entries(source.completions??{})){
-    const range=completionRange(id);
-    for(const previous of completion.after)requireThat(completionRange(previous)[1]<range[0],'Execution violates a required completion dependency.');
+  for(const [node,parents] of graph.parents){remaining.set(node,parents.size);following.set(node,[]);if(!parents.size)ready.push(node);}
+  for(const [node,parents] of graph.parents)for(const parent of parents)following.get(parent).push(node);
+  for(let i=0;i<ready.length;i++){
+    const node=ready[i],bound=lower.get(node)??-Infinity;
+    requireThat(!fixed.has(node)||bound<=fixed.get(node),'Execution violates a required manufacturing dependency.');
+    const value=fixed.get(node)??bound;
+    for(const next of following.get(node)){lower.set(next,Math.max(lower.get(next)??-Infinity,value));remaining.set(next,remaining.get(next)-1);if(!remaining.get(next))ready.push(next);}
   }
+  requireThat(ready.length===graph.parents.size,'Manufacturing prerequisites contain a cycle.');
   for(const operation of Object.values(source.operations)){
-    const indices=operationIndices.get(operation.id);requireThat(indices?.length>0,'Source operation is missing from execution.');
-    for(const predecessor of operation.after)requireThat(completionRange(predecessor)[1]<indices[0],'Execution violates an explicit source dependency.');
-    if(!operation.interruptible){
-      const first=indices[0],last=indices.at(-1);
-      for(const [other,found] of operationIndices)if(other!==operation.id)requireThat(found.every(index=>index<first||index>last),'An atomic operation cannot interleave.');
-    }
+    const indices=operationIndices.get(operation.id);requireThat(indices,'Source operation is missing from execution.');
+    if(!operation.interruptible)requireThat(indices.runs===1,'An atomic operation cannot interleave.');
     if(operation.continuous){
       const ordered=(operation.courses??[]).map(course=>coverage.get(course.id));
       requireThat(ordered.every((pieces,i)=>pieces.length===1&&(!i||ordered[i-1][0].index<pieces[0].index)),
         'Execution cannot split or reorder an authored continuous chain.');
     }
   }
+  const view=Object.freeze({sourcePathId:schedule.sourcePathId,deposition:source,schedule});
+  if(reusable){
+    if(!executionPairs.has(source))executionPairs.set(source,new WeakMap());
+    executionPairs.get(source).set(schedule,view);
+  }
+  return view;
 }
 function requireContinuation(cursor,point,pose){
   requireThat(point.every((value,i)=>Math.abs(value-cursor.point[i])<=ROUNDING_MM)&&samePose(cursor.pose,pose),

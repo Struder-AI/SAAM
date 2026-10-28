@@ -1,42 +1,41 @@
 // Context layers: which manuals an agent starts with, the index of gated sections, the hint a
-// machine change carries, and the size of each layer per client and machine.
+// machine change carries, and machine-dependent guidance.
 // The markers and their assembly are owned by manuals.mjs.
-import { readFile, access } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { gatedSections, readManual, machineOpens } from './manuals.mjs';
+import { gatedSections, prepareManual, assembleManual, machineOpens } from './manuals.mjs';
 import { SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS } from '../../skills/catalog.mjs';
-import { machineIds as catalogIds } from '../machine/profile.mjs';
 import {listExtensions} from '../extensions/library.mjs';
-import {z} from 'zod';
 
 // The maker's starting context, for both clients: the index (the digest) and the maker flow and
 // print tools, plus their script sections for a script client. GEOMETRY.md, like a skill manual,
 // is read by section when a form is written; MAKERS.md indexes its forms.
 export const MAKER_MANUALS = ['MAKERS.md', 'GEOMETRY.md', 'core/print/USAGE.md'];
-const STARTING = ['MAKERS.md', 'core/print/USAGE.md'];
 export const ONBOARDING = ['MAKERS.md', 'skills/DIGEST.md', 'core/print/USAGE.md'];
 const skillManual = id => `skills/${id}/SKILL.md`;
 
 // Selected workspaces are discoverable whether bundled or imported; skill
 // extensions already in the digest only need a note for local overrides.
 // Extensions that could not be read are named with their reasons.
-export async function extensionDiscovery(root,{readTool,openTool}){
-  const {extensions,skipped}=await listExtensions({appRoot:root});
+export async function extensionDiscovery(root,{readTool,openTool,dataRoot}){
+  const {extensions,skipped}=await listExtensions({appRoot:root,dataRoot});
   const selected=extensions.filter(item=>item.origin==='local'||item.manifest.kind==='workspace');
   const notes=[...selected.length?['Selected extensions: '+selected.map(item=>item.id+' ('+(item.manifest.kind??'skill')+', '+item.origin+')').join(', ')+'. Read each manual by ID with '+readTool+'. Open a workspace by extension ID with '+openTool+'; its new bundles return to Studio for review.']:[],
     ...skipped.length?['Skipped extensions, not loaded: '+skipped.map(item=>item.extension+' ('+item.origin+'): '+item.reason).join('; ')]:[]];
   return notes.length?{guidanceId:'extensions',path:'extensions',text:notes.join('\n')}:null;
 }
 
-export async function onboardingSources(root, context) {
-  const documents=await Promise.all(ONBOARDING.map(async id => {
-    const { guidanceId, path, text } = await readManual(root, id, context);
+export async function prepareOnboardingSources(root,options={}){return Promise.all(ONBOARDING.map(id=>prepareManual(root,id,options)));}
+export async function assembleOnboardingSources(root,prepared,context,{dataRoot}={}){
+  const documents=prepared.map(reference=>{
+    const {guidanceId,path,text}=assembleManual(reference,context);
     return { guidanceId, path, text };
-  }));
-  const discovery=await extensionDiscovery(root,{readTool:'read_skill',openTool:'open_workspace'});
+  });
+  const discovery=await extensionDiscovery(root,{readTool:'read_skill',openTool:'open_workspace',dataRoot});
   if(discovery)documents.push(discovery);
   return documents;
 }
+export async function onboardingSources(root,context,options={}){return assembleOnboardingSources(root,await prepareOnboardingSources(root,options),context,options);}
 
 // A skill section is named `ID#heading` (read_skill takes it); any other `PATH#heading`.
 export const sectionName = guidanceId => guidanceId.replace(/^skills\/([^/]+)\/SKILL\.md#/, '$1#');
@@ -59,68 +58,4 @@ export async function machineHint(root, { from = null, to }) {
     .filter(section => section.requires.some(opensNow) && !section.requires.some(opensBefore));
   return sections.length ? `This printer opens ${sections.map(section => `"${section.title}" (${sectionName(section.guidanceId)})`)
     .join(', ')}: read ${sections.length > 1 ? 'them' : 'it'} by name when the print uses ${sections.length > 1 ? 'them' : 'it'}.` : null;
-}
-
-// Bytes of each layer per machine. Layers are cumulative reads, so each is the
-// difference between the read that opens it and the one before.
-export async function contextBudget(root, { machineIds = catalogIds() } = {}) {
-  const size = text => Buffer.byteLength(text, 'utf8');
-  const read = async (id, context) => size((await readManual(root, id, context)).text);
-  const manuals = async context => {
-    let total = 0;
-    for (const id of STARTING) total += await read(id, context);
-    return total;
-  };
-  const index = await read('skills/DIGEST.md', {});
-  const { instructions, createLocalRuntime } = await import('../application/runtime.mjs'), { homePaths } = await import('../application/home.mjs');
-  const { mkdtemp, rm } = await import('node:fs/promises'), { tmpdir } = await import('node:os');
-  const home = await mkdtemp(resolve(tmpdir(), 'saam-context-budget-'));
-  let tools = 0,toolSchemas=0;const operations={},toolDefinitions=[];
-  try {
-    const paths = homePaths(home), runtime = createLocalRuntime({ paths, stateRoot: paths.state, autoOpen: false });
-    for (const operation of runtime.beginSession().operations){
-      // Measure the complete application operation catalog, including its schemas.
-      const inputSchema=z.toJSONSchema(operation.schema,{target:'draft-7',io:'input'});
-      const definition={name:operation.name,description:operation.description,inputSchema,
-        readOnly:operation.readOnly,openWorld:operation.openWorld};
-      const description=size(operation.description),schema=size(JSON.stringify(inputSchema));
-      operations[operation.name]={description,schema,total:size(JSON.stringify(definition))};
-      toolDefinitions.push(definition);tools+=description;toolSchemas+=schema;
-    }
-    await runtime.close();
-  } finally { await rm(home, { recursive: true, force: true }); }
-  const operate = await manuals({});
-  const onboardingJson = size(JSON.stringify(await onboardingSources(root, {})));
-  const advanced = {};
-  for (const machineId of machineIds) {
-    const extra = await manuals({ machineId }) - operate;
-    if (extra) advanced[machineId] = extra;
-  }
-  const skills = {};
-  for (const [id, path] of [['GEOMETRY.md', 'GEOMETRY.md'], ...[...SKILL_IDS,...GUIDANCE_IDS,...EXTENSION_IDS].map(id => [id, skillManual(id)])]) {
-    const operateSkill = await read(path, {});
-    const row = { operate: operateSkill, all: await read(path, { all: true }) };
-    for (const file of ['BUILDER.md', 'DEVELOPER.md']) {
-      try { await access(resolve(root, 'skills', id, file)); row.builder = (row.builder ?? 0) + await read(`skills/${id}/${file}`, { all: true }); }
-      catch (error) { if (error.code !== 'ENOENT') throw error; }
-    }
-    for (const machineId of machineIds) {
-      const extra = await read(path, { machineId }) - operateSkill;
-      if (extra) (row.advanced ??= {})[machineId] = extra;
-    }
-    skills[id] = row;
-  }
-  const serializedToolsBytes=size(JSON.stringify({tools:toolDefinitions}));
-  const firstUseBytes=onboardingJson+size(instructions)+serializedToolsBytes;
-  return {
-    unit: 'bytes of assembled UTF-8 text; onboardingJson is the serialized onboarding sources',
-    reader: { index, operate, indexPlusOperate: index + operate, onboardingJson, applicationInstructions: size(instructions), toolDescriptions: tools,toolSchemas,
-      serializedToolsBytes,firstUseBytes,firstSliceUseBytes:firstUseBytes+skills.slice.operate,
-      measurement:'Application operation catalog (draft-7 input schemas), instructions and onboarding; excludes chat-specific guidance.',
-      sliceAndModulateBytes:operations.slice.total+operations.modulate.total,
-      target:{bytes:15000,mode:'soft; no capability omission'},operations },
-    advancedByMachine: advanced, manualsOnDemand: skills,
-    onDemandTotals: Object.values(skills).reduce((sum, row) => ({ operate: sum.operate + row.operate,
-      all: sum.all + row.all, builder: sum.builder + (row.builder ?? 0) }), { operate: 0, all: 0, builder: 0 })
-  };
 }

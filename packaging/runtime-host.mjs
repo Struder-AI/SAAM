@@ -43,7 +43,7 @@ function flagValue(value,schema={}){
   return String(value);
 }
 // saam answers help itself (scripts/saam.mjs); a runtime runs operations.
-async function command(message){
+async function command(message,onActivity){
   const runtime=host.runtime;
   const operationName=message.command==='wait'?'wait_for_studio_request':message.command==='start-tour'?'start_tour':message.command==='call'?message.operation:null;
   const definition=runtime.operations.find(value=>value.name===operationName);
@@ -51,10 +51,8 @@ async function command(message){
   const properties=z.toJSONSchema(definition.schema,{target:'draft-7',io:'input'}).properties??{},args={...message.args};
   for(const [key,value] of Object.entries(message.flags??{}))args[key]=flagValue(value,properties[key]);
   if(message.command==='call'&&properties.bundleId&&message.bundleId!==undefined)args.bundleId??=String(message.bundleId);
-  const chat=await runtime.connectChat({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
-    bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args});
-  if(message.nativeContact)void chat.endTurn(message.nativeContact.reason,message.nativeContact.context).catch(error=>console.error('Client lifecycle recovery: '+error.message));
-  return {ok:true,result:await chat.invoke(operationName,args,{nativeContext:message.nativeContext})};
+  return {ok:true,result:await runtime.submitCommand({id:message.chatId,name:message.chatName??(message.client?message.client+' '+message.chatId.slice(0,8):message.chatId),client:message.client,visibility:message.visibility,
+    bundleId:message.operation==='capture_bundle'?undefined:message.bundleId??args.bundleId,operation:operationName,args,nativeContext:message.nativeContext,nativeContact:message.nativeContact},{onActivity})};
 }
 async function start(args){
   const paths=homePaths(),stateRoot=args.stateRoot,runtime=processRuntime();
@@ -87,7 +85,9 @@ async function handle(message){
   if(message.type==='start')return start(message.args);
   if(!host.runtime)throw Error('Runtime is not ready.');
   if(message.type==='end-turn')return host.runtime.endTurn(message.args.chatId,message.args.reason,message.args.contact);
-  if(message.type==='command')return command(message.args);
+  if(message.type==='client-ack')return host.runtime.acknowledgeClientEvents(message.args);
+  if(message.type==='response-events-ack')return host.runtime.acknowledgeResponseEvents(message.args);
+  if(message.type==='command')return command(message.args,active=>send({type:'command-activity',id:message.id,active}));
   if(message.type==='status')return {jobs:await host.runtime.runningJobs(),active:host.runtime.activeCount(),studios:host.runtime.studios()};
   if(message.type==='open')return host.runtime.openStudio(message.args);
   if(message.type==='restore')return host.runtime.restoreStudios(message.args.windows);

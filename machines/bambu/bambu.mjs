@@ -1,11 +1,9 @@
 // Bounded Bambu output (H2D, X1 Carbon). Firmware service commands come from
 // the service definition in the machine file, which owns every model-specific fact.
-import {createHash} from 'node:crypto';
-import {exportBambuBody} from './bambu-body.mjs';
+import {bambuBodyLines} from './bambu-body.mjs';
 import {requireThat,startupPosition,feederSelector,validateBambuConnections} from './filaments.mjs';
 import {resolveBambuJob} from './bambu-job.mjs';
 import {materializeBambuProject,serializeBambuProject} from './bambu-project.mjs';
-const digest=(bytes,algorithm='sha256')=>createHash(algorithm).update(bytes).digest('hex');
 const fmt=(n,d)=>Number(n.toFixed(d));
 const json=value=>JSON.stringify(value)+'\n';
 const xml=value=>String(value).replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
@@ -13,6 +11,7 @@ const meta=values=>Object.entries(values).map(([k,v])=>`    <metadata key="${k}"
 const BEGIN=';SAAM_BODY_BEGIN\n',END=';SAAM_BODY_END\n',GCODE='Metadata/plate_1.gcode';
 function configuration(plan,machine){
   const output=machine.outputs.find(o=>o.id===plan.output),s=plan.setup,k=output?.constraints;
+  requireThat(output?.program,'Captured Bambu program templates unavailable. A new machine selection and completed output are required.');
   requireThat(plan.output==='bambu-gcode'&&typeof output?.program?.contract==='string'&&Array.isArray(output.program.start)&&Array.isArray(output.program.end),'Unsupported Bambu output contract.');
   requireThat(s.material===k.material&&k.nozzleMm.includes(s.nozzleMm)&&s.filamentMm===k.filamentMm&&s.buildVolumeC===k.chamberC,
     `${machine.name} output requires a declared ${k.nozzleMm.join(', ')} mm ${k.material} setup, ${k.filamentMm} mm filament and no chamber heating.`);
@@ -109,28 +108,31 @@ export function createAdapter(Export){
     settings:{key:'bambu',validate(plan){
       feederSelector(plan,plan.machine);validateBambuConnections(plan.setup.bambu.amsConnections??null,plan.machine);
     }},
-    export:(prepared,settings)=>exportBambu(prepared,settings,settings.machine,settings.release,Export)};
+    write:(prepared,settings,sink)=>writeBambu(prepared,settings,settings.machine,settings.release,Export,sink)};
 }
-// Package totals, layer lists and thumbnails come from what the body writer
-// wrote; the body is never read back.
-function exportBambu(path,plan,machine,release,Export){
+// Package totals, layer lists and thumbnails come directly from the command
+// producer; the spooled body is read only for hashing and archive compression.
+async function writeBambu(path,plan,machine,release,Export,sink){
   const output=configuration(plan,machine);
   const filamentSequence=[plan.setup.filament];
   for(const action of path.actions)if(action.kind==='toolChange')filamentSequence.push(action.filament);
   const job=resolveBambuJob(plan,machine,output,{filamentSequence});
-  const {body,segments}=exportBambuBody(path,plan,machine,Export);
-  const usage=new Map(),layerUse=new Map();let volumeMm3=0,seconds=0,untimedMoves=0;
-  for(const {filament,tool,tally} of segments){
+  const c=contextFor(path,plan,machine,release),s=sections(c,job,output,value=>Export.number(value,'xyz'));
+  const body=await sink.member(),thumbnails=thumbnailRasters(c.bounds,Export.encodePng),usage=new Map(),layerUse=new Map(),unwrittenNotes=[];
+  let volumeMm3=0,seconds=0,untimedMoves=0,collapsedDepositMoves=0,terminalUnwrittenVolumeMm3=0;
+  const onSegment=({filament,tool,tally})=>{
     volumeMm3+=tally.volumeMm3;seconds+=tally.seconds;untimedMoves+=tally.untimedMoves;
     usage.set(filament,{filament,tool,volumeMm3:(usage.get(filament)?.volumeMm3??0)+tally.volumeMm3});
     for(const key of tally.layers){if(!layerUse.has(key))layerUse.set(key,new Set());layerUse.get(key).add(filament);}
-  }
-  const unwrittenNotes=segments.filter(({tally})=>tally.terminalUnwrittenVolumeMm3>tally.filamentStepVolumeMm3).map(({filament,tally})=>`Filament ${filament+1}: ${tally.collapsedDepositMoves} depositing move(s) collapsed at written XYZ precision; ${Number(tally.terminalUnwrittenVolumeMm3.toPrecision(6))} mm³ remained without a later writable deposition.`);
-  const written={unwrittenNotes,collapsedDepositMoves:segments.reduce((sum,{tally})=>sum+tally.collapsedDepositMoves,0),terminalUnwrittenVolumeMm3:segments.reduce((sum,{tally})=>sum+tally.terminalUnwrittenVolumeMm3,0),filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,untimedMoves,layerUse,
-    strokes:segments.flatMap(segment=>segment.tally.strokes)};
-  const c=contextFor(path,plan,machine,release),s=sections(c,job,output,value=>Export.number(value,'xyz'));
-  const code=header(c,written,job,Export.number)+s.start+BEGIN+body+END+s.end+'; EXECUTABLE_BLOCK_END\n';
-  return {bytes:Export.packZip(packageEntries(code,c,written,plan,output,job,s,Export.encodePng)),report:report(written,c,s,job)};
+    collapsedDepositMoves+=tally.collapsedDepositMoves;terminalUnwrittenVolumeMm3+=tally.terminalUnwrittenVolumeMm3;
+    if(tally.terminalUnwrittenVolumeMm3>tally.filamentStepVolumeMm3)unwrittenNotes.push(`Filament ${filament+1}: ${tally.collapsedDepositMoves} depositing move(s) collapsed at written XYZ precision; ${Number(tally.terminalUnwrittenVolumeMm3.toPrecision(6))} mm³ remained without a later writable deposition.`);
+  };
+  for(const line of bambuBodyLines(path,plan,machine,Export,{onStroke:thumbnails.stroke,onSegment}))await body.line(line);
+  await body.close();
+  const written={unwrittenNotes,collapsedDepositMoves,terminalUnwrittenVolumeMm3,filamentSequence,filamentUsage:[...usage.values()].filter(u=>u.volumeMm3>0),volumeMm3,seconds,untimedMoves,layerUse};
+  const code={parts:[header(c,written,job,Export.number)+s.start+BEGIN,body,END+s.end+'; EXECUTABLE_BLOCK_END\n']};
+  await sink.archive(await packageEntries(code,c,written,plan,output,job,s,thumbnails,sink));
+  return {report:report(written,c,s,job)};
 }
 // What the person confirms beyond the drawn path: firmware service, feed mapping, estimates.
 function report(written,c,s,job){
@@ -151,7 +153,7 @@ function report(written,c,s,job){
   return {notice:startup,seconds:written.seconds,untimedMoves:written.untimedMoves,volumeMm3:written.volumeMm3,collapsedDepositMoves:written.collapsedDepositMoves,terminalUnwrittenVolumeMm3:written.terminalUnwrittenVolumeMm3,limitations:[...job.notes,...written.unwrittenNotes],envelope};
 }
 
-function packageEntries(code,c,program,plan,output,job,s,encodePng){
+async function packageEntries(code,c,program,plan,output,job,s,thumbnails,sink){
   const {tool,map,nozzle,nozzles,color,used,count:declared,declaredMaps,limitMaps:usedFlags,settings,toolZeros}=job;
   const volume=program.volumeMm3,weight=volume/1000*job.density;
   const usage=program.filamentUsage.slice().sort((a,b)=>a.filament-b.filament),area=Math.PI*(job.filamentMm/2)**2;
@@ -164,7 +166,7 @@ function packageEntries(code,c,program,plan,output,job,s,encodePng){
   const plate={bbox_all:bbox,bbox_objects:[{area:(bbox[2]-bbox[0])*(bbox[3]-bbox[1]),bbox,id:1,layer_height:plan.process.layerMm,name:'SAAM part'}],
     bed_type:job.plate.id,filament_colors:usage.map(u=>job.filaments[u.filament].colour),filament_ids:usage.map(u=>u.filament),first_extruder:used,first_layer_time:0,is_seq_print:false,nozzle_diameter:nozzle,version:2};
   const entries=new Map([
-    [GCODE,code],[GCODE+'.md5',digest(code,'md5')],['Metadata/saam.json',json(c)],['Metadata/saam-job.json',json({schema:'saam-bambu-job/1',tool,nozzles,plate:job.plate.id,fast_start:job.fastStart,logicalFilament:used,filaments:job.filaments,requestedTray:job.requestedTray,amsConnections:job.amsConnections,amsMapping:'Confirm logical filament to physical tray mapping on the printer before starting.'})],
+    [GCODE,code],[GCODE+'.md5',await sink.digest(code,'md5')],['Metadata/saam.json',json(c)],['Metadata/saam-job.json',json({schema:'saam-bambu-job/1',tool,nozzles,plate:job.plate.id,fast_start:job.fastStart,logicalFilament:used,filaments:job.filaments,requestedTray:job.requestedTray,amsConnections:job.amsConnections,amsMapping:'Confirm logical filament to physical tray mapping on the printer before starting.'})],
     ['Metadata/plate_1.json',json(plate)],
     ['[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="gcode" ContentType="text/x.gcode"/></Types>\n'],
     ['3D/3dmodel.model',`<?xml version="1.0" encoding="UTF-8"?>\n<model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021"><metadata name="Application">SAAM-${xml(c.release.generatorVersion)}</metadata><metadata name="BambuStudio:3mfVersion">1</metadata><resources/><build/></model>\n`],
@@ -175,23 +177,27 @@ function packageEntries(code,c,program,plan,output,job,s,encodePng){
     ['Metadata/filament_sequence.json',json({plate_1:{nozzle_sequence:program.filamentSequence.map(i=>Number(settings.filament_map[i])-1),sequence:program.filamentSequence.map(i=>i+1)}})],
     ['Metadata/project_settings.config',output.package.projectSchema?serializeBambuProject(materializeBambuProject(job.projectSettings,s)):json(job.projectSettings)]
   ]);
-  const thumbnails=new Map();
   for(const [name,size] of [['plate_1',256],['plate_1_small',128],['plate_no_light_1',256],['top_1',256],['pick_1',256]]){
-    if(!thumbnails.has(size))thumbnails.set(size,thumbnail(program.strokes,c.bounds,size,encodePng));
-    entries.set(`Metadata/${name}.png`,thumbnails.get(size));
+    entries.set(`Metadata/${name}.png`,thumbnails.encoded(size));
   }
   return entries;
 }
 
 // Fresh toolpath thumbnail from the written depositions, never the user's
 // reference object's thumbnail. This is a schematic top view, not geometry.
-function thumbnail(strokes,bounds,size,encodePng){
-  const pixels=Buffer.alloc(size*size*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=24;pixels[i+1]=30;pixels[i+2]=35;pixels[i+3]=255;}
-  const span=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1]),scale=(size-20)/span;
-  const project=p=>[Math.round(10+(p[0]-bounds.min[0])*scale),Math.round(size-11-(p[1]-bounds.min[1])*scale)];
-  for(const [from,to] of strokes){const a=project(from),b=project(to),n=Math.max(1,Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]));for(let j=0;j<=n;j++){
-    const x=Math.round(a[0]+(b[0]-a[0])*j/n),y=Math.round(a[1]+(b[1]-a[1])*j/n);if(x<0||y<0||x>=size||y>=size)continue;
-    const k=(y*size+x)*4;pixels[k]=40;pixels[k+1]=160;pixels[k+2]=144;
+function thumbnailRasters(bounds,encodePng){
+  const rasters=new Map(),encoded=new Map();
+  for(const size of [128,256]){
+    const pixels=Buffer.alloc(size*size*4);for(let i=0;i<pixels.length;i+=4){pixels[i]=24;pixels[i+1]=30;pixels[i+2]=35;pixels[i+3]=255;}
+    rasters.set(size,pixels);
+  }
+  function stroke(from,to){for(const [size,pixels]of rasters){
+    const span=Math.max(bounds.max[0]-bounds.min[0],bounds.max[1]-bounds.min[1]),scale=(size-20)/span;
+    const project=p=>[Math.round(10+(p[0]-bounds.min[0])*scale),Math.round(size-11-(p[1]-bounds.min[1])*scale)];
+    const a=project(from),b=project(to),n=Math.max(1,Math.abs(b[0]-a[0]),Math.abs(b[1]-a[1]));for(let j=0;j<=n;j++){
+      const x=Math.round(a[0]+(b[0]-a[0])*j/n),y=Math.round(a[1]+(b[1]-a[1])*j/n);if(x<0||y<0||x>=size||y>=size)continue;
+      const k=(y*size+x)*4;pixels[k]=40;pixels[k+1]=160;pixels[k+2]=144;
+    }
   }}
-  return encodePng(pixels,size,size);
+  return {stroke,encoded(size){if(!encoded.has(size))encoded.set(size,encodePng(rasters.get(size),size,size));return encoded.get(size);}};
 }

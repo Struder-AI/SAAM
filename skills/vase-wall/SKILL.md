@@ -22,12 +22,16 @@ Disable other wall/interior producers on the same material region.
 
 For a solid base, keep a [slice](../slice/SKILL.md) assignment (`fillDensity: 1`)
 and set a positive `zStartMm` on the process layer grid; the wall claims the part
-above it. Without a base, remove the slice assignments and use `zStartMm: 0`.
+above it, and its `after` names the base assignment (`"after":["base"]`): the
+wall declares it rests on the base, so its first turn and its clearance with the
+base are trusted. Without a base, remove the slice assignments and use
+`zStartMm: 0`; the bed founds the first turn.
 
 A [rim](../thick-lip/SKILL.md) can follow a level end. Slices above the wall
 print after it; above a rising end they rest on a top up to one layer low, noted.
-The prepared plan supplies the foundation and its layer gap; the extension trusts
-that depositing work and does not inspect completed foundation beads.
+The prepared plan supplies the foundation and its layer gap. Later turns rest on
+the turn below; an undeclared first turn is left to the Scheduler, which waits
+for whatever lies beneath it and checks access against it.
 
 ## Input geometry: normally a solid
 

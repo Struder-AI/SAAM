@@ -22,17 +22,17 @@ export async function extensionDeposition({plan,componentShells,shells,volumes,s
   // A sleeve prepares its geometry as it is constructed, so its failure is its own.
   const vaseWork=args=>{
     if(vaseLoaded.error)throw vaseLoaded.error;
-    const {node,onProgress,materialReadiness}=args;
+    const {node,onProgress}=args;
     const patterned=node.context.assignment.pattern!==null;
     if(patterned&&advancedLoaded.error)throw advancedLoaded.error;
     const geometry=node.context.geometry??vase.prepareSleeveGeometry({...node.context,onProgress});
-    const stack=geometry.referenceStack(),first=stack.layers[0],direction=stack.direction??[0,0,1];
-    const footprints=first.curves.map(curve=>{
-      const points=curve.points.map(point=>point.map((v,k)=>v-first.heightMm*direction[k]));
-      return curve.closed?[...points,points[0]]:points;
-    });
-    const after=[...(node.context.assignment.after??[]),...materialReadiness(footprints)];
-    return patterned?advanced.advancedVaseResult({...node.context,geometry,after,onProgress}):vase.standardVaseResult({...node.context,geometry,after});
+    // The sleeve declares only what its recipe names. What its first turn rests
+    // on is the Scheduler's to qualify; later turns rest on the sleeve itself.
+    const after=node.context.assignment.after??[];
+    const result=patterned?advanced.advancedVaseResult({...node.context,geometry,after,onProgress}):vase.standardVaseResult({...node.context,geometry,after});
+    // A sleeve is a stack: its producer owns its support design, so the
+    // Scheduler only orders it after the material beneath its first turn.
+    return {...result,operations:result.operations.map(operation=>({...operation,foundation:'stack'}))};
   };
   const sleeves=contexts.filter(({assignment})=>assignment.construction==='sleeve'||assignment.join).map(context=>{
     if(context.assignment.join){
@@ -86,7 +86,7 @@ export async function extensionDeposition({plan,componentShells,shells,volumes,s
 export function extensionSummary(results){
   const summary={},vases=results.filter(result=>result.report.construction==='sleeve').map(result=>({id:result.id,...result.report}));
   if(vases.length)summary.vaseWall={...vases[0],instances:vases};
-  const reports=results.flatMap(result=>result.report.extension?[result.report.extension]:[]);
+  const reports=results.flatMap(result=>result.report.extension?.id?[result.report.extension]:[]);
   if(reports.length)summary.extensions=Object.fromEntries([...new Set(reports.map(r=>r.id))].map(id=>[id,reports.filter(r=>r.id===id).map(r=>({sourceId:r.sourceId,...r.report}))]));
   return summary;
 }

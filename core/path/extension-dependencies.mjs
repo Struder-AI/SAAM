@@ -2,10 +2,9 @@
 // and selected skill settings. The bundle keeps those values as supplied.
 import {resolveExtensions,extensionRuntimeSourceError} from '../extensions/library.mjs';
 
-const geometryExtensions={text:'text',gridfinity:'gridfinity','heat-set':'heat-set-inserts'};
 function geometryIds(geometry,ids){
   if(!geometry||typeof geometry!=='object')return;
-  if(geometryExtensions[geometry.shape])ids.add(geometryExtensions[geometry.shape]);
+  if(geometry.shape==='extension')ids.add(geometry.extension);
   if(geometry.base)geometryIds(geometry.base,ids);
   if(geometry.solid)geometryIds(geometry.solid,ids);
   for(const part of geometry.parts??[])geometryIds(part.geometry,ids);

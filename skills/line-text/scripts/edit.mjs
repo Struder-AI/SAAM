@@ -16,10 +16,10 @@ function textOperations(Geometry){
   const operations=Object.freeze({loadFont,lineText});operationsByGeometry.set(Geometry,operations);return operations;
 }
 
-// Replace one identified text assignment while preserving independent work.
-// The returned assignment contains ordinary Trace centerlines and remains
+// Add, replace or remove one identified text operation. Line text sees its request, its part and
+// SAAM's services; the returned operation contains ordinary Trace centerlines and remains
 // printable and viewable without loading this extension later.
-export async function editLineText(source,request,{Geometry,Toolpath,part=null}={}){
+export async function lineTextOperations(request,{Geometry,Toolpath,Recipe,part=null}={}){
   const {loadFont,lineText}=textOperations(Geometry);
   requireThat(request&&typeof request==='object'&&!Array.isArray(request),'Line text needs a request.');
   requireThat(Object.keys(request).every(key=>['id','fontId','text','heightMm','weight','stemRatio','beadRangeMm',
@@ -27,13 +27,12 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
     'Unknown line-text request field.');
   const id=request.id;
   requireThat(typeof id==='string'&&/^[a-z][a-z0-9-]*$/.test(id),'Line text needs a stable assignment id.');
-  const assignments=structuredClone(source.slices?.assignments??[]),at=assignments.findIndex(a=>a.id===id);
+  const existing=Recipe.assignment(id);
   if(request.remove){
-    requireThat(at>=0,`Line text assignment ${id} is absent.`);
-    assignments.splice(at,1);
-    return {assignments,report:{id,removed:true}};
+    requireThat(existing,`Line text assignment ${id} is absent.`);
+    return {remove:[id],report:{id,removed:true}};
   }
-  requireThat(at<0||assignments[at].curves?.every(c=>c.role==='line-text'),
+  requireThat(!existing||existing.curves?.every(c=>c.role==='line-text'),
     `Assignment ${id} belongs to another construction.`);
   const origin=request.origin;
   requireThat(Array.isArray(origin)&&origin.length===3&&origin.every(Number.isFinite),'Line text origin must be finite XYZ.');
@@ -50,7 +49,7 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
       Object.keys(reference).every(key=>['kind','assignment','index'].includes(key)),'Manufactured lettering surface needs an assignment and native slice index.');
   }else if(reference){
     requireThat(['part','spline','plane','plate'].includes(reference.kind),'Line text reference must be a manufactured slice, part patch, build plate, independent plane or spline.');
-    const shell=reference.kind==='part'?(await Geometry.resolveGeometrySelections(source.geometry,[{selection:part}]))[0]:null;
+    const shell=reference.kind==='part'?await Recipe.preparedPart(part):null;
     const surface=Geometry.referenceSurface(reference,shell);
     for(const curve of compiled.assignment.curves)for(const [x,y] of curve.points)Geometry.evaluateSurface(surface,[x+origin[0],y+origin[1]]);
   }
@@ -69,7 +68,7 @@ export async function editLineText(source,request,{Geometry,Toolpath,part=null}=
   const assignment=Toolpath.curveAssignment({...compiled.assignment,part,curves,substrate:null,edgeAfter,
     ...(substrate?{operationAfter:{0:[substrate]}}:{}),
     repeat:{count:layers,translation:[0,0,0]},sequence:false,...(reference?{toolPose:{alignToSliceNormal:true}}:{})});
-  if(at<0)assignments.push(assignment);else assignments[at]=assignment;
-  return {assignments,report:{id,fontId:font.id,plan:compiled.plan,...compiled.report,
+  const {id:_id,...set}=assignment;
+  return {...(existing?{change:[{id,set}]}:{add:[assignment]}),report:{id,fontId:font.id,plan:compiled.plan,...compiled.report,
     ...(reference?{reference,layers,notes:[...(compiled.report.notes??[]),'Surface layout maps sizeMm to UV bounds; it does not preserve physical lettering dimensions on a distorted chart.']}: {})}};
 }

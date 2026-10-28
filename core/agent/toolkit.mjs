@@ -1,13 +1,14 @@
 // Source context assembly; making belongs to the application.
 // No Studio, chat, live-work or release-service lifetime is created here.
-import {readLocalAgentNotes} from '../application/local-agent-notes.mjs';
+import {readLocalAgentNotes} from './local-notes.mjs';
 import {homePaths} from '../application/home.mjs';
 import {readFile, access} from 'node:fs/promises';
 import {resolve, dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
-import {readManual} from './manuals.mjs';
+import {prepareManual,assembleManual} from './manuals.mjs';
+import {loadMachine} from '../machine/profile.mjs';
 import {ONBOARDING,extensionDiscovery,gatedIndex} from './layers.mjs';
 import {SKILL_IDS, GUIDANCE_IDS, EXTENSION_IDS,BUILDER_IDS} from '../../skills/catalog.mjs';
 import {readExtension} from '../extensions/library.mjs';
@@ -31,7 +32,10 @@ const json = async path => JSON.parse(await readFile(path, 'utf8'));
 // Manuals as this command-line agent reads them: script sections included, advanced ones for
 // the named machine (see manuals.mjs#assembleGuidance).
 export async function contextPacket(ids, context = {}) {
-  return {documents:await Promise.all([...new Set(ids)].map(id => readManual(root, id, context)))};
+  const {machineId,machine,...options}=context;
+  const prepared=await Promise.all([...new Set(ids)].map(id=>prepareManual(root,id)));
+  const capturedSettings=machine===undefined&&machineId?loadMachine(machineId):machine;
+  return {documents:prepared.map(reference=>assembleManual(reference,{...options,machine:capturedSettings}))};
 }
 
 // What of main this checkout holds, for the one-line report a maker or builder gives at session
@@ -86,15 +90,16 @@ export async function readSkill(name, {maker = false, builder = false, developer
     }
     ids.push(path);
   }
-  const documents = await Promise.all(ids.map(path => path.endsWith('/SKILL.md')
-    ? readManual(root, anchor ? `${path}#${anchor}` : path, {machineId, all, markers: builder || developer})
-    : readManual(root, path, {all: true, markers: true})));
+  const prepared=await Promise.all(ids.map(path=>prepareManual(root,path.endsWith('/SKILL.md')&&anchor?`${path}#${anchor}`:path)));
+  const capturedSettings=machineId&&ids.some(path=>path.endsWith('/SKILL.md'))?loadMachine(machineId):undefined;
+  const documents=prepared.map((reference,index)=>assembleManual(reference,ids[index].endsWith('/SKILL.md')
+    ?{machine:capturedSettings,all,markers:builder||developer}:{all:true,markers:true}));
   return {skillId: id, roles: Object.keys(roles).filter(role => roles[role]), unavailableRoles, documents};
 }
 
-// Makers and builders read their workflows; developers also receive the shared architecture spec.
+// Makers and builders read their workflows; developers read the glossary and context.
 // Manuals named through --area are read whole for builders and developers.
-export async function onboarding({role, areas = [], machine: machineId}) {
+export async function onboardingContext({role, areas = [], machine: machineId}) {
   if (!['maker', 'builder', 'developer'].includes(role)) throw Error('Choose maker, builder or developer onboarding.');
   const named = [...new Set(areas)];
   const unknown = named.filter(area => !Object.hasOwn(developmentAreas, area));
@@ -102,15 +107,19 @@ export async function onboarding({role, areas = [], machine: machineId}) {
   const manuals = [...new Set(named.flatMap(area => developmentAreas[area]))];
   const ids = role === 'maker' ? ONBOARDING
     : role === 'builder' ? ['BUILDERS.md', ...ONBOARDING, 'skills/AUTHORING.md', ...manuals]
-    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', 'ARCHITECTURE.md', ...manuals];
-  const [context, environment, notes, extensions, index] = await Promise.all([
-    contextPacket(ids, role === 'maker' ? {machineId} : {all: true, markers: true}),
+    : ['GLOSSARY.md', 'DEVELOPER-CONTEXT.md', ...manuals];
+  return contextPacket(ids, role === 'maker' ? {machineId} : {all: true, markers: true});
+}
+
+export async function onboarding({role, areas = [], machine: machineId}) {
+  const context = await onboardingContext({role, areas, machine: machineId});
+  const [environment, notes, extensions, index] = await Promise.all([
     environmentStatus(), readLocalAgentNotes(homePaths()),
     extensionDiscovery(root,{readTool:'read-skill',openTool:'saam call open_workspace'}),
     role === 'builder' ? gatedIndex(root) : {unreadable: []}]);
-  return {role, environment, notes, documents: [...context.documents, ...(extensions ? [extensions] : [])],
+  return {role, environment, notes, ...context, documents: [...context.documents, ...(extensions ? [extensions] : [])],
     ...(index.unreadable.length ? {unreadableMarkers: index.unreadable} : {}),
     nextStep: role === 'maker' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context and choose individual skill manuals when an edit needs them. The digest indexes gated sections; read one by name when its gate applies.'
-      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders compose published interfaces; work those interfaces cannot express is a SAAM bug for saam call report_bug. Core skills and shared interfaces require the developer role. ARCHITECTURE.md describes module responsibilities and relationships; the consumed component manual owns its detailed contract.'
-      : 'The versioned intent docs in plans/ define intent cumulatively, including future versions; intent/README.md indexes the owner’s words. ARCHITECTURE.md owns the shared structural account and runtime scenarios; component manuals own detailed contracts. Follow this checkout’s local developer notes for optional local tools. Reuse the returned context and read the affected source and callers before editing.'};
+      : role === 'builder' ? 'Tell the person environment.sync.summary in one line. Reuse the returned context. Builders compose published interfaces; work those interfaces cannot express is a SAAM bug for saam call report_bug. Core skills and shared interfaces require the developer role. The consumed component manual supplies detailed guidance.'
+      : 'Develop using source, existing interfaces and the component manuals. Explicit --area manuals remain available.'};
 }

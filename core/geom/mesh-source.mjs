@@ -31,8 +31,9 @@ function sameMesh(a,b){
 }
 // Normalize only newly admitted mesh values. Existing exact arrays remain exact
 // when wrapped, reordered or carried through a settings edit. Source metadata stays.
-export function normalizeAuthoredGeometry(geometry,previous){
+export function normalizeAuthoredGeometry(geometry,previous,prepared=[]){
   const admitted=[],reports=[];retainedMeshes(previous,admitted);
+  for(const source of prepared)retainedMeshes(source,admitted);
   function normalize(value,path){
     if(!value)return value;
     if(value.solid||value.shape==='spatial'){const solid=normalize(value.solid,path+'/solid');return solid===value.solid?value:{...value,solid};}

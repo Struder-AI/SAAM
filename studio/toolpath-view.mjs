@@ -2,6 +2,9 @@ import {TOLERANCE,ROUNDING_MM,CHORD_TOLERANCE_MM} from '../core/dimensions.mjs';
 import {DEFAULT_PHASE_COLOURS,phaseColour} from '../core/print/phase-colours.mjs';
 // A display budget, never a modification of the interpreted or exported path.
 export const VIEWER_POINT_CAP=40_000;
+// Cache limits only; larger groups are regenerated as a stream.
+export const TOOLPATH_MEMO_SEGMENTS=16_384;
+export const TOOLPATH_MEMO_GROUP_SEGMENTS=TOOLPATH_MEMO_SEGMENTS;
 export const VIEWER_TOLERANCE_MM=CHORD_TOLERANCE_MM;
 export const CURRENT_LAYER_GAP_MM=0.04;
 export const LAYER_FADE_MS=2000;
@@ -61,18 +64,20 @@ const distance2=(p,a,b)=>{
 // Douglas–Peucker within one continuous operation/style. Travel, layer and
 // extrusion transitions are never bridged. Every retained edge names its
 // original move interval so scrubbing still follows the original timeline.
-function simplify(moves,first,last) {
-  const point=i=>i===first?moves[first].from:moves[i-1].to;
-  const keep=new Set([first,last+1]),stack=[[first,last+1]];
+function* simplify(moves,first,last) {
+  const point=i=>i===first?moves.at(first).from:moves.at(i-1).to;
+  const stack=[[first,last+1]];
   while(stack.length){
     // Half the display allowance leaves room for the partial chord ending at
     // the original playback position rather than at this stroke's endpoint.
     const [a,b]=stack.pop();let furthest=-1,error=(VIEWER_TOLERANCE_MM/2)**2;
-    for(let i=a+1;i<b;i++){const d=distance2(point(i),point(a),point(b));if(d>error){error=d;furthest=i;}}
-    if(furthest!==-1){keep.add(furthest);stack.push([a,furthest],[furthest,b]);}
+    const from=point(a),to=point(b);
+    for(let i=a+1;i<b;i++){const d=distance2(point(i),from,to);if(d>error){error=d;furthest=i;}}
+    // Visit the left interval first so edges can be emitted in source order
+    // without retaining every selected endpoint and sorting a complete run.
+    if(furthest!==-1)stack.push([furthest,b],[a,furthest]);
+    else yield {first:a,last:b-1,from:point(a),to:point(b),move:moves.at(a)};
   }
-  const points=[...keep].sort((a,b)=>a-b);
-  return points.slice(1).map((end,i)=>({first:points[i],last:end-1,from:point(points[i]),to:point(end),move:moves[points[i]]}));
 }
 export function buildToolpathView(moves) {
   const groups=[];
@@ -85,22 +90,31 @@ export function buildToolpathView(moves) {
   }
   return {moves,groups,memo:createToolpathMemo()};
 }
-// Display memos derived from a view: the per-group segment lists and the last
-// selected frame. They are this module's own cache, held in one boundary the
-// view names, rather than written onto the shared view and group records.
+// Keep derived groups within the resident segment budget and one finite frame.
+// A larger group streams rather than becoming an oversized cache entry.
 export function createToolpathMemo(){
   const perGroup=new Map();
-  let lastFrameKey=null,lastFrame=null;
+  let lastFrameKey=null,lastFrame=null,segments=0;
   return {
-    group(group){
-      const found=perGroup.get(group);
-      if(found)return found;
-      const made={raw:null,reduced:null};perGroup.set(group,made);return made;
+    *entries(group,reduced,make){
+      const key=group.first+':'+reduced,found=perGroup.get(key);
+      if(found){perGroup.delete(key);perGroup.set(key,found);yield* found;return;}
+      let retained=[];
+      for(const edge of make()){
+        if(retained){if(retained.length<TOOLPATH_MEMO_GROUP_SEGMENTS)retained.push(edge);else retained=null;}
+        yield edge;
+      }
+      if(!retained)return;
+      while(segments+retained.length>TOOLPATH_MEMO_SEGMENTS||perGroup.size>=TOOLPATH_MEMO_SEGMENTS){
+        const oldest=perGroup.keys().next().value;segments-=perGroup.get(oldest).length;perGroup.delete(oldest);
+      }
+      perGroup.set(key,retained);segments+=retained.length;
     },
     frame(key,select){
       if(lastFrameKey===key)return lastFrame;
       const result=select();lastFrameKey=key;lastFrame=result;return result;
-    }
+    },
+    stats(){return {groups:perGroup.size,segments,segmentBudget:TOOLPATH_MEMO_SEGMENTS,groupSegmentBudget:TOOLPATH_MEMO_GROUP_SEGMENTS};}
   };
 }
 export function remainingLayerMs(view,moveIndex,seconds,speed){
@@ -186,53 +200,56 @@ export function representativeLayer(view,{feature='contour'}={}){
   }
   const fallback=groups[Math.min(groups.length-1,Math.max(0,Math.round((groups.length-1)*.55)))];
   const chosen=best?.score>=20?candidates.filter(candidate=>candidate.score>=best.score*.65).at(-1):null;
-  const move=chosen?.move??Array.from({length:fallback.last-fallback.first+1},(_,i)=>view.moves.at(fallback.first+i)).find(m=>m.extruding);
+  let move=chosen?.move;
+  if(!move)for(let i=fallback.first;i<=fallback.last;i++){const candidate=view.moves.at(i);if(candidate.extruding){move=candidate;break;}}
   return move?{seconds:move.startSeconds,layer:move.layer,index:chosen?.index??view.groups.indexOf(fallback),groups:view.groups.length,feature:'contour'}:null;
 }
 function entries(view,group,reduced) {
-  const memo=view.memo.group(group);
-  if(!reduced)return memo.raw??=Array.from({length:group.last-group.first+1},(_,j)=>{
-    const i=group.first+j,m=view.moves.at(i);return {first:i,last:i,from:m.from,to:m.to,move:m};
+  return view.memo.entries(group,reduced,function*(){
+    if(!reduced){
+      for(let i=group.first;i<=group.last;i++){const move=view.moves.at(i);yield {first:i,last:i,from:move.from,to:move.to,move};}
+      return;
+    }
+    const moves=view.moves;
+    for(let first=group.first;first<=group.last;){
+      let last=first;const start=moves.at(first);
+      while(last<group.last){
+        const previous=moves.at(last),next=moves.at(last+1);
+        if(next.extruding!==start.extruding||next.operation!==start.operation||next.tool!==start.tool||next.filament!==start.filament||!same(previous.to,next.from))break;
+        last++;
+      }
+      yield* simplify(moves,first,last);first=last+1;
+    }
   });
-  if(memo.reduced)return memo.reduced;
-  const out=[],moves=view.moves.range?view.moves.range(group.first,group.last+1):view.moves;
-  for(let first=group.first;first<=group.last;){
-    let last=first;
-    while(last<group.last&&moves[last+1].extruding===moves[first].extruding&&moves[last+1].operation===moves[first].operation
-      &&moves[last+1].tool===moves[first].tool&&moves[last+1].filament===moves[first].filament
-      &&same(moves[last].to,moves[last+1].from))last++;
-    for(const edge of simplify(moves,first,last))out.push(edge);first=last+1;
-  }
-  return memo.reduced=out;
 }
-function visible(view,group,count,travel,reduced){
-  const key=(reduced?'simple':'exact')+(travel?'All':'Extrusion');
-  const memo=view.memo.group(group);
-  const segments=memo[key]??=entries(view,group,reduced).filter(s=>travel||s.move.extruding);
-  if(count>group.last)return segments;
-  let low=0,high=segments.length;
-  while(low<high){const mid=(low+high)>>1;if(segments[mid].last<count)low=mid+1;else high=mid;}
-  return segments.slice(0,low);
+function* visible(view,group,count,travel,reduced){
+  for(const edge of entries(view,group,reduced)){
+    if(edge.last>=count)break;
+    if(travel||edge.move.extruding)yield edge;
+  }
 }
 // Uniform selection includes both ends. Omitting an edge never connects its
 // neighbours: an omitted travel cannot become a fictitious extrusion.
-function spread(items,n){
-  if(n>=items.length)return items;
+function localDetail(read,length,n){
   if(n<=0)return [];
-  if(n===1)return [items.at(-1)];
-  return Array.from({length:n},(_,i)=>items[Math.round(i*(items.length-1)/(n-1))]);
-}
-function localDetail(items,n){
-  if(n<=0)return [];
-  if(items.length<=n)return items;
+  if(length<=n)return [...read()];
   // A single very dense layer can itself exceed the cap. Keep a detailed
   // window ending at playback, then favour walls and non-planar strokes over
   // older interior fill. Remaining samples cover the rest of the layer.
-  const recent=items.slice(-Math.ceil(n/4)),chosen=new Set(recent);
-  const important=items.filter(e=>!chosen.has(e)&&(/walls|perimeter|skin|vase/.test(e.move.operation??e.move.phase)||e.from[2]!==e.to[2]));
-  for(const e of spread(important,Math.floor((n-chosen.size)/2)))chosen.add(e);
-  for(const e of spread(items.filter(e=>!chosen.has(e)),n-chosen.size))chosen.add(e);
-  return [...chosen].sort((a,b)=>a.first-b.first);
+  const recent=Math.ceil(n/4),chosen=new Map();let index=0,importantCount=0;
+  const important=e=>/walls|perimeter|skin|vase/.test(e.move.operation??e.move.phase)||e.from[2]!==e.to[2];
+  for(const edge of read()){if(index++>=length-recent)chosen.set(edge.first,edge);else if(important(edge))importantCount++;}
+  function select(length,count,accept){
+    if(count<=0)return;
+    let index=0,selected=0;
+    const at=i=>count>=length?i:count===1?length-1:Math.round(i*(length-1)/(count-1));
+    for(const edge of read())if(accept(edge)){
+      if(index++===at(selected)){chosen.set(edge.first,edge);if(++selected===Math.min(count,length))break;}
+    }
+  }
+  select(importantCount,Math.floor((n-chosen.size)/2),e=>!chosen.has(e.first)&&important(e));
+  select(length-chosen.size,n-chosen.size,e=>!chosen.has(e.first));
+  return [...chosen.values()].sort((a,b)=>a.first-b.first);
 }
 export function toolpathFrame(view,count,travel,{pointCap=VIEWER_POINT_CAP}={}) {
   const key=count+':'+travel+':'+pointCap;
@@ -247,24 +264,40 @@ export function toolpathPresentation(moves,at,detail) {
 function selectFrame(view,count,travel,pointCap) {
   // Reserve endpoints for the partial simplified edge and exact active move.
   const budget=Math.max(0,Math.floor(pointCap/2)-2);
-  const groups=view.groups.filter(g=>g.first<count);
+  let groupCount=0;while(groupCount<view.groups.length&&view.groups[groupCount].first<count)groupCount++;
   // Avoid materializing an object for every original move in a dense job.
   // Exact entries are useful only when the visible range fits the draw budget.
   if(count<=budget){
-    const rows=groups.map(g=>visible(view,g,count,travel,false));
-    return {segments:rows.flat(),reduced:false,overview:false};
+    const segments=[];
+    for(let i=0;i<groupCount;i++)for(const edge of visible(view,view.groups[i],count,travel,false))segments.push(edge);
+    return {segments,reduced:false,overview:false};
   }
-  let rows=groups.map(g=>visible(view,g,count,travel,true));
-  const activeGroup=groups.at(-1),active=activeGroup&&entries(view,activeGroup,true).find(s=>s.first<count&&s.last>=count&&(travel||s.move.extruding));
-  if(rows.reduce((s,a)=>s+a.length,0)<=budget)return {segments:rows.flat(),partial:active,reduced:true,overview:false};
+  const activeGroup=view.groups[groupCount-1];let active;
+  if(activeGroup)for(const edge of entries(view,activeGroup,true))if(edge.first<count&&edge.last>=count&&(travel||edge.move.extruding)){active=edge;break;}
+  const size=group=>{let length=0;for(const edge of visible(view,group,count,travel,true))length++;return length;};
+  let total=0,latestLength=0;
+  for(let i=0;i<groupCount;i++){const length=size(view.groups[i]);total+=length;if(i===groupCount-1)latestLength=length;}
+  if(total<=budget){
+    const segments=[];for(let i=0;i<groupCount;i++)for(const edge of visible(view,view.groups[i],count,travel,true))segments.push(edge);
+    return {segments,partial:active,reduced:true,overview:false};
+  }
   // Prefer complete representative layers, keeping the most recent layer in
   // detail. Base and upper layers stay represented; intermediate layers are
   // thinned evenly rather than removing corners from every layer.
-  const latest=rows.pop()??[],recentBudget=Math.min(latest.length,Math.max(Math.floor(budget/2),budget-rows.reduce((s,a)=>s+a.length,0)));
-  const recent=localDetail(latest,recentBudget),remaining=budget-recent.length;
-  let selected=rows;
-  while(selected.reduce((s,a)=>s+a.length,0)>remaining&&selected.length>1)selected=spread(selected,Math.ceil(selected.length/2));
-  let older=selected.flat();
-  if(older.length>remaining)older=localDetail(older,remaining);
+  const recentBudget=Math.min(latestLength,Math.max(Math.floor(budget/2),budget-(total-latestLength)));
+  const recent=localDetail(()=>visible(view,activeGroup,count,travel,true),latestLength,recentBudget),remaining=budget-recent.length;
+  // Apply the same repeated uniform group selection without keeping arrays of
+  // every group's edges. Only the short chain of selection lengths is needed.
+  const levels=[groupCount-1];let olderLength=total-latestLength;
+  const groupAt=index=>{
+    for(let level=levels.length-1;level>0;level--){const length=levels[level];index=length===1?levels[level-1]-1:Math.round(index*(levels[level-1]-1)/(length-1));}
+    return view.groups[index];
+  };
+  while(olderLength>remaining&&levels.at(-1)>1){
+    levels.push(Math.ceil(levels.at(-1)/2));olderLength=0;
+    for(let i=0;i<levels.at(-1);i++)olderLength+=size(groupAt(i));
+  }
+  const readOlder=function*(){for(let i=0;i<levels.at(-1);i++)yield* visible(view,groupAt(i),count,travel,true);};
+  const older=localDetail(readOlder,olderLength,remaining);
   return {segments:[...older,...recent],partial:active,reduced:true,overview:true};
 }

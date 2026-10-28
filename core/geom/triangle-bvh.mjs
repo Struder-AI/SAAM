@@ -3,7 +3,7 @@
 import {ROUNDING_MM} from '../dimensions.mjs';
 
 export function boxHierarchy(boxes,count=boxes.length/6){
-  const order=new Int32Array(count),centre=new Float64Array(3*count);
+  const order=new Int32Array(count);let centre=new Float64Array(3*count);
   for(let i=0;i<count;i++){order[i]=i;for(let k=0;k<3;k++)centre[3*i+k]=boxes[6*i+k]+boxes[6*i+3+k];}
   // Leaves hold 4..8 items, so there are at most 2*ceil(count/4) nodes.
   const capacity=2*Math.ceil(count/4)+1,nb=new Float64Array(6*capacity),first=new Int32Array(capacity),size=new Int32Array(capacity),left=new Int32Array(capacity).fill(-1),right=new Int32Array(capacity);let nodes=0;
@@ -20,10 +20,15 @@ export function boxHierarchy(boxes,count=boxes.length/6){
     left[id]=build(from,h);right[id]=build(from+h,n-h);size[id]=0;return id;
   }
   if(count)build(0,count);
+  // Partition centres are construction scratch, not part of the query index.
+  centre=null;
+  const boxBytes=ArrayBuffer.isView(boxes)?boxes.buffer.byteLength:boxes.length*8;
+  const retainedBytes=boxBytes+order.byteLength+nb.byteLength+first.byteLength+size.byteLength+left.byteLength+right.byteLength;
   const boxDistance2=(n,p)=>{let d2=0;for(let k=0;k<3;k++){const d=Math.max(nb[6*n+k]-p[k],0,p[k]-nb[6*n+3+k]);d2+=d*d;}return d2;};
   const extent=n=>nb[6*n+3]-nb[6*n]+nb[6*n+4]-nb[6*n+1]+nb[6*n+5]-nb[6*n+2];
   const overlap=(n,m)=>{const p=6*n,q=6*m;return !(nb[p]>nb[q+3]||nb[q]>nb[p+3]||nb[p+1]>nb[q+4]||nb[q+1]>nb[p+4]||nb[p+2]>nb[q+5]||nb[q+2]>nb[p+5]);};
   return {
+    retainedBytes,
     // Items of the leaves whose boxes meet box b (at offset o); callers test items.
     queryBox(b,o,visit){const stack=count?[0]:[];while(stack.length){const n=stack.pop(),q=n*6;
       if(b[o]>nb[q+3]||b[o+3]<nb[q]||b[o+1]>nb[q+4]||b[o+4]<nb[q+1]||b[o+2]>nb[q+5]||b[o+5]<nb[q+2])continue;
@@ -90,5 +95,5 @@ export function triangleBoxes(vertices,triangles,margin=0){
 // Triangles whose boxes may meet the box [min, max] (rounding guard slack).
 export function triangleBVH(vertices,triangles){
   const tree=boxHierarchy(triangleBoxes(vertices,triangles,ROUNDING_MM));
-  return {query(min,max,visit){tree.queryBox([...min,...max],0,visit);}};
+  return {retainedBytes:tree.retainedBytes,query(min,max,visit){tree.queryBox([...min,...max],0,visit);}};
 }

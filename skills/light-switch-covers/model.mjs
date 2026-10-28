@@ -49,13 +49,13 @@ export async function buildCover(input,{Geometry,Extensions}){
   for(const [i,s] of slots.entries())if(s.label.trim()){
     const inset=['recessed','two-color-flush'].includes(d.treatment);
     const feature={id:`label-${i+1}`,text:s.label,font,mode:'raised',sizeMm:d.labelSize,lineHeightMm:d.labelSize*1.2,align:'center',outlineOffsetMm:.12,depthMm:d.reliefDepth,offsetMm:inset?-d.reliefDepth:0,overlapMm:inset?0:.1,positionMm:[s.x,s.labelPosition==='top'?d.height-23:15],reference:{kind:'plane',origin:down?[0,d.height,faceOffset]:[0,0,d.thickness],xAxis:[1,0,0],yAxis:down?[0,-1,0]:[0,1,0]}};
-    const compiled=await Extensions.text.compileText(null,[feature],{...Geometry,standalone:true,toleranceMm:Geometry.dimensions.FEATURE_TOLERANCE_MM,maxEdgeMm:2});
-    requireCover(!Geometry.buildGeometry(compiled.geometry).empty,`Label ${i+1} leaves no printable material.`);
-    const bounds=xyBounds(Geometry.buildGeometry(compiled.geometry).bounds,down,d.height);
+    const compiled=await Extensions.text.build({base:null,parameters:{features:[feature],standalone:true,toleranceMm:Geometry.dimensions.FEATURE_TOLERANCE_MM,maxEdgeMm:2}});
+    requireCover(!Geometry.buildGeometry(compiled.solid).empty,`Label ${i+1} leaves no printable material.`);
+    const bounds=xyBounds(Geometry.buildGeometry(compiled.solid).bounds,down,d.height);
     requireCover(bounds[0]>=3&&bounds[1]>=3&&bounds[2]<=d.width-3&&bounds[3]<=d.height-3,`Label ${i+1} does not fit. Shorten it, use a smaller size or enlarge the plate.`);
     requireCover(!protectedRects.some(r=>overlaps(bounds,r,2)),`Label ${i+1} overlaps an opening or screw. Change its placement or size.`);
     requireCover(!labelBounds.some(r=>overlaps(bounds,r,1)),'Labels overlap. Reduce text size or shorten labels.');
-    labelBounds.push(bounds);features.push(compiled.geometry);notes.push(...compiled.notes);
+    labelBounds.push(bounds);features.push(compiled.solid);notes.push(...compiled.notes);
   }
   for(const m of d.decoration){
     const bounds=m.shape==='stripe'?[m.x-m.size/2,m.y-.4,m.x+m.size/2,m.y+.4]:[m.x-m.size/2,m.y-m.size/2,m.x+m.size/2,m.y+m.size/2];

@@ -1,38 +1,32 @@
 ---
 name: bridge-supports
-description: Experimental. Two-loop breakaway supports between selected base and landing edges.
+description: Experimental. Two adjacent edge-following Trace paths between selected base and landing edges; a plate base is optional.
 metadata:
   saam-kind: hybrid
 ---
 
 # Breakaway bridge supports
 
-Call `apply_extension` with `extensionId:"bridge-supports"` and
-`request:{supports:[{id,base,landing}]}`. Use
-[geometric selectors](../bridging/SKILL.md): native Slice boundaries or saved
-XYZ edges with explicit normal/readiness. Discovery uses `intersect_geometry.edges`;
-no deposition is generated to retrieve geometry.
+Use [support guidance](../supports/SKILL.md) to decide whether a ribbon/ledge edge or hole/recess landing edge needs support. Two adjacent paths support the selected edge from a printed base toward its landing. Choose a plate base only when the support should start on the bed.
 
-A bed base is explicitly `{kind:"plate",curve:{closed,points:[XYZ,...]}}`, or a
-NURBS curve in place of points. Its curve lies on the canonical build plate.
-The landing's readiness target requires the final support course. The first
-course requires its base's readiness; later courses require their predecessor.
-A Slice landing waits as a whole slice. Use part-specific Slice assignments.
+Call `apply_extension` with `extensionId:"bridge-supports"` and `request:{supports:[{id,base,landing}]}`. Select a real model edge or portion with the [shared selectors](../../GEOMETRY.md#selecting-edges); `intersect_geometry.edges` previews the curve and derives crossed native Slice targets without deposition. Supply those source selectors directly. A copied XYZ curve needs a separately supplied normal and owning native Slice readiness.
 
-Two adjacent loops follow each interpolated course. The first lies beside the
-geometric boundary; the second lies one bead farther out. `baseSide` and `landingSide`
-choose right (`1`, default) or left (`-1`) of the selected curve. Native Slice
-perimeters keep material left, so their exterior is right. Plate bases get three
-clipped adhesion passes. Prefer bowed/kinked bases where space permits.
+Every crossed part slice depends on the local supporting landing-curve pieces. Each piece of the support requires its corresponding piece in the preceding course. These are curve-level requirements, preserving interleaving with the part; a whole sloping-course or wall barrier can force unrelated high work before a low body slice.
 
-`layerHeightMm`, `beadWidthMm`, `speedMmS` and `sampleStepMm` override process
-values. `correspondence` sets base/landing direction (`forward`/`reverse`) and
-normalized seam. Compatible control nets preserve the selected curves; rounded
-mean control travel determines the number of courses. Material frames derive
-from each course ribbon, including tilted constructions. Scheduling owns entry,
-interleaving and transfers; Export checks the selected machine.
+Adjacent material determines the outside automatically. The first support path lies half a support bead width outside the selected part edge; the second lies one bead width farther out. Supply original edges without a manual clearance offset or left/right sign. Changing outside directions split the support into reported source intervals. Intermediate paths follow matched base/landing curves through ordinary Trace.
 
-Saved [hole](examples/removable.json) and [nonplanar ledge](examples/nonplanar.json)
-examples retain ordinary Trace data. Review attachment, removal and cooling;
-physical printing remains unqualified. [Hole guidance](../hole-supports/SKILL.md)
-owns alternatives.
+A bed base is `{kind:"plate"}`: its first-layer footprint projects the offset landing to the bed. An optional `curve:{closed,points:[XYZ,...]}` (or NURBS curve) supplies a different bed footprint. A printed base uses an edge selector. Bed bases receive three clipped adhesion passes.
+
+Inspect the whole support height against the part, feet and other supports. Projection through existing material needs a printed base or a clear route. The constructor rejects sampled centreline intersections with the part; this does not establish bead or nozzle clearance. Preserve the selected attachment geometry while resolving ordering.
+
+`layerHeightMm`, `beadWidthMm` and `speedMmS` override process values; `sampleStepMm` bounds sampling. Course spacing determines local normal-height profiles. `correspondence` sets base/landing direction (`forward`/`reverse`) and normalized seam. Compatible control nets preserve curves. Scheduling owns traversal and transfers; Export checks the selected machine.
+
+Review [hole](examples/removable.json) and [nonplanar ledge](examples/nonplanar.json) Trace examples, attachment, removal and cooling. Physical printing remains unqualified. [Hole guidance](../hole-supports/SKILL.md) owns bore/recess alternatives.
+
+For a ribbon, select each requested width rim separately and cover the requested region up to neighbouring pillars. Measure endpoint gaps against actual pillar surfaces, then inspect full-height clearance. Show selected edges and resulting paths from useful angles. Program checks do not establish correct coverage, attachment or offset.
+
+For example, a mesh edge chain on the first Boolean operand uses:
+```json
+{"supports":[{"id":"rim-support","base":{"kind":"plate"},"landing":{"model":{"path":[0],"vertices":[12,16,20,24]},"range":[0.1,0.9],"slice":{"assignment":"body"}}}]}
+```
+Vertex IDs come from the manufacturing mesh; consecutive IDs must share actual edges. Selection resolves at the current edit revision and saves ordinary Trace curves/settings. Reapply after changing source geometry; the report retains selectors, intervals, crossed slices and local prerequisites.

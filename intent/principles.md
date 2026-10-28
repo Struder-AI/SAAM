@@ -31,6 +31,10 @@ Sources: Codex 01a0f5e7 08:14; Codex 01a0f65b 08:30; Codex 01a0f755 12:20 ("Make
 
 Summary: something removed on purpose is absent by choice, and a replacement must carry every behaviour of the path it replaces.
 
+Apply later owner changes too: the October 13 curves-only support ribbon
+[supersedes the earlier ribbon removal](geometry.md#physical-offsets-and-the-later-curves-only-ribbon-contract).
+The historical quotation does not retire that current capability.
+
 Sources: Codex 01a0fdfa 19:00; Codex 01a0fe18 19:55; [DEVELOPER-CONTEXT "How it has gone wrong"](../DEVELOPER-CONTEXT.md#how-it-has-gone-wrong).
 
 ## No ceremony
@@ -94,7 +98,7 @@ Sources: Codex 01a0f6ac 08:59, 09:14; Codex 01a0ff8a 02:20; Claude ec6035d1 05:3
 ## Software results are not print results
 Agent wording, no approval found: "Software support is not print evidence"; physical qualification continues across releases and no software check implies print approval.
 
-Sources: [0.2.0 Verification](../plans/0.2.0.md#verification-limits-and-completion); [0.4.0 Scope boundaries](../plans/0.4.0.md#scope-boundaries); [DEVELOPER-CONTEXT rule 6](../DEVELOPER-CONTEXT.md#rules).
+Sources: [0.2.0 Verification](../plans/0.2.0.md#verification-limits-and-completion); [0.5.0 Scope boundaries](../plans/0.5.0.md#scope-boundaries); [DEVELOPER-CONTEXT rule 6](../DEVELOPER-CONTEXT.md#rules).
 
 ## Hard rules for builders and developers
 Agent wording, reviewed by the owner item by item, 2026-10-04 (Claude ec6035d1 05:37-06:31): the nine rules in [DEVELOPER-CONTEXT](../DEVELOPER-CONTEXT.md#rules). Owner words on the review: "Go ahead and fix/remove/update the rules I've already commented on, then capture the spirit of it" (05:53); "Your other takes seem correct, go ahead and complete the rules rewrite" (06:11).

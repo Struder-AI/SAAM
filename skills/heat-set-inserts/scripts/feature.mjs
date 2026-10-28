@@ -38,18 +38,8 @@ export function borePoint(f,r,a,s){
   const v=[d[1]*u[2]-d[2]*u[1],d[2]*u[0]-d[0]*u[2],d[0]*u[1]-d[1]*u[0]];
   return f.positionMm.map((c,i)=>c+s*d[i]+r*(Math.cos(a)*u[i]+Math.sin(a)*v[i]));
 }
-export const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:record.toleranceMm,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
-export function validateHeatSetRecord(record){
-  requireThat(Object.keys(record).sort().join()===Object.keys(heatSetTemplate(record)).sort().join(),'Unexpected heat-set geometry fields.');
-  requireThat(record.base&&Array.isArray(record.features)&&record.features.length>0,'Heat-set geometry needs a base and nonempty feature list.');
-  record.features.forEach(heatSetFeature);
-  requireThat(new Set(record.features.map(f=>f.id)).size===record.features.length,'Duplicate heat-set feature id.');
-  requireThat(Number.isFinite(record.toleranceMm)&&record.toleranceMm>0,'Heat-set toleranceMm must be positive.');
-}
 // Reversible readable identifiers keep component and editable feature identity.
 // Escapes never contain '--', which separates owner, feature and fin identities.
 const encodeId=id=>[...id].map(c=>c==='-'?'-h':c==='_'?'-u':/[A-Z]/.test(c)?'-c'+c.toLowerCase():c).join('');
 export const heatSetAssignmentId=(feature,part=null)=>'heat-set-'+(part===null?'':encodeId(part)+'--')+encodeId(feature.id);
-export const legacyHeatSetAssignmentId=feature=>'heat-set-'+feature.id.toLowerCase().replace(/[^a-z0-9-]/g,'-');
 
-export const heatSetRecordRuntime=()=>({validate:validateHeatSetRecord});

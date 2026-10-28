@@ -1,15 +1,23 @@
 # Building on SAAM
 
-Builders author guidance and reusable compositions of published capabilities:
-recipe helpers, geometry/assets, examples and diagnostic workflows.
+Builders build extensions through SAAM's published interfaces. An extension's
+guidance and supporting assets belong with that extension. Making parts and
+assets is maker work; builders can do it as part of developing an extension.
 Changing core skills, core, Studio or shared interfaces is
 [developer work](AGENTS.md#changing-role); the boundary is the responsibility
 changed, not the size or location of an edit.
 
-Run `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]` once when
-builder context is missing. It returns this manual, maker context, skill authoring
-and the digest, plus the named area's contract or map. Reuse returned context;
-read individual manuals only as needed.
+Installed SAAM plus `<SAAM home>/local/extensions` is the default contributor
+workflow. Use a desktop chat client for supported local authoring and
+`saam call builder_onboarding` once when builder context is missing. It returns
+contracts, authoring guidance, selected-extension provenance and discovery links.
+A writable core checkout is unnecessary to inspect published interfaces or linked
+source. Reuse returned context and read details as needed.
+
+A full checkout is an explicit choice for core development. In a requested
+source checkout, `node scripts/agent-toolkit.mjs builder-onboarding [--area AREA]`
+remains available for source guidance. Identify the development runtime explicitly
+when changing core, Studio or shared interfaces.
 
 **Builders inherit [maker responsibilities](MAKERS.md), including supported [material claims](MAKERS.md#toolpaths).**
 Developers orient by the map and DEVELOPER-CONTEXT.md, loading this file, maker
@@ -26,7 +34,7 @@ Hard rules for builders and developers. The same list appears in
 change both together.
 
 1. Hard rules come only in the owner's wording or with the owner's approval. An agent reacting to a complaint or a failure writes guidance or proposes a rule.
-2. Staging, committing and pushing each need explicit authorization, which may already have been given in the conversation. Pushing to main and merging need authorization for those actions; a request to checkpoint is not a request to publish.
+2. Make local checkpoints at sensible intervals without asking; this includes staging and committing. Pushing and merging still need explicit authorization, which may already have been given in the conversation. A checkpoint is not a request to publish.
 3. A checkpoint commits all non-ignored work in the checkout, including concurrent contributions, unless the user narrows it, and stays on the current branch.
 4. Keep at most one pending branch per account and reuse it across tasks; edit on it rather than main unless direct main work is explicitly authorized.
 5. Adding or restoring a third-party package or dependency (such as CGAL or Manifold) needs explicit human approval. This requirement does not apply to methods or to using, adapting or copying algorithms.
@@ -73,8 +81,9 @@ behavior with little machinery, not deferring required integration or building a
 throwaway shortcut. When simplifying existing code, identify the concrete cost
 and check its current consumers before removing it.
 
-Prefer designs that make consistency structural. Review and delivery consume
-the same machine-program bytes; consumers reuse the owning validation result
+Prefer designs that make consistency structural. Studio reviews the captured
+geometry, Paath and settings; Export translates that capture to delivered program
+bytes. Consumers reuse the owning validation result
 for unchanged inputs. Apply the same approach to algorithms, derived data and
 documentation: reduce independently maintained representations and give each
 operation a clear owner. Judge an abstraction by the duplication and coordination
@@ -91,10 +100,11 @@ that identify the responsible work. Examine whether a computation is necessary,
 already available or better scheduled elsewhere. Reuse requires valid input
 identity; background work must preserve responsiveness. A production
 check likewise needs a concrete failure to detect and evidence that its cost
-and placement are justified. Apply that standard to agent workflows and CI under
-[Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals); task boundaries and commits do not
-create verification work. Distinguish algorithmic preconditions from printing
-decisions that require domain judgment.
+and placement are justified. Reuse the owning result rather than repeating
+validation in each pipeline stage. These runtime checks are separate from
+[checks on the product](DEVELOPER-CONTEXT.md#verification-and-delivery).
+Distinguish algorithmic preconditions from printing decisions that require
+domain judgment.
 
 ## Working context
 
@@ -111,7 +121,11 @@ conveniently to source using ordinary repository tools.
 
 ## Architecture and local documentation
 
-The [architecture specification](ARCHITECTURE.md) describes modules, relationships and runtime scenarios. Builders inspect consumed interfaces alongside their manuals. Measurements belong in [DEVLOG.md](DEVLOG.md), agreed direction in its release intent, and user-facing limits in the owning manual.
+Builders inspect consumed interfaces and source alongside their manuals;
+`saam call read_contract_source` reads this version's published source. The
+[implementation account](ARCHITECTURE.md) retains runtime scenarios and current
+deployment reference. Measurements belong in [DEVLOG.md](DEVLOG.md), agreed
+direction in its release intent, and user-facing limits in the owning manual.
 
 Add a docstring or comment only for local value, such as a subtle precondition,
 a unit convention or an external constraint, not to repeat what the code plainly
@@ -126,14 +140,14 @@ to every builder or developer using that interface, including skill results,
 geometry queries and Studio extension boundaries. Core/Studio behaviour, contracts
 and limits belong to the [component manuals](#implementation-reference);
 influence — what code a change affects and what affects it — is read from the
-influence maps and the source they name. Skills and adapters retain
+source and its callers. Skills and adapters retain
 their separate implementation references. Select context by the boundary being consumed or
 changed, rather than labeling an entire mixed component manual developer-only.
 
 ### Implementation reference
 
 One manual per component, beside the code it describes. Read the one you are
-changing; read the maps for what it affects and what affects it.
+changing; read the affected source and callers for what it affects and what affects it.
 
 | Component | Manual |
 |---|---|
@@ -195,21 +209,23 @@ its purpose and provenance and compare its producers and consumers with current 
 machine and lifecycle interfaces. Ordinary authorized development adds no
 per-task approval gate.
 
-## Reproducible examples
-
-A skill's [example recipes](skills/AUTHORING.md) are static references and the
-[print examples](examples/prints/README.md) the tour's fin block and gallery recipes. Make an example's
-setup, assets and recipe assumptions reachable from its skill manual or packaged
-tools for a fresh part, not from the originating conversation.
-
 ## Testing through the use context
 
-Develop and exercise maker-facing changes through [MAKERS.md](MAKERS.md), public
-tools and the relevant skill manuals. Assess the affected experience, including
-installation, discoverability and recovery when relevant to the change.
-
-Use isolated projects, fixtures and machine simulators. Report software and
+Use whatever development checks are needed to get the extension working smoothly.
+Exercise its actual use through public SAAM tools and [maker guidance](MAKERS.md),
+including the compositions its intended behavior depends on. Choose checks for
+the extension being built rather than a standing checklist. Report software and
 physical results separately.
+
+Once the extension works smoothly, remove the development checks: temporary tests,
+diagnostic scripts and checking instrumentation. Do not ship them as extra pipeline
+stages or accumulate a permanent builder test suite. Lasting checks on SAAM are
+[defined separately](DEVELOPER-CONTEXT.md#verification-and-delivery).
+
+If the public interfaces cannot express the extension or expose a core defect,
+report the concrete input, expected result and actual result through
+`saam call report_bug`, following the existing bug-report guidance. Core changes
+require developer work; building an extension does not require a core checkout.
 
 A developmental preview is an ordinary `saam` bundle, created and generated
 in development mode. Robot parts still need explicit command settings; for a
@@ -233,7 +249,7 @@ retains superseded source. No separate documentation closeout gate is needed.
 | Maker interaction and export | [MAKERS.md](MAKERS.md) |
 | Release installation and client setup; source checkout setup | [INSTALL.md](packaging/INSTALL.md); [SETUP.md](SETUP.md) |
 | Checkpointing and remote contribution | [Contribution guidance](CONTRIBUTING-AGENTS.md), at that stage |
-| Test design and coverage selection | [Test reference](core/tests/README.md) |
+| Lasting product checks and temporary development tests | [Developer verification](DEVELOPER-CONTEXT.md#verification-and-delivery); builders exercise their [use context](#testing-through-the-use-context) |
 | Core/Studio behaviour, contracts and limits | The [component manuals](#implementation-reference); skill callers may read them independently |
 | Module relationships and affected consumers | [Architecture](ARCHITECTURE.md#5-building-block-view), then the affected source and callers |
 | Application commands and chat attachment | [Application](core/application/README.md) |
@@ -270,7 +286,7 @@ guidance is needed when developing or exercising the maker-facing workflow.
 | Task | Start here |
 |---|---|
 | Unused checkout | [Setup](SETUP.md) |
-| Choosing or changing tests | [Avoid check spirals](DEVELOPER-CONTEXT.md#avoid-check-spirals), then the [test reference](core/tests/README.md) |
+| Getting an extension working | [Builder development checks](#testing-through-the-use-context) |
 | Checkpoint or remote activity, after implementation | [Contribution guidance](CONTRIBUTING-AGENTS.md) |
 | Skill authoring and discovery metadata | [Skill development](skills/AUTHORING.md) |
 | Trace the system or change an interface | [Core architecture](core/README.md), the [module relationships](ARCHITECTURE.md#relationships-and-state-ownership) and affected callers |

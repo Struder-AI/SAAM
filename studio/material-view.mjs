@@ -7,12 +7,17 @@ import {createMachineLayer} from './machine-view.mjs';
 import {CURRENT_LAYER_GAP_MM,layerKey,toolpathStyle} from './toolpath-view.mjs';
 
 export const materialKey=move=>layerKey(move)+'\0'+(move.operation??'')+(move.filament===undefined?'':'\0'+move.filament);
+// Residency limits, not coverage limits: every visible page is still drawn.
+export const MATERIAL_BUFFER_BUDGET_BYTES=16*1024*1024;
+export const MATERIAL_PAGE_INSTANCES=4096;
+export const MATERIAL_CACHED_PAGES=256;
+const INSTANCE_FLOATS=18,INSTANCE_BYTES=INSTANCE_FLOATS*Float32Array.BYTES_PER_ELEMENT;
 
 // The surface frame a bead's cross-section stands on: one selected normal
 // function per move phase, with the nominal height and centering it implies.
 // `null` refuses the bead rather than inventing a frame.
 function beadFrame(move,plan,geometry,assignment){
-  const p=plan.process;
+  const p=plan.process??{};
   // Frozen material frames remain valid when no machine is selected or the
   // tool is tilted. Zero marks older source moves without a material normal.
   if(move.surfaceNormal?.every(Number.isFinite)&&length(move.surfaceNormal)>0)
@@ -37,8 +42,8 @@ function beadFrame(move,plan,geometry,assignment){
 
 export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=false}={}){
   if(!move.extruding||length(subtract(to,from))<(ROUNDING_MM/1000))return null;
-  const p=plan.process,tangent=normalize(subtract(to,from));
-  const assignment=plan.slices.assignments.find(a=>!a.construction&&move.operation?.startsWith((a.part===null?'':a.part+':')+a.id+':'));
+  const p=plan.process??{},tangent=normalize(subtract(to,from));
+  const assignment=plan.slices?.assignments.find(a=>!a.construction&&move.operation?.startsWith((a.part===null?'':a.part+':')+a.id+':'));
   const frame=beadFrame(move,plan,geometry,assignment);
   if(!frame)return null;
   const centered=frame.centered;let height=frame.height;
@@ -57,7 +62,16 @@ export function beadSection(move,plan,geometry,from=move.from,to=move.to,{gap=fa
   }
   const a=end(from),b=end(to);return a&&b?{a,b,width,height}:null;
 }
-export const beadInstance=section=>new Float32Array([...section.a.center,...section.b.center,...section.a.wide,...section.a.short,...section.b.wide,...section.b.short]);
+function writeInstance(data,offset,section){
+  data.set(section.a.center,offset);data.set(section.b.center,offset+3);
+  data.set(section.a.wide,offset+6);data.set(section.a.short,offset+9);
+  data.set(section.b.wide,offset+12);data.set(section.b.short,offset+15);
+  return data;
+}
+export const beadInstance=section=>writeInstance(new Float32Array(INSTANCE_FLOATS),0,section);
+function materialReader(moves){
+  return moves.reader?.(['extruding','from','to','phase','layer','sliceStack','sliceIndex','layerId','legacyRun','modulated','operation','commandedVolumeMm3','volumeMm3','surfaceNormal','beadHeightMm','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??(i=>moves.at(i));
+}
 
 // Queue a host task instead of a timer: background timer clamping must not
 // turn each short preparation yield into a long wait. Close both ports after
@@ -70,9 +84,8 @@ function yieldMaterialTask(){
   });
 }
 
-// Completed material retains every source curve segment. Rectangular swept
-// sections touch neighboring tracks to form a solid layer appearance. Shared
-// templates and compact instance buffers replace per-bead tessellated meshes.
+// Retain source indexes and coverage, not another full material geometry.
+// Drawing pages recreate exactly the same sections from these immutable moves.
 export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},yieldTask=yieldMaterialTask}={}){
   const groups=[],byKey=new Map(),unsupported=new Set(),supported=new Uint8Array(moves.length);
   const bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};
@@ -82,8 +95,7 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
   let lastYield=performance.now(),visited=0,beads=0;
   const due=()=>performance.now()-lastYield>=8;
   const pause=async progress=>{onProgress(progress);await yieldTask();lastYield=performance.now();};
-  const indexedMove=i=>moves.at(i);
-  const read=moves.reader?.(['extruding','from','to','phase','layer','sliceStack','sliceIndex','layerId','legacyRun','modulated','operation','commandedVolumeMm3','volumeMm3','surfaceNormal','beadHeightMm','toolAxisFrom','toolAxisTo','toolUpFrom','toolUpTo','filament','lineWidthMm'])??indexedMove;
+  const read=materialReader(moves);
   for(let i=0;i<moves.length;i++){
     if(i%256===0&&due())await pause(i/Math.max(1,moves.length)*.25);
     const move=read(i);if(!move.extruding)continue;
@@ -93,26 +105,28 @@ export async function buildMaterialScene(moves,plan,geometry,{onProgress=()=>{},
     beads++;
     for(const point of [move.from,move.to])point.forEach((v,k)=>{bounds.min[k]=Math.min(bounds.min[k],v);bounds.max[k]=Math.max(bounds.max[k],v);});
     const key=materialKey(move);let group=byKey.get(key);
-    if(!group){group={key,layerKey:layerKey(move),move:moves.at(i),indices:[],last:i};byKey.set(key,group);groups.push(group);}
-    group.indices.push(i);group.last=i;
+    if(!group){group={key,layerKey:layerKey(move),move:moves.at(i),count:0,last:i};byKey.set(key,group);groups.push(group);}
+    group.count++;group.last=i;
   }
-  for(let i=0;i<groups.length;i++){
-    const group=groups[i];
-    let count=0,instances,indices;
-    for(const index of group.indices){
-      if(visited++%128===0&&due())await pause(.25+.75*(visited-1)/Math.max(1,beads));
-      const move=read(index),s=beadSection(move,plan,geometry);
-      if(s){
-        instances??=new Float32Array(group.indices.length*18);indices??=new Uint32Array(group.indices.length);
-        const offset=count*18;
-        instances.set(s.a.center,offset);instances.set(s.b.center,offset+3);
-        instances.set(s.a.wide,offset+6);instances.set(s.a.short,offset+9);
-        instances.set(s.b.wide,offset+12);instances.set(s.b.short,offset+15);
-        indices[count++]=index;supported[index]=1;
-      }else unsupported.add(move.phase);
-    }
-    group.instances=count?instances.subarray(0,count*18):new Float32Array();
-    group.indices=count?indices.subarray(0,count):new Uint32Array();
+  for(const group of groups){group.indices=new Uint32Array(group.count);group.count=0;group.bounds={min:[Infinity,Infinity,Infinity],max:[-Infinity,-Infinity,-Infinity]};group.reach=0;}
+  const sample=new Float32Array(INSTANCE_FLOATS);
+  for(let index=0;index<moves.length;index++){
+    const move=read(index);
+    if(!move.extruding||length(subtract(move.to,move.from))<(ROUNDING_MM/1000))continue;
+    if(visited++%128===0&&due())await pause(.25+.75*(visited-1)/Math.max(1,beads));
+    const group=byKey.get(materialKey(move)),section=beadSection(move,plan,geometry);
+    if(section){
+      group.indices[group.count++]=index;supported[index]=1;
+      const data=writeInstance(sample,0,section);
+      for(let k=0;k<3;k++){group.bounds.min[k]=Math.min(group.bounds.min[k],data[k],data[k+3]);group.bounds.max[k]=Math.max(group.bounds.max[k],data[k],data[k+3]);}
+      for(const o of [6,12])group.reach=Math.max(group.reach,Math.hypot(data[o],data[o+1],data[o+2])+Math.hypot(data[o+3],data[o+4],data[o+5]));
+    }else (group.unsupported??=new Set()).add(move.phase);
+  }
+  for(const group of groups){
+    for(const phase of group.unsupported??[])unsupported.add(phase);
+    group.indices=group.count?group.indices.subarray(0,group.count):new Uint32Array();
+    group.bounds={min:group.bounds.min.map(v=>v-group.reach),max:group.bounds.max.map(v=>v+group.reach)};
+    delete group.count;delete group.reach;delete group.unsupported;
   }
   onProgress(1);
   return {moves,plan,geometry,groups,bounds,supported,unsupported:[...unsupported]};
@@ -154,6 +168,21 @@ function groupBounds(data){
   }
   return {min:min.map(v=>v-reach),max:max.map(v=>v+reach)};
 }
+// A prepared preview may still carry an older complete instance buffer. Keep
+// only its source indexes/bounds when ownership passes to the selected view.
+export function materialSceneFromPreview(preview,moves,plan,geometry){
+  return {...preview,moves,plan,geometry,groups:preview.groups.map(({instances,...group})=>
+    ({...group,bounds:group.bounds??groupBounds(instances)}))};
+}
+export function materialPage(scene,group,first,count){
+  const data=new Float32Array(count*INSTANCE_FLOATS),read=materialReader(scene.moves);
+  for(let i=0;i<count;i++){
+    const move=read(group.indices[first+i]),section=beadSection(move,scene.plan,scene.geometry);
+    if(!section)throw Error('Material drawing source changed after preparation.');
+    writeInstance(data,i*INSTANCE_FLOATS,section);
+  }
+  return data;
+}
 export function materialProjection(project,width,height,bounds){
   const o=project([0,0,0]),axes=[[1,0,0],[0,1,0],[0,0,1]].map(p=>subtract(project(p),o));
   let low=Infinity,high=-Infinity;
@@ -168,10 +197,9 @@ export function materialProjection(project,width,height,bounds){
   return {matrix,light};
 }
 
-// One instanced geometry buffer per layer/operation. The active oval gradually
-// becomes the completed section during the fade, never at a discrete boundary.
-// Camera, rotary, scrub and fading update uniforms/counts; curves stay cached.
-export function createMaterialRenderer(documentApi=document){
+// Evictable finite pages share the same depth buffer and draw order. A frame
+// larger than the resident budget streams through it without dropping beads.
+export function createMaterialRenderer(documentApi=document,{bufferBudgetBytes=MATERIAL_BUFFER_BUDGET_BYTES}={}){
   const canvas=documentApi.createElement('canvas'),gl=canvas.getContext('webgl2',{alpha:true,antialias:true,preserveDrawingBuffer:true});
   if(!gl)return null;
   let lost=false;canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();lost=true;});
@@ -208,9 +236,11 @@ export function createMaterialRenderer(documentApi=document){
     return {buffer,elements,count:indices.length};
   }
   const templates=[template(false),template(true)];
-  let scene=null,partial=null,machineLayer=null;const buffers=new Map();
+  const bufferBudget=Math.max(INSTANCE_BYTES,Number.isFinite(bufferBudgetBytes)?bufferBudgetBytes:MATERIAL_BUFFER_BUDGET_BYTES);
+  const pageInstances=Math.min(MATERIAL_PAGE_INSTANCES,Math.floor(bufferBudget/INSTANCE_BYTES));
+  let scene=null,partial=null,machineLayer=null,residentBytes=0;const buffers=new Map();
   function release(entry){gl.deleteBuffer(entry.buffer);for(const vao of entry.vaos)gl.deleteVertexArray(vao);}
-  function reset(next){for(const entry of buffers.values())release(entry);buffers.clear();scene=next;}
+  function reset(next){for(const entry of buffers.values())release(entry);buffers.clear();residentBytes=0;scene=next;}
   function instanceBuffer(data,usage=gl.STATIC_DRAW){
     const buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,data,usage);
     const vaos=templates.map(t=>{
@@ -235,54 +265,65 @@ export function createMaterialRenderer(documentApi=document){
       // A fitted bead may be narrower than one screen pixel. Render enough
       // samples across it before downsampling, instead of allowing its oval
       // facets to alternate between visible and missing as the camera moves.
-      const sampling=Math.max(ratio,Math.min(4,2/Math.max((1/100),(project.pixelsPerMm??1)*scene.plan.process.lineWidthMm)));
+      const sampling=Math.max(ratio,Math.min(4,2/Math.max((1/100),(project.pixelsPerMm??1)*(scene.plan.process?.lineWidthMm??0))));
       const resolution=sampling*(quality>=2?1/3:quality>=1?.5:1);
       const w=Math.max(1,Math.round(width*resolution)),h=Math.max(1,Math.round(height*resolution));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
       gl.viewport(0,0,w,h);gl.clearColor(0,0,0,0);gl.depthMask(true);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
       const depthBounds=machine?{min:scene.bounds.min.map((v,i)=>Math.min(v,machine.bounds.min[i])),max:scene.bounds.max.map((v,i)=>Math.max(v,machine.bounds.max[i]))}:scene.bounds;
-      const {matrix,light}=materialProjection(project,width,height,depthBounds),commands=[];
+      const {matrix,light}=materialProjection(project,width,height,depthBounds);
       // A group whose projected bounds miss the viewport cannot reach a pixel.
       const offscreen=bounds=>{
         let left=Infinity,right=-Infinity,top=Infinity,bottom=-Infinity;
         for(let bits=0;bits<8;bits++){const q=project([0,1,2].map(i=>bounds[(bits>>i)&1?'max':'min'][i]));left=Math.min(left,q[0]);right=Math.max(right,q[0]);top=Math.min(top,q[1]);bottom=Math.max(bottom,q[1]);}
         return right<0||left>width||bottom<0||top>height;
       };
-      let culled=0;
-      for(const group of scene.groups){
+      // One unblended depth pass: streaming pages retain the same nearest
+      // surfaces and source draw order as one complete group buffer.
+      gl.useProgram(program);gl.uniformMatrix4fv(uniforms.projection,false,matrix);gl.uniform3fv(uniforms.light,light);
+      const m=matrix,handed=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);
+      gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);gl.frontFace(handed<0?gl.CCW:gl.CW);
+      gl.disable(gl.BLEND);gl.colorMask(true,true,true,true);gl.depthMask(true);gl.depthFunc(gl.LESS);
+      let culled=0,groups=0,detailedGroups=0,draws=0,instances=0,uploadedBytes=0,evictedPages=0,peakResidentBytes=residentBytes;
+      function draw(entry,count,detail,style){
+        const rgb=[1,3,5].map(i=>parseInt(style.color.slice(i,i+2),16)/255);gl.uniform4f(uniforms.color,...rgb,style.opacity);gl.uniform1f(uniforms.detailed,detail);
+        const shape=detail>0?1:0;
+        gl.bindVertexArray(entry.vaos[shape]);gl.drawElementsInstanced(gl.TRIANGLES,templates[shape].count,gl.UNSIGNED_SHORT,0,count);
+        draws++;instances+=count;
+      }
+      for(let groupIndex=0;groupIndex<scene.groups.length;groupIndex++){
+        const group=scene.groups[groupIndex];
         if(!group.indices.length||group.indices[0]>=at.completed)continue;
-        if(!buffers.has(group))buffers.set(group,{...instanceBuffer(group.instances),bounds:groupBounds(group.instances)});
-        if(offscreen(buffers.get(group).bounds)){culled++;continue;}
+        if(offscreen(group.bounds)){culled++;continue;}
         let low=0,high=group.indices.length;
         while(low<high){const mid=(low+high)>>1;if(group.indices[mid]<at.completed)low=mid+1;else high=mid;}
-        commands.push({entry:buffers.get(group),count:low,detail:quality>=2?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0,
-          style:toolpathStyle(group.move,current,phaseColours,fade.weights.get(group.layerKey)??0,{previousLayerOpacity})});
+        const detail=quality>=2?0:group.layerKey===layerKey(current)?1:fade.weights.get(group.layerKey)??0;
+        const style=toolpathStyle(group.move,current,phaseColours,fade.weights.get(group.layerKey)??0,{previousLayerOpacity});
+        groups++;if(detail)detailedGroups++;
+        for(let first=0;first<low;first+=pageInstances){
+          const key=groupIndex+':'+first,count=Math.min(pageInstances,group.indices.length-first);
+          let entry=buffers.get(key);
+          if(entry){buffers.delete(key);buffers.set(key,entry);}
+          else{
+            const bytes=count*INSTANCE_BYTES;
+            while(residentBytes+bytes>bufferBudget||buffers.size>=MATERIAL_CACHED_PAGES){
+              const oldest=buffers.keys().next().value,removed=buffers.get(oldest);
+              release(removed);buffers.delete(oldest);residentBytes-=removed.bytes;evictedPages++;
+            }
+            const data=materialPage(scene,group,first,count);
+            entry={...instanceBuffer(data),bytes,groupIndex};buffers.set(key,entry);residentBytes+=bytes;uploadedBytes+=bytes;
+            peakResidentBytes=Math.max(peakResidentBytes,residentBytes);
+          }
+          draw(entry,Math.min(count,low-first),detail,style);
+        }
       }
       const move=at.active<0?undefined:scene.moves.at(at.active);
       if(move?.extruding&&at.fraction<1){const section=beadSection(move,scene.plan,scene.geometry,move.from,at.point);
         if(section){
           const data=beadInstance(section);if(!partial)partial=instanceBuffer(data,gl.DYNAMIC_DRAW);
           else{gl.bindBuffer(gl.ARRAY_BUFFER,partial.buffer);gl.bufferSubData(gl.ARRAY_BUFFER,0,data);}
-          commands.push({entry:partial,count:1,detail:quality>=2?0:1,style:toolpathStyle(move,current,phaseColours)});
+          const detail=quality>=2?0:1;draw(partial,1,detail,toolpathStyle(move,current,phaseColours));groups++;if(detail)detailedGroups++;
         }
       }
-      gl.useProgram(program);gl.uniformMatrix4fv(uniforms.projection,false,matrix);gl.uniform3fv(uniforms.light,light);
-      const stats=()=>({cachedGroups:buffers.size,detailedGroups:commands.filter(c=>c.detail).length,
-        groups:commands.length,culledGroups:culled,draws:commands.length,instances:commands.reduce((sum,c)=>sum+c.count,0),canvas:[w,h],sampling:+sampling.toFixed(2),quality});
-      function drawCommands(){
-        for(const {entry,count,detail,style} of commands){
-          const rgb=[1,3,5].map(i=>parseInt(style.color.slice(i,i+2),16)/255);gl.uniform4f(uniforms.color,...rgb,style.opacity);gl.uniform1f(uniforms.detailed,detail);
-          const shape=detail>0?1:0;
-          gl.bindVertexArray(entry.vaos[shape]);gl.drawElementsInstanced(gl.TRIANGLES,templates[shape].count,gl.UNSIGNED_SHORT,0,count);
-        }
-      }
-      // One pass: the nearest surface wins the depth test and is written
-      // unblended, so hidden surfaces cannot accumulate opacity inside a
-      // completed block. Beads are closed and convex, so a back face is never
-      // the nearest surface. Clip space looks along +z, so an orientation-
-      // preserving projection shows outward counter-clockwise faces clockwise.
-      const m=matrix,handed=m[0]*(m[5]*m[10]-m[6]*m[9])-m[4]*(m[1]*m[10]-m[2]*m[9])+m[8]*(m[1]*m[6]-m[2]*m[5]);
-      gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.cullFace(gl.BACK);gl.frontFace(handed<0?gl.CCW:gl.CW);
-      gl.disable(gl.BLEND);gl.colorMask(true,true,true,true);gl.depthMask(true);gl.depthFunc(gl.LESS);drawCommands();
       gl.disable(gl.CULL_FACE);
       if(machine){
         // The ghost machine composites underneath the material already drawn.
@@ -290,7 +331,9 @@ export function createMaterialRenderer(documentApi=document){
         if(machineMode==='ghost')machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:c=>c.role!=='tool',depth:false,under:true});
         machineLayer.draw(machine,{project,matrix,width,height,mode:machineMode,palette:machinePalette,filter:machineMode==='ghost'?c=>c.role==='tool':null});
       }
-      gl.bindVertexArray(null);return stats();
+      gl.bindVertexArray(null);return {cachedGroups:new Set([...buffers.values()].map(entry=>entry.groupIndex)).size,cachedPages:buffers.size,
+        residentBytes,peakResidentBytes,bufferBudgetBytes:bufferBudget,pageBudget:MATERIAL_CACHED_PAGES,uploadedBytes,evictedPages,detailedGroups,groups,culledGroups:culled,draws,instances,
+        canvas:[w,h],sampling:+sampling.toFixed(2),quality};
     },
     dispose(){reset(null);if(partial)release(partial);machineLayer?.dispose();templates.forEach(t=>{gl.deleteBuffer(t.buffer);gl.deleteBuffer(t.elements);});gl.deleteProgram(program);}
   };

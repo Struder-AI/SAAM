@@ -16,10 +16,12 @@
 // sampling basis, not a proof of completeness.
 
 import {clipLineToRegion} from './curve-region.mjs';
+import {bezierPieces} from './surface-intersection.mjs';
+import {sampleCurveIntervals} from './curve-sampling.mjs';
 import {evaluateSurface,surfaceChartCovers} from './surface-evaluation.mjs';
-import { evaluateScalar, gradientBound, planeCoefficients, candidateSpans, clamp } from './nurbs.mjs';
+import { evaluate, evaluateScalar, prepareScalar, gradientBound, planeCoefficients, candidateSpans, clamp } from './nurbs.mjs';
 import { TOLERANCE, requireThat, findRoot, distance, subtract, add, scale, dot } from './tolerance.mjs';
-import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM } from '../dimensions.mjs';
+import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM } from '../dimensions.mjs';
 
 const CELL_MAX = 96, SPLIT_LIMIT = 8;
 
@@ -28,17 +30,20 @@ const CELL_MAX = 96, SPLIT_LIMIT = 8;
 // crosses a grid node - which is what a plane flush with a grid line does.
 const positive = value => value >= 0;
 
-export function sectionPatch(patch, plane, { minFeatureMm = 0.4,chordMm=TOLERANCE.chord } = {}) {
+export function sectionPatch(patch, plane, { minFeatureMm = 0.4,chordMm=TOLERANCE.chord,boundaryContacts=false } = {}) {
   const { normal, offset } = plane;
   const coefficients = planeCoefficients(patch, normal, offset);
   let allZero = true;
-  for (const c of coefficients) if (Math.abs(c) > PRINT_RESOLUTION_MM) { allZero = false; break; }
+  // Boundary queries use physical residuals: rescaling homogeneous controls
+  // cannot turn a nonplanar patch into a coincident sheet. Slice keeps its
+  // existing equality convention until that separate contract changes.
+  for (const [i,c] of coefficients.entries()) if (Math.abs(c) > PRINT_RESOLUTION_MM*(boundaryContacts?patch.cp[4*i+3]:1)) { allZero = false; break; }
   // The whole patch lies in the slice plane at print resolution: a flush face, not a curve.
   if (allZero) return { chains: [], coincident: true };
 
   // Sign tests, root finds and cell sampling all use h; only the emitted points
   // need a surface evaluation.
-  const g = (u, v) => evaluateScalar(patch, coefficients, u, v);
+  const g = prepareScalar(patch,coefficients);
   const chains = [];
   for (const span of candidateSpans(patch, coefficients)) {
     const { us, vs, values } = contourGrid(patch, span, g, minFeatureMm, coefficients);
@@ -46,7 +51,26 @@ export function sectionPatch(patch, plane, { minFeatureMm = 0.4,chordMm=TOLERANC
       for (let j = 0; j < vs.length - 1; j++)
         for (const segment of cellSegments(g, us, vs, values, i, j)) chains.push(segment);
   }
-  return { chains: joinSegments(chains, patch, g,chordMm), coincident: false };
+  return { chains: joinSegments(chains, patch, g,chordMm), coincident: false,
+    ...(boundaryContacts?{contacts:planeBoundaryContacts(patch,plane,chordMm)}:{}) };
+}
+
+// A supporting plane can contain a native chart edge without a transverse
+// sign change. Keep those bounded events separate from Slice's half-open cut.
+function planeBoundaryContacts(patch,{normal,offset},chordMm){
+  const contacts=[];
+  for(const piece of bezierPieces(patch))for(const axis of [0,1])for(const end of [0,1]){
+    const fixed=[piece.u,piece.v][axis][end];
+    if(fixed!==[patch.domainU,patch.domainV][axis][end])continue;
+    const rows=axis===0?piece.net[end?piece.net.length-1:0]:piece.net.map(row=>row[end?row.length-1:0]);
+    // Positive rational weights turn the numerator residual into millimetres.
+    if(!rows.every(row=>Math.abs(dot(normal,row.slice(0,3))/row[3]-offset)<=ROUNDING_MM))continue;
+    const range=[piece.u,piece.v][1-axis],uv=t=>axis===0?[fixed,t]:[t,fixed];
+    const samples=sampleCurveIntervals({at:t=>({point:evaluate(patch,...uv(t),false).point}),cuts:[range[0],(range[0]+range[1])/2,range[1]],stepMm:Infinity,toleranceMm:chordMm});
+    if(!samples.slice(1).some((sample,i)=>distance(sample.point,samples[i].point)>ROUNDING_MM))continue;
+    contacts.push({axis,fixed,range,chain:samples.map(sample=>{const [u,v]=uv(sample.t);return {u,v,point:sample.point};})});
+  }
+  return contacts;
 }
 
 // A plane's contour on an evaluated surface keeps that surface's native chart.

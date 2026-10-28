@@ -17,11 +17,18 @@ const validPath=name=>typeof name==='string'&&!name.includes('\\')&&!name.includ
 export async function tourExample(directory){const marker=await optional(resolve(directory,'.tour-reference.json'));return marker?.version===TOUR_VERSION&&marker.id===TOUR_EXAMPLE?{id:marker.id,version:marker.version}:null;}
 export async function useExample(directory){try{await unlink(resolve(directory,'.tour-reference.json'));}catch(e){if(e.code!=='ENOENT')throw e;}}
 // The tour as one chat binding sees it; studioId names the Studio running it (none for a status read).
-export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
+export function createTour(libraryRoot,{now=Date.now,studioId,chat,readSnapshot}){
   const library=resolve(libraryRoot),progress=resolve(library,'.tour-progress.json'),base=resolve(library,'tour');
   const printIdOf=directory=>requestPrintId(library,directory);
-  const initial=()=>({version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,startAt:null});
-  async function read(){const value=await optional(progress);return value?.deckVersion===TOUR_DECK_VERSION&&value.runId?{...initial(),...value}:initial();}
+  const initial=()=>({version:TOUR_VERSION,deckVersion:TOUR_DECK_VERSION,runId:null,lessonId:null,step:0,active:false,completed:false,copies:{},selected:null,gates:{},baseline:null,startAt:null,preparedOutputId:null});
+  async function read(){
+    const value=await optional(progress);if(value?.deckVersion!==TOUR_DECK_VERSION||!value.runId)return initial();
+    // Older hosts called preparation a download. Retain progress without
+    // promoting that historical fact into client receipt.
+    const {downloadedHash,...retained}=value;
+    return {...initial(),...retained,preparedOutputId:value.preparedOutputId??downloadedHash??null,
+      ...(value.completion==='download'?{completion:'export'}:{})};
+  }
   const scope=data=>({runId:data.runId,lessonId:data.lessonId});
   const studioOwner=()=>studioId?{instanceId:studioId}:null;
   async function confined(name){
@@ -39,8 +46,8 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
     let name=title,index=1,directory;
     for(;;){directory=resolve(base,name);try{await mkdir(directory);break;}catch(e){if(e.code!=='EEXIST')throw e;name=title+'-'+(++index);}}
     const {machineId,plan}=await starterRecipe();
-    const {initBundle}=await import('../core/print/bundle.mjs');
-    await initBundle(directory,plan,{machineId});
+    const {createPart}=await import('../core/application/part-execution.mjs');
+    await createPart(directory,plan,{machineId});
     await save(resolve(directory,'.tour-reference.json'),{id,version:TOUR_VERSION});data.copies[id]=name;return directory;
   }
   async function signature(data,shown){
@@ -65,7 +72,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
     const data=await read();
     if(data.active&&data.step===L.settings&&await editLessonBaseline(data,state))await save(progress,data);
     if(data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&data.gates[data.step]&&await signature(data,state)!==data.viewSignature){
-      data.gates[data.step]=false;data.downloadedHash=null;await save(progress,data);
+      data.gates[data.step]=false;data.preparedOutputId=null;await save(progress,data);
     }
     return data;
   }
@@ -89,6 +96,18 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
     if(index===L.setup||index===L.export)data.gates[index]=data.viewSignature===await signature(data);
   }
   return {
+    async snapshot(){
+      const data=await read();
+      // Invalidated display gates are derived in this private value. Only an
+      // explicit observation/action records a baseline or progress transition.
+      if(data.active&&[L.geometry,L.settings,L.setup,L.export].includes(data.step)&&data.gates[data.step]){
+        const dir=await confined(data.selected),state=await readSnapshot(dir);
+        if(await signature(data,{...state,dir})!==data.viewSignature){data.gates[data.step]=false;data.preparedOutputId=null;}
+      }
+      const directory=(data.active||data.completed)&&data.selected?await confined(data.selected):null;
+      const records=directory?await chat.inspectRequestsFor(directory,studioId):[];
+      return describe(data,records);
+    },
     async info({records,state}={}){return describe(await observed(state),records);},
     async attachStudio(directory){
       if(!studioId)return;
@@ -107,7 +126,7 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
       await chat.withdraw({scope:{runId:data.runId}});
       for(const name of Object.values(data.copies))await chat.withdraw({directory:await confined(name)});
     },
-    async downloaded(outputId){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.downloadedHash=outputId;await save(progress,data);},
+    async exportPrepared(outputId){const data=await read();if(!data.active||data.step!==L.export)throw Error('Reach the final tour lesson before exporting.');data.preparedOutputId=outputId;await save(progress,data);},
     async acknowledgeView(directory,seen,state){
       const data=await observed(state);
       if(!data.active||await confined(data.selected)!==resolve(directory)||seen.revision!==state.revision)return describe(data);
@@ -152,8 +171,8 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
       else if(action==='finish'||action==='finish-view'){
         if(!data.active||data.step!==L.export||!data.gates[L.export]||await signature(data)!==data.viewSignature)
           throw Error('Review the current toolpath before finishing.');
-        if(action==='finish'&&!data.downloadedHash)throw Error('Download the print file to complete the tour.');
-        data.active=false;data.completed=true;data.completion=action==='finish'?'download':'view';
+        if(action==='finish'&&!data.preparedOutputId)throw Error('Prepare the print file with Export to complete the tour.');
+        data.active=false;data.completed=true;data.completion=action==='finish'?'export':'view';
         for(const name of Object.values(data.copies)){await useExample(await confined(name));await chat.withdraw({directory:await confined(name)});}
         await chat.ask({directory:await confined(data.selected),kind:'guidance',scope:{runId:data.runId},
           key:'tour-finish:'+data.runId,studioInstanceId:studioId,instruction:tourAgentInstruction(data)});
@@ -171,4 +190,4 @@ export function createTour(libraryRoot,{now=Date.now,studioId,chat}){
   };
 }
 // The tour status for a chat outside any Studio (the agent's get_tour).
-export const tourStatus=(libraryRoot,chat)=>createTour(libraryRoot,{chat}).info();
+export const tourStatus=(libraryRoot,chat,readSnapshot)=>createTour(libraryRoot,{chat,readSnapshot}).snapshot();

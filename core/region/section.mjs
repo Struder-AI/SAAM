@@ -1,6 +1,6 @@
 import {evaluateSurface,surfaceChartCovers} from '../geom/surface-evaluation.mjs';
 import {sectionPatch} from '../geom/section.mjs';
-import {surfacePlane,curveCorrespondence} from '../geom/surface-coincidence.mjs';
+import {surfacePlane,curveCorrespondence,boundedCurveCorrespondence} from '../geom/surface-coincidence.mjs';
 import {surfaceIsoCurve} from '../geom/surface-curves.mjs';
 import {sampleCurveIntervals} from '../geom/curve-sampling.mjs';
 import {clipLineToRegion} from '../geom/curve-region.mjs';
@@ -25,7 +25,7 @@ import { containsPoint } from '../geom/query.mjs';
 import { union, intersect, difference } from './intersection.mjs';
 import {offsetRegion} from './offset.mjs';
 import { requireThat, dot, cross,normalize,TOLERANCE } from '../geom/tolerance.mjs';
-import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE } from '../dimensions.mjs';
+import { PRINT_RESOLUTION_MM, PROGRAM_STEP_MM, ROUNDING_MM, ROUNDING_RELATIVE,FLOAT64_EPSILON } from '../dimensions.mjs';
 import {segmentTrimSpans,faceContainsUv,faceTrimRegion,planarFaceRegion} from '../geom/surface-trim.mjs';
 
 const OFF_SURFACE_MM = PRINT_RESOLUTION_MM; // material within print resolution of a sheet is that sheet's side
@@ -382,6 +382,55 @@ function interiorBoundaryPieces(P,pieces){
   }
   return result;
 }
+
+// Two incident partner faces can expose the same bounded native coedge.
+// It partitions this chart once; keep periodic UV aliases distinct even when
+// their world points agree. This does not remove either face's topology use.
+function uniqueBoundaryPieces(P,pieces){
+  const result=[],accepted=[];
+  const sameUv=(a,b)=>a.every((value,k)=>Math.abs(value-b[k])<=TOLERANCE.domainFraction*([P.domainU,P.domainV][k][1]-[P.domainU,P.domainV][k][0]));
+  const at=(entry,t,refine=false)=>{
+    const bounded=Math.max(entry.range[0],Math.min(entry.range[1],t));
+    requireThat(Math.abs(t-bounded)<=FLOAT64_EPSILON*64*Math.max(1,Math.abs(t)),'A native coedge correspondence leaves its proved interval.');t=bounded;
+    const exact=entry.vertices.find(v=>v.t===t);
+    if(exact&&!refine)return exact.vertex;
+    const index=exact?-1:entry.vertices.findIndex((v,i)=>i&&t>=Math.min(v.t,entry.vertices[i-1].t)&&t<=Math.max(v.t,entry.vertices[i-1].t));
+    const a=exact??entry.vertices[index-1],b=exact??entry.vertices[index],fraction=exact?0:(t-a.t)/(b.t-a.t),guess=a.vertex.uv.map((value,k)=>value+fraction*(b.vertex.uv[k]-value));
+    const partner=a.vertex.partner,along=entry.domain[0]+t*(entry.domain[1]-entry.domain[0]);
+    const partnerUv=entry.edge.axis===0?[entry.edge.fixed,along]:[along,entry.edge.fixed],point=evaluate(partner,...partnerUv,false).point;
+    const projection=projectToSurface(P,point,guess);
+    requireThat(projection.distance<=PROGRAM_STEP_MM,'A native coedge partition could not retain its paired chart.');
+    return {...a.vertex,uv:projection.uv,partnerUv,point};
+  };
+  for(const piece of pieces){
+    const first=piece.vertices[0],last=piece.vertices.at(-1),partner=first.partner;
+    const edge=[partner.domainU,partner.domainV].flatMap((domain,axis)=>domain.map(fixed=>({axis,fixed}))).find(({axis,fixed})=>
+      piece.vertices.every(vertex=>vertex.partnerUv[axis]===fixed));
+    if(!edge){result.push(piece);continue;}
+    const curve=surfaceIsoCurve(partner,edge.axis,edge.fixed),domain=curve.domain;
+    const parameter=vertex=>(vertex.partnerUv[1-edge.axis]-domain[0])/(domain[1]-domain[0]);
+    if(parameter(first)===parameter(last)){result.push(piece);continue;}
+    const vertices=piece.vertices.map(vertex=>({vertex,t:parameter(vertex)})),range=[vertices[0].t,vertices.at(-1).t].sort((a,b)=>a-b),entry={piece,curve,edge,domain,vertices,range};
+    let remaining=[range];
+    for(const other of accepted){
+      const overlaps=boundedCurveCorrespondence(curve,range,other.curve,other.range);
+      for(const overlap of overlaps){
+        const [low,high]=overlap.sourceRange;
+        if(![low,(low+high)/2,high].every(t=>sameUv(at(entry,t,true).uv,at(other,overlap.offset+overlap.scale*t,true).uv)))continue;
+        remaining=remaining.flatMap(([a,b])=>high<=a||low>=b?[[a,b]]:[[a,Math.max(a,low)],[Math.min(b,high),b]].filter(([from,to])=>to>from));
+      }
+      if(!remaining.length)break;
+    }
+    // Only proved duplicate intervals are removed. Residuals keep their own
+    // native authority; a map never extends beyond its certified overlap.
+    for(const [low,high] of remaining){
+      const points=[at(entry,low),...vertices.filter(v=>v.t>low&&v.t<high).sort((a,b)=>a.t-b.t).map(v=>v.vertex),at(entry,high)];
+      const kept=low===range[0]&&high===range[1]?piece:{...piece,closed:false,vertices:points};
+      result.push(kept);accepted.push({...entry,range:[low,high]});
+    }
+  }
+  return result;
+}
 function boundaryVertex(P,a,b,t){
   if(t===0)return a;if(t===1)return b;
   const uv=a.uv.map((v,k)=>v+t*(b.uv[k]-v)),partnerUv=a.partnerUv.map((v,k)=>v+t*(b.partnerUv[k]-v));
@@ -436,12 +485,18 @@ function planarSurfacePieces(P,partner,boundary,{seedMm,chordMm,planarChordMm=ch
   const [a,b]=boundary.corners,normal=boundary.normal,x=normalize(b.map((v,k)=>v-a[k])),y=cross(normal,x);
   const project=point=>{const relative=point.map((v,k)=>v-a[k]);return [dot(relative,x),dot(relative,y)];};
   const polygon=boundary.corners.map(project),clipPolygon=boundary.ranges?offsetRegion([polygon],planarChordMm):[polygon];
-  const cut=sectionPatch(P,{normal,offset:dot(normal,a)},{minFeatureMm:seedMm,chordMm:planarChordMm}),pieces=[];
+  const cut=sectionPatch(P,{normal,offset:dot(normal,a)},{minFeatureMm:seedMm,chordMm:planarChordMm,boundaryContacts:true}),pieces=[];
   if(cut.coincident)return pieces;
-  for(const chain of cut.chains){
+  const contacts=cut.contacts??[];
+  const contactSegment=(first,last)=>contacts.some(contact=>[first,last].every(vertex=>
+    Math.abs([vertex.u,vertex.v][contact.axis]-contact.fixed)<=TOLERANCE.domainFraction*([P.domainU,P.domainV][contact.axis][1]-[P.domainU,P.domainV][contact.axis][0])&&
+    [vertex.u,vertex.v][1-contact.axis]>=contact.range[0]&&[vertex.u,vertex.v][1-contact.axis]<=contact.range[1]));
+  for(const [index,chain] of [...cut.chains,...contacts.map(contact=>contact.chain)].entries()){
     const state={vertices:null};
     for(let i=1;i<chain.length;i++){
-      const first=chain[i-1],last=chain[i],origin=project(first.point),end=project(last.point),direction=end.map((v,k)=>v-origin[k]);
+      const first=chain[i-1],last=chain[i];
+      if(index<cut.chains.length&&contactSegment(first,last)){state.vertices=null;continue;}
+      const origin=project(first.point),end=project(last.point),direction=end.map((v,k)=>v-origin[k]);
       if(Math.hypot(...direction)<=ROUNDING_MM)continue;
       const clipped=clipLineToRegion(origin,direction,clipPolygon,{range:[0,1]});
       const spans=[...clipped.spans,...clipped.contacts].filter(([lo,hi])=>hi>lo).sort((p,q)=>p[0]-q[0]),merged=[];
@@ -520,7 +575,7 @@ export function surfaceInside(P, solid, { chordMm = TOLERANCE.chord, seedMm = 0.
     pieces.push(...pair.a);
   }
   const joiningMm=Math.max(chordMm,solid.construction?.toleranceMm??PRINT_RESOLUTION_MM);
-  const chains=chainPieces(interiorBoundaryPieces(P,pieces),P,joiningMm).map(chain=>orient(chain,P,shell));
+  const chains=chainPieces(uniqueBoundaryPieces(P,interiorBoundaryPieces(P,pieces)),P,joiningMm).map(chain=>orient(chain,P,shell));
   const sample = uv => containsPoint(shell,evaluate(P,...uv,false).point);
   let raw;
   try{raw=closeOnBoundary(P,chains,sample,faceTrimRegion(P,{toleranceMm:chordMm}),joiningMm);}catch(error){

@@ -5,6 +5,7 @@ import {prepareDepositionWork} from './deposition-work.mjs';
 
 import {finalizeConstructionReferences} from './construction-references.mjs';
 import {assignmentGeneration} from './assignment-generation.mjs';
+import {referenceStackPreparation} from './slice-stacks.mjs';
 
 // Deposition of every assignment. A failing assignment produces nothing and
 // says why; retries retain completed work only while its prepared inputs and
@@ -12,11 +13,11 @@ import {assignmentGeneration} from './assignment-generation.mjs';
 // summary, notes}: notes are the slice stacks' notes, each result's report
 // notes (such as its contact spans) and each failure.
 export function finalizedSliceResults(args){
-  const generation=args.generation??assignmentGeneration(args.plan),retainedWork=new Map(),preparedConstructions=new Map(),preparedLayouts=new Map();
+  const generation=args.generation??assignmentGeneration(args.plan),retainedWork=new Map(),preparedConstructions=new Map(),preparedLayouts=new Map(),preparedReferences=referenceStackPreparation();
   generation.register(args.plan,args.assignmentOwners);
   for(const [id,error] of args.geometryFailures??[])generation.fail(id,error);
   for(;;){
-    try{const result=finalizeAssignments({...args,generation,retainedWork,preparedConstructions,preparedLayouts});if(result)return result;}catch(error){
+    try{const result=finalizeAssignments({...args,generation,retainedWork,preparedConstructions,preparedLayouts,preparedReferences});if(result)return result;}catch(error){
       if(error.name==='AbortError'||!error.assignment||generation.hasFailed(error.assignment))throw error;
       const owner=args.assignmentOwners?.get(error.assignment)??error.assignment;
       const failure=owner!==error.assignment?new AssignmentFailure({sourceId:owner,kind:error.family??'slice'},error.cause??error):error instanceof AssignmentFailure?error:new AssignmentFailure({sourceId:error.assignment,kind:'slice'},error);
@@ -34,7 +35,7 @@ function finalizeAssignments(args){
   const constructions=(args.constructions??[]).filter(context=>!excluded(context.assignment.id));
   const curveSources=(args.curveSources??[]).filter(context=>!excluded(context.assignment.id));
   const nodes=prepareDepositionWork(contexts,constructions,curveSources,{plan,shells:args.shells,onProgress:args.onProgress,
-    preparedConstructions:args.preparedConstructions,preparedLayouts:args.preparedLayouts});
+    preparedConstructions:args.preparedConstructions,preparedLayouts:args.preparedLayouts,preparedReferences:args.preparedReferences});
   generation.captureWork(nodes);
   if(nodes.some(node=>excluded(node.sourceId??node.key)))return null;
   const generated=constructDepositionResults({...args,nodes,curveSources},contexts);

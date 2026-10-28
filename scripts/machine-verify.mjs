@@ -7,13 +7,16 @@ import {loadExtensionEntry,machineCatalog} from '../core/extensions/library.mjs'
 import {Export,exportProgram} from '../core/export/registry.mjs';
 import {readMotionArtifact} from '../core/print/path-artifact.mjs';
 import {VERSION,BUILD_DATE} from '../core/print/version.mjs';
+import {installedMachine} from '../core/machine/profile.mjs';
 
 const state=await loadBundle(process.argv[2],{program:true}),output=state.completedOutput;
-if(!output?.machine)throw Error(state.programError??'Review a saved toolpath with a selected printer first.');
-const verify=await loadExtensionEntry(machineCatalog().get(output.machine.id)?.extension,'machine-verify');
-const {bytes,report}=await exportProgram(await readMotionArtifact(state.dir,output.path),output.plan,output.machine,
+if(!output?.machineId)throw Error(state.programError??'Review a saved toolpath with a selected printer first.');
+const machine=installedMachine(output.machineId);
+if(!machine)throw Error(`The ${output.machineId} machine is not installed here.`);
+const verify=await loadExtensionEntry(machineCatalog().get(machine.id)?.extension,'machine-verify');
+const {bytes,report}=await exportProgram(await readMotionArtifact(state.dir,output.path),output.plan,machine,
   {generatorVersion:VERSION,buildDate:BUILD_DATE});
-const program=verify(bytes,output.plan,output.machine,Export);
+const program=verify(bytes,output.plan,machine,Export);
 const pair=(verified,reported)=>({verified,reported,difference:verified-reported});
 console.log(JSON.stringify({output:output.plan.output,outputId:output.id,checks:program.checks,moves:program.moves.length,
   seconds:pair(program.seconds,report.seconds),volumeMm3:pair(program.volumeMm3,report.volumeMm3),

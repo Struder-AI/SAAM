@@ -20,20 +20,6 @@ export const ASSIGNMENT_RECORDS=Object.freeze({
     family:()=> 'trace'}
 });
 
-const textTemplate=(record={})=>({shape:'text',base:null,features:[],toleranceMm:CHORD_TOLERANCE_MM,maxEdgeMm:1,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]}),materialParts:[],
-  ...(Object.hasOwn(record,'standalone')?{standalone:false}:{})});
-const gridfinityTemplate=(record={})=>({shape:'gridfinity',parameters:null,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
-const heatSetTemplate=(record={})=>({shape:'heat-set',base:null,features:[],toleranceMm:CONSTRUCTION_TOLERANCE_MM,...(Object.hasOwn(record,'solid')?{solid:null}:{vertices:[],triangles:[]})});
-const meshRecord=(record,template)=>{
-  if(!record||typeof record!=='object'||Array.isArray(record)||Object.keys(record).sort().join()!==Object.keys(template(record)).sort().join())
-    throw Error(`Unexpected ${record?.shape} geometry fields.`);
-  if(!Array.isArray(record.vertices)||!Array.isArray(record.triangles))
-    throw Error(`Invalid ${record.shape} saved geometry record.`);
-};
-function compiledRecord(record,template){
-  if(!Object.hasOwn(record??{},'solid'))return meshRecord(record,template);
-  requireThat(sameFields(record,template(record))&&record.solid&&typeof record.solid.shape==='string','Invalid retained feature geometry record.');
-}
 // Every geometry in a recipe tree: the root, bases, solids, parts, partitions and operands.
 export function geometryTree(geometry){
   const geometries=[];
@@ -46,12 +32,7 @@ export function geometryTree(geometry){
   visit(geometry);return geometries;
 }
 // Compiled geometry changes only through the tool that compiles it.
-export const COMPILED_GEOMETRY_TOOLS=Object.freeze({'blob-field':'blob_field',gridfinity:'gridfinity',text:'apply_text','heat-set':'apply_heat_set'});
-export const GEOMETRY_RECORDS=Object.freeze({
-  text:{extension:'text',template:textTemplate,validate:record=>compiledRecord(record,textTemplate)},
-  gridfinity:{extension:'gridfinity',template:gridfinityTemplate,validate:record=>compiledRecord(record,gridfinityTemplate)},
-  'heat-set':{extension:'heat-set-inserts',template:heatSetTemplate,validate:record=>compiledRecord(record,heatSetTemplate)}
-});
+export const COMPILED_GEOMETRY_TOOLS=Object.freeze({'blob-field':'blob_field'});
 
 export function validateExtensionRecipe(plan){
   requireThat(plan.skills&&typeof plan.skills==='object'&&!Array.isArray(plan.skills),'Extension settings must be named records.');

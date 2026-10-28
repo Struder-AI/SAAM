@@ -41,7 +41,7 @@ export function createTourUI({post,refresh,working,setTab,isBusy,state:current,s
     $('tour-complete').hidden=!completed;$('tour-lesson').hidden=!active;$('tour-exit').hidden=!active&&!completed;
     $('tour-complete-text').textContent=progress.completion==='view'
       ?'You finished the viewing tour. Your part is saved. Ask your agent for help when you have a printer or want to make another part.'
-      :'Your checked print file was downloaded. Your part is saved, and your agent can help with printing or the next part.';
+      :'Your checked print file was prepared for download. Your part is saved, and your agent can help with printing or the next part.';
     $('tour-progress').textContent='SAAM TOUR · '+(progress.step+1)+' OF '+TOUR_STEPS.length;
     $('tour-title').textContent=step.title;$('tour-body').textContent=step.body;$('tour-try').textContent=step.try;
     for(const button of panel.querySelectorAll('button'))button.disabled=isBusy();

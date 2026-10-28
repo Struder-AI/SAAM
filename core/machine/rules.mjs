@@ -1,7 +1,6 @@
 import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/export/numeric.mjs';
 
-import {validateTemperatureC} from '../private/export/temperature.mjs';
 import {materialProcess} from './filaments.mjs';
 
 export const toolFor=(machine,index)=>{
@@ -29,7 +28,6 @@ export function validateSetup(plan,machine,{required=false,adapter={}}={}) {
   requireThat(machine.capabilities?.includes('xyz-extrusion'),'Machine does not support XYZ extrusion.');
   requireThat(t.cores?.includes(s.core)&&t.nozzleDiametersMm?.includes(s.nozzleMm),'Nozzle/core not supported by the selected tool.');
   requireThat(s.filamentMm===machine.filamentDiameterMm,'Filament diameter does not match the machine.');
-  for(const target of [s.nozzleC,s.bedC,s.buildVolumeC])validateTemperatureC(target);
   requireThat(machine.outputs.some(o=>o.id===plan.output),'Output is not declared by the machine.');
   const output=machine.outputs.find(o=>o.id===plan.output);
   if(output.constraints?.chamberC!==undefined)requireThat(s.buildVolumeC===output.constraints.chamberC,'This output profile requires no chamber heating (buildVolumeC: 0).');
@@ -39,7 +37,6 @@ export function validateSetup(plan,machine,{required=false,adapter={}}={}) {
   requireThat(s.filament===undefined||Number.isInteger(s.filament)&&s.filament>=0&&s.filament<(list?.length??1),'The filament index is outside the logical filament list.');
   for(const [index,entry] of (list??[]).entries()){
     requireThat(entry.tool===undefined||machine.tools.some(t=>t.index===entry.tool),'A logical filament names a tool this machine does not declare.');
-    if(entry.nozzleC!==undefined)validateTemperatureC(entry.nozzleC);
     materialProcess(plan,index);
   }
   adapter.settings?.validate?.({machine,setup:s,process:plan.process,output:plan.output},{required});

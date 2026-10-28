@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saam:recipe/1",
+  "title": "Operation recipe",
+  "description": "A saved definition of one operation, including unfinished intent. Bundle supplies its stable identity and saved revision; authoring does not start execution.",
+  "type": "object",
+  "required": ["id", "revision"],
+  "properties": {
+    "id": {"type": "string", "minLength": 1, "description": "Stable recipe identity within its Bundle."},
+    "revision": {"type": "string", "minLength": 1, "description": "Saved definition revision, minted by Bundle."},
+    "operation": {
+      "description": "The named owner and operation. It may be absent, null or unfinished while the person authors intent. The operation owner validates its arguments before execution.",
+      "anyOf": [
+        {"type": "null"},
+        {"type": "object", "properties": {
+          "owner": {"type": "string", "minLength": 1},
+          "name": {"type": "string", "minLength": 1}
+        }, "additionalProperties": true}
+      ]
+    },
+    "arguments": {"description": "Explicit operation-specific finite data. Geometry, spacing, process and feature choices are interpreted by the named operation owner."},
+    "inputs": {
+      "type": "object",
+      "description": "Named immutable inputs, supplied as saved values or another recipe's named output. Submission resolves these links internally.",
+      "additionalProperties": {"$ref": "#/$defs/inputLink"}
+    }
+  },
+  "additionalProperties": true,
+  "examples": [
+    {"id": "recipe-a", "revision": "revision-1", "operation": null, "arguments": {}},
+    {"id": "recipe-b", "revision": "revision-2", "inputs": {
+      "source": {"recipe": "recipe-a", "output": "result"},
+      "settings": {"value": "captured-settings-1"}
+    }}
+  ],
+  "$defs": {
+    "inputLink": {
+      "oneOf": [
+        {"type": "object", "required": ["recipe", "output"], "properties": {
+          "recipe": {"type": "string", "minLength": 1},
+          "output": {"type": "string", "minLength": 1}
+        }, "additionalProperties": false},
+        {"type": "object", "required": ["value"], "properties": {
+          "value": {"type": "string", "minLength": 1}
+        }, "additionalProperties": false}
+      ]
+    }
+  },
+  "x-saam": {
+    "owner": "recipe",
+    "exampleTitles": ["Saved unfinished intent", "Named input links"],
+    "admission": "Every field, including additional fields, is finite plain data. Admission rejects cycles, native objects, proxies, accessors, symbols, sparse arrays and undefined, and captures an immutable copy. A collection additionally requires distinct recipe IDs.",
+    "guarantees": [
+      "A Bundle may hold many recipes, including unfinished intent.",
+      "The executor follows authored input links; only the operation owner interprets fabrication arguments.",
+      "Known immutable inputs may be supplied with their identities without another agent read.",
+      "Authoring recipes does not start solves. A separate explicit submission admits one Bundle pipeline job through Scheduler; recipes never run independent followers."
+    ]
+  }
+}

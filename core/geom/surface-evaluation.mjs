@@ -2,7 +2,8 @@
 // Coordinates retain their native units; offsets are physical millimetres.
 import {evaluate} from './nurbs.mjs';
 import {surfaceDerivatives} from './surface-derivatives.mjs';
-import {cross,normalize,distance,requireThat,TOLERANCE} from './tolerance.mjs';
+import {distance,requireThat,TOLERANCE} from './tolerance.mjs';
+import {physicalSurfaceNormal} from './surface-frame.mjs';
 import {prepareSurfaceReference,surfaceReferenceRecord} from './surface-record.mjs';
 import {faceContainsUv} from './surface-trim.mjs';
 
@@ -33,7 +34,7 @@ export function evaluateSurface(surface,[u,v],normalMm=0){
     requireThat(v>=-TOLERANCE.parameter&&v<=layers.length-1+TOLERANCE.parameter,'Sleeve curve lies outside the along-coordinate domain.');
     const coordinate=Math.max(0,Math.min(layers.length-1,v)),i=Math.min(layers.length-2,Math.floor(coordinate)),t=coordinate-i;
     const a=sleeveRing(layers[i],u),b=sleeveRing(layers[i+1],u),du=a.du.map((x,k)=>x+t*(b.du[k]-x)),dv=b.point.map((x,k)=>x-a.point[k]);
-    e={point:a.point.map((x,k)=>x+t*dv[k]),du,dv,normal:normalize(cross(du,dv))};
+    e={point:a.point.map((x,k)=>x+t*dv[k]),du,dv,normal:physicalSurfaceNormal(du,dv,[1,layers.length-1])};
   }else if(surface.kind==='slice-chart')return evaluateSurface(surface.slice,[u,v],normalMm);
   else {requireThat(typeof surface.at==='function','Unsupported surface chart.');e=surface.at(u,v);}
   requireThat(Number.isFinite(normalMm),'Surface normal offset must be finite.');

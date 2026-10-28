@@ -27,5 +27,5 @@ export function spiralBeadCurve({profile,points,turns,role='spiral',speedMmS}){
     return turns[i+1]<=1+ROUNDING_RELATIVE?profile.firstHeightMm:spiralHeight(profile,mid)-spiralHeight(profile,mid-1);
   });
   return {role,closed:false,points,heightsMm,speedMmS,
-    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(t<=1+ROUNDING_RELATIVE?{contactRole:'foundation'}:{}),...(profile.levelEnd&&turns[i]>=profile.risingTurns-ROUNDING_RELATIVE?{boundaryRole:'rim'}:{})}))};
+    segmentMetadata:turns.slice(1).map((t,i)=>({layer:Math.floor((turns[i]+t)/2),...(t<=1+ROUNDING_RELATIVE?{contactRole:'foundation'}:{founded:true}),...(profile.levelEnd&&turns[i]>=profile.risingTurns-ROUNDING_RELATIVE?{boundaryRole:'rim'}:{})}))};
 }

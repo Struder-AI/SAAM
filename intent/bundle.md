@@ -23,6 +23,17 @@ Summary: a bundle always has geometry, may have a recipe, and has a toolpath onl
 
 Sources: Codex 01a102ba; [0.3.1 component 5](../plans/0.3.1.md) (agent wording); owner's guidance prompt 2026-10-02 ("An operation runs when its own prerequisites exist").
 
+## Operation recipes and dependent work
+> "'Recipe' is now the per-operation plan. A bundle can have many recipes" — owner, 2026-10-21 (contract migration chat)
+>
+> "Yes, if a dependency changes you have to re-run everything downstream, and it should be automatic so the agent doesn't have to think about it." — owner, 2026-10-21 (same chat)
+
+> "Tool call 1 create recipe A. Tool call 2 creates recipe B which references A's layers. Tool call 3 puts the bundle into the pipe that takes it all the way to scheduler." — owner, 2026-10-21 (same chat, correcting the independent-recipe-solver interpretation)
+
+Summary: recipes describe individual operations, superseding the single whole-part recipe model. The agent authors recipes and their references using known inputs, without a mandatory repeat Bundle read. Authoring does not start solves. A separate explicit submission runs the Bundle through one pipeline to Scheduler; that solve resolves recipe dependencies and downstream recomputation internally. Recipes have no independent solve or background-following lifetime. This clarification supersedes interpreting the earlier automatic-downstream statement as automatic execution after every edit. Bundle passively stores and serves supplied values; upstream work does not withdraw the completed result available to [Export](studio.md#export-captures-the-moment).
+
+The owner requires continuity for Export, not every intermediate stage (same chat, 2026-10-21). Intermediate lifetime is an implementation choice: prefer simple operation-scoped values where possible, without requiring a previous/current publication stream at each stage.
+
 ## Bundle state, no fingerprints or approvals
 > "THe fingerprint isn't actually doing anything, it's just meaningless ceremony" — owner, 2026-10-06 (Claude 14d40329 04:56)
 >

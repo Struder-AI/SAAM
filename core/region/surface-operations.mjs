@@ -5,8 +5,9 @@ import {referencePatch} from '../geom/reference-surface.mjs';
 import {surfacePlane} from '../geom/surface-coincidence.mjs';
 import {faceTrimRegion,planarFaceRegion} from '../geom/surface-trim.mjs';
 import {evaluateSurface,surfaceChartCovers} from '../geom/surface-evaluation.mjs';
+import {surfaceTangentFrame} from '../geom/surface-frame.mjs';
 import {sectionSurface} from '../geom/section.mjs';
-import {clipChartCurveToRegion,clipLineToRegion} from '../geom/curve-region.mjs';
+import {clipLineToRegion} from '../geom/curve-region.mjs';
 import {requireThat,dot,cross,distance,normalize} from '../geom/tolerance.mjs';
 import {PRINT_RESOLUTION_MM,PROGRAM_STEP_MM,FLOAT64_EPSILON,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {offsetRegion} from './offset.mjs';
@@ -14,6 +15,7 @@ import {intersect,union,difference,clipOpenPaths} from './intersection.mjs';
 import {pointInRegion,pointSegmentDistance} from './region2d.mjs';
 import {sampledChartRegion} from '../geom/chart-region.mjs';
 import {offsetSurfaceRegion,strokeSurfaceRegion,prepareSurfaceOffset,UV_GRID} from './surface-offset.mjs';
+import {clipPatternCurves} from './fill-patterns.mjs';
 
 export function surfaceChartBounds(surface,points=[],boundsUv=null){
   const native=surface.kind==='patch'?surface.patch:surface;
@@ -21,7 +23,12 @@ export function surfaceChartBounds(surface,points=[],boundsUv=null){
   if(native.domainU&&native.domainV)return [native.domainU,native.domainV];
   if(surface.kind==='slice-chart')return surfaceChartBounds(surface.slice,points);
   requireThat(points.length,'Unbounded surface operation needs chart points or boundsUv.');
-  return [0,1].map(k=>[Math.min(...points.map(p=>p[k])),Math.max(...points.map(p=>p[k]))]);
+  const bounds=[[Infinity,-Infinity],[Infinity,-Infinity]];
+  for(let i=0;i<points.length;i++)for(let k=0;k<2;k++){
+    const value=i in points?points[i][k]:undefined;
+    bounds[k][0]=Math.min(bounds[k][0],value);bounds[k][1]=Math.max(bounds[k][1],value);
+  }
+  return bounds;
 }
 
 export function surfaceChartStep(surface,boundsUv,stepMm){
@@ -78,7 +85,7 @@ function preparedSheet(sheet,toleranceMm){
   const patch=sheet?.cp?sheet:{...referencePatch(sheet),...(sheet.trimLoops?{trimLoops:sheet.trimLoops}:{})},plane=surfacePlane(patch);
   requireThat(plane,'Construction sheet must be a bounded planar spline surface.');
   const middle=[patch.domainU,patch.domainV].map(([a,b])=>(a+b)/2),frame=evaluateSurface(patch,middle);
-  const origin3d=plane.point,normal=plane.normal,xAxis=normalize(frame.du),yAxis=cross(normal,xAxis);
+  const origin3d=plane.point,normal=plane.normal,{u:xAxis}=surfaceTangentFrame(frame),yAxis=cross(normal,xAxis);
   const project=point=>{const relative=point.map((v,k)=>v-origin3d[k]);return [dot(relative,xAxis),dot(relative,yAxis)];};
   const region=union(planarFaceRegion(patch,faceTrimRegion(patch,{toleranceMm}),{origin:origin3d,x:xAxis,y:yAxis},toleranceMm),[]);
   const result={origin3d,normal,xAxis,yAxis,project,region};cached.set(toleranceMm,result);return result;
@@ -136,10 +143,7 @@ function sliceCurveLength(slice,curve){
 
 export function clipSliceCurves(slice,curves,region,{precisionUv=UV_GRID,toleranceMm=PRINT_RESOLUTION_MM,sampleStepMm=0.2}={}){
   requireThat(Number.isFinite(toleranceMm)&&toleranceMm>0,'Surface clipping needs a positive physical tolerance.');
-  const bounds=region.length?surfaceChartBounds(slice,region.flat()):null;
-  const domain=bounds?[[bounds[0][0],bounds[1][0]],[bounds[0][1],bounds[1][0]],[bounds[0][1],bounds[1][1]],[bounds[0][0],bounds[1][1]]]:null;
-  const room=offsetSliceRegion(slice,region,toleranceMm,{sampleStepMm,toleranceMm:toleranceMm/4,arcToleranceMm:toleranceMm/4,precisionMm:PROGRAM_STEP_MM/10,constraintLoopsUv:domain?[domain]:null});
-  const result=curves.flatMap(curve=>clipChartCurveToRegion(curve,room,{precisionUv}));
+  const result=clipPatternCurves(curves,region,{precisionUv});
   const before=curves.reduce((sum,c)=>sum+sliceCurveLength(slice,c),0),after=result.reduce((sum,c)=>sum+sliceCurveLength(slice,c),0);
   return {curves:result,report:{clipped:before-after>toleranceMm,removedLengthMm:Math.max(0,before-after),clearanceToleranceMm:toleranceMm,inputCurves:curves.length,outputCurves:result.length,openFragments:result.filter(c=>!c.closed).length}};
 }
@@ -147,8 +151,9 @@ export function clipSliceCurves(slice,curves,region,{precisionUv=UV_GRID,toleran
 
 // Physical parallel rows: the affine case is an exact line translation;
 // curved fronts advance through the same intrinsic offset owner as perimeters.
-export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction=null,sampleStepMm=.2,toleranceMm=CONSTRUCTION_TOLERANCE_MM}={}){
+export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,phaseMm=0,direction=null,sampleStepMm=.2,toleranceMm=CONSTRUCTION_TOLERANCE_MM}={}){
   requireThat(Number.isFinite(spacingMm)&&spacingMm>0,'Surface rows need positive physical spacing.');
+  requireThat(Number.isFinite(phaseMm),'Surface row phase needs finite physical millimetres.');
   if(!region.length)return {rows:[],report:{offsets:0}};
   const points=region.flat(),extent=[0,1].map(k=>points.reduce(([lo,hi],p)=>[Math.min(lo,p[k]),Math.max(hi,p[k])],[Infinity,-Infinity]));
   let center=extent.map(([lo,hi])=>(lo+hi)/2);
@@ -158,9 +163,9 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
   const projected=x.map((v,k)=>v*Math.cos(angle)+y[k]*Math.sin(angle)),along=normalize(projected.map((v,k)=>v-dot(projected,frame.normal)*frame.normal[k])),across=normalize(cross(frame.normal,along));
   if(affineSurface(surface)){
     const a=dot(across,frame.du),b=dot(across,frame.dv),length2=a*a+b*b,constant=dot(across,frame.point)-a*center[0]-b*center[1];
-    const positions=points.map(uv=>constant+a*uv[0]+b*uv[1]),first=Math.floor(Math.min(...positions)/spacingMm),last=Math.ceil(Math.max(...positions)/spacingMm),rows=[];
+    const positions=points.map(uv=>constant+a*uv[0]+b*uv[1]),first=Math.floor((Math.min(...positions)-phaseMm)/spacingMm),last=Math.ceil((Math.max(...positions)-phaseMm)/spacingMm),rows=[];
     for(let lineIndex=first;lineIndex<=last;lineIndex++){
-      const c=constant-lineIndex*spacingMm,origin=[-c*a/length2,-c*b/length2],tangent=[-b,a];
+      const c=constant-phaseMm-lineIndex*spacingMm,origin=[-c*a/length2,-c*b/length2],tangent=[-b,a];
       rows.push({lineIndex,paths:clipLineToRegion(origin,tangent,region).spans.map(span=>span.map(t=>origin.map((v,k)=>v+t*tangent[k])))});
     }
     return {rows,along,report:{method:'analytic-affine-surface-offset',offsets:0}};
@@ -175,7 +180,7 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
   const allowed=prepared.atlas?intersect(rectangle,union(prepared.atlas.faces.map(face=>face.vertices.map(v=>v.uv)),[],options),options):rectangle;
   const target=intersect(region,allowed,options),positions=target.flat().map(uv=>dot(across,evaluateSurface(chart,uv).point));
   if(!target.length)return {rows:[],along,report:{offsets:0}};
-  const seedOffset=(Math.min(...positions)+Math.max(...positions))/2;
+  const midpoint=(Math.min(...positions)+Math.max(...positions))/2,seedIndex=Math.round((midpoint-phaseMm)/spacingMm),seedOffset=phaseMm+seedIndex*spacingMm;
   // Only the initial heading is a plane cut. Its region is construction input;
   // all later rows are physical offsets, without repeated world-plane sections.
   const seed=intersect(sampledChartRegion({min:bounds.map(b=>b[0]),max:bounds.map(b=>b[1])},surfaceChartStep(chart,bounds,sampleStepMm),uv=>{
@@ -199,9 +204,9 @@ export function parallelSliceRows(surface,region,{spacingMm,angleDeg=0,direction
     }
     return clipOpenPaths(paths,target,options);
   };
-  const rows=[{lineIndex:0,paths:fronts(seed)}],report={method:'geodesic-surface-offset-rows',offsets:0,evaluations:0,integrationSteps:0};
+  const rows=[{lineIndex:seedIndex,paths:fronts(seed)}],report={method:'geodesic-surface-offset-rows',offsets:0,evaluations:0,integrationSteps:0};
   for(const sign of [-1,1]){
-    let source=sign===1?seed:difference(allowed,seed,options),lineIndex=0;
+    let source=sign===1?seed:difference(allowed,seed,options),lineIndex=seedIndex;
     while(difference(target,source,options).length){
       const result=offsetSurfaceRegion(chart,source,spacingMm,{toleranceMm,constraintLoopsUv:allowed});
       report.offsets++;report.evaluations+=result.report.evaluations;report.integrationSteps+=result.report.integrationSteps;

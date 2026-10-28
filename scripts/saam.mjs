@@ -59,7 +59,24 @@ async function help(runtime,operationName){
       runtime:{id:runtime.id,label:runtime.label}};
   }finally{await local.close();}
 }
-export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>console.log(JSON.stringify(value))}={}){
+// A write's callback, rather than its backpressure boolean, is the output boundary.
+export function writeJSONLine(output,value){
+  const text=JSON.stringify(value)+'\n';
+  return new Promise((done,fail)=>{
+    const completion={scheduled:false,error:null};
+    const finish=error=>{
+      completion.error??=error;
+      if(completion.scheduled)return;
+      completion.scheduled=true;
+      // Writable emits an errored write's 'error' after its callback. Keep our
+      // listener for that turn, so EPIPE rejects without an unhandled event.
+      setImmediate(()=>{output.removeListener('error',finish);completion.error?fail(completion.error):done();});
+    };
+    output.once('error',finish);
+    try{output.write(text,finish);}catch(error){finish(error);}
+  });
+}
+export async function runSaam(args=process.argv.slice(2),{input=process.stdin,write=value=>writeJSONLine(process.stdout,value),reportFinding=value=>writeJSONLine(process.stderr,value)}={}){
   const parsed=commandInput(args);
   // Cached retired hooks may finish before the required client restart.
   if(parsed.command==='client-event'){if(!input.isTTY)for await(const chunk of input){}return;}
@@ -69,7 +86,7 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
   try{
     if(parsed.command!=='help'&&!startsSaam.has(parsed.command)&&!runningOnly.has(parsed.command))throw Error('Unknown command '+parsed.command+'. Use saam help.');
     const chooseRuntime=()=>selectRuntime(parsed.options.codeRoot===undefined?undefined:String(parsed.options.codeRoot));
-    if(parsed.command==='help'){const runtime=selection.runtime=await chooseRuntime(),result=await help(runtime,parsed.operation);write(result);return result;}
+    if(parsed.command==='help'){const runtime=selection.runtime=await chooseRuntime(),result=await help(runtime,parsed.operation);await write(result);return result;}
     const fields={};
     if(parsed.options.input&&enabled(parsed.options.stdin))throw Error('Choose --input FILE or --stdin.');
     if(parsed.options.input===true)throw Error('Supply the input filename.');
@@ -82,18 +99,31 @@ export async function runSaam(args=process.argv.slice(2),{input=process.stdin,wr
     const preflight=runtime&&contractProblem({contract:orchestratorContract,label:'This SAAM command'},runtime);
     if(preflight)throw preflight;
     const instance=runningOnly.has(parsed.command)?await runningInstance():await readyInstance();
-    if(!instance){const result={ok:true,running:false,home:canonicalHome(),...(runtime&&{runtime:{id:runtime.id,label:runtime.label}})};write({...result,...identity});return result;}
+    if(!instance){const result={ok:true,running:false,home:canonicalHome(),...(runtime&&{runtime:{id:runtime.id,label:runtime.label}})};await write({...result,...identity});return result;}
     const problem=contractProblem({contract:instance.contract,label:'the running SAAM ('+instance.version+')'},runtime??{contract:orchestratorContract,label:'This SAAM command'});
     if(problem)throw problem;
+    const waits=parsed.command==='wait'||parsed.command==='call'&&parsed.operation==='wait_for_studio_request';
     // An operation's runtime types its named flags from the operation's schema (runtime-host.mjs).
-    const message={...(runtime&&{runtime}),command:parsed.command,operation:parsed.operation,args:fields,...(manager&&{runtimeId:fields.runtimeId,studioInstanceId:fields.studioInstanceId}),...(operation&&{flags:parsed.flags}),chatId:parsed.chatId,client:parsed.client,
+    const message={...(runtime&&{runtime}),command:parsed.command,operation:parsed.operation,args:fields,...(manager&&{runtimeId:fields.runtimeId,studioInstanceId:fields.studioInstanceId}),...(operation&&{flags:parsed.flags}),...(waits&&{responseDelivery:'cli-output'}),chatId:parsed.chatId,client:parsed.client,
       ...(parsed.options.background===undefined?{}:{visibility:enabled(parsed.options.background)?'hidden':'visible'}),
       chatName:parsed.options.chatName,bundleId:parsed.options.bundleId??fields.bundleId,force:enabled(parsed.options.force)};
-    const result=await controlRequest(instance,message,['call','start-tour','wait','update'].includes(parsed.command)?{}:{waitMs:controlWaitMs});
-    write({...result,...identity});return result;
+    const {studioEventDelivery,...result}=await controlRequest(instance,message,['call','start-tour','wait','update'].includes(parsed.command)?{}:{waitMs:controlWaitMs});
+    await write({...result,...identity});
+    if(waits&&studioEventDelivery){
+      try{await controlRequest(instance,{command:'ack-response-events',runtimeId:studioEventDelivery.runtimeId,receipt:studioEventDelivery},{waitMs:controlWaitMs});}
+      catch(error){
+        const finding={kind:'delivery-ack-retry',delivered:true,message:'The response was written, but its Studio event acknowledgement failed. Retry only acknowledgement; do not replay the delivered work.',
+          error:error.message,...(error.code??error.result?.code?{code:error.code??error.result.code}:{}),receipt:studioEventDelivery};
+        // The response has crossed the output boundary; never turn this into an
+        // ordinary command failure or write the delivered result a second time.
+        try{await reportFinding(finding);}catch(reportError){finding.reportingError=reportError.message;}
+        return {...result,deliveryFinding:finding};
+      }
+    }
+    return result;
   }catch(error){error.result={...(selection.runtime&&{runtime:{id:selection.runtime.id,label:selection.runtime.label}}),...(error.code&&{code:error.code}),...error.result,...identity};throw error;}
 
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
-  runSaam().catch(error=>{console.error(JSON.stringify({ok:false,...error.result,error:error.message}));process.exitCode=1;});
+  runSaam().then(result=>{if(result?.deliveryFinding)process.exitCode=1;},error=>{console.error(JSON.stringify({ok:false,...error.result,error:error.message}));process.exitCode=1;});
 }

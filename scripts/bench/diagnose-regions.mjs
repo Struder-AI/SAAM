@@ -8,7 +8,7 @@ import {section} from '../../core/region/section.mjs';
 import {translateShell} from '../../core/geom/build.mjs';
 import { defaults } from '../../core/print/plan.mjs';
 import {sliceAssignment} from "../../core/print/slice-records.mjs";
-import { layerStrokes } from '../../core/region/layer-strokes.mjs';
+import { sliceWallStrokes, sliceFillRegions } from '../../core/region/layer-strokes.mjs';
 import { SegmentIndex } from '../../core/region/region2d.mjs';
 import { intersect, difference, union } from '../../core/region/intersection.mjs';
 
@@ -33,7 +33,10 @@ SegmentIndex.prototype.add = function(segment) {
 };
 try {
   for (const z of heights) {
-    try { layerStrokes(section(shell, horizontalSlice(z)).loops, { ...settings, widthMm: plan.process.lineWidthMm, fillAngleDeg: 45, patternAngleDeg: 45, fillDensity: 1 }); }
+    try {
+      const region = section(shell, horizontalSlice(z)).loops, options = { ...settings, widthMm: plan.process.lineWidthMm, fillDensity: 1 };
+      sliceFillRegions(region, sliceWallStrokes(region, options), options);
+    }
     catch (error) {
       const finding = { phase: 'slice layer', z, error: error.message, dangerous, section: section(shell,horizontalSlice(z)).loops };
       save('offset-failure', finding); report.findings.push({ phase: finding.phase, z, error: finding.error, cells: dangerous?.cellsForOneSegment }); break;

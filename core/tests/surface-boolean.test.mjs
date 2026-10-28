@@ -43,13 +43,13 @@ test('heat-set and weld boundaries retain seams across four section variants',as
   const slices=[G.horizontalSlice(6.7),G.planeSlice({origin:[8.23,7.91,6.17],normal:[.23,.13,1]}),
     G.planeSlice({origin:[8,8,4],normal:[0,1,0]}),G.patchSlice(referencePatch(curved))];
   for(const placement of placements){
-    const heatset=await compileHeatSet(base,[feature(placement)],G),heat=await G.buildGeometry(heatset.geometry);
-    assert.ok(!Object.hasOwn(heatset.geometry,'vertices'));
+    const heatset=await compileHeatSet(base,[feature(placement)],G),heat=await G.buildGeometry(heatset.solid);
+    assert.ok(!Object.hasOwn(heatset.solid,'vertices'));
     const plan=weldPlan(placement),runtime=plasticWeldSource({Geometry:G,Recipe:{assignmentFilament,injectionAssignment},extensionId:'plastic-weld',settings:plan.skills['plastic-weld']}),prepared=await runtime.prepare({plan,placed:host,componentShells:null,processForAssignment:()=>plan.process});
     assert.equal(prepared.contributions.length,1,prepared.notes.join('; '));
     const site=prepared.contributions[0],cavity=site.geometryCuts[0].geometry,weld=G.combineSolids('difference',[host,cavity]);
     assert.deepEqual(site.assignments[0].points[0].direction,placement.axis);
-    for(const [body,operands] of [[heat,[host,...await Promise.all(heatset.geometry.solid.operands.slice(1).map(G.buildGeometry))]],[weld,[host,cavity]]]){
+    for(const [body,operands] of [[heat,[host,...await Promise.all(heatset.solid.operands.slice(1).map(G.buildGeometry))]],[weld,[host,cavity]]]){
       assert.equal(body.kind,'surface-solid');assert.deepEqual(body.topology.unmatched,[]);
       assert.equal(body.construction.toleranceMm,BOOLEAN_TOLERANCE_MM);
       // Independent section composition does not use the constructed face trims.
@@ -68,15 +68,15 @@ test('heat-set and weld boundaries retain seams across four section variants',as
 test('a cone-to-cylinder crease keeps its crossing and yields a closed chamfer mesh',async()=>{
   const compiled=await compileHeatSet(base,[{...feature(placements[0]),chamferDepthMm:.5}],G);
   assert.deepEqual(compiled.notes,[]);
-  const body=await G.buildGeometry(compiled.geometry),kernel=await solidKernel(),operands=[];
-  for(const operand of compiled.geometry.solid.operands)operands.push(await G.buildGeometry(operand));
+  const body=await G.buildGeometry(compiled.solid),kernel=await solidKernel(),operands=[];
+  for(const operand of compiled.solid.operands)operands.push(await G.buildGeometry(operand));
   const [mesh]=await G.constructSolids([{operation:'difference',operands}]);
   assert.ok(mesh.notes.every(note=>typeof note==='string'));
   const solid=solidFromMesh(kernel,mesh);
   try{assert.equal(solid.status(),'NoError');assert.ok(solid.volume()>0);}finally{solid.delete();}
   const curved=splineBlock({runMm:16,widthMm:16,heightsMm:[[8,8,8,8],[8,10,10,8],[8,10,10,8],[8,8,8,8]]});
   const result=await compileHeatSet(curved,[feature(placements[1])],G);
-  assert.deepEqual((await G.buildGeometry(result.geometry)).topology.unmatched,[]);
+  assert.deepEqual((await G.buildGeometry(result.solid)).topology.unmatched,[]);
 });
 
 test('both features generate toolpaths with horizontal, tilted and curved stacks',async()=>{
@@ -85,7 +85,7 @@ test('both features generate toolpaths with horizontal, tilted and curved stacks
     {kind:'spline',patch:reference,offsetMm:0}];
   for(const kind of ['heat-set','plastic-weld'])for(const surface of variants){
     const plan=kind==='plastic-weld'?weldPlan(placement):defaults();
-    plan.geometry=kind==='heat-set'?heatset.geometry:base;plan.process.primeLine=null;
+    plan.geometry=kind==='heat-set'?heatset.solid:base;plan.process.primeLine=null;
     plan.process.layerMm=2;plan.process.firstLayerMm=2;
     plan.slices.assignments=[sliceAssignment({id:'body',surface,loops:1,fillDensity:.15,solidTop:0,solidBottom:0})];
     const path=await generatePath(plan),limitations=[path.summary.limitations??[]].flat().join('; ');

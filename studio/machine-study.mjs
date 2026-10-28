@@ -38,5 +38,3 @@ export async function loadBundleSnapshot(dir,options){
   return {schema:'saam-bundle-snapshot/1',state,fingerprint:tag,presentationFingerprint:tag};
 }
 export const readDrawnPath=state=>readFile(resolve(state.dir,'motion.json'));
-const unavailable=()=>{throw Error('Machine studies do not support generation or delivery');};
-export const generateBundle=unavailable,updatePlan=unavailable;

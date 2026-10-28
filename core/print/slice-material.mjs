@@ -1,5 +1,6 @@
 // Upstream material claims and reference contexts; no deposition execution.
-import {intersect,difference} from '../region/intersection.mjs';
+import {intersect} from '../region/intersection.mjs';
+import {prepareOwnedSliceRegions} from '../region/masks.mjs';
 import {evaluateSurface} from '../geom/surface-evaluation.mjs';
 import {requireThat,normalize} from '../private/toolpath/numeric.mjs';
 import {referenceSliceContext} from "./slice-stacks.mjs";
@@ -14,8 +15,10 @@ import {section} from '../region/section.mjs';
 import {selectedFace,referencePatch} from '../geom/reference-surface.mjs';
 
 import {chartPrism} from '../geom/chart-prism.mjs';
-import {layerStrokes,mapSliceStrokes} from "../region/layer-strokes.mjs";
-import {prepareMaterialRegions} from '../region/shared-material/prepare.mjs';
+import {decideSliceStack} from './slice-stack-decisions.mjs';
+import {constructSliceWalls} from './slices.mjs';
+import {sliceBoundaryCurves} from './slice-paath.mjs';
+import {prepareMaterialRegions} from '../region/material-regions.mjs';
 import {validateSliceAssignment} from './slice-records.mjs';
 function failedSlicePreparation(assignment,error){
   if(error.name==='AbortError')throw error;
@@ -99,17 +102,20 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
   });
   const owners = sliceOwners(assignments, { shells:processShells, processes, materials, volumes, sources, selections: plan.geometry?geometrySelections(plan.geometry):new Map() });
   for(const owner of owners)owner.publicationShell??=shells.find(([part])=>part===owner.part)?.[1];
-  const owned = prepareMaterialRegions(owners, { bands, onProgress, sharedMaterial:plan.experimental?.sharedMaterial===true });
+  const owned = prepareMaterialRegions(owners, { bands, onProgress });
   const contexts=[],notes=[...new Set([...processShells.flatMap(([,shell])=>shell.notes??[]),...owned.flatMap(stack=>stack.notes)])];
-  for (const { owner, referenceStack, stackId, layers, material, substrate, sharedReport } of owned) {
+  for (const { owner, referenceStack, stackId, layers, material, substrate } of owned) {
     const { assignment } = owner;
     if(assignment.join||!layers.length)continue;
     const process = owner.process??processes[assignments.indexOf(assignment)];
     const held = solidVolumes.filter(volume => volume.part === owner.part&&!owner.assignment.geometry);
     const solidRegions = new Map(held.length ? layers.map(layer => [layer.index,held.flatMap(volume=>
       section(volume.geometry,layer.slice,layer.slice.kind==='plane'?{side:'negative'}:{}).loops)]) : []);
-    const report = { ...(sharedReport?{sharedMaterial:sharedReport}:{}),owner: assignment.id, part: owner.part, layerMm: referenceStack.pitchMm,
+    const report = { owner: assignment.id, part: owner.part, layerMm: referenceStack.pitchMm,
       targetGapMm:referenceStack.pitchMm,translationStepMm:referenceStack.translationStepMm,firstTranslationMm:referenceStack.firstTranslationMm,meanProjectedGapMm:referenceStack.pitchMm,minProjectedGapMm:referenceStack.minProjectedGapMm,maxProjectedGapMm:referenceStack.maxProjectedGapMm,stackMetric:'area-mean-normal-projection',
+      ...(referenceStack.gapEvidence?{direction:referenceStack.direction,meanProjection:referenceStack.meanProjection,meanNormal:referenceStack.meanNormal,areaMm2:referenceStack.areaMm2,gapEvidence:referenceStack.gapEvidence,
+        minSampledProjection:referenceStack.minSampledProjection,maxSampledProjection:referenceStack.maxSampledProjection,
+        minSampledProjectedGapMm:referenceStack.minSampledProjectedGapMm,maxSampledProjectedGapMm:referenceStack.maxSampledProjectedGapMm}:{}),
       };
     contexts.push({contact:assignment.contact,spec:{id:owner.id,settings:assignment,layers,material,solidRegions,filament:assignment.filament,totalLayerCount:layers.length},context:{process,shell:owner.publicationShell??owner.shell,substrate,startMm:owner.startMm,endMm:owner.endMm,report},referenceStack,owner,stackId,
       layerOrder:layers.map(layer=>({index:layer.index,rank:layer.ownerOffsetMm??layer.offsetMm??layer.index}))});
@@ -120,34 +126,13 @@ export function prepareSliceContexts({plan,shells,volumes,sources=new Map(),band
   return {contexts:contexts.map(record=>record.reference?record:prepareOwnedSliceRegions(record)),notes};
 }
 
-// All resolved Slice geometry crosses this boundary, including normal and
-// prepared-surface references. Layout, readiness and Trace sources read these same
-// owned regions; masking is never an instruction to a deposition backend.
-export function prepareOwnedSliceRegions(record){
-  const {settings}=record.spec,material=new Map(record.spec.material??record.spec.layers.map(layer=>[layer.index,layer.material??layer.region]));
-  const layers=record.spec.layers.map(layer=>{
-    const mask=settings.sliceOverrides?.[layer.characterIndex??layer.index]?.regionUv??settings.regionUv;
-    if(mask===undefined)return layer;
-    const region=intersect(layer.region,mask),removed=difference(layer.region,region);
-    material.set(layer.index,difference(material.get(layer.index)??layer.material??layer.region,removed));
-    return {...layer,region,material:difference(layer.material??layer.region,removed)};
-  }).filter(layer=>layer.region.length);
-  const prepared=layers.map(layer=>layer.materialGrid?{...layer,materialGrid:{...layer.materialGrid,
-    layers:layer.materialGrid.layers.map(entry=>({...entry,region:material.get(entry.index)??entry.region}))}}:layer);
-  return {...record,spec:{...record.spec,layers:prepared,material},
-    referenceStack:{...record.referenceStack,layers:prepared},
-    layerOrder:record.layerOrder.filter(layer=>prepared.some(owned=>owned.index===layer.index))};
-}
-
 export function prepareSliceBoundaryStack({plan,assignment,shells,volumes,sources}){
   const request={...assignment,join:null},local={...plan,slices:{...plan.slices,assignments:plan.slices.assignments.map(a=>a.id===assignment.id?request:a)}};
   const contexts=prepareSliceContexts({plan:local,shells,volumes,sources}).contexts.filter(record=>record.owner.assignment.id===assignment.id);
   requireThat(contexts.length===1&&!contexts[0].reference,'A spiral boundary needs one resolved region stack.');
   const record=contexts[0],process=record.context.process;
-  const layers=record.spec.layers.map(layer=>{
-    const strokes=layerStrokes(layer.region,{...request,widthMm:process.lineWidthMm,fillAngleDeg:0,patternAngleDeg:0,wallToleranceMm:process.planarWallToleranceMm,slice:layer.slice});
-    return {...layer,curves:mapSliceStrokes(strokes.walls,layer.slice)};
-  });
+  const layers=decideSliceStack(record.spec,record.context).filter(layer=>layer.region.length).map(layer=>
+    ({...layer,curves:sliceBoundaryCurves(constructSliceWalls(layer,{id:record.spec.id,stackId:record.stackId}))}));
   requireThat(layers.length,'The spiral reference has no boundary slices.');
   return {referenceStack:{...record.referenceStack,layers},process,shell:record.context.shell,startMm:record.context.startMm,endMm:record.context.endMm};
 }

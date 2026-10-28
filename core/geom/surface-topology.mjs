@@ -6,12 +6,12 @@ import {prepareNumericalCurve,numericalCurveClosestParameter} from './curve-quer
 import {surfaceIsoCurve,curvePoint,surfaceSegmentLineError} from './surface-curves.mjs';
 import {patchDomain} from './surface-trim.mjs';
 import {prepareCurveLoops} from './curve-loops.mjs';
-import {curveCorrespondence} from './surface-coincidence.mjs';
+import {curveCorrespondence,boundedCurveCorrespondence} from './surface-coincidence.mjs';
 import {distance,dot,cross,normalize,requireThat} from './tolerance.mjs';
-import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
+import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE,FLOAT64_EPSILON} from '../dimensions.mjs';
 
 export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TOLERANCE_MM/2}={}){
-  const curves=[];
+  const boundary={curves:[],nativeComparisonSamples:new WeakMap()},curves=boundary.curves;
   for(const curve of intersections)rememberIntersection(curve.points,curve.charts??[{face:curve.a,uv:curve.uvA},{face:curve.b,uv:curve.uvB}],curve,curves,toleranceMm);
   for(const patch of patches)for(const boundary of patch.boundaryCurves??[]){
     const existing=curves.find(curve=>curve.kind==='intersection'&&curve.points.length===boundary.points.length&&curve.points.every((point,i)=>distance(point,boundary.points[i])<=ROUNDING_MM));
@@ -22,7 +22,7 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
   // may retain only an interval of a neighbour's edge; face order must not
   // choose a shorter canonical parameterization for that shared curve.
   for(const patch of patches)for(const loop of patchDomain(patch))for(let i=0;i<loop.length;i++)
-    if(!chartSegmentCollapsed(patch,loop[i],loop[(i+1)%loop.length]))nativeBoundaryMapping(patch,loop[i],loop[(i+1)%loop.length],curves,toleranceMm,{matchIntersections:false});
+    if(!chartSegmentCollapsed(patch,loop[i],loop[(i+1)%loop.length]))nativeBoundaryMapping(patch,loop[i],loop[(i+1)%loop.length],boundary,toleranceMm,{matchIntersections:false});
   const uses=[];
   for(const [face,patch] of patches.entries()){
     for(const [loop,points] of (patch.trimLoops??patchDomain(patch)).entries()){
@@ -32,10 +32,10 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
           const from=patch.normalSide<0?1:0,to=1-from;
           if(uvCurve.order===2&&uvCurve.n===2&&uvCurve.cp[3]===uvCurve.cp[7]){
             const a=curvePoint(uvCurve,from).slice(0,2),b=curvePoint(uvCurve,to).slice(0,2);
-            for(const piece of boundaryCurveUses(patch,a,b,curves,toleranceMm))uses.push({...piece,face,loop,order});
+            for(const piece of boundaryCurveUses(patch,a,b,boundary,toleranceMm))uses.push({...piece,face,loop,order});
             continue;
           }
-          const mapped=canonicalNativeUse({kind:'face-curve',patch,uvCurve},from,to,curves,toleranceMm);
+          const mapped=canonicalNativeUse({kind:'face-curve',patch,uvCurve},from,to,boundary,toleranceMm);
           uses.push({...mapped,face,loop,order,uvCurve,uvParameterRange:[from,to],uvFrom:curvePoint(uvCurve,from).slice(0,2),uvTo:curvePoint(uvCurve,to).slice(0,2)});
         }
         continue;
@@ -45,7 +45,7 @@ export function sewSurfaceBoundary(patches,intersections,{toleranceMm=BOOLEAN_TO
       for(let i=0;i<ordered.length;i++){
         const a=ordered[i],b=ordered[(i+1)%ordered.length];
         if(chartSegmentCollapsed(patch,a,b))continue;
-        const pieces=boundaryCurveUses(patch,a,b,curves,toleranceMm);
+        const pieces=boundaryCurveUses(patch,a,b,boundary,toleranceMm);
         for(const piece of pieces){
           if(chartSegmentCollapsed(patch,piece.uvFrom,piece.uvTo))continue;
           uses.push({...piece,face,loop,order:sequence.next++});
@@ -177,7 +177,8 @@ export function coedgeUvAt(use,range,t){
   return use.uvCurve?curvePoint(use.uvCurve,use.uvParameterRange[0]+fraction*(use.uvParameterRange[1]-use.uvParameterRange[0])).slice(0,2):interpolate(use.uvRange[0],use.uvRange[1],fraction);
 }
 
-function boundaryCurveUses(patch,a,b,curves,toleranceMm){
+function boundaryCurveUses(patch,a,b,boundary,toleranceMm){
+  const {curves}=boundary;
   const delta=b.map((v,k)=>v-a[k]),length2=delta[0]**2+delta[1]**2,matches=[];
   const uvGuard=4*ROUNDING_RELATIVE*Math.max(patch.domainU[1]-patch.domainU[0],patch.domainV[1]-patch.domainV[0]);
   for(const curve of curves){
@@ -197,18 +198,18 @@ function boundaryCurveUses(patch,a,b,curves,toleranceMm){
   const result=[],state={from:0};
   for(const match of matches){
     if(match.hi<=state.from+ROUNDING_RELATIVE)continue;
-    if(match.lo>state.from+ROUNDING_RELATIVE)result.push(nativeBoundaryUse(patch,interpolate(a,b,state.from),interpolate(a,b,match.lo),curves,toleranceMm));
+    if(match.lo>state.from+ROUNDING_RELATIVE)result.push(nativeBoundaryUse(patch,interpolate(a,b,state.from),interpolate(a,b,match.lo),boundary,toleranceMm));
     const lo=Math.max(state.from,match.lo),fraction=(lo-match.lo)/(match.hi-match.lo);
     result.push({curve:match.curve,from:match.from+fraction*(match.to-match.from),to:match.to,uvFrom:interpolate(a,b,lo),uvTo:interpolate(a,b,match.hi)});state.from=match.hi;
   }
-  if(state.from<1-ROUNDING_RELATIVE)result.push(nativeBoundaryUse(patch,interpolate(a,b,state.from),b,curves,toleranceMm));
+  if(state.from<1-ROUNDING_RELATIVE)result.push(nativeBoundaryUse(patch,interpolate(a,b,state.from),b,boundary,toleranceMm));
   return result.map(use=>{
     const curve=curves[use.curve];
     if(curve.kind!=='intersection')return use;
     if(curve.line===undefined){
       const onChartEdge=[patch.domainU,patch.domainV].some((domain,k)=>domain.some(value=>Math.abs(use.uvFrom[k]-value)<=ROUNDING_RELATIVE&&Math.abs(use.uvTo[k]-value)<=ROUNDING_RELATIVE));
-      if(onChartEdge)return {...use,...nativeBoundaryMapping(patch,use.uvFrom,use.uvTo,curves,toleranceMm,{matchIntersections:false})};
-      const native=existingNativeUse({kind:'face-curve',patch,fromUv:use.uvFrom,toUv:use.uvTo},0,1,curves,toleranceMm);
+      if(onChartEdge)return {...use,...nativeBoundaryMapping(patch,use.uvFrom,use.uvTo,boundary,toleranceMm,{matchIntersections:false})};
+      const native=existingNativeUse({kind:'face-curve',patch,fromUv:use.uvFrom,toUv:use.uvTo},0,1,boundary,toleranceMm);
       return native?{...use,...native}:use;
     }
     const line=curves[curve.line],first=curvePosition(curve,use.from),last=curvePosition(curve,use.to);
@@ -218,26 +219,38 @@ function boundaryCurveUses(patch,a,b,curves,toleranceMm){
 
 function interpolate(a,b,t){return a.map((v,k)=>v+t*(b[k]-v));}
 
-function nativeBoundaryUse(patch,a,b,curves,toleranceMm){
-  return {...nativeBoundaryMapping(patch,a,b,curves,toleranceMm),uvFrom:a,uvTo:b};
+function nativeBoundaryUse(patch,a,b,boundary,toleranceMm){
+  return {...nativeBoundaryMapping(patch,a,b,boundary,toleranceMm),uvFrom:a,uvTo:b};
 }
 
-function nativeBoundaryMapping(patch,a,b,curves,toleranceMm,{matchIntersections=true}={}){
+function nativeBoundaryMapping(patch,a,b,boundary,toleranceMm,{matchIntersections=true}={}){
+  const {curves}=boundary;
   const shared=matchIntersections?geometricBoundaryUse(patch,a,b,curves,toleranceMm):null;if(shared)return shared;
   const first=evaluate(patch,...a,false).point,last=evaluate(patch,...b,false).point;
-  if(distance(first,last)>ROUNDING_MM&&surfaceSegmentLineError(patch,a,b,first,last)<=ROUNDING_MM){
-    return lineUse(curves,first,last,toleranceMm);
-  }
   const axis=Math.abs(a[0]-b[0])<=ROUNDING_RELATIVE?0:Math.abs(a[1]-b[1])<=ROUNDING_RELATIVE?1:null;
   if(axis!==null){
     const value=a[axis],domain=axis===0?patch.domainU:patch.domainV;
     if(domain.some(v=>Math.abs(v-value)<=ROUNDING_RELATIVE)){
-      const native=surfaceIsoCurve(patch,axis,value),along=1-axis,range=native.domain;
+      // Boundary arithmetic may drift a few float64 steps outside the chart.
+      // Use its exact edge only for that rounding; authored out-of-domain
+      // requests still reach the isocurve's strict domain check.
+      const guard=FLOAT64_EPSILON*64*Math.max(1,...domain.map(Math.abs));
+      const nativeValue=value<domain[0]&&domain[0]-value<=guard?domain[0]
+        :value>domain[1]&&value-domain[1]<=guard?domain[1]:value;
+      const native=surfaceIsoCurve(patch,axis,nativeValue),along=1-axis,range=native.domain;
       const from=(a[along]-range[0])/(range[1]-range[0]),to=(b[along]-range[0])/(range[1]-range[0]);
-      return canonicalNativeUse({kind:'nurbs',native},from,to,curves,toleranceMm);
+      // A short curved interval can pass the rounding-level line test while
+      // its partner retains the native curve. Only promote a chart edge when
+      // its entire native domain is straight, so partial uses keep one identity.
+      const ends=range.map(t=>axis===0?[nativeValue,t]:[t,nativeValue]);
+      if(distance(first,last)>ROUNDING_MM&&surfaceSegmentLineError(patch,...ends,curvePoint(native,0),curvePoint(native,1))<=ROUNDING_MM)return lineUse(curves,first,last,toleranceMm);
+      return canonicalNativeUse({kind:'nurbs',native},from,to,boundary,toleranceMm);
     }
   }
-  return canonicalNativeUse({kind:'face-curve',patch,fromUv:a,toUv:b},0,1,curves,toleranceMm);
+  if(distance(first,last)>ROUNDING_MM&&surfaceSegmentLineError(patch,a,b,first,last)<=ROUNDING_MM){
+    return lineUse(curves,first,last,toleranceMm);
+  }
+  return canonicalNativeUse({kind:'face-curve',patch,fromUv:a,toUv:b},0,1,boundary,toleranceMm);
 }
 
 // Coplanar arrangements can sample the same native curve at different
@@ -341,20 +354,34 @@ function lineUse(curves,first,last,toleranceMm){
   const curve=existing??{kind:'line',id:curves.length,origin,direction};if(!existing)curves.push(curve);
   return {curve:curve.id,from:dot(first.map((v,k)=>v-curve.origin[k]),curve.direction),to:dot(last.map((v,k)=>v-curve.origin[k]),curve.direction)};
 }
-function canonicalNativeUse(candidate,from,to,curves,toleranceMm){
-  const existing=existingNativeUse(candidate,from,to,curves,toleranceMm);if(existing)return existing;
+function canonicalNativeUse(candidate,from,to,boundary,toleranceMm){
+  const {curves}=boundary;
+  const existing=existingNativeUse(candidate,from,to,boundary,toleranceMm);if(existing)return existing;
   const curve={...candidate,id:curves.length};curves.push(curve);return {curve:curve.id,from,to};
 }
-function existingNativeUse(candidate,from,to,curves,toleranceMm){
+function existingNativeUse(candidate,from,to,boundary,toleranceMm){
+  const {curves}=boundary;
   const points=[0,.25,.5,.75,1].map(t=>curvePosition(candidate,t));
   for(const curve of curves){
     if(curve.kind==='line'||curve.kind==='intersection')continue;
     if(candidate.kind==='nurbs'&&curve.kind==='nurbs'){
       const direction=curveCorrespondence(candidate.native,curve.native);
       if(direction)return {curve:curve.id,from:direction>0?from:1-from,to:direction>0?to:1-to};
+      // Samples can propose a parameter map, but the native rational cells
+      // must bound its error throughout the candidate, including knot spans.
+      const matches=boundedCurveCorrespondence(candidate.native,[0,1],curve.native,[0,1],{toleranceMm:toleranceMm/4})
+        .sort((a,b)=>a.scale-b.scale||a.offset-b.offset||a.sourceRange[0]-b.sourceRange[0]);
+      let mapping=null,covered=0;
+      for(const match of matches){
+        if(!mapping||match.scale!==mapping.scale||match.offset!==mapping.offset){mapping=match;covered=0;}
+        if(match.sourceRange[0]>covered)continue;
+        covered=Math.max(covered,match.sourceRange[1]);
+        if(covered>=1)return {curve:curve.id,from:match.offset+match.scale*from,to:match.offset+match.scale*to};
+      }
+      continue;
     }
     for(const sign of [1,-1]){
-      const matches=points.every((point,i)=>distance(point,curvePosition(curve,sign>0?i/4:1-i/4))<=toleranceMm/4);
+      const matches=points.every((point,i)=>distance(point,nativeComparisonPoint(boundary,curve,sign>0?i/4:1-i/4))<=toleranceMm/4);
       if(matches)return {curve:curve.id,from:sign>0?from:1-from,to:sign>0?to:1-to};
     }
     if(curve.kind==='nurbs'){
@@ -363,6 +390,16 @@ function existingNativeUse(candidate,from,to,curves,toleranceMm){
     }
   }
   return null;
+}
+
+// Canonical geometry stays fixed during this sewing call. Prepare only samples
+// reached by its ordered comparisons; keep them out of the returned curves.
+function nativeComparisonPoint(boundary,curve,parameter){
+  const cache=boundary.nativeComparisonSamples;
+  if(!cache.has(curve))cache.set(curve,new Map());
+  const samples=cache.get(curve);
+  if(!samples.has(parameter))samples.set(parameter,curvePosition(curve,parameter));
+  return samples.get(parameter);
 }
 
 const nativeEdgeQueries=new WeakMap();

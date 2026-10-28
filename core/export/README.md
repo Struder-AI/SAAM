@@ -2,7 +2,10 @@
 
 [Machines](../../machines/README.md) lists each machine extension, its output contract
 and [how to add one](../../machines/README.md#adding-a-machine).
-[Print lifecycle](../print/README.md) owns review and delivery of the checked output.
+[Reviewed export](reviewed-export.mjs) translates the person's displayed completed
+output: it reads the saved Paath from the Bundle, writes the program in its own
+worker, then records the receipt in the Bundle and the exported setup in Settings.
+[Print lifecycle](../print/README.md) owns the saved output and its receipts.
 X1 Carbon shares the H2D adapter with its own pinned envelope. Each output's standing
 limitations are in its manual; an export reports only what concerns the print.
 Catalog presence is not export support.
@@ -44,11 +47,20 @@ SAAMpath generation validates authored geometry and process values independently
 of machine capabilities. Machine profiles supply authoring defaults. They do not
 filter skills, reject tool poses or synthesize poses from the selected machine.
 Slice optionally derives upright orientation (default) or its surface normal; FIELD
-can vary either enabled output. Toolpath publishes every full pose explicitly.
+can vary either enabled output. Paath publishes tool axis and section normal;
+machine adapters derive roll from their captured initial orientation.
 
-[Export preparation](./prepare-path.mjs) resolves actual-tool access and transfers, then installation startup/priming, material changes and axis-feed limits. It preserves neutral source; resolved execution and program bytes remain transient.
-Only adapters enforce installed nozzle/material compatibility and required setup.
-Studio always draws saved neutral execution. The Export report names installation startup/priming and service; estimates describe written commands.
+[Bundle generation](../print/workflow.mjs) qualifies the saved schedule against
+selected nozzle envelopes before publishing its review capture. It reuses covered
+assumptions or invokes Scheduler through Bundle's scheduling plug. Failed
+qualification preserves inspectable source and a finding, with Export unavailable.
+[Export preparation](./prepare-path.mjs) checks those captured assumptions and
+resolves physical transfers, installation startup/priming, material changes and
+axis-feed limits. It never calls Scheduler or changes deposition order. Source
+and captured schedule stay immutable; physical transfers and program bytes remain
+transient. Adapters enforce output compatibility and required installation setup.
+Studio draws the saved qualified execution. The Export report names installation
+startup/priming and service; estimates describe written commands.
 Unsupported output errors occur after SAAMpath construction and carry `stage: export`.
 
 | Action | Implemented outputs |

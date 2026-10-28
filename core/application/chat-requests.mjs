@@ -1,12 +1,11 @@
-import {replaceFile} from '../private/studio/file-write.mjs';
-import {readFile,mkdir} from 'node:fs/promises';
+import {mkdir,readdir} from 'node:fs/promises';
 import {resolve,relative,isAbsolute} from 'node:path';
 import {createHash,randomUUID} from 'node:crypto';
 
 import {requestReceiptState,isEditRequest} from '../../studio/work-state.mjs';
 import {createRequestIndex} from './chat-request-index.mjs';
+import {createRequestStore} from './chat-request-store.mjs';
 import {createChatEvents} from './chat-events.mjs';
-import {bundleFor} from '../../studio/adapter-resolution.mjs';
 
 // A request's print: its library-relative folder name.
 export function requestPrintId(libraryRoot,directory,{optional=false}={}){
@@ -16,9 +15,9 @@ export function requestPrintId(libraryRoot,directory,{optional=false}={}){
 }
 // A print's current work evidence (Bundle snapshot), or null before it exists.
 export async function workEvidence(directory){
-  const adapter=await bundleFor(directory).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
-  if(!adapter)return null;
-  return {...(await adapter.loadBundleSnapshot(directory,{program:false})).state.workEvidence};
+  const {loadBundleSnapshot}=await import('../print/bundle.mjs');
+  const snapshot=await loadBundleSnapshot(directory,{program:false}).catch(error=>{if(error.code==='ENOENT')return null;throw error;});
+  return snapshot&&{...snapshot.state.workEvidence};
 }
 // Old requests retain their authored baseline. An explicit new work episode
 // captures the current output before editing; the old event hash cannot prove bytes.
@@ -31,12 +30,13 @@ function currentBaseline(baseline,current){
 // completing one request cannot clear another's dots. A record belongs to the chat
 // attached to its Studio instance (ownerOf), else to the chat that wrote it; records
 // are never rewritten when a Studio changes chat.
-export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,folder:requestFolder,ownerOf=record=>record.ownerId,onHandBack=async()=>{}}){
+export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,folder:requestFolder,store:requestStore,ownerOf=record=>record.ownerId,onHandBack=async()=>{}}){
   const lifetime={closed:false};
   let workTail=Promise.resolve();
   const transition=action=>{const run=workTail.then(action);workTail=run.catch(()=>{});return run;};
   const root=resolve(libraryRoot),folder=resolve(requestFolder??resolve(root,'.studio-requests'));
-  const records=new Map(),byPrint=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map(),operations=new Set();let changeVersion=0;
+  const store=requestStore??createRequestStore(folder);
+  const records=new Map(),byPrint=new Map(),listeners=new Set(),waiters=new Set(),emitted=new Map(),operations=new Set(),handbacks=new Map(),finalizers=new Set();let changeVersion=0;
   const owner=record=>ownerOf(record)??null;
   const visible=record=>!owner(record)||owner(record)===ownerId;
   const foreign=record=>owner(record)&&owner(record)!==ownerId;
@@ -45,7 +45,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
   // One record per pending wait owns that wait's timer, event subscription and
   // resolver, so waking a waiter is a named step rather than a stored callback.
   const wake=()=>{changeVersion++;for(const waiter of [...waiters])settleWaiter(waiter);};
-  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.stopEvents?.();waiter.resolve();}
+  function settleWaiter(waiter){clearTimeout(waiter.timer);waiters.delete(waiter);waiter.stopEvents?.();waiter.stopAbort?.();waiter.resolve();}
   const notify=record=>{
     if(!record)return;
     const key=[record.updatedAt,record.status,record.presented,record.connectionClosed].join(':');
@@ -59,24 +59,37 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     notify(record);wake();
   }
   let refreshingHint=false;
-  const index=createRequestIndex(folder,{onChange:accept,onHint(){
+  const index=createRequestIndex(folder,{store,onChange:accept,onHint(){
     wake();
     if(listeners.size&&!refreshingHint){refreshingHint=true;void index.refresh().catch(()=>{}).finally(()=>{refreshingHint=false;});}
   }});
-  const file=id=>{if(!/^[a-f0-9-]{32,64}$/.test(id))throw Error('Invalid agent request id.');return resolve(folder,id+'.json');};
-  async function save(record){await replaceFile(file(record.id),JSON.stringify(record)+'\n');accept(record.id,record);index.changed(record.id);return structuredClone(record);}
-  async function get(id){return JSON.parse(await readFile(file(id),'utf8'));}
+  async function save(record){const saved=await store.replace(record);accept(saved.id,saved);index.changed(saved.id);return structuredClone(saved);}
+  const get=id=>store.get(id);
   const printId=directory=>requestPrintId(root,directory);
   // Live reads return this chat's unfinished records plus the latest edit outcome
   // per print. `anyOwner` is a history read only: the durable record of what
   // happened to a print, which never reaches a live claim, update or wait path.
   async function query({printId,status,since=0,history=false,anyOwner=false}={}){
     await index.refresh({force:history});
-    const pool=[...(printId?byPrint.get(printId)?.values()??[]:records.values())].filter(r=>history&&anyOwner||visible(r));
+    return selectRecords([...(printId?byPrint.get(printId)?.values()??[]:records.values())],{status,since,history,anyOwner});
+  }
+  function selectRecords(records,{status,since=0,history=false,anyOwner=false}){
+    const pool=records.filter(r=>history&&anyOwner||visible(r));
     const latest=new Map();
     if(!history)for(const r of pool)if(isEditRequest(r)){const key=r.printId+'\0'+(owner(r)??''),last=latest.get(key);if(!last||r.updatedAt>=last.updatedAt)latest.set(key,r);}
     return pool.filter(r=>(!status||r.status===status)&&r.createdAt>=since&&(history||unfinished(r)||latest.get(r.printId+'\0'+(owner(r)??''))===r))
       .sort((a,b)=>a.createdAt-b.createdAt).map(r=>structuredClone(r));
+  }
+  async function inspect({printId,...options}={}){
+    const names=await readdir(folder).catch(error=>{if(error.code==='ENOENT')return [];throw error;});
+    const snapshots=[];
+    for(const name of names.filter(name=>/^[a-f0-9-]{32,64}\.json$/.test(name))){
+      const id=name.slice(0,-5);
+      try{snapshots.push(await store.get(id));}
+      catch(error){if(error.code==='ENOENT')continue;if(!(error instanceof SyntaxError))throw error;
+        snapshots.push({id,kind:'diagnostic',status:'failed',createdAt:0,updatedAt:0,error:'Unreadable request record: '+error.message});}
+    }
+    return selectRecords(snapshots.filter(record=>!printId||record.printId===printId),options);
   }
   const list=options=>query({...options,history:true});
   async function begin({directory,instruction,source='agent',key,kind='edit',evidence,scope,studioInstanceId,selectionVersion,bundleState}){
@@ -92,7 +105,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     if(lifetime.closed)throw Error('Request service closed.');
     if(!['working','waiting','completed','failed','cancelled'].includes(status))throw Error('Invalid agent response status.');
     const record=await get(id);
-    if(record.studioInstanceId&&foreign(record))throw Error('That Studio request belongs to another agent.');
+    if(record.studioInstanceId&&foreign(record)&&!(status!=='working'&&record.inspectionSuperseded&&record.ownerId===ownerId))throw Error('That Studio request belongs to another agent.');
     if(status==='working'&&record.episode&&!record.workActive)return begin({directory:resolve(root,record.printId),instruction:record.instruction,studioInstanceId:record.studioInstanceId,kind:record.kind});
     if(record.status==='cancelled'||record.status==='completed')return record;
     const resuming=status==='working'&&record.status!=='working';
@@ -122,13 +135,14 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     const current=chosen.some(record=>record.baseline&&record.baseline.schema!=='saam-work-evidence/1')?await workEvidence(directory):null;
     const result=[],episodeId=chosen[0].episodeId??chosen[0].id,episodeStartedAt=chosen[0].episodeStartedAt??[...records.values()].reduce((latest,r)=>Math.max(latest,(r.episodeStartedAt??0)+1),now());
     for(const record of chosen)result.push(await save({...record,baseline:currentBaseline(record.baseline,current),episodeId,episodeStartedAt,status:'working',episode:true,workActive:true,nativeContext:nativeContext??null,selectionVersion:selectionVersion??record.selectionVersion,ownerId,updatedAt:Math.max(now(),record.updatedAt+1)}));
-    return result;
+    const op={requestIds:result.map(r=>r.id),records:result,saved:result[0]?.lastSaved??null,settled:Promise.withResolvers()};
+    operations.add(op);return op;
   });}
   // Hand-back first marks the episode pending (Studio stays dimmed), waits for the
   // operations underway on the request, then publishes the last saved result.
   function startHandback(id,response){return transition(async()=>{
     const record=await get(id);
-    if(foreign(record))throw Error('That Studio request belongs to another agent.');
+    if(foreign(record)&&!(record.inspectionSuperseded&&record.ownerId===ownerId))throw Error('That Studio request belongs to another agent.');
     if(!record.episode)return null;
     if(!record.workActive&&!record.handbackPending){
       if(['completed','cancelled'].includes(record.status))return record;
@@ -157,23 +171,43 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       inspectionTarget:result?{...result,...(stage?{stage}:{})}:null,handbackPending:false,
       inspectionPresented:!result,updatedAt:Math.max(now(),record.updatedAt+1)});
   });}
-  const underway=requestId=>[...operations].filter(op=>op.requestIds.includes(requestId)).map(op=>op.settled.promise);
-  async function handBack(requestId,response,{wait=true}={}){
+  function trackFinalizer(completion,requestId){
+    finalizers.add(completion);
+    void completion.then(()=>finalizers.delete(completion),error=>{
+      finalizers.delete(completion);events.record('handback-failed',{requestId,error:error.message});
+    });
+    return completion;
+  }
+  // The authority queue awaits only this preparation. The nested completion is
+  // owned here and settles the episode after its underway operations save.
+  async function prepareHandBack(requestId,response){
     if(!['working','waiting','completed','failed','cancelled'].includes(response.status))throw Error('Invalid agent response status.');
     if(response.resultStage&&!['geometry','toolpath'].includes(response.resultStage))throw Error('Unknown result stage.');
-    if(response.status==='working')return update(requestId,response);
-    const running=underway(requestId);
+    if(response.status==='working'){
+      const pending=await update(requestId,response);return {pending,completion:Promise.resolve(pending)};
+    }
+    const before=[...operations];
     const pending=await startHandback(requestId,response);
-    if(!pending){const record=await update(requestId,response);await onHandBack(record);return record;}
-    if(!pending.handbackPending){await onHandBack(pending);return pending;}
+    if(!pending||!pending.handbackPending){
+      const record=pending??await update(requestId,response);
+      const completion=trackFinalizer(onHandBack(record).then(()=>record),requestId);return {pending:record,completion};
+    }
+    const episodeId=pending.episodeId??pending.id,existing=handbacks.get(episodeId);
+    if(existing)return {pending,completion:existing.then(()=>get(requestId))};
+    const ids=pending.handbackIds??[requestId];
+    const running=[...new Set([...before,...operations])].filter(op=>op.requestIds.some(id=>ids.includes(id))).map(op=>op.settled.promise);
     const finishing=(async()=>{
-      const completed=await Promise.all([...new Set([...running,...underway(requestId)])]),last=completed.at(-1);
-      const handed=[];for(const id of pending.handbackIds??[requestId])handed.push(await finishHandback(id,last?.error));
+      const completed=await Promise.all(running),failure=completed.findLast(result=>result.error);
+      const handed=[];for(const id of ids)handed.push(await finishHandback(id,failure?.error));
       const record=handed.find(r=>r.id===requestId)??handed[0];await onHandBack(record);return record;
     })();
-    if(wait)return finishing;
-    void finishing.catch(error=>events.record('handback-failed',{requestId,studioInstanceId:pending.studioInstanceId,printId:pending.printId,error:error.message}));
-    return pending;
+    handbacks.set(episodeId,finishing);trackFinalizer(finishing,requestId);
+    void finishing.then(()=>handbacks.delete(episodeId),()=>handbacks.delete(episodeId));
+    return {pending,completion:finishing};
+  }
+  async function handBack(requestId,response,{wait=true}={}){
+    const ticket=await prepareHandBack(requestId,response);
+    return wait?ticket.completion:ticket.pending;
   }
   async function cancelScope(scope){for(const r of await query())if(r.scope?.runId===scope.runId&&(!scope.lessonId||r.scope.lessonId===scope.lessonId)&&['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
   async function cancelFor(directory){const id=printId(directory);for(const r of await query({printId:id}))if(['queued','working','waiting'].includes(r.status))await handBack(r.id,{status:'cancelled',message:''});}
@@ -184,7 +218,16 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       if(record.workActive||record.handbackPending||['queued','working','waiting'].includes(record.status))await handBack(record.id,{status:'cancelled',message},{wait:false});
     }
   }
-  return {list,query,get,ownerId,printIdOf:directory=>requestPrintId(root,directory,{optional:true}),begin,update,handBack,cancelScope,cancelFor,retire,
+  return {list,query,get,ownerId,printIdOf:directory=>requestPrintId(root,directory,{optional:true}),begin,update,handBack,prepareHandBack,cancelScope,cancelFor,retire,
+    // Initial attachment carries unclaimed Studio requests with the same selected
+    // view. Capture/replacement retires them instead; provenance stays authored.
+    attachSelection({studioInstanceId,printId,previousSelectionVersion,selectionVersion}){return transition(async()=>{
+      for(const candidate of await query({status:'queued'})){
+        const record=await get(candidate.id);
+        if(record.studioInstanceId===studioInstanceId&&record.printId===printId&&(!record.selectionVersion||record.selectionVersion===previousSelectionVersion)&&!record.episode&&!record.workActive&&!record.handbackPending&&!record.inspectionSuperseded)
+          await save({...record,selectionVersion,updatedAt:Math.max(now(),record.updatedAt+1)});
+      }
+    });},
     // Startup only: refresh saves and finish hand-backs already requested before
     // the old process died. Autonomous work stays active across a runtime reload.
     async recover(){
@@ -197,11 +240,7 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
     },
     // One result-changing operation of this chat: it joins or begins the work
     // episode and reports its last saved evidence when it settles.
-    async beginOperation(work){
-      const started=await startWork(work);
-      const op={requestIds:started.map(r=>r.id),records:started,saved:started[0]?.lastSaved??null,settled:Promise.withResolvers()};
-      operations.add(op);return op;
-    },
+    beginOperation:work=>startWork(work),
     async saved(op,evidence,{selectionVersion}={}){
       op.saved=evidence;
       for(const id of op.requestIds)await transition(async()=>{const record=await get(id);return save({...record,lastSaved:op.saved,...(selectionVersion?{selectionVersion}:{}),updatedAt:Math.max(now(),record.updatedAt+1)});});
@@ -217,7 +256,8 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       void mkdir(folder,{recursive:true}).then(()=>index.refresh()).catch(()=>{});
       return()=>{listeners.delete(listener);release();};
     },
-    close(){lifetime.closed=true;wake();listeners.clear();index.close();},
+    async drain(){await workTail;while(finalizers.size)await Promise.allSettled([...finalizers]);await workTail;},
+    async close(){lifetime.closed=true;wake();listeners.clear();await index.close();if(!requestStore)await store.close();},
     activity(id,{directory}={}){return transition(async()=>{
       if(lifetime.closed)throw Error('Request service closed.');
       const record=await get(id);
@@ -247,7 +287,8 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
       }
       return updated;
     },
-    async wait({after=[],waitMs=25000,studioInstanceId}={}){
+    inspect,
+    async wait({after=[],waitMs=25000,studioInstanceId,signal}={}){
       const deadline=Date.now()+Math.max(0,waitMs);
       await mkdir(folder,{recursive:true});const release=index.retain();
       try{for(;;){
@@ -255,11 +296,12 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
         const requests=(await query({status:'queued'})).filter(request=>!after.includes(request.id)&&(!studioInstanceId||request.studioInstanceId===studioInstanceId));
         const remaining=deadline-Date.now();
         // A delivered Studio event ends the wait too, carrying every held event.
-        if(requests.length||remaining<=0||lifetime.closed||events.pendingDelivery())return {requests,events:events.drain()};
+        if(requests.length||remaining<=0||lifetime.closed||signal?.aborted||events.pendingDelivery())return {requests,...events.pending()};
         if(changeVersion!==observed)continue;
         await new Promise(resolve=>{
-          const waiter={timer:null,stopEvents:null,resolve},done=()=>settleWaiter(waiter);
+          const waiter={timer:null,stopEvents:null,stopAbort:null,resolve},done=()=>settleWaiter(waiter);
           waiters.add(waiter);waiter.stopEvents=events.subscribe(done);waiter.timer=setTimeout(done,remaining);waiter.timer.unref?.();
+          if(signal){signal.addEventListener('abort',done,{once:true});waiter.stopAbort=()=>signal.removeEventListener('abort',done);if(signal.aborted)done();}
         });
       }}finally{release();}
     }
@@ -267,9 +309,9 @@ export function createChatRequests(libraryRoot,{now=Date.now,ownerId,events,fold
 }
 
 // One chat's channel: its ledger, its event log and Studio's binding to them. attachment
-// is null for the lobby (no chat attached).
-export function createChatChannel(libraryRoot,{ownerId,folder,ownerOf,attachment=null,onHandBack}){
-  const events=createChatEvents(),requests=createChatRequests(libraryRoot,{ownerId,events,folder,ownerOf,onHandBack});
+// is null for the lobby (no chat attached). Channels sharing a folder share its store.
+export function createChatChannel(libraryRoot,{ownerId,folder,store,ownerOf,attachment=null,onHandBack}){
+  const events=createChatEvents(),requests=createChatRequests(libraryRoot,{ownerId,events,folder,store,ownerOf,onHandBack});
   return {requests,events,binding:chatBinding({requests,events,attachment})};
 }
 // Studio's whole view of one chat.
@@ -278,6 +320,7 @@ function chatBinding({requests,events,attachment}){
     note:(kind,detail)=>events.record(kind,detail),
     flush:()=>events.flush(),
     retire:selection=>requests.retire(selection),
+    attachSelection:selection=>requests.attachSelection(selection),
     async ask({directory,studioInstanceId,interrupt=false,...request}){
       if(interrupt)void requests.interrupt(directory,studioInstanceId).catch(error=>events.record('handback-failed',{studioInstanceId,directory,message:error.message}));
       return requests.begin({...request,directory,studioInstanceId,source:'studio'});
@@ -289,6 +332,10 @@ function chatBinding({requests,events,attachment}){
       const printId=directory&&requests.printIdOf(directory);if(!printId)return [];
       if(history)return requests.list({printId,anyOwner:true});
       return (await requests.query({printId})).filter(r=>!studioInstanceId||!r.studioInstanceId||r.studioInstanceId===studioInstanceId);
+    },
+    async inspectRequestsFor(directory,studioInstanceId){
+      const printId=directory&&requests.printIdOf(directory);if(!printId)return [];
+      return (await requests.inspect({printId})).filter(record=>!studioInstanceId||!record.studioInstanceId||record.studioInstanceId===studioInstanceId);
     },
     watch:onChange=>requests.subscribe(onChange)});
 }

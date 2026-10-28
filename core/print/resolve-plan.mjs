@@ -29,7 +29,6 @@ export function resolvePlanPatch(previous,patch,{geometryTemplate}){
   const settings={...(Object.hasOwn(patch,'setup')?{setup}:{}),...(Object.hasOwn(patch,'process')?{process}:{}),
     ...(Object.hasOwn(patch,'output')?{output}:{}),...(Object.hasOwn(patch,'placement')?{placement}:{})};
   const plan={...previous,...structuredClone(recipe),...resolveSettingsPatch(previous,settings)};
-  if(record(previous.experimental)&&record(recipe.experimental))plan.experimental={...previous.experimental,...plan.experimental};
   if(record(previous.composition)&&record(recipe.composition))plan.composition={...previous.composition,...plan.composition};
   if(record(previous.slices)&&record(recipe.slices))plan.slices={...previous.slices,...plan.slices};
   if(record(previous.modulations)&&record(recipe.modulations))plan.modulations={...previous.modulations,...plan.modulations};

@@ -1,6 +1,6 @@
 // One Studio instance reserves a bundle when it opens it.
-// The process identity is recorded for deliberate recovery after a crash; an
-// elapsed clock alone never takes a live instance's bundle away.
+// The same chat can resume a dead process's reservation. A different owner
+// uses explicit recovery/capture; elapsed time never releases a live instance.
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {readFile,rm} from 'node:fs/promises';
 import {resolve} from 'node:path';
@@ -23,7 +23,9 @@ export async function claimBundleInstance(directory,{instanceId,ownerId,restorin
   return withBundleWriteLock(directory,async()=>{
     const current=await bundleInstance(directory);
     if(current){
-      if(!restoring||current.instanceId!==instanceId||current.ownerId!==ownerId)throw conflict(current);
+      const resuming=current.ownerId===ownerId&&current.runtimeId===runtimeId;
+      if(!(restoring&&current.instanceId===instanceId&&current.ownerId===ownerId||resuming))throw conflict(current);
+      if(!Number.isInteger(current.pid)||current.pid<1)throw Error('Bundle Studio record is damaged. Inspect it before recovery.');
       try{process.kill(current.pid,0);throw conflict(current);}catch(error){if(error.code!=='ESRCH')throw error;}
     }
     const record={instanceId,ownerId,pid:process.pid,token:randomUUID(),...(runtimeId?{runtimeId,runtimeLabel}:{}),startedAt:new Date().toISOString()};

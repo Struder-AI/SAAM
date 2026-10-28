@@ -47,21 +47,3 @@ export function createTravelAdvisory(lineWidthMm) {
     omittedSamples:count-samples.length,
     message:count?`Bad path: ${count} of ${travelCount} travels start and end within ${thresholdMm} mm on one layer (${liftedCount} lifted over a blocked line, ${count-liftedCount} moved directly). Tell the person, naming the affected operations, and retain this evidence for improving the generating skills/functions. This advisory does not block review or delivery and does not request automatic repair.`:null};}};
 }
-
-export function shortTravelAdvisory(moves,lineWidthMm){
-  const advisory=createTravelAdvisory(lineWidthMm);for(const move of moves)advisory.record(move);return advisory.result();
-}
-
-// The prepared path as moves; a stationary extrusion is a stroke of zero length.
-export function preparedTravelAdvisory(prepared,plan){
-  return shortTravelAdvisory(preparedMoves(prepared),plan.process.lineWidthMm);
-}
-function* preparedMoves(prepared){
-  const cursor={from:prepared.initialPosition,index:0};
-  for(const a of prepared.actions){
-    const action=cursor.index++;
-    if(a.kind!=='move'&&a.kind!=='extrude')continue;
-    const to=a.kind==='move'?a.to:cursor.from;
-    yield {from:cursor.from,to,extruding:a.volumeMm3>0,operation:a.operation,phase:a.phase,layer:a.layer,action};cursor.from=to;
-  }
-}

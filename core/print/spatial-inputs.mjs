@@ -63,9 +63,8 @@ function manufacturingGeometry(geometry){
   }
   if(geometry.shape==='assembly')return {...geometry,
     parts:geometry.parts.map(part=>({...part,geometry:manufacturingGeometry(part.geometry)}))};
-  if(geometry.shape==='text')return {...structuredClone(geometry),base:manufacturingGeometry(geometry.base),
+  if(geometry.shape==='extension')return {...structuredClone(geometry),base:manufacturingGeometry(geometry.base),
     materialParts:geometry.materialParts.map(part=>({...part,geometry:manufacturingGeometry(part.geometry)}))};
-  if(geometry.shape==='heat-set')return {...structuredClone(geometry),base:manufacturingGeometry(geometry.base)};
   return structuredClone(geometry);
 }
 

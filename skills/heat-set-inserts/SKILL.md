@@ -14,7 +14,8 @@ Follow the [parameter policy](../../MAKERS.md#standard-parameter-policy): edits 
 new holes inherit component insert, bore and fin choices, with explicit or example placement.
 
 Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
-`apply_heat_set` with `bundleId`, current `expectedRevision` and `request`:
+`apply_extension` with `bundleId`, `extensionId: "heat-set-inserts"`, current
+`expectedRevision` and `request`:
 
 ```json
 {"feature":{"id":"mount","insertId":"spirol-29-m3-long","positionMm":[15,15,12],"axis":[0,0,-1],"chamferDepthMm":0.5}}
@@ -23,8 +24,10 @@ Choose a [catalog size/profile](CATALOG.md#size-and-profile-choices). Call
 `positionMm` is the mouth centre; `axis` points inward, including side/angled
 faces. The cut clears material outward beyond the host at the mouth diameter
 (including a chamfer); inward seat depth stays fixed. Reapply to update old holes.
-Assembly requests add `part`. Edit by id with changed fields; remove with
-`{"remove":"mount"}` (plus `part`). Review the saved revision in Studio; Export
+For an assembly, add `part` beside `request`. Edit by id with changed fields;
+remove with `{"remove":"mount"}`. Lettering added over the holes is rebuilt on
+the changed part. Heat-set assignments saved before reinforcement became a source
+Trace are named as deprecated; remove them and add the hole again. Review the saved revision in Studio; Export
 is the normal confirmation. Fit, tool access and printable support need review.
 
 | Field | Default and meaning |
@@ -58,8 +61,8 @@ intersects fixed fin sheets with the inherited layer surface. Seat depth exclude
 outward/through clearance. Large wall counts can consume fin reach; offsets and
 process settings inherit the prepared main layer, including nonplanar layers.
 
-The pattern clears main wall bands at every boundary, including neighboring holes
-and exterior edges. Clipped gaps are travel; reports retain open fragments.
+The pattern keeps half a bead inside Slice's fill regions, which clear the main walls at
+every boundary, including neighboring holes and exterior edges. Clipped gaps are travel; reports retain open fragments.
 The loop target is limited by available host material.
 
 Use `sourceAssignments:["foundation","curved-body"]` for multiple main owners, or `sourceAssignment` for one. Edits retain
@@ -70,4 +73,4 @@ successive traces cannot retain half a bead of overlap, are omitted and reported
 Mesh/spline hosts and assemblies retain editable holes alongside text/curves.
 Reports note mouth clearance, uneven rims, floor breakout and short seats. Blind backing
 uses disk/layer intersection traces across max(solidTop,solidBottom) × layer gap; parallel
-layers fill the disk area. Existing dense coverage is excluded; physical strength needs print evidence.
+layers fill the disk area with concentric rings. Slice's solid fill regions are excluded; physical strength needs print evidence.

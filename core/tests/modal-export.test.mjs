@@ -6,6 +6,7 @@ import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
 import {schedulePath} from '../path/schedule.mjs';
 import {joinSaamPath} from '../path/saampath.mjs';
+import {schedulingNozzleInputs} from '../machine/nozzle.mjs';
 import {preparePath} from '../export/registry.mjs';
 import {gcodeMotion} from '../export/gcode-motion.mjs';
 import {readFileSync} from 'node:fs';
@@ -26,7 +27,7 @@ test('modal fields omit unchanged words across speed, travel, retract and relati
     plan.geometry=splineBox({runMm:8,widthMm:8,heightMm:.6});
     plan.process.maxCombMm=0;plan.process.minimumLayerSeconds=0;
     const source=await generatePath(plan,machine),sourcePathId='modal:'+id;
-    const schedule=schedulePath(source,{sourcePathId});
+    const schedule=schedulePath(source,{sourcePathId,nozzleTypes:schedulingNozzleInputs(machine,plan)});
     const path=joinSaamPath({sourcePathId,deposition:source,schedule});
     const {lines}=gcodeMotion((await preparePath(path,plan,machine)),plan,{extrusionMode:id==='bambu-h2d'?'relative':'absolute'});
     const modal={};let omittedFeed=0;

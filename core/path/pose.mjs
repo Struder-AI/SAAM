@@ -1,4 +1,4 @@
-import {validateDirectionPair,interpolateDirectionPair} from '../geom/frame.mjs';
+import {validateDirectionPair,interpolateDirectionPair,axisFrame} from '../geom/frame.mjs';
 import {BUILD_SCALE_MM,PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 // Bundle's neutral SAAMpath pose contract. CAM chooses the orientations;
 // Geometry supplies direction mathematics, without toolhead conventions.
@@ -13,6 +13,12 @@ export const POSE_RESOLUTION=PRINT_RESOLUTION_MM/BUILD_SCALE_MM;
 export const POSE_RESOLUTION_DEG=POSE_RESOLUTION*180/Math.PI;
 
 export const uprightPose=()=>({toolAxis:[0,0,-1],toolUp:[0,1,0]});
+// A computation frame supplies no authored roll. Machine adapters choose their
+// feasible roll independently from this deterministic numerical basis.
+export function axisPose(toolAxis){
+  const frame=axisFrame(toolAxis);
+  return {toolAxis:[...toolAxis],toolUp:frame.map(row=>row[1])};
+}
 export function validatePose(p){
   validateDirectionPair(p?.toolAxis,p?.toolUp);
   return p;

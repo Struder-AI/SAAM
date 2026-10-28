@@ -48,7 +48,7 @@ function validate(plan,{required=false}={}){
   }
 }
 export const createAdapter=Export=>({output:'dobot-lua',poses:false,settings:{key:'dobot',validate},
-  export:(prepared,settings)=>exportDobot(prepared,settings,settings.machine,settings.release,Export)});
+  write:(prepared,settings,sink)=>writeDobot(prepared,settings,settings.machine,settings.release,Export,sink)});
 
 const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
@@ -56,12 +56,14 @@ const digest=value=>createHash('sha256').update(JSON.stringify(value)).digest('h
 // written at the profile's default deposition or travel speed, and noted.
 const commandSpeed=(action,defaults)=>action.speedMmS>0?action.speedMmS:action.volumeMm3>0?defaults.planarSpeedMmS:defaults.travelSpeedMmS;
 const defaultedNote=(count,defaults)=>count?[`${count} move(s) had no positive speed and are written at the profile default (deposition ${defaults.planarSpeedMmS} mm/s, travel ${defaults.travelSpeedMmS} mm/s).`]:[];
-function exportDobot(path,plan,machine,release,Export){
+async function writeDobot(path,plan,machine,release,Export,sink){
   const {PRINT_RESOLUTION_MM,PROGRAM_DECIMALS}=Export.kinematics.dimensions;
   const num=value=>controllerNumber(value,PROGRAM_DECIMALS+5);
   const c=config(plan,machine);
   requireThat(equal(path.initialPosition,c.initialPositionMm,PRINT_RESOLUTION_MM),'Dobot initial position differs from the locked external start pose.');
   const global=`-- SAAM controller XYZ after locked calibration and ${PRINT_RESOLUTION_MM} mm rounding.\nfunction P(x,y,z)\n  return {coordinate={x,y,z,${num(c.rDeg)}},tool=${c.toolFrame},user=${c.userFrame}}\nend\n`;
+  const body=await sink.member();let firstLine=true;
+  async function flush(){for(const line of lines){await body.write((firstLine?'':'\n')+line);firstLine=false;}lines.length=0;}
   const omitted=new Set(),temperatures=new Set(),lines=['-- SAAM experimental stroke relay program','function RunPlan()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`];
   // Timing and the relay estimate use literal calibrated controller XYZ,
   // the written SpeedL/AccL percentages and rest-to-rest motion.
@@ -70,6 +72,7 @@ function exportDobot(path,plan,machine,release,Export){
   let relay=false,controller=transform(c.initialPositionMm,c),seconds=0,volumeMm3=0,estimate=0,defaulted=0,limited=0,collapsed=0,carried=0;
   const switchRelay=on=>{if(on!==relay){lines.push('  Sync()',`  DO(${JSON.stringify(c.extrusionOutput)},${on?1:0})`);relay=on;}};
   for(const a of path.actions){
+    await flush();
     if(a.kind==='move'){
       const target=transform(a.to,c).map(value=>Export.number(value,'xyz'));
       requireThat(target.every(Number.isFinite),'Dobot command coordinates must be finite.');
@@ -95,13 +98,14 @@ function exportDobot(path,plan,machine,release,Export){
       // the parts sum to the requested milliseconds, so it is not shortened.
       switchRelay(false);lines.push('  Sync()');
       let remaining=a.seconds*1000;
-      do{const part=Math.min(remaining,WAIT_COMMAND_MS);lines.push(`  Wait(${num(part)})`);seconds+=num(part)/1000;remaining-=part;}while(remaining>0);
+      do{const part=Math.min(remaining,WAIT_COMMAND_MS);lines.push(`  Wait(${num(part)})`);seconds+=num(part)/1000;remaining-=part;await flush();}while(remaining>0);
     }else if(['retract','recover'].includes(a.kind)){if(a.filamentMm>0)omitted.add('retraction');}
     else if(a.kind==='fan'){if(a.percent!==0)omitted.add('fan');}
-    else if(a.kind==='temperature'){Export.temperatureC(a.targetC);temperatures.add(a.targetC);}
+    else if(a.kind==='temperature'){temperatures.add(a.targetC);}
     else throw new Error(`Unsupported Dobot action ${a.kind}.`);
   }
   switchRelay(false);lines.push('  Sync()',`  DO(${JSON.stringify(c.extrusionOutput)},0)`,'end','');
+  await flush();await body.close();
   const limitations=[...defaultedNote(defaulted,plan.defaultProcess),
     ...(collapsed?[`${collapsed} move(s) collapsed at ${PRINT_RESOLUTION_MM} mm XYZ precision; their commanded material carries to the next written deposition${carried?`; ${carried} mm³ at the end has no representable deposition and is omitted`:''}.`]:[]),
     ...(limited?[`${limited} move(s) use representable SpeedL within 0–100%; timing is calculated from the written percentage.`]:[]),
@@ -111,7 +115,8 @@ function exportDobot(path,plan,machine,release,Export){
   const manifest={schema:'saam-dobot-program/1',machineId:machine.id,setupHash:digest(plan.setup),machineHash:digest(machine),
     entry:'src0.lua',initialPositionMm:path.initialPosition,coordinateFrame:`Literal calibrated controller XYZ at ${PRINT_RESOLUTION_MM} mm; P supplies fixed tool/user frame and orientation`,
     relayPolicy:c.relayPolicy,volumeModel:'SAAM commanded intent plus optional independent relay-rate estimate',release,limitations};
-  return {bytes:Export.packZip(new Map([['global.lua',global],['src1.lua',lines.join('\n')],['src0.lua','-- Entry tab: definitions must be loaded first.\nRunPlan()\n'],['manifest.json',JSON.stringify(manifest,null,2)+'\n']])),
+  await sink.archive(new Map([['global.lua',global],['src1.lua',body],['src0.lua','-- Entry tab: definitions must be loaded first.\nRunPlan()\n'],['manifest.json',JSON.stringify(manifest,null,2)+'\n']]));
+  return {
     report:{seconds,volumeMm3,omittedVolumeMm3:carried,materialModel:estimated?'relay-estimate':'relay-estimate-unavailable',estimatedRelayVolumeMm3:estimated?estimate:null,limitations,
       timingModel:'Rest-to-rest Cartesian motion using written SpeedL/AccL and configured controller limits; relay and queue lag excluded.',
       notice:`Commanded volume ${volumeMm3.toFixed(2)} mm³; ${estimated?`modeled relay-rate estimate ${estimate.toFixed(2)} mm³ (difference ${(estimate-volumeMm3).toFixed(2)} mm³)`:'relay-material estimate unavailable'}. Neither is measured deposition. External start and heating are declared in setup; the program inserts neither.`}};

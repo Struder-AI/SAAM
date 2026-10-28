@@ -1,7 +1,7 @@
 // Ordinary first-layer Trace contours around the support footprint. Geometry owns
 // offsets and clipping; the extension chooses three adhesion passes and clearance.
 export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,component,otherAssignments}){
-  if(!baseOnBed)return {requestedPasses:3,curves:0,notes:['Bed brim omitted on a printed base; author adhesion contours supported by that base.']};
+  if(!baseOnBed)return {curves:[],report:{requestedPasses:3,curves:0,notes:['Bed brim omitted on a printed base; author adhesion contours supported by that base.']}};
   const width=assignment.curves[0].beadWidthMm,height=source.process.firstLayerMm??source.process.layerMm;
   // Scale the print-resolution budget with bead width (0.4 mm reference bead).
   const tolerance=width/(0.4/Geometry.dimensions.PRINT_RESOLUTION_MM),origin=[component?.xMm??0,component?.yMm??0,component?.zMm??0],z=height-origin[2];
@@ -10,12 +10,17 @@ export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,compo
   const blocked=[];
   if(source.geometry){
     const solid=source.geometry.shape==='spatial'?source.geometry.solid:source.geometry;
-    const [material]=solid?await Geometry.resolveGeometrySelections(solid,[{}]):[];
+    const [material]=solid?await Geometry.prepareGeometrySelections(solid,[{}]):[];
     if(material)for(const level of [height/2,height])blocked.push(...Geometry.section(material,Geometry.horizontalSlice(level)).loops.map(loop=>loop.map(([x,y])=>[x-origin[0],y-origin[1]])));
   }
   for(const other of otherAssignments){
-    if(other.construction!=='curves'||other.id===assignment.id)continue;
+    if(other.id===assignment.id)continue;
     const part=source.geometry?.solid?.parts?.find(p=>p.id===other.part),translation=[part?.xMm??0,part?.yMm??0,part?.zMm??0];
+    if(other.geometry){
+      const [material]=await Geometry.prepareGeometrySelections(other.geometry,[{}]);
+      for(const level of [height/2,height])blocked.push(...Geometry.section(material,Geometry.horizontalSlice(level-translation[2])).loops.map(loop=>loop.map(([x,y])=>[x+translation[0]-origin[0],y+translation[1]-origin[1]])));
+    }
+    if(other.construction!=='curves')continue;
     for(const record of other.curves??[]){
       const native=record.geometry?source.geometry?.curves?.find(c=>c.id===record.geometry):record;
       if(!native)continue;
@@ -38,11 +43,6 @@ export async function addSupportBrim(assignment,source,Geometry,{baseOnBed,compo
     }
   }
   report.curves=brim.length;
-  if(!brim.length){report.notes=['No brim fits outside occupied first-layer material.'];return report;}
-  for(const curve of assignment.curves)curve.repetitions=curve.repetitions.map(i=>i+1);
-  assignment.curves.unshift(...brim);
-  assignment.repeat.count++;
-  assignment.repetitionIds.unshift('brim');
-  assignment.repetitionAfter['course-0']=['brim'];
-  return report;
+  if(!brim.length)report.notes=['No brim fits outside occupied first-layer material.'];
+  return {curves:brim,report};
 }

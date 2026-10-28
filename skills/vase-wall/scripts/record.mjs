@@ -3,7 +3,7 @@ export function vaseWallRecordRuntime(){
   const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 function validateSleeveAssignment(a){
   requireThat(a.filament===null||Number.isInteger(a.filament)&&a.filament>=0,'Sleeve filament must be null or a filament index.');
-  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Sleeve after lists operation ids.');
+  requireThat(Array.isArray(a.after)&&a.after.every(id=>typeof id==='string'&&id.length),'Sleeve after lists operation or assignment ids.');
   requireThat(['continuous','segmented'].includes(a.pathMode),'Sleeve path mode must be continuous or segmented.');
   requireThat(a.pattern!==null||a.pathMode==='continuous','Segmented mode requires a sleeve pattern.');
   requireThat(['spiral','level'].includes(a.endTransition),'Sleeve ending transition must be spiral or level.');

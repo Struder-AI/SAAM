@@ -1,3 +1,5 @@
+import {generateBundle} from '../application/generation.mjs';
+import {createPart} from '../application/part-execution.mjs';
 import {home} from './temporary-home.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -63,7 +65,7 @@ test('an explicit scratch resolver follows Studio opening and listing without ch
 test('Studio reopens saved exports without rewriting them',async t=>{
   const library=await mkdtemp(join(tmpdir(),'saam-studio-open-'));t.after(()=>rm(library,{recursive:true,force:true}));
   const geometry=join(library,'geometry-only'),ready=join(library,'ready-h2d');
-  await shell.initBundle(geometry,boxPlan(),{machineId:'ultimaker-s5'});
+  await createPart(geometry,boxPlan(),{machineId:'ultimaker-s5'});
   let state=await shell.loadBundle(geometry);
   // Producers connect their own nearby strokes; an authored 1 mm gap between
   // two authored centerlines remains a short same-layer travel to report.
@@ -72,8 +74,8 @@ test('Studio reopens saved exports without rewriting them',async t=>{
   gapped.slices.assignments=[{id:'dashes',construction:'curves',part:null,filament:null,process:null,after:[],repeat:null,sequence:false,repetitionIds:null,maxExcursionMm:null,curves:[
     {closed:false,points:[[0,0,gapped.process.firstLayerMm],[10,0,gapped.process.firstLayerMm]]},
     {closed:false,points:[[11,0,gapped.process.firstLayerMm],[20,0,gapped.process.firstLayerMm]]}]}];
-  await shell.initBundle(ready,gapped,{machineId:'bambu-h2d'});
-  await shell.generateBundle(ready);
+  await createPart(ready,gapped,{machineId:'bambu-h2d'});
+  await generateBundle(ready);
   const original=await readFile(join(ready,'plan.json'));
   const channel=createChatChannel(library,{ownerId:'studio:test'}),server=createStudio(geometry,{libraryRoot:library,chat:channel.binding});await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
   const origin=`http://127.0.0.1:${server.address().port}`,html=await(await fetch(origin)).text(),token=html.match(/name="saam-token" content="([^"]+)"/)[1];
@@ -112,7 +114,7 @@ test('Studio reopens saved exports without rewriting them',async t=>{
 
 test('ordinary review does not slice; explicit generation retries a failed worker',async t=>{
   const dir=await mkdtemp(join(tmpdir(),'saam-worker-retry-'));t.after(()=>rm(dir,{recursive:true,force:true}));
-  await shell.initBundle(dir,boxPlan(),{machineId:'ultimaker-s5'});
+  await createPart(dir,boxPlan(),{machineId:'ultimaker-s5'});
   const OriginalWorker=workerThreads.Worker;let attempts=0,failed;
   const failure=new Promise(resolve=>{failed=resolve;});
   workerThreads.Worker=class extends OriginalWorker{
@@ -138,4 +140,19 @@ test('ordinary review does not slice; explicit generation retries a failed worke
   assert.equal((await post('generate',{})).status,200);
   state=await get();assert.ok(state.program);assert.equal(state.review.generation.mode,'production');
   assert.equal(attempts,2,'explicit retry starts exactly one replacement worker');
+});
+
+test('a Studio plan edit saves a new revision through part execution',async t=>{
+  const library=await mkdtemp(join(tmpdir(),'saam-studio-edit-'));t.after(()=>rm(library,{recursive:true,force:true}));
+  const dir=join(library,'box');await createPart(dir,boxPlan(),{machineId:'ultimaker-s5'});
+  const server=createStudio(dir,{libraryRoot:library,chat:createChatChannel(library,{ownerId:'studio:test'}).binding});
+  await new Promise(done=>server.listen(0,'127.0.0.1',done));t.after(()=>new Promise(done=>server.close(done)));
+  const origin=`http://127.0.0.1:${server.address().port}`,token=(await(await fetch(origin)).text()).match(/name="saam-token" content="([^"]+)"/)[1];
+  const before=await(await fetch(origin+'/api/state')).json(),plan=structuredClone(before.plan);
+  plan.process.minimumLayerSeconds=3;
+  const response=await fetch(origin+'/api/plan',{method:'POST',headers:{Origin:origin,'X-SAAM-Token':token},
+    body:JSON.stringify({plan,revision:before.revision,expectedEditRevision:before.editRevision,printId:before.printId})});
+  assert.equal(response.status,200,JSON.stringify(await response.clone().json()));
+  const saved=await shell.loadBundle(dir);
+  assert.notEqual(saved.revision,before.revision);assert.equal(saved.plan.process.minimumLayerSeconds,3);
 });

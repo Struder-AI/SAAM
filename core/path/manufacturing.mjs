@@ -3,7 +3,11 @@
 import {requireThat} from '../private/toolpath/numeric.mjs';
 import {precedenceLookup} from './precedence.mjs';
 
-export const CONSTRUCTION_CONTRACT='saam-producer-validity/3';
+// /4: a prerequisite founds only its declared scope (course `founded`
+// intervals); /3 trusted every unit with any prerequisite, so its sources need
+// regeneration before scheduling.
+export const CONSTRUCTION_CONTRACT='saam-producer-validity/4';
+export const RETIRED_CONSTRUCTION_CONTRACTS=['saam-producer-validity/3'];
 export const completionId=(kind,id)=>'completion:'+kind+':'+id;
 
 // Construction requirements identify trusted material history. Composition
@@ -31,8 +35,15 @@ export function constructionHistory(source){
   }};
 }
 
-export function publishManufacturing(results,operations,layers){
-  const completions={},assignments=new Map(),stacks=new Map();
+export function publishManufacturing(results,operations,layers,nativeMembers=[]){
+  const completions={},assignments=new Map(),parts=new Map(),stacks=new Map(),ownedLayers=new Set(),nativeByOwner=new Map(),afterByOwner=new Map();
+  function ownerPart(owner,part){
+    if(!assignments.has(owner))assignments.set(owner,new Set());
+    if(!parts.has(owner))parts.set(owner,new Map());
+    if(!parts.get(owner).has(part))parts.get(owner).set(part,new Set());
+    return parts.get(owner).get(part);
+  }
+  const bound=(reference,part)=>typeof reference==='object'&&(reference.index!==undefined||reference.edge)&&!Object.hasOwn(reference,'part')?{...reference,part}:reference;
   for(const [id,layer] of Object.entries(layers)){
     layer.completionId=completionId('slice',id);
     completions[layer.completionId]={kind:'slice',members:[],after:[]};
@@ -45,25 +56,42 @@ export function publishManufacturing(results,operations,layers){
   }
   for(const result of results){
     const owner=result.report?.owner??result.id;
+    if(!assignments.has(owner))assignments.set(owner,new Set());
+    if(!result.operations.length)ownerPart(owner,result.report?.part??null);
+    if(!afterByOwner.has(owner))afterByOwner.set(owner,[]);
+    for(const reference of result.logicalAfter??[])afterByOwner.get(owner).push(bound(reference,result.report?.part??null));
     for(const authored of result.operations){
       const op=operations[authored.id];if(!op)continue;
-      if(!assignments.has(owner))assignments.set(owner,new Set());
       const layer=layers[op.layerId];
       if(layer)completions[layer.completionId].members.push(op.id);
       assignments.get(owner).add(op.id);
+      ownerPart(owner,op.part??null).add(op.id);
+      if(layer)ownedLayers.add(JSON.stringify([owner,op.part??null,op.layerId]));
     }
   }
-  for(const [owner,members] of assignments)completions[completionId('assignment',owner)]={kind:'assignment',members:[...members],after:[]};
+  for(const member of nativeMembers){
+    if(!nativeByOwner.has(member.owner))nativeByOwner.set(member.owner,[]);
+    nativeByOwner.get(member.owner).push(member);
+    if(ownedLayers.has(JSON.stringify([member.owner,member.part,member.id])))continue;
+    // Own empty work remains distinct from the collective native slice, which
+    // can also contain another producer's explicitly joined Trace courses.
+    const id=completionId('empty',JSON.stringify([member.owner,member.part,member.id]));
+    completions[id]={kind:'assignment',members:[],after:member.after.map(reference=>bound(reference,member.part))};
+    completions[layers[member.id].completionId].members.push(id);
+    ownerPart(member.owner,member.part).add(id);assignments.get(member.owner).add(id);
+  }
+  for(const [owner,members] of assignments)completions[completionId('assignment',owner)]={kind:'assignment',members:[...members],after:afterByOwner.get(owner)};
   function resolve(reference,consumer){
     if(typeof reference==='string'){
       requireThat(operations[reference]||completions[reference],'Manufacturing prerequisite names absent work: '+reference);
       return reference;
     }
     const members=assignments.get(reference.assignment);
-    requireThat(members?.size,'Manufacturing prerequisite names an absent producer: '+reference.assignment);
+    requireThat(members,'Manufacturing prerequisite names an absent producer: '+reference.assignment);
     if(reference.edge){
       const selected=[...members].flatMap(id=>{
-        const operation=operations[id],layer=layers[operation.layerId];
+        const operation=operations[id];if(!operation)return [];
+        const layer=layers[operation.layerId];
         if((operation.part??null)!==(Object.hasOwn(reference,'part')?reference.part:consumer.part??null))return [];
         const matches=reference.index===undefined?operation.id===reference.assignment+':'+reference.repetition:layer?.index===reference.index;
         if(!matches)return [];
@@ -78,19 +106,27 @@ export function publishManufacturing(results,operations,layers){
     }
     if(reference.index===undefined){
       if(reference.part===undefined)return completionId('assignment',reference.assignment);
-      const selected=[...members].filter(id=>(operations[id].part??null)===reference.part);
-      requireThat(selected.length,'Manufacturing prerequisite names an absent producer part.');
+      const selected=parts.get(reference.assignment)?.get(reference.part);
+      requireThat(selected,'Manufacturing prerequisite names an absent producer part.');
       const id=completionId('part',JSON.stringify([reference.assignment,reference.part]));
-      completions[id]={kind:'assignment',members:selected,after:[]};return id;
+      completions[id]??={kind:'assignment',members:[...selected],after:[...(completions[completionId('assignment',reference.assignment)].after)]};return id;
     }
     const selected=new Set([...members].filter(id=>{
-      const operation=operations[id],layer=layers[operation.layerId];
+      const operation=operations[id];if(!operation)return false;
+      const layer=layers[operation.layerId];
       return layer&&layer.index===reference.index&&(operation.part??null)===(Object.hasOwn(reference,'part')?reference.part:consumer.part??null);
     }).map(id=>layers[operations[id].layerId].completionId));
+    for(const member of nativeByOwner.get(reference.assignment)??[])if(layers[member.id].index===reference.index&&
+      member.part===(Object.hasOwn(reference,'part')?reference.part:consumer.part??null))selected.add(layers[member.id].completionId);
     requireThat(selected.size===1,'Slice prerequisite must select one native slice: '+reference.assignment+' / '+reference.index);
     return [...selected][0];
   }
   for(const op of Object.values(operations))op.after=[...new Set(op.after.map(reference=>resolve(reference,op)))];
+  // Resolving a reference can add a part/edge completion. Its copied reference
+  // list is also resolved, without treating empty work as an absent producer.
+  const resolved=new Set();
+  for(;;){const pending=Object.entries(completions).filter(([id])=>!resolved.has(id));if(!pending.length)break;
+    for(const [id,record] of pending){record.after=[...new Set(record.after.map(reference=>resolve(reference,{})))];resolved.add(id);}}
   for(const result of results)for(const requirement of result.edgeAfter??[]){
     const consumer={part:requirement.target.part??result.report?.part??null},target=resolve(requirement.target,consumer);
     completions[target].after=[...new Set([...completions[target].after,...requirement.after.map(reference=>resolve(reference,consumer))])];
@@ -104,25 +140,21 @@ export function reduceManufacturing(source){
   const graph=manufacturingDependencies(source),lookup=precedenceLookup([...graph.parents.keys()],
     [...graph.parents].flatMap(([after,parents])=>[...parents].map(before=>({before,after}))));
   const end=id=>graph.ends.get(id);
-  function independent(ids){
-    const unique=[...new Set(ids)];if(unique.length<2)return unique;
-    if(unique.length*unique.length<=graph.parents.size)return unique.filter(previous=>!unique.some(other=>other!==previous&&lookup.has(end(previous),end(other))));
-    // Large completions need one reverse walk, not one closure per member pair.
-    const candidates=new Map(unique.map(id=>[end(id),id])),covered=new Set(),seen=new Set(),pending=[];
-    for(const id of unique)for(const parent of graph.parents.get(end(id)))pending.push(parent);
-    while(pending.length){const node=pending.pop();if(seen.has(node))continue;seen.add(node);
-      if(candidates.has(node))covered.add(candidates.get(node));for(const parent of graph.parents.get(node))pending.push(parent);
-    }
-    return unique.filter(id=>!covered.has(id));
-  }
   for(const [id,record] of [...Object.entries(source.operations),...Object.entries(source.completions)]){
     const parents=graph.parents.get(graph.starts.get(id));
     record.after=[...new Set(record.after)].filter(previous=>![...parents].some(parent=>parent!==end(previous)&&lookup.has(end(previous),parent)));
   }
-  for(const record of Object.values(source.completions))if(record.kind==='assignment')record.members=independent(record.members);
-  for(const operation of Object.values(source.operations))for(const course of operation.courses??[])if(course.after)
-    course.after=course.after.filter(previous=>![...graph.parents.get(graph.courseStarts.get(course.id))].some(parent=>
-      parent!==graph.courseEnds.get(previous)&&lookup.has(graph.courseEnds.get(previous),parent)));
+  for(const operation of Object.values(source.operations)){
+    let changedCourses;
+    for(const [index,course] of (operation.courses??[]).entries())if(course.after){
+      const after=course.after.filter(previous=>![...graph.parents.get(graph.courseStarts.get(course.id))].some(parent=>
+        parent!==graph.courseEnds.get(previous)&&lookup.has(graph.courseEnds.get(previous),parent)));
+      if(after.length!==course.after.length){
+        changedCourses??=operation.courses.slice();changedCourses[index]={...course,after};
+      }
+    }
+    if(changedCourses)operation.courses=changedCourses;
+  }
 }
 
 // Begin/end nodes express containment without copying every inherited
@@ -170,7 +202,7 @@ export function manufacturingDependencies(source,{includeComposition=true}={}){
     for(const previous of operation.after)edge(ends.get(previous),starts.get(operation.id));
   }
   for(const [id,record] of Object.entries(completions)){
-    requireThat(Array.isArray(record.members)&&record.members.length&&Array.isArray(record.after),'Completion needs members and prerequisites.');
+    requireThat(Array.isArray(record.members)&&(record.members.length||record.kind==='slice'||record.kind==='assignment')&&Array.isArray(record.after),'Completion needs members and prerequisites.');
     edge(starts.get(id),ends.get(id));
     for(const member of record.members){edge(starts.get(id),starts.get(member)??courseStarts.get(member));edge(ends.get(member)??courseEnds.get(member),ends.get(id));}
     for(const previous of record.after)edge(ends.get(previous),starts.get(id));

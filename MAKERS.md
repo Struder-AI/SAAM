@@ -1,7 +1,6 @@
 # Using SAAM
 
-Author the part's geometry, choose its toolpath skills and show both in a visible
-Studio, where the person reviews and exports; Export is the one confirmation.
+Author geometry and toolpaths and show them in Studio for review; Export is the one confirmation.
 Adapt questions and explanations to the person's experience.
 
 The [digest](skills/DIGEST.md) indexes every skill and every advanced section
@@ -27,18 +26,25 @@ when the person asks to fetch one or gives a Thingiverse link.
 ## Toolpaths
 
 Use [Slice](skills/slice/SKILL.md) for regions, [Trace](skills/trace/SKILL.md) for curves or [Inject](skills/inject/SKILL.md) for points; their manuals cover composite techniques.
-Maker and builder agents use disjoint or explicitly partitioned material claims; shared-material overlap/interlocking is developer-only research.
+For a bridge across a gap, [bridging](skills/bridging/SKILL.md) spans selected supporting edges. Match both the attachment and the full requested coverage; follow-on slices may cover the supports too.
+Maker and builder agents use disjoint or explicitly partitioned material claims; SAAM does not distribute overlapping claims or interlock them.
 Ordinary bead overlap, including fill overlap and reinforcement, remains part of those techniques.
 Reason from geometry about transitions and print order. Usually omit support; where needed use [standard support](skills/standard-support/SKILL.md#choose-the-patches).
-Software checks do not establish printability; read the machine's [contract](core/export/README.md#machine-interoperability-design) before setup questions.
+Ask setup questions when the person wants machine output; read the machine's [contract](core/export/README.md#machine-interoperability-design) first. Software checks do not establish printability.
 For Bambu, read [Choosing the spool](machines/bambu/SKILL.md#choosing-the-spool) first: material and colour suffice for automatic matching; ask for a physical slot only for a requested or necessary route. Confirm mapping at the printer.
 
 ## Maker interaction flow
 
-The person asks for changes; save usable intermediate revisions so Studio shows
-the work as it develops. Continue until the intent is achieved without asking at
-each step. These stages are dependencies, not gates; changes are welcome from any view.
-Open the `visualCheck` image each geometry change and generation returns; correct what looks wrong.
+Save usable intermediate revisions so Studio shows work as it develops; continue until the intent is achieved.
+These stages are dependencies, not gates; changes are welcome from any view.
+Inspect each returned `visualCheck` and correct what looks wrong. Use the person's current camera/playback for inspection; choose another view when they request it.
+
+When a command returns an available `commandResult`, use
+`saam call get_bundle_command_result` with its `bundleId` and `commandResult.id`
+to read the complete associated summary, edit details and findings. This is the
+captured result of that command; `get_bundle` instead reads the current part.
+An unavailable report does not undo a reported committed edit. Check its saved
+identity before deciding whether any new work is needed.
 
 1. **First preview.** Create a print and show the geometry as soon as a
    reasonable shape exists, with proposed dimensions and assumptions beside it.

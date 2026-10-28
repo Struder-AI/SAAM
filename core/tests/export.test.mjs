@@ -5,22 +5,17 @@ import { readFileSync } from 'node:fs';
 import { exportProgram } from '../export/registry.mjs';
 import { defaults, VERSION, BUILD_DATE } from '../print/plan.mjs';
 import { generatePath } from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
-import {joinSaamPath} from '../path/saampath.mjs';
-import {pathActions,pathSummary} from '../path/curve-path.mjs';
+import {scheduled} from './fixtures/scheduled.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
 
 const machine=JSON.parse(readFileSync('machines/ultimaker/ultimaker-s5.json','utf8'));
 const plan=defaults();
 plan.geometry=splineBox({runMm:10,widthMm:10,heightMm:2});plan.process.minimumLayerSeconds=0;
-const source=await generatePath(plan),sourcePathId='export-fixture';
-const schedule=schedulePath(source,{sourcePathId});
-const joined=joinSaamPath({sourcePathId,deposition:source,schedule});
-// These writer-envelope checks also insert ordinary physical actions. Use the
-// compatibility view deliberately; compact machine execution has its own flow.
-const path={schema:'saampath/1',initialPosition:schedule.initialPosition,initialPose:schedule.initialPose,
-  completion:schedule.completion,summary:pathSummary(joined),actions:[...pathActions(joined)]};
-const emit=async(m=machine,p=path)=>(await exportProgram(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes;
+// Export accepts only the joined compact pair; inserted physical actions are
+// schedule execution entries that machine preparation carries in order.
+const path=scheduled(await generatePath(plan),{machine,plan,sourcePathId:'export-fixture'});
+// Writers stream Buffer artifacts; these envelope checks read the G-code text.
+const emit=async(m=machine,p=path)=>(await exportProgram(p,plan,m,{generatorVersion:VERSION,buildDate:BUILD_DATE})).bytes.toString();
 
 test('machine templates preserve the last working S5 envelope',async()=>{
   // Compare against the checkpoint the user identified as the working behavior.
@@ -49,9 +44,8 @@ test('a snapshot without program templates writes with the installed profile tem
 });
 
 test('a pause longer than one G4 command is written as commands that sum to it',async()=>{
-  const at=path.actions.findIndex(a=>a.kind==='move')+1;
-  const paused=seconds=>({...path,actions:[...path.actions.slice(0,at),
-    {kind:'dwell',seconds},...path.actions.slice(at)]});
+  const at=path.schedule.execution.findIndex(e=>e.kind==='travel'||e.kind==='deposit')+1;
+  const paused=seconds=>{const p=structuredClone(path);p.schedule.execution.splice(at,0,{kind:'dwell',seconds});return p;};
   const waits=code=>code.split('\n').map(l=>l.trim()).filter(l=>l.startsWith('G4 '));
   assert.deepEqual(waits(await emit(machine,paused(12))),['G4 P12000'],'a pause within one command is written unchanged');
   const long=await emit(machine,paused(150));

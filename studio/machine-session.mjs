@@ -19,12 +19,15 @@ export function sourceSession(worker){
   worker.onerror=event=>{error=event.message||'Machine player stopped';closed=true;for(const p of pending.values()){p.clean();p.reject(Error(error));}pending.clear();worker.terminate();};
   const sourceKey=state=>JSON.stringify([state.printId,String(state.revision),state.outputId]);
   const poseKey=(seconds,manual,jog)=>JSON.stringify([seconds,manual??null,jog??null]);
-  let identity;
+  let identity,sourceIdentity=null,sourceFrame=null,relatedFinding=null;
   function install(data,state){
     error=data.machineError??'';
     try{scene=data.descriptor?compileMachine(data.descriptor):null;}catch(e){scene=null;error=e.message;}
     identity=sourceKey(state);latest=null;held=null;pendingPose=null;epoch++;
-    if(!scene){worker.terminate();closed=true;}
+    if(Object.hasOwn(data,'sourceIdentity'))sourceIdentity=data.sourceIdentity?Object.freeze({...data.sourceIdentity}):null;
+    if(Object.hasOwn(data,'frame'))sourceFrame=data.frame;
+    if(Object.hasOwn(data,'relatedFinding'))relatedFinding=data.relatedFinding;
+    if(!scene&&!sourceIdentity){worker.terminate();closed=true;}
   }
   function beginBind(){pendingPose?.controller.abort();epoch++;latest=null;held=null;}
   function readSamplingState(){return {hasScene:Boolean(scene),closed,latestKey:latest?.key,pendingKey:pendingPose?.key};}
@@ -63,8 +66,13 @@ export function sourceSession(worker){
     return requestPose(request);
   }
   return {
-    get scene(){return scene;},get error(){return error;},
-    async load(state){const data=await rpc('load',{state});install(data,state);return {...data.program,moves:moveStore(data.program.moves)};},
+    get scene(){return scene;},get error(){return error;},get sourceIdentity(){return sourceIdentity;},get sourceFrame(){return sourceFrame;},get relatedFinding(){return relatedFinding;},
+    querySource(type,data={},options={}){
+      if(!sourceIdentity)return Promise.reject(Error('No canonical Paath source selected.'));
+      if(!['source-frame','source-operations','source-courses','source-sample','source-entity'].includes(type))return Promise.reject(Error('Unknown source query.'));
+      return rpc(type,data,options.signal);
+    },
+    async load(state){const data=await rpc('load',{state});install(data,state);return data.program?{...data.program,moves:moveStore(data.program.moves)}:null;},
     async bind(state){if(identity===sourceKey(state)||!scene||closed)return;beginBind();const data=await rpc('bind',{state});install(data,state);},
     held(seconds){return held?.seconds===seconds?held:null;},
     current(seconds,{manual,jog}={}){return latest?.key===poseKey(seconds,manual,jog)?latest:null;},
@@ -74,7 +82,7 @@ export function sourceSession(worker){
       const session=readSamplingState(),decision=planPoseSample(session,key);
       return applySampleDecision(decision,{key,seconds,signal,manual,jog});
     },
-    dispose(){closed=true;epoch++;pendingPose?.controller.abort();for(const p of pending.values()){p.clean();p.reject(abortError());}pending.clear();worker.terminate();latest=null;held=null;scene=null;}
+    dispose(){closed=true;epoch++;pendingPose?.controller.abort();for(const p of pending.values()){p.clean();p.reject(abortError());}pending.clear();worker.terminate();latest=null;held=null;scene=null;sourceIdentity=null;sourceFrame=null;relatedFinding=null;}
   };
 }
 

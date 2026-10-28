@@ -1,6 +1,6 @@
 // Explicit blob field -> manufacturing mesh conversion; slicing and Studio use the mesh.
 import {executeGeometry} from './execution.mjs';
-import {receiveGeometry} from '../print/geometry.mjs';
+import {receiveGeometryArtifact} from '../print/geometry.mjs';
 import {solidKernel,solidFromMesh,preciseSolidMesh} from './solid.mjs';
 import {makeMesh} from './mesh.mjs';
 import {prepareBlobField,evaluateBlobField,blobFieldBounds} from './blob-field.mjs';
@@ -10,8 +10,12 @@ import {requireThat,cross} from './tolerance.mjs';
 // The extraction lattice follows edgeMm and the points' extent; there is no
 // work budget, so a fine edgeMm over a large field is slow rather than refused.
 export async function compileBlobField(field,{signal,progress,timeoutMs,...options}={}){
+  return (await compileBlobFieldArtifact(field,{signal,progress,timeoutMs,...options})).descriptor.parameters;
+}
+// Publication consumes the complete artifact; compileBlobField returns source intent.
+export async function compileBlobFieldArtifact(field,{signal,progress,timeoutMs,...options}={}){
   const record=await executeGeometry('blob-field',{field,options},{signal,progress,timeoutMs,subject:'Blob field construction'});
-  return receiveGeometry(record);
+  return receiveGeometryArtifact(record);
 }
 
 export async function compileBlobFieldValue(field,{edgeMm,signal,progress=()=>{}}={}){

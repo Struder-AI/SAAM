@@ -7,6 +7,8 @@ import { ROUNDING_RELATIVE } from '../dimensions.mjs';
 // Regular metric: the sine of the angle between the chart tangents stays above relative
 // rounding, so the first fundamental form can be inverted.
 const SINGULAR_METRIC = ROUNDING_RELATIVE ** 2;
+const BINOMIAL = Object.freeze([[1],[1,1],[1,2,1],[1,3,3,1]].map(Object.freeze));
+const jetIndex = (a,b) => (a+b)*(a+b+1)/2+a;
 
 function baseSurfaceDerivatives(patch, u, v) {
   const su = findSpan(patch.knotsU, patch.nu, patch.orderU, u), sv = findSpan(patch.knotsV, patch.nv, patch.orderV, v);
@@ -43,34 +45,34 @@ export function surfaceDerivatives(patch,u,v,{normalMm=0}={}){
   if(normalMm===0)return baseSurfaceDerivatives(patch,u,v);
   const su=findSpan(patch.knotsU,patch.nu,patch.orderU,u),sv=findSpan(patch.knotsV,patch.nv,patch.orderV,v);
   const bu=basisDerivatives(patch.knotsU,su,u,patch.orderU,Math.min(3,patch.orderU-1)),bv=basisDerivatives(patch.knotsV,sv,v,patch.orderV,Math.min(3,patch.orderV-1));
-  const h=new Map(),s=new Map(),choose=[[1],[1,1],[1,2,1],[1,3,3,1]];
+  const h=new Array(10),s=new Array(10);
   for(let total=0;total<=3;total++)for(let a=0;a<=total;a++){
     const b=total-a,value=[0,0,0,0];
     for(let i=0;i<patch.orderU;i++)for(let j=0;j<patch.orderV;j++){
       const index=((su-patch.orderU+1+i)*patch.nv+sv-patch.orderV+1+j)*4,f=(bu[a]?.[i]??0)*(bv[b]?.[j]??0);
       for(let k=0;k<4;k++)value[k]+=f*patch.cp[index+k];
     }
-    h.set(a+':'+b,value);
+    h[jetIndex(a,b)]=value;
     const vector=value.slice(0,3);
-    for(let i=0;i<=a;i++)for(let j=0;j<=b;j++)if(i!==a||j!==b){const previous=s.get(i+':'+j),weight=h.get((a-i)+':'+(b-j))[3]*choose[a][i]*choose[b][j];for(let k=0;k<3;k++)vector[k]-=weight*previous[k];}
-    s.set(a+':'+b,vector.map(x=>x/h.get('0:0')[3]));
+    for(let i=0;i<=a;i++)for(let j=0;j<=b;j++)if(i!==a||j!==b){const previous=s[jetIndex(i,j)],weight=h[jetIndex(a-i,b-j)][3]*BINOMIAL[a][i]*BINOMIAL[b][j];for(let k=0;k<3;k++)vector[k]-=weight*previous[k];}
+    s[jetIndex(a,b)]=vector.map(x=>x/h[0][3]);
   }
   const add=(...vectors)=>vectors[0].map((_,k)=>vectors.reduce((n,v)=>n+v[k],0)),scale=(v,n)=>v.map(x=>x*n);
-  const U=s.get('1:0'),V=s.get('0:1'),UU=s.get('2:0'),UV=s.get('1:1'),VV=s.get('0:2');
+  const U=s[2],V=s[1],UU=s[5],UV=s[4],VV=s[3];
   // The third-order rational calculation already contains the base point
   // and tangents; do not evaluate the complete second-order field again.
   const A=cross(U,V),baseDet=dot(A,A);
-  requireThat(Number.isFinite(baseDet)&&baseDet>dot(U,U)*dot(V,V)*SINGULAR_METRIC&&h.get('0:0')[3]>0,
+  requireThat(Number.isFinite(baseDet)&&baseDet>dot(U,U)*dot(V,V)*SINGULAR_METRIC&&h[0][3]>0,
     'Surface offset requires a regular patch without poles or singular tangents.');
   const L=Math.hypot(...A),N=scale(A,1/L);
   const Au=add(cross(UU,V),cross(U,UV)),Av=add(cross(UV,V),cross(U,VV));
-  const Auu=add(cross(s.get('3:0'),V),scale(cross(UU,UV),2),cross(U,s.get('2:1')));
-  const Auv=add(cross(s.get('2:1'),V),cross(UU,VV),cross(U,s.get('1:2')));
-  const Avv=add(cross(s.get('1:2'),V),scale(cross(UV,VV),2),cross(U,s.get('0:3')));
+  const Auu=add(cross(s[9],V),scale(cross(UU,UV),2),cross(U,s[8]));
+  const Auv=add(cross(s[8],V),cross(UU,VV),cross(U,s[7]));
+  const Avv=add(cross(s[7],V),scale(cross(UV,VV),2),cross(U,s[6]));
   const Lu=dot(N,Au),Lv=dot(N,Av),Nu=scale(add(Au,scale(N,-Lu)),1/L),Nv=scale(add(Av,scale(N,-Lv)),1/L);
   const second=(Aij,Ai,Ni,Nj,Li,Lj)=>scale(add(Aij,scale(Ni,-Lj),scale(Nj,-Li),scale(N,-dot(Nj,Ai)-dot(N,Aij))),1/L);
   const Nuu=second(Auu,Au,Nu,Nu,Lu,Lu),Nuv=second(Auv,Au,Nu,Nv,Lu,Lv),Nvv=second(Avv,Av,Nv,Nv,Lv,Lv);
-  const point=add(s.get('0:0'),scale(N,normalMm)),du=add(U,scale(Nu,normalMm)),dv=add(V,scale(Nv,normalMm));
+  const point=add(s[0],scale(N,normalMm)),du=add(U,scale(Nu,normalMm)),dv=add(V,scale(Nv,normalMm));
   const duu=add(UU,scale(Nuu,normalMm)),duv=add(UV,scale(Nuv,normalMm)),dvv=add(VV,scale(Nvv,normalMm));
   const normal=cross(du,dv),det=dot(normal,normal),E=dot(du,du),F=dot(du,dv),G=dot(dv,dv);
   requireThat(Number.isFinite(det)&&det>E*G*SINGULAR_METRIC,'Normal-offset surface has a singular tangent or local focal collapse; reduce normalMm.');

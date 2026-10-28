@@ -26,9 +26,7 @@ export function createMotionReport(initialPosition,lineWidthMm){
   return {record,result(){return {moves:state.moves,seconds:state.seconds,volumeMm3:state.volumeMm3,untimedMoves:state.untimedMoves,
     boundsMm:{min,max},shortTravel:advisory.result()};}};
 }
-export function summarizeMotion(initialPosition,actions,lineWidthMm){
-  const report=createMotionReport(initialPosition,lineWidthMm);for(const action of actions)report.record(action);return report.result();
-}
+// The scheduled Paath's totals and short-travel advisory, kept with the generated path.
 export function summarizePath(path,lineWidthMm){
   const report=createMotionReport(pathInitialPosition(path),lineWidthMm);
   for(const {action,context} of contextualActions(path))report.record({...context,...action});

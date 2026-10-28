@@ -1,4 +1,4 @@
-import {heatSetFeature,dimensions,heatSetTemplate} from './feature.mjs';
+import {heatSetFeature,dimensions} from './feature.mjs';
 
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
@@ -41,5 +41,5 @@ export async function compileHeatSet(base,features,{buildGeometry,combineSolids,
   const [present,...found]=await materialPresence([built,...probes]);
   const notes=[...(built.notes??[]),...probes.flatMap(probe=>probe.notes??[]),...(!present?['The heat-set holes leave no material.']:[]),...checks.flatMap(([f,note],i)=>found[i]?[`Heat-set ${f.id}: ${note}`]:[])];
   const solid={shape:'boolean',operation:'difference',operands:[base,...bores]};
-  return {geometry:{...heatSetTemplate({solid:true}),base:structuredClone(base),features:normalized,toleranceMm,solid},notes};
+  return {solid,notes};
 }

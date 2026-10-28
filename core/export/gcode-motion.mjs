@@ -1,7 +1,7 @@
 import {PROGRAM_DECIMALS,XYZ_PROGRAM_DECIMALS} from '../dimensions.mjs';
 import {distance,requireThat} from '../private/export/numeric.mjs';
 import {knownSeconds} from '../path/saampath.mjs';
-import {validateTemperatureC} from '../private/export/temperature.mjs';
+import {POSE_RESOLUTION} from '../path/pose.mjs';
 
 // One G4 carries at most this many milliseconds; it is what the firmware reads
 // from a single command, not a limit on how long a path may pause.
@@ -19,12 +19,16 @@ const comment=text=>String(text).replace(/[\r\n]+/g,' ');
 // A deposition or extrusion that collapses at program precision is not written;
 // its material carries to the next written amount (absolute E by construction,
 // relative E in its residual), so written position and totals stay exact.
-export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G0'}={}) {
+export function gcodeStream(path,plan,{extrusionMode='absolute',travelCommand='G0',collectStrokes=false,onStroke}={}) {
+  const area=Math.PI*(plan.setup.filamentMm/2)**2;
+  const tally={seconds:0,untimedMoves:0,volumeMm3:0,collapsedDepositMoves:0,terminalUnwrittenVolumeMm3:0,filamentStepVolumeMm3:area*10**-PROGRAM_DECIMALS,strokes:[],layers:new Set()};
+  function* generate(){
   requireThat(['absolute','relative'].includes(extrusionMode),'Unsupported extrusion mode.');
   requireThat(['G0','G1'].includes(travelCommand),'Unsupported travel command.');
   const relativeE=extrusionMode==='relative';
   let residualE=0;
-  const lines=[],area=Math.PI*(plan.setup.filamentMm/2)**2,tally={seconds:0,untimedMoves:0,volumeMm3:0,collapsedDepositMoves:0,terminalUnwrittenVolumeMm3:0,filamentStepVolumeMm3:area*10**-PROGRAM_DECIMALS,strokes:[],layers:new Set()};
+  const lines=[];
+  function* flush(){for(const line of lines)yield line;lines.length=0;}
   let tag='',operation='',writtenE=0,writtenPosition=path.initialPosition.map(value=>Number(value.toFixed(XYZ_PROGRAM_DECIMALS)));
   tally.boundsMm={min:[...writtenPosition],max:[...writtenPosition]};
   // This body is also embedded in machine templates. Establish XYZ and feed on
@@ -56,9 +60,12 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
   const deposit=(a,from,to,amount,seconds)=>{
     tally.volumeMm3+=amount*area;tally.seconds+=seconds;
     tally.terminalUnwrittenVolumeMm3=Math.max(0,tally.terminalUnwrittenVolumeMm3-amount*area);
-    tally.strokes.push([from,to]);tally.layers.add(`${a.phase}:${a.layer}`);
+    if(collectStrokes)tally.strokes.push([from,to]);onStroke?.(from,to);tally.layers.add(`${a.phase}:${a.layer}`);
   };
   for(const a of path.actions) {
+    yield* flush();
+    requireThat(!a.stationaryRange||!a.pose||a.pose.toolAxis.every((value,i)=>Math.abs(value-[0,0,-1][i])<=POSE_RESOLUTION),
+      'G-code output does not support stationary tool-axis orientation.');
     // Labels are comments: a line break in one is written as a space.
     if((a.operation??'')!==operation){operation=a.operation??'';lines.push(`;SAAM_OPERATION:${comment(operation)}`);}
     const nextTag=`${a.phase}:${a.layer}`;
@@ -87,6 +94,8 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
       }
       writtenPosition=target;
     } else if(a.kind==='extrude') {
+      requireThat(!a.poseFrom||!a.pose||a.pose.toolAxis.every((value,i)=>Math.abs(value-a.poseFrom.toolAxis[i])<=POSE_RESOLUTION),
+        'G-code output does not support simultaneous stationary orientation and metered extrusion.');
       const filamentMm=a.volumeMm3/area+residualE;
       const nextE=Number((relativeE?filamentMm:writtenE+filamentMm).toFixed(PROGRAM_DECIMALS));
       const de=relativeE?nextE:nextE-writtenE;
@@ -95,7 +104,6 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
       deposit(a,writtenPosition,writtenPosition,de,de/motion('G1',null,nextE,feedOf(a.flowMm3S/area)));
       if(!relativeE)writtenE=nextE;
     } else if(a.kind==='temperature') {
-      validateTemperatureC(a.targetC);
       lines.push(`M400`,`M109 S${fmt(a.targetC)}`);
     } else if(a.kind==='retract'||a.kind==='recover') {
       const filamentMm=(a.kind==='retract'?-1:1)*a.filamentMm;
@@ -107,9 +115,18 @@ export function gcodeMotion(path,plan,{extrusionMode='absolute',travelCommand='G
       // A longer pause is the same pause in commands the firmware accepts; the
       // parts sum to the requested milliseconds, so the wait is not shortened.
       let remaining=Math.ceil(a.seconds*1000);
-      do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);tally.seconds+=part/1000;remaining-=part;}while(remaining>0);
+      do{const part=Math.min(remaining,DWELL_COMMAND_MS);lines.push(`G4 P${part}`);tally.seconds+=part/1000;remaining-=part;yield* flush();}while(remaining>0);
     }
     else throw new Error(`Unsupported SAAMpath action: ${a.kind}`);
   }
-  return {lines,tally};
+  yield* flush();
+  }
+  return {lines:generate(),tally};
+}
+
+// Materialization remains for existing source/extension callers. The machine
+// artifact path consumes the same command producer directly.
+export function gcodeMotion(path,plan,options={}){
+  const written=gcodeStream(path,plan,{...options,collectStrokes:true});
+  return {lines:[...written.lines],tally:written.tally};
 }

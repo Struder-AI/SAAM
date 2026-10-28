@@ -5,17 +5,17 @@ import { difference, intersect } from './intersection.mjs';
 import { loopArea, pointInRegion } from './region2d.mjs';
 import { TOLERANCE } from '../geom/tolerance.mjs';
 
-export function perimeterLoops(region, insetMm) {
-  const prepared=preparePerimeterContours(region,insetMm);
+export function perimeterLoops(region, insetMm, options={}) {
+  const prepared=preparePerimeterContours(region,insetMm,options);
   if(!prepared.needsRecovery)return prepared.loops;
-  const recovered=recoverCollapsedPerimeters(region,insetMm,prepared);
+  const recovered=recoverCollapsedPerimeters(region,insetMm,prepared,options);
   // Centerlines are deposition, not material regions: normalization would erase
   // them or reinterpret the enclosed, unprinted hole as material.
   return [...recovered.loops,...recovered.centers];
 }
 
-export function preparePerimeterContours(region,insetMm) {
-  const loops = offsetRegion(region, -insetMm);
+export function preparePerimeterContours(region,insetMm,options={}) {
+  const loops = offsetRegion(region, -insetMm,options);
   const holes = region.filter(loop => loopArea(loop) < 0);
   if (!holes.length) return {loops,holes,needsRecovery:false};
   const remainingHoles = loops.filter(loop => loopArea(loop) < 0);
@@ -27,14 +27,14 @@ export function preparePerimeterContours(region,insetMm) {
   return {loops,holes,needsRecovery:true};
 }
 
-export function recoverCollapsedPerimeters(region,insetMm,prepared) {
+export function recoverCollapsedPerimeters(region,insetMm,prepared,settings={}) {
   const {holes}=prepared;
   let loops=prepared.loops;
   // Each front is constructed to the shared chord target; their comparison
   // allows the sum of those two approximation errors.
   // This is a contour coincidence bound, not a thin-feature fill policy.
-  const tolerance = 2 * TOLERANCE.chord;
-  const options = { arcToleranceMm: TOLERANCE.chord };
+  const tolerance = 2 * (settings.arcToleranceMm??TOLERANCE.chord);
+  const options = { arcToleranceMm: TOLERANCE.chord,...settings };
   const grownHoles = holes.map(hole => offsetRegion([[...hole].reverse()], insetMm, options));
   const centers = [];
   for (const outer of region.filter(loop => loopArea(loop) > 0)) {

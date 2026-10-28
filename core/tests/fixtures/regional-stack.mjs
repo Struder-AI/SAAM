@@ -36,7 +36,7 @@ export function regionalStackPlan(machine,backend='mesh') {
     sliceAssignment({id:'cap',part:'roof',fillDensity:1,within:slab(1.2,1.6)}),
     sliceAssignment({id:'roof-body',part:'roof',solidTop:1,solidBottom:1}),
     sliceAssignment({id:'upper',part:'upper',fillDensity:1}),
-    depositionAssignment({construction:'sleeve',id:'wall',part:'roof',zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
+    depositionAssignment({construction:'sleeve',id:'wall',part:'roof',after:['base'],zStartMm:.4,zEndMm:1.2,endTransition:'level'}),
   ];
   return plan;
 }

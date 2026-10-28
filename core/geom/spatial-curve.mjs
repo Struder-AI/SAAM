@@ -4,6 +4,34 @@ import {authoredNurbs} from './spatial.mjs';
 import {curvePoint} from './surface-curves.mjs';
 import {evaluateSurface} from './surface-evaluation.mjs';
 import {sampleCurveIntervals} from './curve-sampling.mjs';
+import {extract,join} from './curve-ops.mjs';
+import {nurbsCurveRecord} from './nurbs.mjs';
+
+// A range follows native NURBS parameters or polyline arc length, normalized
+// to 0..1. Closed curves may cross their seam by supplying an end above 1.
+export function trimSpatialCurve(curve,range){
+  if(range===undefined)return curve;
+  requireThat(Array.isArray(range)&&range.length===2&&range.every(Number.isFinite)&&range[0]>=0&&range[0]<1&&
+    range[1]>range[0]&&range[1]<=range[0]+1&&(curve.closed||range[1]<=1),'Edge range is an increasing normalized interval; only closed edges may cross the seam.');
+  const [from,to]=range;
+  if(from===0&&to===1)return curve;
+  if(curve.nurbs){
+    const native=authoredNurbs(curve.nurbs),[a,b]=native.domain,span=b-a;
+    const first=extract(native,a+from*span,a+Math.min(to,1)*span);
+    const piece=to<=1?first:join(first,extract(native,a,a+(to-1)*span),span);
+    return {closed:curve.closed&&to-from===1,nurbs:nurbsCurveRecord(piece)};
+  }
+  const distinct=distinctPolyline(curve.points,curve.closed).points;
+  const points=curve.closed?[...distinct,distinct[0]]:distinct,lengths=[0];
+  for(let i=1;i<points.length;i++)lengths.push(lengths.at(-1)+distance(points[i-1],points[i]));
+  const total=lengths.at(-1);requireThat(total>0,'Selected edge has no length.');
+  const portion=(lo,hi)=>{
+    const at=t=>{const d=t*total,i=authoredSegment(lengths,d),f=(d-lengths[i-1])/(lengths[i]-lengths[i-1]);return points[i-1].map((v,k)=>v+f*(points[i][k]-v));};
+    return [at(lo),...points.filter((_,i)=>lengths[i]>lo*total&&lengths[i]<hi*total),at(hi)];
+  };
+  const first=portion(from,Math.min(to,1)),kept=to<=1?first:[...first,...portion(0,to-1).slice(1)];
+  return {closed:curve.closed&&to-from===1,points:curve.closed&&to-from===1?kept.slice(0,-1):kept};
+}
 
 // Polyline vertices as read: a segment whose ends repeat a vertex has no length
 // and is dropped with its metadata (segments: the source indices kept).

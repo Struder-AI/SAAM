@@ -1,35 +1,43 @@
 // Readiness policy over cached geometric contact footprints. Qualification
 // never substitutes straightened geometry for the immutable printed toolpath.
 import {contactWidthIntervals} from '../geom/section-contact.mjs';
-import {curveAt,curveRange,curveClosestParameter} from './curve-path.mjs';
-import {distance} from '../private/toolpath/numeric.mjs';
-import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
+import {curveRange,curveClosestParameter} from './curve-path.mjs';
+import {PRINT_RESOLUTION_MM,CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {DEFAULT_MINIMUM_BRIDGE_RATIO} from './process-controls.mjs';
+import {CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
+import {coversContactRange,prepareSupportPermit} from './support-permit.mjs';
 
 export function prepareBeadQualification(scene,{needsQualification,acceptMaterial}){
-  const {reader}=scene,models=new Map(),stats={courses:0,checks:0,cacheHits:0};
-  function model(unit){
-    if(models.has(unit.id))return models.get(unit.id);
-    const value={iterator:null,targets:new Set(),scanned:new Set(),cells:[],byRange:new Map(),providers:new Set(),
-      ranges:[...unit.ranges],memo:null,plateScanned:false,batch:1};
-    models.set(unit.id,value);return value;
+  const {reader}=scene,depositedRanges=new Map(),groups=new Map(),foundations=new Map(),
+    stats={courses:0,checks:0,cacheHits:0,wholeGroupChecks:0,declaredGroups:0,bedGroups:0,emptyGroups:0,straightBridgeChecks:0,foundations:[],localRefinements:[]};
+  for(const {unit} of scene.byId.values()){
+    const id=unit.layerId??unit.sourceOperation;if(!groups.has(id))groups.set(id,[]);groups.get(id).push(unit);
   }
-  function discover(unit,data,available){
-    if(!data.iterator){
-      const targets=new Set([...available].filter(id=>!data.scanned.has(id)&&acceptMaterial(unit,scene.byId.get(id).unit)));
-      if(data.plateScanned&&!targets.size)return false;
-      data.targets=targets;data.batch=1;
-      data.iterator=scene.contactCells(unit,id=>targets.has(id)&&acceptMaterial(unit,scene.byId.get(id).unit),range=>needsQualification(unit,range),targets);
-    }
-    for(let i=0;i<data.batch;i++){
-      const next=data.iterator.next();
-      if(next.done){for(const id of data.targets)data.scanned.add(id);data.plateScanned=true;data.iterator=null;break;}
-      const cell=next.value,key=JSON.stringify([cell.ref.id,cell.ref.from,cell.ref.to]);
-      const held=data.byRange.get(key);
-      if(held)held.contacts.push(...cell.contacts);else {data.byRange.set(key,cell);data.cells.push(cell);}
-      for(const contact of cell.contacts)if(contact.provider!==null)data.providers.add(contact.provider);
-    }
-    data.batch*=2;return true;
+  function foundation(unit){
+    const id=unit.layerId??unit.sourceOperation;
+    if(foundations.has(id))return foundations.get(id);
+    const members=groups.get(id),declared=scene.source.manufacturing?.contract===CONSTRUCTION_CONTRACT&&
+      members.every(member=>member.operation.kind!=='deposit'||member.ranges.every(range=>!needsQualification(member,range)));
+    stats.wholeGroupChecks++;
+    const fact=declared?{kind:'declared-prerequisites',scope:{groupId:id,completionId:scene.source.layers[id]?.completionId??null,
+      operations:[...new Set(members.map(member=>member.sourceOperation))],whole:true}}:scene.foundation?.(unit)??
+      {kind:'unresolved',scope:{groupId:id},reason:'Whole-group foundation summary is unavailable'};
+    foundations.set(id,fact);
+    if(fact.kind==='declared-prerequisites'){stats.declaredGroups++;stats.foundations.push(fact);}
+    else if(fact.kind==='bed-section-crossing'){stats.bedGroups++;stats.foundations.push(fact);}
+    else if(fact.kind==='empty'){stats.emptyGroups++;stats.foundations.push(fact);}
+    else stats.localRefinements.push({scope:fact.scope,reason:fact.reason,
+      missingInterface:'Producer-owned whole-layer material/foundation summary for uncovered provider relationships'});
+    return fact;
+  }
+  function depositedQualification(unit,range){
+    if(!needsQualification(unit,range))return false;
+    const key=JSON.stringify([range.curveId,range.from,range.to]);
+    if(!depositedRanges.has(key))depositedRanges.set(key,curveRange(reader,range.curveId,range.from,range.to).areaMm2[1]>0);
+    return depositedRanges.get(key);
+  }
+  function declaredIntervals(range){
+    return (range.founded??[]).map(([a,b])=>[Math.max(a,range.from),Math.min(b,range.to)]).filter(([a,b])=>b>a);
   }
   function parameter(cell,x){
     if(x<=0)return cell.ref.from;if(x>=cell.size)return cell.ref.to;
@@ -37,137 +45,143 @@ export function prepareBeadQualification(scene,{needsQualification,acceptMateria
     const at=cell.fromPoint.map((v,k)=>v+(cell.toPoint[k]-v)*x/cell.size);
     return curveClosestParameter(reader,cell.ref.curveId,cell.ref.from,cell.ref.to,at,{toleranceMm:PRINT_RESOLUTION_MM/4});
   }
-  function covered(range,cells,available){
-    const intervals=[];
-    for(const cell of cells){
-      if(cell.ref.id!==range.id||cell.ref.to<=range.from||cell.ref.from>=range.to)continue;
-      if(cell.wholePlate){intervals.push([Math.max(range.from,cell.ref.from),Math.min(range.to,cell.ref.to)]);continue;}
-      const polygons=cell.contacts.filter(contact=>contact.provider===null||available.has(contact.provider)).map(contact=>contact.polygon);
-      for(const [a,b] of contactWidthIntervals(polygons,cell.widthMm/2)){
-        const from=Math.max(range.from,parameter(cell,a)),to=Math.min(range.to,parameter(cell,b));
-        if(to>from)intervals.push([from,to]);
-      }
-    }
-    intervals.sort((a,b)=>a[0]-b[0]);const merged=[];
-    for(const [a,b] of intervals){const last=merged.at(-1);if(last&&(a<=last[1]||arc(range,last[1],a)<=ROUNDING_MM))last[1]=Math.max(b,last[1]);else merged.push([a,b]);}
-    return merged.filter(([a,b])=>curveRange(reader,range.curveId,a,b).lengthMm[0]>PRINT_RESOLUTION_MM);
-  }
-  function arc(range,from,to){
-    return from===to?0:curveRange(reader,range.curveId,from,to,{lengthToleranceMm:PRINT_RESOLUTION_MM/4}).lengthMm[1];
-  }
-  function point(range,u){return curveAt(reader,range.curveId,u).point;}
-  const entry=range=>range.reverse?range.to:range.from,exit=range=>range.reverse?range.from:range.to;
-  function connectedChains(ranges){
-    const chains=[];
-    for(const range of ranges){
-      const previous=chains.at(-1)?.at(-1);
-      if(!previous||distance(point(previous,exit(previous)),point(range,entry(range)))>ROUNDING_MM)chains.push([]);
-      chains.at(-1).push(range);
-    }
-    return chains;
-  }
-  function chain(ranges,contactsById,minimumBridgeRatio,requireEntry){
-    const first=ranges[0],last=ranges.at(-1),start={index:0,u:entry(first)},end={index:ranges.length-1,u:exit(last)};
-    const at=anchor=>point(ranges[anchor.index],anchor.u),closed=distance(at(start),at(end))<=ROUNDING_MM;
-    const contacts=ranges.flatMap((range,index)=>{
-      const intervals=contactsById.get(range.id).map(([a,b])=>[Math.max(a,range.from),Math.min(b,range.to)]).filter(([a,b])=>b>a);
-      return (range.reverse?intervals.toReversed().map(([a,b])=>[b,a]):intervals).map(([a,b])=>({from:{index,u:a},to:{index,u:b}}));
+  // Each receiver cell's provider chunks are contiguous in contactCells().
+  // Union them before thresholding, then retain only source-param coverage and
+  // the first compact witness for each contributing provider.
+  function measure(unit,available,membership){
+    const coverage={contactsById:new Map(),wholeById:new Map(),providers:new Map()},byCourse=new Map();
+    const ranges=membership.map(range=>{
+      // Declared foundation intervals count as full-width contact, as the bed does.
+      const required=depositedQualification(unit,range),declared=required?declaredIntervals(range):[[range.from,range.to]];
+      const value={range,required,intervals:[...declared],whole:[...declared]};
+      if(!byCourse.has(range.id))byCourse.set(range.id,[]);byCourse.get(range.id).push(value);return value;
     });
-    const failure=(reason,from=start,to=end,extra={})=>({ready:false,reason,courseId:ranges[from.index].id,
-      courseIds:[...new Set(ranges.map(range=>range.id))],interval:[from.u,to.u],...extra});
-    if(!contacts.length)return failure('no qualifying contact');
-    function spans(from,to,wrap=false){
-      if(wrap)return [...spans(from,end),...spans(start,to)];
-      return ranges.slice(from.index,to.index+1).map((range,i)=>{
-        const a=i===0?from.u:entry(range),b=i+from.index===to.index?to.u:exit(range);
-        return {range,from:Math.min(a,b),to:Math.max(a,b)};
-      }).filter(span=>span.to>span.from);
+    let cell=null;
+    function finishCell(){
+      if(!cell)return;
+      const physical=cell.wholePlate?null:contactWidthIntervals(cell.contacts.map(contact=>contact.polygon),cell.widthMm/2);
+      for(const value of byCourse.get(cell.ref.id)??[]){
+        const {range}=value;if(cell.ref.to<=range.from||cell.ref.from>=range.to)continue;
+        const clipped=[Math.max(range.from,cell.ref.from),Math.min(range.to,cell.ref.to)];
+        if(cell.wholePlate){value.intervals.push(clipped);value.whole.push(clipped);continue;}
+        if(coversContactRange(0,cell.size,physical,(a,b)=>b-a))value.whole.push(clipped);
+        for(const [a,b] of physical){
+          const from=Math.max(range.from,parameter(cell,a)),to=Math.min(range.to,parameter(cell,b));
+          if(to>from)value.intervals.push([from,to]);
+        }
+      }
+      cell=null;
     }
-    function lengthBounds(parts,tolerance){
-      const options=tolerance===undefined?{}:{lengthToleranceMm:tolerance/parts.length};
-      return parts.reduce((sum,{range,from,to})=>{
-        const bounds=curveRange(reader,range.curveId,from,to,options).lengthMm;
-        return [sum[0]+bounds[0],sum[1]+bounds[1]];
-      },[0,0]);
-    }
-    function bridge(from,to,wrap=false){
-      if(minimumBridgeRatio===0)return null;
-      const parts=spans(from,to,wrap),chordMm=distance(at(from),at(to)),limit=(chordMm+PRINT_RESOLUTION_MM)/minimumBridgeRatio;
-      const resolution=PRINT_RESOLUTION_MM/4;
-      let tolerance;
-      for(;;){
-        const [lo,hi]=lengthBounds(parts,tolerance);
-        if(hi<=PRINT_RESOLUTION_MM||hi<=limit)return null;
-        if(lo>limit||tolerance===resolution)return failure('bridge ratio',from,to,{wrap,ratio:Math.min(1,chordMm/hi),minimumBridgeRatio});
-        // Tighten only when existing certified length bounds straddle the
-        // qualification threshold. Most spans need no precise integration.
-        tolerance=Math.max(resolution,(hi-lo)/4);
+    const owners=new Map(membership.map(range=>[range.id,range]));
+    for(const chunk of scene.contactCells(unit,id=>available.has(id)&&acceptMaterial(unit,scene.byId.get(id).unit),
+      ref=>{const range=owners.get(ref.id)??unit.ranges.find(candidate=>candidate.id===ref.id);
+        return range&&depositedQualification(unit,range)&&!declaredIntervals(range).some(([a,b])=>a<=ref.from&&b>=ref.to);},available)){
+      if(cell&&(cell.ref.id!==chunk.ref.id||cell.ref.from!==chunk.ref.from||cell.ref.to!==chunk.ref.to))finishCell();
+      cell??={...chunk,contacts:[]};
+      for(const contact of chunk.contacts){
+        if(contact.polygon)cell.contacts.push(contact);
+        if(contact.provider===null||coverage.providers.has(contact.provider))continue;
+        let lo=Infinity,hi=-Infinity;for(const point of contact.polygon){lo=Math.min(lo,point[0]);hi=Math.max(hi,point[0]);}
+        const from=parameter(chunk,lo),to=parameter(chunk,hi),receiver={...chunk.ref,from,to},material={...contact.witness.material};
+        // Contact inside a declared interval founds nothing the Scheduler owns.
+        const owner=owners.get(chunk.ref.id);
+        if(owner&&declaredIntervals(owner).some(([a,b])=>a<=from&&b>=to))continue;
+        coverage.providers.set(contact.provider,{receiver,material,substrate:true,
+          contactCuts:[{courseId:receiver.id,parameters:[from,to]},{courseId:material.id,parameters:[material.from,material.to]}]});
       }
     }
-    for(let i=1;i<contacts.length;i++){const found=bridge(contacts[i-1].to,contacts[i].from);if(found)return found;}
-    if(closed){const found=bridge(contacts.at(-1).to,contacts[0].from,true);if(found)return found;}
-    const allowance=range=>curveRange(reader,range.curveId,range.from,range.to).widthMm[0]/2+PRINT_RESOLUTION_MM;
-    if(!closed)for(const [from,to,range] of [[start,contacts[0].from,first],[contacts.at(-1).to,end,last]])
-      if(lengthBounds(spans(from,to),PRINT_RESOLUTION_MM/4)[1]>allowance(range))return failure('unanchored end',from,to);
-    const entrySupported=lengthBounds(spans(start,contacts[0].from),PRINT_RESOLUTION_MM/4)[1]<=allowance(first)||
-      closed&&lengthBounds(spans(contacts.at(-1).to,end),PRINT_RESOLUTION_MM/4)[1]<=allowance(first);
-    if(closed&&(requireEntry||first.seamRequired!==false)&&!entrySupported)return failure('unsupported required seam',start,contacts[0].from);
-    return {ready:true};
+    finishCell();
+    for(const {range,required,intervals,whole} of ranges){
+      intervals.sort((a,b)=>a[0]-b[0]);const merged=[];
+      for(const [a,b] of intervals){
+        const last=merged.at(-1);
+        // A gap shorter than construction accuracy is not a measurable bridge.
+        if(last&&(a<=last[1]||curveRange(reader,range.curveId,last[1],a,{lengthToleranceMm:PRINT_RESOLUTION_MM/4}).lengthMm[1]<=CONSTRUCTION_TOLERANCE_MM))last[1]=Math.max(b,last[1]);
+        else merged.push([a,b]);
+      }
+      const anchors=required?merged.filter(([a,b])=>curveRange(reader,range.curveId,a,b).lengthMm[0]>PRINT_RESOLUTION_MM):merged;
+      for(const [table,values] of [[coverage.contactsById,anchors],[coverage.wholeById,whole]]){
+        if(!table.has(range.id))table.set(range.id,[]);for(const value of values)table.get(range.id).push(value);
+      }
+    }
+    for(const table of [coverage.contactsById,coverage.wholeById])for(const intervals of table.values())intervals.sort((a,b)=>a[0]-b[0]);
+    return coverage;
+  }
+  function assess(unit,available){
+    const ready=foundation=>({result:{status:'ready',...(foundation?{foundation}:{})},providers:new Map()});
+    if(unit.barrier||unit.operation.kind!=='deposit')return ready();
+    if(scene.source.manufacturing?.contract!==CONSTRUCTION_CONTRACT&&!unit.ranges.some(range=>needsQualification(unit,range)))return ready();
+    const whole=foundation(unit);if(whole.kind!=='unresolved')return ready(whole);
+    if(!unit.ranges.some(range=>depositedQualification(unit,range)))return ready();
+    stats.checks++;
+    // Drain only this implicated receiver's current-prefix query. An earlier
+    // sufficient proof must not hide entry choices supplied by more material.
+    // Entry selection may already have rotated a loop into two source ranges.
+    // A fixed traversal's membership preserves the original complete receiver.
+    const membership=unit.traversals?.[0]?.ranges??unit.ranges;
+    const coverage=measure(unit,available,membership),proof=prepareSupportPermit(reader,coverage,unit.process.minimumBridgeRatio??DEFAULT_MINIMUM_BRIDGE_RATIO,stats);
+    const candidates=unit.traversals?.length?unit.traversals.map(variant=>variant.ranges):[membership];
+    let failure=null,qualified=false;
+    for(const ranges of candidates){const result=proof.qualify(ranges,false);failure??=result;qualified||=result.ready;}
+    if(!qualified)return {result:{status:'waiting',failure},providers:coverage.providers};
+    const seams=membership.length===1&&membership[0].seamRequired===false?coverage.contactsById.get(membership[0].id).map(([a,b])=>(a+b)/2):[];
+    stats.courses+=membership.length;return {result:{status:'ready',permits:proof.permits,seams},providers:coverage.providers};
+  }
+  // Contact geometry is fixed, so a receiver's verdict changes only when a unit
+  // that can touch it is deposited. Its potential providers come from one
+  // assessment against all acceptable material; repeated ready-set checks
+  // reuse the verdict until that intersection grows.
+  const potentials=new Map(),verdicts=new Map(),group=unit=>unit.layerId??unit.sourceOperation;
+  function potential(unit){
+    if(!potentials.has(unit.id)){
+      const providers=assess(unit,new Set(scene.byId.keys())).providers;
+      potentials.set(unit.id,{ids:[...providers.keys()],providers});
+    }
+    return potentials.get(unit.id);
+  }
+  // A stack declares its own support design (overhangs, bridges) beyond its
+  // predecessor. For those intervals the Scheduler determines what lies
+  // underneath: the receiver waits for every other group's material it rests
+  // on, and needs no bead proof of its own.
+  const stackOwned=unit=>unit.operation.foundation==='stack';
+  function underneath(unit){
+    const {ids,providers}=potential(unit),own=group(unit);
+    return {ids:ids.filter(id=>group(scene.byId.get(id).unit)!==own),providers};
+  }
+  function unresolvedReceiver(unit){
+    return !(unit.barrier||unit.operation.kind!=='deposit'||!unit.ranges.some(range=>depositedQualification(unit,range))||foundation(unit).kind!=='unresolved');
   }
   function check(unit,available){
-    if(unit.barrier||unit.operation.kind!=='deposit'||!unit.ranges.some(range=>needsQualification(unit,range)))return {status:'ready'};
-    const data=model(unit),eligible=[...available].filter(id=>acceptMaterial(unit,scene.byId.get(id).unit)),key=eligible.join(',');
-    stats.checks++;
-    if(data.memo&&(data.memo.key===key||data.memo.result.status==='ready'&&data.memo.providers.every(id=>available.has(id)))){
-      stats.cacheHits++;return data.memo.result;
+    if(!unresolvedReceiver(unit))return assess(unit,available).result;
+    if(stackOwned(unit)){
+      const missing=underneath(unit).ids.filter(id=>!available.has(id));
+      return missing.length?{status:'waiting',failure:{ready:false,reason:'material underneath is not yet deposited',courseId:unit.ranges[0].id,providers:missing}}:{status:'ready'};
     }
-    for(;;){
-      const result=evaluate(unit,data,available);
-      if(result.status==='ready'||!discover(unit,data,available)){
-        data.memo={key,result,providers:[...data.providers].filter(id=>available.has(id))};return result;
-      }
-    }
-  }
-  function evaluate(unit,data,available){
-    const contactsById=new Map();
-    for(const range of data.ranges){
-      contactsById.set(range.id,needsQualification(unit,range)?covered(range,data.cells,available):[[range.from,range.to]]);
-    }
-    const ratio=unit.process.minimumBridgeRatio??DEFAULT_MINIMUM_BRIDGE_RATIO;
-    function qualify(ranges,requireEntry){
-      for(const rangesInChain of connectedChains(ranges)){
-        const result=chain(rangesInChain,contactsById,ratio,requireEntry);if(!result.ready)return result;
-      }
-      return {ready:true};
-    }
-    const candidates=unit.traversals?.length?unit.traversals.map(variant=>variant.ranges):[data.ranges];
-    const results=candidates.map(ranges=>qualify(ranges,false));
-    if(!results.some(result=>result.ready))return {status:'waiting',failure:results[0]};
-    const seams=data.ranges.length===1&&data.ranges[0].seamRequired===false?contactsById.get(data.ranges[0].id).map(([a,b])=>(a+b)/2):[];
-    const permits=ranges=>qualify(ranges,true).ready;
-    stats.courses+=data.ranges.length;return {status:'ready',permits,seams};
+    potential(unit);
+    const key=potentials.get(unit.id).ids.filter(id=>available.has(id)).join(),prior=verdicts.get(unit.id);
+    if(prior?.key===key){stats.cacheHits++;return prior.result;}
+    const result=assess(unit,available).result;verdicts.set(unit.id,{key,result});return result;
   }
   function waiting(unit,available,canUse){
-    const data=model(unit),future=[...scene.byId.keys()].filter(id=>!available.has(id)&&acceptMaterial(unit,scene.byId.get(id).unit));
-    const chosen=new Set([...available,...future.filter(canUse)]);
-    if(check(unit,chosen).status!=='ready')for(const id of future)chosen.add(id);
-    const potential=check(unit,chosen);
-    if(potential.status!=='ready')return {status:'unqualified',failure:potential.failure,operation:unit.sourceOperation};
-    const pending=[...data.providers].filter(id=>!available.has(id));
-    // Discard redundant alternatives against the union, rather than making
-    // every intersecting provider a prerequisite. Earlier candidates win ties.
-    for(const id of pending.toReversed()){
-      if(!chosen.has(id))continue;chosen.delete(id);
-      if(check(unit,chosen).status!=='ready')chosen.add(id);
+    if(unresolvedReceiver(unit)&&stackOwned(unit)){
+      const {ids,providers}=underneath(unit),requirements=ids.filter(id=>!available.has(id)&&canUse(id)).map(id=>({before:id,after:unit.id,kind:'substrate',witness:providers.get(id)}));
+      return {status:'waiting',requirements,foundation:foundation(unit)};
     }
-    const requirements=pending.filter(id=>chosen.has(id)).map(id=>{
-      const cell=data.cells.find(cell=>cell.contacts.some(contact=>contact.provider===id)),contact=cell.contacts.find(contact=>contact.provider===id);
-      const xs=contact.polygon.map(point=>point[0]),from=parameter(cell,Math.min(...xs)),to=parameter(cell,Math.max(...xs));
-      const receiver={...cell.ref,from,to},material=contact.witness.material;
-      return {before:id,after:unit.id,kind:'substrate',witness:{receiver,material,substrate:true,
-        contactCuts:[{courseId:receiver.id,parameters:[from,to]},{courseId:material.id,parameters:[material.from,material.to]}]}};
-    });
-    return {status:'waiting',requirements};
+    const future=[...scene.byId.keys()].filter(id=>!available.has(id)&&acceptMaterial(unit,scene.byId.get(id).unit));
+    const chosen=new Set(available);for(const id of future)if(canUse(id))chosen.add(id);
+    let potential=assess(unit,chosen);
+    if(potential.result.status!=='ready'){for(const id of future)chosen.add(id);potential=assess(unit,chosen);}
+    if(potential.result.status!=='ready')return {status:'unqualified',failure:potential.result.failure,operation:unit.sourceOperation,foundation:foundation(unit)};
+    // Preserve stable provider tie order. Recompute the selected union instead
+    // of retaining all explored polygons or thresholding providers separately.
+    for(let i=future.length-1;i>=0;i--){
+      const id=future[i];if(!chosen.has(id))continue;chosen.delete(id);
+      if(!potential.providers.has(id))continue;
+      const candidate=assess(unit,chosen);
+      if(candidate.result.status==='ready')potential=candidate;else chosen.add(id);
+    }
+    const requirements=future.filter(id=>chosen.has(id)).map(id=>({before:id,after:unit.id,kind:'substrate',witness:potential.providers.get(id)}));
+    return {status:'waiting',requirements,foundation:foundation(unit)};
   }
   return {check,waiting,stats};
 }

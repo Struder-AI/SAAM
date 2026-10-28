@@ -39,7 +39,8 @@ function Stop-InstallerTranscript {
   $script:Transcript = $null
 }
 function Write-Diagnostic([string]$Stage) {
-  if (-not $DiagnosticProgram) { return }
+  # A disposable trial reports nothing: the reporter reaches the canonical home's SAAM and release service.
+  if (-not $DiagnosticProgram -or $env:SAAM_INSTALL_TEST_ROOT) { return }
   $ErrorActionPreference = 'Continue'
   foreach ($program in @($DiagnosticProgram, $SaamRoot)) {
     $reporter = Join-Path $program 'packaging\installer-report.mjs'

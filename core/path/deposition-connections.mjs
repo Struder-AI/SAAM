@@ -37,7 +37,11 @@ function connectionStroke(previous,next,policy){
   const previousVolume=previous.volumesMm3?.[last]??distance(previous.points.at(-2),from)*previous.beadAreaMm2;
   const area=next.volumesMm3?next.volumesMm3[0]/distance(to,next.points[1]):next.beadAreaMm2;
   if(!(previousVolume>0)||!(area>0)||!canDepositConnection(from,to,policy,previous.poses?.at(-1),next.poses?.[0]))return null;
-  const metadata={...next.segmentMetadata?.[0],role:next.role,connector:true,
+  // A connector is declared founded only where both joined ends are.
+  const ends=[previous.segmentMetadata?.at(-1)?.founded,next.segmentMetadata?.[0]?.founded];
+  const founded=ends.includes(false)?false:ends.every(value=>value===true)?true:undefined;
+  const {founded:_,...first}=next.segmentMetadata?.[0]??{};
+  const metadata={...first,role:next.role,connector:true,...(founded===undefined?{}:{founded}),
     beadWidthMm:next.segmentMetadata?.[0]?.beadWidthMm??next.beadWidthMm};
   const stroke={points:[from,to],closed:false,role:next.role,beadWidthMm:metadata.beadWidthMm,
     directionRequired:previous.directionRequired!==false||next.directionRequired!==false,

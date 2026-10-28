@@ -14,6 +14,27 @@ const unit=v=>{const length=Math.hypot(...v);requireThat(length>ROUNDING_RELATIV
 const mix=(a,b,t)=>a.map((v,i)=>v+(b[i]-v)*t);
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 const dot=(a,b)=>a.reduce((s,v,i)=>s+v*b[i],0);
+// These are observations of the existing probes, not continuous bounds. Source
+// span/position/displacement use world millimetres; axis/up chord and factor
+// deviations are dimensionless. No native UV/curve-coordinate norm is called mm.
+const sampledMaxima=['maxAcceptedSourceSpanMm','maxAcceptedPositionDeviationMm','maxAcceptedToolAxisChordDeviation','maxAcceptedToolUpChordDeviation','maxObservedDisplacementMm'];
+export function combineModulationSampling(records){
+  records=records.filter(Boolean);if(!records.length)return null;
+  const result={method:'adaptive-quarter-probes',guarantee:'sampled-targets-only',evaluations:0,acceptedSegments:0,
+    coordinateFrames:[...new Set(records.flatMap(record=>record.coordinateFrames??[]))],
+    ...Object.fromEntries(sampledMaxima.map(key=>[key,0])),maxAcceptedFactorDeviation:{flow:0,width:0,speed:0}};
+  for(const record of records){
+    result.evaluations+=record.evaluations;result.acceptedSegments+=record.acceptedSegments;
+    for(const key of sampledMaxima)result[key]=Math.max(result[key],record[key]);
+    for(const key of ['flow','width','speed'])result.maxAcceptedFactorDeviation[key]=Math.max(result.maxAcceptedFactorDeviation[key],record.maxAcceptedFactorDeviation[key]);
+  }
+  return result;
+}
+function modulationSampling(modifiers){
+  return {method:'adaptive-quarter-probes',guarantee:'sampled-targets-only',evaluations:0,acceptedSegments:0,
+    coordinateFrames:[...new Set(modifiers.map(modifier=>modifier.frame??'world'))],
+    ...Object.fromEntries(sampledMaxima.map(key=>[key,0])),maxAcceptedFactorDeviation:{flow:0,width:0,speed:0}};
+}
 export const defaultModulations=()=>({version:1,modifiers:[]});
 const MODIFIER_FIELDS=['id','assignments','roles','channel','amplitude','field','sampleStepMm','tolerance','direction','frame','layers','topN','phasePerLayerRad'];
 
@@ -132,6 +153,7 @@ function evaluateModulatedPoint(a,b,t,modifiers,directions,context={}) {
   }
   requireThat(point.every(Number.isFinite)&&Number.isFinite(flow)&&Number.isFinite(width)&&Number.isFinite(speed),'Modulation overflowed the numeric representation.');
   if(pose)validatePose(pose);
+  if(context.sampling){context.sampling.evaluations++;context.sampling.maxObservedDisplacementMm=Math.max(context.sampling.maxObservedDisplacementMm,distance(point,source));}
   return {t,point,source,flow,width,speed,pose};
 }
 
@@ -147,16 +169,30 @@ function sampleModulatedSegment(a,b,modifiers,directions,context) {
     const [left,right]=stack.pop(),midpoint=(left.t+right.t)/2;
     const middle=evaluateModulatedPoint(a,b,midpoint,modifiers,directions,context);
     const probes=[.25,.5,.75].map(t=>t===.5?middle:evaluateModulatedPoint(a,b,left.t+(right.t-left.t)*t,modifiers,directions,context));
+    const measured={positionMm:0,toolAxisChord:0,toolUpChord:0,factors:{flow:0,width:0,speed:0}};
     const error=Math.max(...probes.map((probe,i)=>{
       const t=(i+1)/4;
-      const poseError=probe.pose&&left.pose&&right.pose?Math.max(distance(probe.pose.toolAxis,mix(left.pose.toolAxis,right.pose.toolAxis,t)),distance(probe.pose.toolUp,mix(left.pose.toolUp,right.pose.toolUp,t))):0;
-      return Math.max(distance(probe.point,mix(left.point,right.point,t)),poseError,...['flow','width','speed'].map(k=>Math.abs(probe[k]-(left[k]+(right[k]-left[k])*t))));
+      measured.positionMm=Math.max(measured.positionMm,distance(probe.point,mix(left.point,right.point,t)));
+      if(probe.pose&&left.pose&&right.pose){
+        measured.toolAxisChord=Math.max(measured.toolAxisChord,distance(probe.pose.toolAxis,mix(left.pose.toolAxis,right.pose.toolAxis,t)));
+        measured.toolUpChord=Math.max(measured.toolUpChord,distance(probe.pose.toolUp,mix(left.pose.toolUp,right.pose.toolUp,t)));
+      }
+      for(const key of ['flow','width','speed'])measured.factors[key]=Math.max(measured.factors[key],Math.abs(probe[key]-(left[key]+(right[key]-left[key])*t)));
+      return Math.max(measured.positionMm,measured.toolAxisChord,measured.toolUpChord,...Object.values(measured.factors));
     }));
     const coordinateLength=Math.max(distance(left.source,right.source),...modifiers.map(m=>{
       const frames=m.frame==='slice'?context.frames:m.frame==='curve'?context.curveFrames:null;
       return frames?distance(frames[0].point,frames[1].point)*(right.t-left.t):0;
     }));
-    if(coordinateLength<=step&&error<=tolerance){samples.push(right);continue;}
+    if(coordinateLength<=step&&error<=tolerance){
+      const sampling=context.sampling;sampling.acceptedSegments++;
+      sampling.maxAcceptedSourceSpanMm=Math.max(sampling.maxAcceptedSourceSpanMm,distance(left.source,right.source));
+      sampling.maxAcceptedPositionDeviationMm=Math.max(sampling.maxAcceptedPositionDeviationMm,measured.positionMm);
+      sampling.maxAcceptedToolAxisChordDeviation=Math.max(sampling.maxAcceptedToolAxisChordDeviation,measured.toolAxisChord);
+      sampling.maxAcceptedToolUpChordDeviation=Math.max(sampling.maxAcceptedToolUpChordDeviation,measured.toolUpChord);
+      for(const key of ['flow','width','speed'])sampling.maxAcceptedFactorDeviation[key]=Math.max(sampling.maxAcceptedFactorDeviation[key],measured.factors[key]);
+      samples.push(right);continue;
+    }
     requireThat(midpoint>left.t&&midpoint<right.t,'Modulation subdivision cannot progress at the requested tolerance.');
     stack.push([middle,right],[left,middle]);
   }
@@ -188,7 +224,7 @@ export function validateFillModulation(stroke,modifiers,{layerIndex}={}){
 
 export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}) {
   modifiers=modifiers.filter(m=>m.amplitude!==0);
-  if(!modifiers.length||stroke.volumesMm3?.every(volume=>volume===0))return {stroke,changed:false,maxExcursionMm:0};
+  if(!modifiers.length)return {stroke,changed:false,maxExcursionMm:0};
   modifiers=modifiers.map(m=>({...m,field:prepareScalarField(m.field)}));
   if(stroke.stationaryExtrusion){
     requireThat(stroke.points.length===1&&modifiers.every(m=>m.channel==='flow'&&(m.frame??'world')==='world'),'Stationary extrusion supports world-space flow modulation; geometric, speed, width, tilt and curve/chart channels need a moving path.');
@@ -197,6 +233,8 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
       requireThat(positive(multiplier),'Stationary flow modulation must remain positive.');return value*multiplier;
     },1);
     requireThat(positive(factor),'Stationary flow modulation overflowed its factor.');
+    const stationary=stroke.stationaryExtrusion;
+    if(stationary.volumeMm3===0&&stationary.flowMm3S===0&&Number.isFinite(stationary.holdSeconds)&&stationary.holdSeconds>0)return {stroke,changed:false,maxExcursionMm:0};
     if(factor===1)return {stroke,changed:false,maxExcursionMm:0};
     const stationaryExtrusion={...stroke.stationaryExtrusion,volumeMm3:stroke.stationaryExtrusion.volumeMm3*factor,flowMm3S:stroke.stationaryExtrusion.flowMm3S*factor};
     requireThat(positive(stationaryExtrusion.volumeMm3)&&positive(stationaryExtrusion.flowMm3S),'Stationary extrusion needs finite positive modulated volume and flow rate.');
@@ -213,14 +251,15 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   requireThat(stroke.frameSamples||!modifiers.some(m=>m.frame==='slice'),'Slice-frame modulation needs producer frameSamples aligned with stroke points.');
   const directions=modifiers.some(m=>m.direction==='lateral'&&(m.frame??'world')==='world')?lateralDirections(points,stroke.closed):null;
   const curve=modifiers.some(m=>m.frame==='curve'||m.direction==='lateral'&&m.frame==='slice')?curveFrames(stroke,points):null;
+  const sampling=modulationSampling(modifiers);
   const output=[],volumes=[],metadata=[],poses=[],sampleFrames=[],parameters=[],nativeParameters=[];let maxExcursionMm=0,changed=false;
   for(let i=0;i<points.length-1;i++){
     const length=distance(points[i],points[i+1]);
     requireThat(length>0,'Modulation requires nonzero source segments.');
     const volume=stroke.volumesMm3?.[i]??length*stroke.beadAreaMm2;
     const width=stroke.segmentMetadata?.[i]?.beadWidthMm??stroke.beadWidthMm;
-    requireThat(Number.isFinite(volume)&&volume>=0&&positive(width),'Modulation needs deposited segment volume and bead width.');
-    const context={layerIndex,stackDirection,fillDirection:stroke.fillFamily?.direction,frames:frames?[frames[i],frames[i+1]]:null,curveFrames:curve?[curve[i],curve[i+1]]:null,poses:sourcePoses?[sourcePoses[i],sourcePoses[i+1]]:null};
+    requireThat(Number.isFinite(volume)&&volume>=0&&(positive(width)||volume===0&&width===0),'Modulation needs deposited segment volume and bead width.');
+    const context={layerIndex,stackDirection,sampling,fillDirection:stroke.fillFamily?.direction,frames:frames?[frames[i],frames[i+1]]:null,curveFrames:curve?[curve[i],curve[i+1]]:null,poses:sourcePoses?[sourcePoses[i],sourcePoses[i+1]]:null};
     const samples=sampleModulatedSegment(points[i],points[i+1],modifiers,directions?[directions[i],directions[i+1]]:null,context);
     const append=sample=>{output.push(sample.point);poses.push(sample.pose??uprightPose());if(frames)sampleFrames.push(sampledFrame(context.frames,sample.t));
       if(stroke.curveParameters)parameters.push(source.curveParameters[i]+sample.t*(source.curveParameters[i+1]-source.curveParameters[i]));
@@ -241,7 +280,7 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
       metadata.push({...stroke.segmentMetadata?.[i],beadWidthMm:width*mid.width,speedMmS});
     }
   }
-  if(!changed)return {stroke,changed:false,maxExcursionMm:0};
+  if(!changed)return {stroke,changed:false,maxExcursionMm:0,sampling};
   const closedSource=stroke.closed||distance(stroke.points[0],stroke.points.at(-1))<PRINT_RESOLUTION_MM;
   requireThat(!closedSource||distance(output[0],output.at(-1))<=PRINT_RESOLUTION_MM,'Closed-curve modulation does not meet at its seam; make curve-frame periods/phases agree at both ends.');
   // Producer samples and process profiles belong to the original discretization.
@@ -251,17 +290,18 @@ export function modulateStroke(stroke,modifiers,{layerIndex=0,stackDirection}={}
   return {stroke:{...retained,closed:false,points:output,volumesMm3:volumes,segmentMetadata:metadata,
     ...(stroke.nativePath&&!modifiers.some(modifier=>modifier.channel==='displacement')?
       {nativePath:{...stroke.nativePath,points:output,parameters:nativeParameters}}:{}),
-    ...(sourcePoses||modifiers.some(m=>m.channel==='tilt')?{poses}:{}),...(frames?{frameSamples:sampleFrames}:{}),...(curveParameters?{curveParameters:parameters}:{})},changed:true,maxExcursionMm};
+    ...(sourcePoses||modifiers.some(m=>m.channel==='tilt')?{poses}:{}),...(frames?{frameSamples:sampleFrames}:{}),...(curveParameters?{curveParameters:parameters}:{})},changed:true,maxExcursionMm,sampling};
 }
 
 export function finalizeModulatedResult(result,record) {
-  const changedOperations=[],materialChangedOperations=[],operationModifiers={},used=new Set();let maxExcursionMm=0;
+  const changedOperations=[],materialChangedOperations=[],operationModifiers={},used=new Set();let maxExcursionMm=0,sampling=null;
   const operations=result.operations.map(operation=>{
     let changed=false,materialChanged=false;const applied=new Set();
     const strokes=operation.strokes.map(stroke=>{
       const modifiers=matchingModulations(result,stroke.role,record,operation);
       requireThat(!modifiers.length||!stroke.segmentMetadata?.some(m=>m?.role!==undefined&&m.role!==stroke.role),'Modulation of a stroke with mixed segment roles requires separate role strokes.');
       const answer=modulateStroke(stroke,modifiers,operation);
+      if(answer.sampling)sampling=combineModulationSampling([sampling,answer.sampling]);
       if(answer.changed){changed=true;for(const m of modifiers.filter(m=>m.amplitude!==0)){
         used.add(m.id);applied.add(m.id);
         if(['displacement','width','flow'].includes(m.channel))materialChanged=true;
@@ -275,6 +315,6 @@ export function finalizeModulatedResult(result,record) {
     return {...operation,strokes,order:operation.order==='nearest'?'given':operation.order,modulationPendingPublication:materialChanged};
   });
   const changed=changedOperations.length>0,materialChanged=materialChangedOperations.length>0;
-  const report={changed,materialChanged,maxExcursionMm,changedOperations,materialChangedOperations,operationModifiers,modifiers:[...used]};
+  const report={changed,materialChanged,maxExcursionMm,changedOperations,materialChangedOperations,operationModifiers,modifiers:[...used],...(sampling?{sampling}:{})};
   return {result:changed?{...result,operations,modulationPendingPublication:materialChanged}:result,report,invalidatedPublications:materialChanged};
 }

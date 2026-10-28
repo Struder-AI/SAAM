@@ -19,7 +19,7 @@ test('a retired split-file bundle receives a compact message without rewriting f
   const f=await generationFixture();t.after(f.cleanup);
   const {bundle,...plan}=JSON.parse(await f.read('plan.json'));
   await writeFile(join(f.directory,'plan.json'),JSON.stringify(plan));
-  await writeFile(join(f.directory,'machine.json'),JSON.stringify(bundle.machine));
+  await writeFile(join(f.directory,'machine.json'),JSON.stringify({id:bundle.machineId}));
   const before=await snapshot(f.directory);
   await assert.rejects(f.api.loadBundle(f.directory),/^Error: Deprecated split-file print bundle\.$/);
   await assert.rejects(f.api.migrateBundle(f.directory),/^Error: Deprecated split-file print bundle\.$/);

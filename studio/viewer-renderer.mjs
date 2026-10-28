@@ -3,10 +3,11 @@ import {nozzleAt,DEFAULT_NOZZLE_GEOMETRY,NOZZLE_FORGIVENESS_MM} from '../core/ge
 import {frameAtTime} from './playback.mjs';
 import {createProjection} from './camera.mjs';
 import {buildToolpathView,toolpathFrame,toolpathPresentation,toolpathStyle,layerKey,remainingLayerMs,layerIndexAt} from './toolpath-view.mjs';
+import {buildSourcePathView,sourcePathFrame,sampleSourcePath} from './source-preview.mjs';
 import {DEFAULT_PHASE_COLOURS} from '../core/print/phase-colours.mjs';
 const GEOMETRY_COLOR='#5b9fd3';
 import {buildGeometryView,createGeometryRenderer,pickGeometry,visibleGeometryEdgeSegments,geometryAnnotationView} from './mesh-view.mjs';
-import {buildMaterialScene,createMaterialRenderer} from './material-view.mjs';
+import {buildMaterialScene,createMaterialRenderer,materialSceneFromPreview} from './material-view.mjs';
 import {drawMachineCanvas} from './machine-view.mjs';
 
 import {createViewPerformance,createMotionQuality} from './view-performance.mjs';
@@ -42,6 +43,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
   buildMaterialView=buildMaterialScene,createMaterial=createMaterialRenderer}={}) {
   let geometryScene=null,geometryRenderer=null,geometryError='';
   let pathView=null,materialScene=null,materialRenderer=null,materialError='',lastMaterialStats=null;
+  let sourceOwner=null,sourceFrame=null,lineFrame=null;
   let motionQuality=null,lastMotion=0,lastWheel=-Infinity,lastMovingFrame=0,redrawRequested=0,redrawFrame=0,settleTimer=0;
   let scheduleEpoch=0;
   let lastPerformanceContext={};
@@ -54,7 +56,7 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
   const picking={project:null};
   const performanceView=createViewPerformance({report:reportPerformance,context:()=>({...lastPerformanceContext,renderer:materialRenderer?.renderer??null,
     material:lastPerformanceContext.tab==='toolpath'?lastMaterialStats:null})});
-  const sceneState=()=>({pathView,pathMoves:pathView?.moves,materialMoves:materialScene?.moves,
+  const sceneState=()=>({pathView,pathMoves:pathView?.moves,materialMoves:materialScene?.moves,sourceFrame,
     hasGeometry:Boolean(geometryScene),
     groups:pathView?.groups??[],moves:pathView?.moves??[],hasSelectedEdge:id=>geometryScene?.edgeFeatures.has(id)??false,
     edge:id=>geometryScene?.edgeFeatures.get(id),solid:Boolean(materialScene&&materialRenderer)});
@@ -66,20 +68,37 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     return sceneState();
   }
   async function publishProgram({moves,plan,geometry,previewMaterial,onProgress,buildPath=true,buildMaterial=true}) {
-    const ticket=++publication;if(buildPath)pathView=buildPathView(moves);
+    const ticket=++publication;if(buildPath){sourceOwner=null;sourceFrame=null;pathView=buildPathView(moves);}
     if(!buildMaterial)return {scene:sceneState(),previewMaterialConsumed:false};
     materialError='';
     let previewMaterialConsumed=false;
     try{
       materialRenderer??=createMaterial();
-      const next=materialRenderer?(previewMaterial?{...previewMaterial,moves,plan,geometry}:await buildMaterialView(moves,plan,geometry,{onProgress})):null;
+      const next=materialRenderer?(previewMaterial?materialSceneFromPreview(previewMaterial,moves,plan,geometry):await buildMaterialView(moves,plan,geometry,{onProgress})):null;
       if(ticket!==publication)return {scene:sceneState(),previewMaterialConsumed:false};
       materialScene=next;previewMaterialConsumed=Boolean(materialRenderer&&previewMaterial);
       if(!materialRenderer)materialError='3D material rendering needs WebGL2. Showing toolpath lines.';
     }catch(error){if(ticket===publication){materialScene=null;materialError='Material view unavailable: '+error.message+' Showing toolpath lines.';}}
     return {scene:sceneState(),previewMaterialConsumed};
   }
-  function clearProgram(){publication++;pathView=null;materialScene=null;materialRenderer?.dispose();materialRenderer=null;materialError='';}
+  function clearProgram(){publication++;lineFrame=null;pathView=null;sourceOwner=null;sourceFrame=null;materialScene=null;materialRenderer?.dispose();materialRenderer=null;materialError='';}
+  function publishSource({source,sourceIdentity,plan,frame,options}={}){
+    if(source&&frame)throw Error('Select the retained source or its prepared frame, not two independent values.');
+    if(frame&&frame.kind!=='paath-source-frame/1')throw Error('Invalid source display frame.');
+    clearProgram();
+    if(source)sourceOwner=buildSourcePathView(source,{sourceIdentity,plan});
+    sourceFrame=frame??(sourceOwner?sourcePathFrame(sourceOwner,options):null);
+    return sceneState();
+  }
+  function publishLines(segments){clearProgram();lineFrame=segments;return sceneState();}
+  function sourcePage(options){
+    if(!sourceOwner)throw Error('Source pages are prepared by the retained source worker.');
+    sourceFrame=sourcePathFrame(sourceOwner,options);return sceneState();
+  }
+  function sampleSource(selection){
+    if(!sourceOwner)throw Error('Source queries are served by the retained source worker.');
+    return sampleSourcePath(sourceOwner,selection);
+  }
   function requestDraw(readSnapshot,applyAnnotations){scheduled.read=readSnapshot;scheduled.apply=applyAnnotations;if(redrawFrame)return;
     const epoch=scheduleEpoch;let handle;redrawRequested=now();handle=requestFrame(()=>{if(redrawFrame===handle)redrawFrame=0;if(epoch!==scheduleEpoch)return;
       const annotations=draw(scheduled.read());scheduled.apply?.(annotations);});redrawFrame=handle;
@@ -97,11 +116,16 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     if(target.width!==Math.round(width*ratio)||target.height!==Math.round(height*ratio)){target.width=Math.round(width*ratio);target.height=Math.round(height*ratio);}
     ctx.setTransform(ratio,0,0,ratio,0,0);ctx.globalAlpha=1;ctx.save();ctx.translate(width/2,height/2);ctx.scale(width/Math.SQRT2,height/Math.SQRT2);
     const background=ctx.createRadialGradient(0,0,0,0,0,1);background.addColorStop(0,'#f8faf1');background.addColorStop(1,'#eaf0e0');ctx.fillStyle=background;ctx.fillRect(-1,-1,2,2);ctx.restore();
-    const project=createProjection(tab==='toolpath'&&camera.fitBounds?camera.fitBounds:bounds,width,height,camera.yaw,camera.tilt,camera.zoom,camera.pan,tab==='toolpath'&&cameraMode==='machine');
-    const referenceProject=tab==='toolpath'&&machineState?.pose&&!settings.followPlate?p=>{const {xMm,yMm}=shown.plan.placement??{xMm:0,yMm:0},q=point(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);return project([q[0]-xMm,q[1]-yMm,q[2]]);}:project;
-    const strokeScale={lineWidthMm:shown.plan.process?.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
-    for(let x=bounds.min[0]-10;x<=bounds.max[0]+10;x+=5)segment(referenceProject([x,bounds.min[1]-10,0]),referenceProject([x,bounds.max[1]+10,0]),'#dbe1d4',.6);
-    for(let y=bounds.min[1]-10;y<=bounds.max[1]+10;y+=5)segment(referenceProject([bounds.min[0]-10,y,0]),referenceProject([bounds.max[0]+10,y,0]),'#dbe1d4',.6);
+    const fitBounds=tab==='toolpath'&&sourceFrame?sourceFrame.bounds:tab==='toolpath'&&camera.fitBounds?camera.fitBounds:bounds;
+    const project=createProjection(fitBounds,width,height,camera.yaw,camera.tilt,camera.zoom,camera.pan,tab==='toolpath'&&cameraMode==='machine');
+    const referenceProject=tab==='toolpath'&&!sourceFrame&&machineState?.pose&&!settings.followPlate?p=>{const {xMm,yMm}=shown.plan.placement??{xMm:0,yMm:0},q=point(machineState.pose.part,[p[0]+xMm,p[1]+yMm,p[2]]);return project([q[0]-xMm,q[1]-yMm,q[2]]);}:project;
+    const strokeScale={lineWidthMm:shown.plan?.process?.lineWidthMm,pixelsPerMm:project.pixelsPerMm,previousLayerOpacity:settings.previousLayerOpacity};
+    const gridBounds=tab==='toolpath'&&sourceFrame?sourceFrame.bounds:bounds;
+    // A whole-source fit can span enormous coordinates. Keep source grid lines
+    // at least eight display pixels apart instead of expanding every 5 mm line.
+    const gridStep=sourceFrame||state.inspection?5*Math.max(1,Math.ceil(8/(5*project.pixelsPerMm))):5;
+    for(let x=gridBounds.min[0]-10;x<=gridBounds.max[0]+10;x+=gridStep)segment(referenceProject([x,gridBounds.min[1]-10,0]),referenceProject([x,gridBounds.max[1]+10,0]),'#dbe1d4',.6);
+    for(let y=gridBounds.min[1]-10;y<=gridBounds.max[1]+10;y+=gridStep)segment(referenceProject([gridBounds.min[0]-10,y,0]),referenceProject([gridBounds.max[0]+10,y,0]),'#dbe1d4',.6);
     if(snapshot.showGeometry&&geometryScene){picking.project=project;
       if(geometryRenderer)try{const options={project,width,height,ratio,color:GEOMETRY_COLOR,selected};geometryRenderer.draw(geometryScene,{...options,shadow:true});ctx.save();ctx.globalAlpha=.16;ctx.filter='blur(6px)';ctx.drawImage(geometryRenderer.canvas,0,0,width,height);ctx.restore();geometryRenderer.draw(geometryScene,options);ctx.drawImage(geometryRenderer.canvas,0,0,width,height);}catch(error){geometryError=error.message;geometryRenderer.dispose();geometryRenderer=null;}
       if(!geometryRenderer){const pts=state.geometry.vertices.map(project),polygons=state.geometry.faces.map((face,i)=>({id:state.geometry.labels[i],edges:geometryScene.topology.edgeMasks[i],points:face.map(j=>pts[j]),depth:face.reduce((sum,j)=>sum+pts[j][2],0)/face.length})).sort((a,b)=>a.depth-b.depth);
@@ -116,6 +140,51 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
         const p=record.point;ctx.globalAlpha=record.opacity;ctx.beginPath();ctx.arc(p[0],p[1],3,0,Math.PI*2);ctx.fillStyle=record.id===selected?'#eb591f':'#c3deef';ctx.fill();
       }
       ctx.globalAlpha=1;
+    }
+    if(lineFrame)for(const points of lineFrame)for(let i=1;i<points.length;i++)segment(project(points[i-1]),project(points[i]),'#326e9e',2);
+    if(tab==='toolpath'&&sourceFrame){
+      const coverage=sourceFrame.coverage,selectedSource=snapshot.sourceSelection;
+      annotations.selectionText='Choose a source parameter to inspect.';
+      for(const edge of sourceFrame.segments){
+        const active=selectedSource?.operationId===edge.operationId&&selectedSource?.courseId===edge.courseId;
+        const material=edge.start.rateMm3PerMm>0||edge.end.rateMm3PerMm>0;
+        const style=toolpathStyle({phase:edge.role,filament:edge.toolIndex,extruding:material,lineWidthMm:edge.start.widthMm},null,phaseColours,0,strokeScale);
+        // Independent source centerlines have no connecting travels or timeline.
+        segment(project(edge.from),project(edge.to),active?'#eb591f':material?style.color:'#71836b',active?2.5:1.25);
+      }
+      for(const entity of sourceFrame.points){
+        const p=project(entity.sample.point),active=selectedSource?.operationId===entity.operationId;
+        ctx.beginPath();ctx.arc(p[0],p[1],active?6:4,0,Math.PI*2);ctx.strokeStyle=active?'#eb591f':phaseColours.inject;ctx.lineWidth=2;ctx.stroke();
+      }
+      let local=snapshot.sourceSample??null,localInfo='';
+      if(selectedSource&&sourceOwner)try{local=sampleSourcePath(sourceOwner,selectedSource);}catch(error){annotations.selectionText=error.message;}
+      if(local?.sample){
+        const sample=local.sample,p=project(sample.point),axis=sample.toolAxis;
+        if(axis)segment(p,project(sample.point.map((v,k)=>v-axis[k]*6)),'#273e36',2);
+        const tangent=sample.tangent,normal=sample.materialNormal,width=sample.widthMm,height=sample.heightMm;
+        if(sample.rateMm3PerMm>0&&tangent&&normal&&width>0&&height>0){
+          const wide=[normal[1]*tangent[2]-normal[2]*tangent[1],normal[2]*tangent[0]-normal[0]*tangent[2],normal[0]*tangent[1]-normal[1]*tangent[0]],length=Math.hypot(...wide);
+          if(length>0){
+            const corner=(side,depth)=>sample.point.map((v,k)=>v+side*wide[k]/length*width/2-depth*normal[k]*height);
+            const corners=[corner(-1,0),corner(1,0),corner(1,1),corner(-1,1)];
+            for(let i=0;i<4;i++)segment(project(corners[i]),project(corners[(i+1)%4]),'#d35b19',1.5);
+          }
+        }
+        annotations.selectionText=`${local.operationId}${local.courseId?' / '+local.courseId:''} · tool ${local.toolIndex} · u=${local.u} (${local.side})`;
+        const number=value=>Number(value).toPrecision(4),vector=value=>value.map(number).join(', ');
+        const attributes=[];
+        if(Number.isFinite(sample.speedMmS))attributes.push(`requested ${number(sample.speedMmS)} mm/s`);
+        if(axis)attributes.push(`tool axis [${vector(axis)}]`);
+        if(Number.isFinite(sample.rateMm3PerMm))attributes.push(`rate ${number(sample.rateMm3PerMm)} mm³/mm`,
+          `aspect ${number(sample.aspectRatio)}`,`section ${number(width)} × ${number(height)} mm (${local.sectionReference??'top'} reference)`);
+        if(sample.materialNormal)attributes.push(`material normal [${vector(sample.materialNormal)}]`);
+        if(local.kind==='stationary')attributes.push(`dose ${number(sample.volumeMm3)} mm³`,
+          `flow ${number(sample.flowMm3S)} mm³/s`,`hold ${number(sample.holdSeconds)} s`,`local requested time ${number(sample.requestedSeconds)} s`);
+        localInfo=attributes.join(' · ');
+      }
+      annotations.layerText=`Unscheduled source · ${coverage.sourceCounts.curves} curves · ${coverage.sourceCounts.stationary} stationary instructions`;
+      annotations.detailText=`${coverage.complete?'Complete source geometry coverage':'Partial source display'} · ${coverage.displayedSegments} segments / ${coverage.displayedStationary} points · ${coverage.positionToleranceMm} mm display tolerance · all-source bounds · no playback order`+(localInfo?' · '+localInfo:'');
+      annotations.timeText='';annotations.fadeContinuation=false;
     }
     if(tab==='toolpath'&&shown.program&&pathView){const moves=shown.program.moves,at=frameAtTime(moves,position),count=at.completed,placement=shown.plan.placement??{xMm:0,yMm:0},showTravel=settings.showTravel;
       annotations.layerText='Layer '+(layerIndexAt(pathView,position)+1)+'/'+pathView.groups.length;
@@ -138,7 +207,14 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
       }
       if(solid)try{const start=now();materialStats=materialRenderer.draw(materialScene,{at,current:currentLayer,fade,project:materialProject,width,height,ratio,phaseColours,previousLayerOpacity:settings.previousLayerOpacity,machine,machineMode:cameraMode,machinePalette:machineColors,quality});ctx.drawImage(materialRenderer.canvas,0,0,width,height);materialMs=now()-start;}catch(error){materialError=error.message;materialRenderer.dispose();materialRenderer=null;materialScene=null;if(!updateUI)throw error;annotations.redraw=true;}
       for(const active of [false,true])for(const edge of displayed){if(solid&&edge.move.extruding&&materialScene?.supported[edge.first])continue;const key=layerKey(edge.move),styleKey=key+':'+!!edge.move.extruding+':'+!!edge.move.modulated+':'+(edge.move.filament??'')+':'+(edge.move.lineWidthMm??'');let style=styles.get(styleKey);if(!style){style=toolpathStyle(edge.move,currentLayer,phaseColours,fade.weights.get(key)??0,strokeScale);styles.set(styleKey,style);}if(style.active!==active)continue;ctx.globalAlpha=style.opacity;segment(project(local(edge.from)),project(local(edge.to)),style.color,style.width);}
-      ctx.globalAlpha=1;for(const event of shown.program.events??[])if(event.kind==='injection'&&position>=event.startSeconds){const p=project(local(event.positionMm)),active=position<event.startSeconds+event.seconds;ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle=phaseColours.inject;ctx.lineWidth=2;ctx.stroke();if(active){ctx.fillStyle=phaseColours.inject;ctx.font='12px Segoe UI';ctx.fillText(`Injecting ${event.volumeMm3.toFixed(2)} mm³ · ${event.nozzleC}°C`,p[0]+11,p[1]-8);}}
+      ctx.globalAlpha=1;
+      for(const event of shown.program.events??[])if(['injection','dwell'].includes(event.kind)&&position>=event.startSeconds){
+        const p=project(local(event.positionMm)),active=position<event.startSeconds+event.seconds;
+        ctx.beginPath();ctx.arc(p[0],p[1],active?7:4,0,Math.PI*2);ctx.strokeStyle=phaseColours.inject;ctx.lineWidth=2;ctx.stroke();
+        if(active){ctx.fillStyle=phaseColours.inject;ctx.font='12px Segoe UI';ctx.fillText(event.kind==='injection'
+          ?'Injecting '+event.volumeMm3.toFixed(2)+' mm³'+(event.nozzleC>0?' · '+event.nozzleC+'°C':'')
+          :'Holding · '+event.seconds.toPrecision(3)+' s',p[0]+11,p[1]-8);}
+      }
       annotations.fadeContinuation=fade.fading&&!playing;
       if(current&&at.fraction<1&&(current.extruding||showTravel)&&!(solid&&materialScene?.supported[at.active])){const style=toolpathStyle(current,current,phaseColours,undefined,strokeScale);segment(project(local(current.from)),project(local(at.point)),style.color,style.width);}
       if(machine&&!solid)drawMachineCanvas(ctx,machine,{project:materialProject,mode:cameraMode,palette:machineColors,filter:c=>c.role==='tool'});
@@ -153,13 +229,13 @@ export function createViewerRenderer({canvas,reportPerformance=()=>{},
     }
     const projectedOrigin=referenceProject([0,0,0]),origin=tab==='toolpath'?projectedOrigin:[width-48,height-42];ctx.globalAlpha=tab==='toolpath'?1:.65;ctx.font='10px Segoe UI';
     for(const [point,name,color] of [[[5,0,0],'X','#b26751'],[[0,5,0],'Y','#659a7a'],[[0,0,5],'Z','#638599']]){const p=referenceProject(point),end=tab==='toolpath'?p:[origin[0]+(p[0]-projectedOrigin[0])*5/project.pixelsPerMm,origin[1]+(p[1]-projectedOrigin[1])*5/project.pixelsPerMm];segment(origin,end,color,tab==='toolpath'?1.5:1);if(Math.hypot(end[0]-origin[0],end[1]-origin[1])>1){ctx.fillStyle=color;ctx.fillText(name,end[0]+4,end[1]-4);}}
-    ctx.globalAlpha=1;ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText('5 mm grid',18,height-18);
+    ctx.globalAlpha=1;ctx.font='10px Segoe UI';ctx.fillStyle='#71836b';ctx.fillText(gridStep+' mm grid',18,height-18);
     if(updateUI){const end=now();if(materialStats)lastMaterialStats=materialStats;performanceView.frame(snapshot.interaction??(playing?'playback':end-lastWheel<200?'zoom':null),{start:drawStart,drawMs:end-drawStart,materialMs,quality});if(moving&&motionQuality&&tab==='toolpath'){const cost=playing?(drawStart-lastMovingFrame<1000?drawStart-lastMovingFrame:end-drawStart):end-(redrawRequested||drawStart);motionQuality.sample(cost);lastMovingFrame=drawStart;if(quality>0&&pinnedQuality===null){clearTimer(settleTimer);settleTimer=setTimer(()=>requestDraw(scheduled.read,scheduled.apply),260);}}redrawRequested=0;}
     return annotations;
   }
   function pick({x,y}){return geometryScene&&picking.project?pickGeometry(geometryScene,picking.project,x,y,{edges:true}):null;}
   function flushPerformance(){performanceView.flush();}
   function dispose(){publication++;scheduleEpoch++;if(redrawFrame)cancelFrame(redrawFrame);redrawFrame=0;clearTimer(settleTimer);settleTimer=0;scheduled.read=scheduled.apply=null;
-    performanceView.flush();geometryRenderer?.dispose();materialRenderer?.dispose();geometryRenderer=materialRenderer=null;picking.project=null;geometryScene=pathView=materialScene=null;}
-  return {publishGeometry,publishProgram,clearProgram,sceneState,requestDraw,draw,pick,noteMotion,flushPerformance,dispose};
+    performanceView.flush();geometryRenderer?.dispose();materialRenderer?.dispose();geometryRenderer=materialRenderer=null;picking.project=null;geometryScene=pathView=materialScene=sourceOwner=sourceFrame=lineFrame=null;}
+  return {publishGeometry,publishProgram,publishLines,publishSource,sourcePage,sampleSource,clearProgram,sceneState,requestDraw,draw,pick,noteMotion,flushPerformance,dispose};
 }

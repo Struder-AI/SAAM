@@ -1,7 +1,8 @@
 import {CONSTRUCTION_TOLERANCE_MM} from '../dimensions.mjs';
 import {requireThat} from '../private/bundle/numeric.mjs';
 import {requireEditRevision} from './edit-identity.mjs';
-import {loadBundle,updatePlan} from './bundle.mjs';
+import {loadBundle} from './bundle.mjs';
+import {editPart} from '../application/part-execution.mjs';
 import {mergeGeometryPatch} from './resolve-plan.mjs';
 
 import {validatePlan} from './plan.mjs';
@@ -44,8 +45,8 @@ export async function applyModulation(directory,request,{expectedRevision,expect
   const modulations=editModulations(previous.plan.modulations,request);
   const plan={...previous.plan,modulations};
   validatePlan(plan);
-  const state=await updatePlan(directory,plan,previous.revision,{expectedEditRevision}),changed=state.revision!==previous.revision;
+  const state=await editPart(directory,plan,previous.revision,{expectedEditRevision}),changed=state.revision!==previous.revision;
   return {state,edit:{action:request.action,id:request.id,changed,modifier:state.plan.modulations.modifiers.find(m=>m.id===request.id)??null,
-    generationRequired:changed||state.artifacts.path!=='current'||Boolean(state.machine)&&state.artifacts.program!=='current',confirmationInvalidated:changed,
+    generationRequired:changed||state.artifacts.path!=='current'||Boolean(state.machineId)&&state.artifacts.program!=='current',confirmationInvalidated:changed,
     deferredChecks:['deposition construction','exact exported program interpretation','physical acceptance']}};
 }

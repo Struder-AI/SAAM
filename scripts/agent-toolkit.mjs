@@ -3,7 +3,8 @@
 import {parseArgs} from 'node:util';
 import {resolve} from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {contextBudget} from '../core/agent/layers.mjs';
+import {contextBudget} from './context-budget.mjs';
+import {machineIds,loadMachine} from '../core/machine/profile.mjs';
 import {root, onboarding, readSkill, contextPacket, developmentAreas} from '../core/agent/toolkit.mjs';
 
 const string={type:'string'}, boolean={type:'boolean'}, many={type:'string',multiple:true};
@@ -18,13 +19,13 @@ const schemas={
 export const help={commands:{
   'maker-onboarding [--machine ID]':'Read maker context for source guidance work. Installed making uses saam call maker_onboarding.',
   'builder-onboarding [--area AREA]':'Read builder guidance and consumed component contracts.',
-  'developer-onboarding [--area AREA]':'Read glossary, developer context, architecture specification and the manuals for each --area.',
+  'developer-onboarding [--area AREA]':'Read glossary, developer context and the manuals for each --area.',
   'read-skill ID[#HEADING] [--maker] [--builder] [--developer] [--machine ID] [--all]':'Read selected manual roles or one complete heading.',
   'read-guidance PATH#HEADING [--machine ID] [--all]':'Read a published manual or section with its headings and gates.',
   'context-budget [--machine ID]':'Measure assembled context and the application operation catalog.'
 },developmentAreas:Object.keys(developmentAreas),notes:[
   'Making, Studio, tours, requests and workspace jobs use saam; see core/application/README.md.',
-  '--area names a development area and may repeat. Architecture and decisions are ordinary Markdown versioned with the source.'
+  '--area names a development area and may repeat. Manuals and decisions are versioned with the source.'
 ]};
 
 export async function runCLI(args=process.argv.slice(2),{write=value=>console.log(JSON.stringify(value))}={}){
@@ -34,11 +35,13 @@ export async function runCLI(args=process.argv.slice(2),{write=value=>console.lo
     if(!Object.hasOwn(schemas,command))throw Error(`Unknown source toolkit command: ${command}. Making uses saam. Use --help.`);
     const {values:v,positionals}=parseArgs({args:rest,options:schemas[command],allowPositionals:true,strict:true});
     const targetRequired=['read-skill','read-guidance'].includes(command);
-    const targetAllowed=targetRequired;
-    if(positionals.length>(targetAllowed?1:0)||targetRequired&&!positionals.length)throw Error('Unexpected or missing positional argument. Use --help.');
+    if(positionals.length>(targetRequired?1:0)||targetRequired&&!positionals.length)throw Error('Unexpected or missing positional argument. Use --help.');
     const output={};
     if(command.endsWith('-onboarding'))output.result=await onboarding({role:command.replace('-onboarding',''),areas:v.area,machine:v.machine});
-    else if(command==='context-budget')output.result=await contextBudget(root,v.machine?{machineIds:v.machine}:{});
+    else if(command==='context-budget'){
+      const selected=v.machine??machineIds(),machines=Object.fromEntries(selected.map(id=>[id,id?loadMachine(id):null]));
+      output.result=await contextBudget(root,{machines});
+    }
     else if(command==='read-skill')output.result=await readSkill(positionals[0],v);
     else if(command==='read-guidance')output.result=await contextPacket([positionals[0]],{machineId:v.machine,all:v.all,headings:true,markers:true});
     write({ok:true,event:'result',command,...output.result});

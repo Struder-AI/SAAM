@@ -2,7 +2,7 @@
 import {canonicalHash} from '../canonical-json.mjs';
 import {decodeSTL} from './mesh.mjs';
 import {decodeSTLFile} from './stl-file.mjs';
-import {createGeometry,transferGeometry,receiveGeometry} from '../print/geometry.mjs';
+import {createGeometry,transferGeometryArtifact,receiveGeometryArtifact} from '../print/geometry.mjs';
 import {repairSTLFiles} from '../print/repair-stl.mjs';
 import {executeGeometry} from './execution.mjs';
 import {writeFile} from 'node:fs/promises';
@@ -25,9 +25,9 @@ const repairable=error=>/^(?:Duplicate mesh triangle.|Invalid mesh triangle indi
 
 // Import owns scratch, decoding, explicit repair and completed native geometry.
 // No bundle directory or persistence callback crosses this boundary.
-export async function prepareSTLImport(source,options={}){
+export async function prepareSTLImport(source,{paths,...options}={}){
   options.signal?.throwIfAborted();
-  const workspace=await createTemporaryWorkspace('stl-import'),scratch=workspace.directory;importScratch.set(scratch,workspace);
+  const workspace=await createTemporaryWorkspace('stl-import',{paths}),scratch=workspace.directory;importScratch.set(scratch,workspace);
   try{return {...await prepareSTLImportAt(scratch,source,options),scratch};}
   catch(error){await releaseSTLImport({scratch});throw error;}
 }
@@ -55,7 +55,8 @@ async function prepareSTLImportAt(scratch,source,{units='auto',bounds,center=tru
         {signal,progress,timeoutMs:options.timeoutMs,subject:'STL import',detail:' reading '+sourcePath,memoryCode:'MESH_MEMORY_EXHAUSTED'});
       sourceState.info=response.sourceInfo;remember(response.sourceInfo);
       const {sourceInfo,...result}=response;
-      result.geometry=await receiveGeometry(result.geometry);
+      result.geometryArtifact=await receiveGeometryArtifact(result.geometry);
+      result.geometry=result.geometryArtifact.descriptor.parameters;
       if(!importDiagnostic.repaired)importDiagnostic.merge=result.merge??null;
       if(result.merge)importDiagnostic.meshNormalization=result.merge;
       return result;
@@ -100,9 +101,9 @@ export async function prepareSTLSourceValue(sourcePath,{units='auto',bounds,attr
   const sourceInfo={sha256:decodedSource.sha256,bytes:decodedSource.bytes,inputVertices:decodedSource.vertices.length,
     inputTriangles:decodedSource.triangles.length,merge:decodedSource.merge??null,inferredUnits:inferSTLUnits(decodedSource,bounds)};
   try{
-    const result=await prepareImportedGeometry(undefined,{units,bounds,decodedSource,attribution,repairReport});
+    const {geometryArtifact,geometry,...result}=await prepareImportedGeometryArtifact(undefined,{units,bounds,decodedSource,attribution,repairReport});
     signal?.throwIfAborted();
-    return {...result,geometry:await transferGeometry(result.geometry),sourceInfo};
+    return {...result,geometry:transferGeometryArtifact(geometryArtifact),sourceInfo};
   }catch(error){throw Object.assign(error,{sourceInfo});}
 }
 
@@ -121,6 +122,10 @@ function geometryFromSTL(sourceHash,units,mesh,inferred=false){
 }
 
 export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,decodedSource,attribution,repairReport}={}){
+  const {geometryArtifact,...result}=await prepareImportedGeometryArtifact(sourceBytes,{units,bounds,decodedSource,attribution,repairReport});
+  return result;
+}
+async function prepareImportedGeometryArtifact(sourceBytes,{units='auto',bounds,decodedSource,attribution,repairReport}={}){
   let geometry;
   const file=Boolean(decodedSource),mesh=decodedSource??decodeSTL(sourceBytes,{units:'mm'}),inferred=units==='auto';
   if(inferred)units=inferSTLUnits(mesh,bounds);
@@ -136,5 +141,5 @@ export async function prepareImportedGeometry(sourceBytes,{units='auto',bounds,d
   // Centre the imported mesh on the plate. Its vertices were translated to put
   // the minimum XY at the origin, so the footprint size is the vertex span.
   const footprint=[0,1].map(k=>artifact.descriptor.boundsMm.max[k]-artifact.descriptor.boundsMm.min[k]);
-  return {geometry,footprint,...(artifact.descriptor.meshNormalization?.length?{merge:artifact.descriptor.meshNormalization[0]}:{})};
+  return {geometry,geometryArtifact:artifact,footprint,...(artifact.descriptor.meshNormalization?.length?{merge:artifact.descriptor.meshNormalization[0]}:{})};
 }

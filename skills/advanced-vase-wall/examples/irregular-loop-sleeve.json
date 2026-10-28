@@ -4,7 +4,7 @@
     "schema": "saam-shell-plan/1",
     "generatorVersion": "0.1.0",
     "experimental": {
-      "substrateAdaptation": false
+
     },
     "skills": {
       "plastic-weld": {
@@ -63,7 +63,7 @@
           "part": null,
           "filament": null,
           "process": null,
-          "after": [],
+          "after": ["body"],
           "zStartMm": 0.6,
           "zEndMm": null,
           "endTransition": "spiral",

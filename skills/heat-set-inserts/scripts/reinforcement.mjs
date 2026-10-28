@@ -50,10 +50,19 @@ function finRetainsOverlap(sheet,cut,source,width,Geometry){
   }));
 }
 
-export function heatSetTraceSource({Geometry,Toolpath}){
+// Solid backing rings at bead pitch inward from the pad region's boundary.
+function padRings(Geometry,slice,region,bead,pitch,options){
+  const rings=[];
+  for(let ring=0;;ring++){
+    const loops=Geometry.offsetSliceRegion(slice,region,-(bead/2+ring*pitch),options);
+    if(!loops.length)return rings;
+    rings.push(...loops);
+  }
+}
+
+export function heatSetTraceSource({Geometry}){
   const needed=['buildGeometry','revolvedProfile','section','offsetSliceRegion','strokeSliceRegion','intersectSurfaceSheet','clipSliceCurves','evaluateSurface','union','intersect','difference','loopArea','regionArea'];
   requireThat(needed.every(k=>typeof Geometry[k]==='function'),'Heat-set reinforcement needs the general Geometry layer-source connectors.');
-  requireThat(typeof Toolpath?.fillSliceRegion==='function','Heat-set blind pads need the general Toolpath region-fill connector.');
   const cache=new Map();
   return {constructLayer({source,parameters}){
     requireThat(parameters&&Object.keys(parameters).every(k=>['feature','toleranceMm'].includes(k)),'Heat-set Trace source needs an editable feature and bore tolerance.');
@@ -78,18 +87,12 @@ export function heatSetTraceSource({Geometry,Toolpath}){
     const seat=matched.length?matched.map(loop=>[...loop].reverse()):cutter;
     
     const options={sampleStepMm:settings.sampleStepMm,maxStepMm:settings.sampleStepMm,boundsUv:bounds(material)};
-    // Keep Trace centers outside every actual material boundary's main wall
-    // band. The added walls and fins deliberately do not exclude main infill.
+    // Trace beads stay inside Slice's fill regions, which already exclude the
+    // walls produced on this layer. Added walls and fins overlap main infill.
+    const solid=source.solidRegion??[],interior=Geometry.union(solid,source.sparseRegion??[]);
+    const room=interior.length?Geometry.intersect(source.region,Geometry.offsetSliceRegion(slice,interior,-width/2,options)):[];
     const wallBand=loops?inset+(loops-1)*pitch+width/2:0;
-    const lastFront=(source.perimeters??[]).filter(curve=>curve.closed&&curve.ringIndex===loops-1).map(curve=>curve.points);
-    const wallRoom=loops&&lastFront.length?Geometry.offsetSliceRegion(slice,lastFront,-width,options):
-      Geometry.offsetSliceRegion(slice,material,-(wallBand+width/2),options);
-    const room=Geometry.intersect(source.region,Geometry.intersect(wallRoom,Geometry.offsetSliceRegion(slice,material,-width/2,options)));
-    const inherited=(source.perimeters??[]).filter(curve=>curve.closed&&Geometry.loopArea(curve.points)<0&&
-      Geometry.regionArea(Geometry.intersect([[...curve.points].reverse()],seat))>0).sort((a,b)=>Math.abs(Geometry.loopArea(b.points))-Math.abs(Geometry.loopArea(a.points)))[0];
-    const origin=loops&&inherited?[[...inherited.points].reverse()]:seat;
-    const first=loops&&inherited?Math.max(pitch,((inherited.beadWidthMm??width)+width)/2):
-      loops?Math.max(inset+loops*pitch,wallBand+width/2):width/2;
+    const origin=seat,first=loops?Math.max(inset+loops*pitch,wallBand+width/2):width/2;
     const curves=[],clipping=[],notes=[];
     let finCount=0,skippedShallowFins=0;
     // Fin sheets can cross a layer that misses the seat entirely (for example,
@@ -138,8 +141,11 @@ export function heatSetTraceSource({Geometry,Toolpath}){
             profile:[[0,radius],[bead,radius]]}).patches.find(patch=>patch.name==='revolution-start');
           backing={disks:offsets.map(disk),middle:disk(thickness/2)};cache.set(key,backing);
         }
-        const dense=source.denseRegion?.length?Geometry.offsetSliceRegion(slice,source.denseRegion,bead/2,options):[];
-        const padRoom=Geometry.difference(room,dense),before=curves.length;
+        const solidBand=solid.length?Geometry.offsetSliceRegion(slice,solid,bead/2,options):[];
+        const padRoom=Geometry.difference(room,solidBand),before=curves.length,padPitch=pitch*bead/width;
+        const padCurves=region=>padRings(Geometry,slice,region,bead,padPitch,options).map(points=>({closed:true,
+          uv:{reference:{kind:'slice',assignment:source.stackId,index:source.index},points},role:'heat-set-base-pad',
+          directionRequired:false,seamRequired:false,beadWidthMm:bead,sampleStepMm:settings.sampleStepMm}));
         let fill=null;
         // Parallel layers own the finite backing band's area. Crossing layers
         // trace the disk sheets directly, without filling narrow volume slivers.
@@ -147,14 +153,14 @@ export function heatSetTraceSource({Geometry,Toolpath}){
         if(parallel.report?.coincident){
           const region=Geometry.intersect(parallel.regionsUv??[],padRoom);
           if(region.length){
-            const filled=Toolpath.fillSliceRegion(region,{source:{...source,widthMm:bead},role:'heat-set-base-pad'});
-            curves.push(...filled.curves);fill=filled.report;
+            const rings=padCurves(region);
+            curves.push(...rings);fill={pattern:'concentric',curves:rings.length,widthMm:bead,pitchMm:padPitch};
           }
         }else for(const disk of backing.disks){
           const cut=Geometry.intersectSurfaceSheet(slice,disk,options);
           if(cut.regionsUv?.length){
             const region=Geometry.intersect(cut.regionsUv,padRoom);
-            if(region.length){const filled=Toolpath.fillSliceRegion(region,{source:{...source,widthMm:bead},role:'heat-set-base-pad'});curves.push(...filled.curves);fill=filled.report;}
+            if(region.length){const rings=padCurves(region);curves.push(...rings);fill={pattern:'concentric',curves:rings.length,widthMm:bead,pitchMm:padPitch};}
           }else if(cut.curves.length){
             const clipped=Geometry.clipSliceCurves(slice,cut.curves,padRoom,options);clipping.push(clipped.report);
             curves.push(...clipped.curves.map(curve=>({closed:curve.closed,
@@ -163,7 +169,7 @@ export function heatSetTraceSource({Geometry,Toolpath}){
           }
         }
         if(curves.length>before)pad={radiusMm:radius,depthMm:thickness,solidLayers:count,disks:passes,widthMm:bead,
-          curves:curves.length-before,fill,denseCoverageExcluded:true};
+          curves:curves.length-before,fill,solidFillExcluded:true};
       }
     }
     if(feature.finWidthMm!==null)notes.push('Legacy finWidthMm is retained for reading; the star uses two touching beads at the inherited layer width.');

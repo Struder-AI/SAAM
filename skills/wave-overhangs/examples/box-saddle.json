@@ -3,10 +3,6 @@
   "plan": {
     "schema": "saam-shell-plan/1",
     "generatorVersion": "0.1.0",
-    "experimental": {
-      "substrateAdaptation": false,
-      "sharedMaterial": false
-    },
     "skills": {},
     "slices": {
       "version": 1,

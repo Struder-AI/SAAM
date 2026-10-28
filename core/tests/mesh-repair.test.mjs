@@ -11,7 +11,7 @@ import {repairSTL,repairSTLFiles} from '../print/repair-stl.mjs';
 import {triangleIndex,trianglesContact} from '../geom/mesh-spatial.mjs';
 import {decodeSTLFile} from '../geom/stl-file.mjs';
 import {ROUNDING_MM} from '../dimensions.mjs';
-import {importSTLBundle} from '../print/import-stl.mjs';
+import {importSTLBundle} from '../application/import-stl.mjs';
 import {loadBundle} from '../print/bundle.mjs';
 const volume=m=>Math.abs(m.triangles.reduce((sum,t)=>{const [a,b,c]=t.map(i=>m.vertices[i]);return sum+(a[0]*(b[1]*c[2]-b[2]*c[1])+a[1]*(b[2]*c[0]-b[0]*c[2])+a[2]*(b[0]*c[1]-b[1]*c[0]))/6;},0));
 test('valid input keeps exact geometry and repair cleanup is explicit',async()=>{

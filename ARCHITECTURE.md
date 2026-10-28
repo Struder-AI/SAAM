@@ -1,6 +1,10 @@
 # SAAM architecture
 
-This is the shared architecture specification, organized using the
+This document is SAAM's shared structural specification: the current
+implementation account and runtime/deployment reference. [Migration intent](plans/0.4.0.md)
+records the 0.4.0 scope and unsettled decisions.
+
+The implementation account is organized using the
 [arc42 structure](https://arc42.org/overview/). Git versions this document with
 the source; [numbered decisions](docs/adr/) record changes in architectural direction.
 Component manuals own detailed interfaces. The versioned [plans](plans/) define
@@ -29,7 +33,8 @@ An incomplete recipe or missing machine does not prevent unrelated operations.
 - Bundle owns shared part state and saved revisions. Engines operate on supplied
   values; private controllers own UI, chat and job state.
 - Construction and neutral scheduling work independently of the selected machine.
-  Export owns actual-tool access, physical transfers and output compatibility.
+  Scheduler owns deposition order and nozzle assumptions; Bundle qualifies actual
+  assignment before review. Export owns physical transfers and output compatibility.
 - Builder extensions compose published interfaces. Changes to core capabilities
   or shared interfaces use the developer role. Local developer tools are selected
   through local preferences; shared onboarding reads published Markdown.
@@ -94,7 +99,7 @@ live in one folder. Source entry points and the owning manuals locate their inte
 | Application | `saam`, operation dispatch, chats, requests, jobs, runtimes and the shared home | [application](core/application/README.md), [runtime](core/application/runtime.mjs), [orchestrator](packaging/application.mjs) |
 | Geometry | Shapes, native lifetime, numerical queries, conservative bounds, import and repair | [geometry](core/geom/README.md), [operations](core/geom/operations.mjs) |
 | Recipe | Authored records, defaults, process resolution, validation and explicit migration | [print lifecycle](core/print/README.md), [plan](core/print/plan.mjs) |
-| Material regions | Assignment claims, process reservations and selected material regions | [regions](core/region/README.md) |
+| Material regions | Slice members for Construction: explicit claims, the default remainder, process reservations and selected material; no overlap distribution between claims | [regions](core/region/README.md) |
 | Toolpath | Finalized Inject/Trace/Slice deposition, profiles and manufacturing prerequisites | [SAAMpath](core/path/README.md), [construction](core/print/construction.mjs), [finalization](core/print/finalize.mjs) |
 | Scheduling | Ready work, exact source coverage, interference constraints and neutral endpoint transfers | [scheduler obligations](core/path/README.md#scheduler-obligations), [schedule](core/path/schedule.mjs) |
 | Bundle | Persistent part state, revisions, immutable artifacts, history, completed output and delivery identity | [Bundle](core/print/README.md), [workflow](core/print/workflow.mjs) |
@@ -140,15 +145,19 @@ not replace the captured inputs of a completed output.
 1. Bundle captures the authored geometry, recipe and relevant settings.
 2. Geometry and Material regions supply construction inputs. Toolpath publishes
    finalized deposition and its required construction history.
-3. Bundle saves immutable `saampath/2` source. Scheduling returns a
+3. Bundle saves immutable `saampath/3` source. Scheduling returns a
    `saam-schedule/1` execution joined by `sourcePathId`, preserving exact coverage.
-4. Bundle records the completed neutral path and captured inputs; no machine is required.
+4. Bundle records the completed neutral path and captured inputs; no machine is
+   required. When actual nozzle assignment exists, Bundle qualifies its envelope
+   through Scheduler before publishing the review. Declared prerequisite ancestry
+   guarantees deposition clearance; travel still considers deposited obstacles.
 5. Studio displays that saved path and settings without loading a program writer.
 
 ### Export, edit and recovery
 
 Export captures the displayed path and settings before queueing. It resolves
-actual-tool access and physical transfers, then writes transient download bytes.
+the captured nozzle assumptions and physical transfers, then writes transient
+download bytes. It does not repeat deposition-clearance checks or reschedule.
 Later edits do not change the capture. Bundle records a receipt, never program
 bytes or machine execution. Writer failure leaves the saved path intact. Edits
 retain previous toolpaths; regeneration dims them and blocks new Export clicks
@@ -218,10 +227,11 @@ and current component contracts determine which statements still apply.
 
 This specification records architectural contracts, not an exhaustive computed
 dependency inventory. Source-level review and focused verification establish actual
-effects. Historical map analysis was partial and stale; its findings and deferred
-solves remain with the local tool, rather than becoming release acceptance claims.
-Future shared-material behavior, timing improvements and other planned capabilities
-retain their explicit scope in [0.4.0](plans/0.4.0.md) and [0.5.0](plans/0.5.0.md).
+effects.
+Shared-material behavior, timing improvements and all former 0.4.0 intents now
+belong to [0.5.0](plans/0.5.0.md). The new [0.4.0](plans/0.4.0.md) direction is
+data inspection, MCP service work and a developer-guidance review. Its [assessment](plans/0.4.0-design.md) is a proposal; this document retains
+the current architecture until those replacements are implemented.
 Package checks on one host do not establish native execution on another platform.
 
 ## 12. Glossary

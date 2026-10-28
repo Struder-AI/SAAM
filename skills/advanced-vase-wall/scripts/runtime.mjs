@@ -133,7 +133,7 @@ function mappedSleevePatternCurves({settings,process,base,start,end,firstHeight,
     if(continuous&&paths.length)requireThat(distance(paths.at(-1).points.at(-1),points[0])<=PRINT_RESOLUTION_MM,'Mapped vase endpoints do not meet; use segmented mode for travel.');
     maximumAngleDeg=Math.max(maximumAngleDeg,maximumPathAngle(points));
     for(const p of points){minZ=Math.min(minZ,p[2]);maxZ=Math.max(maxZ,p[2]);}
-    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{}),...(level&&Math.abs(points[i][2]-end)<PRINT_RESOLUTION_MM&&Math.abs(points[i+1][2]-end)<PRINT_RESOLUTION_MM?{boundaryRole:'rim'}:{})}))});
+    paths.push({closed:false,points,heightsMm:segmentHeights,speedMmS:null,role,segmentMetadata:segmentHeights.map((_,i)=>({layer,...(foundation?{contactRole:'foundation'}:{founded:true}),...(level&&Math.abs(points[i][2]-end)<PRINT_RESOLUTION_MM&&Math.abs(points[i+1][2]-end)<PRINT_RESOLUTION_MM?{boundaryRole:'rim'}:{})}))});
   };
   const total=stack.repeats+(level?2:0);let completed=0;
   onProgress?.({stage:'Mapping vase pattern repetitions',completed:0,total});

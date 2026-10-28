@@ -12,11 +12,18 @@ import {intersect} from '../region/intersection.mjs';
 import {validateSplineSolid} from './spline-solid.mjs';
 
 export function validateSurfaceSelection(s){
-  requireThat(s&&['spline','mesh-strip'].includes(s.kind)&&typeof s.periodicU==='boolean'&&[1,-1].includes(s.normalSide),'Invalid surface selection.');
+  requireThat(s&&['spline','mesh-strip'].includes(s.kind),'Surface selection kind must be spline or mesh-strip.');
   const keys=s.kind==='spline'?['kind','normalSide','patch','periodicU','uvBounds']:['kind','normalSide','periodicU','rows'];
-  requireThat(keys.every(k=>Object.hasOwn(s,k))&&Object.keys(s).every(k=>keys.includes(k)||s.kind==='spline'&&k==='extend')&&(s.extend===undefined||typeof s.extend==='boolean'),'Unexpected surface selection fields.');
+  const missing=keys.filter(k=>!Object.hasOwn(s,k)),unexpected=Object.keys(s).filter(k=>!keys.includes(k)&&!(s.kind==='spline'&&k==='extend'));
+  const contract=s.kind==='spline'?'patch, periodicU:boolean, normalSide:1|-1 and uvBounds (two increasing native UV intervals)':'rows (a rectangular grid of native vertex indices), periodicU:boolean and normalSide:1|-1';
+  requireThat(!missing.length,`Missing surface selection fields: ${missing.join(', ')}. Required: ${contract}.`);
+  requireThat(!unexpected.length,`Unexpected surface selection fields: ${unexpected.join(', ')}.`);
+  requireThat(typeof s.periodicU==='boolean','Surface selection periodicU must be boolean.');
+  requireThat([1,-1].includes(s.normalSide),'Surface selection normalSide must be 1 or -1.');
+  requireThat(s.extend===undefined||typeof s.extend==='boolean','Surface selection extend must be boolean.');
   if(s.kind==='spline'){
-    requireThat((typeof s.patch==='string'&&s.patch.length>0||s.patch&&typeof s.patch==='object')&&Array.isArray(s.uvBounds)&&s.uvBounds.length===2&&s.uvBounds.every(b=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]),'Select a native or authored patch and two increasing UV bounds.');
+    requireThat(typeof s.patch==='string'&&s.patch.length>0||s.patch&&typeof s.patch==='object','Surface selection patch must name a native patch or contain an authored patch.');
+    requireThat(Array.isArray(s.uvBounds)&&s.uvBounds.length===2&&s.uvBounds.every(b=>Array.isArray(b)&&b.length===2&&b.every(Number.isFinite)&&b[1]>b[0]),'Surface selection uvBounds must contain two increasing finite intervals in native UV parameters.');
     if(typeof s.patch!=='string')validateSplineSolid({shape:'spline',patches:[s.patch]});
   }
   else requireThat(Array.isArray(s.rows)&&s.rows.length>=2&&s.rows.every(r=>Array.isArray(r)&&r.length===s.rows[0].length&&r.length>=2&&r.every(i=>Number.isInteger(i)&&i>=0)),'Mesh-strip rows must be a rectangular grid of native vertex indices.');

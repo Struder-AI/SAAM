@@ -6,7 +6,8 @@ import {requireThat as requireToolpath} from '../private/toolpath/numeric.mjs';
 // tops of a print (or of geometry it is about to write) and combines solids
 // without writing a script.
 import {requireEditRevision} from './edit-identity.mjs';
-import {loadBundle,updatePlan} from './bundle.mjs';
+import {loadBundle} from './bundle.mjs';
+import {editPart} from '../application/part-execution.mjs';
 import {resolveMaterialGeometry} from '../geom/build.mjs';
 import {geometricEdges} from './geometric-references.mjs';
 import {topAt} from '../geom/query.mjs';
@@ -14,7 +15,7 @@ import {horizontalSlice,patchSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {sliceAssignment,validateSlices} from "./slice-records.mjs";
 import {sliceOwners} from "./slice-material.mjs";
-import {prepareMaterialRegions} from "../region/shared-material/prepare.mjs";
+import {prepareMaterialRegions} from "../region/material-regions.mjs";
 import {BOOLEAN_OPERATIONS,BOOLEAN_OPERAND_SHAPES} from '../geom/boolean-solid.mjs';
 import {loopArea} from '../region/region2d.mjs';
 import {referencePatch} from '../geom/reference-surface.mjs';
@@ -118,5 +119,5 @@ export async function combineGeometry(directory,request,{expectedRevision,expect
     ?{...current,operands:[...current.operands,request.operand]}
     :{shape:'boolean',operation:request.operation,operands:[current,request.operand]};
   plan.geometry=replaceSolid(plan.geometry,root.geometry);
-  return updatePlan(directory,plan,state.revision,{expectedEditRevision});
+  return editPart(directory,plan,state.revision,{expectedEditRevision});
 }

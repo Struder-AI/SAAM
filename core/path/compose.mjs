@@ -1,20 +1,37 @@
 // Source operations enter once as compact curves; execution refers to ranges.
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
-import {curveAt,curveRange,curveHasLength,curveParameterAtLength,curveClosestParameter,prepareCurvePath} from './curve-path.mjs';
+import {curveAt,curveRange,curveHasLength,curveParameterAtLength,curveClosestParameter,prepareCurvePath,injectionAt} from './curve-path.mjs';
 import {PRINT_RESOLUTION_MM,ROUNDING_MM} from '../dimensions.mjs';
 import {orderSliceCourses,selectTraversal} from './course-order.mjs';
 import {precedenceLookup,prerequisiteProofs} from './precedence.mjs';
 import {prepareRangeScene} from './physical-order.mjs';
 import {CoolingOrder} from './cooling-order.mjs';
-import {manufacturingDependencies,constructionHistory,CONSTRUCTION_CONTRACT} from './manufacturing.mjs';
-import {DEFAULT_NOZZLE_GEOMETRY} from '../geom/convex-clearance.mjs';
+import {manufacturingDependencies,constructionHistory,CONSTRUCTION_CONTRACT,RETIRED_CONSTRUCTION_CONTRACTS} from './manufacturing.mjs';
+import {DEFAULT_NOZZLE_GEOMETRY,nozzleMotionRoute} from '../geom/convex-clearance.mjs';
 import {prepareBeadQualification} from './bead-qualification.mjs';
 import {ActionAccumulator,planningResult,planContext,planFan,planNozzle,planTransfer,
   planExtrusion,planDwell,planSelection,planProcess,planDepositRange} from './planning.mjs';
 
+// Each transfer follows a route the scheduled nozzle types can take past the
+// work already deposited: direct when clear, otherwise over it at the process
+// lift. The route is part of the schedule; Export realizes it on the selected
+// machine (retraction, parking) without re-routing.
+function planRoutedTransfer(state,target,targetPose,scene){
+  const route=nozzleMotionRoute(scene.index,scene.occupied,state.position,target,state.pose,targetPose,
+    {bounds:scene.depositedBounds,clearanceMm:state.process.liftMm,withinGroups:scene.withinGroups,groupPrefixes:scene.groupPrefixes,
+      ...scene.geometryForFilament(state.selection?.filament)});
+  if(route.blocked){
+    const operations=[...new Set(route.blocked.map(id=>scene.operationOf(id)))];
+    throw Object.assign(Error('Nozzle access is blocked by deposited work: '+operations.join(', ')),{code:'NOZZLE_ACCESS_BLOCKED',operations,target});
+  }
+  const actions=new ActionAccumulator(),cursor={state};
+  for(const next of route.waypoints){const moved=planTransfer(cursor.state,next.point,next.pose);cursor.state=moved.state;actions.add(moved.actions);}
+  return planningResult(cursor.state,actions.finish());
+}
+
 export function planOperationEntry(initialState,op) {
   const contextual=planContext({...initialState,layerId:op.layerId},op.phase,op.layer,op.sourceOperation??op.id);
-  const selected=planSelection(contextual.state,op.filament??initialState.defaultFilament);
+  const selected=planSelection(contextual.state,op.toolIndex??op.filament??initialState.defaultFilament);
   const configured=planProcess(selected.state,op.process);
   const prepared=planOperationStart(configured.state,op);
   return planningResult(prepared.state,{chunks:[selected.actions,prepared.actions]});
@@ -77,8 +94,8 @@ export function prepareSourceUnits(source,reader,{cuts=new Map(),relaxedChunks=n
   }
   function node(operation,ranges,barrier=null,traversalKey=null){
     const id='schedule:'+counter.next++,injection=operation.kind==='inject'?operation.injection:null;
-    const entry=barrier?null:injection?{point:injection.at,pose:injection.pose}:curveAt(reader,ranges[0].curveId,ranges[0].from);
-    const last=ranges.at(-1),exit=barrier?null:injection?entry:curveAt(reader,last.curveId,last.to,{side:'left'});
+    const entry=barrier?null:injection?injectionAt(operation):curveAt(reader,ranges[0].curveId,ranges[0].from);
+    const last=ranges.at(-1),exit=barrier?null:injection?injectionAt(operation,1):curveAt(reader,last.curveId,last.to,{side:'left'});
     const value={id,sourceOperation:operation.id,layerId:operation.layerId,operation,process:source.processes[operation.processId],
       ranges,entry,exit,barrier,label:operation.id+(ranges.length===1?' ['+ranges[0].id+' '+ranges[0].from+'..'+ranges[0].to+']':''),
       constructionRank:operation.constructionRank??0,...(traversalKey?{traversalKey}:{})};
@@ -230,21 +247,32 @@ function retainedNozzleEdges(graph,requirements){
 }
 
 export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometry,nozzleGeometries=null}={}){
+  if(RETIRED_CONSTRUCTION_CONTRACTS.includes(source.manufacturing?.contract))throw Object.assign(
+    Error('Retired construction contract '+source.manufacturing.contract+'; regenerate the path.'),{code:'RETIRED_CONSTRUCTION_CONTRACT'});
   const cuts=new Map(),relaxedChunks=new Set(),openedCourses=new Set(),blockedTraversals=new Set(),history={solves:0,refinements:0};
   const accessGeometry=nozzleGeometry??source.manufacturing?.accessGeometry??DEFAULT_NOZZLE_GEOMETRY;
   const certified=source.manufacturing?.contract===CONSTRUCTION_CONTRACT&&
-    [accessGeometry,...(nozzleGeometries?[nozzleGeometries.default,...Object.values(nozzleGeometries.filaments??{})]:[])].filter(Boolean).every(geometry=>
+    [accessGeometry,...(nozzleGeometries?[nozzleGeometries.default,...Object.values(nozzleGeometries.tools??nozzleGeometries.filaments??{})]:[])].filter(Boolean).every(geometry=>
       geometry.includedAngleDeg<=source.manufacturing.accessGeometry.includedAngleDeg&&geometry.tipDiameterMm<=source.manufacturing.accessGeometry.tipDiameterMm);
-  const construction=source.manufacturing?.contract===CONSTRUCTION_CONTRACT?constructionHistory(source):null;
-  const trusted=certified?construction:null;
-  const unbound=unit=>construction&&(unit.ranges.length?unit.ranges.map(range=>range.id):[unit.sourceOperation]).some(id=>
-    !(construction.hasPrerequisites(id)??construction.hasPrerequisites(unit.sourceOperation)));
-  const related=(before,after)=>trusted&&(trusted.covers(before,after)||trusted.covers(after,before));
+  // Declared prerequisites are producer clearance guarantees, pairwise. The
+  // optional nozzle certificate only certifies internal work, not that promise.
+  const construction=constructionHistory(source);
+  const related=(before,after)=>construction.covers(before,after)||construction.covers(after,before);
+  const identities=unit=>unit.ranges.length?unit.ranges.map(range=>range.id):[unit.sourceOperation];
   function trustedUnits(a,b){
-    if(!trusted)return false;
     if(related(a.sourceOperation,b.sourceOperation))return true;
-    const left=a.ranges.length?a.ranges.map(range=>range.id):[a.sourceOperation],right=b.ranges.length?b.ranges.map(range=>range.id):[b.sourceOperation];
+    const left=identities(a),right=identities(b);
     return left.every(x=>right.every(y=>related(x,y)||related(x,b.sourceOperation)||related(a.sourceOperation,y)));
+  }
+  // Foundation is scoped: a declaration founds only the course intervals its
+  // producer published as `founded`. Everything else is resolved against
+  // deposited material, so a forgotten declaration is still caught.
+  const current=source.manufacturing?.contract===CONSTRUCTION_CONTRACT;
+  const declaredFoundation=range=>(range.founded??[]).some(([a,b])=>a<=range.from&&b>=range.to);
+  function declaredAfter(unit,other){
+    if(construction.covers(unit.sourceOperation,other.sourceOperation))return true;
+    const left=identities(unit),right=identities(other);
+    return left.some(x=>right.some(y=>construction.covers(x,y)||construction.covers(x,other.sourceOperation)||construction.covers(unit.sourceOperation,y)));
   }
   const selfProofs={entries:new Map(),bytes:0};
   const nozzleRequirements=new Map();
@@ -257,7 +285,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
     for(const edge of state.edges)graph.prerequisites.get(edge.after).add(edge.before);
     try{
       // Establish native groups and process barriers before any fine occupancy.
-      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges});
+      const coarse=orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{start,physicalEdges:state.edges,onProgress});
       state.scene=prepareRangeScene(source,reader,graph.units,{onProgress,nozzleGeometry:accessGeometry,nozzleGeometries,selfProofs});
       const proofs=prerequisiteProofs(graph.nodes.map(node=>node.id)),progress={cyclic:false};
       for(const node of coarse.operations)for(const before of graph.prerequisites.get(node.id))proofs.record(before,node.id);
@@ -269,7 +297,7 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         return nativeBefore(graph.byId.get(before).layerId,graph.byId.get(after).layerId)||proofs.proves(before,after);
       }
       function producer(unit){return source.layers[unit.layerId]?.stackId??unit.operation.construction;}
-      function relevant(a,b){return (!certified||producer(a)!==producer(b))&&!state.scene.proofs.producerClear(producer(a),producer(b));}
+      function relevant(a,b){return !trustedUnits(a,b)&&!state.scene.proofs.producerClear(producer(a),producer(b));}
       function addEdge(before,after,kind,witness){
         if(before===after||precedes(before,after))return;
         if(precedes(after,before))progress.cyclic=true;
@@ -287,9 +315,10 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
           for(const layerId of requirement.layerIds??[]){
             const key=JSON.stringify([operation.id,layerId]);let access=materialAccess.get(key);
             if(!access){
-              const tool=state.scene.geometryForFilament(operation.filament??source.planning.selection?.filament);
-              let clear=tool.includedAngleDeg<=accessGeometry.includedAngleDeg&&tool.tipDiameterMm<=accessGeometry.tipDiameterMm&&
-                state.scene.proofs.stationaryClear(operation.injection.at,operation.injection.pose,layerId),witness;
+              const tool=state.scene.geometryForFilament(operation.toolIndex??operation.filament??source.planning.selection?.filament),injection=injectionAt(operation);
+              let clear=construction.covers(source.layers[layerId]?.completionId,operation.id)||
+                !operation.injection.toolAxis?.knots&&tool.includedAngleDeg<=accessGeometry.includedAngleDeg&&tool.tipDiameterMm<=accessGeometry.tipDiameterMm&&
+                state.scene.proofs.stationaryClear(injection.point,injection.pose,layerId),witness;
               if(!clear){const contact=state.scene.nozzleHits(unit,id=>graph.byId.get(id)?.layerId===layerId).next();clear=contact.done;witness=contact.value?.witness;}
               access={clear,witness};materialAccess.set(key,access);
             }
@@ -317,24 +346,30 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
         if(progress.cyclic)break;
       }
       materialReadiness.slicePrerequisites=materialEdges.size;materialReadiness.refinedSlices=fineScopes.size;
-      const producerOf=unit=>source.layers[unit.layerId]?.stackId??unit.operation.construction;
       const groupId=unit=>unit.layerId??unit.sourceOperation;
+      // Any deposited material can found an undeclared interval, including a
+      // declared ancestor's; work declared to follow this unit cannot.
       const qualification=prepareBeadQualification(state.scene,{
-        needsQualification:(unit,range)=>unbound(unit)&&!(construction.hasPrerequisites(range.id)??construction.hasPrerequisites(unit.sourceOperation)),
-        acceptMaterial:(unit,other)=>unit.id!==other.id&&producerOf(unit)!==producerOf(other)&&!trustedUnits(unit,other)&&
+        needsQualification:(unit,range)=>current&&!declaredFoundation(range),
+        acceptMaterial:(unit,other)=>unit.id!==other.id&&!declaredAfter(unit,other)&&
           !state.scene.proofs.supportApart(groupId(unit),groupId(other))});
       function qualifiedOrder(options,refineSupport=true){
         for(;;){
-          try{return orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{...options,readiness:qualification});}
+          try{return orderSliceCourses(graph.nodes,priorities,graph.prerequisites,{...options,readiness:qualification,onProgress});}
           catch(error){
             if(error.code!=='BEAD_SUPPORT_WAIT')throw error;
             // An aggregate proposal cannot commit a support alternative before
             // uncovered nozzle constraints have been resolved.
             if(!refineSupport)return null;
             const waiting=error.blocked.map(({op})=>qualification.waiting(op,error.available,id=>!precedes(op.id,id)));
-            const choice=waiting.find(result=>result.status==='waiting');
-            if(!choice)throw Object.assign(Error('Bead contact cannot qualify for '+waiting[0].operation+' / '+waiting[0].failure.courseId+': '+waiting[0].failure.reason+'.'),
-              {code:'BEAD_UNSUPPORTED',...waiting[0]});
+            // A wait whose providers already precede it cannot unblock the order;
+            // the unqualified receiver it waits behind is the finding.
+            const choice=waiting.find(result=>result.status==='waiting'&&result.requirements.some(edge=>!precedes(edge.before,edge.after)));
+            const failed=waiting.find(result=>result.status!=='waiting');
+            if(!choice&&failed)throw Object.assign(Error('Bead contact cannot qualify for '+failed.operation+' / '+failed.failure.courseId+': '+failed.failure.reason+'.'),
+              {code:'BEAD_UNSUPPORTED',...failed});
+            if(!choice)throw Object.assign(Error('Bead contact waits cannot be resolved for '+error.blocked.map(({op})=>op.sourceOperation).join(', ')+'.'),
+              {code:'BEAD_UNSUPPORTED',operations:error.blocked.map(({op})=>op.sourceOperation)});
             for(const edge of choice.requirements)addEdge(edge.before,edge.after,edge.kind,edge.witness);
           }
         }
@@ -354,9 +389,8 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       const aggregateClear=Boolean(aggregate?.groupOrder&&state.scene.proofs.orderedClear(aggregate.groupOrder));
       if(aggregateClear)for(const id of ids)accessGroups.add(id);
       state.scene.proofs.summary.orderedWholeGroups=aggregateClear?ids.length:0;
-      const peerGroups=new Map();
-      for(const id of ids){const unit=queryGroups.get(id)[0],owner=producer(unit);if(!peerGroups.has(owner))
-        peerGroups.set(owner,ids.filter(other=>relevant(unit,queryGroups.get(other)[0])));}
+      // Ancestry is specific to work, not to its shared producer name. A
+      // producer can emit independent branches requiring mutual inspection.
       function groupBefore(a,b){
         if(nativeBefore(a,b))return true;
         const before=graph.layerGroups.get(a)??graph.groups.get(a),after=graph.layerGroups.get(b)??graph.groups.get(b);
@@ -364,17 +398,18 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       }
       const historyId=id=>source.layers[id]?.completionId??id;
       const trustedGroupPairs=new Set();
-      if(!aggregateClear)for(const id of ids)if(peerGroups.get(producer(queryGroups.get(id)[0])).every(other=>{
+      if(!aggregateClear)for(const id of ids)if(ids.every(other=>{
+        if(!queryGroups.get(id).some(unit=>queryGroups.get(other).some(peer=>unit.id!==peer.id&&relevant(unit,peer))))return true;
         if(related(historyId(id),historyId(other))){trustedGroupPairs.add(JSON.stringify([id,other]));return true;}
         return state.scene.proofs.clear(id,other)||groupBefore(id,other);
       }))accessGroups.add(id);
       state.scene.proofs.summary.trustedHistoryPairs=trustedGroupPairs.size;
       Object.assign(state.scene.proofs.summary,{resolvedAccessGroups:accessGroups.size});
       if(!progress.cyclic)onProgress?.({stage:'Resolving deposition group access',completed:accessGroups.size,total:queryGroups.size});
-      // Follow discovered blockers first, then collect independent conflicts
-      // in this graph before opening implicated traversal chunks.
+      // A witnessed cycle already requires refinement; resolve it before
+      // inspecting unrelated curves in a graph that cannot be ordered.
       const access={pending:graph.units.toReversed(),visited:new Set()};
-      if(!progress.cyclic)while(access.pending.length){
+      while(access.pending.length&&!progress.cyclic){
         const unit=access.pending.pop();if(access.visited.has(unit.id))continue;
         const completed=access.visited.size;access.visited.add(unit.id);
         if(accessGroups.has(groupId(unit)))continue;
@@ -397,17 +432,14 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
       const cooling=aggregateClear?aggregateCooling:graph.units.some(unit=>unit.process.minimumLayerSeconds>0)?new CoolingOrder(source,state.scene):null;
       const ordered=aggregateClear?aggregate:qualifiedOrder({start,physicalEdges:state.edges,cooling});
       for(const unit of ordered.operations)if(!unit.barrier&&!certified){
-        const body=state.scene.byId.get(unit.id);
         // Certify the selected traversal after external ordering has settled;
         // conflict refinement can split these convenience chunks beforehand.
-        if(!(body.records.length===unit.ranges.length&&body.records.every((record,i)=>record.ref.id===unit.ranges[i]?.id&&record.ref.from===unit.ranges[i].from&&
-          record.ref.to===unit.ranges[i].to&&Boolean(record.ref.reverse)===Boolean(unit.ranges[i].reverse))))body.records=unit.ranges.map(state.scene.interval);
-        try{state.scene.verifySelf(unit);}catch(error){
+        try{state.scene.verifySelf(unit,{related});}catch(error){
           if(unit.traversalChoice&&unit.traversalAlternatives>1)error.traversalChoice=unit.traversalChoice.key;
           throw error;
         }
       }
-      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,materialReadiness,beadQualification:qualification.stats,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
+      return {units:ordered.operations.filter(unit=>!unit.barrier),scene:state.scene,constructionHistory:construction,materialReadiness,beadQualification:qualification.stats,internalCertified:certified,hierarchy:ordered.hierarchy,cooling:cooling?.summary??null,
         edges:state.edges,refinement:{...history,relaxedTraversalChunks:relaxedChunks?.size??0,rejectedTraversals:blockedTraversals.size,
           splitCourses:cuts.size}};
     }catch(error){
@@ -466,8 +498,9 @@ export function resolveSourceOrder(source,reader,{onProgress,start,nozzleGeometr
   }
 }
 
-export function planSourceComposition(initialState,source,reader,onProgress,order=null){
-  const solved=order??resolveSourceOrder(source,reader,{onProgress,start:initialState.position}),scene=solved.scene;
+export function planSourceComposition(initialState,source,reader,onProgress,order=null,tools={}){
+  const solved=order??resolveSourceOrder(source,reader,{onProgress,start:initialState.position,...tools}),scene=solved.scene;
+  const history=solved.constructionHistory??constructionHistory(source),related=(a,b)=>history.covers(a,b)||history.covers(b,a);
   const actions=new ActionAccumulator(),cursor={state:initialState};
   for(const [completed,unit] of solved.units.entries()){
     const operation={...unit.operation,process:unit.process,phase:unit.operation.phase??unit.operation.kind,layer:unit.operation.layer??source.layers[unit.layerId]?.index??0};
@@ -476,16 +509,16 @@ export function planSourceComposition(initialState,source,reader,onProgress,orde
     // Process changes can park the nozzle after ordering. Choose
     // this chunk's entry from that actual position, preserving the proven DAG.
     if(unit.traversals?.length)selectTraversal(unit,{point:cursor.state.position,axis:cursor.state.pose.toolAxis},selected=>{
-      scene.byId.get(selected.id).records=selected.ranges.map(scene.interval);if(!solved.internalCertified)scene.verifySelf(selected);
+      if(!solved.internalCertified)scene.verifySelf(selected,{related});
     });
     if(operation.kind==='inject'){
-      const injection=operation.injection,approached=planTransfer(cursor.state,injection.at,injection.pose);
-      const extruded=planExtrusion(approached.state,injection.volumeMm3,injection.flowMm3S),held=planDwell(extruded.state,injection.holdSeconds);
-      cursor.state=held.state;
+      const injection=operation.injection,point=injectionAt(operation),approached=planRoutedTransfer(cursor.state,point.point,point.pose,scene);
+      const extruded=planExtrusion(approached.state,injection.volumeMm3,injection.flowMm3S,injection.holdSeconds),held=planDwell(extruded.state,injection.holdSeconds);
+      cursor.state={...held.state,pose:injectionAt(operation,1).pose};
       actions.add(approached.actions);actions.add(extruded.actions);actions.add(held.actions);scene.recordDeposit(unit.id,0);
     }else for(const [i,range] of unit.ranges.entries()){
-      const entry=curveAt(reader,range.curveId,range.reverse?range.to:range.from,range.reverse?{side:'left'}:{}),approached=planTransfer(cursor.state,entry.point,entry.pose);
-      const deposited=planDepositRange(approached.state,source,reader,range,scene.byId.get(unit.id).records[i]);
+      const entry=curveAt(reader,range.curveId,range.reverse?range.to:range.from,range.reverse?{side:'left'}:{}),approached=planRoutedTransfer(cursor.state,entry.point,entry.pose,scene);
+      const deposited=planDepositRange(approached.state,source,reader,range,scene.byId.get(unit.id).intervalAt(i));
       cursor.state=deposited.state;actions.add(approached.actions);actions.add(deposited.actions);
       scene.recordDeposit(unit.id,i+1);
     }
@@ -500,6 +533,6 @@ export function planSourceComposition(initialState,source,reader,onProgress,orde
 
 // Ordering-only callers use the same admitted source and solver as scheduling.
 export function scheduleOperations(source,options={}){
-  requireThat(source?.schema==='saampath/2','Operation ordering requires compact constructed SAAMpath.');
+  requireThat(source?.schema==='saampath/3','Operation ordering requires current constructed Paath.');
   return resolveSourceOrder(source,prepareCurvePath(source),options).units;
 }

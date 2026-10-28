@@ -1,6 +1,7 @@
 import {lstat,mkdir,open,writeFile,rename,rm} from 'node:fs/promises';
 import {dirname} from 'node:path';
 import {randomUUID} from 'node:crypto';
+import {writeJsonChunks} from './json-artifact.mjs';
 
 // Create without overwriting. Failure cleanup checks the identity of the file
 // opened by wx before removal. This does not promise crash atomicity.
@@ -37,6 +38,18 @@ export async function replaceFile(file,bytes){
         if(process.platform!=='win32'||!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=6)throw error;
         await new Promise(done=>setTimeout(done,5*2**attempt));
       }
+    }
+  }finally{await rm(temporary,{force:true}).catch(()=>{});}
+}
+// The caller supplies an admitted immutable graph's finite JSON chunks. Keep
+// the previous file on any encoding/write failure, as replaceFile does.
+export async function replaceJsonFile(file,chunks){
+  await mkdir(dirname(file),{recursive:true});const temporary=file+'.'+randomUUID()+'.tmp';
+  try{
+    const identity=await writeJsonChunks(temporary,chunks);
+    for(let attempt=0;;attempt++){
+      try{await rename(temporary,file);return {file,...identity};}
+      catch(error){if(process.platform!=='win32'||!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=6)throw error;await new Promise(done=>setTimeout(done,5*2**attempt));}
     }
   }finally{await rm(temporary,{force:true}).catch(()=>{});}
 }

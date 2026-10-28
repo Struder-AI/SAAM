@@ -8,16 +8,16 @@ import {replaceFile} from '../file-write.mjs';
 const SCHEMA='saam-temporary-workspace/1';
 const samePath=(a,b)=>process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;
 const ownerFile=directory=>resolve(directory,'.saam-workspace.json');
-async function workspaceRoot(){
-  const paths=homePaths(),root=resolve(paths.tmp,'jobs');
+async function workspaceRoot(paths=homePaths()){
+  const root=resolve(paths.tmp,'jobs');
   for(const directory of [paths.home,paths.tmp,root]){
     await mkdir(directory,{recursive:true});const info=await lstat(directory);
     if(!info.isDirectory()||info.isSymbolicLink()||!samePath(await realpath(directory),directory))throw Error('Temporary data folder must be an ordinary directory: '+directory);
   }
   return root;
 }
-async function workspacePath(directory){
-  const target=resolve(directory),root=await workspaceRoot(),info=await lstat(target);
+async function workspacePath(directory,paths){
+  const target=resolve(directory),root=await workspaceRoot(paths),info=await lstat(target);
   if(!samePath(dirname(target),root)||!info.isDirectory()||info.isSymbolicLink()||!samePath(await realpath(target),target))
     throw Error('Temporary workspace changed; cleanup refused: '+target);
   return target;
@@ -33,23 +33,24 @@ async function readOwner(directory){
   if(!validOwner(owner))throw Error('Invalid temporary workspace ownership: '+directory);return owner;
 }
 function gone(pid){try{process.kill(pid,0);return false;}catch(error){return error.code==='ESRCH';}}
-async function changeChild(directory,token,child){
-  await workspacePath(directory);const owner=await readOwner(directory);
+async function changeChild(directory,token,child,paths){
+  await workspacePath(directory,paths);const owner=await readOwner(directory);
   if(owner.token!==token)throw Error('Temporary workspace ownership changed: '+directory);
   await replaceFile(ownerFile(directory),JSON.stringify({...owner,child})+'\n');
 }
-export async function createTemporaryWorkspace(kind){
+export async function createTemporaryWorkspace(kind,{paths}={}){
   if(typeof kind!=='string'||!/^[a-z][a-z0-9-]{0,39}$/.test(kind))throw Error('Invalid temporary workspace kind.');
-  const root=await workspaceRoot(),directory=await mkdtemp(resolve(root,kind+'-')),token=randomUUID();
+  paths=Object.freeze({...paths??homePaths()});
+  const root=await workspaceRoot(paths),directory=await mkdtemp(resolve(root,kind+'-')),token=randomUUID();
   try{await writeFile(ownerFile(directory),JSON.stringify({schema:SCHEMA,token,pid:process.pid,child:null})+'\n',{flag:'wx'});}
   catch(error){await rm(directory,{recursive:true,force:true});throw error;}
   const owned={released:false};
   return {directory,token,
-    async prepareChild(){await changeChild(directory,token,{starting:true});},
-    async childStarted(pid){if(!Number.isInteger(pid)||pid<1)throw Error('Invalid temporary child process.');await changeChild(directory,token,{pid});},
-    async childEnded(){await completeTemporaryHandoff(directory,token);},
+    async prepareChild(){await changeChild(directory,token,{starting:true},paths);},
+    async childStarted(pid){if(!Number.isInteger(pid)||pid<1)throw Error('Invalid temporary child process.');await changeChild(directory,token,{pid},paths);},
+    async childEnded(){await completeTemporaryHandoff(directory,token,{paths});},
     async release(){
-      if(owned.released)return;await workspacePath(directory);const owner=await readOwner(directory);
+      if(owned.released)return;await workspacePath(directory,paths);const owner=await readOwner(directory);
       if(owner.token!==token||owner.pid!==process.pid)throw Error('Temporary workspace ownership changed: '+directory);
       if(owner.child&&(owner.child.starting||!gone(owner.child.pid)))throw Error('Temporary workspace still has a live or unknown child: '+directory);
       await rm(directory,{recursive:true,force:true,maxRetries:4,retryDelay:100});owned.released=true;
@@ -57,20 +58,20 @@ export async function createTemporaryWorkspace(kind){
   };
 }
 // A detached installer claims its actual PID, rather than its launcher shell.
-export async function claimTemporaryHandoff(directory,token,pid){
+export async function claimTemporaryHandoff(directory,token,pid,{paths}={}){
   if(!Number.isInteger(pid)||pid<1)throw Error('Invalid temporary child process.');
-  await changeChild(directory,token,{pid});
+  await changeChild(directory,token,{pid},paths);
 }
 // The installer acknowledges completion after its last use of the extraction.
-export async function completeTemporaryHandoff(directory,token){await changeChild(directory,token,null);}
-export async function cleanupTemporaryWorkspaces(){
-  const root=await workspaceRoot(),removed=[],retained=[];
+export async function completeTemporaryHandoff(directory,token,{paths}={}){await changeChild(directory,token,null,paths);}
+export async function cleanupTemporaryWorkspaces({paths}={}){
+  const root=await workspaceRoot(paths),removed=[],retained=[];
   // Earlier builds kept downloads in tmp/cache; nothing reads it now.
   await rm(resolve(dirname(root),'cache'),{recursive:true,force:true,maxRetries:4,retryDelay:100});
   for(const entry of await readdir(root,{withFileTypes:true})){
     const directory=resolve(root,entry.name);
     try{
-      await workspacePath(directory);const owner=await readOwner(directory);
+      await workspacePath(directory,paths);const owner=await readOwner(directory);
       if(!gone(owner.pid)||owner.child&&(owner.child.starting||!gone(owner.child.pid))){retained.push(directory);continue;}
       const current=await readOwner(directory);
       if(JSON.stringify(current)!==JSON.stringify(owner)){retained.push(directory);continue;}

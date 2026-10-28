@@ -6,9 +6,27 @@ Architecture, development tools, and how agents work with the owner. [Index](REA
 
 > "We need to move the dev maps system out of saam itself, our local preferences will still reference it and our local developer agents will still be able to use it, but it will be in a different root folder, and in the package that ships to remote, we will replace with a more standard text-based architecture spec version thing." — owner, 2026-10-18 (Codex 01a151de-c16c-72c3-9d10-42241d643c03)
 
-Summary: shared SAAM uses a versioned text architecture specification; dev maps live separately and local developer preferences retain access to them. This supersedes the former deferral of the split and map-specific shared onboarding requirements.
+> "Saam doesn't need maps... maps is a dev tool..." — owner, 2026-10-26 (Claude 62c04216)
+
+Summary: the 2026-10-18 split is the current direction again. The contract maps, their reader, viewer, validation and tests live only in the local architect checkout's `.local/architecture`; SAAM code, onboarding, guidance and packaging do not depend on them. This supersedes the 2026-10-20 direction below to ship maps for 0.4.0.
 
 Sources: [ADR 0001](../docs/adr/0001-text-architecture-and-local-dev-maps.md), [architecture specification](../ARCHITECTURE.md). Original map intent and its exact quotations are preserved with the separate tool.
+
+## Contract maps, types and developer guidance for 0.4.0
+
+> "we want to remake it into a similar thing (similar in terms of how it gets queried by both humans and agents so we understand what the architecture is and how to work effectively), that ships with source, but it's a contract viewer." — owner, 2026-10-20 (this Codex chat)
+>
+> "I review at the contract/map layer, rarely having to look at the code itself, although retaining that ability is good to have if possible." — owner, 2026-10-20
+>
+> "We also have to review all additional developer guidance in light of our development history (in addition to comparing it against or new 0.4.0 intent), some of which has not gone well. Have the code style restriction, for example, been hurting us?" — owner, 2026-10-20
+
+Summary (map shipping superseded 2026-10-26, above): 0.4.0 ships maps as contracts for roles, permitted causal interactions, plugs and data types, queried by humans and agents from map 0; review guidance and enforcement cost against development history. Agent-authored submaps retain enclosing obligations. Mechanisms and rule changes remain to settle.
+
+Sources: [0.4.0 intent](../plans/0.4.0.md), this Codex chat, 2026-10-20. [Assessment](../plans/0.4.0-design.md) is agent proposal, not approved wording.
+
+Owner clarification, 2026-10-20: "I want to see a map with nodes and links. Clicking on a node or link opens the contract details." A wire and its plugs share one contract. The deliverable is a useful human-facing prototype; completeness is not required. Command/query separation is explicitly retained. The next Paath degree bound remains open pending investigation.
+
+Owner clarification, 2026-10-21: "Exactly, so control doesn't exist either. The link types are semantic in nature, and carry no non-semantic flavor. Make this change." Command and query are the only link kinds; values are payloads and lifecycle operations use those same kinds. [Current intent](../plans/0.4.0.md#semantic-links--owner-direction-2026-10-21) owns the change.
 
 ## Development tools
 
@@ -42,7 +60,9 @@ Summary: workers write no new tests and report which checks they did not run; a 
 Sources: `.local/DEVELOPMENT.md` Rules; Claude 98e25b54 03:49 ("Yes this is a good time to run whole test suite before release.").
 
 ### Checkpoints, releases and machine load
-Agent wording recorded as standing owner authorizations, owner words not found here: checkpoint after every verified task on `codex/remettub-dev-branch` without asking (2026-10-03), no push; a requested push may continue into a release when warranted; at most three concurrent workers and one heavy job machine-wide (2026-10-04).
+Owner, 2026-10-21: "The team doesn't have to ask to make checkpoints, change that guidance". Local staging and checkpoints are authorized across the team's checkouts and branches; pushes and merges still need explicit authorization. This supersedes the older branch-specific checkpoint wording.
+
+Historical agent wording, owner words not found here: checkpoint on `codex/remettub-dev-branch` without asking (2026-10-03), no push; a requested push may continue into a release when warranted; at most three concurrent workers and one heavy job machine-wide (2026-10-04).
 
 Sources: `.local/DEVELOPMENT.md` "Working in this checkout"; Codex 01a0f8f8 23:51 ("No no no - we push to remettub-dev-branch").
 

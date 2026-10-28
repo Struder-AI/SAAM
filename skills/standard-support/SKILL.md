@@ -11,7 +11,7 @@ Use [shared print tools](../../core/print/USAGE.md). A support is ordinary geome
 
 ## Choose the patches
 
-Support only what needs it, judging span, material, finish, direction and removal access; often nothing does. Owner experience: overhangs of 45° from vertical usually print, supports are often omitted even at 60°, and small areas of steeper overhang often need none. This guides judgment and is never a threshold. Small patches and rows under roughly 8 mm may print poorly, so choose patches and row direction together. Supports need a base or brim on the bed.
+Use [support guidance](../../skills/supports/SKILL.md) to choose edge, patch or tree supports and lateral pillar clearance. This tool builds the selected bed-reaching patch or tree, not two-loop edge supports.
 
 ## Request
 
@@ -34,6 +34,4 @@ Call `apply_extension` with `extensionId:"standard-support"`, `bundleId`, `expec
 | `baseLayers` | Dense support base slices (2); 0 omits them. |
 | `chordMm` | Tree circle chord error (0.02). |
 
-Vertical or degenerate faces, faces reaching the bed once lowered and horizontal branches are skipped; they and roots off the bed are listed in the report's `notes`. Folded or nonmanifold roofs, crossing footprint loops, broken tree parents and nonpositive radii are refused. A support crossing part material prints its whole volume. The agent selects the patch; the tool derives manufacturing prerequisites.
-
-Inspect the sliced gap, rows, base and removal access in Studio; software establishes neither adhesion nor clean removal.
+Vertical or degenerate faces, faces reaching the bed once lowered and horizontal branches are skipped; they and roots off the bed are listed in the report's `notes`. Folded or nonmanifold roofs, crossing footprint loops, broken tree parents and nonpositive radii are refused. A support crossing part material prints its whole volume. The agent selects the patch; the tool derives manufacturing prerequisites. Inspect gaps, rows, base and removal access in Studio; software establishes neither adhesion nor clean removal.

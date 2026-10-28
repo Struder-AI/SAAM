@@ -79,3 +79,32 @@ export function currentSupportForms(plan){
   if(!Object.hasOwn(plan.skills??{},'supports'))return {plan,notes:[]};
   const {supports,...skills}=plan.skills;return {plan:{...plan,skills},notes:[]};
 }
+
+// Text, Gridfinity and heat-set inserts saved before part geometry records kept their own record forms. Reading
+// one as a record is a trivial rename: the same base, solid and material parts; its own
+// settings become its parameters.
+function currentGeometryForm(geometry){
+  if(!geometry||typeof geometry!=='object'||Array.isArray(geometry))return geometry;
+  const next={...geometry};
+  for(const key of ['base','solid'])if(next[key])next[key]=currentGeometryForm(next[key]);
+  if(Array.isArray(next.parts))next.parts=next.parts.map(part=>({...part,geometry:currentGeometryForm(part.geometry)}));
+  if(Array.isArray(next.operands))next.operands=next.operands.map(currentGeometryForm);
+  if(Array.isArray(next.materialParts))next.materialParts=next.materialParts.map(part=>({...part,geometry:currentGeometryForm(part.geometry)}));
+  if(next.shape==='heat-set'){
+    const {base,features,toleranceMm,solid,vertices,triangles}=next;
+    return {shape:'extension',extension:'heat-set-inserts',parameters:{features,toleranceMm},base:base??null,solid:solid??{shape:'mesh',source:null,vertices,triangles},materialParts:[],label:'',rows:[]};
+  }
+  if(next.shape==='gridfinity'){
+    const {parameters,solid,vertices,triangles}=next;
+    return {shape:'extension',extension:'gridfinity',parameters,base:null,solid:solid??{shape:'mesh',source:null,vertices,triangles},materialParts:[],label:'',rows:[]};
+  }
+  if(next.shape!=='text')return next;
+  const {base,features,toleranceMm,maxEdgeMm,standalone,solid,vertices,triangles,materialParts}=next;
+  return {shape:'extension',extension:'text',parameters:{features,toleranceMm,maxEdgeMm,...(standalone?{standalone:true}:{})},base:base??null,
+    solid:solid??{shape:'mesh',source:null,vertices,triangles},materialParts:materialParts??[],
+    label:features.map(f=>f.text).filter(Boolean).join(' & '),
+    rows:features.map(f=>[f.id,(f.mode==='raised'?'Raised':'Recessed')+' “'+f.text+'” · '+f.depthMm+' mm'])};
+}
+export function currentGeometryForms(plan){
+  return plan?.geometry?{...plan,geometry:currentGeometryForm(plan.geometry)}:plan;
+}

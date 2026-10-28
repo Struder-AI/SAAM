@@ -7,10 +7,12 @@ import {moveSeconds} from '../../path/saampath.mjs';
 // changes. The authored deposition/travel actions are retained by Export.
 export class AdaptationMotion {
   constructor({start,process,retracted=false,pose=null,retreatMm=process.liftMm}){
-    this.position=[...start];this.process=process;this.retracted=retracted;
+    this.position=[...start];this.process=process;
+    this.retraction=retracted&&process.retractMm>0?{filamentMm:process.retractMm,speedMmS:process.retractSpeedMmS}:null;
     this.pose=pose;this.retreatMm=retreatMm;
     this.depositedMaxZ=0;this.phase='start';this.layer=0;this.operationId=null;this.actions=[];
   }
+  get retracted(){return this.retraction!==null;}
   context(action){this.phase=action.phase;this.layer=action.layer;this.operationId=action.operation??null;}
   append(action){this.actions.push({...action,phase:this.phase,layer:this.layer,...(this.operationId?{operation:this.operationId}:{})});}
   move(to,speed,volumeMm3=0,extra={}){
@@ -29,11 +31,12 @@ export class AdaptationMotion {
   }
   retract(){
     if(this.retracted||!(this.process.retractMm>0))return;
-    this.append({kind:'retract',filamentMm:this.process.retractMm,speedMmS:this.process.retractSpeedMmS});this.retracted=true;
+    this.retraction={filamentMm:this.process.retractMm,speedMmS:this.process.retractSpeedMmS};
+    this.append({kind:'retract',...this.retraction});
   }
   recover(){
     if(!this.retracted)return;
-    this.append({kind:'recover',filamentMm:this.process.retractMm,speedMmS:this.process.retractSpeedMmS});this.retracted=false;
+    this.append({kind:'recover',...this.retraction});this.retraction=null;
   }
   // Reorientation is ordinary toolhead travel, as in neutral planning: retreat
   // along the current tool axis, travel over the deposited part to the approach

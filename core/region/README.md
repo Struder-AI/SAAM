@@ -85,7 +85,7 @@ measures physical deviation from its UV chord. Deposition owns XYZ chord samplin
 this engine; projected millimetre regions use `offsetRegion`.
 
 Verification scope, reference regeneration and provenance are in the
-[developer maps](../../scripts/bench/region-reference.md#offset-verification-and-provenance).
+[region verification reference](../../scripts/bench/region-reference.md#offset-verification-and-provenance).
 
 ## Shared planar intersections
 
@@ -130,7 +130,7 @@ material or changing deposition strokes; the
 records the original failure. Runtime identity hashes exact JS/WASM bytes.
 
 Verification scope, reference regeneration and provenance are in the
-[developer maps](../../scripts/bench/region-reference.md#intersection-verification-and-provenance).
+[region verification reference](../../scripts/bench/region-reference.md#intersection-verification-and-provenance).
 
 ## Layer regions and several solids
 
@@ -145,9 +145,9 @@ boundary; mixed/mesh Booleans combine operand regions. Toolpath owns material po
 
 ## Material ownership and surface contact
 
-[prepareMaterialRegions](./shared-material/prepare.mjs) takes ordered native claims and nominal stacks, returning owned layers, adjusted references and findings. Settings stay per region; defaults retain unclaimed material and separate parts.
+[prepareMaterialRegions](./material-regions.mjs) takes ordered native claims and nominal stacks, returning owned layers and findings. An explicit claim owns the material inside it; a default owner keeps what no explicit claim covers. Settings stay per region; defaults retain unclaimed material and separate parts.
 An explicit `substrate:{origin,normal}` plane clips stack advance in its frame.
-Shared cadence/nonplanar transitions require developer-only `plan.experimental.sharedMaterial:true`; normal generation uses ordinary claims/remainder without interlock discovery. See the [maker/builder boundary](../../MAKERS.md#toolpaths).
+SAAM has no overlap distribution between claims; see the [maker/builder boundary](../../MAKERS.md#toolpaths).
 Text selections are `base` and `text/<feature-id>`, prefixed by assembly component;
 [geometry selections](../geom/selections.mjs) applies placement without changing saved geometry.
 

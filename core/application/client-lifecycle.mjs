@@ -11,7 +11,7 @@ export function contactIncludes(contact,work){
   return contact.epoch>work.epoch||contact.epoch===work.epoch&&contact.turn>=work.turn&&contact.cursor>work.cursor;
 }
 
-export async function createClientLifecycle({folder,handBack}){
+export async function createClientLifecycle({folder,handBack,acknowledgeDelivery=async()=>{}}){
   await mkdir(folder,{recursive:true});
   const file=resolve(folder,'lifecycle.json');
   const state=await readFile(file,'utf8').then(JSON.parse).catch(error=>{if(error.code==='ENOENT')return {schema:1,cursor:0,connections:{},sessions:{},received:{},contacts:{}};throw error;});
@@ -78,10 +78,12 @@ export async function createClientLifecycle({folder,handBack}){
     void flush();return {accepted:true};
   }
   // Every observation uses this pipe. A delivered kind carries all held kinds.
-  function record({client,sessionId,event}){return serial(async()=>{
+  function record({client,sessionId,event,runtimeId}){return serial(async()=>{
     if(!['codex','claude'].includes(client))return;
     const current=session(client,sessionId);
     if(!current.events.some(value=>value.id===event.id))current.events.push(event);
+    // Transport provenance is private; native context receives the original event.
+    if(runtimeId){current.eventRuntimes??={};current.eventRuntimes[event.id]=runtimeId;}
     await save();
   });}
   function messageFor(client,sessionId,includeHeld){
@@ -99,9 +101,21 @@ export async function createClientLifecycle({folder,handBack}){
     return {message:messageFor(client,sessionId,includeHeld)};
   }
   function acknowledge({client,sessionId,eventIds}){return serial(async()=>{
-    if(!Array.isArray(eventIds))throw Error('Acknowledgement needs event IDs.');
+    if(!['codex','claude'].includes(client)||typeof sessionId!=='string'||!sessionId||!Array.isArray(eventIds)||eventIds.some(id=>typeof id!=='string'||!id))throw Error('Acknowledgement needs a native client, session and event IDs.');
     const current=state.sessions[key(client,sessionId)];
-    if(current){const ids=new Set(eventIds);current.events=current.events.filter(event=>!ids.has(event.id));await save();}
+    if(current){
+      const ids=new Set(eventIds),routes=new Map();
+      for(const event of current.events)if(ids.has(event.id)){
+        const runtimeId=current.eventRuntimes?.[event.id];
+        if(runtimeId){if(!routes.has(runtimeId))routes.set(runtimeId,[]);routes.get(runtimeId).push(event.id);}
+      }
+      // Complete the explicit owner acknowledgment first. Failure retains durable
+      // delivery for retry; successful repeats at either owner are harmless.
+      for(const [runtimeId,matched] of routes)await acknowledgeDelivery({client,sessionId,eventIds:matched,runtimeId});
+      current.events=current.events.filter(event=>!ids.has(event.id));
+      for(const id of ids)if(current.eventRuntimes)delete current.eventRuntimes[id];
+      await save();
+    }
     return {acknowledged:true};
   });}
   async function context(client,sessionId){

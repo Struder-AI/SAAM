@@ -1,0 +1,1 @@
+{"schema":"saam-extension/1","id":"canonical-paath","dependencies":[],"entries":{"operation-edit":{"file":"index.mjs","export":"canonicalPaathOperations"}},"license":"Apache-2.0","provenance":"SAAM canonical Paath authoring example, 2026-10-20.","support":{"status":"unsupported","maintainer":null,"scope":"Small source-generation example; no physical printing qualification."}}

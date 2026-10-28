@@ -19,7 +19,7 @@ export function renderBambuChange(plan,machine,{from,to,position,incomingDebt,kn
       'Automatic H2D material changes require AMS feeds, not an external spool.');
     requireThat(Math.abs(incomingDebt-next.process.retractMm)<=Export.slackMm,'AMS change must hand off the new filament retracted.');
   }
-  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0&&incomingDebt<=next.process.retractMm+Export.slackMm,'Invalid incoming nozzle retraction.');
+  requireThat(Number.isFinite(incomingDebt)&&incomingDebt>=0,'Invalid incoming nozzle retraction.');
   requireThat(Number.isFinite(fan)&&fan>=0&&fan<=255,'Invalid changeover fan state.');
   for(const selected of [old,next]){
     const b=toolBounds(machine,selected.setup.tool);

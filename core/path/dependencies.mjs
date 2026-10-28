@@ -1,14 +1,7 @@
 import {resolveSpatialPlan} from '../print/spatial-inputs.mjs';
 import {assignedFilaments} from '../machine/filaments.mjs';
-
-// 14: built in the part's frame; placement applies at display and program writing.
-// Poses are {toolAxis, toolUp}; reorientation is ordinary travel (no rotary angle).
-// 15: Bundle retains finalized operation geometry/dependencies before scheduling.
-// 16: extensions consume prepared material/work; process cavities are Boolean geometry.
-// 17: Slice consumes prepared surfaces/regions and stack-derived local gaps;
-// terminal regions are not widened, and no Slice reads completed deposition.
-export const PATH_CONTRACT='saam-deposition/56'; // Physical contour residuals account for rational surface weight.
-export const NEUTRAL_PATH_CONTRACT='saam-neutral-motion/37'; // Completion references preserve connected qualification until real interruption.
+import {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT} from './contracts.mjs';
+export {PATH_CONTRACT,NEUTRAL_PATH_CONTRACT};
 // Only authored deposition inputs affect the saved path. Output, placement and
 // installed machine settings are applied while writing the selected machine program.
 export function pathDependencies(plan){

@@ -1,5 +1,3 @@
-import {textTemplate} from "./record.mjs";
-
 const requireThat=(condition,message)=>{if(!condition)throw Error(message);};
 
 export const TEXT_DEFAULTS={id:'text',text:'',mode:'raised',sizeMm:6,lineHeightMm:8,letterSpacingMm:0,outlineOffsetMm:0,align:'left',
@@ -47,8 +45,7 @@ export async function compileText(base,features,{buildGeometry,constructGeometry
     result=result?{operation:f.mode==='raised'?'union':'difference',operands:[result,textSolid]}:textSolid;
   }
   const [built,...parts]=result?await constructGeometry([result,...materials.values()],{toleranceMm}):[null];
-  const record={...textTemplate({solid:true}),base:structuredClone(base),features:normalized,toleranceMm,maxEdgeMm,solid:built?.geometry??{shape:'mesh',source:null,vertices:[],triangles:[]}};
-  record.materialParts=[...materials.keys()].flatMap((id,i)=>parts[i].empty?[]:[{id,geometry:id==='base'&&baseUncut?null:parts[i].geometry}]);
-  if(standalone)record.standalone=true;
-  return {geometry:record,notes:[...built?.notes??[],...(!built||built.empty?['The text leaves no material.']:[])]};
+  const solid=built?.geometry??{shape:'mesh',source:null,vertices:[],triangles:[]};
+  const materialParts=[...materials.keys()].flatMap((id,i)=>parts[i].empty?[]:[{id,geometry:id==='base'&&baseUncut?null:parts[i].geometry}]);
+  return {solid,materialParts,features:normalized,notes:[...built?.notes??[],...(!built||built.empty?['The text leaves no material.']:[])]};
 }

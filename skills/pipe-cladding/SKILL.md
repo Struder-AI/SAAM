@@ -8,7 +8,9 @@ metadata:
 # Surface cladding with Slice
 
 Cladding is ordinary Slice over a surface and normal-depth band. Its substrate
-must deposit the selected finished boundary. No machine is needed for SAAMpath.
+must deposit the selected finished boundary; name that producer in
+`dependencies.after` (for example `["body"]`) to declare what the cladding rests
+on. Undeclared, the Scheduler finds the material beneath and checks access. No machine is needed for SAAMpath.
 
 ## Recipe
 
@@ -41,12 +43,7 @@ are retained. Legacy `construction:'cladding'` records must be rewritten as Slic
 
 ## Select a surface
 
-- Native spline: the selected named patch and increasing `uvBounds` use its own
-  parameters. `normalSide` is 1 or -1. The U seam must agree in position/normal.
-- Mesh strip: `{kind:'mesh-strip',rows:[[...],...],periodicU:true,normalSide:1}`.
-  Rows contain native vertex indices along V; successive rows progress in U,
-  with a duplicate final seam row. Every cell matches two native triangles.
-  Reordering or replacing mesh vertices requires revising this explicit chart.
+Use the complete [Slice chart reference](../slice/SKILL.md#regions-and-references): explicit native bounds, periodicity and normal orientation for splines, or native vertex rows for mesh strips. The recipe above deliberately uses nonunit native U bounds.
 
 Physical cells use rectangular charts, not arbitrary mesh unwraps or certified
 global geodesic coverage. Open charts support axial/circumferential rows;
@@ -58,10 +55,7 @@ strokes, never an implicit filled guide wall. Sparse gaps remain gaps.
 
 ## Contact and pose
 
-`experimental.substrateAdaptation` defaults off: the nominal chart and source
-prerequisites determine the stack. When enabled, the chart follows finalized
-beads, including modulation, and missing required contact rejects. It adds no
-support or gap-fill material.
+[Slice contact](../slice/SKILL.md#contact-poses-and-extensions) uses prepared material; completed-deposition adaptation is experimental Trace work.
 
 Normals and metric come from the selected chart. Offsets are ambient normal
 placements, not geodesic offsets. Cell widths account for local surface metric;

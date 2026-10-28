@@ -8,11 +8,10 @@ export function prepareTraceSourceLayer(context,record,layer,plan){
   if(context.sourceError)throw context.sourceError;
   requireThat(context.curveSource&&typeof context.curveSource.constructLayer==='function','Trace source entry must provide constructLayer.');
   const selection=plan.geometry?geometrySelections(plan.geometry).get(record.owner.part):null;
-  const source={slice:layer.slice,region:layer.region,material:layer.material,perimeters:layer.perimeters,
+  const source={slice:layer.slice,region:layer.region,material:layer.material,
     sectionReport:layer.sectionReport,solidRegion:layer.solidRegion,sparseRegion:layer.sparseRegion,
-    denseRegion:layer.denseRegion??[],
     widthMm:layer.widthMm,pitchMm:layer.pitchMm,wallInsetMm:layer.wallInsetMm,heightMm:layer.heightMm,direction:layer.direction,translationMm:layer.translationMm,
-    index:layer.index,sourceId:record.owner.assignment.id,stackId:record.stackId??record.spec.id,part:record.owner.part,
+    index:layer.index,characterIndex:layer.characterIndex??layer.index,sourceId:record.owner.assignment.id,stackId:record.stackId??record.spec.id,part:record.owner.part,
     placement:{offset:selection?[selection.xMm,selection.yMm,selection.zMm]:[0,0,0]},
     settings:layer.settings??record.spec.settings,process:layer.process??record.context.process,
     key:record.spec.id+':'+layer.index,ordinal:record.spec.layers.findIndex(item=>item.index===layer.index),count:record.spec.totalLayerCount,

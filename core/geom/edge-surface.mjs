@@ -31,20 +31,26 @@ export function closedEdgeSpans(curve,{spacingMm,normal=null,angleDeg=0,sampleSt
   requireThat(curve.closed,'A single bridge boundary must be closed; use two edges for an open loft.');
   requireThat(Number.isFinite(spacingMm)&&spacingMm>0&&Number.isFinite(angleDeg),'Bridge spacing must be positive and angle finite.');
   const {samples}=sampleSpatialCurve(curve,{toleranceMm:PRINT_RESOLUTION_MM/2,sampleStepMm});
-  const points=samples.map(sample=>sample.point),origin=points[0];
-  const area=points.slice(1).reduce((sum,p,i)=>{const c=cross(subtract(points[i],origin),subtract(p,origin));return sum.map((v,k)=>v+c[k]);},[0,0,0]);
+  const origin=samples[0].point,area=[0,0,0];
+  for(let i=1;i<samples.length;i++){
+    const c=cross(subtract(samples[i-1].point,origin),subtract(samples[i].point,origin));
+    for(let k=0;k<3;k++)area[k]+=c[k];
+  }
   const frame=planeSlice({origin,normal:normal??area}),radians=angleDeg*Math.PI/180;
   const x=frame.xAxis.map((v,k)=>v*Math.cos(radians)+frame.yAxis[k]*Math.sin(radians)),y=cross(frame.normal,x);
-  const projected=points.map(p=>[dot(subtract(p,origin),x),dot(subtract(p,origin),y)]);
-  const low=Math.min(...projected.map(p=>p[1])),high=Math.max(...projected.map(p=>p[1]));
+  let low=Infinity,high=-Infinity;
+  const projected=samples.map(({point})=>{
+    const at=[dot(subtract(point,origin),x),dot(subtract(point,origin),y)];
+    low=Math.min(low,at[1]);high=Math.max(high,at[1]);return at;
+  });
   requireThat(high-low>PRINT_RESOLUTION_MM,'The selected edge has no bridge area in this projection; use a different angle or two bounding edges.');
   const count=Math.max(1,Math.ceil((high-low)/spacingMm)),rows=[];
   for(let row=0;row<count;row++){
     const level=low+(row+.5)*(high-low)/count,hits=[];
-    for(let i=1;i<points.length;i++){
+    for(let i=1;i<samples.length;i++){
       const a=projected[i-1],b=projected[i];if((a[1]>level)===(b[1]>level))continue;
       const t=(level-a[1])/(b[1]-a[1]);
-      hits.push({along:a[0]+t*(b[0]-a[0]),point:points[i-1].map((v,k)=>v+t*(points[i][k]-v))});
+      hits.push({along:a[0]+t*(b[0]-a[0]),point:samples[i-1].point.map((v,k)=>v+t*(samples[i].point[k]-v))});
     }
     hits.sort((a,b)=>a.along-b.along);
     requireThat(hits.length%2===0,'Bridge boundary projection has an unmatched crossing.');

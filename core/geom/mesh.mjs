@@ -44,6 +44,43 @@ const BARYCENTRIC_SLACK = ROUNDING_RELATIVE;
 // Exact content keys also detect mutations of previously supplied arrays. Keep
 // derived data private and copy it on return; callers cannot poison the cache.
 const validatedMeshes=new Map();
+// One budget covers retained validation and query indexes. Packed buffers are
+// charged exactly; JS record/Map overhead is an estimate, separately bounded
+// by entry counts. This is cache residency, not a limit on valid mesh size.
+const MESH_DERIVED_CACHE_BYTES=32*1024*1024,MAX_VALIDATED_MESHES=4,MAX_PREPARED_MESHES=32;
+const CACHE_RECORD_BYTES=1024,FACE_RECORD_BYTES=128;
+const derivedRetention=new Map(),retainedIndexes=new Set();let derivedBytes=0;
+function forgetDerived(entry){
+  if(derivedRetention.delete(entry))derivedBytes-=entry.bytes;
+  if(entry.kind==='validated'){
+    if(validatedMeshes.get(entry.identity)===entry)validatedMeshes.delete(entry.identity);
+  }else{
+    retainedIndexes.delete(entry);
+    const owner=entry.owner.deref();if(owner&&columnIndexes.get(owner)===entry)columnIndexes.delete(owner);
+  }
+}
+function touchDerived(entry){
+  derivedRetention.delete(entry);derivedRetention.set(entry,true);
+  if(entry.kind==='validated'){validatedMeshes.delete(entry.identity);validatedMeshes.set(entry.identity,entry);}
+  else{retainedIndexes.delete(entry);retainedIndexes.add(entry);}
+}
+function retainDerived(entry,bytes){
+  if(derivedRetention.delete(entry))derivedBytes-=entry.bytes;
+  entry.bytes=bytes;
+  if(bytes>MESH_DERIVED_CACHE_BYTES){forgetDerived(entry);return false;}
+  while(derivedBytes+bytes>MESH_DERIVED_CACHE_BYTES)forgetDerived(derivedRetention.keys().next().value);
+  derivedRetention.set(entry,true);derivedBytes+=bytes;
+  if(entry.kind==='validated'){
+    validatedMeshes.delete(entry.identity);validatedMeshes.set(entry.identity,entry);
+    while(validatedMeshes.size>MAX_VALIDATED_MESHES)forgetDerived(validatedMeshes.values().next().value);
+  }else{
+    const owner=entry.owner.deref();
+    if(!owner){forgetDerived(entry);return false;}
+    columnIndexes.set(owner,entry);retainedIndexes.delete(entry);retainedIndexes.add(entry);
+    while(retainedIndexes.size>MAX_PREPARED_MESHES)forgetDerived(retainedIndexes.values().next().value);
+  }
+  return true;
+}
 
 // Route rejected mesh input to its recovery manual at the existing checks.
 // Successful loads retain the same validation and cache path.
@@ -56,7 +93,8 @@ export function meshInputError(message){return Object.assign(new Error(`${messag
 function meshResult(vertices,triangles,name,derived){
   // Each record owns its copy of the cached normals.
   return {kind:'triangle-mesh',name,vertices,triangles,empty:triangles.length===0,
-    bounds:{min:[...derived.bounds.min],max:[...derived.bounds.max]},faceNormals:derived.normals.slice(),contacts:{count:derived.contacts.count,pairs:derived.contacts.pairs.map(p=>[...p])},topology:{...derived.topology}};
+    bounds:{min:Array.from(derived.bounds.subarray(0,3)),max:Array.from(derived.bounds.subarray(3))},faceNormals:derived.normals.slice(),
+    contacts:{count:derived.contacts.count,pairs:Array.from({length:derived.contacts.pairs.length/2},(_,i)=>[derived.contacts.pairs[2*i],derived.contacts.pairs[2*i+1]])},topology:{...derived.topology}};
 }
 
 // Unit normal of triangle abc, or null when the triangle is degenerate: its smallest
@@ -82,7 +120,8 @@ export const hasMesh=geometry=>!!geometry&&(geometry.solid?hasMesh(geometry.soli
 export function makeMesh(vertices,triangles,{name='mesh'}={}){
   const input=validateMeshInput(vertices,triangles);
   const identity=meshIdentity(input.vertices,input.triangles);
-  if(validatedMeshes.has(identity))return meshResult(vertices,triangles,name,validatedMeshes.get(identity));
+  const cached=validatedMeshes.get(identity);
+  if(cached){touchDerived(cached);return meshResult(vertices,triangles,name,cached.derived);}
   const faceGeometry=meshFaceGeometry(input);
   const derived=validateMeshGeometry(input,faceGeometry);
   const retained=retainValidatedMesh(identity,derived);
@@ -120,10 +159,12 @@ function validateMeshGeometry({vertices,triangles},{normals,bounds,slivers}){
 }
 
 function retainValidatedMesh(identity,derived){
-  // Keep at most 32 MiB of compact derived data, never a full JSON mesh key.
-  const bytes=derived.normals.byteLength;
-  if(bytes<=32*1048576){while(validatedMeshes.size&&[...validatedMeshes.values()].reduce((sum,v)=>sum+v.normals.byteLength,bytes)>32*1048576)validatedMeshes.delete(validatedMeshes.keys().next().value);validatedMeshes.set(identity,derived);if(validatedMeshes.size>4)validatedMeshes.delete(validatedMeshes.keys().next().value);}
-  return derived;
+  const pairs=new Uint32Array(derived.contacts.pairs.length*2);
+  derived.contacts.pairs.forEach((pair,i)=>pairs.set(pair,2*i));
+  const packed={...derived,bounds:new Float64Array([...derived.bounds.min,...derived.bounds.max]),contacts:{count:derived.contacts.count,pairs}};
+  const bytes=packed.normals.buffer.byteLength+packed.bounds.byteLength+pairs.byteLength+CACHE_RECORD_BYTES;
+  retainDerived({kind:'validated',identity,derived:packed},bytes);
+  return packed;
 }
 // Nonadjacent triangles that cross or come within the rounding guard are reported,
 // not refused (owner, 2026-10-09: "Our job is to show things in saam, not limit what
@@ -304,8 +345,19 @@ export function sectionMeshIndex(index,h,{gapMm=0,side=null}={}) {
 // cost, never the vertical crossing predicates or their source-triangle order.
 const columnIndexes=new WeakMap();
 function meshColumnIndex(mesh){
-  if(columnIndexes.has(mesh))return columnIndexes.get(mesh);
-  const index={tree:null,columns:null,faces:[]};columnIndexes.set(mesh,index);return index;
+  const cached=columnIndexes.get(mesh);
+  if(cached){touchDerived(cached);return cached;}
+  // Cached facts contain no source mesh/vertex references. The owner remains
+  // weak, and eviction removes its WeakMap entry as well as the LRU root.
+  const index={kind:'index',owner:new WeakRef(mesh),tree:null,columns:null,faces:new Map(),arrayBytes:0,faceBytes:0};
+  retainDerived(index,CACHE_RECORD_BYTES);return index;
+}
+function retainMeshIndex(index){
+  if(!retainDerived(index,CACHE_RECORD_BYTES+index.arrayBytes+index.faceBytes)){
+    // The whole index may be necessary for this query, but per-face memos are
+    // optional and must not accumulate on an uncached oversized entry.
+    index.faces.clear();index.faceBytes=0;
+  }
 }
 // A column ignores height. Index its XY footprints directly, omitting exactly
 // the vertical triangles the crossing predicate would discard. A 3D tree's
@@ -322,38 +374,42 @@ function meshColumnTree(mesh){
     const t=mesh.triangles[id],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]],offset=i*6;
     for(let k=0;k<2;k++){boxes[offset+k]=Math.min(a[k],b[k],c[k])-ROUNDING_MM;boxes[offset+3+k]=Math.max(a[k],b[k],c[k])+ROUNDING_MM;}
   }
-  return {faces,tree:boxHierarchy(boxes)};
+  return {faces:Uint32Array.from(faces),tree:boxHierarchy(boxes)};
 }
 // Bounded physical distance to the original mesh boundary, sharing its index.
 export function meshBoundaryDistance(mesh,point,limitMm){
   requireThat(point?.length===3&&point.every(Number.isFinite)&&Number.isFinite(limitMm)&&limitMm>0,'Mesh boundary distance needs finite XYZ and a positive physical limit.');
   const state={squared:Infinity};
   const measure=i=>{const t=mesh.triangles[i];state.squared=Math.min(state.squared,pointTriangleDistanceSquared(point,mesh.vertices[t[0]],mesh.vertices[t[1]],mesh.vertices[t[2]]));};
-  const index=meshColumnIndex(mesh);index.tree??=triangleBVH(mesh.vertices,mesh.triangles);
+  const index=meshColumnIndex(mesh);
+  if(!index.tree){index.tree=triangleBVH(mesh.vertices,mesh.triangles);index.arrayBytes+=index.tree.retainedBytes;retainMeshIndex(index);}
   index.tree.query(point.map(v=>v-limitMm),point.map(v=>v+limitMm),measure);
   return state.squared<=limitMm*limitMm?Math.sqrt(state.squared):Infinity;
 }
 // Every non-vertical triangle the vertical line through (x, y) crosses.
 export function meshCrossingsAt(mesh,x,y) {
   const crossings=[],candidates=[],index=meshColumnIndex(mesh);
-  index.columns??=meshColumnTree(mesh);
+  if(!index.columns){index.columns=meshColumnTree(mesh);index.arrayBytes+=index.columns.faces.byteLength+index.columns.tree.retainedBytes;retainMeshIndex(index);}
   const collect=i=>candidates.push(index.columns.faces[i]);
   index.columns.tree.queryBox([x,y,0,x,y,0],0,collect);
   candidates.sort((a,b)=>a-b);
   for(const i of candidates) {
-    if(!index.faces[i]){
-      const t=mesh.triangles[i],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]];
+    const t=mesh.triangles[i],a=mesh.vertices[t[0]],b=mesh.vertices[t[1]],c=mesh.vertices[t[2]];
+    let face=index.faces.get(i);
+    if(!face){
       const by=b[1]-c[1],bx=c[0]-b[0],ay=c[1]-a[1],ax=a[0]-c[0],det=by*ax-bx*ay;
       const offset=i*3,sign=mesh.faceNormals[offset+2]<0?-1:1;
       const normal=[sign*mesh.faceNormals[offset],sign*mesh.faceNormals[offset+1],sign*mesh.faceNormals[offset+2]];
-      index.faces[i]={a,b,c,by,bx,ay,ax,det,normal,slopeDeg:Math.acos(Math.min(1,normal[2]))*180/Math.PI};
+      face=new Float64Array([by,bx,ay,ax,det,...normal,Math.acos(Math.min(1,normal[2]))*180/Math.PI]);
+      if(derivedRetention.has(index)){
+        index.faces.set(i,face);index.faceBytes+=face.byteLength+FACE_RECORD_BYTES;retainMeshIndex(index);
+      }
     }
-    const face=index.faces[i];if(Math.abs(face.det)<MESH_DEGENERATE_MM2)continue;
-    const {a,b,c}=face;
-    const u=(face.by*(x-c[0])+face.bx*(y-c[1]))/face.det;
-    const v=(face.ay*(x-c[0])+face.ax*(y-c[1]))/face.det,w=1-u-v;
+    if(Math.abs(face[4])<MESH_DEGENERATE_MM2)continue;
+    const u=(face[0]*(x-c[0])+face[1]*(y-c[1]))/face[4];
+    const v=(face[2]*(x-c[0])+face[3]*(y-c[1]))/face[4],w=1-u-v;
     if(Math.min(u,v,w)<-BARYCENTRIC_SLACK)continue;
-    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal:[...face.normal],slopeDeg:face.slopeDeg,feature:`triangle:${i}`,patch:`triangle:${i}`});
+    crossings.push({zMm:u*a[2]+v*b[2]+w*c[2],normal:[face[5],face[6],face[7]],slopeDeg:face[8],feature:`triangle:${i}`,patch:`triangle:${i}`});
   }
   return crossings;
 }

@@ -16,10 +16,13 @@ import {saamHome as dataFolder,homePaths} from '../core/application/home.mjs';
 // the optional release service for existing package manifests.
 export async function releaseConfiguration(){
   const saved=JSON.parse(await readFile(resolve(appRoot,'release.json'),'utf8').catch(()=>'{}'));
-  const revision=spawnSync('git',['rev-parse','--short','HEAD'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
-  const changes=spawnSync('git',['status','--porcelain'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
-  const development='development ('+(revision.status===0?revision.stdout.trim():'unknown')+(changes.stdout?.trim()?', dirty':'')+')';
-  return {version:saved.version??development,serviceUrl:process.env.SAAM_RELEASE_SERVICE_URL??saved.serviceUrl??process.env.SAAM_RELAY_URL??saved.relayUrl??'https://saam-relay.remettub.workers.dev',
+  // Only a checkout asks Git: on a Mac without developer tools, /usr/bin/git opens an install prompt.
+  const development=()=>{
+    const revision=spawnSync('git',['rev-parse','--short','HEAD'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
+    const changes=spawnSync('git',['status','--porcelain'],{cwd:appRoot,encoding:'utf8',windowsHide:true});
+    return 'development ('+(revision.status===0?revision.stdout.trim():'unknown')+(changes.stdout?.trim()?', dirty':'')+')';
+  };
+  return {version:saved.version??development(),serviceUrl:process.env.SAAM_RELEASE_SERVICE_URL??saved.serviceUrl??process.env.SAAM_RELAY_URL??saved.relayUrl??'https://saam-relay.remettub.workers.dev',
     platform:saved.platform??null,updateHost:saved.updateHost??null};
 }
 export async function createInstalledReleaseService(options={}){

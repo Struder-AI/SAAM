@@ -1,0 +1,660 @@
+{
+  "$schema": "https://calm.finos.org/release/1.2/meta/calm.json",
+  "metadata": {
+    "title": "SAAM: review a completed result, approve Export, and retrieve the machine file",
+    "model-date": "2026-10-23",
+    "model-kind": "Descriptive logical component model; no new SAAM contract or implementation change.",
+    "scope": "Begins with an existing completed neutral path and qualified schedule. Covers Studio review, approval of that displayed result, captured-input translation, preparation receipt, and transient HTTP download.",
+    "abstraction-level": "In-process modules, browser code and a worker boundary. A service node denotes a logical software responsibility, not an independently deployed microservice.",
+    "outside-scope": [
+      "Geometry and path construction",
+      "Scheduling and qualification before the completed output is published",
+      "CLI and agent work queues",
+      "Profile authoring and optional remembered-setup persistence",
+      "Physical printer operation and confirmation that the browser saved the file"
+    ],
+    "provenance": {
+      "git-head": "e4ce835a1dd7e995e015c599be2e9d12256623b5",
+      "contract-publication": {
+        "recordedOn": "2026-10-22",
+        "generatedAt": "2026-10-23T06:55:17.584Z"
+      },
+      "source-sha256": {
+        "contracts/generated-maps.json": "fdc15c7c258f0b0af33789fe89672384dde26cf957379cb150f6ffd6e61cb445",
+        "studio/app.mjs": "d829dcf67bd7fc9e4bd72d1713075ef6f494bedd16597fcf76eab49b1f10389b",
+        "studio/server.mjs": "bcdc3dc0942d96f15ade2ff4afdd77fdea4324bc7e6f50c90350c53c09059faa",
+        "studio/download-capabilities.mjs": "11111f92fa06ba16f089528f65c5ce493d92c9dd78ba83efbd84c03229c8ad66",
+        "core/print/completed-output.mjs": "b8b30931ade3f6af397d717adb16d8e56145622a9a2637dbafd41f2fc8a27846",
+        "core/print/workflow.mjs": "caacf15e417fd1341953379e87b10809a213670172b14c5fcfd439e91ca90dad",
+        "core/print/export-worker.mjs": "d5bb934a471b0417686e284814cfba46a5d3a317058f8cf09f7e8f5ebcf45623",
+        "core/export/registry.mjs": "f89fb45059a8ecc3893eb03bff2f293dbed7d10bd58f406e3b890567eb6e7104",
+        "core/export/prepare-path.mjs": "c8b92eb227568d5347686e08a8a661f8a4202a45f0d5d34b11da512e5208ba18",
+        "core/export/artifact-sink.mjs": "e7cb192e56eb3a939a1cce7e1ffbfa705e33050b710222d0951e855dee2303b8",
+        "docs/adr/0002-neutral-bundles-and-transient-export.md": "521e901274915838ca84989932fd5f67f2d03d808dec4c5460f21116f92a1ed3"
+      }
+    },
+    "evidence-limit": "Descriptions attached to named contracts preserve the published responsibility statements. Relationships and flows are a manually reviewed projection of the cited source, not a generated scanner map. Existing scanner evidence is stale; no conformance audit was run.",
+    "architectural-invariants": [
+      "The person choosing Export in Studio is the one confirmation; no second settings approval is introduced.",
+      "Export uses the displayed completed-output identity and captured plan, machine, path and schedule. Later edits or replacement generation cannot retarget that invocation.",
+      "A ready Export starts outside the Studio edit/generation queue.",
+      "Export checks captured schedule assumptions and prepares physical transfers; it does not call Scheduler or change deposition order.",
+      "The selected machine extension supplies executable writer code; captured machine/profile/template data supplies its inputs.",
+      "Machine files are transient artifacts outside the print bundle. Bundle retains neutral work, captured inputs, attribution and factual export-prepared receipts.",
+      "Export preparation, HTTP retrieval, browser save completion and machine execution are distinct facts.",
+      "Writer failure preserves saved work. Receipt or remembered-setup failure after preparation is reported without discarding the prepared program."
+    ],
+    "calm-reference": "https://calm.finos.org/core-concepts/flows/",
+    "verification": {
+      "tool": "@finos/calm-cli@1.65.0",
+      "command": "calm validate -a examples/architecture/saam-review-export.calm.json --strict -f pretty",
+      "result": "Zero errors, warnings, or info/hints.",
+      "checks-do-not-establish": "Runtime conformance or physical print success. No SAAM test suite or scanner audit was run."
+    }
+  },
+  "nodes": [
+    {
+      "unique-id": "person",
+      "node-type": "actor",
+      "name": "Person",
+      "description": "Request work and review it through Studio or shared command entry.",
+      "metadata": {
+        "contract": {
+          "id": "user",
+          "address": "U",
+          "recordedOn": "2026-10-22",
+          "publication": "contracts/generated-maps.json"
+        }
+      }
+    },
+    {
+      "unique-id": "studio-ui",
+      "node-type": "webclient",
+      "name": "Studio Export confirmation",
+      "description": "Show the work and settings selected for Export and receive the person’s approval.",
+      "metadata": {
+        "contract": {
+          "id": "export-view",
+          "address": "6.4",
+          "recordedOn": "2026-10-22",
+          "publication": "contracts/generated-maps.json"
+        },
+        "source-references": [
+          {
+            "path": "studio/app.mjs",
+            "line": 758,
+            "symbol": "download"
+          },
+          {
+            "path": "studio/app.mjs",
+            "line": 804,
+            "symbol": "Export click handler"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "studio-host",
+      "node-type": "service",
+      "name": "Studio review and HTTP Export routes",
+      "description": "Project a completed result for review, bind its snapshot token to that exact result, accept the Export click, and serve its transient attachment.",
+      "metadata": {
+        "model-projection": "Selected Studio server responsibilities; not a separately authored contract.",
+        "source-references": [
+          {
+            "path": "studio/server.mjs",
+            "line": 570,
+            "symbol": "displayedResults and exportSnapshot"
+          },
+          {
+            "path": "studio/server.mjs",
+            "line": 601,
+            "symbol": "POST /api/export"
+          },
+          {
+            "path": "studio/server.mjs",
+            "line": 420,
+            "symbol": "GET /api/download/:key"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "bundle-capture",
+      "node-type": "service",
+      "name": "Bundle reviewed capture",
+      "description": "Freeze the person’s exact approved Export selection.",
+      "metadata": {
+        "contract": {
+          "id": "capture-state",
+          "address": "5.3",
+          "recordedOn": "2026-10-22",
+          "publication": "contracts/generated-maps.json"
+        },
+        "source-references": [
+          {
+            "path": "core/print/completed-output.mjs",
+            "line": 17,
+            "symbol": "readCompletedOutput"
+          },
+          {
+            "path": "core/print/workflow.mjs",
+            "line": 514,
+            "symbol": "exportReviewed"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "export",
+      "node-type": "service",
+      "name": "Export",
+      "description": "Translate an approved immutable capture into downloadable machine files and factual export findings.",
+      "metadata": {
+        "contract": {
+          "id": "export",
+          "address": "8",
+          "recordedOn": "2026-10-22",
+          "publication": "contracts/generated-maps.json"
+        },
+        "source-references": [
+          {
+            "path": "core/print/export-worker.mjs",
+            "line": 10,
+            "symbol": "workerData and exportArtifact"
+          },
+          {
+            "path": "core/export/registry.mjs",
+            "line": 70,
+            "symbol": "exportArtifact"
+          },
+          {
+            "path": "core/export/prepare-path.mjs",
+            "line": 70,
+            "symbol": "prepareExportPath"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "machine-writer",
+      "node-type": "service",
+      "name": "Selected machine extension writer",
+      "description": "Translate the prepared motion and captured machine settings into the selected output format through the Export writer interface.",
+      "metadata": {
+        "model-projection": "Selected extension adapter invoked by Export; not a standalone network service.",
+        "source-references": [
+          {
+            "path": "core/export/registry.mjs",
+            "line": 30,
+            "symbol": "machineAdapter"
+          },
+          {
+            "path": "core/export/registry.mjs",
+            "line": 81,
+            "symbol": "adapter.write or adapter.export"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "transient-artifacts",
+      "node-type": "service",
+      "name": "Transient artifacts and download capabilities",
+      "description": "Own temporary machine-file bytes, finalize the selected artifact, lease exact bytes for retrieval, and release them on expiry, eviction or shutdown.",
+      "metadata": {
+        "model-projection": "Groups Export artifact storage and Studio attachment capability management at this level; these remain distinct implementation owners.",
+        "source-references": [
+          {
+            "path": "core/export/artifact-sink.mjs",
+            "line": 1,
+            "symbol": "artifact sink and owned artifact"
+          },
+          {
+            "path": "studio/download-capabilities.mjs",
+            "line": 23,
+            "symbol": "stage"
+          },
+          {
+            "path": "studio/download-capabilities.mjs",
+            "line": 35,
+            "symbol": "get and close"
+          }
+        ],
+        "retention": "The current Studio capability expires after ten minutes and may be evicted or released earlier. Temporary files are not stored in the print bundle."
+      }
+    }
+  ],
+  "relationships": [
+    {
+      "unique-id": "person-reviews-and-approves",
+      "description": "The person inspects the displayed work and settings and chooses Export.",
+      "relationship-type": {
+        "interacts": {
+          "actor": "person",
+          "nodes": [
+            "studio-ui"
+          ]
+        }
+      },
+      "metadata": {
+        "confirmation-boundary": "The Export click is the only fabrication approval in this scope."
+      }
+    },
+    {
+      "unique-id": "ui-reads-review",
+      "description": "Read the coherent review state including the displayed completed-output snapshot token.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-ui"
+          },
+          "destination": {
+            "node": "studio-host"
+          }
+        }
+      },
+      "protocol": "HTTP",
+      "metadata": {
+        "endpoint": "GET /api/state",
+        "payload": "Review state, captured settings and exportSnapshot token."
+      }
+    },
+    {
+      "unique-id": "host-reads-completed-output",
+      "description": "Read saved Bundle state and project the completed output for Studio.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-host"
+          },
+          "destination": {
+            "node": "bundle-capture"
+          }
+        }
+      },
+      "metadata": {
+        "payload": "Saved neutral path/schedule, completed-output identity, captured plan and machine settings.",
+        "source-references": [
+          {
+            "path": "studio/server.mjs",
+            "line": 570,
+            "symbol": "completedOutputState and displayedResults"
+          },
+          {
+            "path": "core/print/completed-output.mjs",
+            "line": 17,
+            "symbol": "readCompletedOutput"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "ui-submits-export",
+      "description": "Submit the displayed exportSnapshot token and requested filename.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-ui"
+          },
+          "destination": {
+            "node": "studio-host"
+          }
+        }
+      },
+      "protocol": "HTTP",
+      "metadata": {
+        "endpoint": "POST /api/export",
+        "payload": "exportSnapshot, name, downloadLink; response contains a prepared attachment capability.",
+        "source-references": [
+          {
+            "path": "studio/app.mjs",
+            "line": 761,
+            "symbol": "api export"
+          },
+          {
+            "path": "studio/server.mjs",
+            "line": 601,
+            "symbol": "Export route"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "host-invokes-captured-export",
+      "description": "Validate the displayed result and Bundle reservation, then export that captured state outside the edit/generation queue.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-host"
+          },
+          "destination": {
+            "node": "bundle-capture"
+          }
+        }
+      },
+      "metadata": {
+        "payload": "Captured completed-output state and reservation identity.",
+        "source-references": [
+          {
+            "path": "studio/server.mjs",
+            "line": 605,
+            "symbol": "displayedResults lookup"
+          },
+          {
+            "path": "studio/server.mjs",
+            "line": 608,
+            "symbol": "withBundleInstance and exportPrint"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "bundle-dispatches-translation",
+      "description": "Start an Export worker with the captured path, plan, machine snapshot and an owned temporary output directory; retain its factual preparation receipt.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "bundle-capture"
+          },
+          "destination": {
+            "node": "export"
+          }
+        }
+      },
+      "metadata": {
+        "payload": "Immutable path artifact reference, captured plan/machine, release information; returns artifact identity and report.",
+        "transport": "Node worker_threads; not an HTTP call.",
+        "source-references": [
+          {
+            "path": "core/print/workflow.mjs",
+            "line": 524,
+            "symbol": "runComputationJob export worker"
+          },
+          {
+            "path": "core/print/workflow.mjs",
+            "line": 536,
+            "symbol": "recordExportPrepared"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "export-invokes-machine-writer",
+      "description": "Resolve the declared output adapter from the machine extension and invoke it with prepared motion and captured settings.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "export"
+          },
+          "destination": {
+            "node": "machine-writer"
+          }
+        }
+      },
+      "metadata": {
+        "payload": "Prepared motion, machine/setup/process/output settings and writer sink.",
+        "source-references": [
+          {
+            "path": "core/export/registry.mjs",
+            "line": 30,
+            "symbol": "machineAdapter"
+          },
+          {
+            "path": "core/export/registry.mjs",
+            "line": 79,
+            "symbol": "settings and adapter invocation"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "export-manages-artifact",
+      "description": "Create and finalize the owned artifact sink, or abort it on writing failure.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "export"
+          },
+          "destination": {
+            "node": "transient-artifacts"
+          }
+        }
+      },
+      "metadata": {
+        "source-references": [
+          {
+            "path": "core/export/registry.mjs",
+            "line": 72,
+            "symbol": "createArtifactSink"
+          },
+          {
+            "path": "core/export/registry.mjs",
+            "line": 85,
+            "symbol": "candidate and finish"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "writer-emits-program",
+      "description": "Write machine-program bytes through the supplied sink. Legacy whole-value adapters are composed into the same sink by Export.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "machine-writer"
+          },
+          "destination": {
+            "node": "transient-artifacts"
+          }
+        }
+      },
+      "metadata": {
+        "source-references": [
+          {
+            "path": "core/export/registry.mjs",
+            "line": 80,
+            "symbol": "legacy adapter branch and adapter.write"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "host-stages-and-serves-artifact",
+      "description": "Stage the prepared artifact behind an expiring download capability, then lease its exact bytes on retrieval.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-host"
+          },
+          "destination": {
+            "node": "transient-artifacts"
+          }
+        }
+      },
+      "metadata": {
+        "payload": "Owned artifact, output identity, report and filename; returns attachment URL or a readable lease.",
+        "source-references": [
+          {
+            "path": "studio/server.mjs",
+            "line": 610,
+            "symbol": "stageDownload"
+          },
+          {
+            "path": "studio/server.mjs",
+            "line": 424,
+            "symbol": "artifact.openRead"
+          }
+        ]
+      }
+    },
+    {
+      "unique-id": "ui-retrieves-program",
+      "description": "Request the prepared attachment using its capability URL.",
+      "relationship-type": {
+        "connects": {
+          "source": {
+            "node": "studio-ui"
+          },
+          "destination": {
+            "node": "studio-host"
+          }
+        }
+      },
+      "protocol": "HTTP",
+      "metadata": {
+        "endpoint": "GET /api/download/:key",
+        "payload": "Exact prepared machine-file bytes in an HTTP attachment.",
+        "evidence-limit": "An HTTP response does not establish that the browser saved the file or that a printer ran it.",
+        "source-references": [
+          {
+            "path": "studio/server.mjs",
+            "line": 420,
+            "symbol": "download route"
+          }
+        ]
+      }
+    }
+  ],
+  "flows": [
+    {
+      "unique-id": "review-completed-output",
+      "name": "Review a completed output",
+      "description": "Display an existing saved result and its captured settings for human review.",
+      "transitions": [
+        {
+          "relationship-unique-id": "person-reviews-and-approves",
+          "sequence-number": 1,
+          "description": "Inspect the work and settings in Studio."
+        },
+        {
+          "relationship-unique-id": "ui-reads-review",
+          "sequence-number": 2,
+          "description": "Request the coherent review state."
+        },
+        {
+          "relationship-unique-id": "host-reads-completed-output",
+          "sequence-number": 3,
+          "description": "Read the saved completed output and its captured inputs."
+        },
+        {
+          "relationship-unique-id": "host-reads-completed-output",
+          "sequence-number": 4,
+          "description": "Return the exact completed result.",
+          "direction": "destination-to-source"
+        },
+        {
+          "relationship-unique-id": "ui-reads-review",
+          "sequence-number": 5,
+          "description": "Return review state and the snapshot token bound to that result.",
+          "direction": "destination-to-source"
+        }
+      ]
+    },
+    {
+      "unique-id": "approve-and-prepare-export",
+      "name": "Approve and prepare Export",
+      "description": "The person approves the displayed completed result; translation prepares transient bytes and a factual receipt.",
+      "transitions": [
+        {
+          "relationship-unique-id": "person-reviews-and-approves",
+          "sequence-number": 1,
+          "description": "Choose Export after reviewing the displayed work and settings."
+        },
+        {
+          "relationship-unique-id": "ui-submits-export",
+          "sequence-number": 2,
+          "description": "Submit that displayed exportSnapshot token."
+        },
+        {
+          "relationship-unique-id": "host-invokes-captured-export",
+          "sequence-number": 3,
+          "description": "Check snapshot availability and reservation; invoke export on the captured state."
+        },
+        {
+          "relationship-unique-id": "bundle-dispatches-translation",
+          "sequence-number": 4,
+          "description": "Validate the captured output and start its Export worker."
+        },
+        {
+          "relationship-unique-id": "export-manages-artifact",
+          "sequence-number": 5,
+          "description": "Create an owned transient artifact sink."
+        },
+        {
+          "relationship-unique-id": "export-invokes-machine-writer",
+          "sequence-number": 6,
+          "description": "Resolve the selected adapter, prepare physical motion and invoke the writer."
+        },
+        {
+          "relationship-unique-id": "writer-emits-program",
+          "sequence-number": 7,
+          "description": "Write the selected machine format into the sink."
+        },
+        {
+          "relationship-unique-id": "export-invokes-machine-writer",
+          "sequence-number": 8,
+          "description": "Return writer facts and limitations.",
+          "direction": "destination-to-source"
+        },
+        {
+          "relationship-unique-id": "export-manages-artifact",
+          "sequence-number": 9,
+          "description": "Finalize the artifact after the writer completes."
+        },
+        {
+          "relationship-unique-id": "bundle-dispatches-translation",
+          "sequence-number": 10,
+          "description": "Return artifact and report; Bundle attempts to record export-prepared with the captured output identity.",
+          "direction": "destination-to-source"
+        },
+        {
+          "relationship-unique-id": "host-invokes-captured-export",
+          "sequence-number": 11,
+          "description": "Return the prepared artifact and report to Studio.",
+          "direction": "destination-to-source"
+        },
+        {
+          "relationship-unique-id": "host-stages-and-serves-artifact",
+          "sequence-number": 12,
+          "description": "Stage the artifact behind an expiring attachment capability."
+        },
+        {
+          "relationship-unique-id": "ui-submits-export",
+          "sequence-number": 13,
+          "description": "Return the attachment URL, output identity and report to the browser.",
+          "direction": "destination-to-source"
+        }
+      ]
+    },
+    {
+      "unique-id": "retrieve-prepared-program",
+      "name": "Retrieve the prepared program",
+      "description": "Request the exact prepared file. This flow establishes HTTP transfer only, not browser save completion or machine execution.",
+      "transitions": [
+        {
+          "relationship-unique-id": "ui-retrieves-program",
+          "sequence-number": 1,
+          "description": "Request the capability URL, automatically after preparation or via the offered download link."
+        },
+        {
+          "relationship-unique-id": "host-stages-and-serves-artifact",
+          "sequence-number": 2,
+          "description": "Resolve the capability and open a lease on its artifact."
+        },
+        {
+          "relationship-unique-id": "host-stages-and-serves-artifact",
+          "sequence-number": 3,
+          "description": "Return a readable lease on the exact prepared bytes.",
+          "direction": "destination-to-source"
+        },
+        {
+          "relationship-unique-id": "ui-retrieves-program",
+          "sequence-number": 4,
+          "description": "Stream the prepared attachment and close the read lease.",
+          "direction": "destination-to-source"
+        }
+      ]
+    }
+  ]
+}

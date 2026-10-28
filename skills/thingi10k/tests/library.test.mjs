@@ -1,4 +1,5 @@
 import '../../../core/tests/temporary-home.mjs';
+import {editPart} from '../../../core/application/part-execution.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp, readFile, readdir, rm, access} from 'node:fs/promises';
@@ -7,8 +8,9 @@ import {resolve} from 'node:path';
 import {createHash} from 'node:crypto';
 import {createThingi10KClient, csvRows, readRemote, REVISION} from '../scripts/library.mjs';
 import {boxMesh} from '../../../core/tests/fixtures/mesh.mjs';
-import {loadBundle, generateBundle, exportReviewed, updatePlan, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
-import {setSTLUnits} from '../../../core/print/import-stl.mjs';
+import {loadBundle, generateBundle, bundleInstance, withBundleInstance} from '../../../core/print/bundle.mjs';
+import {exportReviewed} from '../../../core/export/reviewed-export.mjs';
+import {setSTLUnits} from '../../../core/application/import-stl.mjs';
 import {createLocalRuntime} from '../../../core/application/runtime.mjs';
 import {homePaths} from '../../../core/application/home.mjs';
 
@@ -139,7 +141,7 @@ test('application import preserves attribution through correction and delivery',
     await setSTLUnits(dir,'mm',{expectedRevision:state.revision});
     state=await loadBundle(dir,{program:false});assert.deepEqual(state.plan.geometry.source.attribution,imported.attribution);
     state.plan.process.minimumLayerSeconds=0;
-    await updatePlan(dir,state.plan,state.revision);
+    await editPart(dir,state.plan,state.revision);
     await generateBundle(dir);
     state=await loadBundle(dir,{program:'source'});
     return (await exportReviewed(state)).file;

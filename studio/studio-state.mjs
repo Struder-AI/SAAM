@@ -34,6 +34,7 @@ async function adoptNeutralPath(next,{presentation,decodeNeutral,bind}){
 }
 
 export async function prepareStudioState(next,context){
+  if(next.inspection)return {state:{...next,program:null,neutralProgram:null},presentation:null};
   const state=await adoptNeutralPath(await adoptProgramState(next,context),context);
   return {state,presentation:planPresentation(context.presentation,state,context)};
 }

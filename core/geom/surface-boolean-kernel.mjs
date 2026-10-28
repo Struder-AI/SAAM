@@ -9,7 +9,8 @@ import {union,intersect,difference} from '../region/intersection.mjs';
 import {patchDomain,faceTrimRegion,planarFaceRegion,retainFaceTrimCurves,segmentTrimSpans,nameOperandFaces} from './surface-trim.mjs';
 import {surfacePlane,surfaceCorrespondence,correspondingSourceLoops,correspondingSurfaceCharts,projectCoincidentChart,curveCorrespondence} from './surface-coincidence.mjs';
 import {surfaceSegmentCurves} from './surface-curves.mjs';
-import {requireThat,dot,distance,cross,normalize} from './tolerance.mjs';
+import {requireThat,dot,distance} from './tolerance.mjs';
+import {surfaceTangentFrame} from './surface-frame.mjs';
 import {BOOLEAN_TOLERANCE_MM,ROUNDING_MM,ROUNDING_RELATIVE} from '../dimensions.mjs';
 import {loopArea,regionArea} from '../region/region2d.mjs';
 import {offsetRegion} from '../region/offset.mjs';
@@ -237,7 +238,7 @@ function projectFaceLoops(source,loops,target,toleranceMm,coincidenceMm=ROUNDING
     return correspondingSourceLoops(loops,surfaceCorrespondence(target,source,{toleranceMm:coincidenceMm}));
   }
   const e=evaluate(target,(target.domainU[0]+target.domainU[1])/2,(target.domainV[0]+target.domainV[1])/2);
-  const frame={origin:e.point,x:normalize(e.du),y:cross(e.normal,normalize(e.du)),normal:e.normal};
+  const {u:x,v:y}=surfaceTangentFrame(e),frame={origin:e.point,x,y,normal:e.normal};
   const sourceRegion=planarFaceRegion(source,loops,frame,toleranceMm);
   const targetLoops=faceTrimRegion(target,{toleranceMm}),targetRegion=planarFaceRegion(target,targetLoops,frame,toleranceMm);
   const overlap=intersect(sourceRegion,targetRegion);
@@ -289,7 +290,7 @@ function planarRegionPrism(source,loops,physical,frame){
 function closePlanarSlivers(patch,loops,chordMm,report){
   const plane=surfacePlane(patch);if(!plane)return loops;
   const e=evaluate(patch,(patch.domainU[0]+patch.domainU[1])/2,(patch.domainV[0]+patch.domainV[1])/2);
-  const frame={origin:e.point,x:normalize(e.du),y:cross(e.normal,normalize(e.du)),normal:e.normal};
+  const {u:x,v:y}=surfaceTangentFrame(e),frame={origin:e.point,x,y,normal:e.normal};
   const physical=planarFaceRegion(patch,loops,frame,chordMm);
   if(physical.length&&!offsetRegion(physical,-BOOLEAN_TOLERANCE_MM/4).length){
     report.loops+=loops.length;report.areaMm2+=Math.abs(regionArea(physical));return [];

@@ -22,8 +22,9 @@ A **tile** is the explicit authored paths. Count tile repetitions separately fro
 
 Use the [shared print tools](../../core/print/USAGE.md). A sleeve assignment with
 `pattern` selects this extension; a null pattern selects standard spiral Slice.
-Keep an ordinary Slice assignment for a base and align positive `zStartMm` to
-the process layer grid. Set `zEndMm` when the upper geometry is unsuitable;
+Keep an ordinary Slice assignment for a base, align positive `zStartMm` to
+the process layer grid and name that base in the sleeve's `after` (for example
+`"after":["body"]`), declaring what the wall rests on. Set `zEndMm` when the upper geometry is unsuitable;
 generation never shortens a requested wall.
 
 ### Mesh input workflow

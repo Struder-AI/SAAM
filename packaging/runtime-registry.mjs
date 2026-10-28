@@ -1,5 +1,6 @@
 // One orchestrator supervises every selected code root, without importing its operations.
 import {spawn} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
 import {resolve} from 'node:path';
 import {controlProbeMs} from '../core/application/control.mjs';
 import {createStudioWindows} from './studio-windows.mjs';
@@ -18,7 +19,20 @@ export function describeJobs(jobs){
 export async function createRuntimeRegistry({paths,autoOpen,services,retryClients,codeRoot}){
   const windows=createStudioWindows({autoOpen}),runtimes=new Map(),selection={tail:Promise.resolve(),closing:false};
   const operationObservers=new Set(),eventObservers=new Set();
-  const clients=await createClientLifecycle({folder:resolve(paths.state,'clients'),handBack:endTurn});
+  const clients=await createClientLifecycle({folder:resolve(paths.state,'clients'),handBack:endTurn,acknowledgeDelivery});
+  async function acknowledgeDelivery({client,sessionId,eventIds,runtimeId}){
+    const runtime=runtimes.get(runtimeId);
+    // Never choose/start a replacement runtime or look up a different session.
+    if(!runtime||!runtime.child.connected||runtime.starting||runtime.closing)return;
+    await rpc(runtime,'client-ack',{client,sessionId,eventIds},controlProbeMs);
+  }
+  async function acknowledgeResponseEvents({runtimeId,runtimeInstanceId,chatId,eventIds}={}){
+    if(typeof runtimeId!=='string'||typeof runtimeInstanceId!=='string'||typeof chatId!=='string'||!chatId||!Array.isArray(eventIds)||eventIds.some(id=>typeof id!=='string'||!id))throw Error('Response acknowledgement needs its original Runtime/chat and exact event IDs.');
+    const runtime=runtimes.get(runtimeId);
+    // An old delivery must never select or start a successor at the same code root.
+    if(!runtime||runtime.instanceId!==runtimeInstanceId||!runtime.child.connected||runtime.starting||runtime.closing)throw Object.assign(Error('The original Runtime is unavailable for delivery acknowledgement; the delivered response must not be replayed.'),{code:'STUDIO_EVENT_ACK_UNAVAILABLE'});
+    return rpc(runtime,'response-events-ack',{chatId,eventIds},controlProbeMs);
+  }
   async function service(runtime,args){
     if(args.method==='status')return {...services.status(),quitScope:quitScope(runtime,args.studioInstanceId)};
     if(args.method==='activate')return services.activate(args.invite);
@@ -34,20 +48,20 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     if(message.type==='window')return windows.register(runtime,message.args);
     if(message.type==='show')return windows.show(message.args.url,{visibility:message.args.visibility});
     if(message.type==='clients')return retryClients();
-    if(message.type==='client-event'){windows.observe(message.args.event);return clients.record(message.args);}
+    if(message.type==='client-event'){windows.observe(message.args.event);return clients.record({...message.args,runtimeId:runtime.id});}
     if(message.type==='service')return service(runtime,message.args);
     if(message.type==='release-bundle')return releaseBundle(runtime,message.args.bundleId);
     if(message.type==='route')return route(runtime,message.args);
     if(message.type==='adopt')return adopt(runtime,message.args);
     throw Error('Unknown runtime request.');
   }
-  function rpc(runtime,type,args={},waitMs){
+  function rpc(runtime,type,args={},waitMs,onActivity){
     if(!runtime.child.connected)return Promise.reject(Error('Cannot reach runtime '+runtime.label+'.'));
     const id=String(++runtime.sequence);
     return new Promise((done,fail)=>{
       const waiting={timer:null};
       const finish=(answer,value)=>{clearTimeout(waiting.timer);runtime.pending.delete(id);answer(value);};
-      runtime.pending.set(id,{done:value=>finish(done,value),fail:error=>finish(fail,error)});
+      runtime.pending.set(id,{done:value=>finish(done,value),fail:error=>finish(fail,error),onActivity});
       if(waitMs!==undefined)waiting.timer=setTimeout(()=>finish(fail,Object.assign(Error('Runtime '+runtime.label+' did not answer '+type+'.'),{code:'RUNTIME_TIMEOUT'})),waitMs);
       runtime.child.send({id,type,args},error=>{if(error)finish(fail,error);});
     });
@@ -75,10 +89,13 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     const child=spawn(selected.node,[resolve(selected.codeRoot,'packaging/runtime-host.mjs')],{cwd:selected.codeRoot,windowsHide:true,
       stdio:['ignore','pipe','pipe','ipc'],env:{...process.env,SAAM_RUNTIME:JSON.stringify(identity(selected))}});
     // A runtime is starting until its start answers; until then it holds no Studio, job or chat.
-    const runtime={...selected,child,pending:new Map(),sequence:0,active:0,stderr:'',starting:true,closing:null};runtimes.set(runtime.id,runtime);
+    const runtime={...selected,instanceId:randomUUID(),child,pending:new Map(),sequence:0,active:0,stderr:'',starting:true,closing:null};runtimes.set(runtime.id,runtime);
     child.stdout.on('data',()=>{});child.stderr.on('data',bytes=>{runtime.stderr=(runtime.stderr+bytes.toString()).slice(-8192);});
     child.on('message',message=>{
       if(message.reply){const waiter=runtime.pending.get(message.id);if(!waiter)return;runtime.pending.delete(message.id);if(message.ok)waiter.done(message.result);else waiter.fail(Object.assign(Error(message.error),message.detail));return;}
+      // Only this selected child's actual handler can suspend one live command.
+      // Client-supplied operation names never classify an RPC as passive.
+      if(message.type==='command-activity'){if(typeof message.active==='boolean')runtime.pending.get(message.id)?.onActivity?.(message.active);return;}
       // Consented relay diagnostics name the runtime (label carries checkout and commit). A source runtime
       // reports its operations and failed Studio events: enough to tell which code a person was running.
       const named=event=>({...event,runtimeId:runtime.id,runtimeLabel:runtime.label});
@@ -116,12 +133,13 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       return runtimes.get(chosen.id)??launch(chosen);
     });
   }
-  async function inspect(runtime){const status=await rpc(runtime,'status',{},controlProbeMs);windows.reconcile(runtime.id,status.studios);return status;}
+  async function inspect(runtime){return rpc(runtime,'status',{},controlProbeMs);}
+  function publishRuntimeSnapshot(runtime,snapshot){windows.reconcile(runtime.id,snapshot.studios);}
   // An explicit take-over closes other runtimes' Studios showing the print (refused while work runs there).
   async function releaseBundle(caller,bundleId){
     for(const other of runtimes.values())if(other!==caller){
       const studio=(await inspect(other)).studios.find(item=>item.printId===bundleId);
-      if(studio){await rpc(other,'release',{studioInstanceId:studio.instanceId});await inspect(other);}
+      if(studio){await rpc(other,'release',{studioInstanceId:studio.instanceId});publishRuntimeSnapshot(other,await inspect(other));}
     }
     return {released:true};
   }
@@ -144,7 +162,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       windows.move(instanceId,caller);
       try{await rpc(from,'release',{studioInstanceId:instanceId,idle:true});}
       catch{windows.move(instanceId,from);continue;}
-      await inspect(from);return {instanceId,sessionToken};
+      publishRuntimeSnapshot(from,await inspect(from));return {instanceId,sessionToken};
     }
     return null;
   }
@@ -157,7 +175,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     catch(error){windows.move(instanceId,from);throw error;}
     try{await rpc(to,'restore',{windows:[{...record,printId}]});}
     catch(error){windows.move(instanceId,from);await rpc(from,'restore',{windows:[record]});throw error;}
-    finally{await inspect(to);await inspect(from);}
+    finally{publishRuntimeSnapshot(to,await inspect(to));publishRuntimeSnapshot(from,await inspect(from));}
   }
   // An untargeted open uses the installed default; its runtime reuses a visible Studio.
   // display:'caller' marks the person's own launch or tray click: the answer says how
@@ -168,6 +186,9 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     const opening=message.command==='open'||message.command==='new-instance',callerShows=opening&&message.display==='caller';
     if(!opening&&!['call','wait','start-tour'].includes(message.command))throw Error('Unknown SAAM command '+message.command+'. Use saam help; a checkout older than the running SAAM merges the current source first.');
     const named=message.studioInstanceId||message.args?.studioInstanceId||undefined;
+    // Open owns stale-window reconciliation; status and named queries do not.
+    const recorded=opening&&named?runtimes.get(windows.runtimeFor(named)):null;
+    if(recorded&&!recorded.starting)publishRuntimeSnapshot(recorded,await inspect(recorded));
     if(opening&&named&&!windows.runtimeFor(named))throw Error('That Studio window is no longer registered.');
     if(opening&&message.runtimeId&&named&&windows.runtimeFor(named)!==message.runtimeId)throw Error('The Studio and runtime targets do not match.');
     const target=message.runtimeId??(opening&&named?windows.runtimeFor(named):null);
@@ -175,7 +196,8 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     const runtime=target?(candidate?await selected({runtime:{id:target,codeRoot:candidate.codeRoot}}):null)
       :await selected(message);
     if(!runtime)throw Error('The selected runtime stopped. Reconnect from its checkout.');
-    runtime.active++;
+    const activity={active:true};runtime.active++;
+    const setActive=active=>{if(activity.active!==active){activity.active=active;runtime.active+=active?1:-1;}};
     try{
       if(opening){
         const opened=await rpc(runtime,'open',{studioInstanceId:named,newInstance:message.command==='new-instance',visibility:message.visibility??'visible',dispatch:!callerShows});
@@ -183,8 +205,11 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       }
       const nativeContext=await clients.context(message.client,message.chatId);
       const nativeContact=await clients.lastContact(message.client,message.chatId);
-      return await rpc(runtime,'command',{...message,nativeContext,nativeContact});
-    }finally{runtime.active--;if(runtime.child.connected)await inspect(runtime);}
+      const response=await rpc(runtime,'command',{...message,nativeContext,nativeContact},undefined,setActive);
+      const waits=message.responseDelivery==='cli-output'&&(message.command==='wait'||message.command==='call'&&message.operation==='wait_for_studio_request');
+      const eventIds=waits?(response.result?.events??[]).map(event=>event.id):[];
+      return eventIds.length?{...response,studioEventDelivery:{runtimeId:runtime.id,runtimeInstanceId:runtime.instanceId,chatId:message.chatId,eventIds}}:response;
+    }finally{setActive(false);if(runtimes.get(runtime.id)===runtime&&runtime.child.connected&&!runtime.closing){const snapshot=await inspect(runtime);if(opening)publishRuntimeSnapshot(runtime,snapshot);}}
   }
   async function status(){
     const states=await Promise.all([...runtimes.values()].map(async runtime=>({runtime,status:runtime.starting?{jobs:[],studios:[]}:await inspect(runtime)})));
@@ -275,7 +300,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
       const runtime=runtimes.get(windows.runtimeFor(instanceId));
       if(!runtime)return windows.retire(instanceId);
       const result=await rpc(runtime,'release',{studioInstanceId:instanceId});
-      await inspect(runtime);return {stopped:result.completed,studioInstanceId:instanceId};
+      publishRuntimeSnapshot(runtime,await inspect(runtime));return {stopped:result.completed,studioInstanceId:instanceId};
     });
   }
   async function close(){selection.closing=true;await clients.close();const outcomes=await Promise.allSettled([...runtimes.values()].map(closeRuntime));await windows.close();runtimes.clear();const failed=outcomes.find(outcome=>outcome.status==='rejected');if(failed)throw failed.reason;}
@@ -284,7 +309,7 @@ export async function createRuntimeRegistry({paths,autoOpen,services,retryClient
     try{return (await inspect(runtime)).jobs.map(job=>({...job,runtimeId:runtime.id,runtimeLabel:runtime.label}));}
     catch{return [{runtimeId:runtime.id,runtimeLabel:runtime.label,kind:'unresponsive runtime (active work unknown)'}];}
   }))).flat();}
-  return {command,identify,status,endTurn,stopRuntime,stopSession,reloadRuntime,notifyStopping,close,runningJobs,clients,
+  return {command,identify,status,endTurn,stopRuntime,stopSession,reloadRuntime,notifyStopping,close,runningJobs,clients,acknowledgeResponseEvents,
     observeEvents(observer){eventObservers.add(observer);return()=>eventObservers.delete(observer);},
     observeOperations(observer){operationObservers.add(observer);return()=>operationObservers.delete(observer);}};
 }

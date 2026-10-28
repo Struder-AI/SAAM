@@ -12,8 +12,9 @@ import {topAt} from '../geom/query.mjs';
 import {horizontalSlice} from '../geom/slice.mjs';
 import {section} from '../region/section.mjs';
 import {regionArea} from '../region/region2d.mjs';
-import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../agent/blob-field.mjs';
-import {loadBundle,generateBundle} from '../print/bundle.mjs';
+import {createBlobFieldBundle,updateBlobFieldBundle,compileRequest} from '../extensions/blob-field.mjs';
+import {loadBundle} from '../print/bundle.mjs';
+import {generateBundle} from '../application/generation.mjs';
 
 const field=(points,threshold=0.25)=>({schema:'saam-blob-field/1',threshold,points});
 const blob=(positionMm,reachMm,strength=1)=>({positionMm,reachMm,strength});

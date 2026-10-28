@@ -36,7 +36,11 @@ The selected machine output's `program.header`, `program.start` and
 `program.end` arrays contain literal lines with named value substitutions.
 Values come from the locked setup, release metadata and written-command totals;
 templates execute no JavaScript. Unknown values and invalid/nonfinite path data
-are rejected. A snapshot locked without templates uses the installed profile's, noted.
+are rejected. New machine selections capture these template arrays with the
+profile data; later installed-profile changes do not alter a completed output.
+A legacy capture missing required templates remains inspectable, but Export
+requires a new machine selection and completed output rather than borrowing
+templates from the installed profile.
 The emitter writes shared SAAMpath actions between these sections.
 The supported dialect remains the declared Griffin subset, not arbitrary G-code.
 

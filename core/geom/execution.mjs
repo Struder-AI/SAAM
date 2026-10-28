@@ -32,8 +32,7 @@ export function executeGeometrySync(operation,input,options={}){
   }}finally{closeExecution(session);}
 }
 function beginExecution(operation,input,options){
-  options.signal?.throwIfAborted();
-  if(options.timeoutMs!==undefined&&!(Number.isFinite(options.timeoutMs)&&options.timeoutMs>0))throw deadlineError(options.timeoutMs);
+  validateGeometryExecution(options);
   const supervisor=geometrySupervisor(),channel=new MessageChannel(),control=new Int32Array(new SharedArrayBuffer(8)),id=supervisor.sequence++;
   const session={supervisor,id,port:channel.port1,control,options,result:null,stopped:null,progress:null,localFailure:null,cancelledAt:null,closed:false,
     deadline:options.timeoutMs===undefined?Infinity:performance.now()+options.timeoutMs};
@@ -45,6 +44,11 @@ function beginExecution(operation,input,options){
     session.port.postMessage({operation,input,geometry:!!options.onGeometry});
     options.signal?.addEventListener('abort',session.abort,{once:true});if(options.signal?.aborted)session.abort();return session;
   }catch(error){cancelExecution(session,error);closeExecution(session);throw error;}
+}
+// Cache hits obey the same admission of execution options as new leases.
+export function validateGeometryExecution(options={}){
+  options.signal?.throwIfAborted();
+  if(options.timeoutMs!==undefined&&!(Number.isFinite(options.timeoutMs)&&options.timeoutMs>0))throw deadlineError(options.timeoutMs);
 }
 function geometrySupervisor(){
   if(!runtime.supervisor){
@@ -69,7 +73,12 @@ function pollExecution(session){
   for(;;){const item=receiveMessageOnPort(session.supervisor.reply);if(!item)break;const target=session.supervisor.jobs.get(item.message.id);if(target)target.stopped=item.message;}
   for(;;){const item=receiveMessageOnPort(session.port);if(!item)break;const message=item.message;
     if(message.type==='geometry')void consumeGeometry(session,message);
-    else if(message.type==='progress'){session.progress=message.value;if(!session.cancelledAt)try{session.options.progress?.(message.value);}catch(error){cancelExecution(session,error);}}
+    else if(message.type==='progress'){
+      session.progress=message.value;
+      // Progress observes work; unlike onGeometry, it does not consume output
+      // or own acknowledgement. Neither callback failure form cancels a lease.
+      if(!session.cancelledAt)try{Promise.resolve(session.options.progress?.(message.value)).catch(()=>{});}catch{}
+    }
     else session.result=message;
   }
   if(performance.now()>=session.deadline&&!session.cancelledAt)cancelExecution(session,deadlineError(session.options.timeoutMs,session.progress));
@@ -154,11 +163,13 @@ async function executeLease({port,control}){
 }
 async function calculateGeometry(operation,input,context){
   switch(operation){
-    case 'geometry-artifact': {const {prepareGeometryArtifactValue}=await import('../print/geometry.mjs');return prepareGeometryArtifactValue(input.parameters,{previousGeometry:input.previousGeometry});}
+    case 'geometry-selections': {const {resolveGeometrySelections}=await import('./build.mjs');context.progress({stage:'Preparing geometry selections'});const selections=resolveGeometrySelections(input.geometry,input.requests);context.signal.throwIfAborted();return selections;}
+    case 'retained-material': {const {inspectRetainedMaterial}=await import('./solid-operations.mjs');return inspectRetainedMaterial(input.geometries,{...input.options,...context});}
+    case 'geometry-artifact': {const {prepareGeometryArtifactValue}=await import('../print/geometry.mjs');return prepareGeometryArtifactValue(input.parameters,{previousGeometry:input.previousGeometry,previousArtifact:input.previousArtifact,geometryArtifacts:input.geometryArtifacts,...context});}
     case 'surface-boolean': {const {constructSurfaceBoolean}=await import('./surface-boolean-kernel.mjs');return constructSurfaceBoolean(input.operation,input.operands,{...input.options,onPhase:context.progress});}
     case 'stl-repair': {const {prepareSTLRepairValue}=await import('./stl-repair.mjs');return prepareSTLRepairValue(input.source,{...input.options,...context});}
     case 'stl-source': {const {prepareSTLSourceValue}=await import('./import-stl.mjs');return prepareSTLSourceValue(input.source,{...input.options,...context});}
-    case 'blob-field': {const {compileBlobFieldValue}=await import('./blob-field-compile.mjs'),{transferGeometry}=await import('../print/geometry.mjs');return transferGeometry(await compileBlobFieldValue(input.field,{...input.options,...context}));}
+    case 'blob-field': {const {compileBlobFieldValue}=await import('./blob-field-compile.mjs'),{createGeometry,transferGeometryArtifact}=await import('../print/geometry.mjs');return transferGeometryArtifact(await createGeometry(await compileBlobFieldValue(input.field,{...input.options,...context})));}
     default: throw Error('Unknown Geometry calculation: '+operation);
   }
 }

@@ -27,7 +27,8 @@ transcript=''
 first_run='--first-run'
 report() {
   local program
-  [ -n "$diagnostic_program" ] || return 0
+  # A disposable trial reports nothing: the reporter reaches the canonical home's SAAM and release service.
+  [ -n "$diagnostic_program" ] && [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ] || return 0
   for program in "$diagnostic_program" "$target"; do
     [ -f "$program/packaging/installer-report.mjs" ] || continue
     "$program/runtime/node" "$program/packaging/installer-report.mjs" "$home" stage "$1" $first_run ${transcript:+--log "$transcript"} >/dev/null 2>&1 || true
@@ -242,7 +243,7 @@ main() {
   archive="$(cd "$source/.." && pwd)/app.tar"
   [ -f "$archive" ] || fail 'The release folder has no app.tar. Extract the whole download again.'
   version="$(sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$source/release.json" | head -n 1)"
-  [[ "$version" =~ ^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}$ ]] || fail 'The release has no valid version. Nothing was changed.'
+  [[ "$version" =~ ^[0-9]{1,6}\.[0-9]{1,6}\.[0-9]{1,6}(-[A-Za-z0-9_.]+)?$ ]] || fail 'The release has no valid version. Nothing was changed.'
   # Validate the payload before requesting native home authorization.
   local entries entry normalized manifest_entry='' archive_version required_files
   required_files='runtime/node release.json packaging/launch.mjs scripts/saam.mjs packaging/migrate-home.mjs packaging/client-setup.mjs packaging/installer-report.mjs packaging/macos/SAAM.icns packaging/macos/install.sh'
@@ -294,7 +295,7 @@ main() {
   # A release built on Windows carries no executable bits.
   chmod +x "$staging/runtime/node" "$staging"/packaging/macos/*.sh
   "$staging/runtime/node" -e 'const fs=require("fs");if(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).version!==process.argv[2])process.exit(1)' "$staging/release.json" "$version" \
-    || { rm -rf "$staging"; fail 'Candidate runtime or release verification failed. Nothing was changed.'; }
+    || { rm -rf "$staging"; fail 'Candidate runtime or release verification failed (its Node needs macOS 13.5 or later and this Mac'"'"'s architecture). Nothing was changed.'; }
   diagnostic_program="$staging"; report candidate-verified
   "$staging/runtime/node" "$staging/packaging/migrate-home.mjs" "$home" "$legacy_data" "$legacy_app" \
     || { report failed; diagnostic_program=''; rm -rf "$staging"; fail 'Migration failed; the earlier installation and legacy source data are preserved.'; }
@@ -384,17 +385,16 @@ LAUNCHER
   else
     echo 'Client setup is incomplete. Read the errors above and run saam call repair_client_setup from your desktop agent.'
   fi
-  echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app,'
-  echo 'and stop it with Quit in Studio or the SAAM menu. Restart clients to discover saam.'
+  [ -n "${SAAM_INSTALL_TEST_ROOT:-}" ] || echo 'Start it from the SAAM desktop shortcut or ~/Applications/SAAM.app; stop it with Quit in Studio or the SAAM menu.'
   echo "Your prints and settings stay in $(data_folder)."
   # Startup removes the completed workspace; SAAM owns first-run evidence from here.
   workspace_owner complete
+  # SAAM always runs on the canonical home, so a disposable trial never starts it.
+  if [ -n "${SAAM_INSTALL_TEST_ROOT:-}" ]; then echo 'Isolated trial: SAAM was not started.'; return; fi
   report starting; first_run=''
   echo 'Starting SAAM now. Studio opens in your browser; an alpha invite is optional.'
-  if [ -z "${SAAM_INSTALL_TEST_ROOT:-}" ]; then
-    if [ -z "$wait_pid" ]; then open -R "$bundle" || echo "SAAM is installed at $bundle."; fi
-    open "$bundle"
-  fi
+  if [ -z "$wait_pid" ]; then open -R "$bundle" || echo "SAAM is installed at $bundle."; fi
+  open "$bundle"
 }
 
 if [ "${1:-}" = '--prepare-home' ]; then

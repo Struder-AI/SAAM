@@ -8,9 +8,9 @@ metadata:
 # Bridging
 
 Call `apply_extension` with `extensionId:"bridging"` and
-`request:{id,base,target?}`. Select geometric Slice boundaries with
-`{slice:{assignment,index,part?},loop}`, or saved XYZ curves with
-`{geometry:id,normal?,readiness}`. Readiness is a separate manufacturing
+`request:{id,base,target?}`. Select [source edges](../../GEOMETRY.md#selecting-edges),
+including model edges, trimmed Slice boundaries and saved XYZ curves.
+Readiness is a separate manufacturing
 prerequisite; discovery uses `intersect_geometry.edges`. One closed boundary
 fills its interior; two bounds form a loft. Endpoints remain in 3D.
 This uses exactly the same geometry and prerequisites as a

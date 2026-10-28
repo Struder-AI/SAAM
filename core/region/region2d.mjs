@@ -194,13 +194,14 @@ export function scanlineFill(loops, spacingMm, angleDeg, options = {}) {
 }
 
 function scanlineFillComponent(loops, spacingMm, angleDeg, { originMm = [0, 0] } = {}) {
-  requireThat(spacingMm > 0, 'Fill spacing must be positive.');
+  requireThat(Number.isFinite(spacingMm)&&spacingMm > 0, 'Fill spacing must be finite and positive.');
   const frame=prepareScanlineFrame(loops,angleDeg,originMm);
   const rows=sampleScanlineRows(frame,spacingMm);
   return connectScanlineCells(rows);
 }
 
 export function prepareScanlineFrame(loops,angleDeg,originMm){
+  requireThat(Number.isFinite(angleDeg)&&Array.isArray(originMm)&&originMm.length===2&&originMm.every(Number.isFinite),'Fill frame needs a finite angle and chart origin.');
   const angle = angleDeg * Math.PI / 180, cos = Math.cos(angle), sin = Math.sin(angle);
   const toScan = p => {
     const x = p[0] - originMm[0], y = p[1] - originMm[1];
@@ -214,6 +215,7 @@ export function prepareScanlineFrame(loops,angleDeg,originMm){
 
 // Rows are consumed as they are sampled; retain no complete intermediate sweep.
 export function* sampleScanlineRows(frame,spacingMm){
+  requireThat(Number.isFinite(spacingMm)&&spacingMm>0,'Fill spacing must be finite and positive.');
   const {rotated,min,max,cos,sin,originMm}=frame;
   if(!Number.isFinite(min))return;
   const toWorld = p => [originMm[0] + p[0] * cos - p[1] * sin, originMm[1] + p[0] * sin + p[1] * cos];
@@ -229,7 +231,7 @@ export function* sampleScanlineRows(frame,spacingMm){
   }
 }
 
-export function connectScanlineCells(rows,{tolerance=PRINT_RESOLUTION_MM}={}){
+export function connectScanlineCells(rows,{tolerance=PRINT_RESOLUTION_MM,startReversed=false}={}){
   requireThat(Number.isFinite(tolerance)&&tolerance>=0,'Cell adjacency needs a finite nonnegative interval tolerance.');
   const cells=[];
   let previous=[];
@@ -260,5 +262,12 @@ export function connectScanlineCells(rows,{tolerance=PRINT_RESOLUTION_MM}={}){
     // Do not retain the adjacency graph; only the previous row is needed.
     previous=current.map(({left,right,cell})=>({left,right,cell,children:[]}));
   }
-  return cells;
+  return cells.map(cell=>cell.map((row,i)=>{
+    if(Boolean(i%2)===Boolean(startReversed)||!row||typeof row!=='object')return row;
+    const reversed={...row};
+    if(row.from&&row.to){reversed.from=row.to;reversed.to=row.from;}
+    for(const field of ['points','surfaceSamples','cellWidthsMm','sourceParameters','normals','chartPoints','referenceAlong','frameSamples','widthsMm','heightsMm','flowMultipliers','segmentMetadata'])
+      if(Array.isArray(row[field]))reversed[field]=row[field].toReversed();
+    return reversed;
+  }));
 }

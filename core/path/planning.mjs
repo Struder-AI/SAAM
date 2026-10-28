@@ -5,6 +5,7 @@ import {CONTEXT_KEYS,sameContext} from './action-context.mjs';
 import {requireThat,distance} from '../private/toolpath/numeric.mjs';
 import {PRINT_RESOLUTION_MM} from '../dimensions.mjs';
 import {validatePose,samePose} from './pose.mjs';
+import {validateStationaryAction} from './injection.mjs';
 
 export function createPlanningState({start,process,generatorVersion,motion=null,retracted=false,selection=null,selections=null,sourcePathId=null}) {
   requireThat(Array.isArray(start)&&start.length===3&&start.every(Number.isFinite),'Path planning needs a 3D start position.');
@@ -78,8 +79,9 @@ export function planNozzle(state,targetC){
   if(state.nozzleC===targetC)return planningResult(state);
   return appendAction({...state,nozzleC:targetC},{kind:'temperature',targetC,phase:state.phase,layer:state.layer,operation:state.operationId});
 }
-export function planExtrusion(state,volumeMm3,flowMm3S){
-  requireThat(!state.retraction&&Number.isFinite(volumeMm3)&&volumeMm3>0&&Number.isFinite(flowMm3S)&&flowMm3S>0,'Invalid stationary extrusion.');
+export function planExtrusion(state,volumeMm3,flowMm3S,holdSeconds=0){
+  requireThat(!state.retraction,'Invalid retracted stationary instruction.');
+  validateStationaryAction({volumeMm3,flowMm3S,holdSeconds});
   return appendAction({...state,parked:false},
     {kind:'inject',operationId:state.operationId,phase:state.phase,layer:state.layer,layerId:state.layerId});
 }
@@ -104,8 +106,7 @@ export function planDwell(state,seconds) {
 
 export function planTransfer(state,target,targetPose){
   validatePose(targetPose);
-  // Endpoint intent is realized by Export.prepareMachineExecution, which solves
-  // selected-nozzle access and routes every transfer against deposited ranges.
+  // One straight leg of a scheduled route (compose.mjs planRoutedTransfer).
   return planMove(state,target,state.process.travelSpeedMmS,0,{pose:targetPose});
 }
 export function materializeActions(chunks){const collector=new ActionAccumulator();collector.add({chunks});return collector.finish().append;}
@@ -119,9 +120,10 @@ export function planningPath(state,chunks,summary={},completion){
 function planTravelCurve(input,to,speed,pose,seconds,durationSeconds){
   const from=input.position,fromPose=input.pose,length=distance(from,to);
   const curveId='travel:'+input.nextTravelId;
-  const identical=fromPose.toolAxis.every((v,k)=>v===pose.toolAxis[k])&&fromPose.toolUp.every((v,k)=>v===pose.toolUp[k]);
+  const identical=fromPose.toolAxis.every((v,k)=>v===pose.toolAxis[k]);
   const curve={geometry:length?{kind:'polyline',points:[from,[...to]]}:{kind:'point',point:from},
-    profiles:{speedMmS:length>0&&durationSeconds!==undefined?length/seconds:speed,pose:identical?pose:{interpolation:'frame',knots:[[0,fromPose],[1,pose]]}}};
+    profiles:{speedMmS:length>0&&durationSeconds!==undefined?length/seconds:speed,
+      toolAxis:identical?pose.toolAxis:{interpolation:'slerp',knots:[[0,fromPose.toolAxis],[1,pose.toolAxis]]}}};
   const state={...input,nextTravelId:input.nextTravelId+1,position:[...to],pose,parked:false,
     stats:{...input.stats,travelMm:input.stats.travelMm+length}};
   return appendAction(state,{kind:'travel',curveId,from:0,to:1,curve,
@@ -147,7 +149,7 @@ export function planDepositRange(input,source,reader,course,prepared=null){
 }
 
 function compactExecution(actions){
-  const motionCurves={},execution=[],cursor={context:null};
+  const motionCurves={},execution=[],cursor={context:null,nextEntityIndex:0};
   for(const action of actions){
     const context=Object.fromEntries(CONTEXT_KEYS.filter(key=>action[key]!==undefined).map(key=>[key,action[key]]));
     if(!cursor.context||!sameContext(cursor.context,context)){
@@ -156,7 +158,9 @@ function compactExecution(actions){
     }
     const physical=Object.fromEntries(Object.entries(action).filter(([key])=>key!=='curve'&&!CONTEXT_KEYS.includes(key)));
     if(action.kind==='travel')motionCurves[action.curveId]=action.curve;
-    execution.push(physical);
+    const entity=['deposit','inject','travel'].includes(action.kind);
+    execution.push(entity?{...physical,entityId:action.kind+':'+JSON.stringify(action.kind==='deposit'?[action.courseId,action.from,action.to,Boolean(action.reverse)]:
+      action.kind==='inject'?[action.operationId]:[action.curveId]),scheduleIndex:cursor.nextEntityIndex++}:physical);
   }
   return {motionCurves,execution};
 }

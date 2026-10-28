@@ -1,5 +1,6 @@
 import {parse} from 'acorn';
 import { readFile, readdir, stat } from 'node:fs/promises';
+import {existsSync} from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -69,7 +70,9 @@ for (const entry of entries) {
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding:'utf8' }).split('\0').filter(Boolean);
 const privateFiles = tracked.filter(path => /^(Prints|\.local|\.saam)\//i.test(path));
 if (privateFiles.length) errors.push('Personal files tracked: '+privateFiles.join(', '));
-for (const example of ['Prints/check/plan.json', 'prints/check/plan.json', '.local/architecture-map/index.html', '.saam/session.json']) {
+const providerFiles=tracked.filter(path=>/^(relay|adapters\/mcp)\//i.test(path)&&existsSync(resolve(root,path)));
+if(providerFiles.length)errors.push('Provider implementation belongs in the separate private project: '+providerFiles.join(', '));
+for (const example of ['Prints/check/plan.json', 'prints/check/plan.json', '.local/architecture-map/index.html', '.saam/session.json','relay/src/worker.mjs','adapters/mcp/src/server.mjs']) {
   try { execFileSync('git', ['check-ignore', '--no-index', '-q', example], { cwd:root }); }
   catch { errors.push('Missing ignore rule for '+example); }
 }

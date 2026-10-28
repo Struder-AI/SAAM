@@ -41,7 +41,7 @@ export function gridfinityParameters(input={},toleranceMm){
   return p;
 }
 
-// -> {geometry, notes}: the construction's notes; no material is empty geometry with a note.
+// -> {solid, notes}: the construction's notes; no material is empty geometry with a note.
 export async function compileGridfinity(input={}, {constructGeometry,roundedRectangleProfile,loftProfiles,dimensions}={}){
   requireThat([constructGeometry,roundedRectangleProfile,loftProfiles].every(value=>typeof value==='function'),'Gridfinity needs shared Geometry construction and profile operations.');
   const p=gridfinityParameters(input,dimensions.FEATURE_TOLERANCE_MM);
@@ -105,5 +105,5 @@ export async function compileGridfinity(input={}, {constructGeometry,roundedRect
       }
     }
     const [built]=await constructGeometry([solid],{toleranceMm:p.toleranceMm});
-    return {geometry:{shape:'gridfinity',parameters:p,solid:built.geometry},notes:[...built.notes,...(built.empty?['The Gridfinity construction leaves no material.']:[])]};
+    return {solid:built.geometry,notes:[...built.notes,...(built.empty?['The Gridfinity construction leaves no material.']:[])]};
 }

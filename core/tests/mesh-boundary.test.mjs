@@ -9,7 +9,8 @@ import {boxMesh,ringMesh} from './fixtures/mesh.mjs';
 import {defaults} from '../print/plan.mjs';
 import {loadMachine} from '../machine/profile.mjs';
 import {generatePath} from '../print/generate.mjs';
-import {schedulePath} from '../path/schedule.mjs';
+import {scheduled,actionsOf} from './fixtures/scheduled.mjs';
+import {pathSummary} from '../path/curve-path.mjs';
 import {rhino} from '../geom/runtime.mjs';
 import {buildShell} from '../geom/build.mjs';
 import {splineBox} from './fixtures/spline-shapes.mjs';
@@ -51,9 +52,9 @@ test('a floating final layer is deposited identically by mesh and spline slices'
   const machine=loadMachine(),lastLayers=[];
   for(const geometry of [boxMesh(8,8,6),splineBox({runMm:8,widthMm:8,heightMm:6})]){
     const plan=defaults(machine);plan.geometry=geometry;plan.process.minimumLayerSeconds=0;
-    const path=schedulePath(await generatePath(plan,machine)),deposition=path.actions.filter(a=>a.kind==='move'&&a.volumeMm3>0);
+    const path=scheduled(await generatePath(plan,machine),{machine,plan}),deposition=actionsOf(path).filter(a=>a.kind==='move'&&a.volumeMm3>0);
     lastLayers.push(Math.max(...deposition.map(a=>a.to[2])));
-    assert.equal(path.summary.slices.layers,30);assert.equal(path.summary.slices.instances[0].skippedLayers,0);
+    assert.equal(pathSummary(path).slices.layers,30);assert.equal(pathSummary(path).slices.instances[0].skippedLayers,0);
   }
   assert.equal(lastLayers[0],lastLayers[1]);assert.ok(Math.abs(lastLayers[0]-6)<1e-12);
 });

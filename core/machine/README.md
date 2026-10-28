@@ -11,6 +11,24 @@ The renderer receives simple rigid components and world transforms; it has no
 machine-specific solvers. [Study tools](../../tools/kinematics/README.md) open
 nominal mechanisms in the same Studio.
 
+## Profile and defaults queries
+
+`query-operations.mjs` owns installed machine-list projection and remembered/default
+settings assembly. The caller supplies the neutral recipe base as a value from
+Bundle; Settings receives no Bundle resolver. Store admission precedes profile
+selection, and queries create no setup files. The approved `settings-profile-catalog`
+query reads selected data declarations from Extensions, preserving local override
+provenance and duplicate/skipped findings. It does not execute entries or authorize
+process/adapter providers; those seams remain separate.
+
+`settings-memory.mjs` owns remembered setup storage. After complete program
+preparation, Bundle sends the captured machine ID, setup and preparation receipt;
+Settings serializes its atomic write and reports completion or failure. It runs
+no Bundle callback under the lock. Remembering and Bundle receipt recording are
+independent optional steps: either failure preserves the prepared program.
+New selections query this store without creating files; saved parts retain their
+own settings. Download retries reuse the artifact without remembering again.
+
 ## Source and installation
 
 [path-time.mjs](path-time.mjs) evaluates one path time for both the drawn path

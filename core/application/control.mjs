@@ -12,6 +12,15 @@ import {userInfo} from 'node:os';
 // Control probes and shutdown acknowledgements share the existing three-second liveness window.
 export const controlProbeMs=3000,controlWaitMs=35000;
 
+export function currentUsername(){
+  try{return userInfo().username;}
+  catch(cause){
+    const message=cause.message??String(cause),syscall=cause.syscall&&!message.includes(cause.syscall)?'; '+cause.syscall:'';
+    const error=Error('SAAM cannot read the current OS user for local application ownership checks'+(cause.code?' ('+cause.code+')':'')+': '+message+syscall,{cause});
+    if(cause.code!==undefined)error.code=cause.code;
+    throw error;
+  }
+}
 export function applicationPort(home=canonicalHome()){
   const identity=process.platform==='win32'?resolve(home).toLowerCase():resolve(home);
   return 49152+createHash('sha256').update(identity).digest().readUInt16BE(0)%16384;
@@ -52,7 +61,7 @@ export async function leaseHolder(port){
 export async function runningInstance(){
   const existing=await readInstance();
   if(!existing)return null;
-  if(existing.user&&existing.user!==userInfo().username)throw Error('SAAM is running for '+existing.user+'.');
+  if(existing.user&&existing.user!==currentUsername())throw Error('SAAM is running for '+existing.user+'.');
   try{await controlRequest(existing,{command:'ping'},{waitMs:controlProbeMs});return existing;}
   catch(error){if(error.result?.code==='RUNTIME_CONTRACT')throw error;return null;}
 }
